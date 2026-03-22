@@ -141,7 +141,7 @@ export async function createAppointment(input: unknown) {
       shop_id: payload.shopId,
       name: customServiceName,
       price: 0,
-      price_type: "fixed",
+      price_type: "starting",
       duration_minutes: 60,
       is_active: true,
       created_at: nowIso(),

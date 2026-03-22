@@ -1,4 +1,5 @@
-﻿import type { CustomerPageSettings } from "@/types/domain";
+﻿import { decodeUnicodeEscapes } from "@/lib/utils";
+import type { CustomerPageSettings } from "@/types/domain";
 
 export const defaultCustomerPageSettings: CustomerPageSettings = {
   shop_name: "포근한 발바닥 미용실",
@@ -32,25 +33,36 @@ function normalizeFontScale(value: string | null | undefined): CustomerPageSetti
   return value === "compact" ? value : "comfortable";
 }
 
+function normalizeText(value: string | null | undefined, fallback: string) {
+  const decoded = decodeUnicodeEscapes(value).trim();
+  return decoded || fallback;
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  return decodeUnicodeEscapes(value).trim();
+}
+
 export function normalizeCustomerPageSettings(
   settings: Partial<CustomerPageSettings> | null | undefined,
   fallbackName?: string,
   fallbackTagline?: string,
 ): CustomerPageSettings {
   return {
-    shop_name: settings?.shop_name?.trim() || fallbackName || defaultCustomerPageSettings.shop_name,
-    tagline: settings?.tagline?.trim() || fallbackTagline || defaultCustomerPageSettings.tagline,
+    shop_name: normalizeText(settings?.shop_name, fallbackName || defaultCustomerPageSettings.shop_name),
+    tagline: normalizeText(settings?.tagline, fallbackTagline || defaultCustomerPageSettings.tagline),
     hero_image_url: settings?.hero_image_url?.trim() || "",
     primary_color: normalizeColor(settings?.primary_color),
-    notices: settings?.notices ? Array.from({ length: 3 }, (_, index) => settings.notices?.[index]?.trim() || "") : defaultCustomerPageSettings.notices,
-    operating_hours_note: settings?.operating_hours_note?.trim() || defaultCustomerPageSettings.operating_hours_note,
-    holiday_notice: settings?.holiday_notice?.trim() || defaultCustomerPageSettings.holiday_notice,
-    parking_notice: settings && "parking_notice" in settings ? settings.parking_notice?.trim() || "" : defaultCustomerPageSettings.parking_notice,
+    notices: settings?.notices
+      ? Array.from({ length: 3 }, (_, index) => normalizeOptionalText(settings.notices?.[index]))
+      : defaultCustomerPageSettings.notices,
+    operating_hours_note: normalizeText(settings?.operating_hours_note, defaultCustomerPageSettings.operating_hours_note),
+    holiday_notice: normalizeText(settings?.holiday_notice, defaultCustomerPageSettings.holiday_notice),
+    parking_notice: settings && "parking_notice" in settings ? normalizeOptionalText(settings.parking_notice) : defaultCustomerPageSettings.parking_notice,
     kakao_inquiry_url: settings?.kakao_inquiry_url?.trim() || "",
     show_notices: settings?.show_notices ?? defaultCustomerPageSettings.show_notices,
     show_parking_notice: settings?.show_parking_notice ?? defaultCustomerPageSettings.show_parking_notice,
     show_services: settings?.show_services ?? defaultCustomerPageSettings.show_services,
-    booking_button_label: settings?.booking_button_label?.trim() || defaultCustomerPageSettings.booking_button_label,
+    booking_button_label: normalizeText(settings?.booking_button_label, defaultCustomerPageSettings.booking_button_label),
     show_kakao_inquiry: settings?.show_kakao_inquiry ?? defaultCustomerPageSettings.show_kakao_inquiry,
     font_preset: normalizeFontPreset(settings?.font_preset),
     font_scale: normalizeFontScale(settings?.font_scale),

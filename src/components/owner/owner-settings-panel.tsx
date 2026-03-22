@@ -1,11 +1,10 @@
 ﻿"use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { addDate, currentDateInTimeZone, formatServicePrice } from "@/lib/utils";
-import { ownerHomeCopy } from "@/lib/owner-home-copy";
+import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice } from "@/lib/utils";
 import type { BootstrapPayload, Service } from "@/types/domain";
 
 type SettingsPanelProps = {
@@ -20,46 +19,69 @@ type SaveFeedback = {
   message: string;
 };
 
+type PriceType = "fixed" | "starting";
+
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
+function monthCursorFromDate(date: string) {
+  return date.slice(0, 7);
+}
+
+function shiftMonth(cursor: string, amount: number) {
+  const [year, month] = cursor.split("-").map(Number);
+  const next = new Date(year, month - 1 + amount, 1);
+  const nextYear = next.getFullYear();
+  const nextMonth = String(next.getMonth() + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
 export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSaveCustomerPageSettings }: SettingsPanelProps) {
-  const [name, setName] = useState(data.shop.name);
+  const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
-  const [address, setAddress] = useState(data.shop.address);
-  const [description, setDescription] = useState(data.shop.description);
+  const [address, setAddress] = useState(decodeUnicodeEscapes(data.shop.address));
+  const [description, setDescription] = useState(decodeUnicodeEscapes(data.shop.description));
   const [regularClosedDays, setRegularClosedDays] = useState<number[]>(data.shop.regular_closed_days);
   const [temporaryClosedDates, setTemporaryClosedDates] = useState<string[]>(data.shop.temporary_closed_dates);
   const [pendingClosedDate, setPendingClosedDate] = useState("");
   const [isClosedDatePickerOpen, setIsClosedDatePickerOpen] = useState(false);
-  const [closedDateMonthCursor, setClosedDateMonthCursor] = useState((data.shop.temporary_closed_dates[0] ?? currentDateInTimeZone()).slice(0, 7));
-  const [operatingHoursNote, setOperatingHoursNote] = useState(data.shop.customer_page_settings?.operating_hours_note ?? "");
-  const [holidayNotice, setHolidayNotice] = useState(data.shop.customer_page_settings?.holiday_notice ?? "");
-  const [parkingNotice, setParkingNotice] = useState(data.shop.customer_page_settings?.parking_notice ?? "");
+  const [closedDateMonthCursor, setClosedDateMonthCursor] = useState(monthCursorFromDate(data.shop.temporary_closed_dates[0] ?? currentDateInTimeZone()));
+  const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
+  const [holidayNotice, setHolidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
+  const [parkingNotice, setParkingNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.parking_notice ?? ""));
   const [notices, setNotices] = useState<string[]>([
-    data.shop.customer_page_settings?.notices?.[0] ?? "",
-    data.shop.customer_page_settings?.notices?.[1] ?? "",
-    data.shop.customer_page_settings?.notices?.[2] ?? "",
+    decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[0] ?? ""),
+    decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[1] ?? ""),
+    decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[2] ?? ""),
   ]);
   const [showNotices, setShowNotices] = useState(data.shop.customer_page_settings?.show_notices ?? true);
   const [showParkingNotice, setShowParkingNotice] = useState(data.shop.customer_page_settings?.show_parking_notice ?? true);
-  const [newService, setNewService] = useState({ name: "", price: "", priceType: "fixed" as "fixed" | "starting", duration: "60" });
+  const [newService, setNewService] = useState({
+    name: "",
+    price: "",
+    duration: "60",
+    priceType: "starting" as PriceType,
+    isActive: true,
+  });
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editingServiceName, setEditingServiceName] = useState("");
   const [editingServicePrice, setEditingServicePrice] = useState("");
-  const [editingServicePriceType, setEditingServicePriceType] = useState<"fixed" | "starting">("fixed");
+  const [editingServiceDuration, setEditingServiceDuration] = useState("");
+  const [editingServicePriceType, setEditingServicePriceType] = useState<PriceType>("starting");
+  const [editingServiceIsActive, setEditingServiceIsActive] = useState(true);
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const [openSection, setOpenSection] = useState<"shop" | "closures" | "services" | null>(null);
 
   const notificationSettings = useMemo(
     () => ({
       enabled: data.shop.notification_settings.enabled,
-      revisitEnabled: data.shop.notification_settings.revisit_enabled,
-      bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-      bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
-      bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
-      bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
-      groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
-      groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
+      revisit_enabled: data.shop.notification_settings.revisit_enabled,
+      booking_confirmed_enabled: data.shop.notification_settings.booking_confirmed_enabled,
+      booking_rejected_enabled: data.shop.notification_settings.booking_rejected_enabled,
+      booking_cancelled_enabled: data.shop.notification_settings.booking_cancelled_enabled,
+      booking_rescheduled_enabled: data.shop.notification_settings.booking_rescheduled_enabled,
+      grooming_almost_done_enabled: data.shop.notification_settings.grooming_almost_done_enabled,
+      grooming_completed_enabled: data.shop.notification_settings.grooming_completed_enabled,
     }),
     [data.shop.notification_settings],
   );
@@ -73,9 +95,10 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
   );
 
   const closedDateMonthLabel = `${Number(closedDateMonthCursor.slice(0, 4))}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
+
   const closedDateMonthCells = useMemo(() => {
-    const monthStart = closedDateMonthCursor + "-01";
-    const startDate = new Date(monthStart + "T00:00:00");
+    const monthStart = `${closedDateMonthCursor}-01`;
+    const startDate = new Date(`${monthStart}T00:00:00`);
     const startWeekday = startDate.getDay();
     const daysInMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
     const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
@@ -95,14 +118,18 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
     setEditingServiceId(service.id);
     setEditingServiceName(service.name);
     setEditingServicePrice(String(service.price));
-    setEditingServicePriceType(service.price_type ?? "fixed");
+    setEditingServiceDuration(String(service.duration_minutes));
+    setEditingServicePriceType(service.price_type ?? "starting");
+    setEditingServiceIsActive(service.is_active);
   }
 
   function stopEditingService() {
     setEditingServiceId(null);
     setEditingServiceName("");
     setEditingServicePrice("");
-    setEditingServicePriceType("fixed");
+    setEditingServiceDuration("");
+    setEditingServicePriceType("starting");
+    setEditingServiceIsActive(true);
   }
 
   async function saveBasicInfo() {
@@ -149,30 +176,69 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
           }),
         ),
       ]);
+
       setBasicInfoFeedback({ type: "success", message: "매장 기본 정보가 저장되었어요." });
     } catch (error) {
-      setBasicInfoFeedback({ type: "error", message: error instanceof Error ? error.message : "매장 기본 정보를 저장하지 못했습니다." });
+      setBasicInfoFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "매장 기본 정보를 저장하지 못했어요.",
+      });
     } finally {
       setSavingBasicInfo(false);
     }
   }
 
+  async function handleServiceSave(service: Service) {
+    await Promise.resolve(
+      onSaveService({
+        shopId: data.shop.id,
+        serviceId: service.id,
+        name: editingServiceName,
+        price: Number(editingServicePrice),
+        priceType: editingServicePriceType,
+        durationMinutes: Number(editingServiceDuration),
+        isActive: editingServiceIsActive,
+      }),
+    );
+    stopEditingService();
+  }
+
+  async function handleServiceCreate() {
+    await Promise.resolve(
+      onSaveService({
+        shopId: data.shop.id,
+        name: newService.name,
+        price: Number(newService.price),
+        priceType: newService.priceType,
+        durationMinutes: Number(newService.duration),
+        isActive: newService.isActive,
+      }),
+    );
+    setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
+  }
+
   return (
     <section className="space-y-3.5 p-4">
-      <SettingsCard title="매장 기본 정보">
+      <SettingsCard title="매장 기본 정보" open={openSection === "shop"} onToggle={() => setOpenSection((prev) => (prev === "shop" ? null : "shop"))}>
         <div className="space-y-2">
-          <Field label="매장명"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="한줄 소개"><textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} /></Field>
+          <Field label="매장명">
+            <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="한줄 소개">
+            <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} />
+          </Field>
           <div className="grid gap-2.5 sm:grid-cols-2">
-            <Field label="연락처"><input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
-            <Field label="주소"><input className="field" value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
+            <Field label="연락처">
+              <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
+            </Field>
+            <Field label="주소">
+              <input className="field" value={address} onChange={(event) => setAddress(event.target.value)} />
+            </Field>
           </div>
           <Field label="운영시간">
             <textarea className="field min-h-20" value={operatingHoursNote} onChange={(event) => setOperatingHoursNote(event.target.value)} placeholder="예: 월-토 10:00 - 19:00, 일요일 휴무" />
           </Field>
-          <Field label="휴무 안내">
-            <textarea className="field min-h-20" value={holidayNotice} onChange={(event) => setHolidayNotice(event.target.value)} placeholder="예: 매주 일요일 휴무, 임시 휴무는 공지사항으로 안내드려요." />
-          </Field>
+
           <Field label="주차 안내">
             <div className="space-y-2">
               <ToggleRow label="주차 안내 노출" checked={showParkingNotice} onChange={setShowParkingNotice} />
@@ -190,7 +256,13 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
             </div>
           </Field>
           {basicInfoFeedback.type !== "idle" ? (
-            <div className={`rounded-[16px] px-4 py-2.5 text-sm ${basicInfoFeedback.type === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-red-200 bg-red-50 text-red-700"}`}>
+            <div
+              className={`rounded-[16px] px-4 py-2.5 text-sm ${
+                basicInfoFeedback.type === "success"
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
               {basicInfoFeedback.message}
             </div>
           ) : null}
@@ -200,7 +272,7 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
         </div>
       </SettingsCard>
 
-      <SettingsCard title="휴무일 지정">
+      <SettingsCard title="휴무일 지정" open={openSection === "closures"} onToggle={() => setOpenSection((prev) => (prev === "closures" ? null : "closures"))}>
         <Field label="정기 휴무">
           <div className="grid grid-cols-4 gap-2">
             {weekdayLabels.map((label, index) => {
@@ -209,14 +281,23 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setRegularClosedDays((prev) => (prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index].sort((a, b) => a - b)))}
-                  className={`rounded-[14px] border px-3 py-3 text-sm font-semibold ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"}`}
+                  onClick={() =>
+                    setRegularClosedDays((prev) =>
+                      prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index].sort((a, b) => a - b),
+                    )
+                  }
+                  className={`rounded-[14px] border px-3 py-3 text-sm font-semibold ${
+                    active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"
+                  }`}
                 >
                   {label}
                 </button>
               );
             })}
           </div>
+        </Field>
+        <Field label="휴무 안내 문구">
+          <textarea className="field min-h-20" value={holidayNotice} onChange={(event) => setHolidayNotice(event.target.value)} placeholder="예: 매주 화요일은 휴무입니다" />
         </Field>
         <Field label="특정 휴무일">
           <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -226,7 +307,7 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                 className="flex flex-1 items-center justify-between rounded-[14px] border border-[var(--border)] bg-white px-3 py-3 text-sm font-semibold text-[var(--text)]"
                 onClick={() => setIsClosedDatePickerOpen(true)}
               >
-                <span>{pendingClosedDate ? pendingClosedDate : "날짜 선택"}</span>
+                <span>{pendingClosedDate || "날짜 선택"}</span>
                 <CalendarDays className="h-4 w-4 text-[var(--muted)]" />
               </button>
               <button
@@ -251,72 +332,125 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                     className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
                     onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
                   >
-                    {date} ×
+                    {date} 삭제
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-[var(--muted)]">등록된 특정 휴무일이 없어요.</p>
+              <p className="text-sm text-[var(--muted)]">등록된 휴무일이 없어요.</p>
             )}
           </div>
         </Field>
       </SettingsCard>
 
-      <SettingsCard title="서비스 관리">
-        <div className="space-y-2">
+      <SettingsCard title="서비스 관리" open={openSection === "services"} onToggle={() => setOpenSection((prev) => (prev === "services" ? null : "services"))}>
+        <div className="space-y-2.5">
           {data.services.map((service) => {
             const isEditing = editingServiceId === service.id;
             return (
               <div key={service.id} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1">
-                    {isEditing ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <input className="field" value={editingServiceName} onChange={(event) => setEditingServiceName(event.target.value)} placeholder="서비스명" />
-                        <input className="field" value={editingServicePrice} onChange={(event) => setEditingServicePrice(event.target.value)} placeholder="가격" />
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-bold">{service.name}</p>
-                        <p className="text-xs text-[var(--muted)]">{formatServicePrice(service.price, service.price_type ?? "fixed")} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
-                      </div>
-                    )}
-                  </div>
-                  <button className="shrink-0 text-xs font-semibold text-[var(--accent)]" onClick={() => onSaveService({ shopId: data.shop.id, serviceId: service.id, name: isEditing ? editingServiceName : service.name, price: isEditing ? Number(editingServicePrice) : service.price, priceType: isEditing ? editingServicePriceType : (service.price_type ?? "fixed"), durationMinutes: service.duration_minutes, isActive: !service.is_active })}>
-                    {service.is_active ? "비활성화" : "활성화"}
-                  </button>
-                </div>
                 {isEditing ? (
-                  <div className="mt-2.5 grid grid-cols-2 gap-2">
-                    <SolidButton onClick={() => { onSaveService({ shopId: data.shop.id, serviceId: service.id, name: editingServiceName, price: Number(editingServicePrice), priceType: editingServicePriceType, durationMinutes: service.duration_minutes, isActive: service.is_active }); stopEditingService(); }} disabled={!editingServiceName || !editingServicePrice}>저장</SolidButton>
-                    <OutlineButton onClick={stopEditingService}>취소</OutlineButton>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-[var(--muted)]">서비스 이름</p>
+                      <input className="field" value={editingServiceName} onChange={(event) => setEditingServiceName(event.target.value)} placeholder="서비스 이름 입력" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-[var(--muted)]">가격</p>
+                      <div className="flex items-center gap-2">
+                        <input className="field flex-1" value={editingServicePrice} onChange={(event) => setEditingServicePrice(event.target.value)} placeholder="최소 가격 입력" />
+                        <span className="text-sm font-semibold text-[var(--muted)]">원</span>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                        <input type="checkbox" checked={editingServicePriceType === "starting"} onChange={(event) => setEditingServicePriceType(event.target.checked ? "starting" : "fixed")} />
+                        <span>시작가로 표시하기</span>
+                      </label>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-[var(--muted)]">예상 소요시간</p>
+                      <div className="flex items-center gap-2">
+                        <input className="field flex-1" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)} placeholder="소요 시간 입력 (분)" />
+                        <span className="text-sm font-semibold text-[var(--muted)]">분</span>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                      <input type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
+                      <span>소비자 화면에 노출</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <OutlineButton onClick={stopEditingService}>취소</OutlineButton>
+                      <SolidButton onClick={() => handleServiceSave(service)} disabled={!editingServiceName || !editingServicePrice || !editingServiceDuration}>
+                        저장
+                      </SolidButton>
+                    </div>
                   </div>
                 ) : (
-                  <button className="mt-3 rounded-[14px] border border-[var(--border)] bg-white px-3 py-[11px] text-sm font-semibold text-[var(--muted)]" onClick={() => startEditingService(service)}>서비스 수정</button>
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-bold text-[var(--text)]">{service.name}</p>
+                          {!service.is_active ? <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]">비노출</span> : null}
+                        </div>
+                      </div>
+                      <button className="shrink-0 text-sm font-semibold text-[var(--accent)]" onClick={() => startEditingService(service)}>
+                        수정
+                      </button>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      가격 {formatServicePrice(service.price, service.price_type ?? "starting")} / 예상 소요시간 {service.duration_minutes}분
+                    </p>
+                  </>
                 )}
               </div>
             );
           })}
+
           <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
-            <div className="grid grid-cols-3 gap-2">
-              <input className="field" placeholder="서비스명" value={newService.name} onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))} />
-              <input className="field" placeholder="가격" value={newService.price} onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))} />
-              <input className="field" placeholder="분" value={newService.duration} onChange={(event) => setNewService((prev) => ({ ...prev, duration: event.target.value }))} />
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-[var(--muted)]">서비스 이름</p>
+                <input className="field" placeholder="서비스 이름 입력" value={newService.name} onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-[var(--muted)]">가격</p>
+                <div className="flex items-center gap-2">
+                  <input className="field flex-1" placeholder="최소 가격 입력" value={newService.price} onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))} />
+                  <span className="text-sm font-semibold text-[var(--muted)]">원</span>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                  <input type="checkbox" checked={newService.priceType === "starting"} onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))} />
+                  <span>시작가로 표시하기</span>
+                </label>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-[var(--muted)]">예상 소요시간</p>
+                <div className="flex items-center gap-2">
+                  <input className="field flex-1" placeholder="소요 시간 입력 (분)" value={newService.duration} onChange={(event) => setNewService((prev) => ({ ...prev, duration: event.target.value }))} />
+                  <span className="text-sm font-semibold text-[var(--muted)]">분</span>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
+                <span>소비자 화면에 노출</span>
+              </label>
+              <button className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-3 py-[11px] text-sm font-semibold text-white" onClick={() => void handleServiceCreate()}>
+                서비스 추가
+              </button>
             </div>
-            <button className="mt-3 w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-3 py-[11px] text-sm font-semibold text-white" onClick={() => onSaveService({ shopId: data.shop.id, name: newService.name, price: Number(newService.price), priceType: newService.priceType, durationMinutes: Number(newService.duration), isActive: true })}>서비스 추가</button>
           </div>
         </div>
       </SettingsCard>
 
       {isClosedDatePickerOpen ? (
         <ClosedDatePickerSheet
-          monthCursor={closedDateMonthCursor}
           monthLabel={closedDateMonthLabel}
+          monthCursor={closedDateMonthCursor}
           selectedDate={pendingClosedDate}
           cells={closedDateMonthCells}
           onClose={() => setIsClosedDatePickerOpen(false)}
-          onPrevMonth={() => setClosedDateMonthCursor(addDate(closedDateMonthCursor + "-01", -1).slice(0, 7))}
-          onNextMonth={() => setClosedDateMonthCursor(addDate(closedDateMonthCursor + "-28", 4).slice(0, 7))}
+          onPrevMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, -1))}
+          onNextMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, 1))}
           onSelectDate={setPendingClosedDate}
         />
       ) : null}
@@ -349,16 +483,20 @@ function ClosedDatePickerSheet({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 선택</h3>
-            <p className="mt-1 text-xs text-[var(--muted)]">예약 조회 달력처럼 날짜를 골라 추가하세요.</p>
+            <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 추가</h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">휴무로 둘 날짜를 선택해 주세요.</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
         <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-4 flex items-center justify-between">
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onPrevMonth}>
+              <ChevronLeft className="h-4 w-4" />
+            </button>
             <p className="text-sm font-semibold text-[var(--text)]">{monthLabel}</p>
-            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" className="rounded-full border border-[var(--border)] bg-white p-2 text-[var(--text)]" onClick={onNextMonth}>
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
           <div className="mb-2 grid grid-cols-7 gap-2">
             {weekdayLabels.map((label) => (
@@ -367,14 +505,16 @@ function ClosedDatePickerSheet({
           </div>
           <div className="grid grid-cols-7 gap-2">
             {cells.map((date, index) => {
-              if (!date) return <div key={monthCursor + index} className="h-11" />;
+              if (!date) return <div key={`${monthCursor}-${index}`} className="h-11" />;
               const active = selectedDate === date;
               return (
                 <button
                   key={date}
                   type="button"
                   onClick={() => onSelectDate(date)}
-                  className={`h-11 rounded-[16px] text-sm font-semibold transition ${active ? "bg-[var(--accent)] text-white" : "border border-[var(--border)] bg-white text-[var(--text)]"}`}
+                  className={`h-11 rounded-[16px] text-sm font-semibold transition ${
+                    active ? "bg-[var(--accent)] text-white" : "border border-[var(--border)] bg-white text-[var(--text)]"
+                  }`}
                 >
                   {Number(date.slice(8, 10))}
                 </button>
@@ -387,22 +527,57 @@ function ClosedDatePickerSheet({
   );
 }
 
-function SettingsCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-[24px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-soft)]"><div className="mb-2"><h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)]">{title}</h2></div><div className="space-y-2">{children}</div></section>;
+function SettingsCard({ title, children, open = true, onToggle }: { title: string; children: ReactNode; open?: boolean; onToggle?: () => void }) {
+  return (
+    <section className="rounded-[24px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-soft)]">
+      {onToggle ? (
+        <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
+          <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)]">{title}</h2>
+          <ChevronDown className={`h-4 w-4 text-[var(--muted)] transition ${open ? "rotate-180" : "rotate-0"}`} />
+        </button>
+      ) : (
+        <div className="mb-2">
+          <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)]">{title}</h2>
+        </div>
+      )}
+      {open ? <div className="space-y-2 pt-2">{children}</div> : null}
+    </section>
+  );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block text-sm font-semibold text-[var(--text)]"><span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>{children}</label>;
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block text-sm font-semibold text-[var(--text)]">
+      <span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>
+      {children}
+    </label>
+  );
 }
 
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return <label className="flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3"><p className="text-sm font-semibold text-[var(--text)]">{label}</p><button type="button" onClick={() => onChange(!checked)} className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} /></button></label>;
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+      <p className="text-sm font-semibold text-[var(--text)]">{label}</p>
+      <button type="button" onClick={() => onChange(!checked)} className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}>
+        <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} />
+      </button>
+    </label>
+  );
 }
 
-function SolidButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void | Promise<void> }) {
-  return <button disabled={disabled} onClick={() => void onClick()} className="flex h-[43px] w-full items-center justify-center rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50">{children}</button>;
+function SolidButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void | Promise<void> }) {
+  return (
+    <button disabled={disabled} onClick={() => void onClick()} className="flex h-[43px] w-full items-center justify-center rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50">
+      {children}
+    </button>
+  );
 }
 
-function OutlineButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
-  return <button disabled={disabled} onClick={onClick} className="flex h-[43px] w-full items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--muted)] disabled:opacity-50">{children}</button>;
+function OutlineButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button disabled={disabled} onClick={onClick} className="flex h-[43px] w-full items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--muted)] disabled:opacity-50">
+      {children}
+    </button>
+  );
 }
+

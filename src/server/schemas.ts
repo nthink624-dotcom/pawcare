@@ -50,7 +50,7 @@ export const serviceInputSchema = z.object({
   serviceId: z.string().optional(),
   name: z.string().min(1),
   price: z.coerce.number().min(0),
-  priceType: z.enum(["fixed", "starting"]).default("fixed"),
+  priceType: z.enum(["fixed", "starting"]).default("starting"),
   durationMinutes: z.coerce.number().min(15).max(480),
   isActive: z.boolean().default(true),
 });

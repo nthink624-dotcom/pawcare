@@ -75,7 +75,7 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
                   <p className="text-sm font-semibold text-[var(--text)]">{service.name}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">{service.duration_minutes}분 소요</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">{service.price.toLocaleString("ko-KR")}원</span>
+                <span className="shrink-0 rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span>
               </div>
             </div>
           ))}
@@ -95,3 +95,5 @@ function InfoCard({ title, value }: { title: string; value: string }) {
     </section>
   );
 }
+
+

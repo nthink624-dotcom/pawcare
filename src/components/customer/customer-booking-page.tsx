@@ -358,9 +358,9 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           {activeMode === null ? (
             <section className="rounded-[28px] bg-white p-4 shadow-sm">
               <div className="space-y-3">
-                <ModeCard title="첫 방문 예약" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSuccessMessage(null); }} />
-                <ModeCard title="재방문 예약" onClick={() => { setActiveMode("returning"); setSuccessMessage(null); }} />
-                <ModeCard title="예약 확인 / 취소 / 변경" onClick={() => setActiveMode("manage")} />
+                <ModeCard title="예약하기" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSuccessMessage(null); }} />
+                <ModeCard title="예약 확인/취소·변경" onClick={() => setActiveMode("manage")} />
+                <ModeCard title="카카오 문의" href={initialShop.customer_page_settings.kakao_inquiry_url || undefined} />
               </div>
             </section>
           ) : null}
@@ -407,7 +407,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
                     <SummaryRow label="예약 날짜" value={formatDateLabel(firstVisit.date)} />
                     <SummaryRow label="예약 시간" value={firstVisit.timeSlot} />
                     <SummaryRow label="서비스" value={selectedFirstService?.name || "선택 안 됨"} />
-                    <SummaryRow label="예상 금액" value={selectedFirstService ? formatServicePrice(selectedFirstService.price, selectedFirstService.price_type ?? "fixed") : "-"} />
+                    <SummaryRow label="예상 금액" value={selectedFirstService ? formatServicePrice(selectedFirstService.price, selectedFirstService.price_type ?? "starting") : "-"} />
                     <label className="block text-sm font-semibold text-[var(--text)]">
                       <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">참고사항</span>
                       <textarea value={firstVisit.note} onChange={(event) => setFirstVisit((prev) => ({ ...prev, note: event.target.value }))} placeholder="메모가 있으면 남겨 주세요." className="field min-h-24 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
@@ -435,7 +435,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
                   <InfoRow label="지난 메모" value={returningHistory.lastNote} />
                   <ReservationSlotPicker date={returningVisit.date} timeSlot={returningVisit.timeSlot} dateOptions={dateOptions} availableSlots={returningVisitSlots} loading={loadingReturningVisitSlots} onDateChange={(value) => setReturningVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))} onTimeChange={(value) => setReturningVisit((prev) => ({ ...prev, timeSlot: value }))} />
                   <ServiceSelect services={services} value={returningVisit.serviceId} onChange={(value) => setReturningVisit((prev) => ({ ...prev, serviceId: value, timeSlot: "" }))} />
-                  <div className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4 text-[14px] text-[var(--muted)]">{selectedReturningService ? `${selectedReturningService.name} · ${formatServicePrice(selectedReturningService.price, selectedReturningService.price_type ?? "fixed")}` : "서비스를 선택해 주세요."}</div>
+                  <div className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4 text-[14px] text-[var(--muted)]">{selectedReturningService ? `${selectedReturningService.name} · ${formatServicePrice(selectedReturningService.price, selectedReturningService.price_type ?? "starting")}` : "서비스를 선택해 주세요."}</div>
                   <textarea value={returningVisit.note} onChange={(event) => setReturningVisit((prev) => ({ ...prev, note: event.target.value }))} placeholder="추가 참고사항" className="field min-h-24 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                   <ActionButton disabled={submitting || !returningVisit.date || !returningVisit.timeSlot || !returningVisit.serviceId} onClick={submitReturningVisit}>재방문 예약 요청</ActionButton>
                 </SectionCard>
@@ -538,8 +538,15 @@ function SuccessCard({ message, onReset }: { message: string; onReset: () => voi
   return <SectionCard title="예약 접수 완료"><div className="rounded-2xl bg-[#eef8f1] px-4 py-4 text-sm text-[#25613a]">{message}</div><button type="button" onClick={onReset} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-4 text-sm font-bold text-[var(--muted)]">처음 화면으로 돌아가기</button></SectionCard>;
 }
 
-function ModeCard({ title, onClick }: { title: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="block w-full rounded-3xl border border-[var(--border)] bg-[#fffdfa] px-4 py-4 text-left shadow-sm"><div className="flex min-h-[72px] items-center"><p className="text-base font-extrabold leading-6 text-[var(--text)]">{title}</p></div></button>;
+function ModeCard({ title, onClick, href }: { title: string; onClick?: () => void; href?: string }) {
+  const className = "block w-full rounded-3xl border border-[var(--border)] bg-[#fffdfa] px-4 py-4 text-left shadow-sm";
+  const content = <div className="flex min-h-[72px] items-center"><p className="text-base font-extrabold leading-6 text-[var(--text)]">{title}</p></div>;
+
+  if (href) {
+    return <a href={href} className={className}>{content}</a>;
+  }
+
+  return <button type="button" onClick={onClick} className={className}>{content}</button>;
 }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -557,7 +564,7 @@ function TimeGrid({ timeSlot, availableSlots, loading, onSelect }: { timeSlot: s
 }
 
 function ServiceCards({ services, selectedServiceId, onSelect }: { services: Service[]; selectedServiceId: string; onSelect: (value: string) => void }) {
-  return <div className="space-y-2.5">{services.map((service) => <button key={service.id} type="button" onClick={() => onSelect(service.id)} className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--text)]">{service.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{service.duration_minutes}분 소요</p></div><span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "fixed")}</span></div></button>)}</div>;
+  return <div className="space-y-2.5">{services.map((service) => <button key={service.id} type="button" onClick={() => onSelect(service.id)} className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--text)]">{service.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{service.duration_minutes}분 소요</p></div><span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span></div></button>)}</div>;
 }
 
 function ReservationSlotPicker({ date, timeSlot, dateOptions, availableSlots, loading, onDateChange, onTimeChange }: { date: string; timeSlot: string; dateOptions: DateOption[]; availableSlots: string[]; loading: boolean; onDateChange: (value: string) => void; onTimeChange: (value: string) => void }) {
@@ -587,5 +594,11 @@ function ActionButton({ children, disabled, onClick }: { children: React.ReactNo
 function SecondaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-[var(--text)] disabled:opacity-40">{children}</button>;
 }
+
+
+
+
+
+
 
 

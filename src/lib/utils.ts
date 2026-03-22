@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
+﻿import { clsx, type ClassValue } from "clsx";
 import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import { twMerge } from "tailwind-merge";
@@ -7,16 +7,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function decodeUnicodeEscapes(value: string | null | undefined) {
+  if (!value) return "";
+
+  return value
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\n/g, "\n");
+}
+
 export function won(value: number) {
-  return `${value.toLocaleString("ko-KR")}\uC6D0`;
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
 export function wonFrom(value: number) {
-  return `${value.toLocaleString("ko-KR")}\uC6D0~`;
+  return `${value.toLocaleString("ko-KR")}원 ~`;
 }
 
-export function formatServicePrice(value: number, priceType: "fixed" | "starting" = "fixed") {
-  return priceType === "starting" ? wonFrom(value) : won(value);
+export function formatPrice(value: number, priceType: "fixed" | "starting" = "starting") {
+  return priceType === "fixed" ? won(value) : wonFrom(value);
+}
+
+export function formatServicePrice(value: number, priceType: "fixed" | "starting" = "starting") {
+  return formatPrice(value, priceType);
 }
 
 export function shortDate(date: string) {

@@ -150,7 +150,7 @@ export default function CustomerHomePreview({ shop, settings, services, editable
                         <p className={`text-[15px] text-[var(--text)] ${typography.title}`}>{service.name}</p>
                         <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>{service.duration_minutes}분 소요</p>
                       </div>
-                      <span className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: withAlpha(settings.primary_color, "14"), color: settings.primary_color }}>{service.price.toLocaleString("ko-KR")}원</span>
+                      <span className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: withAlpha(settings.primary_color, "14"), color: settings.primary_color }}>{formatServicePrice(service.price, service.price_type ?? "starting")}</span>
                     </div>
                   </div>
                 ))}
@@ -178,3 +178,5 @@ export default function CustomerHomePreview({ shop, settings, services, editable
     </div>
   );
 }
+
+

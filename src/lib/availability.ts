@@ -1,7 +1,7 @@
 ﻿import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import type { Appointment, Pet, Service, Shop } from "@/types/domain";
-import { currentDateInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
+import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
 export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
 
@@ -36,8 +36,15 @@ export function computeAvailableSlots(params: {
 
   const open = minutesFromTime(hours.open);
   const close = minutesFromTime(hours.close);
+  const nowMinutes = currentMinutesInTimeZone();
+  const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
+
   for (let cursor = open; cursor + service.duration_minutes <= close; cursor += 30) {
+    if (isToday && cursor <= nowMinutes) {
+      continue;
+    }
+
     if (
       isSlotAvailable({
         date,

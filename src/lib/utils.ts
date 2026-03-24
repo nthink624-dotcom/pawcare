@@ -61,6 +61,19 @@ export function currentDateInTimeZone(timeZone = "Asia/Seoul") {
   }).format(new Date());
 }
 
+export function currentTimeInTimeZone(timeZone = "Asia/Seoul") {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
+export function currentMinutesInTimeZone(timeZone = "Asia/Seoul") {
+  return minutesFromTime(currentTimeInTimeZone(timeZone));
+}
+
 export function phoneNormalize(value: string) {
   return value.replace(/[^\d]/g, "");
 }

@@ -56,6 +56,12 @@ type ReturningHistory = {
   lastNote: string;
 };
 
+type SubmitFeedback = {
+  type: "success" | "error";
+  title: string;
+  message: string;
+};
+
 const initialFirstVisitState: FirstVisitState = {
   ownerName: "",
   phone: "",
@@ -156,7 +162,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [returningVisitSlots, setReturningVisitSlots] = useState<string[]>([]);
@@ -220,7 +226,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   function resetView() {
     setActiveMode(null);
     setFirstVisitStep(1);
-    setSuccessMessage(null);
+    setSubmitFeedback(null);
     setReturningError(null);
     setLookupError(null);
     setLookupResult(null);
@@ -236,7 +242,10 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   }
 
   async function submitFirstVisit() {
+    if (submitting) return;
+
     setSubmitting(true);
+    setSubmitFeedback(null);
     try {
       await fetchJson("/api/appointments", {
         method: "POST",
@@ -248,10 +257,20 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           serviceId: firstVisit.serviceId,
           appointmentDate: firstVisit.date,
           appointmentTime: firstVisit.timeSlot,
-          memo: [firstVisit.breed ? `견종: ${firstVisit.breed}` : "", firstVisit.note ? `참고: ${firstVisit.note}` : ""].filter(Boolean).join(" / "),
+          memo: [firstVisit.breed ? `??: ${firstVisit.breed}` : "", firstVisit.note ? `??: ${firstVisit.note}` : ""].filter(Boolean).join(" / "),
         }),
       });
-      setSuccessMessage(initialShop.approval_mode === "manual" ? "예약 요청이 접수되었어요. 매장에서 확인 후 안내드릴게요." : "예약이 접수되었어요. 안내 메시지를 확인해 주세요.");
+      setSubmitFeedback({
+        type: "success",
+        title: "?? ??? ???????",
+        message: initialShop.approval_mode === "manual" ? "?? ??? ????? ??????. ???? ?? ? ??????." : "??? ????? ??????. ?? ???? ??? ???.",
+      });
+    } catch (error) {
+      setSubmitFeedback({
+        type: "error",
+        title: "?? ??? ??????",
+        message: error instanceof Error ? error.message : "?? ? ?? ??? ???.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -293,8 +312,10 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   }
 
   async function submitReturningVisit() {
-    if (!returningHistory) return;
+    if (!returningHistory || submitting) return;
+
     setSubmitting(true);
+    setSubmitFeedback(null);
     try {
       await fetchJson("/api/appointments", {
         method: "POST",
@@ -306,10 +327,20 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           serviceId: returningVisit.serviceId,
           appointmentDate: returningVisit.date,
           appointmentTime: returningVisit.timeSlot,
-          memo: [returningVisit.note ? `참고: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
+          memo: [returningVisit.note ? `??: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
         }),
       });
-      setSuccessMessage("재방문 예약 요청이 접수되었어요.");
+      setSubmitFeedback({
+        type: "success",
+        title: "?? ??? ???????",
+        message: "??? ?? ??? ????? ??????.",
+      });
+    } catch (error) {
+      setSubmitFeedback({
+        type: "error",
+        title: "?? ??? ??????",
+        message: error instanceof Error ? error.message : "?? ? ?? ??? ???.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -358,13 +389,12 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           {activeMode === null ? (
             <section className="rounded-[28px] bg-white p-4 shadow-sm">
               <div className="space-y-3">
-                <ModeCard title="첫방문 예약하기" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSuccessMessage(null); }} />
-                <ModeCard title="재방문 예약하기" onClick={() => { setActiveMode("returning"); setSuccessMessage(null); }} />
+                <ModeCard title="첫방문 예약하기" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSubmitFeedback(null); }} />
+                <ModeCard title="재방문 예약하기" onClick={() => { setActiveMode("returning"); setSubmitFeedback(null); }} />
               </div>
             </section>
           ) : null}
 
-          {successMessage ? <SuccessCard message={successMessage} onReset={resetView} /> : null}
 
           {activeMode === "first" ? (
             <>
@@ -483,10 +513,26 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
             {firstVisitStep < 5 ? (
               <ActionButton disabled={!getFirstVisitStepValidity(firstVisitStep)} onClick={() => setFirstVisitStep((prev) => (prev + 1) as FirstVisitStep)}>다음</ActionButton>
             ) : (
-              <ActionButton disabled={submitting || !getFirstVisitStepValidity(5)} onClick={submitFirstVisit}>{submitting ? "예약 중..." : "예약하기"}</ActionButton>
+              <ActionButton disabled={submitting || !getFirstVisitStepValidity(5)} onClick={submitFirstVisit}>{submitting ? "예약 신청 중..." : "예약하기"}</ActionButton>
             )}
           </div>
         </BottomBar>
+      ) : null}
+
+
+      {submitFeedback ? (
+        <FeedbackDialog
+          title={submitFeedback.title}
+          message={submitFeedback.message}
+          tone={submitFeedback.type}
+          onConfirm={() => {
+            if (submitFeedback.type === "success") {
+              resetView();
+            } else {
+              setSubmitFeedback(null);
+            }
+          }}
+        />
       ) : null}
 
       {shopInfoOpen ? (
@@ -533,8 +579,8 @@ function FlowHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return <section className="rounded-[28px] bg-white p-4 shadow-sm"><button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">← 처음 화면으로</button><h2 className="mt-3 text-lg font-extrabold">{title}</h2></section>;
 }
 
-function SuccessCard({ message, onReset }: { message: string; onReset: () => void }) {
-  return <SectionCard title="예약 접수 완료"><div className="rounded-2xl bg-[#eef8f1] px-4 py-4 text-sm text-[#25613a]">{message}</div><button type="button" onClick={onReset} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-4 text-sm font-bold text-[var(--muted)]">처음 화면으로 돌아가기</button></SectionCard>;
+function FeedbackDialog({ title, message, tone, onConfirm }: { title: string; message: string; tone: "success" | "error"; onConfirm: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5" onClick={onConfirm}><div className="w-full max-w-[360px] rounded-[28px] bg-white p-5 shadow-[0_18px_48px_rgba(17,24,39,0.16)]" onClick={(event) => event.stopPropagation()}><div className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${tone === "success" ? "bg-[#eef8f1] text-[#25613a]" : "bg-[#fff1f1] text-[#b42318]"}`}>{tone === "success" ? "예약 접수 완료" : "예약 접수 실패"}</div><h3 className="mt-4 text-[22px] font-extrabold leading-8 text-[var(--text)]">{title}</h3><p className="mt-3 text-[14px] leading-6 text-[var(--muted)]">{message}</p><button type="button" onClick={onConfirm} className="mt-5 w-full rounded-2xl bg-[var(--accent)] px-4 py-4 text-sm font-bold text-white">확인</button></div></div>;
 }
 
 function ModeCard({ title, onClick, href }: { title: string; onClick?: () => void; href?: string }) {
@@ -593,6 +639,7 @@ function ActionButton({ children, disabled, onClick }: { children: React.ReactNo
 function SecondaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-[var(--text)] disabled:opacity-40">{children}</button>;
 }
+
 
 
 

@@ -63,6 +63,7 @@ export default function CustomerBookingEntryPage({
             >
               예약조회 / 취소 · 변경
             </a>
+
           </div>
         </div>
       </section>
@@ -105,3 +106,5 @@ export default function CustomerBookingEntryPage({
     </div>
   );
 }
+
+

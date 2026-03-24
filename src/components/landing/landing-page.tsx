@@ -29,7 +29,7 @@ export default function LandingPage({ shop, services }: { shop: Shop; services: 
               오너 화면 보기
             </a>
             <a
-              href={`/book/${shop.id}`}
+              href={`/entry/${shop.id}`}
               className="flex h-[52px] items-center justify-center rounded-[16px] border border-white/18 bg-white/8 text-[15px] font-semibold text-white"
             >
               소비자 예약 화면 보기
@@ -83,3 +83,4 @@ function LandingCard({ title, items }: { title: string; items: string[] }) {
     </section>
   );
 }
+

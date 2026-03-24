@@ -144,10 +144,10 @@ function getLatestRecord(records: GroomingRecord[]) {
   return [...records].sort((a, b) => (b.groomed_at || "").localeCompare(a.groomed_at || ""))[0];
 }
 
-export default function CustomerBookingPage({ shopId, initialShop, initialServices }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[] }) {
+export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = null, entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
   const services = initialServices.filter((service) => service.is_active);
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
-  const [activeMode, setActiveMode] = useState<ActiveMode>(null);
+  const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(1);
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>({ ...initialFirstVisitState, serviceId: services[0]?.id || "" });
   const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
@@ -444,7 +444,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
 
           {activeMode === "manage" ? (
             <>
-              <FlowHeader title="예약 확인 / 취소 / 변경" onBack={resetView} />
+              <FlowHeader title="예약 확인 / 취소 / 변경" onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView} />
               <SectionCard title="예약 조회">
                 <div className="flex gap-2">
                   <input value={lookupPhone} onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))} placeholder="연락처 입력" className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
@@ -593,6 +593,8 @@ function ActionButton({ children, disabled, onClick }: { children: React.ReactNo
 function SecondaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-[var(--text)] disabled:opacity-40">{children}</button>;
 }
+
+
 
 
 

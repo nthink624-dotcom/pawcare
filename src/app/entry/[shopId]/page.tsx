@@ -1,4 +1,4 @@
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+﻿import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { getBootstrap } from "@/server/repositories/app-repository";
 
 export default async function EntryPage({
@@ -14,7 +14,7 @@ export default async function EntryPage({
       shop={data.shop}
       services={data.services.filter((item) => item.is_active)}
       bookingHref={`/book/${shopId}`}
-      manageHref={`/book/${shopId}?mode=manage`}
+      manageHref={`/book/${shopId}/manage`}
     />
   );
 }

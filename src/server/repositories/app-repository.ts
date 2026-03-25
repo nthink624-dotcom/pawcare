@@ -154,13 +154,13 @@ export async function createAppointment(input: unknown) {
       setMockStore(store);
     } else {
       const supabase = getSupabaseAdmin();
-      if (!supabase) throw new Error("Supabase ??? ????.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
       const { error } = await supabase.from("services").insert(service);
       if (error) throw new Error(error.message);
     }
   }
 
-  if (!service) throw new Error("???? ?? ? ????.");
+  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
 
   const servicesForAvailability = data.services.some((item) => item.id === service.id) ? data.services : [...data.services, service];
   const availableSlots = computeAvailableSlots({
@@ -170,7 +170,7 @@ export async function createAppointment(input: unknown) {
     services: servicesForAvailability,
     appointments: data.appointments,
   });
-  if (!availableSlots.includes(payload.appointmentTime)) throw new Error("??? ??? ??? ? ????.");
+  if (!availableSlots.includes(payload.appointmentTime)) throw new Error("선택한 시간에는 예약할 수 없습니다.");
 
   const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
   const appointment: Appointment = {
@@ -210,7 +210,7 @@ export async function createAppointment(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ??? ????.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("appointments").insert(appointment);
   if (error) throw new Error(error.message);
   return appointment;
@@ -284,7 +284,7 @@ export async function updateAppointmentStatus(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("appointments")
     .update({ status: payload.status, rejection_reason: rejectionReason, updated_at: nowIso() })
@@ -315,7 +315,7 @@ export async function createGuardian(input: unknown) {
     return guardian;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("guardians").insert(guardian);
   if (error) throw new Error(error.message);
   return guardian;
@@ -334,7 +334,7 @@ export async function updateGuardianNotificationSettings(input: unknown) {
     return guardian;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("guardians")
     .update({ notification_settings: { enabled: payload.enabled, revisit_enabled: payload.revisitEnabled }, updated_at: nowIso() })
@@ -369,7 +369,7 @@ export async function createPet(input: unknown) {
     return pet;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("pets").insert(pet);
   if (error) throw new Error(error.message);
   return pet;
@@ -380,7 +380,7 @@ export async function updatePet(input: unknown) {
   if (!hasSupabaseEnv()) {
     const store = getMockStore();
     const pet = store.pets.find((item) => item.id === payload.petId);
-    if (!pet) throw new Error("???? ?? ? ????.");
+    if (!pet) throw new Error("반려견 정보를 찾을 수 없습니다.");
     pet.name = payload.name;
     pet.breed = payload.breed;
     pet.birthday = payload.birthday ?? null;
@@ -389,7 +389,7 @@ export async function updatePet(input: unknown) {
     return pet;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase ??? ????.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("pets")
     .update({ name: payload.name, breed: payload.breed, birthday: payload.birthday ?? null, updated_at: nowIso() })
@@ -422,7 +422,7 @@ export async function upsertService(input: unknown) {
     return service;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("services").upsert(service);
   if (error) throw new Error(error.message);
   return service;
@@ -443,7 +443,7 @@ export async function updateRecord(input: unknown) {
     return target;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("grooming_records")
     .update({ style_notes: payload.styleNotes, memo: payload.memo, price_paid: payload.pricePaid, service_id: payload.serviceId, updated_at: nowIso() })
@@ -487,7 +487,7 @@ export async function updateShopSettings(input: unknown) {
     return store.shop;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("shops")
     .update({
@@ -527,7 +527,7 @@ export async function updateCustomerPageSettings(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { data, error } = await supabase
     .from("shops")
     .update({
@@ -557,7 +557,7 @@ export async function submitLandingInterest(input: unknown) {
     return item;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("landing_interests").insert(item);
   if (error) throw new Error(error.message);
   return item;
@@ -578,7 +578,7 @@ export async function submitLandingFeedback(input: unknown) {
     return item;
   }
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 없습니다.");
+      if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
   const { error } = await supabase.from("landing_feedback").insert(item);
   if (error) throw new Error(error.message);
   return item;

@@ -257,19 +257,19 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           serviceId: firstVisit.serviceId,
           appointmentDate: firstVisit.date,
           appointmentTime: firstVisit.timeSlot,
-          memo: [firstVisit.breed ? `??: ${firstVisit.breed}` : "", firstVisit.note ? `??: ${firstVisit.note}` : ""].filter(Boolean).join(" / "),
+          memo: [firstVisit.breed ? `견종: ${firstVisit.breed}` : "", firstVisit.note ? `참고: ${firstVisit.note}` : ""].filter(Boolean).join(" / "),
         }),
       });
       setSubmitFeedback({
         type: "success",
-        title: "?? ??? ???????",
-        message: initialShop.approval_mode === "manual" ? "?? ??? ????? ??????. ???? ?? ? ??????." : "??? ????? ??????. ?? ???? ??? ???.",
+        title: "예약 신청이 완료되었습니다",
+        message: "예약 내용을 확인한 뒤 매장에서 승인 여부를 안내해드립니다.",
       });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
-        title: "?? ??? ??????",
-        message: error instanceof Error ? error.message : "?? ? ?? ??? ???.",
+        title: "예약 신청에 실패했습니다",
+        message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
       });
     } finally {
       setSubmitting(false);
@@ -327,19 +327,19 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           serviceId: returningVisit.serviceId,
           appointmentDate: returningVisit.date,
           appointmentTime: returningVisit.timeSlot,
-          memo: [returningVisit.note ? `??: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
+          memo: [returningVisit.note ? `참고: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
         }),
       });
       setSubmitFeedback({
         type: "success",
-        title: "?? ??? ???????",
-        message: "??? ?? ??? ????? ??????.",
+        title: "예약 신청이 완료되었습니다",
+        message: "예약 내용을 확인한 뒤 매장에서 승인 여부를 안내해드립니다.",
       });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
-        title: "?? ??? ??????",
-        message: error instanceof Error ? error.message : "?? ? ?? ??? ???.",
+        title: "예약 신청에 실패했습니다",
+        message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
       });
     } finally {
       setSubmitting(false);

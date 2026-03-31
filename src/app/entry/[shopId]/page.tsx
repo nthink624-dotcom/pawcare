@@ -15,6 +15,7 @@ export default async function EntryPage({
       services={data.services.filter((item) => item.is_active)}
       bookingHref={`/book/${shopId}`}
       manageHref={`/book/${shopId}/manage`}
+      infoHref={`/book/${shopId}/info`}
     />
   );
 }

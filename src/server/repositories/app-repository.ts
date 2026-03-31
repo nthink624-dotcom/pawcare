@@ -6,12 +6,13 @@ import { buildDemoBootstrap } from "@/lib/mock-data";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications, normalizeGuardianNotificationSettings, normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { nowIso, phoneNormalize } from "@/lib/utils";
+import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, phoneNormalize, timeFromMinutes } from "@/lib/utils";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { queueAutomaticRevisitNotifications, queueEventNotification } from "@/server/notification-center";
 import {
   appointmentInputSchema,
   appointmentStatusSchema,
+  customerAppointmentMutationSchema,
   guardianInputSchema,
   guardianNotificationSettingsSchema,
   customerPageSettingsSchema,
@@ -116,6 +117,25 @@ function getRejectReason(payload: { rejectionReasonTemplate?: string; rejectionR
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
 }
 
+function canCustomerManageAppointment(appointment: Appointment) {
+  if (!["pending", "confirmed"].includes(appointment.status)) return false;
+
+  const today = currentDateInTimeZone();
+  if (appointment.appointment_date > today) return true;
+  if (appointment.appointment_date < today) return false;
+
+  return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
+}
+
+function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
+  const endMinute = minutesFromTime(time) + durationMinutes;
+
+  return {
+    startAt: `${date}T${time}:00+09:00`,
+    endAt: `${addDate(date, Math.floor(endMinute / (24 * 60)))}T${timeFromMinutes(endMinute % (24 * 60))}:00+09:00`,
+  };
+}
+
 export async function getBootstrap(shopId = env.demoShopId) {
   if (!hasSupabaseEnv()) {
     const store = normalizeBootstrapNotifications(getMockStore());
@@ -173,6 +193,7 @@ export async function createAppointment(input: unknown) {
   if (!availableSlots.includes(payload.appointmentTime)) throw new Error("선택한 시간에는 예약할 수 없습니다.");
 
   const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
   const appointment: Appointment = {
     id: randomUUID(),
     shop_id: payload.shopId,
@@ -184,8 +205,8 @@ export async function createAppointment(input: unknown) {
     status,
     memo: payload.memo,
     rejection_reason: null,
-    start_at: `${payload.appointmentDate}T${payload.appointmentTime}:00.000Z`,
-    end_at: `${payload.appointmentDate}T${payload.appointmentTime}:00.000Z`,
+    start_at: appointmentWindow.startAt,
+    end_at: appointmentWindow.endAt,
     source: payload.source,
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -295,6 +316,104 @@ export async function updateAppointmentStatus(input: unknown) {
   return data;
 }
 
+export async function updateCustomerAppointment(input: unknown) {
+  const payload = customerAppointmentMutationSchema.parse(input);
+  const data = await getBootstrap(payload.shopId);
+  const appointment = data.appointments.find((item) => item.id === payload.appointmentId && item.shop_id === payload.shopId);
+
+  if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+
+  const guardian = data.guardians.find((item) => item.id === appointment.guardian_id);
+  if (!guardian || phoneNormalize(guardian.phone) !== phoneNormalize(payload.phone)) {
+    throw new Error("예약 확인 정보가 일치하지 않습니다.");
+  }
+
+  if (!canCustomerManageAppointment(appointment)) {
+    throw new Error("현재 상태의 예약은 취소하거나 변경할 수 없습니다.");
+  }
+
+  if (payload.action === "cancel") {
+    return updateAppointmentStatus({
+      appointmentId: appointment.id,
+      status: "cancelled",
+    });
+  }
+
+  const service = data.services.find((item) => item.id === payload.serviceId && item.shop_id === payload.shopId);
+  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+
+  if (isShopClosedOnDate(data.shop, payload.appointmentDate)) {
+    throw new Error("선택한 날짜는 예약을 변경할 수 없습니다.");
+  }
+
+  const availableSlots = computeAvailableSlots({
+    date: payload.appointmentDate,
+    serviceId: payload.serviceId,
+    shop: data.shop,
+    services: data.services,
+    appointments: data.appointments,
+    excludeAppointmentId: appointment.id,
+  });
+  if (!availableSlots.includes(payload.appointmentTime)) {
+    throw new Error("선택한 시간에는 예약을 변경할 수 없습니다.");
+  }
+
+  const nextStatus = data.shop.approval_mode === "auto" ? "confirmed" : "pending";
+  const nextMemo = payload.memo.trim();
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+
+  if (!hasSupabaseEnv()) {
+    const store = normalizeBootstrapNotifications(getMockStore());
+    store.shop = { ...store.shop, customer_page_settings: normalizeCustomerPageSettings(store.shop.customer_page_settings, store.shop.name, store.shop.description) };
+    const target = store.appointments.find((item) => item.id === appointment.id);
+    if (!target) throw new Error("예약을 찾을 수 없습니다.");
+
+    target.service_id = payload.serviceId;
+    target.appointment_date = payload.appointmentDate;
+    target.appointment_time = payload.appointmentTime;
+    target.memo = nextMemo;
+    target.status = nextStatus;
+    target.rejection_reason = null;
+    target.start_at = appointmentWindow.startAt;
+    target.end_at = appointmentWindow.endAt;
+    target.updated_at = nowIso();
+
+    if (nextStatus === "confirmed") {
+      await queueEventNotification({
+        store,
+        type: "booking_rescheduled_confirmed",
+        appointment: target,
+        guardian: store.guardians.find((item) => item.id === target.guardian_id),
+        pet: store.pets.find((item) => item.id === target.pet_id),
+        serviceName: getServiceName(store, target.service_id),
+      });
+    }
+
+    setMockStore(store);
+    return target;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  const { data: updatedAppointment, error } = await supabase
+    .from("appointments")
+    .update({
+      service_id: payload.serviceId,
+      appointment_date: payload.appointmentDate,
+      appointment_time: payload.appointmentTime,
+      memo: nextMemo,
+      status: nextStatus,
+      rejection_reason: null,
+      start_at: appointmentWindow.startAt,
+      end_at: appointmentWindow.endAt,
+      updated_at: nowIso(),
+    })
+    .eq("id", appointment.id)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return updatedAppointment;
+}
 export async function createGuardian(input: unknown) {
   const payload = guardianInputSchema.parse(input);
   const guardian: Guardian = {
@@ -589,15 +708,52 @@ export async function createCustomerBookingLead(params: {
   guardianName: string;
   phone: string;
   petName: string;
+  breed?: string;
   serviceId: string;
   appointmentDate: string;
   appointmentTime: string;
   memo: string;
 }) {
-  const store = hasSupabaseEnv() ? await getBootstrap(params.shopId) : normalizeBootstrapNotifications(getMockStore());
-  const guardian = ensureGuardianByPhone(store, params.shopId, params.guardianName, params.phone);
-  const pet = ensurePet(store, params.shopId, guardian.id, params.petName);
-  if (!hasSupabaseEnv()) setMockStore(store);
+  const data = await getBootstrap(params.shopId);
+  const normalizedPhone = phoneNormalize(params.phone);
+  const guardianName = params.guardianName.trim();
+  const petName = params.petName.trim();
+  const breed = params.breed?.trim() || "미입력";
+
+  let guardian = data.guardians.find((item) => item.shop_id === params.shopId && phoneNormalize(item.phone) === normalizedPhone);
+  if (!guardian) {
+    guardian = await createGuardian({
+      shopId: params.shopId,
+      name: guardianName,
+      phone: params.phone.trim(),
+      memo: "",
+    });
+  }
+
+  let pet = data.pets.find((item) => item.shop_id === params.shopId && item.guardian_id === guardian.id && item.name === petName);
+  if (!pet) {
+    pet = await createPet({
+      shopId: params.shopId,
+      guardianId: guardian.id,
+      name: petName,
+      breed,
+      weight: null,
+      age: null,
+      notes: "",
+      birthday: null,
+      groomingCycleWeeks: 4,
+    });
+  } else if (breed !== "미입력" && (!pet.breed.trim() || pet.breed === "미입력" || pet.breed === "???")) {
+    pet = await updatePet({
+      petId: pet.id,
+      name: pet.name,
+      breed,
+      birthday: pet.birthday,
+    });
+  }
+
+  if (!pet) throw new Error("반려견 정보를 저장하지 못했습니다.");
+
   return createAppointment({
     shopId: params.shopId,
     guardianId: guardian.id,
@@ -606,10 +762,14 @@ export async function createCustomerBookingLead(params: {
     customServiceName: "",
     appointmentDate: params.appointmentDate,
     appointmentTime: params.appointmentTime,
-    memo: params.memo,
+    memo: params.memo.trim(),
     source: "customer",
   });
 }
+
+
+
+
 
 
 

@@ -1,11 +1,12 @@
 ﻿"use client";
 
-import { addDays, format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
 
+import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
-import { formatServicePrice, phoneNormalize } from "@/lib/utils";
+import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type ActiveMode = "first" | "returning" | "manage" | null;
@@ -105,10 +106,12 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
 
 function buildDateOptions(shop: Shop): DateOption[] {
   const options: DateOption[] = [];
+  const today = currentDateInTimeZone();
+  const todayDate = parseISO(`${today}T00:00:00`);
   let offset = 0;
 
   while (options.length < 8 && offset < 45) {
-    const date = addDays(new Date(), offset);
+    const date = addDays(todayDate, offset);
     const value = format(date, "yyyy-MM-dd");
     const weekdayNumber = date.getDay();
     const hours = shop.business_hours[weekdayNumber];
@@ -117,7 +120,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
     if (!isClosed) {
       options.push({
         value,
-        label: options.length === 0 ? "오늘" : format(date, "M/d"),
+        label: value === today ? "오늘" : format(date, "M/d"),
         weekday: format(date, "EEE", { locale: ko }),
       });
     }
@@ -150,6 +153,22 @@ function getLatestRecord(records: GroomingRecord[]) {
   return [...records].sort((a, b) => (b.groomed_at || "").localeCompare(a.groomed_at || ""))[0];
 }
 
+function getCustomerBookingSuccessFeedback(approvalMode: Shop["approval_mode"]): SubmitFeedback {
+  if (approvalMode === "auto") {
+    return {
+      type: "success",
+      title: "예약이 바로 확정되었어요",
+      message: "선택한 일정이 바로 반영되었어요. 안내 메시지를 확인해 주세요.",
+    };
+  }
+
+  return {
+    type: "success",
+    title: "예약 신청이 완료되었어요",
+    message: "매장에서 확인한 뒤 승인 여부를 안내해드려요.",
+  };
+}
+
 export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = null, entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
   const services = initialServices.filter((service) => service.is_active);
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
@@ -159,9 +178,6 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
   const [returningHistory, setReturningHistory] = useState<ReturningHistory | null>(null);
   const [returningError, setReturningError] = useState<string | null>(null);
-  const [lookupPhone, setLookupPhone] = useState("");
-  const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
-  const [lookupError, setLookupError] = useState<string | null>(null);
   const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
@@ -226,11 +242,14 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   function resetView() {
     setActiveMode(null);
     setFirstVisitStep(1);
+    setFirstVisit({ ...initialFirstVisitState, serviceId: services[0]?.id || "" });
+    setReturningVisit({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
+    setFirstVisitSlots([]);
+    setReturningVisitSlots([]);
     setSubmitFeedback(null);
     setReturningError(null);
-    setLookupError(null);
-    setLookupResult(null);
     setReturningHistory(null);
+    setShopInfoOpen(false);
   }
 
   function getFirstVisitStepValidity(step: FirstVisitStep) {
@@ -254,17 +273,14 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           guardianName: firstVisit.ownerName,
           phone: firstVisit.phone,
           petName: firstVisit.petName,
+          breed: firstVisit.breed,
           serviceId: firstVisit.serviceId,
           appointmentDate: firstVisit.date,
           appointmentTime: firstVisit.timeSlot,
-          memo: [firstVisit.breed ? `견종: ${firstVisit.breed}` : "", firstVisit.note ? `참고: ${firstVisit.note}` : ""].filter(Boolean).join(" / "),
+          memo: firstVisit.note.trim(),
         }),
       });
-      setSubmitFeedback({
-        type: "success",
-        title: "예약 신청이 완료되었습니다",
-        message: "예약 내용을 확인한 뒤 매장에서 승인 여부를 안내해드립니다.",
-      });
+      setSubmitFeedback(getCustomerBookingSuccessFeedback(initialShop.approval_mode));
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -330,11 +346,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           memo: [returningVisit.note ? `참고: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
         }),
       });
-      setSubmitFeedback({
-        type: "success",
-        title: "예약 신청이 완료되었습니다",
-        message: "예약 내용을 확인한 뒤 매장에서 승인 여부를 안내해드립니다.",
-      });
+      setSubmitFeedback(getCustomerBookingSuccessFeedback(initialShop.approval_mode));
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -346,17 +358,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     }
   }
 
-  async function lookupBooking() {
-    try {
-      setLookupError(null);
-      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?shopId=${shopId}&phone=${lookupPhone}`);
-      setLookupResult(result);
-      if (result.appointments.length === 0 && result.groomingRecords.length === 0) setLookupError("해당 연락처로 조회된 예약이 없어요.");
-    } catch (error) {
-      setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
-      setLookupResult(null);
-    }
-  }
+
 
   return (
     <>
@@ -391,6 +393,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
               <div className="space-y-3">
                 <ModeCard title="첫방문 예약하기" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSubmitFeedback(null); }} />
                 <ModeCard title="재방문 예약하기" onClick={() => { setActiveMode("returning"); setSubmitFeedback(null); }} />
+                <ModeCard title="예약 확인 / 취소 / 변경" onClick={() => { setActiveMode("manage"); setSubmitFeedback(null); }} />
               </div>
             </section>
           ) : null}
@@ -473,34 +476,14 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           ) : null}
 
           {activeMode === "manage" ? (
-            <>
-              <FlowHeader title="예약 확인 / 취소 / 변경" onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView} />
-              <SectionCard title="예약 조회">
-                <div className="flex gap-2">
-                  <input value={lookupPhone} onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))} placeholder="연락처 입력" className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                  <button type="button" onClick={lookupBooking} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">조회</button>
-                </div>
-                {lookupError ? <p className="text-sm text-red-600">{lookupError}</p> : null}
-                {lookupResult ? (
-                  <div className="space-y-3">
-                    {lookupResult.appointments.map((appointment) => (
-                      <div key={appointment.id} className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4">
-                        <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{services.find((service) => service.id === appointment.service_id)?.name || "예약"}</p>
-                        <p className="mt-2 text-[13px] text-[var(--muted)]">{appointment.appointment_date} · {appointment.appointment_time}</p>
-                        <p className="mt-2 text-[13px] text-[var(--muted)]">상태: {statusLabelMap[appointment.status] || appointment.status}</p>
-                      </div>
-                    ))}
-                    {lookupResult.groomingRecords.slice(0, 2).map((record) => (
-                      <div key={record.id} className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4">
-                        <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">지난 기록</p>
-                        <p className="mt-2 text-[13px] text-[var(--muted)]">{record.style_notes || "스타일 메모 없음"}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </SectionCard>
-            </>
+            <CustomerBookingManagePanel
+              shopId={shopId}
+              shop={initialShop}
+              services={services}
+              onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView}
+            />
           ) : null}
+
         </div>
       </div>
 
@@ -639,6 +622,7 @@ function ActionButton({ children, disabled, onClick }: { children: React.ReactNo
 function SecondaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-[var(--text)] disabled:opacity-40">{children}</button>;
 }
+
 
 
 

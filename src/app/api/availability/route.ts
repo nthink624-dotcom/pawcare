@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const shopId = searchParams.get("shopId") || undefined;
     const date = searchParams.get("date");
     const serviceId = searchParams.get("serviceId");
+    const excludeAppointmentId = searchParams.get("excludeAppointmentId") || undefined;
 
     if (!date || !serviceId) {
       return NextResponse.json({ message: "날짜와 서비스를 함께 보내주세요." }, { status: 400 });
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
       shop: data.shop,
       services: data.services,
       appointments: data.appointments,
+      excludeAppointmentId,
     });
 
     return NextResponse.json({ date, serviceId, slots });

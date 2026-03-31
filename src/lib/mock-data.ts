@@ -1,5 +1,6 @@
-﻿import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications, normalizeGuardianNotificationSettings, normalizeShopNotificationSettings } from "@/lib/notification-settings";
+import { addDate, currentDateInTimeZone } from "@/lib/utils";
 
 import type {
   Appointment,
@@ -14,7 +15,20 @@ import type {
   Shop,
 } from "@/types/domain";
 
-const now = "2026-03-18T09:00:00.000Z";
+const today = currentDateInTimeZone();
+const yesterday = addDate(today, -1);
+const twoDaysAgo = addDate(today, -2);
+const fiveWeeksAgo = addDate(today, -35);
+const sevenWeeksAgo = addDate(today, -49);
+const tomorrow = addDate(today, 1);
+const dayAfterTomorrow = addDate(today, 2);
+const temporaryClosedDate = addDate(today, 9);
+
+function at(date: string, time: string) {
+  return `${date}T${time}:00.000Z`;
+}
+
+const now = at(today, "09:00");
 
 export const demoShop: Shop = {
   id: "demo-shop",
@@ -32,7 +46,7 @@ export const demoShop: Shop = {
     0: { open: "10:00", close: "16:00", enabled: false },
   },
   regular_closed_days: [0],
-  temporary_closed_dates: ["2026-03-25"],
+  temporary_closed_dates: [temporaryClosedDate],
   concurrent_capacity: 2,
   approval_mode: "manual",
   notification_settings: normalizeShopNotificationSettings({
@@ -77,28 +91,28 @@ export const demoGuardians: Guardian[] = [
 ];
 
 export const demoPets: Pet[] = [
-  { id: "p-1", shop_id: "demo-shop", guardian_id: "g-1", name: "몽이", breed: "말티즈", weight: 3.5, age: 3, notes: "귀 청소 민감", birthday: "2022-05-14", grooming_cycle_weeks: 4, avatar_seed: "🐶", created_at: now, updated_at: now },
-  { id: "p-2", shop_id: "demo-shop", guardian_id: "g-1", name: "차이", breed: "포메라니안", weight: 2.7, age: 2, notes: "첫 미용 때 긴장 심함", birthday: "2023-03-17", grooming_cycle_weeks: 5, avatar_seed: "🐾", created_at: now, updated_at: now },
-  { id: "p-3", shop_id: "demo-shop", guardian_id: "g-2", name: "코코", breed: "푸들", weight: 5.1, age: 5, notes: "간식 후 진정 도움", birthday: "2020-11-08", grooming_cycle_weeks: 3, avatar_seed: "🛁", created_at: now, updated_at: now },
-  { id: "p-4", shop_id: "demo-shop", guardian_id: "g-3", name: "보리", breed: "시츄", weight: 4.2, age: 4, notes: "", birthday: null, grooming_cycle_weeks: 4, avatar_seed: "✂️", created_at: now, updated_at: now },
+  { id: "p-1", shop_id: "demo-shop", guardian_id: "g-1", name: "몽이", breed: "말티즈", weight: 3.5, age: 3, notes: "귀 청소 민감", birthday: "2022-05-14", grooming_cycle_weeks: 4, avatar_seed: "M", created_at: now, updated_at: now },
+  { id: "p-2", shop_id: "demo-shop", guardian_id: "g-1", name: "차이", breed: "포메라니안", weight: 2.7, age: 2, notes: "첫 미용 때 긴장 심함", birthday: "2023-03-17", grooming_cycle_weeks: 5, avatar_seed: "C", created_at: now, updated_at: now },
+  { id: "p-3", shop_id: "demo-shop", guardian_id: "g-2", name: "코코", breed: "푸들", weight: 5.1, age: 5, notes: "간식 후 진정 도움", birthday: "2020-11-08", grooming_cycle_weeks: 3, avatar_seed: "K", created_at: now, updated_at: now },
+  { id: "p-4", shop_id: "demo-shop", guardian_id: "g-3", name: "보리", breed: "시츄", weight: 4.2, age: 4, notes: "", birthday: null, grooming_cycle_weeks: 4, avatar_seed: "B", created_at: now, updated_at: now },
 ];
 
 export const demoAppointments: Appointment[] = [
-  { id: "a-1", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-full", appointment_date: "2026-03-18", appointment_time: "09:00", status: "completed", memo: "스포팅 5mm", rejection_reason: null, start_at: "2026-03-18T09:00:00.000Z", end_at: "2026-03-18T11:00:00.000Z", source: "owner", created_at: now, updated_at: now },
-  { id: "a-2", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath", appointment_date: "2026-03-18", appointment_time: "10:30", status: "almost_done", memo: "발바닥 정리 추가", rejection_reason: null, start_at: "2026-03-18T10:30:00.000Z", end_at: "2026-03-18T11:50:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-3", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-bath-only", appointment_date: "2026-03-18", appointment_time: "11:30", status: "cancelled", memo: "보호자 일정 변경", rejection_reason: null, start_at: "2026-03-18T11:30:00.000Z", end_at: "2026-03-18T12:15:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-4", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: "2026-03-18", appointment_time: "13:00", status: "in_progress", memo: "얼굴 컷 정리", rejection_reason: null, start_at: "2026-03-18T13:00:00.000Z", end_at: "2026-03-18T13:45:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-5", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_date: "2026-03-18", appointment_time: "15:00", status: "confirmed", memo: "다리 컷 유지", rejection_reason: null, start_at: "2026-03-18T15:00:00.000Z", end_at: "2026-03-18T17:00:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-6", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-care", appointment_date: "2026-03-19", appointment_time: "17:00", status: "confirmed", memo: "", rejection_reason: null, start_at: "2026-03-19T17:00:00.000Z", end_at: "2026-03-19T17:30:00.000Z", source: "owner", created_at: now, updated_at: now },
-  { id: "a-7", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath", appointment_date: "2026-03-20", appointment_time: "11:00", status: "confirmed", memo: "짧게", rejection_reason: null, start_at: "2026-03-20T11:00:00.000Z", end_at: "2026-03-20T12:20:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: "2026-03-18", appointment_time: "16:30", status: "pending", memo: "", rejection_reason: null, start_at: "2026-03-18T16:30:00.000Z", end_at: "2026-03-18T17:15:00.000Z", source: "customer", created_at: now, updated_at: now },
-  { id: "a-9", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath-only", appointment_date: "2026-03-16", appointment_time: "09:30", status: "confirmed", memo: "", rejection_reason: null, start_at: "2026-03-16T09:30:00.000Z", end_at: "2026-03-16T10:15:00.000Z", source: "customer", created_at: now, updated_at: now },
+  { id: "a-1", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-full", appointment_date: yesterday, appointment_time: "09:00", status: "completed", memo: "스포팅 5mm", rejection_reason: null, start_at: at(yesterday, "09:00"), end_at: at(yesterday, "11:00"), source: "owner", created_at: now, updated_at: now },
+  { id: "a-2", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath", appointment_date: today, appointment_time: "10:30", status: "almost_done", memo: "발바닥 정리 추가", rejection_reason: null, start_at: at(today, "10:30"), end_at: at(today, "11:50"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-3", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-bath-only", appointment_date: today, appointment_time: "11:30", status: "cancelled", memo: "보호자 일정 변경", rejection_reason: null, start_at: at(today, "11:30"), end_at: at(today, "12:15"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-4", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "13:00", status: "in_progress", memo: "얼굴 컷 정리", rejection_reason: null, start_at: at(today, "13:00"), end_at: at(today, "13:45"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-5", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_date: today, appointment_time: "15:00", status: "confirmed", memo: "다리 컷 유지", rejection_reason: null, start_at: at(today, "15:00"), end_at: at(today, "17:00"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-6", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-care", appointment_date: tomorrow, appointment_time: "17:00", status: "confirmed", memo: "", rejection_reason: null, start_at: at(tomorrow, "17:00"), end_at: at(tomorrow, "17:30"), source: "owner", created_at: now, updated_at: now },
+  { id: "a-7", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath", appointment_date: dayAfterTomorrow, appointment_time: "11:00", status: "confirmed", memo: "짧게", rejection_reason: null, start_at: at(dayAfterTomorrow, "11:00"), end_at: at(dayAfterTomorrow, "12:20"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "16:30", status: "pending", memo: "", rejection_reason: null, start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-9", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath-only", appointment_date: twoDaysAgo, appointment_time: "09:30", status: "confirmed", memo: "", rejection_reason: null, start_at: at(twoDaysAgo, "09:30"), end_at: at(twoDaysAgo, "10:15"), source: "customer", created_at: now, updated_at: now },
 ];
 
 export const demoRecords: GroomingRecord[] = [
-  { id: "r-1", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-full", appointment_id: "a-1", style_notes: "스포팅 5mm", memo: "귀 주변은 부드럽게 정리", price_paid: 55000, groomed_at: "2026-03-18T11:00:00.000Z", created_at: now, updated_at: now },
-  { id: "r-2", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_id: null, style_notes: "테디베어 컷", memo: "발바닥 정리 필수", price_paid: 55000, groomed_at: "2026-02-22T14:00:00.000Z", created_at: now, updated_at: now },
-  { id: "r-3", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-full", appointment_id: null, style_notes: "짧은 얼굴 컷", memo: "눈 주변 정리", price_paid: 50000, groomed_at: "2026-02-10T12:00:00.000Z", created_at: now, updated_at: now },
+  { id: "r-1", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-full", appointment_id: "a-1", style_notes: "스포팅 5mm", memo: "귀 주변은 부드럽게 정리", price_paid: 55000, groomed_at: at(yesterday, "11:00"), created_at: now, updated_at: now },
+  { id: "r-2", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_id: null, style_notes: "테디베어 컷", memo: "발바닥 정리 필수", price_paid: 55000, groomed_at: at(fiveWeeksAgo, "14:00"), created_at: now, updated_at: now },
+  { id: "r-3", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-full", appointment_id: null, style_notes: "짧은 얼굴 컷", memo: "눈 주변 정리", price_paid: 50000, groomed_at: at(sevenWeeksAgo, "12:00"), created_at: now, updated_at: now },
 ];
 
 export const demoNotifications: Notification[] = [
@@ -128,4 +142,3 @@ export function buildDemoBootstrap(): BootstrapPayload {
     landingFeedback: demoLandingFeedback,
   });
 }
-

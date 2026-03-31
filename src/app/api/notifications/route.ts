@@ -6,12 +6,18 @@ import { getMockStore, setMockStore } from "@/server/mock-store";
 import { sendNotification } from "@/server/notifications";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getOwnerRouteAccess } from "@/server/owner-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const access = await getOwnerRouteAccess();
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
     const notice = await sendNotification({
-      shop_id: body.shopId,
+      shop_id: access.context.shopId,
       appointment_id: body.appointmentId || null,
       pet_id: body.petId || null,
       guardian_id: body.guardianId || null,

@@ -73,6 +73,7 @@ export type BusinessHours = Partial<
 
 export type Shop = {
   id: string;
+  owner_user_id?: string | null;
   name: string;
   phone: string;
   address: string;
@@ -205,3 +206,4 @@ export type BootstrapPayload = {
   landingInterests: LandingInterest[];
   landingFeedback: LandingFeedback[];
 };
+

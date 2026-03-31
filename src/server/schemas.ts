@@ -20,6 +20,25 @@ export const appointmentStatusSchema = z.object({
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
 });
 
+const customerAppointmentBaseSchema = z.object({
+  shopId: z.string(),
+  appointmentId: z.string(),
+  phone: z.string().min(8),
+});
+
+export const customerAppointmentMutationSchema = z.discriminatedUnion("action", [
+  customerAppointmentBaseSchema.extend({
+    action: z.literal("cancel"),
+  }),
+  customerAppointmentBaseSchema.extend({
+    action: z.literal("reschedule"),
+    serviceId: z.string(),
+    appointmentDate: z.string(),
+    appointmentTime: z.string(),
+    memo: z.string().default(""),
+  }),
+]);
+
 export const guardianInputSchema = z.object({
   shopId: z.string(),
   name: z.string().min(1),
@@ -130,3 +149,4 @@ export const petUpdateSchema = z.object({
   breed: z.string().min(1),
   birthday: z.string().nullable().optional().default(null),
 });
+

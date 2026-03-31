@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { CalendarDays, House, Settings, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -66,7 +66,7 @@ export default function OwnerApp({ initialData }: { initialData: BootstrapPayloa
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
-  const [selectedDate, setSelectedDate] = useState("2026-03-16");
+  const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [visitDateFilter, setVisitDateFilter] = useState(currentDateInTimeZone());
@@ -746,27 +746,3 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) { return <div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><p className="text-[11px] font-medium text-[var(--muted)]">{label}</p><p className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</p></div>; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

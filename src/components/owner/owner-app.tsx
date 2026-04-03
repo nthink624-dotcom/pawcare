@@ -4,6 +4,7 @@ import { CalendarDays, House, Settings, UserRound, type LucideIcon } from "lucid
 import { useEffect, useMemo, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
+import { fetchApiJsonWithAuth } from "@/lib/api";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
 import { addDate, currentDateInTimeZone, shortDate, won } from "@/lib/utils";
@@ -53,13 +54,7 @@ const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
 ];
 
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
-  const response = await fetch(input, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-  });
-  const json = await response.json();
-  if (!response.ok) throw new Error(json.message || "\uC694\uCCAD\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
-  return json as T;
+  return fetchApiJsonWithAuth<T>(String(input), init);
 }
 
 export default function OwnerApp({ initialData }: { initialData: BootstrapPayload }) {
@@ -84,7 +79,7 @@ export default function OwnerApp({ initialData }: { initialData: BootstrapPayloa
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
-    const next = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`);
+    const next = await fetchJson<BootstrapPayload>("/api/bootstrap");
     setData(next);
   }
 

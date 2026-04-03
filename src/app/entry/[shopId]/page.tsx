@@ -1,5 +1,5 @@
-﻿import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
-import { getBootstrap } from "@/server/repositories/app-repository";
+import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import { getPublicBootstrap } from "@/lib/api";
 
 export default async function EntryPage({
   params,
@@ -7,7 +7,7 @@ export default async function EntryPage({
   params: Promise<{ shopId: string }>;
 }) {
   const { shopId } = await params;
-  const data = await getBootstrap(shopId);
+  const data = await getPublicBootstrap(shopId);
 
   return (
     <CustomerBookingEntryPage

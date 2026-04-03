@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -83,7 +83,7 @@ export default function ResetPasswordForm({
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
       <div className="flex items-start justify-between">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">PAWCARE OWNER</div>
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">멍매니저 OWNER</div>
         <Link href="/login" className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#fafafa] text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]">
           <X className="h-6 w-6" strokeWidth={2.2} />
         </Link>
@@ -138,8 +138,8 @@ export default function ResetPasswordForm({
               placeholder="6자 이상 입력"
               className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
             />
-            <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#111111]">
-              {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
+            <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="shrink-0 text-[#111111]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
         </FieldShell>
@@ -152,28 +152,30 @@ export default function ResetPasswordForm({
               placeholder="비밀번호 다시 입력"
               className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
             />
-            <button type="button" onClick={() => setShowPasswordConfirm((prev) => !prev)} className="text-[#111111]">
-              {showPasswordConfirm ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
+            <button type="button" onClick={() => setShowPasswordConfirm((prev) => !prev)} className="shrink-0 text-[#111111]" aria-label={showPasswordConfirm ? "비밀번호 숨기기" : "비밀번호 보기"}>
+              {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
         </FieldShell>
 
-        {firstError ? <p className="px-1 text-[13px] text-[#b14b4b]">{firstError}</p> : null}
-        {message ? <p className="px-1 text-[14px] leading-6 text-[#6f6f6f]">{message}</p> : null}
+        {(firstError || message) ? (
+          <p className={`px-1 text-[13px] ${firstError ? "text-[#c43d3d]" : "text-[#5f6f69]"}`}>{firstError || message}</p>
+        ) : null}
 
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <Link href="/login" className="flex h-[52px] items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white text-[15px] font-semibold text-[#111111]">
-            돌아가기
-          </Link>
-          <button
-            type="submit"
-            disabled={isSubmitting || !ready}
-            className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#2f786b] text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSubmitting ? "변경 중..." : "비밀번호 변경"}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting || !ready}
+          className="mt-2 flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#6b9e8a] text-[18px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {isSubmitting ? "변경 중..." : "비밀번호 변경"}
+        </button>
       </form>
+
+      <div className="mt-7 text-center">
+        <Link href="/login" className="text-[14px] font-medium text-[#111111] underline underline-offset-4">
+          로그인으로 돌아가기
+        </Link>
+      </div>
     </div>
   );
 }

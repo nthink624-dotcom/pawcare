@@ -9,9 +9,9 @@ $existing = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue 
   Select-Object -ExpandProperty OwningProcess -Unique
 
 if ($existing) {
-  foreach ($pid in $existing) {
+  foreach ($processId in $existing) {
     try {
-      Stop-Process -Id $pid -Force -ErrorAction Stop
+      Stop-Process -Id $processId -Force -ErrorAction Stop
     } catch {
     }
   }
@@ -19,13 +19,11 @@ if ($existing) {
 
 Push-Location $projectRoot
 try {
-  npm.cmd run build | Out-Host
-
   if (Test-Path $logPath) {
     Remove-Item $logPath -Force
   }
 
-  $command = "cd /d `"$projectRoot`" && npm.cmd run start:local > `"$logPath`" 2>&1"
+  $command = "cd /d `"$projectRoot`" && npm.cmd run dev:local > `"$logPath`" 2>&1"
   Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden | Out-Null
 
   Start-Sleep -Seconds 3
@@ -33,7 +31,7 @@ try {
   $ok = $false
   for ($i = 0; $i -lt 10; $i++) {
     try {
-      $response = Invoke-WebRequest -UseBasicParsing "http://$hostName`:$port/owner" -TimeoutSec 5
+      $response = Invoke-WebRequest -UseBasicParsing "http://$hostName`:$port/login" -TimeoutSec 5
       if ($response.StatusCode -eq 200) {
         $ok = $true
         break

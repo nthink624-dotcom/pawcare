@@ -1,21 +1,14 @@
-import { redirect } from "next/navigation";
-
-import LoginForm from "@/components/auth/login-form";
-import { hasSupabaseEnv } from "@/lib/env";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+﻿import LoginForm from "@/components/auth/login-form";
+import { hasSupabaseBrowserEnv } from "@/lib/env";
 
 const errorMessages: Record<string, string> = {
-  supabase:
-    "Supabase \ud658\uacbd \ubcc0\uc218\uac00 \uc124\uc815\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. .env.local\uc744 \uba3c\uc800 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
-  "no-shop":
-    "\uc5f0\uacb0\ub41c \ub9e4\uc7a5 \uc815\ubcf4\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. demo-shop \uc5f0\uacb0 \uc0c1\ud0dc\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+  supabase: "Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.",
+  "no-shop": "연결된 매장 정보가 없습니다. 회원가입 후 다시 로그인해 주세요.",
 };
 
 const infoMessages: Record<string, string> = {
-  "signup-success":
-    "\ud68c\uc6d0\uac00\uc785\uc774 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.",
-  "reset-success":
-    "\ube44\ubc00\ubc88\ud638\uac00 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc0c8 \ube44\ubc00\ubc88\ud638\ub85c \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.",
+  "signup-success": "회원가입이 완료되었습니다. 로그인해 주세요.",
+  "reset-success": "비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요.",
 };
 
 export default async function LoginPage({
@@ -27,24 +20,16 @@ export default async function LoginPage({
   const errorKey = typeof params.error === "string" ? params.error : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
 
-  if (hasSupabaseEnv()) {
-    const supabase = await getSupabaseServerClient();
-    const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-
-    if (data.user) {
-      redirect("/owner" as never);
-    }
-  }
-
-  return (<LoginForm
-        supabaseReady={hasSupabaseEnv()}
-        initialMessage={
-          errorKey
-            ? errorMessages[errorKey] ?? null
-            : messageKey
-              ? infoMessages[messageKey] ?? null
-              : null
-        }
-      />
+  return (
+    <LoginForm
+      supabaseReady={hasSupabaseBrowserEnv()}
+      initialMessage={
+        errorKey
+          ? errorMessages[errorKey] ?? null
+          : messageKey
+            ? infoMessages[messageKey] ?? null
+            : null
+      }
+    />
   );
 }

@@ -3,8 +3,8 @@
 import { env } from "@/lib/env";
 
 export function getSupabaseBrowserClient() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+  if (!env.supabaseUrl || !env.supabasePublishableKey) {
     return null;
   }
-  return createBrowserClient(env.supabaseUrl, env.supabaseAnonKey);
+  return createBrowserClient(env.supabaseUrl, env.supabasePublishableKey);
 }

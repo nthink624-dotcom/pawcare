@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:frontend": "next dev",
+    "dev:backend": "npm --prefix backend run dev",
     "dev:local": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
     "start": "next start",
@@ -10,11 +12,18 @@
     "serve:local": "npm run build && npm run start:local",
     "server:up": "powershell -ExecutionPolicy Bypass -File ./scripts/start-local-server.ps1",
     "server:down": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-local-server.ps1",
+    "status:start": "node --experimental-transform-types ./scripts/job-status.ts start",
+    "status:complete": "node --experimental-transform-types ./scripts/job-status.ts complete",
+    "status:fail": "node --experimental-transform-types ./scripts/job-status.ts fail",
+    "status:last": "node --experimental-transform-types ./scripts/job-status.ts last",
+    "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:backend": "npm --prefix backend run typecheck"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@portone/browser-sdk": "^0.1.3",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.1",
     "clsx": "^2.1.1",

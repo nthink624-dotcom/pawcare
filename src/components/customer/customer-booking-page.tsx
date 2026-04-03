@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
+import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
@@ -95,13 +96,10 @@ const statusLabelMap: Record<Appointment["status"], string> = {
 };
 
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
-  const response = await fetch(input, {
+  return fetchApiJson<T>(String(input), {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });
-  const json = await response.json();
-  if (!response.ok) throw new Error(json.message || "요청에 실패했습니다.");
-  return json as T;
 }
 
 function buildDateOptions(shop: Shop): DateOption[] {

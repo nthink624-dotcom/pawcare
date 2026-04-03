@@ -1,0 +1,1 @@
+﻿export const OWNER_SIGNUP_TERMS_VERSION = "2026-03-31";

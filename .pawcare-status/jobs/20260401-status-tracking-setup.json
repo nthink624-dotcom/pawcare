@@ -1,0 +1,17 @@
+{
+  "jobId": "20260401-status-tracking-setup",
+  "title": "작업 상태 추적 구조 추가",
+  "status": "completed",
+  "startedAt": "2026-04-01T06:58:34.965Z",
+  "finishedAt": "2026-04-01T06:58:46.695Z",
+  "summary": "작업 상태 JSON 저장소, 이력 구조, 조회 CLI, 문서 추가 완료",
+  "changedFiles": [
+    "package.json",
+    "scripts/job-status.ts",
+    "docs/job-status.md"
+  ],
+  "notes": [
+    "최소 JSON 추적 구조와 조회 명령 추가",
+    "last-job.json과 jobs 이력을 같은 포맷으로 저장"
+  ]
+}

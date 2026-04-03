@@ -102,7 +102,7 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
       <div className="flex items-start justify-between">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">PAWCARE OWNER</div>
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">멍매니저 OWNER</div>
         <Link href="/" className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#fafafa] text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]">
           <X className="h-6 w-6" strokeWidth={2.2} />
         </Link>
@@ -113,7 +113,7 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
       </div>
 
       <div className="mt-10">
-        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">PawCare 사장님 로그인</h1>
+        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">멍매니저 사장님 로그인</h1>
         <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">아이디와 비밀번호로 로그인하고 매장 운영 화면으로 바로 들어가세요.</p>
       </div>
 
@@ -137,7 +137,7 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
               placeholder="비밀번호 입력"
               className="h-5 w-full border-0 bg-transparent p-0 text-[14px] font-medium leading-5 text-[#111111] outline-none placeholder:text-[#b0aaa1]"
             />
-            <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#111111]">
+            <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#111111]" aria-label="비밀번호 표시 전환">
               {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
             </button>
           </div>

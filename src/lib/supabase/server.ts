@@ -1,40 +1,23 @@
-﻿import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
-import { env } from "@/lib/env";
+import { serverEnv } from "@/lib/server-env";
 
-export async function getSupabaseServerClient() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+export function getSupabaseAdmin() {
+  if (!serverEnv.supabaseUrl || !serverEnv.supabaseServiceRoleKey) {
     return null;
   }
 
-  const cookieStore = await cookies();
-
-  return createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
-          });
-        } catch {
-          // Server Components may not be able to mutate cookies. Route handlers can.
-        }
-      },
-    },
+  return createClient(serverEnv.supabaseUrl, serverEnv.supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-export function getSupabaseAdmin() {
-  if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
+export function getSupabaseAuthClient() {
+  if (!serverEnv.supabaseUrl || !serverEnv.supabasePublishableKey) {
     return null;
   }
 
-  return createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
+  return createClient(serverEnv.supabaseUrl, serverEnv.supabasePublishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

@@ -74,7 +74,6 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[var(--text)]">{service.name}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{service.duration_minutes}분 소요</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span>
               </div>

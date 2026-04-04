@@ -11,6 +11,34 @@ create table if not exists shops (
   temporary_closed_dates date[] not null default '{}',
   concurrent_capacity int not null default 1 check (concurrent_capacity between 1 and 5),
   approval_mode text not null default 'manual' check (approval_mode in ('manual', 'auto')),
+  notification_settings jsonb not null default '{
+    "enabled": false,
+    "revisit_enabled": false,
+    "booking_confirmed_enabled": false,
+    "booking_rejected_enabled": false,
+    "booking_cancelled_enabled": false,
+    "booking_rescheduled_enabled": false,
+    "grooming_almost_done_enabled": false,
+    "grooming_completed_enabled": false
+  }'::jsonb,
+  customer_page_settings jsonb not null default '{
+    "shop_name": "",
+    "tagline": "",
+    "hero_image_url": "",
+    "primary_color": "#1F6B5B",
+    "notices": [],
+    "operating_hours_note": "",
+    "holiday_notice": "",
+    "parking_notice": "",
+    "kakao_inquiry_url": "",
+    "show_notices": true,
+    "show_parking_notice": true,
+    "show_services": true,
+    "booking_button_label": "예약하기",
+    "show_kakao_inquiry": true,
+    "font_preset": "soft",
+    "font_scale": "comfortable"
+  }'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

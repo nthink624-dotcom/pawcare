@@ -5,6 +5,7 @@ import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
 
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
+import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
@@ -530,6 +531,10 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           </div>
         </div>
       ) : null}
+
+      <div className="px-5 pb-[120px]">
+        <LegalLinksFooter />
+      </div>
     </>
   );
 }
@@ -590,7 +595,7 @@ function TimeGrid({ timeSlot, availableSlots, loading, onSelect }: { timeSlot: s
 }
 
 function ServiceCards({ services, selectedServiceId, onSelect }: { services: Service[]; selectedServiceId: string; onSelect: (value: string) => void }) {
-  return <div className="space-y-2.5">{services.map((service) => <button key={service.id} type="button" onClick={() => onSelect(service.id)} className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--text)]">{service.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{service.duration_minutes}분 소요</p></div><span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span></div></button>)}</div>;
+  return <div className="space-y-2.5">{services.map((service) => <button key={service.id} type="button" onClick={() => onSelect(service.id)} className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--text)]">{service.name}</p></div><span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span></div></button>)}</div>;
 }
 
 function ReservationSlotPicker({ date, timeSlot, dateOptions, availableSlots, loading, onDateChange, onTimeChange }: { date: string; timeSlot: string; dateOptions: DateOption[]; availableSlots: string[]; loading: boolean; onDateChange: (value: string) => void; onTimeChange: (value: string) => void }) {

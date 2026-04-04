@@ -1,5 +1,6 @@
 ﻿import { decodeUnicodeEscapes } from "@/lib/utils";
 import type { Service, Shop } from "@/types/domain";
+import LegalLinksFooter from "@/components/legal/legal-links-footer";
 
 export default function LandingPage({ shop, services }: { shop: Shop; services: Service[] }) {
   const shopName = decodeUnicodeEscapes(shop.name);
@@ -65,6 +66,9 @@ export default function LandingPage({ shop, services }: { shop: Shop; services: 
           />
         </section>
       </section>
+      <div className="px-5 pb-10">
+        <LegalLinksFooter />
+      </div>
     </div>
   );
 }

@@ -12,6 +12,9 @@ type SettingsPanelProps = {
   onSave: (payload: unknown) => Promise<unknown> | void;
   onSaveService: (payload: unknown) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
+  onLogout?: () => void;
+  loggingOut?: boolean;
+  userEmail?: string | null;
 };
 
 type SaveFeedback = {
@@ -35,7 +38,15 @@ function shiftMonth(cursor: string, amount: number) {
   return `${nextYear}-${nextMonth}`;
 }
 
-export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSaveCustomerPageSettings }: SettingsPanelProps) {
+export default function OwnerSettingsPanel({
+  data,
+  onSave,
+  onSaveService,
+  onSaveCustomerPageSettings,
+  onLogout,
+  loggingOut = false,
+  userEmail,
+}: SettingsPanelProps) {
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
   const [address, setAddress] = useState(decodeUnicodeEscapes(data.shop.address));
@@ -366,20 +377,13 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                         <span>시작가로 표시하기</span>
                       </label>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-[var(--muted)]">예상 소요시간</p>
-                      <div className="flex items-center gap-2">
-                        <input className="field flex-1" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)} placeholder="소요 시간 입력 (분)" />
-                        <span className="text-sm font-semibold text-[var(--muted)]">분</span>
-                      </div>
-                    </div>
                     <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
                       <input type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
                       <span>소비자 화면에 노출</span>
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <OutlineButton onClick={stopEditingService}>취소</OutlineButton>
-                      <SolidButton onClick={() => handleServiceSave(service)} disabled={!editingServiceName || !editingServicePrice || !editingServiceDuration}>
+                      <SolidButton onClick={() => handleServiceSave(service)} disabled={!editingServiceName || !editingServicePrice}>
                         저장
                       </SolidButton>
                     </div>
@@ -397,9 +401,7 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                         수정
                       </button>
                     </div>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
-                      가격 {formatServicePrice(service.price, service.price_type ?? "starting")} / 예상 소요시간 {service.duration_minutes}분
-                    </p>
+                    <p className="mt-2 text-sm text-[var(--muted)]">가격 {formatServicePrice(service.price, service.price_type ?? "starting")}</p>
                   </>
                 )}
               </div>
@@ -423,13 +425,6 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
                   <span>시작가로 표시하기</span>
                 </label>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-[var(--muted)]">예상 소요시간</p>
-                <div className="flex items-center gap-2">
-                  <input className="field flex-1" placeholder="소요 시간 입력 (분)" value={newService.duration} onChange={(event) => setNewService((prev) => ({ ...prev, duration: event.target.value }))} />
-                  <span className="text-sm font-semibold text-[var(--muted)]">분</span>
-                </div>
-              </div>
               <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
                 <input type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
                 <span>소비자 화면에 노출</span>
@@ -441,6 +436,17 @@ export default function OwnerSettingsPanel({ data, onSave, onSaveService, onSave
           </div>
         </div>
       </SettingsCard>
+
+      {onLogout ? (
+        <SettingsCard title="계정">
+          <div className="space-y-2">
+            {userEmail ? <p className="text-sm text-[var(--muted)]">{userEmail}</p> : null}
+            <OutlineButton onClick={onLogout} disabled={loggingOut}>
+              {loggingOut ? "로그아웃 중..." : "로그아웃"}
+            </OutlineButton>
+          </div>
+        </SettingsCard>
+      ) : null}
 
       {isClosedDatePickerOpen ? (
         <ClosedDatePickerSheet

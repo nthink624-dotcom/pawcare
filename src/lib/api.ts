@@ -1,4 +1,4 @@
-﻿import { env } from "@/lib/env";
+import { env } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -14,15 +14,43 @@ export function buildApiUrl(path: string) {
     return path;
   }
 
-  return `${env.apiBaseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (env.apiBaseUrl) {
+    return `${env.apiBaseUrl.replace(/\/$/, "")}${normalizedPath}`;
+  }
+
+  if (typeof window === "undefined") {
+    return `${env.siteUrl.replace(/\/$/, "")}${normalizedPath}`;
+  }
+
+  return normalizedPath;
 }
 
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
   const response = await fetch(buildApiUrl(input), init);
-  const json = await response.json();
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+  let json: unknown = null;
+
+  if (text) {
+    if (contentType.includes("application/json")) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error("서버 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    } else if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+      throw new Error("요청이 로그인 화면이나 오류 페이지로 이동했습니다. 다시 로그인해 주세요.");
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(json.message || "요청을 처리하지 못했습니다.");
+    const message =
+      json && typeof json === "object" && "message" in json && typeof json.message === "string"
+        ? json.message
+        : "요청 처리 중 문제가 발생했습니다.";
+    throw new Error(message);
   }
 
   return json as T;
@@ -42,7 +70,7 @@ export async function getPublicBootstrap(shopId?: string) {
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase 환경 변수가 설정되지 않았습니다.");
+    throw new Error("Supabase 설정을 확인해 주세요.");
   }
 
   const {

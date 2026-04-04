@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState, type ReactNode, type UIEvent } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, Eye, EyeOff, X } from "lucide-react";
 
@@ -82,26 +82,30 @@ function AgreementRow({
   checked,
   title,
   required,
+  description,
+  onToggle,
   onOpen,
 }: {
   checked: boolean;
   title: string;
   required: boolean;
+  description: string;
+  onToggle: () => void;
   onOpen: () => void;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-[18px] border border-[#e4ddd2] bg-white px-4 py-4">
       <button
         type="button"
-        aria-label={`${required ? "필수" : "선택"} ${title} 보기`}
-        onClick={onOpen}
+        aria-label={`${required ? "필수" : "선택"} ${title} 동의`}
+        onClick={onToggle}
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${checked ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"}`}
       >
         <Check className="h-4 w-4" strokeWidth={2.4} />
       </button>
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
         <p className="text-[15px] font-medium text-[#111111]">[{required ? "필수" : "선택"}] {title}</p>
-        <p className="mt-1 text-[12px] text-[#8a857d]">약관 전문을 끝까지 읽은 뒤 동의할 수 있어요.</p>
+        <p className="mt-1 text-[12px] text-[#8a857d]">{description}</p>
       </button>
       <button type="button" onClick={onOpen} className="text-[14px] font-medium text-[#6f6f6f] underline underline-offset-4">
         보기
@@ -122,7 +126,6 @@ export default function SignupForm({
   const [step, setStep] = useState<SignupStep>("terms");
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
   const [activeTermId, setActiveTermId] = useState<OwnerSignupTermId | null>(null);
-  const [termReadComplete, setTermReadComplete] = useState(false);
   const [fields, setFields] = useState<FieldState>({
     loginId: "",
     password: "",
@@ -146,6 +149,7 @@ export default function SignupForm({
 
   const activeTerm = activeTermId ? ownerSignupTerms.find((term) => term.id === activeTermId) ?? null : null;
   const requiredAgreed = ownerSignupTerms.filter((term) => term.required).every((term) => agreements[term.id]);
+  const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
 
   const resetVerification = () => {
     setVerification(initialVerificationState);
@@ -178,21 +182,26 @@ export default function SignupForm({
     setAgreements((prev) => ({ ...prev, [id]: checked }));
   };
 
+  const toggleAgreement = (id: OwnerSignupTermId) => {
+    setAgreements((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleAllAgreements = () => {
+    const nextValue = !allAgreed;
+    setAgreements({
+      service: nextValue,
+      privacy: nextValue,
+      location: nextValue,
+      marketing: nextValue,
+    });
+  };
+
   const openTermModal = (id: OwnerSignupTermId) => {
     setActiveTermId(id);
-    setTermReadComplete(false);
   };
 
   const closeTermModal = () => {
     setActiveTermId(null);
-    setTermReadComplete(false);
-  };
-
-  const handleTermScroll = (event: UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 12) {
-      setTermReadComplete(true);
-    }
   };
 
   const checkLoginId = async () => {
@@ -337,7 +346,7 @@ export default function SignupForm({
 
   const startPassVerification = async () => {
     if (verification.passLoading) return;
-    if (!portoneReady || !env.portoneStoreId || !env.portoneChannelKey) {
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
       setMessage("포트원 본인인증 환경 변수가 아직 설정되지 않았습니다.");
       return;
     }
@@ -351,7 +360,7 @@ export default function SignupForm({
       const identityVerificationId = `mungmanager_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
-        channelKey: env.portoneChannelKey,
+        channelKey: env.portoneIdentityChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {
@@ -519,7 +528,7 @@ export default function SignupForm({
           {step === "terms" ? "약관 동의" : step === "verification" ? "본인인증" : "회원 정보 입력"}
         </h1>
         {step === "terms" ? (
-          <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">필수 약관은 내용을 끝까지 읽은 뒤 동의해 주세요.</p>
+          <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">필수 약관에 동의하면 다음 단계로 넘어갈 수 있어요.</p>
         ) : null}
         {step === "verification" ? (
           <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">
@@ -532,18 +541,35 @@ export default function SignupForm({
 
       {step === "terms" ? (
         <div className="mt-7 space-y-3.5">
+          <div className="rounded-[18px] border border-[#d8e7df] bg-[#eef8f3] px-4 py-4">
+            <button type="button" onClick={toggleAllAgreements} className="flex w-full items-center gap-3 text-left">
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${allAgreed ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"}`}
+                aria-hidden="true"
+              >
+                <Check className="h-4 w-4" strokeWidth={2.4} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold text-[#111111]">전체 동의하기</span>
+                <span className="mt-1 block text-[12px] leading-5 text-[#6b756f]">필수 및 선택 약관에 모두 동의합니다.</span>
+              </span>
+            </button>
+          </div>
+
           {ownerSignupTerms.map((term) => (
             <AgreementRow
               key={term.id}
               checked={agreements[term.id]}
               title={term.title}
               required={term.required}
+              description={term.required ? "필수 약관이에요." : "선택 동의 항목이에요."}
+              onToggle={() => toggleAgreement(term.id)}
               onOpen={() => openTermModal(term.id)}
             />
           ))}
 
           <p className="px-1 text-[13px] leading-5 text-[#7f786f]">
-            체크 표시는 약관 전문을 끝까지 읽고 모달 안에서 동의해야 활성화됩니다.
+            체크박스로 바로 동의하거나, 보기에서 내용을 확인한 뒤 동의할 수 있어요.
           </p>
 
           <button
@@ -790,19 +816,16 @@ export default function SignupForm({
                 닫기
               </button>
             </div>
-            <p className="mt-3 text-[13px] leading-5 text-[#6f6f6f]">스크롤을 맨 아래까지 내려야 동의할 수 있어요.</p>
+            <p className="mt-3 text-[13px] leading-5 text-[#6f6f6f]">약관 내용을 확인한 뒤 바로 동의하거나 닫을 수 있어요.</p>
             <div
               role="dialog"
               aria-modal="true"
               aria-label={activeTerm.title}
-              onScroll={handleTermScroll}
               className="mt-4 max-h-[400px] overflow-y-auto rounded-[20px] border border-[#ddd6cb] bg-white px-4 py-4 text-[14px] leading-6 text-[#424242]"
             >
               <div className="whitespace-pre-wrap">{activeTerm.content}</div>
             </div>
-            <div className="mt-3 text-[12px] text-[#8a857d]">
-              {termReadComplete ? "끝까지 확인했어요. 동의할 수 있습니다." : "본문을 끝까지 읽으면 동의 버튼이 활성화됩니다."}
-            </div>
+            <div className="mt-3 text-[12px] text-[#8a857d]">스크롤은 확인용이에요. 체크박스나 동의 버튼으로 바로 진행할 수 있어요.</div>
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
@@ -817,8 +840,7 @@ export default function SignupForm({
                   updateAgreement(activeTerm.id, true);
                   closeTermModal();
                 }}
-                disabled={!termReadComplete}
-                className="flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-[#6b9e8a] text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-[#6b9e8a] text-[15px] font-semibold text-white"
               >
                 동의
               </button>
@@ -835,3 +857,4 @@ export default function SignupForm({
     </div>
   );
 }
+

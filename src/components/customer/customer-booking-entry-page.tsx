@@ -1,4 +1,5 @@
-﻿import { formatServicePrice } from "@/lib/utils";
+﻿import LegalLinksFooter from "@/components/legal/legal-links-footer";
+import { formatServicePrice } from "@/lib/utils";
 import type { CustomerPageSettings, Service, Shop } from "@/types/domain";
 
 const typographyMap: Record<
@@ -198,7 +199,6 @@ export default function CustomerBookingEntryPage({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className={`text-[15px] text-[var(--text)] ${typography.title}`}>{service.name}</p>
-                    <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>예상 소요시간 {service.duration_minutes}분</p>
                   </div>
                   <span
                     className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
@@ -215,6 +215,8 @@ export default function CustomerBookingEntryPage({
           </div>
         </section>
       ) : null}
+
+      <LegalLinksFooter />
     </div>
   );
 }

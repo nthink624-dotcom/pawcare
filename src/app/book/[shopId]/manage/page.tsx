@@ -1,9 +1,9 @@
-import CustomerBookingPage from "@/components/customer/customer-booking-page";
-import { getPublicBootstrap } from "@/lib/api";
+﻿import CustomerBookingPage from "@/components/customer/customer-booking-page";
+import { getBootstrap } from "@/server/bootstrap";
 
 export default async function BookManagePage({ params }: { params: Promise<{ shopId: string }> }) {
   const { shopId } = await params;
-  const data = await getPublicBootstrap(shopId);
+  const data = await getBootstrap(shopId);
 
   return (
     <CustomerBookingPage
@@ -17,3 +17,4 @@ export default async function BookManagePage({ params }: { params: Promise<{ sho
     />
   );
 }
+

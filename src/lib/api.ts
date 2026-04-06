@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+﻿import { env } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -38,10 +38,10 @@ export async function fetchApiJson<T>(input: string, init?: RequestInit) {
       try {
         json = JSON.parse(text);
       } catch {
-        throw new Error("서버 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        throw new Error("서버 응답을 읽는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       }
     } else if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-      throw new Error("요청이 로그인 화면이나 오류 페이지로 이동했습니다. 다시 로그인해 주세요.");
+      throw new Error("요청한 화면을 찾을 수 없습니다. 경로를 다시 확인해 주세요.");
     }
   }
 
@@ -70,7 +70,7 @@ export async function getPublicBootstrap(shopId?: string) {
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase 설정을 확인해 주세요.");
+    throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
   const {

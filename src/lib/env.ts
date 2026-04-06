@@ -22,3 +22,10 @@ export function hasSupabaseBrowserEnv() {
 export function hasPortoneBrowserEnv() {
   return Boolean(env.portoneStoreId && env.portoneIdentityChannelKey);
 }
+
+export function hasPortonePaymentBrowserEnv() {
+  return Boolean(
+    env.portoneStoreId &&
+      (env.portonePaymentChannelKey || env.portoneKakaoPayChannelKey || env.portoneNaverPayChannelKey),
+  );
+}

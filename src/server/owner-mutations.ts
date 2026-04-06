@@ -310,7 +310,7 @@ export async function createAppointment(input: unknown) {
     updated_at: nowIso(),
   };
 
-  if (!hasSupabaseServerEnv()) {
+  if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);

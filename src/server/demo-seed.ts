@@ -60,6 +60,13 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
     a14: randomUUID(),
   };
 
+  await supabase.from("notifications").delete().eq("shop_id", shopId);
+  await supabase.from("grooming_records").delete().eq("shop_id", shopId);
+  await supabase.from("appointments").delete().eq("shop_id", shopId);
+  await supabase.from("pets").delete().eq("shop_id", shopId);
+  await supabase.from("guardians").delete().eq("shop_id", shopId);
+  await supabase.from("services").delete().eq("shop_id", shopId);
+
   const fullShopUpdate = await supabase
     .from("shops")
     .update({

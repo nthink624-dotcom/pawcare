@@ -5,7 +5,7 @@ import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
-import { currentDateInTimeZone, currentMinutesInTimeZone, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
+import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type LookupPayload = {
@@ -323,7 +323,7 @@ export default function CustomerBookingManagePanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet?.name || "예약"} · {service?.name || "서비스"}</p>
-                      <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)} · {appointment.appointment_time}</p>
+                      <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)} · {formatClockTime(appointment.appointment_time)}</p>
                       <p className="mt-1 text-[13px] text-[var(--muted)]">상태: {statusLabelMap[appointment.status] || appointment.status}</p>
                       {appointment.memo ? <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">메모: {appointment.memo}</p> : null}
                     </div>

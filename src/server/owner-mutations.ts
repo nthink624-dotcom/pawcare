@@ -26,6 +26,11 @@ function buildAppointmentWindow(date: string, time: string, durationMinutes: num
   };
 }
 
+function toTimestampString(date: string, time: string) {
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
+  return `${date}T${normalizedTime}.000Z`;
+}
+
 function getRejectionReason(payload: {
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
@@ -364,15 +369,15 @@ export async function updateAppointmentStatus(input: unknown) {
           shop_id: appointment.shop_id,
           guardian_id: appointment.guardian_id,
           pet_id: appointment.pet_id,
-          service_id: appointment.service_id,
-          appointment_id: appointment.id,
-          style_notes: appointment.memo,
-          memo: "",
-          price_paid: service?.price ?? 0,
-          groomed_at: `${appointment.appointment_date}T${appointment.appointment_time}:00.000Z`,
-          created_at: nowIso(),
-          updated_at: nowIso(),
-        },
+        service_id: appointment.service_id,
+        appointment_id: appointment.id,
+        style_notes: appointment.memo,
+        memo: "",
+        price_paid: service?.price ?? 0,
+        groomed_at: toTimestampString(appointment.appointment_date, appointment.appointment_time),
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      },
         ...store.groomingRecords,
       ];
     }
@@ -430,7 +435,7 @@ export async function updateAppointmentStatus(input: unknown) {
         style_notes: resolvedAppointment.memo,
         memo: "",
         price_paid: service?.price ?? 0,
-        groomed_at: `${resolvedAppointment.appointment_date}T${resolvedAppointment.appointment_time}:00.000Z`,
+        groomed_at: toTimestampString(resolvedAppointment.appointment_date, resolvedAppointment.appointment_time),
         created_at: nowIso(),
         updated_at: nowIso(),
       });

@@ -64,9 +64,6 @@ export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Prom
   const isEmptyForTesting =
     allowSeed &&
     process.env.NODE_ENV !== "production" &&
-    (guardiansRes.data?.length ?? 0) === 0 &&
-    (petsRes.data?.length ?? 0) === 0 &&
-    (servicesRes.data?.length ?? 0) === 0 &&
     (appointmentsRes.data?.length ?? 0) === 0 &&
     (recordsRes.data?.length ?? 0) === 0;
 

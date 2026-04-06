@@ -44,6 +44,11 @@ export function minutesFromTime(value: string) {
   return hour * 60 + minute;
 }
 
+export function formatClockTime(value: string) {
+  const [hour = "00", minute = "00"] = value.split(":");
+  return `${hour}:${minute}`;
+}
+
 export function timeFromMinutes(value: number) {
   return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
 }

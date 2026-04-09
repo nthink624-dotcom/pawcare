@@ -180,7 +180,7 @@ function getCustomerBookingSuccessFeedback(approvalMode: Shop["approval_mode"]):
   };
 }
 
-export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = null, entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
+export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = "first", entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
   const services = initialServices.filter((service) => service.is_active);
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
   const paymentOptions = useMemo<PaymentOption[]>(() => {
@@ -263,16 +263,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, shopId]);
 
   function resetView() {
-    setActiveMode(null);
-    setFirstVisitStep(1);
-    setFirstVisit({ ...initialFirstVisitState, serviceId: services[0]?.id || "" });
-    setReturningVisit({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
-    setFirstVisitSlots([]);
-    setReturningVisitSlots([]);
-    setSubmitFeedback(null);
-    setReturningError(null);
-    setReturningHistory(null);
-    setShopInfoOpen(false);
+    window.location.href = entryHref || `/entry/${shopId}`;
   }
 
   function getFirstVisitStepValidity(step: FirstVisitStep) {
@@ -527,16 +518,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           )}
         </section>
 
-        <div className="-mt-4 space-y-4 px-4">
-          {activeMode === null ? (
-            <section className="rounded-[28px] bg-white p-4 shadow-sm">
-              <div className="space-y-3">
-                <ModeCard title="첫방문 예약하기" onClick={() => { setActiveMode("first"); setFirstVisitStep(1); setSubmitFeedback(null); }} />
-                <ModeCard title="재방문 예약하기" onClick={() => { setActiveMode("returning"); setSubmitFeedback(null); }} />
-                <ModeCard title="예약 확인 / 취소 / 변경" onClick={() => { setActiveMode("manage"); setSubmitFeedback(null); }} />
-              </div>
-            </section>
-          ) : null}
+        <div className="-mt-4 space-y-4 px-4">
 
 
           {activeMode === "first" ? (
@@ -816,6 +798,8 @@ function ActionButton({ children, disabled, onClick }: { children: React.ReactNo
 function SecondaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return <button type="button" disabled={disabled} onClick={onClick} className="shrink-0 rounded-2xl border border-[var(--border)] bg-white px-5 py-4 text-sm font-bold text-[var(--text)] disabled:opacity-40">{children}</button>;
 }
+
+
 
 
 

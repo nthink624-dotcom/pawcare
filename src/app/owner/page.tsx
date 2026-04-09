@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -13,6 +14,7 @@ export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
 
@@ -40,10 +42,14 @@ export default function OwnerPage() {
       setUserEmail(session.user.email ?? null);
 
       try {
-        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>("/api/bootstrap");
-        if (active) {
-          setData(bootstrap);
-        }
+        const [bootstrap, subscription] = await Promise.all([
+          fetchApiJsonWithAuth<BootstrapPayload>("/api/bootstrap"),
+          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription"),
+        ]);
+
+        if (!active) return;
+        setData(bootstrap);
+        setSubscriptionSummary(subscription);
       } catch (error) {
         if (!active) return;
 
@@ -80,5 +86,5 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerShell initialData={data} userEmail={userEmail} />;
+  return <OwnerShell initialData={data} subscriptionSummary={subscriptionSummary} userEmail={userEmail} />;
 }

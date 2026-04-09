@@ -30,7 +30,7 @@ function FieldShell({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-export default function LoginForm({ supabaseReady, initialMessage }: { supabaseReady: boolean; initialMessage?: string | null }) {
+export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/owner" }: { supabaseReady: boolean; initialMessage?: string | null; nextPath?: string }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [loginId, setLoginId] = useState("");
@@ -39,8 +39,6 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | "kakao" | "naver" | null>(null);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
-
-  const nextPath = "/owner";
 
   const handleLogin = async () => {
     if (!supabaseReady || !supabase) {
@@ -145,7 +143,7 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
       </div>
 
       <div className="mt-5 flex items-center justify-between">
-        <Link href="/signup" className="text-[15px] font-medium text-[#111111] underline underline-offset-4">
+        <Link href={`/signup?next=${encodeURIComponent(nextPath)}`} className="text-[15px] font-medium text-[#111111] underline underline-offset-4">
           회원가입하기
         </Link>
         <button type="button" onClick={handlePasswordReset} className="text-[15px] font-medium text-[#111111] underline underline-offset-4">
@@ -174,3 +172,4 @@ export default function LoginForm({ supabaseReady, initialMessage }: { supabaseR
     </div>
   );
 }
+

@@ -3,6 +3,7 @@
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
+import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice } from "@/lib/utils";
 import type { BootstrapPayload, Service } from "@/types/domain";
@@ -15,6 +16,7 @@ type SettingsPanelProps = {
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
+  subscriptionSummary?: OwnerSubscriptionSummary | null;
 };
 
 type SaveFeedback = {
@@ -25,6 +27,18 @@ type SaveFeedback = {
 type PriceType = "fixed" | "starting";
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+const addressSuggestions = [
+  "서울시 강남구 테헤란로 123",
+  "서울시 송파구 올림픽로 300",
+  "서울시 마포구 양화로 45",
+  "경기도 성남시 분당구 판교역로 166",
+  "인천시 연수구 센트럴로 123",
+  "대전시 유성구 대학로 99",
+  "광주시 서구 상무대로 777",
+  "대구시 수성구 달구벌대로 2500",
+  "부산시 해운대구 센텀중앙로 79",
+  "충청남도 천안시 서북구 미라9길 14",
+];
 
 function monthCursorFromDate(date: string) {
   return date.slice(0, 7);
@@ -46,10 +60,14 @@ export default function OwnerSettingsPanel({
   onLogout,
   loggingOut = false,
   userEmail,
+  subscriptionSummary,
 }: SettingsPanelProps) {
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
   const [address, setAddress] = useState(decodeUnicodeEscapes(data.shop.address));
+  const [detailAddress, setDetailAddress] = useState("");
+  const [addressSearchQuery, setAddressSearchQuery] = useState("");
+  const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
   const [description, setDescription] = useState(decodeUnicodeEscapes(data.shop.description));
   const [regularClosedDays, setRegularClosedDays] = useState<number[]>(data.shop.regular_closed_days);
   const [temporaryClosedDates, setTemporaryClosedDates] = useState<string[]>(data.shop.temporary_closed_dates);
@@ -106,6 +124,12 @@ export default function OwnerSettingsPanel({
   );
 
   const closedDateMonthLabel = `${Number(closedDateMonthCursor.slice(0, 4))}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
+  const filteredAddressSuggestions = useMemo(() => {
+    const query = addressSearchQuery.trim().toLowerCase();
+    const candidates = Array.from(new Set([address, ...addressSuggestions].filter(Boolean)));
+    if (!query) return candidates.slice(0, 8);
+    return candidates.filter((item) => item.toLowerCase().includes(query)).slice(0, 8);
+  }, [address, addressSearchQuery]);
 
   const closedDateMonthCells = useMemo(() => {
     const monthStart = `${closedDateMonthCursor}-01`;
@@ -164,13 +188,15 @@ export default function OwnerSettingsPanel({
         description,
       );
 
+      const combinedAddress = detailAddress.trim() ? `${address} ${detailAddress.trim()}`.trim() : address;
+
       await Promise.all([
         Promise.resolve(
           onSave({
             shopId: data.shop.id,
             name,
             phone,
-            address,
+            address: combinedAddress,
             description,
             concurrentCapacity: data.shop.concurrent_capacity,
             approvalMode: data.shop.approval_mode,
@@ -232,37 +258,54 @@ export default function OwnerSettingsPanel({
     <section className="space-y-3.5 p-4">
       <SettingsCard title="매장 기본 정보" open={openSection === "shop"} onToggle={() => setOpenSection((prev) => (prev === "shop" ? null : "shop"))}>
         <div className="space-y-2">
-          <Field label="매장명">
-            <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="한줄 소개">
-            <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} />
-          </Field>
           <div className="grid gap-2.5 sm:grid-cols-2">
-            <Field label="연락처">
+            <Field label="매장명">
+              <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+            <Field label="업체 연락처">
               <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
             </Field>
-            <Field label="주소">
-              <input className="field" value={address} onChange={(event) => setAddress(event.target.value)} />
-            </Field>
           </div>
-          <Field label="운영시간">
-            <textarea className="field min-h-20" value={operatingHoursNote} onChange={(event) => setOperatingHoursNote(event.target.value)} placeholder="예: 월-토 10:00 - 19:00, 일요일 휴무" />
+          <Field label="한줄 소개">
+            <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요." />
           </Field>
-
+          <Field label="주소">
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddressSearchQuery(address);
+                  setIsAddressSearchOpen(true);
+                }}
+                className="field flex min-h-[52px] w-full items-center justify-between text-left"
+              >
+                <span className={address ? "text-[var(--text)]" : "text-[var(--muted)]"}>
+                  {address || "주소를 검색해서 선택해 주세요"}
+                </span>
+                <span className="text-sm font-semibold text-[var(--accent)]">주소 검색</span>
+              </button>
+              <input
+                className="field"
+                value={detailAddress}
+                onChange={(event) => setDetailAddress(event.target.value)}
+                placeholder="상세 주소를 입력해 주세요"
+              />
+            </div>
+          </Field>
           <Field label="주차 안내">
             <div className="space-y-2">
               <ToggleRow label="주차 안내 노출" checked={showParkingNotice} onChange={setShowParkingNotice} />
               <textarea className="field min-h-20" value={parkingNotice} onChange={(event) => setParkingNotice(event.target.value)} placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요." />
             </div>
           </Field>
-          <Field label="공지사항">
+          <Field label="예약 전 안내">
             <div className="space-y-2">
-              <ToggleRow label="공지사항 노출" checked={showNotices} onChange={setShowNotices} />
+              <p className="text-sm text-[var(--muted)]">예약 전 고객에게 전할 내용을 편하게 적어둘 수 있어요.</p>
+              <ToggleRow label="고객에게 미리 보여주기" checked={showNotices} onChange={setShowNotices} />
               <div className="space-y-2 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
-                <input className="field" value={notices[0] || ""} onChange={(event) => updateNotice(0, event.target.value)} placeholder="공지 1" />
-                <input className="field" value={notices[1] || ""} onChange={(event) => updateNotice(1, event.target.value)} placeholder="공지 2" />
-                <input className="field" value={notices[2] || ""} onChange={(event) => updateNotice(2, event.target.value)} placeholder="공지 3" />
+                <input className="field" value={notices[0] || ""} onChange={(event) => updateNotice(0, event.target.value)} placeholder="예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요." />
+                <input className="field" value={notices[1] || ""} onChange={(event) => updateNotice(1, event.target.value)} placeholder="예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요." />
+                <input className="field" value={notices[2] || ""} onChange={(event) => updateNotice(2, event.target.value)} placeholder="예: 고객에게 미리 보여줄 안내를 간단히 적어주세요." />
               </div>
             </div>
           </Field>
@@ -283,8 +326,8 @@ export default function OwnerSettingsPanel({
         </div>
       </SettingsCard>
 
-      <SettingsCard title="휴무일 지정" open={openSection === "closures"} onToggle={() => setOpenSection((prev) => (prev === "closures" ? null : "closures"))}>
-        <Field label="정기 휴무">
+      <SettingsCard title="운영시간 안내" open={openSection === "closures"} onToggle={() => setOpenSection((prev) => (prev === "closures" ? null : "closures"))}>
+        <Field label="정기 휴무" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
           <div className="grid grid-cols-4 gap-2">
             {weekdayLabels.map((label, index) => {
               const active = regularClosedDays.includes(index);
@@ -307,10 +350,10 @@ export default function OwnerSettingsPanel({
             })}
           </div>
         </Field>
-        <Field label="휴무 안내 문구">
-          <textarea className="field min-h-20" value={holidayNotice} onChange={(event) => setHolidayNotice(event.target.value)} placeholder="예: 매주 화요일은 휴무입니다" />
+        <Field label="휴무 안내 멘트" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
+          <textarea className="field min-h-20" value={holidayNotice} onChange={(event) => setHolidayNotice(event.target.value)} placeholder="매주 일요일은 쉽니다. 더 꼼꼼한 관리로 다시 뵐게요." />
         </Field>
-        <Field label="특정 휴무일">
+        <Field label="특정 휴무일" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
           <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex gap-2">
               <button
@@ -437,6 +480,16 @@ export default function OwnerSettingsPanel({
         </div>
       </SettingsCard>
 
+      {subscriptionSummary ? (
+        <SettingsCard title="구독 관리">
+          <div className="space-y-2.5">
+            <p className="text-sm font-semibold text-[var(--text)]">현재 이용 또는 선택 플랜: {subscriptionSummary.currentPlan.name} {formatServicePrice(subscriptionSummary.currentPlan.price, "fixed")}</p>
+            <p className="text-sm text-[var(--muted)]">무료체험 종료일 {subscriptionSummary.trialEndsAt.slice(0, 10).replace(/-/g, ".")}. 무료체험 종료 후에는 자동결제되지 않으며, 결제 전까지 사용이 제한됩니다. 유료 플랜은 선결제 상품이며, 중도 해지 시 환불금이 재산정될 수 있습니다.</p>
+            <a href="/owner/billing" className="inline-flex w-full items-center justify-center rounded-[14px] border border-[var(--accent)] bg-white px-4 py-3 text-sm font-semibold text-[var(--accent)]">구독 관리 열기</a>
+          </div>
+        </SettingsCard>
+      ) : null}
+
       {onLogout ? (
         <SettingsCard title="계정">
           <div className="space-y-2">
@@ -460,7 +513,75 @@ export default function OwnerSettingsPanel({
           onSelectDate={setPendingClosedDate}
         />
       ) : null}
+
+      {isAddressSearchOpen ? (
+        <AddressSearchSheet
+          query={addressSearchQuery}
+          suggestions={filteredAddressSuggestions}
+          onClose={() => setIsAddressSearchOpen(false)}
+          onChangeQuery={setAddressSearchQuery}
+          onSelectAddress={(nextAddress) => {
+            setAddress(nextAddress);
+            setIsAddressSearchOpen(false);
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function AddressSearchSheet({
+  query,
+  suggestions,
+  onClose,
+  onChangeQuery,
+  onSelectAddress,
+}: {
+  query: string;
+  suggestions: string[];
+  onClose: () => void;
+  onChangeQuery: (value: string) => void;
+  onSelectAddress: (value: string) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
+      <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--text)]">주소 검색</h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">기본 주소를 찾고, 상세 주소만 아래에서 입력해 주세요.</p>
+          </div>
+          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+        </div>
+        <div className="space-y-3">
+          <input
+            className="field"
+            value={query}
+            onChange={(event) => onChangeQuery(event.target.value)}
+            placeholder="도로명, 건물명, 지역명으로 검색"
+          />
+          <div className="max-h-[320px] space-y-2 overflow-y-auto rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-3">
+            {suggestions.length ? (
+              suggestions.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => onSelectAddress(item)}
+                  className="w-full rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-left text-sm font-medium text-[var(--text)]"
+                >
+                  {item}
+                </button>
+              ))
+            ) : (
+              <div className="rounded-[14px] border border-dashed border-[var(--border)] bg-white px-4 py-6 text-center text-sm text-[var(--muted)]">
+                검색 결과가 없어요. 지역명이나 도로명으로 다시 찾아보세요.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -551,10 +672,10 @@ function SettingsCard({ title, children, open = true, onToggle }: { title: strin
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, labelClassName }: { label: string; children: ReactNode; labelClassName?: string }) {
   return (
     <label className="block text-sm font-semibold text-[var(--text)]">
-      <span className="mb-1 block text-xs text-[var(--muted)]">{label}</span>
+      <span className={labelClassName ?? "mb-1 block text-xs text-[var(--muted)]"}>{label}</span>
       {children}
     </label>
   );
@@ -586,4 +707,6 @@ function OutlineButton({ children, disabled, onClick }: { children: ReactNode; d
     </button>
   );
 }
+
+
 

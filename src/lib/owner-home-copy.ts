@@ -1,6 +1,6 @@
 ﻿export const ownerHomeCopy = {
   statPending: "\uC2B9\uC778 \uB300\uAE30",
-  statUpcoming: "\uC624\uB298 \uC77C\uC815",
+  statUpcoming: "\uC608\uC57D \uD604\uD669",
   statCompleted: "\uC644\uB8CC \uB0B4\uC5ED",
   statCancelChange: "\uCDE8\uC18C\u00B7\uBCC0\uACBD",
   todayTimelineTitle: "\uC624\uB298 \uC608\uC57D \uAD00\uB9AC",
@@ -11,7 +11,7 @@
   pendingSectionTitle: "\uC2B9\uC778 \uB300\uAE30",
   pendingSectionHint: "",
   pendingSectionEmpty: "\uC2B9\uC778 \uB300\uAE30 \uC608\uC57D\uC774 \uC5C6\uC5B4\uC694",
-  currentSectionTitle: "\uC608\uC57D \uD604\uD669 \uBCF4\uAE30",
+  currentSectionTitle: "\uC608\uC57D \uD604\uD669",
   currentSectionHint: "",
   currentSectionEmpty: "\uC9C0\uAE08 \uBC14\uB85C \uCC98\uB9AC\uD560 \uC608\uC57D\uC774 \uC5C6\uC5B4\uC694",
   historySectionTitle: "\uC644\uB8CC \uB0B4\uC5ED",
@@ -27,7 +27,7 @@
   groomingCompleted: "\uC644\uB8CC",
   completedNotice: "\uC644\uB8CC",
   pendingSheetTitle: "\uC2B9\uC778 \uB300\uAE30 \uC608\uC57D",
-  todaySheetTitle: "\uC624\uB298 \uC608\uC57D \uAD00\uB9AC",
+  todaySheetTitle: "\uC608\uC57D \uD604\uD669",
   completedSheetTitle: "\uC644\uB8CC \uB0B4\uC5ED",
   cancelChangeSheetTitle: "\uCDE8\uC18C / \uBCC0\uACBD \uC694\uCCAD",
   separator: "\u00B7",
@@ -49,6 +49,7 @@
   visitCancelChangeEmpty: "\uC120\uD0DD\uD55C \uB0A0\uC9DC\uC5D0 \uCDE8\uC18C\u00B7\uBCC0\uACBD \uB0B4\uC5ED\uC774 \uC5C6\uC5B4\uC694",
   weekdays: ["\uC77C", "\uC6D4", "\uD654", "\uC218", "\uBAA9", "\uAE08", "\uD1A0"],
 } as const;
+
 
 
 

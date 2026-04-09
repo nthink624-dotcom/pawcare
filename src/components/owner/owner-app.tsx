@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { CalendarDays, House, Settings, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
 import { addDate, currentDateInTimeZone, formatClockTime, shortDate, won } from "@/lib/utils";
@@ -54,7 +54,13 @@ const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
 ];
 
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
-  return fetchApiJsonWithAuth<T>(String(input), init);
+  const response = await fetch(input, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.message || "\uC694\uCCAD\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.");
+  return json as T;
 }
 
 export default function OwnerApp({
@@ -62,11 +68,13 @@ export default function OwnerApp({
   onLogout,
   loggingOut = false,
   userEmail = null,
+  subscriptionSummary = null,
 }: {
   initialData: BootstrapPayload;
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
+  subscriptionSummary?: OwnerSubscriptionSummary | null;
 }) {
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
@@ -87,9 +95,16 @@ export default function OwnerApp({
   const [modal, setModal] = useState<ModalState>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guardianDraft, setGuardianDraft] = useState({
+    name: "",
+    phone: "",
+    memo: "",
+  });
+  const isOwnerDemo = data.shop.id === "owner-demo";
 
   async function refresh() {
-    const next = await fetchJson<BootstrapPayload>("/api/bootstrap");
+    if (isOwnerDemo) return;
+    const next = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`);
     setData(next);
   }
 
@@ -248,8 +263,32 @@ export default function OwnerApp({
   const selectedLatestService = selectedLatestRecord ? serviceMap[selectedLatestRecord.service_id] : selectedLatestAppointment ? serviceMap[selectedLatestAppointment.service_id] : null;
   const selectedVisitCount = selectedRecords.length;
   const selectedRevisitState = selectedPet ? revisitRows.find((row) => row.pet.id === selectedPet.id) : null;
+  const canSaveGuardianProfile = Boolean(
+    selectedGuardian &&
+      guardianDraft.name.trim() &&
+      guardianDraft.phone.trim() &&
+      (
+        guardianDraft.name.trim() !== selectedGuardian.name ||
+        guardianDraft.phone.trim() !== selectedGuardian.phone ||
+        guardianDraft.memo.trim() !== (selectedGuardian.memo || "")
+      ),
+  );
+
+  useEffect(() => {
+    if (!selectedGuardian) return;
+    setGuardianDraft({
+      name: selectedGuardian.name,
+      phone: selectedGuardian.phone,
+      memo: selectedGuardian.memo || "",
+    });
+  }, [selectedGuardian]);
 
   async function mutate(url: string, init: RequestInit) {
+    if (isOwnerDemo) {
+      setModal(null);
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -264,6 +303,26 @@ export default function OwnerApp({
   }
 
   async function updateAppointment(appointmentId: string, payload: AppointmentUpdatePayload) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        appointments: prev.appointments.map((appointment) =>
+          appointment.id === appointmentId
+            ? {
+                ...appointment,
+                status: payload.status,
+                rejection_reason:
+                  payload.status === "rejected"
+                    ? payload.rejectionReasonCustom?.trim() || payload.rejectionReasonTemplate || appointment.rejection_reason
+                    : null,
+              }
+            : appointment,
+        ),
+      }));
+      setModal(null);
+      return;
+    }
+
     await mutate("/api/appointments", {
       method: "PATCH",
       body: JSON.stringify({ appointmentId, ...payload }),
@@ -271,13 +330,64 @@ export default function OwnerApp({
   }
 
   async function updateGuardianNotifications(guardianId: string, enabled: boolean, revisitEnabled: boolean) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        guardians: prev.guardians.map((guardian) =>
+          guardian.id === guardianId
+            ? {
+                ...guardian,
+                notification_settings: {
+                  ...guardian.notification_settings,
+                  enabled,
+                  revisit_enabled: revisitEnabled,
+                },
+              }
+            : guardian,
+        ),
+      }));
+      return;
+    }
+
     await mutate("/api/guardians", {
       method: "PATCH",
       body: JSON.stringify({ guardianId, enabled, revisitEnabled }),
     });
   }
 
+  async function updateGuardianProfile(guardianId: string, name: string, phone: string, memo: string) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        guardians: prev.guardians.map((guardian) =>
+          guardian.id === guardianId
+            ? {
+                ...guardian,
+                name,
+                phone,
+                memo,
+              }
+            : guardian,
+        ),
+      }));
+      return;
+    }
+
+    await mutate("/api/guardians", {
+      method: "PATCH",
+      body: JSON.stringify({ guardianId, name, phone, memo }),
+    });
+  }
+
   async function updatePetProfile(petId: string, name: string, breed: string, birthday: string | null) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        pets: prev.pets.map((pet) => (pet.id === petId ? { ...pet, name, breed, birthday } : pet)),
+      }));
+      return;
+    }
+
     await mutate("/api/pets", {
       method: "PATCH",
       body: JSON.stringify({ petId, name, breed, birthday }),
@@ -285,6 +395,23 @@ export default function OwnerApp({
   }
 
   async function updateApprovalMode(nextMode: "manual" | "auto") {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        shop: {
+          ...prev.shop,
+          approval_mode: nextMode,
+        },
+        appointments:
+          nextMode === "auto"
+            ? prev.appointments.map((appointment) =>
+                appointment.status === "pending" ? { ...appointment, status: "confirmed" } : appointment,
+              )
+            : prev.appointments,
+      }));
+      return;
+    }
+
     await mutate("/api/settings", {
       method: "PATCH",
       body: JSON.stringify({
@@ -341,6 +468,66 @@ export default function OwnerApp({
     });
   }
 
+  async function sendAppointmentReminder(appointment: Appointment, pet: Pet, guardian: Guardian, service: Service) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        notifications: [
+          {
+            id: `demo-reminder-${appointment.id}-${Date.now()}`,
+            shop_id: prev.shop.id,
+            appointment_id: appointment.id,
+            pet_id: pet.id,
+            guardian_id: guardian.id,
+            type: "appointment_reminder_10m",
+            channel: "alimtalk",
+            message: `${pet.name} 예약 10분 전 알림톡을 발송했어요.`,
+            status: "mocked",
+            provider: "mock",
+            metadata: {
+              appointmentDate: appointment.appointment_date,
+              appointmentTime: formatClockTime(appointment.appointment_time),
+            },
+            sent_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          },
+          ...prev.notifications,
+        ],
+      }));
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await fetchJson("/api/notifications", {
+        method: "POST",
+        body: JSON.stringify({
+          shopId: data.shop.id,
+          appointmentId: appointment.id,
+          guardianId: guardian.id,
+          petId: pet.id,
+          type: "appointment_reminder_10m",
+          channel: "alimtalk",
+          status: "sent",
+          templateKey: "appointment_reminder_10m",
+          message: `${data.shop.name}입니다. ${pet.name} 예약이 ${appointment.appointment_date} ${formatClockTime(appointment.appointment_time)}에 예정되어 있어요. 방문 10분 전까지 편하게 방문해 주세요.`,
+          metadata: {
+            serviceName: service.name,
+            appointmentDate: appointment.appointment_date,
+            appointmentTime: formatClockTime(appointment.appointment_time),
+          },
+        }),
+      });
+      await refresh();
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "알림톡 발송에 실패했습니다.");
+      throw mutationError;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const overdueCount = revisitRows.filter((item) => item.status === "overdue").length;
   const urgentCount = revisitRows.filter((item) => item.status === "overdue" || item.status === "soon").length;
   const estimatedRevenue = todayConfirmedAppointments.reduce((sum, item) => sum + (serviceMap[item.service_id]?.price || 0), 0);
@@ -352,13 +539,20 @@ export default function OwnerApp({
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(248,246,242,0.94)] px-6 py-3 backdrop-blur">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold tracking-[0.08em] text-[var(--accent)]">{data.shop.name}</p>
-            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">{selectedPet ? selectedPet.name : tabItems.find((item) => item.key === activeTab)?.label}</h1>
+            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">
+              {activeTab === "customers"
+                ? selectedGuardian
+                  ? "고객정보"
+                  : "고객관리"
+                : selectedPet
+                  ? selectedPet.name
+                  : tabItems.find((item) => item.key === activeTab)?.label}
+            </h1>
             {activeTab === "home" ? <p className="text-[12px] leading-5 text-[var(--muted)]">{`${shortDate(todayDate)} 운영 요약`}</p> : null}
           </div>
           <div className="flex gap-2">
-            {(activeTab === "home" || activeTab === "book") && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPetId || undefined })}>{"+ 예약"}</button>}
-            {activeTab === "customers" && !selectedPet && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-customer" })}>{"+ 고객"}</button>}
+            {(activeTab === "home" || activeTab === "book") && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPetId || undefined })}>{"예약 추가"}</button>}
+            {activeTab === "customers" && !selectedGuardian && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-customer" })}>{"고객 추가"}</button>}
           </div>
         </div>
       </header>
@@ -396,10 +590,10 @@ export default function OwnerApp({
 
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[15px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
-        {activeTab === "customers" && !selectedPet && <section className="space-y-4 p-4"><Panel title="고객 관리" action={filteredGuardians.length + "명"}><div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="보호자명, 연락처, 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{filteredGuardians.length === 0 ? <EmptyState title="조건에 맞는 고객이 없어요" /> : <div className="space-y-3">{filteredGuardians.map((summary) => <button key={summary.guardian.id} className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]" onClick={() => { setSelectedPetId(summary.pets[0]?.id || null); setDetailTab("info"); }}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{summary.guardian.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{summary.guardian.phone}</p><p className="mt-2 text-sm text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p></div><span className="text-xs font-semibold text-[var(--accent)]">상세</span></div></button>)}</div>}</Panel></section>}
-                {activeTab === "customers" && selectedPet && selectedGuardian && <section className="space-y-4 p-4"><button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>← 고객 목록</button><Panel title={selectedGuardian.name} action={selectedGuardian.phone}><div className="grid grid-cols-2 gap-2.5 text-sm"><InfoItem label="보호자" value={selectedGuardian.name} /><InfoItem label="연락처" value={selectedGuardian.phone} /><InfoItem label="아기 수" value={`${selectedGuardianPets.length}마리`} /><InfoItem label="대표 아기" value={selectedPet.name} /><InfoItem label="최근 방문" value={selectedLatestRecord ? shortDate(selectedLatestRecord.groomed_at.slice(0, 10)) : selectedLatestAppointment ? shortDate(selectedLatestAppointment.appointment_date) : "없음"} /><InfoItem label="최근 서비스" value={selectedLatestService?.name || "없음"} /></div><div className="mt-3 rounded-2xl bg-[var(--peach-soft)]/45 p-4 text-sm"><p className="font-bold">고객 메모</p><p className="mt-2 text-[var(--muted)]">{selectedGuardian.memo || "메모 없음"}</p></div><div className="mt-3 flex gap-2">{(["info", "records", "appointments"] as const).map((item) => <button key={item} className={`flex-1 rounded-[14px] border px-3 py-2.5 text-xs font-semibold ${detailTab === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--muted)]"}`} onClick={() => setDetailTab(item)}>{item === "info" ? "정보" : item === "records" ? "\uAE30\uB85D" : "\uC608\uC57D"}</button>)}</div>{detailTab === "info" && <div className="mt-4 space-y-3"><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 액션</p><div className="mt-2.5 grid grid-cols-2 gap-2"><a href={`tel:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a><a href={`sms:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-bold">아기 정보</p><button className="text-xs font-semibold text-[var(--accent)]" onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}>+ 아기 추가하기</button></div><div className="space-y-3">{selectedGuardianPets.map((pet) => <GuardianPetEditorCard key={pet.id} pet={pet} saving={saving} isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")} onSelect={() => setSelectedPetId(pet.id)} onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)} onSendBirthday={() => sendBirthdayGreeting(pet)} onSendRevisit={() => sendRevisitNotice(pet)} />)}</div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">알림 수신 설정</p><div className="mt-3 space-y-2"></div></div><button className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}>이 아기로 예약 등록</button></div>}{detailTab === "records" && <div className="mt-4 space-y-3">{selectedRecords.length === 0 ? <EmptyState title="미용 기록이 없어요" /> : selectedRecords.map((record) => <RecordCard key={record.id} record={record} service={serviceMap[record.service_id]} onEdit={() => setModal({ type: "edit-record", record })} />)}</div>}{detailTab === "appointments" && <div className="mt-4 space-y-3">{selectedAppointments.length === 0 ? <EmptyState title="예약 이력이 없어요" /> : selectedAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={selectedPet} guardian={selectedGuardian} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}</div>}</Panel></section>}
+        {activeTab === "customers" && !selectedPet && <section className="space-y-4 p-4"><Panel title="고객 정보" action={filteredGuardians.length + "명"}><div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="보호자명, 연락처, 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{filteredGuardians.length === 0 ? <EmptyState title="조건에 맞는 고객이 없어요" /> : <div className="space-y-3">{filteredGuardians.map((summary) => <button key={summary.guardian.id} className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]" onClick={() => { setSelectedPetId(summary.pets[0]?.id || null); setDetailTab("info"); }}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{summary.guardian.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{summary.guardian.phone}</p><p className="mt-2 text-sm text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p></div><span className="text-xs font-semibold text-[var(--accent)]">상세</span></div></button>)}</div>}</Panel></section>}
+                {activeTab === "customers" && selectedPet && selectedGuardian && <section className="space-y-4 p-4"><button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>← 이전</button><Panel title={`${selectedGuardian.name} 보호자님`} action="보호자"><div className="grid grid-cols-2 gap-2.5 text-sm"><InfoItem label="연락처" value={selectedGuardian.phone} /><InfoItem label="반려동물 수" value={`${selectedGuardianPets.length}마리`} /><InfoItem label="최근 방문" value={selectedLatestRecord ? shortDate(selectedLatestRecord.groomed_at.slice(0, 10)) : selectedLatestAppointment ? shortDate(selectedLatestAppointment.appointment_date) : "없음"} /><InfoItem label="최근 서비스" value={selectedLatestService?.name || "없음"} /></div><div className="mt-3 flex gap-2">{(["info", "records", "appointments"] as const).map((item) => <button key={item} className={`flex-1 rounded-[14px] border px-3 py-2.5 text-xs font-semibold ${detailTab === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--muted)]"}`} onClick={() => setDetailTab(item)}>{item === "info" ? "정보" : item === "records" ? "\uAE30\uB85D" : "\uC608\uC57D"}</button>)}</div>{detailTab === "info" && <div className="mt-4 space-y-3"><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-bold">보호자 정보 수정</p><button className="text-xs font-semibold text-[var(--accent)]" onClick={() => updateGuardianProfile(selectedGuardian.id, guardianDraft.name.trim(), guardianDraft.phone.trim(), guardianDraft.memo.trim())} disabled={saving || !canSaveGuardianProfile}>저장</button></div><div className="space-y-3"><Field label="보호자 이름"><input className="field" value={guardianDraft.name} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))} /></Field><Field label="연락처"><input className="field" value={guardianDraft.phone} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))} /></Field><Field label="고객 메모"><textarea className="field min-h-24" value={guardianDraft.memo} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))} placeholder="고객에게 기억해 둘 내용을 적어주세요" /></Field></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 액션</p><div className="mt-2.5 grid grid-cols-2 gap-2"><a href={`tel:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a><a href={`sms:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-bold">아기 정보</p><button className="text-xs font-semibold text-[var(--accent)]" onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}>+ 아기 추가하기</button></div><div className="space-y-3">{selectedGuardianPets.map((pet) => <GuardianPetEditorCard key={pet.id} pet={pet} saving={saving} isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")} onSelect={() => setSelectedPetId(pet.id)} onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)} onSendBirthday={() => sendBirthdayGreeting(pet)} onSendRevisit={() => sendRevisitNotice(pet)} />)}</div></div><button className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}>이 아기로 예약 등록</button></div>}{detailTab === "records" && <div className="mt-4 space-y-3">{selectedRecords.length === 0 ? <EmptyState title="미용 기록이 없어요" /> : selectedRecords.map((record) => <RecordCard key={record.id} record={record} service={serviceMap[record.service_id]} onEdit={() => setModal({ type: "edit-record", record })} />)}</div>}{detailTab === "appointments" && <div className="mt-4 space-y-3">{selectedAppointments.length === 0 ? <EmptyState title="예약 이력이 없어요" /> : selectedAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={selectedPet} guardian={selectedGuardian} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}</div>}</Panel></section>}
 
-        {activeTab === "settings" && <SettingsPanel data={data} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} />}
+        {activeTab === "settings" && <SettingsPanel data={data} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 flex w-full max-w-[430px] -translate-x-1/2 gap-0.5 border-t border-[var(--border)] bg-[rgba(255,255,255,0.98)] px-2 py-1.5 backdrop-blur">
@@ -430,7 +624,7 @@ export default function OwnerApp({
   })}
 </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
     </div>
   );
 }
@@ -467,20 +661,31 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
 
 function StatCard({ label, value, tone, onClick }: { label: string; value: string; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }) {
   const toneMap = {
-    accent: "before:bg-[var(--accent)]",
-    warning: "before:bg-[#e4b08d]",
-    danger: "before:bg-[#cf9b8d]",
-    neutral: "before:bg-[#d8d2c7]",
+    accent: {
+      bar: "before:bg-[var(--accent)]",
+      border: "border-[#d6e7e1]",
+    },
+    warning: {
+      bar: "before:bg-[#e4b08d]",
+      border: "border-[#ead8c9]",
+    },
+    danger: {
+      bar: "before:bg-[#cf9b8d]",
+      border: "border-[#ead8d2]",
+    },
+    neutral: {
+      bar: "before:bg-[#c9b39e]",
+      border: "border-[#e9ddd3]",
+    },
   } as const;
 
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-left shadow-[var(--shadow-soft)] transition hover:-translate-y-[1px] before:absolute before:inset-x-0 before:top-0 before:h-1 ${toneMap[tone]}`}
+      className={`relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-white px-4 py-3 text-left transition before:absolute before:inset-x-0 before:top-0 before:h-1.5 ${toneMap[tone].bar}`}
     >
-      <p className="text-[12px] font-medium tracking-[0.01em] text-[var(--muted)]">{label}</p>
-      <p className="mt-1.5 text-[27px] font-semibold tracking-[-0.04em] text-[var(--text)]">{value}</p>
-      
+      <p className="relative z-[1] text-[14px] font-semibold tracking-[-0.01em] text-[var(--muted)]">{label}</p>
+      <p className="relative z-[1] mt-3 text-[32px] font-extrabold leading-none tracking-[-0.05em] text-[var(--text)]">{value}</p>
     </button>
   );
 }
@@ -488,23 +693,24 @@ function StatCard({ label, value, tone, onClick }: { label: string; value: strin
 function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex w-full items-center gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[52px] text-sm font-semibold text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="min-w-[58px] text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
-        <p className="text-xs text-[var(--muted)]">{service.name}</p>
+        <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
       </div>
       <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span>
     </button>
   );
 }
 
-function AppointmentDetail({ appointment, pet, guardian, service, saving, onClose, onUpdate }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void }) {
+function AppointmentDetail({ appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
   const rollbackStatus = appointment.status === "cancelled" ? "confirmed" : null;
   const rollbackLabel = appointment.status === "cancelled" ? "\uCDE8\uC18C/\uBCC0\uACBD \uCCA0\uD68C" : null;
   const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(rejectionReasonTemplates[0]);
   const [customReason, setCustomReason] = useState("");
+  const [reminderSent, setReminderSent] = useState(false);
 
-  return <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}><div className="space-y-4"><div className="rounded-2xl bg-[#fcfaf7] p-4 text-sm"><p className="font-bold">{pet.name} {ownerHomeCopy.separator} {guardian.name}</p><p className="mt-1 text-[var(--muted)]">{appointment.appointment_date} {formatClockTime(appointment.appointment_time)}</p><p className="mt-1 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {won(service.price)}</p><p className="mt-1 text-[var(--muted)]">{ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}</p>{appointment.rejection_reason && <p className="mt-2 rounded-2xl bg-[#fff1f1] px-3 py-2 text-xs font-semibold text-red-700">미승인 사유: {appointment.rejection_reason}</p>}</div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 연락</p><QuickContactRow phone={guardian.phone} /></div>{appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}<div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="secondary" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div></div></Sheet>;
+  return <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}><div className="space-y-4"><div className="rounded-2xl bg-[#fcfaf7] p-4 text-sm"><p className="font-bold">{pet.name} {ownerHomeCopy.separator} {guardian.name}</p><p className="mt-1 text-[var(--muted)]">{appointment.appointment_date} {formatClockTime(appointment.appointment_time)}</p><p className="mt-1 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {won(service.price)}</p><p className="mt-1 text-[var(--muted)]">{ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}</p>{appointment.rejection_reason && <p className="mt-2 rounded-2xl bg-[#fff1f1] px-3 py-2 text-xs font-semibold text-red-700">미승인 사유: {appointment.rejection_reason}</p>}</div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 연락</p><QuickContactRow phone={guardian.phone} reminderSent={reminderSent} sending={saving} onSendReminder={async () => { await onSendReminder(); setReminderSent(true); }} /></div>{appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}<div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="secondary" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div></div></Sheet>;
 }
 
 function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) {
@@ -587,12 +793,41 @@ function AddPetForm({ shopId, guardianId, saving, onClose, onSave }: { shopId: s
 }
 function EditRecordForm({ services, record, saving, onClose, onSave }: { shopId: string; services: Service[]; record: GroomingRecord; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) { const [styleNotes, setStyleNotes] = useState(record.style_notes); const [memo, setMemo] = useState(record.memo); const [pricePaid, setPricePaid] = useState(String(record.price_paid)); const [serviceId, setServiceId] = useState(record.service_id); return <Sheet title="미용 기록 수정" onClose={onClose}><div className="space-y-3"><Field label="서비스"><select value={serviceId} onChange={(event) => setServiceId(event.target.value)} className="field">{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="스타일 메모"><input value={styleNotes} onChange={(event) => setStyleNotes(event.target.value)} className="field" /></Field><Field label="상세 메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" /></Field><Field label="결제 금액"><input value={pricePaid} onChange={(event) => setPricePaid(event.target.value)} className="field" /></Field><ActionButton disabled={saving} onClick={() => onSave({ recordId: record.id, styleNotes, memo, pricePaid: Number(pricePaid), serviceId })}>기록 저장</ActionButton></div></Sheet>; }
 
-function SettingsPanel({ data, onSave, onSaveService, onSaveCustomerPageSettings, onLogout, loggingOut, userEmail }: { data: BootstrapPayload; onSave: (payload: unknown) => void; onSaveService: (payload: unknown) => void; onSaveCustomerPageSettings: (payload: unknown) => void; onLogout?: () => void; loggingOut?: boolean; userEmail?: string | null }) {
-  return <OwnerSettingsPanel data={data} onSave={onSave} onSaveService={onSaveService} onSaveCustomerPageSettings={onSaveCustomerPageSettings} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} />;
+function SettingsPanel({
+  data,
+  onSave,
+  onSaveService,
+  onSaveCustomerPageSettings,
+  onLogout,
+  loggingOut = false,
+  userEmail,
+  subscriptionSummary,
+}: {
+  data: BootstrapPayload;
+  onSave: (payload: unknown) => void;
+  onSaveService: (payload: unknown) => void;
+  onSaveCustomerPageSettings: (payload: unknown) => void;
+  onLogout?: () => void;
+  loggingOut?: boolean;
+  userEmail?: string | null;
+  subscriptionSummary?: OwnerSubscriptionSummary | null;
+}) {
+  return (
+    <OwnerSettingsPanel
+      data={data}
+      onSave={onSave}
+      onSaveService={onSaveService}
+      onSaveCustomerPageSettings={onSaveCustomerPageSettings}
+      onLogout={onLogout}
+      loggingOut={loggingOut}
+      userEmail={userEmail}
+      subscriptionSummary={subscriptionSummary}
+    />
+  );
 }
 
 function RecordCard({ record, service, onEdit }: { record: GroomingRecord; service?: Service; onEdit: () => void }) { return <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3"><div className="flex items-center justify-between"><div><p className="text-sm font-bold">{service?.name || "서비스"}</p><p className="text-xs text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p></div><button className="text-xs font-semibold text-[var(--accent)]" onClick={onEdit}>수정</button></div><p className="mt-2 text-sm text-[var(--muted)]">{record.style_notes || "스타일 메모 없음"}</p><p className="mt-1 text-sm text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p></div>; }
-function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <TodayConfirmedContent pendingAppointments={pendingAppointments} currentAppointments={currentAppointments} completedAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onPendingUpdate={onUpdate} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
+function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <CurrentReservationsContent currentAppointments={currentAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
 
 function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void }) {
   const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>("");
@@ -615,16 +850,16 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
   return (
     <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
       <button onClick={onOpen} className="flex w-full items-center gap-3 text-left">
-        <div className="min-w-[52px] text-sm font-semibold text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
+        <div className="min-w-[58px] text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
-          <p className="text-xs text-[var(--muted)]">{service.name}</p>
+          <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
         </div>
         <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span>
       </button>
       {!isRejectOpen ? (
         <div className="mt-2.5 grid grid-cols-2 gap-2">
-          <ActionButton onClick={() => onStatusChange({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton>
+          <ActionButton onClick={() => onStatusChange({ status: "confirmed" })} variant="warm" disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton>
           <ActionButton onClick={onRejectOpen} variant="secondary" disabled={saving}>{"미승인"}</ActionButton>
         </div>
       ) : (
@@ -642,24 +877,28 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
 }
 
 
+function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, serviceMap, saving, onOpenAppointment, onStatusChange }: { currentAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
+  return <div className="overflow-hidden rounded-[20px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
+}
+
 function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
 
-  return <div className="space-y-3"><div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-3.5"><div className="mb-3 space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[var(--muted)]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[16px] border border-[var(--border)] bg-[#fcfaf7] p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[12px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[12px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-3.5"><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-72 overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div>;
+  return <div className="space-y-3"><div className="overflow-hidden rounded-[20px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[16px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[12px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[12px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[20px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div>;
 }
 
 
 function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void; }) {
-  return <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-3.5"><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
+  return <div className="overflow-hidden rounded-[20px] border border-[#e9ddd3] bg-[#fbf8f4] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#c9b39e]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
 }
 
 function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex w-full items-center gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[52px] text-sm font-semibold text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
-        <p className="text-xs text-[var(--muted)]">{service.name}</p>
+        <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
       </div>
       <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta.completed.color, background: statusMeta.completed.bg }}>{statusMeta.completed.label}</span>
     </button>
@@ -693,7 +932,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
     setStartX(null);
   };
 
-  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 items-center justify-center bg-[#a86957] text-sm font-semibold text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}>{ownerHomeCopy.slideCancel}</button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[52px] text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name}</p></div><span className="rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em]" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="primary" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="secondary" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
+  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 items-center justify-center bg-[#a86957] text-sm font-semibold text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}>{ownerHomeCopy.slideCancel}</button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p></div><span className="rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em]" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
 }
 
 function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
@@ -710,11 +949,12 @@ function RejectionReasonEditor({ template, customReason, onTemplateChange, onCus
 
 
 function GuardianPetEditorCard({ pet, saving, isBirthdayToday, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) { const [name, setName] = useState(pet.name); const [breed, setBreed] = useState(pet.breed); const [birthday, setBirthday] = useState(pet.birthday ?? ""); return <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><button className="text-left" onClick={onSelect}><p className="text-sm font-semibold">{pet.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p></button><span className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)]">상세 연결</span></div><div className="mt-3 space-y-3"><Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field><Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field></div><div className="mt-2.5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>아기 정보 저장</ActionButton><ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton></div><div className="mt-2">{birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-2xl bg-[#fcfaf7] px-4 py-3 text-center text-sm text-[var(--muted)]">생일 미등록</div>}</div></div>; }
-function QuickContactRow({ phone }: { phone: string }) {
+function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
   return (
     <div className="mt-2.5 grid grid-cols-2 gap-2">
       <a href={`tel:${phone}`} className="flex items-center justify-center rounded-2xl bg-[#f7f4ef] px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a>
       <a href={`sms:${phone}`} className="flex items-center justify-center rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a>
+      {onSendReminder ? <button type="button" onClick={() => void onSendReminder()} disabled={sending || reminderSent} className="col-span-2 flex items-center justify-center rounded-2xl border border-[#d8e7e0] bg-[#f4faf7] px-4 py-3 text-sm font-semibold text-[var(--accent)] disabled:opacity-60">{reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}</button> : null}
     </div>
   );
 }
@@ -724,7 +964,7 @@ function Overlay({ children }: { children: React.ReactNode }) { return <div>{chi
 function Sheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
-      <div className="w-full max-w-[430px] rounded-t-[32px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
+      <div className="flex max-h-[92vh] w-full max-w-[430px] flex-col rounded-t-[32px] bg-white px-4 pb-5 pt-4" onClick={(event) => event.stopPropagation()}>
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold">{title}</h3>
@@ -737,8 +977,23 @@ function Sheet({ title, children, onClose }: { title: string; children: React.Re
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-sm font-bold text-[var(--text)]"><span className="mb-2 block text-xs text-[var(--muted)]">{label}</span>{children}</label>; }
-function ActionButton({ children, disabled, onClick, variant = "primary" }: { children: React.ReactNode; disabled?: boolean; onClick: () => void; variant?: "primary" | "secondary" | "ghost" | "highlight" }) {
-  const className = variant === "primary" ? "border border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : variant === "secondary" ? "border border-[var(--border)] bg-white text-[var(--text)]" : variant === "highlight" ? "border border-[#d7e7e1] bg-[var(--accent-soft)] text-[var(--accent)]" : "border border-[var(--border)] bg-white text-[var(--muted)]";
+function ActionButton({ children, disabled, onClick, variant = "primary" }: { children: React.ReactNode; disabled?: boolean; onClick: () => void; variant?: "primary" | "secondary" | "ghost" | "highlight" | "warm" | "accentSoft" | "ready" | "complete" }) {
+  const className =
+    variant === "primary"
+      ? "border border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
+      : variant === "secondary"
+        ? "border border-[var(--border)] bg-white text-[var(--text)]"
+        : variant === "highlight"
+          ? "border border-[#d7e7e1] bg-[var(--accent-soft)] text-[var(--accent)]"
+          : variant === "warm"
+            ? "border border-[#c99273] bg-[#c99273] text-white shadow-[0_8px_18px_rgba(201,146,115,0.15)]"
+            : variant === "accentSoft"
+              ? "border border-[#d7e7e1] bg-[#2f7866] text-white shadow-[0_8px_18px_rgba(47,120,102,0.14)]"
+              : variant === "ready"
+                ? "border border-[#cf9b8d] bg-[#cf9b8d] text-white shadow-[0_8px_18px_rgba(207,155,141,0.16)]"
+                : variant === "complete"
+                  ? "border border-[#6d7d77] bg-[#6d7d77] text-white shadow-[0_8px_18px_rgba(109,125,119,0.16)]"
+                  : "border border-[var(--border)] bg-white text-[var(--muted)]";
   return <button disabled={disabled} onClick={onClick} className={`flex h-[43px] w-full items-center justify-center rounded-[14px] px-4 text-sm font-semibold tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${className}`}>{children}</button>;
 }
 
@@ -751,3 +1006,31 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) { return <div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><p className="text-[11px] font-medium text-[var(--muted)]">{label}</p><p className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</p></div>; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

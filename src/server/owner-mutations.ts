@@ -12,10 +12,14 @@ import {
   appointmentInputSchema,
   appointmentStatusSchema,
   customerPageSettingsSchema,
+  guardianInputSchema,
+  guardianUpdateSchema,
+  petInputSchema,
+  petUpdateSchema,
   serviceInputSchema,
   shopSettingsSchema,
 } from "@/server/schemas";
-import type { Appointment, Service } from "@/types/domain";
+import type { Appointment, Guardian, Pet, Service } from "@/types/domain";
 
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
   const endMinute = minutesFromTime(time) + durationMinutes;
@@ -269,6 +273,222 @@ export async function updateCustomerPageSettings(input: unknown) {
     throw new Error(error.message);
   }
   return normalizeCustomerPageSettings(data?.customer_page_settings);
+}
+
+export async function createGuardian(input: unknown) {
+  const payload = guardianInputSchema.parse(input);
+  const guardian: Guardian = {
+    id: randomUUID(),
+    shop_id: payload.shopId,
+    name: payload.name,
+    phone: payload.phone,
+    memo: payload.memo ?? "",
+    notification_settings: {
+      enabled: false,
+      revisit_enabled: false,
+    },
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.guardians = [...store.guardians, guardian];
+    setMockStore(store);
+    return guardian;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { data, error } = await supabase
+    .from("guardians")
+    .insert({
+      id: guardian.id,
+      shop_id: guardian.shop_id,
+      name: guardian.name,
+      phone: guardian.phone,
+      memo: guardian.memo,
+      notification_settings: guardian.notification_settings,
+      created_at: guardian.created_at,
+      updated_at: guardian.updated_at,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (hasMissingColumnError(error, "notification_settings")) {
+      const fallback = await supabase
+        .from("guardians")
+        .insert({
+          id: guardian.id,
+          shop_id: guardian.shop_id,
+          name: guardian.name,
+          phone: guardian.phone,
+          memo: guardian.memo,
+          created_at: guardian.created_at,
+          updated_at: guardian.updated_at,
+        })
+        .select("*")
+        .single();
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      return {
+        ...guardian,
+        ...(fallback.data ?? {}),
+      };
+    }
+
+    throw new Error(error.message);
+  }
+
+  return {
+    ...guardian,
+    ...(data ?? {}),
+  };
+}
+
+export async function updateGuardian(input: unknown) {
+  const payload = guardianUpdateSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const guardian = store.guardians.find((item) => item.id === payload.guardianId);
+    if (!guardian) throw new Error("고객 정보를 찾을 수 없어요.");
+
+    if (typeof payload.name === "string") guardian.name = payload.name;
+    if (typeof payload.phone === "string") guardian.phone = payload.phone;
+    if (typeof payload.memo === "string") guardian.memo = payload.memo;
+    if (typeof payload.enabled === "boolean" || typeof payload.revisitEnabled === "boolean") {
+      guardian.notification_settings = {
+        ...guardian.notification_settings,
+        ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+        ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
+      };
+    }
+    guardian.updated_at = nowIso();
+    setMockStore(store);
+    return guardian;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const currentGuardian = await supabase.from("guardians").select("*").eq("id", payload.guardianId).single();
+  if (currentGuardian.error) throw new Error(currentGuardian.error.message);
+
+  const nextNotificationSettings = {
+    ...((currentGuardian.data?.notification_settings as { enabled?: boolean; revisit_enabled?: boolean } | null) ?? {}),
+    ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+    ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
+  };
+
+  const nextValues = {
+    ...(typeof payload.name === "string" ? { name: payload.name } : {}),
+    ...(typeof payload.phone === "string" ? { phone: payload.phone } : {}),
+    ...(typeof payload.memo === "string" ? { memo: payload.memo } : {}),
+    ...((typeof payload.enabled === "boolean" || typeof payload.revisitEnabled === "boolean")
+      ? { notification_settings: nextNotificationSettings }
+      : {}),
+    updated_at: nowIso(),
+  };
+
+  const { data, error } = await supabase
+    .from("guardians")
+    .update(nextValues)
+    .eq("id", payload.guardianId)
+    .select("*")
+    .single();
+
+  if (error) {
+    if (hasMissingColumnError(error, "notification_settings")) {
+      const { notification_settings: _ignored, ...fallbackValues } = nextValues as typeof nextValues & {
+        notification_settings?: unknown;
+      };
+
+      const fallback = await supabase
+        .from("guardians")
+        .update(fallbackValues)
+        .eq("id", payload.guardianId)
+        .select("*")
+        .single();
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      return fallback.data;
+    }
+
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function createPet(input: unknown) {
+  const payload = petInputSchema.parse(input);
+  const pet: Pet = {
+    id: randomUUID(),
+    shop_id: payload.shopId,
+    guardian_id: payload.guardianId,
+    name: payload.name,
+    breed: payload.breed,
+    weight: payload.weight ?? null,
+    age: payload.age ?? null,
+    notes: payload.notes ?? "",
+    birthday: payload.birthday ?? null,
+    grooming_cycle_weeks: payload.groomingCycleWeeks,
+    avatar_seed: payload.name.trim().slice(0, 1) || "P",
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.pets = [...store.pets, pet];
+    setMockStore(store);
+    return pet;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updatePet(input: unknown) {
+  const payload = petUpdateSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const pet = store.pets.find((item) => item.id === payload.petId);
+    if (!pet) throw new Error("반려동물 정보를 찾을 수 없어요.");
+
+    pet.name = payload.name;
+    pet.breed = payload.breed;
+    pet.birthday = payload.birthday ?? null;
+    pet.updated_at = nowIso();
+    setMockStore(store);
+    return pet;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { data, error } = await supabase
+    .from("pets")
+    .update({
+      name: payload.name,
+      breed: payload.breed,
+      birthday: payload.birthday ?? null,
+      updated_at: nowIso(),
+    })
+    .eq("id", payload.petId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function createAppointment(input: unknown) {

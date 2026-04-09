@@ -1,6 +1,5 @@
 ﻿import LegalLinksFooter from "@/components/legal/legal-links-footer";
-import { formatServicePrice } from "@/lib/utils";
-import type { CustomerPageSettings, Service, Shop } from "@/types/domain";
+import type { BusinessHours, CustomerPageSettings, Service, Shop } from "@/types/domain";
 
 const typographyMap: Record<
   CustomerPageSettings["font_preset"],
@@ -43,39 +42,62 @@ const scaleMap: Record<
   },
 };
 
-function withAlpha(hex: string, alpha: string) {
-  return `${hex}${alpha}`;
+const weekRows = [
+  { key: 1, label: "\uC6D4\uC694\uC77C" },
+  { key: 2, label: "\uD654\uC694\uC77C" },
+  { key: 3, label: "\uC218\uC694\uC77C" },
+  { key: 4, label: "\uBAA9\uC694\uC77C" },
+  { key: 5, label: "\uAE08\uC694\uC77C" },
+  { key: 6, label: "\uD1A0\uC694\uC77C" },
+  { key: 0, label: "\uC77C\uC694\uC77C" },
+] as const;
+
+function getTodayWeekdayInSeoul() {
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
+    weekday: "short",
+    timeZone: "Asia/Seoul",
+  }).format(new Date());
+
+  const labels = ["\uC77C", "\uC6D4", "\uD654", "\uC218", "\uBAA9", "\uAE08", "\uD1A0"];
+  return labels.indexOf(weekday);
+}
+
+function formatHoursRow(day: number, businessHours: BusinessHours, regularClosedDays: number[]) {
+  const hours = businessHours[day];
+  if (regularClosedDays.includes(day) || !hours?.enabled) return "\uC815\uAE30 \uD734\uBB34";
+  return `${hours.open} - ${hours.close}`;
 }
 
 export default function CustomerBookingEntryPage({
   shop,
-  services,
+  services: _services,
   bookingHref,
-  manageHref,
   infoHref,
 }: {
-  shop: Pick<Shop, "id" | "name" | "customer_page_settings">;
+  shop: Pick<Shop, "id" | "name" | "customer_page_settings" | "business_hours" | "regular_closed_days">;
   services: Service[];
   bookingHref: string;
-  manageHref: string;
   infoHref: string;
 }) {
   const settings = shop.customer_page_settings;
   const displayName = settings.shop_name || shop.name;
-  const visibleServices = settings.show_services ? services.filter((service) => service.is_active).slice(0, 4) : [];
-  const visibleNotices = settings.show_notices ? settings.notices.filter(Boolean).slice(0, 3) : [];
   const typography = typographyMap[settings.font_preset];
   const scale = scaleMap[settings.font_scale];
+  const firstVisitHref = `${bookingHref}?mode=first`;
+  const returningVisitHref = `${bookingHref}?mode=returning`;
+  const manageBookingHref = `${bookingHref}?mode=manage`;
+  const todayWeekday = getTodayWeekdayInSeoul();
+  const visibleParkingNotice = settings.show_parking_notice ? settings.parking_notice.trim() : "";
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[var(--background)] px-5 pb-10 pt-5">
       <section className="overflow-hidden rounded-[30px] border border-[var(--border)] bg-white shadow-[var(--shadow-soft)]">
         <div
-          className="min-h-[280px] px-5 pb-6 pt-6 text-white"
+          className="min-h-[360px] px-5 pb-7 pt-6 text-white"
           style={
             settings.hero_image_url
               ? {
-                  backgroundImage: `linear-gradient(180deg, rgba(26, 28, 27, 0.16), rgba(26, 28, 27, 0.56)), url(${settings.hero_image_url})`,
+                  backgroundImage: `linear-gradient(180deg, rgba(24, 26, 25, 0.14), rgba(24, 26, 25, 0.62)), url(${settings.hero_image_url})`,
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }
@@ -84,137 +106,90 @@ export default function CustomerBookingEntryPage({
                 }
           }
         >
-          <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-white/90">
-            PAWCARE RESERVATION
+          <div className="flex items-start justify-between gap-3">
+            <div className="inline-flex rounded-full border border-white/28 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-white/92">
+              PAWCARE RESERVATION
+            </div>
+            <a
+              href={infoHref}
+              className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/10 px-4 text-xs font-semibold text-white/90 backdrop-blur-sm"
+            >
+              {"\uB9E4\uC7A5 \uC815\uBCF4"}
+            </a>
           </div>
 
-          <h1 className={`mt-4 leading-tight text-white ${typography.title} ${scale.heroTitle}`}>{displayName}</h1>
-          <p className={`mt-3 max-w-[280px] text-white/82 ${typography.body} ${scale.body}`}>{settings.tagline || "예약 전에 필요한 내용을 먼저 확인해 보세요."}</p>
+          <h1 className={`mt-6 max-w-[280px] leading-[1.14] text-white ${typography.title} ${scale.heroTitle}`}>
+            {displayName}
+          </h1>
+          <p className={`mt-4 max-w-[280px] text-white/84 ${typography.body} ${scale.body}`}>
+            {settings.tagline || "\uC608\uC57D \uC804\uC5D0 \uD544\uC694\uD55C \uB0B4\uC6A9\uC744 \uBA3C\uC800 \uD655\uC778\uD574 \uBCF4\uC138\uC694."}
+          </p>
 
-          <div className="mt-6 flex flex-col gap-2.5">
+          <div className="mt-7 flex flex-col gap-2.5">
             <a
-              href={bookingHref}
+              href={firstVisitHref}
               className="flex h-[46px] items-center justify-center rounded-full px-5 text-sm font-semibold text-white"
               style={{ backgroundColor: settings.primary_color }}
             >
-              {settings.booking_button_label}
+              {"\uCCAB\uBC29\uBB38 \uC608\uC57D\uD558\uAE30"}
             </a>
 
             <a
-              href={manageHref}
+              href={returningVisitHref}
               className="flex h-[46px] items-center justify-center rounded-full border border-white/30 bg-white/14 px-5 text-sm font-semibold text-white backdrop-blur-sm"
             >
-              예약조회 / 취소 · 변경
+              {"\uC7AC\uBC29\uBB38 \uC608\uC57D\uD558\uAE30"}
             </a>
-          </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
             <a
-              href={infoHref}
-              className="inline-flex h-[38px] items-center justify-center rounded-full border border-white/20 bg-black/10 px-4 text-xs font-semibold text-white/90 backdrop-blur-sm"
+              href={manageBookingHref}
+              className="flex h-[46px] items-center justify-center rounded-full border border-white/30 bg-white/14 px-5 text-sm font-semibold text-white backdrop-blur-sm"
             >
-              매장 정보 보기
+              {"\uC608\uC57D\uC870\uD68C / \uCDE8\uC18C \u00B7 \uBCC0\uACBD"}
             </a>
-            {settings.show_kakao_inquiry && settings.kakao_inquiry_url ? (
-              <a
-                href={settings.kakao_inquiry_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-[38px] items-center justify-center rounded-full border border-white/20 bg-black/10 px-4 text-xs font-semibold text-white/90 backdrop-blur-sm"
-              >
-                카카오 문의
-              </a>
-            ) : null}
           </div>
         </div>
       </section>
-
-      {visibleNotices.length > 0 ? (
-        <section className="mt-5 rounded-[26px] border border-[var(--border)] bg-white p-5 shadow-[var(--shadow-soft)]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className={`${typography.title} ${scale.sectionTitle} text-[var(--text)]`}>예약 전 확인</h2>
-              <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>첫 방문 전 꼭 알아두면 좋은 안내를 모아 두었어요.</p>
-            </div>
-            <span className="shrink-0 text-xs font-semibold" style={{ color: settings.primary_color }}>
-              공지 {visibleNotices.length}개
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-2.5">
-            {visibleNotices.map((notice) => (
-              <div key={notice} className={`rounded-[18px] border border-[var(--border)] bg-[#fcfaf7] px-4 py-3 text-[var(--text)] ${typography.body} ${scale.body}`}>
-                {notice}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <section className="mt-5 rounded-[26px] border border-[var(--border)] bg-white p-5 shadow-[var(--shadow-soft)]">
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className={`${typography.title} ${scale.sectionTitle} text-[var(--text)]`}>예약 안내</h2>
-            <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>방문 전에 운영 정보와 문의 경로를 먼저 확인해 보세요.</p>
-          </div>
-          <a href={infoHref} className="shrink-0 text-xs font-semibold" style={{ color: settings.primary_color }}>
-            전체 보기
-          </a>
+        <div className="min-w-0 flex-1">
+          <h2 className={`${typography.title} ${scale.sectionTitle} text-[var(--text)]`}>{"\uC6B4\uC601 \uC2DC\uAC04 \uC548\uB0B4"}</h2>
+          <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>{"\uBC29\uBB38 \uC804\uC5D0 \uC6B4\uC601 \uC2DC\uAC04\uACFC \uC8FC\uCC28 \uC815\uBCF4\uB97C \uD655\uC778\uD574 \uC8FC\uC138\uC694."}</p>
         </div>
 
-        <div className="mt-4 grid gap-3">
-          <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-            <p className={`text-sm text-[var(--text)] ${typography.title}`}>운영 시간</p>
-            <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>{settings.operating_hours_note}</p>
-          </div>
-          <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-            <p className={`text-sm text-[var(--text)] ${typography.title}`}>예약 관리</p>
-            <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>기존 예약은 연락처로 바로 조회하고 취소나 변경 요청까지 진행할 수 있어요.</p>
-            <a
-              href={manageHref}
-              className="mt-3 inline-flex h-[40px] items-center justify-center rounded-full px-4 text-xs font-semibold text-white"
-              style={{ backgroundColor: settings.primary_color }}
-            >
-              예약 조회 바로가기
-            </a>
-          </div>
-        </div>
-      </section>
+        <div className="mt-4 overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
+          {weekRows.map((row, index) => {
+            const isToday = row.key === todayWeekday;
+            const hoursText = formatHoursRow(row.key, shop.business_hours, shop.regular_closed_days);
+            const isClosed = hoursText === "\uC815\uAE30 \uD734\uBB34";
 
-      {visibleServices.length > 0 ? (
-        <section className="mt-5 rounded-[26px] border border-[var(--border)] bg-white p-5 shadow-[var(--shadow-soft)]">
-          <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className={`${typography.title} ${scale.sectionTitle} text-[var(--text)]`}>인기 서비스</h2>
-              <p className={`mt-1 text-[var(--muted)] ${typography.body} ${scale.body}`}>예약 전에 많이 찾는 기본 서비스를 먼저 확인해 보세요.</p>
-            </div>
-            <a href={bookingHref} className="shrink-0 text-xs font-semibold" style={{ color: settings.primary_color }}>
-              전체 예약
-            </a>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {visibleServices.map((service) => (
-              <div key={service.id} className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[15px] text-[var(--text)] ${typography.title}`}>{service.name}</p>
-                  </div>
-                  <span
-                    className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{
-                      backgroundColor: withAlpha(settings.primary_color, "14"),
-                      color: settings.primary_color,
-                    }}
-                  >
-                    {formatServicePrice(service.price, service.price_type ?? "starting")}
-                  </span>
-                </div>
+            return (
+              <div
+                key={row.key}
+                className={`grid grid-cols-[1fr_128px] items-center gap-3 px-4 py-3 ${index !== weekRows.length - 1 ? "border-b border-[var(--border)]" : ""}`}
+              >
+                <span className={`text-sm ${typography.title} ${isToday ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>
+                  {row.label}
+                </span>
+                <span
+                  className={`text-sm ${typography.body} w-[128px] text-center ${isClosed ? "text-[var(--muted)]" : "text-[var(--text)]"}`}
+                >
+                  {hoursText}
+                </span>
               </div>
-            ))}
+            );
+          })}
+        </div>
+
+        {visibleParkingNotice ? (
+          <div className="mt-5">
+            <h3 className={`text-[var(--text)] ${typography.title} ${scale.sectionTitle}`}>{"\uC8FC\uCC28 \uC548\uB0B4"}</h3>
+            <div className="mt-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+              <p className={`text-[var(--muted)] ${typography.body} ${scale.body}`}>{visibleParkingNotice}</p>
+            </div>
           </div>
-        </section>
-      ) : null}
+        ) : null}
+      </section>
 
       <LegalLinksFooter />
     </div>

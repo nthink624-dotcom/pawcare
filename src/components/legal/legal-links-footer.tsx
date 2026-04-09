@@ -1,8 +1,8 @@
-import { LEGAL_BUSINESS_INFO, LEGAL_LINKS } from "@/lib/legal/legal-info";
+﻿import { LEGAL_BUSINESS_INFO, LEGAL_LINKS } from "@/lib/legal/legal-info";
 
 export default function LegalLinksFooter() {
   return (
-    <footer className="mt-8 rounded-[24px] border border-[#e7e0d5] bg-[#f8f4ee] px-4 py-4 text-[#5f5852]">
+    <footer className="mt-8 rounded-[24px] border border-[#e7e0d5] bg-white px-4 py-4 text-[#5f5852]">
       <div className="space-y-1">
         <p className="text-[12px] font-semibold text-[#2a2522]">{LEGAL_BUSINESS_INFO.serviceName}</p>
         <p className="text-[12px]">

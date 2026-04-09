@@ -1,5 +1,6 @@
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { buildDemoBootstrap } from "@/lib/mock-data";
+import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import {
   normalizeBootstrapNotifications,
   normalizeGuardianNotificationSettings,
@@ -21,6 +22,10 @@ import type {
 } from "@/types/domain";
 
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
+  if (shopId === "owner-demo") {
+    return buildOwnerDemoBootstrap();
+  }
+
   const store = normalizeBootstrapNotifications(buildDemoBootstrap());
   store.shop = {
     ...store.shop,

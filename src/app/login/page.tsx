@@ -19,10 +19,12 @@ export default async function LoginPage({
   const params = (await searchParams) ?? {};
   const errorKey = typeof params.error === "string" ? params.error : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
+  const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
 
   return (
     <LoginForm
       supabaseReady={hasSupabaseBrowserEnv()}
+      nextPath={nextPath}
       initialMessage={
         errorKey
           ? errorMessages[errorKey] ?? null

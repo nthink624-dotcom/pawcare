@@ -20,6 +20,41 @@ export const appointmentStatusSchema = z.object({
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
 });
 
+export const guardianInputSchema = z.object({
+  shopId: z.string(),
+  name: z.string().trim().min(1),
+  phone: z.string().trim().min(1),
+  memo: z.string().default(""),
+});
+
+export const guardianUpdateSchema = z.object({
+  guardianId: z.string(),
+  name: z.string().trim().min(1).optional(),
+  phone: z.string().trim().min(1).optional(),
+  memo: z.string().default("").optional(),
+  enabled: z.boolean().optional(),
+  revisitEnabled: z.boolean().optional(),
+});
+
+export const petInputSchema = z.object({
+  shopId: z.string(),
+  guardianId: z.string(),
+  name: z.string().trim().min(1),
+  breed: z.string().trim().min(1),
+  birthday: z.string().nullable().optional(),
+  weight: z.coerce.number().nullable().optional(),
+  age: z.coerce.number().nullable().optional(),
+  notes: z.string().default(""),
+  groomingCycleWeeks: z.coerce.number().min(1).max(52).default(4),
+});
+
+export const petUpdateSchema = z.object({
+  petId: z.string(),
+  name: z.string().trim().min(1),
+  breed: z.string().trim().min(1),
+  birthday: z.string().nullable().optional(),
+});
+
 export const serviceInputSchema = z.object({
   shopId: z.string(),
   serviceId: z.string().optional(),

@@ -114,13 +114,7 @@ function AgreementRow({
   );
 }
 
-export default function SignupForm({
-  supabaseReady,
-  portoneReady,
-}: {
-  supabaseReady: boolean;
-  portoneReady: boolean;
-}) {
+export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/owner/billing" }: { supabaseReady: boolean; portoneReady: boolean; nextPath?: string }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [step, setStep] = useState<SignupStep>("terms");
@@ -467,6 +461,7 @@ export default function SignupForm({
       return;
     }
 
+
     setLoading(true);
     setMessage(null);
 
@@ -497,7 +492,7 @@ export default function SignupForm({
 
       setMessage(result.message ?? "회원가입이 완료되었습니다. 로그인 화면으로 이동합니다.");
       setTimeout(() => {
-        router.replace("/login?message=signup-success");
+        router.replace(`/login?message=signup-success&next=${encodeURIComponent(nextPath)}` as never);
         router.refresh();
       }, 900);
     } catch {
@@ -778,7 +773,7 @@ export default function SignupForm({
             />
           </FieldShell>
 
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-2 gap-3 pt-1"> 
             <button
               type="button"
               onClick={() => setStep("verification")}
@@ -857,4 +852,10 @@ export default function SignupForm({
     </div>
   );
 }
+
+
+
+
+
+
 

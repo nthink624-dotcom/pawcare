@@ -14,6 +14,7 @@ export type NotificationType =
   | "booking_rejected"
   | "booking_cancelled"
   | "booking_rescheduled_confirmed"
+  | "appointment_reminder_10m"
   | "grooming_started"
   | "grooming_almost_done"
   | "grooming_completed"
@@ -206,4 +207,6 @@ export type BootstrapPayload = {
   landingInterests: LandingInterest[];
   landingFeedback: LandingFeedback[];
 };
+
+
 

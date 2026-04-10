@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, House, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, House, PawPrint, Settings, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
@@ -49,7 +49,7 @@ const statusMeta: Record<AppointmentStatus, { label: string; color: string; bg: 
 const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "home", label: "홈", icon: House },
   { key: "book", label: "예약 조회", icon: CalendarDays },
-  { key: "customers", label: "고객", icon: UserRound },
+  { key: "customers", label: "고객관리", icon: PawPrint },
   { key: "settings", label: "설정", icon: Settings },
 ];
 
@@ -95,6 +95,8 @@ export default function OwnerApp({
   const [modal, setModal] = useState<ModalState>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGuardianEditing, setIsGuardianEditing] = useState(false);
+  const [isGuardianMemoEditing, setIsGuardianMemoEditing] = useState(false);
   const [guardianDraft, setGuardianDraft] = useState({
     name: "",
     phone: "",
@@ -281,6 +283,8 @@ export default function OwnerApp({
       phone: selectedGuardian.phone,
       memo: selectedGuardian.memo || "",
     });
+    setIsGuardianEditing(false);
+    setIsGuardianMemoEditing(false);
   }, [selectedGuardian]);
 
   async function mutate(url: string, init: RequestInit) {
@@ -370,6 +374,8 @@ export default function OwnerApp({
             : guardian,
         ),
       }));
+      setIsGuardianEditing(false);
+      setIsGuardianMemoEditing(false);
       return;
     }
 
@@ -377,6 +383,32 @@ export default function OwnerApp({
       method: "PATCH",
       body: JSON.stringify({ guardianId, name, phone, memo }),
     });
+    setIsGuardianEditing(false);
+    setIsGuardianMemoEditing(false);
+  }
+
+  async function handleGuardianProfileSave() {
+    if (!selectedGuardian || saving || !canSaveGuardianProfile) return;
+    await updateGuardianProfile(
+      selectedGuardian.id,
+      guardianDraft.name.trim(),
+      guardianDraft.phone.trim(),
+      guardianDraft.memo.trim(),
+    );
+  }
+
+  async function handleGuardianMemoSave() {
+    if (!selectedGuardian || saving) return;
+    if (guardianDraft.memo.trim() === (selectedGuardian.memo || "")) {
+      setIsGuardianMemoEditing(false);
+      return;
+    }
+    await updateGuardianProfile(
+      selectedGuardian.id,
+      isGuardianEditing ? guardianDraft.name.trim() : selectedGuardian.name,
+      isGuardianEditing ? guardianDraft.phone.trim() : selectedGuardian.phone,
+      guardianDraft.memo.trim(),
+    );
   }
 
   async function updatePetProfile(petId: string, name: string, breed: string, birthday: string | null) {
@@ -591,50 +623,301 @@ export default function OwnerApp({
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[15px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
         {activeTab === "customers" && !selectedPet && <section className="space-y-4 p-4"><Panel title="고객 정보" action={filteredGuardians.length + "명"}><div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="보호자명, 연락처, 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{filteredGuardians.length === 0 ? <EmptyState title="조건에 맞는 고객이 없어요" /> : <div className="space-y-3">{filteredGuardians.map((summary) => <button key={summary.guardian.id} className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]" onClick={() => { setSelectedPetId(summary.pets[0]?.id || null); setDetailTab("info"); }}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{summary.guardian.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{summary.guardian.phone}</p><p className="mt-2 text-sm text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p></div><span className="text-xs font-semibold text-[var(--accent)]">상세</span></div></button>)}</div>}</Panel></section>}
-                {activeTab === "customers" && selectedPet && selectedGuardian && <section className="space-y-4 p-4"><button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>← 이전</button><Panel title={`${selectedGuardian.name} 보호자님`} action="보호자"><div className="grid grid-cols-2 gap-2.5 text-sm"><InfoItem label="연락처" value={selectedGuardian.phone} /><InfoItem label="반려동물 수" value={`${selectedGuardianPets.length}마리`} /><InfoItem label="최근 방문" value={selectedLatestRecord ? shortDate(selectedLatestRecord.groomed_at.slice(0, 10)) : selectedLatestAppointment ? shortDate(selectedLatestAppointment.appointment_date) : "없음"} /><InfoItem label="최근 서비스" value={selectedLatestService?.name || "없음"} /></div><div className="mt-3 flex gap-2">{(["info", "records", "appointments"] as const).map((item) => <button key={item} className={`flex-1 rounded-[14px] border px-3 py-2.5 text-xs font-semibold ${detailTab === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--muted)]"}`} onClick={() => setDetailTab(item)}>{item === "info" ? "정보" : item === "records" ? "\uAE30\uB85D" : "\uC608\uC57D"}</button>)}</div>{detailTab === "info" && <div className="mt-4 space-y-3"><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-bold">보호자 정보 수정</p><button className="text-xs font-semibold text-[var(--accent)]" onClick={() => updateGuardianProfile(selectedGuardian.id, guardianDraft.name.trim(), guardianDraft.phone.trim(), guardianDraft.memo.trim())} disabled={saving || !canSaveGuardianProfile}>저장</button></div><div className="space-y-3"><Field label="보호자 이름"><input className="field" value={guardianDraft.name} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))} /></Field><Field label="연락처"><input className="field" value={guardianDraft.phone} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))} /></Field><Field label="고객 메모"><textarea className="field min-h-24" value={guardianDraft.memo} onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))} placeholder="고객에게 기억해 둘 내용을 적어주세요" /></Field></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 액션</p><div className="mt-2.5 grid grid-cols-2 gap-2"><a href={`tel:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a><a href={`sms:${selectedGuardian.phone}`} className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-bold">아기 정보</p><button className="text-xs font-semibold text-[var(--accent)]" onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}>+ 아기 추가하기</button></div><div className="space-y-3">{selectedGuardianPets.map((pet) => <GuardianPetEditorCard key={pet.id} pet={pet} saving={saving} isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")} onSelect={() => setSelectedPetId(pet.id)} onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)} onSendBirthday={() => sendBirthdayGreeting(pet)} onSendRevisit={() => sendRevisitNotice(pet)} />)}</div></div><button className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}>이 아기로 예약 등록</button></div>}{detailTab === "records" && <div className="mt-4 space-y-3">{selectedRecords.length === 0 ? <EmptyState title="미용 기록이 없어요" /> : selectedRecords.map((record) => <RecordCard key={record.id} record={record} service={serviceMap[record.service_id]} onEdit={() => setModal({ type: "edit-record", record })} />)}</div>}{detailTab === "appointments" && <div className="mt-4 space-y-3">{selectedAppointments.length === 0 ? <EmptyState title="예약 이력이 없어요" /> : selectedAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={selectedPet} guardian={selectedGuardian} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}</div>}</Panel></section>}
+                {activeTab === "customers" && selectedPet && selectedGuardian && (
+                  <section className="space-y-4 p-4">
+                    <button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>
+                      ← 이전
+                    </button>
+                    <Panel
+                      title={`${selectedGuardian.name} 보호자`}
+                      action={
+                        <div className="flex items-center gap-3">
+                          {isGuardianEditing ? (
+                            <button
+                              className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]"
+                              onClick={() => {
+                                setGuardianDraft({
+                                  name: selectedGuardian.name,
+                                  phone: selectedGuardian.phone,
+                                  memo: selectedGuardian.memo || "",
+                                });
+                                setIsGuardianEditing(false);
+                              }}
+                            >
+                              취소
+                            </button>
+                          ) : null}
+                          <button
+                            className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
+                            onClick={() => {
+                              if (isGuardianEditing) {
+                                if (!canSaveGuardianProfile || saving) return;
+                                handleGuardianProfileSave();
+                                return;
+                              }
+                              setIsGuardianEditing(true);
+                            }}
+                          >
+                            {isGuardianEditing ? "저장" : "편집"}
+                          </button>
+                        </div>
+                      }
+                    >
+                      <div className="grid grid-cols-2 gap-2.5 text-sm">
+                          {isGuardianEditing ? (
+                            <>
+                              <Field label="보호자 이름">
+                                <input
+                                  className="field"
+                                  value={guardianDraft.name}
+                                onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))}
+                              />
+                            </Field>
+                            <Field label="연락처">
+                              <input
+                                className="field"
+                                value={guardianDraft.phone}
+                                onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))}
+                              />
+                            </Field>
+                          </>
+                        ) : (
+                          <>
+                            <InfoItem label="보호자명" value={selectedGuardian.name} />
+                            <InfoItem label="연락처" value={selectedGuardian.phone} />
+                          </>
+                        )}
+                        <InfoItem
+                          label="반려동물 이름"
+                          value={selectedGuardianPets.length ? selectedGuardianPets.map((pet) => pet.name).join(", ") : "없음"}
+                          className="col-span-2"
+                        />
+                      </div>
+
+                      {isGuardianMemoEditing ? (
+                        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]"
+                                onClick={() => {
+                                  setGuardianDraft((prev) => ({ ...prev, memo: selectedGuardian.memo || "" }));
+                                  setIsGuardianMemoEditing(false);
+                                }}
+                              >
+                                취소
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
+                                onClick={handleGuardianMemoSave}
+                                disabled={saving}
+                              >
+                                저장
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            className="field min-h-24"
+                            value={guardianDraft.memo}
+                            onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
+                            placeholder="고객에게 기억해 둘 내용을 적어주세요"
+                          />
+                        </div>
+                      ) : selectedGuardian.memo ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]"
+                          onClick={() => setIsGuardianMemoEditing(true)}
+                        >
+                          <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
+                          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{selectedGuardian.memo}</p>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="w-full rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4 text-left transition hover:bg-[#f8f3ed]"
+                          onClick={() => setIsGuardianMemoEditing(true)}
+                        >
+                          <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
+                          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--muted)]">터치해서 고객 메모를 적어주세요</p>
+                        </button>
+                      )}
+
+                      <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+                        <p className="text-sm font-bold">빠른 액션</p>
+                        <div className="mt-2.5 grid grid-cols-2 gap-2">
+                          <a
+                            href={`tel:${selectedGuardian.phone}`}
+                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--text)]"
+                          >
+                            전화하기
+                          </a>
+                          <a
+                            href={`sms:${selectedGuardian.phone}`}
+                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]"
+                          >
+                            문자 보내기
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        {(["info", "records", "appointments"] as const).map((item) => (
+                          <button
+                            key={item}
+                            className={`flex-1 rounded-[14px] border px-3 py-2.5 text-xs font-semibold ${
+                              detailTab === item
+                                ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                                : "border-[var(--border)] bg-white text-[var(--muted)]"
+                            }`}
+                            onClick={() => setDetailTab(item)}
+                          >
+                            {item === "info" ? "반려동물" : item === "records" ? "기록" : "예약"}
+                          </button>
+                        ))}
+                      </div>
+
+                      {detailTab === "info" ? (
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                              <p className="text-sm font-bold">아기 정보</p>
+                              <button
+                                className="text-xs font-semibold text-[var(--accent)]"
+                                onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
+                              >
+                                + 아기 추가하기
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {selectedGuardianPets.map((pet) => (
+                                <GuardianPetEditorCard
+                                  key={pet.id}
+                                  pet={pet}
+                                  saving={saving}
+                                  isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")}
+                                  onSelect={() => setSelectedPetId(pet.id)}
+                                  onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
+                                  onSendBirthday={() => sendBirthdayGreeting(pet)}
+                                  onSendRevisit={() => sendRevisitNotice(pet)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
+                            onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}
+                          >
+                            이 아기로 예약 등록
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {detailTab === "records" ? (
+                        <div className="mt-4 space-y-3">
+                          {selectedRecords.length === 0 ? (
+                            <EmptyState title="미용 기록이 없어요" />
+                          ) : (
+                            selectedRecords.map((record) => (
+                              <RecordCard
+                                key={record.id}
+                                record={record}
+                                service={serviceMap[record.service_id]}
+                                onEdit={() => setModal({ type: "edit-record", record })}
+                              />
+                            ))
+                          )}
+                        </div>
+                      ) : null}
+
+                      {detailTab === "appointments" ? (
+                        <div className="mt-4 space-y-3">
+                          {selectedAppointments.length === 0 ? (
+                            <EmptyState title="예약 이력이 없어요" />
+                          ) : (
+                            selectedAppointments.map((appointment) => (
+                              <AppointmentRow
+                                key={appointment.id}
+                                appointment={appointment}
+                                pet={selectedPet}
+                                guardian={selectedGuardian}
+                                service={serviceMap[appointment.service_id]}
+                                onClick={() => setModal({ type: "appointment", appointment })}
+                              />
+                            ))
+                          )}
+                        </div>
+                      ) : null}
+                    </Panel>
+                  </section>
+                )}
 
         {activeTab === "settings" && <SettingsPanel data={data} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
-      <nav className="fixed bottom-0 left-1/2 z-20 flex w-full max-w-[430px] -translate-x-1/2 gap-0.5 border-t border-[var(--border)] bg-[rgba(255,255,255,0.98)] px-2 py-1.5 backdrop-blur">
-  {tabItems.map((item) => {
-    const Icon = item.icon;
-    const active = activeTab === item.key;
+      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-[rgba(255,255,255,0.98)] px-2.5 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(31,40,37,0.08)] backdrop-blur">
+        <div className="grid grid-cols-4 gap-1.5">
+            {tabItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.key;
 
-    return (
-      <button
-        key={item.key}
-        type="button"
-        aria-label={item.label}
-        className={`flex min-h-[46px] flex-1 items-center justify-center rounded-[12px] px-1 py-1.5 text-center transition ${active ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--muted)] hover:bg-[#fcfaf7]"}`}
-        onClick={() => {
-          setActiveTab(item.key);
-          if (item.key === "book") {
-            setVisitSelectionMode("single");
-            setVisitRange(null);
-            setVisitDateFilter(todayDate);
-          }
-          if (item.key !== "customers") setSelectedPetId(null);
-        }}
-      >
-        <Icon className={`h-[18px] w-[18px] ${active ? "text-[var(--accent)]" : "text-current"}`} />
-        <span className="sr-only">{item.label}</span>
-      </button>
-    );
-  })}
-</nav>
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  aria-label={item.label}
+                  className={`group relative flex min-h-[50px] flex-col items-center justify-center rounded-[14px] px-1 py-1 text-center transition ${
+                    active
+                      ? "text-[var(--accent)]"
+                      : "text-[var(--muted)] hover:bg-[#fcfaf7]"
+                  }`}
+                  onClick={() => {
+                    setActiveTab(item.key);
+                    if (item.key === "book") {
+                      setVisitSelectionMode("single");
+                      setVisitRange(null);
+                      setVisitDateFilter(todayDate);
+                    }
+                    if (item.key !== "customers") setSelectedPetId(null);
+                  }}
+                >
+                  <div
+                    className={`relative flex h-8 w-8 items-center justify-center rounded-full transition ${
+                      active
+                        ? "text-[var(--accent)]"
+                        : "text-[var(--muted)]"
+                    }`}
+                  >
+                    <Icon className="h-[22px] w-[22px]" />
+                  </div>
+                  <span
+                    className={`relative mt-0.5 text-[11px] font-semibold leading-4 tracking-[-0.01em] ${
+                      active ? "text-[var(--accent)]" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+        </div>
+      </nav>
 
       {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
     </div>
   );
 }
 
-function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
+function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-4">
         <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)]">{title}</h2>
-        {action && <span className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]">{action}</span>}
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       <div className="space-y-3">{children}</div>
     </section>
@@ -1005,7 +1288,7 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
   return <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${cls}`}>{text}</span>;
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) { return <div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><p className="text-[11px] font-medium text-[var(--muted)]">{label}</p><p className="mt-1 text-sm font-semibold text-[var(--text)]">{value}</p></div>; }
+function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 ${className}`.trim()}><p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1.5 flex min-h-[24px] items-center text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
 
 
 

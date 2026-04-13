@@ -183,7 +183,7 @@ export default function CustomerBookingManagePanel({
       setManageForm(null);
       setFeedback(null);
       if (result.appointments.length === 0 && result.groomingRecords.length === 0) {
-        setLookupError("해당 연락처와 예약번호로 조회된 예약이 없어요.");
+        setLookupError("해당 연락처와 보호자 이름으로 조회된 예약이 없어요.");
       }
     } catch (error) {
       setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
@@ -288,7 +288,7 @@ export default function CustomerBookingManagePanel({
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
         <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">{"← 처음 화면으로"}</button>
         <h2 className="mt-3 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"연락처와 예약번호로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"연락처와 보호자 이름으로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
       </section>
 
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
@@ -336,7 +336,6 @@ export default function CustomerBookingManagePanel({
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet?.name || "예약"} · {service?.name || "서비스"}</p>
                       <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)}{" · "}{formatClockTime(appointment.appointment_time)}</p>
-                      <p className="mt-1 text-[13px] text-[var(--muted)]">{"예약번호 "}{formatReservationCode(appointment.id)}</p>
                       <p className="mt-1 text-[13px] text-[var(--muted)]">{"상태: "}{statusLabelMap[appointment.status] || appointment.status}</p>
                       {appointment.memo ? <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">메모: {appointment.memo}</p> : null}
                     </div>

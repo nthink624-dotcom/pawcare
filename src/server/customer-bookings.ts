@@ -313,30 +313,27 @@ export async function createCustomerBooking(input: unknown) {
   });
 }
 
-export async function lookupCustomerBookings(shopId: string, phone: string, reservationCode: string) {
+export async function lookupCustomerBookings(shopId: string, phone: string, guardianName: string) {
   const normalizedPhone = normalizePhone(phone);
-  const normalizedCode = (reservationCode);
+  const normalizedGuardianName = guardianName.trim();
   const bootstrap = await getBootstrap(shopId);
-  const guardians = bootstrap.guardians.filter((guardian) => matchPhone(guardian.phone, normalizedPhone));
-  const guardianIds = new Set(guardians.map((guardian) => guardian.id));
-  const pets = bootstrap.pets.filter((pet) => guardianIds.has(pet.guardian_id));
-  const petIds = new Set(pets.map((pet) => pet.id));
-  const appointments = bootstrap.appointments.filter((appointment) => guardianIds.has(appointment.guardian_id) || petIds.has(appointment.pet_id));
-  const matchedAppointment = appointments.find(
-    (appointment) => ((appointment.id)) === normalizedCode,
+  const scopedGuardians = bootstrap.guardians.filter(
+    (guardian) => matchPhone(guardian.phone, normalizedPhone) && guardian.name.trim() === normalizedGuardianName,
   );
 
-  if (!matchedAppointment) {
-    throw new Error("예약번호와 연락처가 일치하는 예약을 찾지 못했어요.");
+  if (scopedGuardians.length === 0) {
+    throw new Error("연락처와 보호자 이름이 일치하는 예약을 찾지 못했어요.");
   }
 
-  const matchedGuardianId = matchedAppointment.guardian_id;
-  const scopedGuardians = guardians.filter((guardian) => guardian.id === matchedGuardianId);
   const scopedGuardianIds = new Set(scopedGuardians.map((guardian) => guardian.id));
   const scopedPets = bootstrap.pets.filter((pet) => scopedGuardianIds.has(pet.guardian_id));
   const scopedPetIds = new Set(scopedPets.map((pet) => pet.id));
-  const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedGuardianIds.has(appointment.guardian_id) || scopedPetIds.has(appointment.pet_id));
-  const groomingRecords = bootstrap.groomingRecords.filter((record) => scopedGuardianIds.has(record.guardian_id) || scopedPetIds.has(record.pet_id));
+  const scopedAppointments = bootstrap.appointments.filter(
+    (appointment) => scopedGuardianIds.has(appointment.guardian_id) || scopedPetIds.has(appointment.pet_id),
+  );
+  const groomingRecords = bootstrap.groomingRecords.filter(
+    (record) => scopedGuardianIds.has(record.guardian_id) || scopedPetIds.has(record.pet_id),
+  );
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
@@ -399,11 +396,8 @@ export async function updateCustomerBooking(input: unknown) {
   }
 
   const guardian = bootstrap.guardians.find((item) => item.id === appointment.guardian_id);
-  if (!guardian || !matchPhone(guardian.phone, payload.phone)) {
+  if (!guardian || !matchPhone(guardian.phone, payload.phone) || guardian.name.trim() !== payload.guardianName.trim()) {
     throw new Error("예약자 정보를 확인할 수 없습니다.");
-  }
-  if (((appointment.id)) !== (payload.reservationCode)) {
-    throw new Error("예약번호와 연락처가 일치하지 않습니다.");
   }
 
   if (!canManageAppointment(appointment)) {

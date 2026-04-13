@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     if (!shopId || !phone || !guardianName) {
       return NextResponse.json(
-        { message: "??? ??? ???? ??? ??? ??? ???." },
+        { message: "조회에 필요한 연락처와 보호자 이름을 입력해 주세요." },
         { status: 400 },
       );
     }
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const result = await lookupCustomerBookings(shopId, phone, guardianName);
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "?? ?? ? ??? ??????.";
+    const message = error instanceof Error ? error.message : "예약 조회 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

@@ -317,16 +317,13 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         memo: firstVisit.note.trim(),
       };
 
-      const created = await fetchJson<Appointment>("/api/customer-bookings", {
+      await fetchJson<Appointment>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
 
       const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
-      setSubmitFeedback({
-        ...nextFeedback,
-        message: `${nextFeedback.message}\n예약번호 ${formatReservationCode(created.id)}`,
-      });
+      setSubmitFeedback(nextFeedback);
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -347,9 +344,10 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
       const guardian = result.guardians.find((item) => item.name.trim() === returningVisit.guardianName.trim());
       if (!guardian) {
         setReturningHistory(null);
-        setReturningError("지난 방문 정보를 찾지 못했어요. 연락처, 보호자 이름, 예약번호를 다시 확인해 주세요.");
+        setReturningError("지난 방문 정보를 찾지 못했어요. 연락처와 보호자 이름을 다시 확인해 주세요.");
         return;
       }
+
       const guardianPets = result.pets.filter((item) => item.guardian_id === guardian.id);
       if (guardianPets.length === 0) {
         setReturningHistory(null);
@@ -420,19 +418,16 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         customServiceName: returningVisitUsesCustomService ? returningVisit.customServiceName.trim() : "",
         appointmentDate: returningVisit.date,
         appointmentTime: returningVisit.timeSlot,
-        memo: [returningVisit.note ? `참고: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
+        memo: [returningVisit.note ? `메모: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
       };
 
-      const created = await fetchJson<Appointment>("/api/customer-bookings", {
+      await fetchJson<Appointment>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
 
       const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
-      setSubmitFeedback({
-        ...nextFeedback,
-        message: `${nextFeedback.message}\n예약번호 ${formatReservationCode(created.id)}`,
-      });
+      setSubmitFeedback(nextFeedback);
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -443,7 +438,6 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
       setSubmitting(false);
     }
   }
-
 
 
   return (
@@ -605,10 +599,6 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
                     <SummaryRow
                       label="서비스"
                       value={firstVisitUsesCustomService ? `기타 · ${firstVisit.customServiceName || "직접 입력"}` : selectedFirstService?.name || "선택 안 됨"}
-                    />
-                    <SummaryRow
-                      label="예상 금액"
-                      value={firstVisitUsesCustomService ? "매장 안내 후 결제" : selectedFirstService ? formatServicePrice(selectedFirstService.price, selectedFirstService.price_type ?? "starting") : "-"}
                     />
                     <label className="block text-sm font-semibold text-[var(--text)]">
                       <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">참고사항</span>

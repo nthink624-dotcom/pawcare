@@ -2,7 +2,6 @@
 
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import { ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
-import { decodeUnicodeEscapes, formatServicePrice } from "@/lib/utils";
 import type { Service, Shop } from "@/types/domain";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -10,7 +9,6 @@ import { useMemo, useState } from "react";
 
 const SURFACE =
   "rounded-[28px] border border-[#ddd6ca] bg-white shadow-[0_12px_30px_rgba(24,33,31,0.05)]";
-const SECTION_TITLE = "text-[16px] font-bold leading-[1.35] tracking-[-0.03em] text-[#18211f]";
 const CARD_TITLE = "text-[15px] font-bold leading-[1.4] tracking-[-0.02em] text-[#18211f]";
 const BODY = "text-[14px] leading-6 text-[#625d56]";
 const PRIMARY_BUTTON =
@@ -26,33 +24,11 @@ const heroMetrics = [
   { label: "더 편하게", value: "고객 예약" },
 ] as const;
 
-const planLabels: Record<OwnerPlanCode, { title: string; period: string; summary: string }> = {
-  monthly: { title: "스타터", period: "1개월", summary: "가볍게 시작" },
-  quarterly: { title: "베이직", period: "3개월", summary: "흐름 익히기" },
-  halfyearly: { title: "그로스", period: "6개월", summary: "꾸준한 운영" },
-  yearly: { title: "프로", period: "12개월", summary: "가장 많이 선택" },
-};
-
-function countActiveServices(services: Service[]) {
-  return services.filter((service) => service.is_active).length;
-}
-
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
-function getRegularPrice(months: number) {
-  return 11900 * months;
-}
-
-function getSavings(months: number, price: number) {
-  return getRegularPrice(months) - price;
-}
-
-export default function LandingPage({ shop, services }: { shop: Shop; services: Service[] }) {
-  const shopName = decodeUnicodeEscapes(shop.name);
-  const visibleServices = services.filter((service) => service.is_active).slice(0, 3);
-  const serviceCount = countActiveServices(services);
+export default function LandingPage({ shop }: { shop: Shop; services: Service[] }) {
   const [planModalOpen, setPlanModalOpen] = useState(false);
 
   return (
@@ -141,9 +117,9 @@ function IntegratedPreview({ title, body, children }: { title: string; body: str
 }
 
 function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const featuredPlan = ownerPlans.find((plan) => plan.code === "yearly")!;
-  const otherPlans = ownerPlans.filter((plan) => plan.code !== "yearly");
-  const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>("yearly");
+  const featuredPlan = ownerPlans.find((plan) => plan.featured) ?? ownerPlans[ownerPlans.length - 1];
+  const otherPlans = ownerPlans.filter((plan) => plan.code !== featuredPlan.code);
+  const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(featuredPlan.code);
   const selectedPlan = useMemo(
     () => ownerPlans.find((plan) => plan.code === selectedPlanCode) ?? featuredPlan,
     [featuredPlan, selectedPlanCode],
@@ -160,8 +136,8 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="flex items-start justify-between gap-3 px-5 pb-4 pt-5">
           <div>
             <p className="text-[12px] font-semibold tracking-[0.08em] text-[#6f665d]">모든 플랜 보기</p>
-            <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#18211f]">운영 기간에 맞는 플랜을 선택해 주세요</h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#625d56]">먼저 플랜을 고르고, 다음 단계에서 결제를 진행합니다.</p>
+            <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#18211f]">월 금액 중심으로 플랜을 비교해 보세요</h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#625d56]">1개월은 일반결제, 3개월 이상은 약정 기간 동안 매달 결제됩니다.</p>
           </div>
           <button
             type="button"
@@ -183,72 +159,56 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             }`}
           >
             <span className="absolute -top-[12px] right-4 rounded-[10px] bg-[#1f5b51] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-[0_6px_16px_rgba(31,91,81,0.22)]">
-              약 {featuredPlan.discountPercent}% 할인
+              {featuredPlan.badge ?? `약 ${featuredPlan.discountPercent}% 할인`}
             </span>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[22px] font-extrabold tracking-[-0.03em] text-[#18211f]">프로</p>
-                  <span className="rounded-full border border-[#ddd6ca] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#6a6259]">12개월</span>
-                  <span className="rounded-full border border-[#ddd6ca] bg-[#fcfaf7] px-2.5 py-1 text-[11px] font-semibold text-[#6a6259]">가장 많이 선택</span>
-                </div>
-                <p className="mt-2 text-[14px] leading-6 text-[#6a6259]">꾸준히 운영하는 매장에 가장 잘 맞는 플랜입니다.</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#625d56]">
-                  <span className="line-through text-[#978f85]">정가 {formatWon(getRegularPrice(featuredPlan.months))}</span>
-                  <span className="rounded-full border border-[#d9d2c7] bg-[#fcfaf7] px-2.5 py-1">63,800원 절약</span>
-                </div>
+                <p className="text-[22px] font-extrabold tracking-[-0.03em] text-[#18211f]">{featuredPlan.title}</p>
+                <p className="mt-2 text-[14px] leading-6 text-[#6a6259]">{featuredPlan.billingLabel}</p>
+                {featuredPlan.dailyPriceText ? (
+                  <p className="mt-2 text-[13px] font-semibold text-[#1f5b51]">{featuredPlan.dailyPriceText}</p>
+                ) : null}
+                <p className="mt-3 text-[12px] font-medium text-[#827b72]">{featuredPlan.totalLabel}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-[31px] font-extrabold tracking-[-0.05em] text-[#18211f]">79,000원</p>
-                <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">월 6,583원꼴</p>
+                <p className="text-[31px] font-extrabold tracking-[-0.05em] text-[#18211f]">월 {formatWon(featuredPlan.monthlyPrice)}</p>
+                <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{featuredPlan.shortTitle}</p>
               </div>
             </div>
           </button>
 
           <div className="mt-6 space-y-4">
             {otherPlans.map((plan) => {
-              const meta = planLabels[plan.code];
-              const regularPrice = getRegularPrice(plan.months);
-              const savings = getSavings(plan.months, plan.price);
               const selected = selectedPlanCode === plan.code;
-              const topBadge =
-                plan.code === "monthly" ? null : `약 ${plan.discountPercent}% 할인`;
 
               return (
                 <button
                   key={plan.code}
                   type="button"
                   onClick={() => setSelectedPlanCode(plan.code)}
-                  className={`relative mt-1 w-full overflow-visible rounded-[24px] border bg-white px-5 py-4 text-left transition ${
+                  className={`relative ${plan.discountPercent > 0 ? "mt-3" : ""} w-full overflow-visible rounded-[24px] border bg-white px-5 py-4 text-left transition ${
                     selected
                       ? "border-[#1f5b51] bg-[#f4faf7] shadow-[0_10px_24px_rgba(11,77,63,0.06)]"
                       : "border-[#ddd6ca]"
                   }`}
                 >
-                  {topBadge ? (
+                  {plan.discountPercent > 0 ? (
                     <span className="absolute -top-[12px] right-4 rounded-[10px] bg-[#1f5b51] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-[0_6px_14px_rgba(31,91,81,0.22)]">
-                      {topBadge}
+                      약 {plan.discountPercent}% 할인
                     </span>
                   ) : null}
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#18211f]">{meta.title}</p>
-                        <span className="rounded-full border border-[#ddd6ca] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#6a6259]">{meta.period}</span>
-                      </div>
-                      <p className="mt-2 text-[13px] leading-6 text-[#6a6259]">{meta.summary}</p>
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[12px] font-medium text-[#625d56]">
-                        <span className={`${plan.code === "monthly" ? "text-[#8b8379]" : "line-through text-[#978f85]"}`}>
-                          {plan.code === "monthly" ? "기본 요금" : `정가 ${formatWon(regularPrice)}`}
-                        </span>
-                        {plan.code === "monthly" ? null : (
-                          <span className="rounded-full border border-[#d9d2c7] bg-[#fcfaf7] px-2.5 py-1">{formatWon(savings)} 절약</span>
-                        )}
-                      </div>
+                      <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#18211f]">{plan.title}</p>
+                      <p className="mt-2 text-[13px] leading-6 text-[#6a6259]">{plan.billingLabel}</p>
+                      {plan.dailyPriceText ? (
+                        <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{plan.dailyPriceText}</p>
+                      ) : null}
+                      <p className="mt-2.5 text-[12px] font-medium text-[#827b72]">{plan.totalLabel ?? "일반결제"}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-[24px] font-extrabold tracking-[-0.04em] text-[#18211f]">{formatWon(plan.price)}</p>
-                      <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">월 {formatWon(plan.monthlyEquivalent)}꼴</p>
+                      <p className="text-[24px] font-extrabold tracking-[-0.04em] text-[#18211f]">월 {formatWon(plan.monthlyPrice)}</p>
+                      <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{plan.shortTitle}</p>
                     </div>
                   </div>
                 </button>
@@ -269,6 +229,7 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     </div>
   );
 }
+
 function OwnerHomeMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
@@ -347,21 +308,21 @@ function ConsumerBookingMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
       <div className="rounded-[18px] bg-[#1e5d51] px-4 py-4 text-white">
-        <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">?? ??</p>
-        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">?? ??</p>
+        <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">예약 시작</p>
+        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">예약 화면</p>
       </div>
       <div className="mt-3 space-y-2.5">
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
-          <p className="text-[16px] font-extrabold text-[#18211f]">? ?? ??</p>
-          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">???? ???? ???? ??</p>
+          <p className="text-[16px] font-extrabold text-[#18211f]">첫 방문 예약</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">상담부터 차분하게 시작하는 예약</p>
         </div>
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
-          <p className="text-[16px] font-extrabold text-[#18211f]">??? ??</p>
-          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">?? ?? ??? ???? ??? ??</p>
+          <p className="text-[16px] font-extrabold text-[#18211f]">재방문 예약</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">이전 방문 정보를 바탕으로 빠르게 예약</p>
         </div>
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
-          <p className="text-[16px] font-extrabold text-[#18211f]">?? ?? / ?? / ??</p>
-          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">?? ??? ?? ???? ?? ??? ? ???.</p>
+          <p className="text-[16px] font-extrabold text-[#18211f]">예약 확인 / 취소 / 변경</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">기존 예약도 같은 화면에서 바로 확인할 수 있어요.</p>
         </div>
       </div>
     </div>
@@ -373,16 +334,6 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-[18px] border border-white/12 bg-white/8 px-3 py-3 backdrop-blur-[3px]">
       <p className="text-[11px] font-semibold tracking-[0.06em] text-white/68">{label}</p>
       <p className="mt-1 text-[15px] font-bold tracking-[-0.02em] text-white">{value}</p>
-    </div>
-  );
-}
-
-function PricePill({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="rounded-[16px] border border-[#e2ddd5] bg-white px-3 py-3">
-      <p className="text-[11px] font-semibold text-[#7a746d]">{label}</p>
-      <p className="mt-1 text-[15px] font-bold tracking-[-0.02em] text-[#18211f]">{value}</p>
-      <p className="mt-1 text-[11px] leading-4 text-[#6d746f]">{note}</p>
     </div>
   );
 }
@@ -424,13 +375,3 @@ function MiniStat({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-

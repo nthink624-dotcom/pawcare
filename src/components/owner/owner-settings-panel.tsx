@@ -117,48 +117,6 @@ function shiftMonth(cursor: string, amount: number) {
   return `${nextYear}-${nextMonth}`;
 }
 
-function getPlanDisplayName(code: OwnerPlanCode) {
-  switch (code) {
-    case "quarterly":
-      return "세달 루틴";
-    case "halfyearly":
-      return "반기 루틴";
-    case "yearly":
-      return "연간 루틴";
-    default:
-      return "한달 루틴";
-  }
-}
-
-function getPlanBenefitLines(plan: OwnerPlanCode) {
-  switch (plan) {
-    case "quarterly":
-      return [
-        "3개월 이용으로 월 부담을 조금 더 낮출 수 있어요.",
-        "서비스 종료일을 한 번에 길게 잡아두기 좋아요.",
-        "계속 써볼지 고민하는 매장에 잘 맞아요.",
-      ];
-    case "halfyearly":
-      return [
-        "6개월 이용으로 운영 흐름을 길게 이어갈 수 있어요.",
-        "월 환산 부담을 낮추고 일정 관리도 안정적으로 이어집니다.",
-        "꾸준히 운영하는 매장에 가장 균형이 좋은 플랜이에요.",
-      ];
-    case "yearly":
-      return [
-        "12개월 기준으로 가장 오래 안정적으로 이용할 수 있어요.",
-        "월 환산 부담이 가장 낮아 장기 운영에 잘 맞습니다.",
-        "예약, 고객관리, 재방문 흐름을 한 해 단위로 이어가기 좋아요.",
-      ];
-    default:
-      return [
-        "가볍게 시작해보고 싶은 매장에 잘 맞아요.",
-        "한 달 단위로 부담 없이 써볼 수 있어요.",
-        "무료체험 후 바로 이어서 사용하기 가장 쉬운 플랜입니다.",
-      ];
-  }
-}
-
 export default function OwnerSettingsPanel({
   data,
   onSave,
@@ -405,21 +363,22 @@ export default function OwnerSettingsPanel({
     <section className="space-y-3">
       {(() => {
         const currentPlan = selectedPlan ?? subscriptionSummary.currentPlan;
-        const currentPlanLine =
-          currentPlan.months === 1
-            ? "1개월 이용"
-            : `${currentPlan.months}개월 이용 · 월 ${won(currentPlan.monthlyEquivalent)}꼴`;
+        const currentPlanLine = currentPlan.billingLabel;
 
         return (
       <div className="overflow-hidden rounded-[26px] border border-[#ddd6ca] bg-white shadow-[0_10px_22px_rgba(30,31,28,0.06)]">
         <div className="bg-[#86c9b0] px-5 pb-6 pt-4 text-white">
-          <p className="text-[12px] font-semibold tracking-[0.01em] text-white/80">현재 플랜</p>
-          <div className="mt-3 flex items-end justify-between gap-4">
+          <div className="mt-1 flex items-end justify-between gap-4">
             <div className="min-w-0">
+              <p className="text-[12px] font-semibold tracking-[0.01em] text-white/80">현재 플랜</p>
               <p className="text-[34px] font-extrabold leading-[0.95] tracking-[-0.06em] text-white">
-                {getPlanDisplayName(currentPlan.code)}
+                {currentPlan.title}
               </p>
               <p className="mt-2 text-[14px] font-semibold text-white/90">{currentPlanLine}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[27px] font-extrabold tracking-[-0.05em] text-white">월 {won(currentPlan.monthlyPrice)}</p>
+              <p className="mt-2 text-[12px] font-semibold text-white/80">{currentPlan.totalLabel ?? "1회 결제"}</p>
             </div>
           </div>
         </div>
@@ -444,7 +403,6 @@ export default function OwnerSettingsPanel({
       {isPlanPickerOpen ? (
           <div className="space-y-2.5 border-t border-[#efe5d8] bg-[var(--surface)] px-4 py-4">
             {ownerPlans.map((plan) => {
-              const savings = plan.monthlyPrice * plan.months - plan.price;
               const active = plan.code === selectedPlanCode;
               const isYearly = plan.code === "yearly";
 
@@ -469,24 +427,19 @@ export default function OwnerSettingsPanel({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-[18px] font-bold tracking-[-0.02em] text-[var(--text)]">{getPlanDisplayName(plan.code)}</p>
-                          {plan.recommended ? (
+                          <p className="text-[18px] font-bold tracking-[-0.02em] text-[var(--text)]">{plan.title}</p>
+                          {plan.badge ? (
                             <span className="rounded-full border border-[var(--accent)] bg-[#eef8f3] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                              가장 많이 선택
+                              {plan.badge}
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-1 text-[14px] font-medium text-[var(--muted)]">
-                          {plan.months === 1
-                            ? "1개월 이용"
-                            : `${plan.months}개월 이용 · 월 ${won(plan.monthlyEquivalent)}꼴`}
-                        </p>
+                        <p className="mt-1 text-[14px] font-medium text-[var(--muted)]">{plan.billingLabel}</p>
+                        {plan.dailyPriceText ? <p className="mt-1 text-[13px] font-medium text-[var(--accent)]">{plan.dailyPriceText}</p> : null}
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className={`font-extrabold tracking-[-0.03em] text-[var(--text)] ${isYearly ? "text-[28px]" : "text-[24px]"}`}>{won(plan.price)}</p>
-                        <p className="mt-1 text-[13px] font-medium text-[var(--muted)]">
-                          {plan.discountPercent > 0 ? `${won(savings)} 절약` : "기본 요금"}
-                        </p>
+                        <p className={`font-extrabold tracking-[-0.03em] text-[var(--text)] ${isYearly ? "text-[28px]" : "text-[24px]"}`}>월 {won(plan.monthlyPrice)}</p>
+                        <p className="mt-1 text-[13px] font-medium text-[var(--muted)]">{plan.totalLabel ?? "일반결제"}</p>
                       </div>
                     </div>
                   </button>
@@ -746,7 +699,7 @@ export default function OwnerSettingsPanel({
   ) : null;
 
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
-    subscription: { title: "현재 이용 플랜", content: subscriptionSection },
+    subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "운영시간 안내", content: closuresSection },
     services: { title: "서비스 관리", content: servicesSection },

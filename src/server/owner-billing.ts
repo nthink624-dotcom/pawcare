@@ -280,6 +280,18 @@ function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSub
   };
 }
 
+function getBillingCycleForPlan(plan: { months: number }) {
+  return plan.months === 12 ? "12m" : plan.months === 6 ? "6m" : plan.months === 3 ? "3m" : "1m";
+}
+
+function getChargeAmountForPlan(plan: { billingType: "one_time" | "subscription"; monthlyPrice: number; totalPrice: number }) {
+  return plan.billingType === "subscription" ? plan.monthlyPrice : plan.totalPrice;
+}
+
+function getPeriodMonthsForPlan(plan: { billingType: "one_time" | "subscription"; months: number }) {
+  return plan.billingType === "subscription" ? 1 : plan.months;
+}
+
 async function readOrCreateSubscription(identity: BillingIdentity, shopId: string) {
   const admin = getSupabaseAdmin();
   if (!admin) {
@@ -404,6 +416,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
 
   const plan = getOwnerPlanByCode(record.auto_renew_plan_code) ?? getOwnerPlanByCode("monthly");
   if (!plan) return record;
+  const chargeAmount = getChargeAmountForPlan(plan);
 
   const timeToPay = record.subscription_status === "active" && record.current_period_ends_at ? record.current_period_ends_at : record.trial_ends_at;
   if (!timeToPay) return record;
@@ -417,14 +430,14 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
         billingKey: record.billing_key,
         orderName: `${plan.name} 멍매니저 구독`,
         customer: buildPortoneCustomer(identity, profile, record.shop_id),
-        amount: { total: plan.price },
+        amount: { total: chargeAmount },
         currency: "KRW",
         customData: JSON.stringify({
           kind: "owner-subscription",
           userId: identity.id,
           shopId: record.shop_id,
           planCode: plan.code,
-          cycle: record.billing_cycle,
+          cycle: getBillingCycleForPlan(plan),
         }),
         noticeUrls: [`${env.siteUrl.replace(/\/$/, "")}/api/webhooks/portone`],
       },
@@ -452,7 +465,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
     eventType: "payment_scheduled",
     paymentId,
     scheduleId,
-    amount: plan.price,
+    amount: chargeAmount,
     status: "scheduled",
     payload: { planCode: plan.code, timeToPay },
   });
@@ -467,14 +480,16 @@ function applySuccessfulCharge(record: OwnerSubscriptionRecord, planCode: OwnerP
   }
 
   const paidIso = paidAt ?? nowIso();
+  const periodMonths = getPeriodMonthsForPlan(plan);
+
   return {
     ...record,
     subscription_status: "active" as const,
     current_plan_code: plan.code,
-    billing_cycle: plan.months === 12 ? "12m" : plan.months === 6 ? "6m" : plan.months === 3 ? "3m" : "1m",
+    billing_cycle: getBillingCycleForPlan(plan),
     current_period_started_at: paidIso,
-    current_period_ends_at: addMonthsIso(paidIso, plan.months),
-    next_billing_at: addMonthsIso(paidIso, plan.months),
+    current_period_ends_at: addMonthsIso(paidIso, periodMonths),
+    next_billing_at: addMonthsIso(paidIso, periodMonths),
     last_payment_status: "paid" as const,
     last_payment_at: paidIso,
     last_payment_failed_at: null,
@@ -639,6 +654,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   if (!plan) {
     throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
   }
+  const chargeAmount = getChargeAmountForPlan(plan);
 
   const paymentId = `sub_retry_${identity.id}_${Date.now()}`;
   const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}/billing-key`, {
@@ -648,14 +664,14 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
       billingKey: record.billing_key,
       orderName: `${plan.name} 멍매니저 구독`,
       customer: buildPortoneCustomer(identity, profile, shopId),
-      amount: { total: plan.price },
+      amount: { total: chargeAmount },
       currency: "KRW",
       customData: JSON.stringify({
         kind: "owner-subscription",
         userId: identity.id,
         shopId,
         planCode: plan.code,
-        cycle: plan.months === 12 ? "12m" : plan.months === 6 ? "6m" : plan.months === 3 ? "3m" : "1m",
+        cycle: getBillingCycleForPlan(plan),
       }),
       noticeUrls: [`${env.siteUrl.replace(/\/$/, "")}/api/webhooks/portone`],
     }),
@@ -675,7 +691,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     shopId,
     eventType: payment.status === "PAID" ? "payment_paid" : "payment_failed",
     paymentId,
-    amount: plan.price,
+    amount: chargeAmount,
     status: payment.status,
     payload: { planCode: plan.code },
   });

@@ -101,13 +101,19 @@ function PlanCard({
             ) : null}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-semibold">
-            <span className="rounded-full border border-[#d8d1c5] bg-white px-3 py-1 text-[#575149]">월 {won(plan.monthlyEquivalent)}꼴</span>
+            <span className="rounded-full border border-[#d8d1c5] bg-white px-3 py-1 text-[#575149]">{plan.billingLabel}</span>
+            {plan.dailyPriceText ? (
+              <span className="rounded-full border border-[#d8d1c5] bg-white px-3 py-1 text-[#575149]">{plan.dailyPriceText}</span>
+            ) : null}
             <span className="rounded-full border border-[#d8d1c5] bg-white px-3 py-1 text-[#575149]">
               {plan.discountPercent > 0 ? `${plan.discountPercent}% 할인` : "기본 요금"}
             </span>
           </div>
         </div>
-        <span className="text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{won(plan.price)}</span>
+        <div className="shrink-0 text-right">
+          <p className="text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">월 {won(plan.monthlyPrice)}</p>
+          <p className="mt-1 text-[12px] font-semibold text-[#6a6259]">{plan.totalLabel ?? "일반결제"}</p>
+        </div>
       </div>
     </button>
   );
@@ -129,7 +135,7 @@ export default function OwnerBillingScreen({
   const [message, setMessage] = useState<string | null>(null);
 
   const selectedPlan = useMemo(() => getOwnerPlanByCode(selectedPlanCode) ?? initialSummary.currentPlan, [initialSummary.currentPlan, selectedPlanCode]);
-  const usesOneTimePayment = selectedPlanCode === "monthly";
+  const usesOneTimePayment = selectedPlan.billingType === "one_time";
 
   async function handleRegisterCard() {
     if (registeringCard || retryingPayment) return;
@@ -199,8 +205,8 @@ export default function OwnerBillingScreen({
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
-        amount: selectedPlan.price,
-        orderName: `${selectedPlan.name} 멍매니저 이용권`,
+        amount: selectedPlan.totalPrice,
+        orderName: `${selectedPlan.title} 멍매니저 이용권`,
       });
 
       setSummary(nextSummary);
@@ -253,30 +259,23 @@ export default function OwnerBillingScreen({
         <div className="relative mt-5 rounded-[24px] border border-[#1f5b51] bg-[#fffdf9] px-4 py-4 shadow-[0_10px_24px_rgba(23,59,51,0.06)]">
           {selectedPlan.discountPercent > 0 ? (
             <span className="absolute -top-[13px] right-4 rounded-[10px] border border-[#0b4d3f] bg-[#1f5b51] px-3 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-sm">
-              {`약 ${selectedPlan.discountPercent}% 할인`}
+              {selectedPlan.badge ?? `약 ${selectedPlan.discountPercent}% 할인`}
             </span>
           ) : null}
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
             <div className="min-w-0">
-              <p className="pt-0.5 text-[25px] font-extrabold tracking-[-0.04em] text-[#173b33]">
-                {selectedPlan.months === 12
-                  ? "프로 플랜"
-                  : selectedPlan.months === 6
-                    ? "그로스 플랜"
-                    : selectedPlan.months === 3
-                      ? "베이직 플랜"
-                      : "스타터 플랜"}
-              </p>
+              <p className="pt-0.5 text-[25px] font-extrabold tracking-[-0.04em] text-[#173b33]">{selectedPlan.title}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">
-                  {selectedPlan.discountPercent > 0 ? `${won(selectedPlan.monthlyPrice * selectedPlan.months - selectedPlan.price)} 절약` : "기본 요금"}
-                </span>
+                <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">{selectedPlan.billingLabel}</span>
+                {selectedPlan.dailyPriceText ? (
+                  <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">{selectedPlan.dailyPriceText}</span>
+                ) : null}
               </div>
             </div>
             <div className="shrink-0 pt-1 text-right">
-              <p className="text-[31px] font-extrabold tracking-[-0.05em] text-[#18211f]">{won(selectedPlan.price)}</p>
-              <p className="mt-1 text-[13px] font-semibold text-[#1f5b51]">
-                {selectedPlan.months}개월 이용 · 월 {won(selectedPlan.monthlyEquivalent)}꼴
+              <p className="text-[28px] font-extrabold tracking-[-0.05em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
+              <p className="mt-1 text-[13px] font-semibold text-[#6a6259]">
+                {selectedPlan.billingType === "one_time" ? "1회 결제" : selectedPlan.totalLabel}
               </p>
             </div>
           </div>
@@ -298,8 +297,8 @@ export default function OwnerBillingScreen({
               <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>
               <p className="mt-1 text-[13px] leading-5 text-[#6e6a61]">
                 {usesOneTimePayment
-                  ? "결제창에서 바로 결제를 완료할 수 있어요."
-                  : "정기결제 등록 후 플랜 결제를 이어서 진행합니다."}
+                  ? "1개월 플랜은 일반결제로 한 번 결제하고 바로 시작합니다."
+                  : "약정 플랜은 카드 등록 후 매달 자동 청구로 이어집니다."}
               </p>
             </div>
             <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#eef8f3] text-[#1f5b51]">

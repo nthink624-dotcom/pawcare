@@ -84,7 +84,8 @@ export function normalizeOwnerSubscriptionMetadata(
   const featuredPlanCode =
     metadata?.featured_plan_code === "monthly" ||
     metadata?.featured_plan_code === "quarterly" ||
-    metadata?.featured_plan_code === "halfyearly"
+    metadata?.featured_plan_code === "halfyearly" ||
+    metadata?.featured_plan_code === "yearly"
       ? metadata.featured_plan_code
       : "yearly";
   const autoRenewPlanCode =

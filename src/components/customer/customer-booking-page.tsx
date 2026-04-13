@@ -8,13 +8,12 @@ import CustomerBookingManagePanel from "@/components/customer/customer-booking-m
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
 import { fetchApiJson } from "@/lib/api";
-import { env } from "@/lib/env";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
+import { formatReservationCode } from "@/lib/reservation-code";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type ActiveMode = "first" | "returning" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
-type PaymentMethodKey = "card" | "kakaopay";
 
 type LookupPayload = {
   guardians: Array<{ id: string; name: string; phone: string }>;
@@ -31,26 +30,34 @@ type DateOption = {
   weekday: string;
 };
 
+type AdditionalPetDraft = {
+  id: string;
+  name: string;
+  breed: string;
+};
+
 type FirstVisitState = {
   ownerName: string;
   phone: string;
   petName: string;
   breed: string;
+  extraPets: AdditionalPetDraft[];
   date: string;
   timeSlot: string;
   serviceId: string;
+  customServiceName: string;
   note: string;
-  paymentMethod: PaymentMethodKey;
 };
 
 type ReturningVisitState = {
   phone: string;
-  petName: string;
+  guardianName: string;
+  reservationCode: string;
   date: string;
   timeSlot: string;
   serviceId: string;
+  customServiceName: string;
   note: string;
-  paymentMethod: PaymentMethodKey;
 };
 
 type ReturningHistory = {
@@ -69,33 +76,31 @@ type SubmitFeedback = {
   message: string;
 };
 
-type PaymentOption = {
-  id: PaymentMethodKey;
-  label: string;
-  description: string;
-};
-
 const initialFirstVisitState: FirstVisitState = {
   ownerName: "",
   phone: "",
   petName: "",
   breed: "",
+  extraPets: [],
   date: "",
   timeSlot: "",
   serviceId: "",
+  customServiceName: "",
   note: "",
-  paymentMethod: "card",
 };
 
 const initialReturningVisitState: ReturningVisitState = {
   phone: "",
-  petName: "",
+  guardianName: "",
+  reservationCode: "",
   date: "",
   timeSlot: "",
   serviceId: "",
+  customServiceName: "",
   note: "",
-  paymentMethod: "card",
 };
+
+const CUSTOM_SERVICE_ID = "__custom__";
 
 const statusLabelMap: Record<Appointment["status"], string> = {
   pending: "승인 대기",
@@ -180,29 +185,26 @@ function getCustomerBookingSuccessFeedback(approvalMode: Shop["approval_mode"]):
   };
 }
 
+function createAdditionalPetDraft(): AdditionalPetDraft {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: "",
+    breed: "",
+  };
+}
+
 export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = "first", entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
-  const services = initialServices.filter((service) => service.is_active);
+  const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
-  const paymentOptions = useMemo<PaymentOption[]>(() => {
-    const options: PaymentOption[] = [];
-    if (env.portonePaymentChannelKey) {
-      options.push({ id: "card", label: "카드 결제", description: "KG이니시스 일반결제로 결제해요." });
-    }
-    if (env.portoneKakaoPayChannelKey) {
-      options.push({ id: "kakaopay", label: "카카오페이", description: "카카오페이로 바로 결제해요." });
-    }
-    return options;
-  }, []);
-  const paymentReady = Boolean(env.portoneStoreId && paymentOptions.length > 0);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(1);
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>({ ...initialFirstVisitState, serviceId: services[0]?.id || "" });
+  const [showPrimaryPetForm, setShowPrimaryPetForm] = useState(false);
   const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
   const [returningHistory, setReturningHistory] = useState<ReturningHistory | null>(null);
   const [returningError, setReturningError] = useState<string | null>(null);
   const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [processingPayment, setProcessingPayment] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [returningVisitSlots, setReturningVisitSlots] = useState<string[]>([]);
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
@@ -211,7 +213,10 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);
   const selectedReturningService = services.find((service) => service.id === returningVisit.serviceId);
+  const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
+  const returningVisitUsesCustomService = returningVisit.serviceId === CUSTOM_SERVICE_ID;
   const firstVisitProgress = (firstVisitStep / 5) * 100;
+  const shouldShowPrimaryPetForm = showPrimaryPetForm || Boolean(firstVisit.petName || firstVisit.breed);
 
   useEffect(() => {
     if (!firstVisit.serviceId && services[0]?.id) setFirstVisit((prev) => ({ ...prev, serviceId: services[0].id }));
@@ -221,13 +226,16 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   useEffect(() => {
     let active = true;
     async function load() {
-      if (!firstVisit.date || !firstVisit.serviceId) {
+      const availabilityServiceId =
+        firstVisit.serviceId && firstVisit.serviceId !== CUSTOM_SERVICE_ID ? firstVisit.serviceId : services[0]?.id;
+
+      if (!firstVisit.date || !availabilityServiceId) {
         setFirstVisitSlots([]);
         return;
       }
       setLoadingFirstVisitSlots(true);
       try {
-        const query = new URLSearchParams({ shopId, date: firstVisit.date, serviceId: firstVisit.serviceId });
+        const query = new URLSearchParams({ shopId, date: firstVisit.date, serviceId: availabilityServiceId });
         const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
         if (!active) return;
         setFirstVisitSlots(result.slots);
@@ -238,18 +246,21 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     }
     void load();
     return () => { active = false; };
-  }, [firstVisit.date, firstVisit.serviceId, firstVisit.timeSlot, shopId]);
+  }, [firstVisit.date, firstVisit.serviceId, firstVisit.timeSlot, services, shopId]);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      if (!returningVisit.date || !returningVisit.serviceId) {
+      const availabilityServiceId =
+        returningVisit.serviceId && returningVisit.serviceId !== CUSTOM_SERVICE_ID ? returningVisit.serviceId : services[0]?.id;
+
+      if (!returningVisit.date || !availabilityServiceId) {
         setReturningVisitSlots([]);
         return;
       }
       setLoadingReturningVisitSlots(true);
       try {
-        const query = new URLSearchParams({ shopId, date: returningVisit.date, serviceId: returningVisit.serviceId });
+        const query = new URLSearchParams({ shopId, date: returningVisit.date, serviceId: availabilityServiceId });
         const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
         if (!active) return;
         setReturningVisitSlots(result.slots);
@@ -260,96 +271,35 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     }
     void load();
     return () => { active = false; };
-  }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, shopId]);
+  }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, services, shopId]);
 
   function resetView() {
     window.location.href = entryHref || `/entry/${shopId}`;
   }
 
   function getFirstVisitStepValidity(step: FirstVisitStep) {
-    if (step === 1) return Boolean(firstVisit.ownerName && firstVisit.phone && firstVisit.petName && firstVisit.breed);
+    const basicInfoReady = Boolean(
+      firstVisit.ownerName &&
+        firstVisit.phone &&
+        firstVisit.petName &&
+        firstVisit.breed &&
+        firstVisit.extraPets.every((pet) => pet.name.trim() && pet.breed.trim()),
+    );
+    if (step === 1) return basicInfoReady;
     if (step === 2) return Boolean(firstVisit.date);
     if (step === 3) return Boolean(firstVisit.timeSlot);
-    if (step === 4) return Boolean(firstVisit.serviceId);
-    return Boolean(firstVisit.ownerName && firstVisit.phone && firstVisit.petName && firstVisit.breed && firstVisit.date && firstVisit.timeSlot && firstVisit.serviceId);
-  }
-
-  async function completePaidBooking(params: {
-    paymentId: string;
-    expectedAmount: number;
-    booking: {
-      shopId: string;
-      guardianName: string;
-      phone: string;
-      petName: string;
-      breed?: string;
-      serviceId: string;
-      appointmentDate: string;
-      appointmentTime: string;
-      memo: string;
-    };
-  }) {
-    return fetchJson("/api/payments/complete-booking", {
-      method: "POST",
-      body: JSON.stringify(params),
-    });
-  }
-
-  async function requestBookingPayment(params: {
-    amount: number;
-    orderName: string;
-    paymentMethod: PaymentMethodKey;
-    customerName: string;
-    customerPhone: string;
-  }) {
-    if (!env.portoneStoreId) {
-      throw new Error("포트원 상점 설정을 먼저 확인해 주세요.");
-    }
-
-    const paymentId = `booking_${shopId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const { requestPayment } = await import("@portone/browser-sdk/v2");
-
-    const response = await requestPayment({
-      storeId: env.portoneStoreId,
-      paymentId,
-      orderName: params.orderName,
-      totalAmount: params.amount,
-      currency: "KRW",
-      payMethod: params.paymentMethod === "kakaopay" ? "EASY_PAY" : "CARD",
-      channelKey:
-        params.paymentMethod === "kakaopay"
-          ? env.portoneKakaoPayChannelKey
-          : env.portonePaymentChannelKey,
-      customer: {
-        fullName: params.customerName,
-        phoneNumber: params.customerPhone,
-      },
-      windowType: { pc: "POPUP", mobile: "POPUP" },
-      easyPay:
-        params.paymentMethod === "kakaopay"
-          ? {
-              easyPayProvider: "KAKAOPAY",
-            }
-          : undefined,
-    });
-
-    if (!response) {
-      throw new Error("결제창을 열지 못했습니다.");
-    }
-
-    if (response.code || response.message) {
-      throw new Error(response.message || "결제가 완료되지 않았습니다.");
-    }
-
-    if (!response.paymentId) {
-      throw new Error("결제 정보를 확인하지 못했습니다.");
-    }
-
-    return response.paymentId;
+    if (step === 4) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    return Boolean(
+      basicInfoReady &&
+        firstVisit.date &&
+        firstVisit.timeSlot &&
+        firstVisit.serviceId &&
+        (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()),
+    );
   }
 
   async function submitFirstVisit() {
-    if (submitting || processingPayment) return;
+    if (submitting) return;
 
     setSubmitting(true);
     setSubmitFeedback(null);
@@ -360,35 +310,26 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         phone: firstVisit.phone,
         petName: firstVisit.petName,
         breed: firstVisit.breed,
+        extraPets: firstVisit.extraPets
+          .map((pet) => ({ name: pet.name.trim(), breed: pet.breed.trim() }))
+          .filter((pet) => pet.name && pet.breed),
         serviceId: firstVisit.serviceId,
+        customServiceName: firstVisitUsesCustomService ? firstVisit.customServiceName.trim() : "",
         appointmentDate: firstVisit.date,
         appointmentTime: firstVisit.timeSlot,
         memo: firstVisit.note.trim(),
       };
 
-      if (paymentReady && selectedFirstService) {
-        setProcessingPayment(true);
-        const paymentId = await requestBookingPayment({
-          amount: selectedFirstService.price,
-          orderName: `${initialShop.name} ${selectedFirstService.name}`,
-          paymentMethod: firstVisit.paymentMethod,
-          customerName: firstVisit.ownerName,
-          customerPhone: firstVisit.phone,
-        });
+      const created = await fetchJson<Appointment>("/api/customer-bookings", {
+        method: "POST",
+        body: JSON.stringify(bookingPayload),
+      });
 
-        await completePaidBooking({
-          paymentId,
-          expectedAmount: selectedFirstService.price,
-          booking: bookingPayload,
-        });
-      } else {
-        await fetchJson("/api/customer-bookings", {
-          method: "POST",
-          body: JSON.stringify(bookingPayload),
-        });
-      }
-
-      setSubmitFeedback(getCustomerBookingSuccessFeedback(initialShop.approval_mode));
+      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
+      setSubmitFeedback({
+        ...nextFeedback,
+        message: `${nextFeedback.message}\n예약번호 ${formatReservationCode(created.id)}`,
+      });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -396,7 +337,6 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
       });
     } finally {
-      setProcessingPayment(false);
       setSubmitting(false);
     }
   }
@@ -405,29 +345,60 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     setSubmitting(true);
     try {
       setReturningError(null);
-      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?shopId=${shopId}&phone=${returningVisit.phone}`);
-      const pet = result.pets.find((item) => item.name.trim() === returningVisit.petName.trim());
-      if (!pet) {
+      const query = new URLSearchParams({ shopId, phone: returningVisit.phone, reservationCode: returningVisit.reservationCode });
+      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+      const guardian = result.guardians.find((item) => item.name.trim() === returningVisit.guardianName.trim());
+      if (!guardian) {
         setReturningHistory(null);
-        setReturningError("지난 방문 정보를 찾지 못했어요. 연락처와 아기 이름을 다시 확인해 주세요.");
+        setReturningError("지난 방문 정보를 찾지 못했어요. 연락처, 보호자 이름, 예약번호를 다시 확인해 주세요.");
         return;
       }
-      const petAppointments = result.appointments.filter((item) => item.pet_id === pet.id);
-      const petRecords = result.groomingRecords.filter((item) => item.pet_id === pet.id);
-      const latestAppointment = getLatestAppointment(petAppointments);
-      const latestRecord = getLatestRecord(petRecords);
+      const guardianPets = result.pets.filter((item) => item.guardian_id === guardian.id);
+      if (guardianPets.length === 0) {
+        setReturningHistory(null);
+        setReturningError("등록된 반려동물 정보를 찾지 못했어요. 매장에 문의해 주세요.");
+        return;
+      }
+
+      const rankedPets = guardianPets
+        .map((pet) => {
+          const petAppointments = result.appointments.filter((item) => item.pet_id === pet.id);
+          const petRecords = result.groomingRecords.filter((item) => item.pet_id === pet.id);
+          const latestAppointment = getLatestAppointment(petAppointments);
+          const latestRecord = getLatestRecord(petRecords);
+          const latestVisitedAt = latestRecord?.groomed_at || latestAppointment?.appointment_date || "";
+
+          return {
+            pet,
+            latestAppointment,
+            latestRecord,
+            latestVisitedAt,
+          };
+        })
+        .sort((a, b) => `${b.latestVisitedAt}`.localeCompare(`${a.latestVisitedAt}`));
+
+      const latestPet = rankedPets[0];
+      const latestAppointment = latestPet?.latestAppointment;
+      const latestRecord = latestPet?.latestRecord;
       const lastServiceId = latestRecord?.service_id || latestAppointment?.service_id || services[0]?.id || "";
-      const guardian = result.guardians.find((item) => item.id === pet.guardian_id);
+
       setReturningHistory({
-        guardianName: guardian?.name || `${returningVisit.petName} 보호자`,
+        guardianName: guardian.name,
         phone: returningVisit.phone,
-        petName: pet.name,
+        petName: latestPet.pet.name,
         lastServiceId,
         lastServiceLabel: services.find((service) => service.id === lastServiceId)?.name || "지난 서비스 정보 없음",
         lastVisitedAt: latestRecord?.groomed_at || latestAppointment?.appointment_date || "",
         lastNote: latestRecord?.style_notes || latestRecord?.memo || latestAppointment?.memo || "지난 참고사항이 없어요.",
       });
-      setReturningVisit((prev) => ({ ...prev, serviceId: lastServiceId, date: "", timeSlot: "", note: "" }));
+      setReturningVisit((prev) => ({
+        ...prev,
+        serviceId: lastServiceId,
+        customServiceName: "",
+        date: "",
+        timeSlot: "",
+        note: "",
+      }));
     } catch (error) {
       setReturningHistory(null);
       setReturningError(error instanceof Error ? error.message : "조회에 실패했어요.");
@@ -437,7 +408,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   }
 
   async function submitReturningVisit() {
-    if (!returningHistory || submitting || processingPayment) return;
+    if (!returningHistory || submitting) return;
 
     setSubmitting(true);
     setSubmitFeedback(null);
@@ -449,34 +420,22 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         petName: returningHistory.petName,
         breed: "",
         serviceId: returningVisit.serviceId,
+        customServiceName: returningVisitUsesCustomService ? returningVisit.customServiceName.trim() : "",
         appointmentDate: returningVisit.date,
         appointmentTime: returningVisit.timeSlot,
         memo: [returningVisit.note ? `참고: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
       };
 
-      if (paymentReady && selectedReturningService) {
-        setProcessingPayment(true);
-        const paymentId = await requestBookingPayment({
-          amount: selectedReturningService.price,
-          orderName: `${initialShop.name} ${selectedReturningService.name}`,
-          paymentMethod: returningVisit.paymentMethod,
-          customerName: returningHistory.guardianName,
-          customerPhone: returningHistory.phone,
-        });
+      const created = await fetchJson<Appointment>("/api/customer-bookings", {
+        method: "POST",
+        body: JSON.stringify(bookingPayload),
+      });
 
-        await completePaidBooking({
-          paymentId,
-          expectedAmount: selectedReturningService.price,
-          booking: bookingPayload,
-        });
-      } else {
-        await fetchJson("/api/customer-bookings", {
-          method: "POST",
-          body: JSON.stringify(bookingPayload),
-        });
-      }
-
-      setSubmitFeedback(getCustomerBookingSuccessFeedback(initialShop.approval_mode));
+      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
+      setSubmitFeedback({
+        ...nextFeedback,
+        message: `${nextFeedback.message}\n예약번호 ${formatReservationCode(created.id)}`,
+      });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -484,7 +443,6 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
       });
     } finally {
-      setProcessingPayment(false);
       setSubmitting(false);
     }
   }
@@ -498,8 +456,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           {activeMode === "first" ? (
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold opacity-80">첫 방문 예약</p>
-                <h1 className="mt-2 text-[26px] font-extrabold leading-tight">{initialShop.name}</h1>
+                <h1 className="text-[26px] font-extrabold leading-tight">{initialShop.name}</h1>
                 <p className="mt-3 text-sm text-white/80">한 단계씩 입력하고 마지막에 예약을 확인해 주세요.</p>
               </div>
               <button type="button" onClick={() => setShopInfoOpen(true)} className="shrink-0 rounded-[14px] border border-white/25 bg-white/12 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm">
@@ -509,7 +466,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           ) : (
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h1 className="mt-2 text-[28px] font-extrabold leading-tight">{initialShop.name}<br />모바일 예약</h1>
+                <h1 className="mt-2 text-[28px] font-extrabold leading-tight">{initialShop.name}<br />{"예약 화면"}</h1>
                 </div>
               <button type="button" onClick={() => setShopInfoOpen(true)} className="shrink-0 rounded-[14px] border border-white/25 bg-white/12 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm">
                 매장 정보
@@ -518,19 +475,88 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           )}
         </section>
 
-        <div className="-mt-4 space-y-4 px-4">
+        <div className="-mt-4 space-y-4 px-4">
+
 
 
           {activeMode === "first" ? (
             <>
-              <StepHeader title="첫 방문 예약" step={firstVisitStep} total={5} progress={firstVisitProgress} onBack={() => { if (firstVisitStep === 1) { resetView(); } else { setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep); } }} onOpenShopInfo={() => setShopInfoOpen(true)} />
+              <StepHeader title="" step={firstVisitStep} total={5} progress={firstVisitProgress} onBack={() => { if (firstVisitStep === 1) { resetView(); } else { setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep); } }} />
               <section className="rounded-[28px] bg-white p-4 shadow-sm">
                 {firstVisitStep === 1 ? (
                   <StepSection title="기본 정보">
                     <input value={firstVisit.ownerName} onChange={(event) => setFirstVisit((prev) => ({ ...prev, ownerName: event.target.value }))} placeholder="보호자 이름" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                     <input value={firstVisit.phone} onChange={(event) => setFirstVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder="연락처" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                    <input value={firstVisit.petName} onChange={(event) => setFirstVisit((prev) => ({ ...prev, petName: event.target.value }))} placeholder="아기 이름" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                    <input value={firstVisit.breed} onChange={(event) => setFirstVisit((prev) => ({ ...prev, breed: event.target.value }))} placeholder="견종" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                    {shouldShowPrimaryPetForm ? (
+                      <div className="space-y-3 rounded-[22px] border border-[var(--border)] bg-[#fffdfa] p-4">
+                        <p className="text-sm font-semibold text-[var(--text)]">아기 정보</p>
+                        <input value={firstVisit.petName} onChange={(event) => setFirstVisit((prev) => ({ ...prev, petName: event.target.value }))} placeholder="아기 이름" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                        <input value={firstVisit.breed} onChange={(event) => setFirstVisit((prev) => ({ ...prev, breed: event.target.value }))} placeholder="견종" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                      </div>
+                    ) : null}
+                    {firstVisit.extraPets.map((pet) => (
+                      <div key={pet.id} className="rounded-[22px] border border-[var(--border)] bg-[#fffdfa] p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-[var(--text)]">추가 아기</p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFirstVisit((prev) => ({
+                                ...prev,
+                                extraPets: prev.extraPets.filter((item) => item.id !== pet.id),
+                              }))
+                            }
+                            className="text-xs font-semibold text-[var(--muted)]"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <input
+                            value={pet.name}
+                            onChange={(event) =>
+                              setFirstVisit((prev) => ({
+                                ...prev,
+                                extraPets: prev.extraPets.map((item) =>
+                                  item.id === pet.id ? { ...item, name: event.target.value } : item,
+                                ),
+                              }))
+                            }
+                            placeholder="추가 아기 이름"
+                            className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+                          />
+                          <input
+                            value={pet.breed}
+                            onChange={(event) =>
+                              setFirstVisit((prev) => ({
+                                ...prev,
+                                extraPets: prev.extraPets.map((item) =>
+                                  item.id === pet.id ? { ...item, breed: event.target.value } : item,
+                                ),
+                              }))
+                            }
+                            placeholder="추가 아기 견종"
+                            className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!shouldShowPrimaryPetForm) {
+                          setShowPrimaryPetForm(true);
+                          return;
+                        }
+                        setFirstVisit((prev) => ({
+                          ...prev,
+                          extraPets: [...prev.extraPets, createAdditionalPetDraft()],
+                        }));
+                      }}
+                      className="w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[#f9f6ef] px-4 py-3 text-sm font-semibold text-[var(--accent)]"
+                    >
+                      + 아기 추가하기
+                    </button>
                   </StepSection>
                 ) : null}
 
@@ -548,7 +574,26 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
 
                 {firstVisitStep === 4 ? (
                   <StepSection title="서비스 선택">
-                    <ServiceCards services={services} selectedServiceId={firstVisit.serviceId} onSelect={(value) => setFirstVisit((prev) => ({ ...prev, serviceId: value }))} />
+                    <ServiceCards
+                      services={services}
+                      selectedServiceId={firstVisit.serviceId}
+                      onSelect={(value) =>
+                        setFirstVisit((prev) => ({
+                          ...prev,
+                          serviceId: value,
+                          customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
+                        }))
+                      }
+                      allowCustom
+                    />
+                    {firstVisitUsesCustomService ? (
+                      <input
+                        value={firstVisit.customServiceName}
+                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
+                        placeholder="원하는 서비스를 직접 적어 주세요"
+                        className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+                      />
+                    ) : null}
                   </StepSection>
                 ) : null}
 
@@ -560,15 +605,14 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
                     <SummaryRow label="견종" value={firstVisit.breed} />
                     <SummaryRow label="예약 날짜" value={formatDateLabel(firstVisit.date)} />
                     <SummaryRow label="예약 시간" value={firstVisit.timeSlot} />
-                    <SummaryRow label="서비스" value={selectedFirstService?.name || "선택 안 됨"} />
-                    <SummaryRow label="예상 금액" value={selectedFirstService ? formatServicePrice(selectedFirstService.price, selectedFirstService.price_type ?? "starting") : "-"} />
-                    {paymentReady ? (
-                      <PaymentMethodCards
-                        options={paymentOptions}
-                        selectedMethod={firstVisit.paymentMethod}
-                        onSelect={(value) => setFirstVisit((prev) => ({ ...prev, paymentMethod: value }))}
-                      />
-                    ) : null}
+                    <SummaryRow
+                      label="서비스"
+                      value={firstVisitUsesCustomService ? `기타 · ${firstVisit.customServiceName || "직접 입력"}` : selectedFirstService?.name || "선택 안 됨"}
+                    />
+                    <SummaryRow
+                      label="예상 금액"
+                      value={firstVisitUsesCustomService ? "매장 안내 후 결제" : selectedFirstService ? formatServicePrice(selectedFirstService.price, selectedFirstService.price_type ?? "starting") : "-"}
+                    />
                     <label className="block text-sm font-semibold text-[var(--text)]">
                       <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">참고사항</span>
                       <textarea value={firstVisit.note} onChange={(event) => setFirstVisit((prev) => ({ ...prev, note: event.target.value }))} placeholder="메모가 있으면 남겨 주세요." className="field min-h-24 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
@@ -582,11 +626,12 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
           {activeMode === "returning" ? (
             <>
               <FlowHeader title="재방문 예약" onBack={resetView} />
-              <SectionCard title="고객 확인">
-                <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder="연락처" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                <input value={returningVisit.petName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, petName: event.target.value }))} placeholder="아기 이름" className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+              <SectionCard title={"고객 확인"}>
+                <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder={"연락처"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                <input value={returningVisit.guardianName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, guardianName: event.target.value }))} placeholder={"보호자 이름"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                <input value={returningVisit.reservationCode} onChange={(event) => setReturningVisit((prev) => ({ ...prev, reservationCode: event.target.value.toUpperCase() }))} placeholder={"예약번호"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 {returningError ? <p className="text-sm text-red-600">{returningError}</p> : null}
-                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.petName} onClick={lookupReturningHistory}>지난 방문 불러오기</ActionButton>
+                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName || !returningVisit.reservationCode} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
               </SectionCard>
               {returningHistory ? (
                 <SectionCard title="지난 방문 정보">
@@ -595,17 +640,36 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
                   <InfoRow label="최근 방문" value={formatVisitedAt(returningHistory.lastVisitedAt)} />
                   <InfoRow label="지난 메모" value={returningHistory.lastNote} />
                   <ReservationSlotPicker date={returningVisit.date} timeSlot={returningVisit.timeSlot} dateOptions={dateOptions} availableSlots={returningVisitSlots} loading={loadingReturningVisitSlots} onDateChange={(value) => setReturningVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))} onTimeChange={(value) => setReturningVisit((prev) => ({ ...prev, timeSlot: value }))} />
-                  <ServiceSelect services={services} value={returningVisit.serviceId} onChange={(value) => setReturningVisit((prev) => ({ ...prev, serviceId: value, timeSlot: "" }))} />
-                  <div className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4 text-[14px] text-[var(--muted)]">{selectedReturningService ? `${selectedReturningService.name} · ${formatServicePrice(selectedReturningService.price, selectedReturningService.price_type ?? "starting")}` : "서비스를 선택해 주세요."}</div>
-                  {paymentReady ? (
-                    <PaymentMethodCards
-                      options={paymentOptions}
-                      selectedMethod={returningVisit.paymentMethod}
-                      onSelect={(value) => setReturningVisit((prev) => ({ ...prev, paymentMethod: value }))}
+                  <ServiceSelect
+                    services={services}
+                    value={returningVisit.serviceId}
+                    onChange={(value) =>
+                      setReturningVisit((prev) => ({
+                        ...prev,
+                        serviceId: value,
+                        customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
+                        timeSlot: "",
+                      }))
+                    }
+                    allowCustom
+                  />
+                  {returningVisitUsesCustomService ? (
+                    <input
+                      value={returningVisit.customServiceName}
+                      onChange={(event) => setReturningVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
+                      placeholder="원하는 서비스를 직접 적어 주세요"
+                      className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
                     />
                   ) : null}
+                  <div className="rounded-[24px] border border-[var(--border)] bg-[#f7f2e9] px-4 py-4 text-[14px] text-[var(--muted)]">
+                    {returningVisitUsesCustomService
+                      ? `기타 · ${returningVisit.customServiceName || "직접 입력"}`
+                      : selectedReturningService
+                        ? `${selectedReturningService.name} · ${formatServicePrice(selectedReturningService.price, selectedReturningService.price_type ?? "starting")}`
+                        : "서비스를 선택해 주세요."}
+                  </div>
                   <textarea value={returningVisit.note} onChange={(event) => setReturningVisit((prev) => ({ ...prev, note: event.target.value }))} placeholder="추가 참고사항" className="field min-h-24 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                  <ActionButton disabled={submitting || processingPayment || !returningVisit.date || !returningVisit.timeSlot || !returningVisit.serviceId} onClick={submitReturningVisit}>{processingPayment ? "결제 처리 중..." : paymentReady ? "결제하고 재예약하기" : "재방문 예약 요청"}</ActionButton>
+                  <ActionButton disabled={submitting || !returningVisit.date || !returningVisit.timeSlot || !returningVisit.serviceId || (returningVisitUsesCustomService && !returningVisit.customServiceName.trim())} onClick={submitReturningVisit}>{submitting ? "예약 요청 중..." : "재방문 예약 요청"}</ActionButton>
                 </SectionCard>
               ) : null}
             </>
@@ -632,7 +696,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
             {firstVisitStep < 5 ? (
               <ActionButton disabled={!getFirstVisitStepValidity(firstVisitStep)} onClick={() => setFirstVisitStep((prev) => (prev + 1) as FirstVisitStep)}>다음</ActionButton>
             ) : (
-              <ActionButton disabled={submitting || processingPayment || !getFirstVisitStepValidity(5)} onClick={submitFirstVisit}>{processingPayment ? "결제 처리 중..." : submitting ? "예약 신청 중..." : paymentReady ? "결제하고 예약하기" : "예약하기"}</ActionButton>
+              <ActionButton disabled={submitting || !getFirstVisitStepValidity(5)} onClick={submitFirstVisit}>{submitting ? "예약 신청 중..." : "예약하기"}</ActionButton>
             )}
           </div>
         </BottomBar>
@@ -676,18 +740,15 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
   );
 }
 
-function StepHeader({ title, step, total, progress, onBack, onOpenShopInfo }: { title: string; step: number; total: number; progress: number; onBack: () => void; onOpenShopInfo: () => void }) {
+function StepHeader({ title, step, total, progress, onBack }: { title: string; step: number; total: number; progress: number; onBack: () => void }) {
   return (
     <section className="rounded-[28px] bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">← 이전</button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-[var(--muted)]">{step}/{total}</span>
-          <button type="button" onClick={onOpenShopInfo} className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]">매장 정보</button>
-        </div>
+        <span className="text-sm font-semibold text-[var(--muted)]">{step}/{total}</span>
       </div>
-      <h2 className="mt-3 text-lg font-extrabold">{title}</h2>
-      <div className="mt-4 h-2 rounded-full bg-[#efebe4]">
+      {title ? <h2 className="mt-3 text-lg font-extrabold">{title}</h2> : null}
+      <div className={`${title ? "mt-4" : "mt-3"} h-2 rounded-full bg-[#efebe4]`}>
         <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${progress}%` }} />
       </div>
     </section>
@@ -731,42 +792,48 @@ function TimeGrid({ timeSlot, availableSlots, loading, onSelect }: { timeSlot: s
   return <div className="grid grid-cols-3 gap-2">{availableSlots.map((slot) => <button key={slot} type="button" onClick={() => onSelect(slot)} className={`rounded-2xl border px-2 py-3 text-sm font-bold ${timeSlot === slot ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-[#fffdfa] text-[var(--text)]"}`}>{slot}</button>)}</div>;
 }
 
-function ServiceCards({ services, selectedServiceId, onSelect }: { services: Service[]; selectedServiceId: string; onSelect: (value: string) => void }) {
-  return <div className="space-y-2.5">{services.map((service) => <button key={service.id} type="button" onClick={() => onSelect(service.id)} className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--text)]">{service.name}</p></div><span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">{formatServicePrice(service.price, service.price_type ?? "starting")}</span></div></button>)}</div>;
-}
-
-function PaymentMethodCards({
-  options,
-  selectedMethod,
+function ServiceCards({
+  services,
+  selectedServiceId,
   onSelect,
+  allowCustom = false,
 }: {
-  options: PaymentOption[];
-  selectedMethod: PaymentMethodKey;
-  onSelect: (value: PaymentMethodKey) => void;
+  services: Service[];
+  selectedServiceId: string;
+  onSelect: (value: string) => void;
+  allowCustom?: boolean;
 }) {
   return (
     <div className="space-y-2.5">
-      <div>
-        <p className="text-sm font-semibold text-[var(--text)]">결제 수단</p>
-        <p className="mt-1 text-xs text-[var(--muted)]">예약과 함께 선결제돼요.</p>
-      </div>
-      <div className="space-y-2">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onSelect(option.id)}
-            className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${
-              selectedMethod === option.id
-                ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                : "border-[var(--border)] bg-[#fffdfa]"
-            }`}
-          >
-            <p className="text-sm font-semibold text-[var(--text)]">{option.label}</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">{option.description}</p>
-          </button>
-        ))}
-      </div>
+      {services.map((service) => (
+        <button
+          key={service.id}
+          type="button"
+          onClick={() => onSelect(service.id)}
+          className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === service.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--text)]">{service.name}</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+              {formatServicePrice(service.price, service.price_type ?? "starting")}
+            </span>
+          </div>
+        </button>
+      ))}
+      {allowCustom ? (
+        <button
+          type="button"
+          onClick={() => onSelect(CUSTOM_SERVICE_ID)}
+          className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${selectedServiceId === CUSTOM_SERVICE_ID ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[#fffdfa]"}`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-[var(--text)]">기타</p>
+            <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--muted)]">직접 입력</span>
+          </div>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -775,8 +842,30 @@ function ReservationSlotPicker({ date, timeSlot, dateOptions, availableSlots, lo
   return <><DateGrid dateOptions={dateOptions} selectedDate={date} onSelect={onDateChange} /><TimeGrid timeSlot={timeSlot} availableSlots={availableSlots} loading={loading} onSelect={onTimeChange} /></>;
 }
 
-function ServiceSelect({ services, value, onChange }: { services: Service[]; value: string; onChange: (value: string) => void }) {
-  return <label className="block text-sm font-semibold text-[var(--text)]"><span className="mb-2 block text-xs text-[var(--muted)]">서비스 선택</span><select value={value} onChange={(event) => onChange(event.target.value)} className="field">{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>;
+function ServiceSelect({
+  services,
+  value,
+  onChange,
+  allowCustom = false,
+}: {
+  services: Service[];
+  value: string;
+  onChange: (value: string) => void;
+  allowCustom?: boolean;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-[var(--text)]">
+      <span className="mb-2 block text-xs text-[var(--muted)]">서비스 선택</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="field">
+        {services.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
+        ))}
+        {allowCustom ? <option value={CUSTOM_SERVICE_ID}>기타</option> : null}
+      </select>
+    </label>
+  );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

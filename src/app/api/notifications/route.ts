@@ -1,9 +1,15 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { hasAlimtalkServerEnv, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { requireOwnerShop, OwnerApiError } from "@/server/owner-api-auth";
+import { getBootstrap } from "@/server/bootstrap";
+import { sendAlimtalkMessage } from "@/server/alimtalk-provider";
 import type { ChannelType, NotificationStatus, NotificationType } from "@/types/domain";
+
+function normalizePhone(value: string) {
+  return value.replace(/[^0-9]/g, "");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,11 +26,59 @@ export async function POST(request: NextRequest) {
 
     const type = (body?.type as NotificationType | undefined) ?? "booking_confirmed";
     const channel = (body?.channel as ChannelType | undefined) ?? "alimtalk";
-    const status = (body?.status as NotificationStatus | undefined) ?? "queued";
+    const requestedStatus = (body?.status as NotificationStatus | undefined) ?? "queued";
     const message = typeof body?.message === "string" ? body.message.trim() : "";
 
     if (!message) {
       return NextResponse.json({ message: "알림 내용을 입력해 주세요." }, { status: 400 });
+    }
+
+    const bootstrap = await getBootstrap(requestedShopId, false);
+    const guardian = body?.guardianId ? bootstrap.guardians.find((item) => item.id === body.guardianId) : null;
+    const recipientPhone =
+      typeof body?.recipientPhone === "string" && body.recipientPhone.trim()
+        ? normalizePhone(body.recipientPhone)
+        : guardian?.phone
+          ? normalizePhone(guardian.phone)
+          : "";
+    const recipientName =
+      typeof body?.recipientName === "string" && body.recipientName.trim()
+        ? body.recipientName.trim()
+        : guardian?.name ?? null;
+
+    let status: NotificationStatus = requestedStatus;
+    let provider = body?.provider ?? (channel === "alimtalk" ? "kakao" : "manual");
+    let sentAt: string | null = status === "sent" ? new Date().toISOString() : null;
+    let providerMessageId: string | null = null;
+    let deliveryError: string | null = null;
+
+    if (channel === "alimtalk") {
+      if (!recipientPhone) {
+        status = "failed";
+        provider = "kakao";
+        deliveryError = "알림톡을 보낼 연락처를 찾지 못했습니다.";
+      } else if (hasAlimtalkServerEnv()) {
+        try {
+          const delivery = await sendAlimtalkMessage({
+            to: recipientPhone,
+            message,
+            templateKey: body?.templateKey ?? null,
+            recipientName,
+            metadata: body?.metadata ?? null,
+          });
+          status = "sent";
+          provider = delivery.provider;
+          sentAt = new Date().toISOString();
+          providerMessageId = delivery.providerMessageId;
+        } catch (error) {
+          status = "failed";
+          provider = "kakao";
+          deliveryError = error instanceof Error ? error.message : "알림톡 발송에 실패했습니다.";
+        }
+      } else {
+        status = hasSupabaseServerEnv() ? "queued" : "mocked";
+        provider = "kakao";
+      }
     }
 
     if (!hasSupabaseServerEnv()) {
@@ -37,11 +91,17 @@ export async function POST(request: NextRequest) {
         type,
         channel,
         message,
-        status: "mocked",
+        status,
         template_key: body?.templateKey ?? null,
-        provider: "mock",
-        metadata: body?.metadata ?? null,
-        sent_at: null,
+        provider,
+        metadata: {
+          ...(body?.metadata ?? {}),
+          recipientPhone: recipientPhone || null,
+          recipientName,
+          providerMessageId,
+          deliveryError,
+        },
+        sent_at: sentAt,
         created_at: new Date().toISOString(),
       });
     }
@@ -61,9 +121,15 @@ export async function POST(request: NextRequest) {
       message,
       status,
       template_key: body?.templateKey ?? null,
-      provider: body?.provider ?? (channel === "alimtalk" ? "kakao" : "manual"),
-      metadata: body?.metadata ?? null,
-      sent_at: status === "sent" ? new Date().toISOString() : null,
+      provider,
+      metadata: {
+        ...(body?.metadata ?? {}),
+        recipientPhone: recipientPhone || null,
+        recipientName,
+        providerMessageId,
+        deliveryError,
+      },
+      sent_at: sentAt,
     };
 
     const result = await admin.from("notifications").insert(insertPayload).select("*").single();

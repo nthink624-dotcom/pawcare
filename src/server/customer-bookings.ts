@@ -12,6 +12,7 @@ import {
   phoneNormalize,
   timeFromMinutes,
 } from "@/lib/utils";
+import { formatReservationCode, normalizeReservationCode } from "@/lib/reservation-code";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getBootstrap } from "@/server/bootstrap";
@@ -25,7 +26,17 @@ const customerBookingCreateSchema = z.object({
   phone: z.string().trim().min(10),
   petName: z.string().trim().min(1),
   breed: z.string().trim().optional().default(""),
+  extraPets: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        breed: z.string().trim().optional().default(""),
+      }),
+    )
+    .optional()
+    .default([]),
   serviceId: z.string().min(1),
+  customServiceName: z.string().trim().optional().default(""),
   appointmentDate: z.string().min(1),
   appointmentTime: z.string().min(1),
   memo: z.string().optional().default(""),
@@ -37,12 +48,14 @@ const customerBookingUpdateSchema = z.discriminatedUnion("action", [
     shopId: z.string().min(1),
     appointmentId: z.string().min(1),
     phone: z.string().trim().min(10),
+    reservationCode: z.string().trim().min(4),
   }),
   z.object({
     action: z.literal("reschedule"),
     shopId: z.string().min(1),
     appointmentId: z.string().min(1),
     phone: z.string().trim().min(10),
+    reservationCode: z.string().trim().min(4),
     serviceId: z.string().min(1),
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),
@@ -89,18 +102,25 @@ function makeGuardianBase(payload: z.infer<typeof customerBookingCreateSchema>) 
   };
 }
 
-function makePetBase(payload: z.infer<typeof customerBookingCreateSchema>, guardianId: string) {
+function makePetBase(
+  payload: z.infer<typeof customerBookingCreateSchema>,
+  guardianId: string,
+  petInput?: { name: string; breed?: string },
+) {
+  const petName = (petInput?.name ?? payload.petName).trim();
+  const breed = (petInput?.breed ?? payload.breed).trim();
+
   return {
     id: randomUUID(),
     shop_id: payload.shopId,
     guardian_id: guardianId,
-    name: payload.petName.trim(),
-    breed: payload.breed.trim() || "견종 미입력",
+    name: petName,
+    breed: breed || "?? ???",
     weight: null,
     age: null,
     notes: "",
     grooming_cycle_weeks: 4,
-    avatar_seed: payload.petName.trim().slice(0, 1) || "M",
+    avatar_seed: petName.slice(0, 1) || "M",
     created_at: nowIso(),
     updated_at: nowIso(),
   };
@@ -128,6 +148,20 @@ async function findOrCreateMockEntities(payload: z.infer<typeof customerBookingC
   if (!pet) {
     pet = makePetBase(payload, guardian.id) as Pet;
     store.pets = [...store.pets, pet];
+  }
+
+  const extraPets = payload.extraPets ?? [];
+  for (const extraPet of extraPets) {
+    const exists = store.pets.find(
+      (item) =>
+        item.shop_id === payload.shopId &&
+        item.guardian_id === guardian.id &&
+        item.name.trim() === extraPet.name.trim(),
+    );
+
+    if (!exists) {
+      store.pets = [...store.pets, makePetBase(payload, guardian.id, extraPet) as Pet];
+    }
   }
 
   setMockStore(store);
@@ -208,6 +242,43 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
     petId = insertPet.data.id;
   }
 
+  for (const extraPet of payload.extraPets ?? []) {
+    const extraPetName = extraPet.name.trim();
+    if (!extraPetName) continue;
+
+    const existingExtraPet = await supabase
+      .from("pets")
+      .select("id")
+      .eq("shop_id", payload.shopId)
+      .eq("guardian_id", guardianId)
+      .eq("name", extraPetName)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingExtraPet.error) throw new Error(existingExtraPet.error.message);
+    if (existingExtraPet.data?.id) continue;
+
+    const petBase = makePetBase(payload, guardianId, extraPet);
+    const insertExtraPet = await supabase
+      .from("pets")
+      .insert({
+        id: petBase.id,
+        shop_id: petBase.shop_id,
+        guardian_id: petBase.guardian_id,
+        name: petBase.name,
+        breed: petBase.breed,
+        weight: petBase.weight,
+        age: petBase.age,
+        notes: petBase.notes,
+        grooming_cycle_weeks: petBase.grooming_cycle_weeks,
+        avatar_seed: petBase.avatar_seed,
+        created_at: petBase.created_at,
+        updated_at: petBase.updated_at,
+      });
+
+    if (insertExtraPet.error) throw new Error(insertExtraPet.error.message);
+  }
+
   return { guardianId, petId };
 }
 
@@ -219,32 +290,59 @@ export async function createCustomerBooking(input: unknown) {
       ? await findOrCreateSupabaseEntities(payload)
       : await findOrCreateMockEntities(payload);
 
+  const fallbackServiceId = bootstrap.services[0]?.id;
+  const usesCustomService = payload.serviceId === "__custom__";
+  const resolvedServiceId = usesCustomService ? fallbackServiceId : payload.serviceId;
+
+  if (!resolvedServiceId) {
+    throw new Error("예약 가능한 서비스 정보를 찾을 수 없습니다.");
+  }
+
+  const customServiceMemo = usesCustomService && payload.customServiceName.trim() ? `기타 요청 서비스: ${payload.customServiceName.trim()}` : "";
+  const mergedMemo = [customServiceMemo, payload.memo.trim()].filter(Boolean).join("\n");
+
   return createAppointment({
     shopId: payload.shopId,
     guardianId: entityIds.guardianId,
     petId: entityIds.petId,
-    serviceId: payload.serviceId,
+    serviceId: resolvedServiceId,
+    customServiceName: usesCustomService ? payload.customServiceName.trim() : "",
     appointmentDate: payload.appointmentDate,
     appointmentTime: payload.appointmentTime,
-    memo: payload.memo.trim(),
+    memo: mergedMemo,
     source: "customer",
   });
 }
 
-export async function lookupCustomerBookings(shopId: string, phone: string) {
+export async function lookupCustomerBookings(shopId: string, phone: string, reservationCode: string) {
   const normalizedPhone = normalizePhone(phone);
+  const normalizedCode = normalizeReservationCode(reservationCode);
   const bootstrap = await getBootstrap(shopId);
   const guardians = bootstrap.guardians.filter((guardian) => matchPhone(guardian.phone, normalizedPhone));
   const guardianIds = new Set(guardians.map((guardian) => guardian.id));
   const pets = bootstrap.pets.filter((pet) => guardianIds.has(pet.guardian_id));
   const petIds = new Set(pets.map((pet) => pet.id));
   const appointments = bootstrap.appointments.filter((appointment) => guardianIds.has(appointment.guardian_id) || petIds.has(appointment.pet_id));
-  const groomingRecords = bootstrap.groomingRecords.filter((record) => guardianIds.has(record.guardian_id) || petIds.has(record.pet_id));
+  const matchedAppointment = appointments.find(
+    (appointment) => normalizeReservationCode(formatReservationCode(appointment.id)) === normalizedCode,
+  );
+
+  if (!matchedAppointment) {
+    throw new Error("예약번호와 연락처가 일치하는 예약을 찾지 못했어요.");
+  }
+
+  const matchedGuardianId = matchedAppointment.guardian_id;
+  const scopedGuardians = guardians.filter((guardian) => guardian.id === matchedGuardianId);
+  const scopedGuardianIds = new Set(scopedGuardians.map((guardian) => guardian.id));
+  const scopedPets = bootstrap.pets.filter((pet) => scopedGuardianIds.has(pet.guardian_id));
+  const scopedPetIds = new Set(scopedPets.map((pet) => pet.id));
+  const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedGuardianIds.has(appointment.guardian_id) || scopedPetIds.has(appointment.pet_id));
+  const groomingRecords = bootstrap.groomingRecords.filter((record) => scopedGuardianIds.has(record.guardian_id) || scopedPetIds.has(record.pet_id));
 
   return {
-    guardians: guardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
-    pets: pets.map(({ id, name, guardian_id }) => ({ id, name, guardian_id })),
-    appointments,
+    guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
+    pets: scopedPets.map(({ id, name, guardian_id }) => ({ id, name, guardian_id })),
+    appointments: scopedAppointments,
     groomingRecords,
   };
 }
@@ -304,6 +402,9 @@ export async function updateCustomerBooking(input: unknown) {
   const guardian = bootstrap.guardians.find((item) => item.id === appointment.guardian_id);
   if (!guardian || !matchPhone(guardian.phone, payload.phone)) {
     throw new Error("예약자 정보를 확인할 수 없습니다.");
+  }
+  if (normalizeReservationCode(formatReservationCode(appointment.id)) !== normalizeReservationCode(payload.reservationCode)) {
+    throw new Error("예약번호와 연락처가 일치하지 않습니다.");
   }
 
   if (!canManageAppointment(appointment)) {

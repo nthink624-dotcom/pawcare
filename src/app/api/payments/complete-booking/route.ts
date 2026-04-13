@@ -13,6 +13,15 @@ const paymentBookingSchema = z.object({
     phone: z.string().trim().min(10),
     petName: z.string().trim().min(1),
     breed: z.string().trim().optional().default(""),
+    extraPets: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1),
+          breed: z.string().trim().optional().default(""),
+        }),
+      )
+      .optional()
+      .default([]),
     serviceId: z.string().min(1),
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),

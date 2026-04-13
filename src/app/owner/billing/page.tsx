@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
@@ -10,7 +10,7 @@ import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plan
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export default function OwnerBillingPage() {
+function OwnerBillingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preferredPlan = (searchParams.get("plan") && getOwnerPlanByCode(searchParams.get("plan"))?.code) as OwnerPlanCode | null;
@@ -67,4 +67,12 @@ export default function OwnerBillingPage() {
   }
 
   return <OwnerBillingScreen initialSummary={summary} preferredPlanCode={preferredPlan} />;
+}
+
+export default function OwnerBillingPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">구독 정보를 불러오는 중입니다.</div>}>
+      <OwnerBillingPageContent />
+    </Suspense>
+  );
 }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import {
   issueOwnerBillingKey,
+  requestOwnerOneTimePayment,
   retryOwnerSubscriptionPayment,
 } from "@/lib/billing/owner-billing-client";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
@@ -128,6 +129,7 @@ export default function OwnerBillingScreen({
   const [message, setMessage] = useState<string | null>(null);
 
   const selectedPlan = useMemo(() => getOwnerPlanByCode(selectedPlanCode) ?? initialSummary.currentPlan, [initialSummary.currentPlan, selectedPlanCode]);
+  const usesOneTimePayment = selectedPlanCode === "monthly";
 
   async function handleRegisterCard() {
     if (registeringCard || retryingPayment) return;
@@ -184,14 +186,47 @@ export default function OwnerBillingScreen({
     }
   }
 
-  const primaryAction = summary.paymentMethodExists
+  async function handleOneTimePayment() {
+    if (retryingPayment) return;
+
+    setRetryingPayment(true);
+    setMessage(null);
+
+    try {
+      const nextSummary = await requestOwnerOneTimePayment({
+        customerId: `owner_${summary.userId}`,
+        customerName: summary.ownerName || "멍매니저 사장님",
+        phoneNumber: summary.ownerPhoneNumber,
+        email: summary.ownerEmail,
+        planCode: selectedPlanCode,
+        amount: selectedPlan.price,
+        orderName: `${selectedPlan.name} 멍매니저 이용권`,
+      });
+
+      setSummary(nextSummary);
+      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setMessage("결제가 완료되어 바로 사용할 수 있어요.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "결제를 완료하지 못했습니다.");
+    } finally {
+      setRetryingPayment(false);
+    }
+  }
+
+  const primaryAction = usesOneTimePayment
     ? {
-        label: retryingPayment ? `${selectedPlan.name} 결제 처리 중...` : "결제하고 시작하기",
+        label: retryingPayment ? "처리 중..." : "계속하기",
+        onClick: handleOneTimePayment,
+        disabled: retryingPayment,
+      }
+    : summary.paymentMethodExists
+    ? {
+        label: retryingPayment ? "처리 중..." : "계속하기",
         onClick: handlePayNow,
         disabled: retryingPayment,
       }
     : {
-        label: registeringCard ? `${selectedPlan.name} 카드 등록 중...` : "카드 등록하고 결제하기",
+        label: registeringCard ? "처리 중..." : "계속하기",
         onClick: handleRegisterCard,
         disabled: registeringCard,
       };
@@ -221,7 +256,6 @@ export default function OwnerBillingScreen({
               {`약 ${selectedPlan.discountPercent}% 할인`}
             </span>
           ) : null}
-          <p className="pt-1 text-sm font-semibold text-[#5f5a53]">선택한 플랜</p>
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
             <div className="min-w-0">
               <p className="pt-0.5 text-[25px] font-extrabold tracking-[-0.04em] text-[#173b33]">
@@ -256,14 +290,17 @@ export default function OwnerBillingScreen({
         </div>
 
         <div className="mt-4 rounded-[24px] border border-[#dcd5ca] bg-[#fffdf9] px-4 py-4 shadow-[0_10px_24px_rgba(23,59,51,0.05)]">
-          <p className="text-sm font-semibold text-[#5f5a53]">결제수단</p>
-          <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[#d8d1c5] bg-white text-[#1f5b51]">
               <CreditCard className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">
               <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#6e6a61]">월 구독 결제에 가장 일반적으로 쓰는 결제수단입니다.</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#6e6a61]">
+                {usesOneTimePayment
+                  ? "결제창에서 바로 결제를 완료할 수 있어요."
+                  : "정기결제 등록 후 플랜 결제를 이어서 진행합니다."}
+              </p>
             </div>
             <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#eef8f3] text-[#1f5b51]">
               <CheckCircle2 className="h-5 w-5 shrink-0" />

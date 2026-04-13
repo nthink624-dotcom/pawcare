@@ -1,9 +1,8 @@
-"use client";
+﻿"use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, KeyRound, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -28,9 +27,7 @@ export default function ResetPasswordForm({
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [message, setMessage] = useState<string | null>(
-    ready ? null : "Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.",
-  );
+  const [message, setMessage] = useState<string | null>(ready ? null : "Supabase 환경 변수가 설정되지 않았습니다.");
 
   const {
     register,
@@ -49,7 +46,7 @@ export default function ResetPasswordForm({
 
   const onSubmit = handleSubmit(async (values) => {
     if (!ready) {
-      setMessage("Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.");
+      setMessage("Supabase 환경 변수가 설정되지 않았습니다.");
       return;
     }
 
@@ -62,11 +59,11 @@ export default function ResetPasswordForm({
 
     const result = (await response.json()) as { message?: string };
     if (!response.ok) {
-      setMessage(result.message ?? "비밀번호 변경에 실패했습니다.");
+      setMessage(result.message ?? "비밀번호를 재설정하지 못했어요.");
       return;
     }
 
-    setMessage(result.message ?? "비밀번호가 변경되었습니다. 로그인 화면으로 이동합니다.");
+    setMessage(result.message ?? "비밀번호가 변경되었습니다. 다시 로그인해 주세요.");
     window.setTimeout(() => {
       router.replace("/login?message=reset-success" as never);
       router.refresh();
@@ -82,21 +79,22 @@ export default function ResetPasswordForm({
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
-      <div className="flex items-start justify-between">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">멍매니저 OWNER</div>
-        <Link href="/login" className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#fafafa] text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]">
-          <X className="h-6 w-6" strokeWidth={2.2} />
-        </Link>
-      </div>
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#fafafa] text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]"
+      >
+        <ArrowLeft className="h-5 w-5" strokeWidth={2.1} />
+      </button>
 
-      <div className="mt-12 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-[#f4efe3] text-[#7b654d]">
+      <div className="mt-10 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-[#f4efe3] text-[#7b654d]">
         <KeyRound className="h-8 w-8" strokeWidth={1.8} />
       </div>
 
-      <div className="mt-10">
+      <div className="mt-8">
         <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">비밀번호 재설정</h1>
         <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">
-          가입할 때 등록한 이름과 생년월일을 확인한 뒤 새 비밀번호로 변경합니다.
+          가입할 때 입력한 아이디, 이름, 생년월일을 확인한 뒤 새 비밀번호로 바꿀 수 있어요.
         </p>
       </div>
 
@@ -105,7 +103,7 @@ export default function ResetPasswordForm({
           <input
             type="text"
             {...register("loginId")}
-            placeholder="아이디 입력"
+            placeholder="아이디를 입력해 주세요"
             className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
           />
         </FieldShell>
@@ -114,7 +112,7 @@ export default function ResetPasswordForm({
           <input
             type="text"
             {...register("name")}
-            placeholder="가입한 이름 입력"
+            placeholder="이름을 입력해 주세요"
             className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
           />
         </FieldShell>
@@ -135,7 +133,7 @@ export default function ResetPasswordForm({
             <input
               type={showPassword ? "text" : "password"}
               {...register("password")}
-              placeholder="6자 이상 입력"
+              placeholder="새 비밀번호를 입력해 주세요"
               className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
             />
             <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="shrink-0 text-[#111111]" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
@@ -149,7 +147,7 @@ export default function ResetPasswordForm({
             <input
               type={showPasswordConfirm ? "text" : "password"}
               {...register("passwordConfirm")}
-              placeholder="비밀번호 다시 입력"
+              placeholder="비밀번호를 한 번 더 입력해 주세요"
               className="w-full border-0 bg-transparent p-0 text-[17px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
             />
             <button type="button" onClick={() => setShowPasswordConfirm((prev) => !prev)} className="shrink-0 text-[#111111]" aria-label={showPasswordConfirm ? "비밀번호 숨기기" : "비밀번호 보기"}>
@@ -165,17 +163,18 @@ export default function ResetPasswordForm({
         <button
           type="submit"
           disabled={isSubmitting || !ready}
-          className="mt-2 flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#6b9e8a] text-[18px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-45"
+          className="mt-2 flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#1f6b5b] text-[18px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {isSubmitting ? "변경 중..." : "비밀번호 변경"}
+          {isSubmitting ? "변경 중..." : "비밀번호 변경하기"}
         </button>
       </form>
 
       <div className="mt-7 text-center">
-        <Link href="/login" className="text-[14px] font-medium text-[#111111] underline underline-offset-4">
-          로그인으로 돌아가기
-        </Link>
+        <a href="/login/find-id" className="text-[14px] font-medium text-[#111111] underline underline-offset-4">
+          아이디 찾기로 이동
+        </a>
       </div>
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-﻿import { requestIssueBillingKey } from "@portone/browser-sdk/v2";
+import { requestIssueBillingKey, requestPayment } from "@portone/browser-sdk/v2";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { env } from "@/lib/env";
@@ -54,6 +54,64 @@ export async function retryOwnerSubscriptionPayment() {
   return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/retry", {
     method: "POST",
   });
+}
+
+export async function confirmOwnerSubscriptionPayment(paymentId: string) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/confirm-payment", {
+    method: "POST",
+    body: JSON.stringify({ paymentId }),
+  });
+}
+
+export async function requestOwnerOneTimePayment(params: {
+  customerId: string;
+  customerName: string;
+  phoneNumber?: string | null;
+  email?: string | null;
+  planCode: OwnerPlanCode;
+  amount: number;
+  orderName: string;
+}) {
+  if (!env.portoneStoreId || !env.portonePaymentChannelKey) {
+    throw new Error("PortOne 일반결제 설정을 먼저 확인해 주세요.");
+  }
+
+  const paymentId = `owner_payment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const result = await requestPayment({
+    storeId: env.portoneStoreId,
+    channelKey: env.portonePaymentChannelKey,
+    paymentId,
+    orderName: params.orderName,
+    totalAmount: params.amount,
+    currency: "KRW",
+    payMethod: "CARD",
+    customer: {
+      customerId: params.customerId,
+      fullName: params.customerName,
+      phoneNumber: params.phoneNumber || undefined,
+      email: params.email || undefined,
+    },
+    redirectUrl: `${window.location.origin}/owner/billing`,
+    customData: {
+      kind: "owner-subscription",
+      planCode: params.planCode,
+    },
+    noticeUrls: [`${window.location.origin}/api/webhooks/portone`],
+  });
+
+  if (!result) {
+    throw new Error("결제창을 열지 못했습니다.");
+  }
+
+  if (result.code || result.message) {
+    throw new Error(result.message || "결제를 완료하지 못했습니다.");
+  }
+
+  if (!result.paymentId) {
+    throw new Error("결제 정보를 확인하지 못했습니다.");
+  }
+
+  return confirmOwnerSubscriptionPayment(result.paymentId);
 }
 
 export async function issueOwnerBillingKey(params: {

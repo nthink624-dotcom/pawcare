@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
+import { formatReservationCode } from "@/lib/reservation-code";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type LookupPayload = {
@@ -119,6 +120,7 @@ export default function CustomerBookingManagePanel({
 }) {
   const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
   const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupReservationCode, setLookupReservationCode] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -172,16 +174,17 @@ export default function CustomerBookingManagePanel({
     };
   }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.timeSlot, shopId]);
 
-  async function lookupBookings(phone = lookupPhone) {
+  async function lookupBookings(phone = lookupPhone, reservationCode = lookupReservationCode) {
     try {
       setLookupError(null);
-      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?shopId=${shopId}&phone=${phone}`);
+      const query = new URLSearchParams({ shopId, phone, reservationCode });
+      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       setLookupResult(result);
       setOpenAppointmentId(null);
       setManageForm(null);
       setFeedback(null);
       if (result.appointments.length === 0 && result.groomingRecords.length === 0) {
-        setLookupError("해당 연락처로 조회된 예약이 없어요.");
+        setLookupError("해당 연락처와 예약번호로 조회된 예약이 없어요.");
       }
     } catch (error) {
       setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
@@ -210,7 +213,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function cancelAppointment(appointmentId: string) {
-    if (submitting || !lookupPhone) return;
+    if (submitting || !lookupPhone || !lookupReservationCode) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -222,9 +225,10 @@ export default function CustomerBookingManagePanel({
           shopId,
           appointmentId,
           phone: lookupPhone,
+          reservationCode: lookupReservationCode,
         }),
       });
-      await lookupBookings(lookupPhone);
+      await lookupBookings(lookupPhone, lookupReservationCode);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -243,7 +247,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
-    if (submitting || !lookupPhone || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
+    if (submitting || !lookupPhone || !lookupReservationCode || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -255,13 +259,14 @@ export default function CustomerBookingManagePanel({
           shopId,
           appointmentId: manageForm.appointmentId,
           phone: lookupPhone,
+          reservationCode: lookupReservationCode,
           serviceId: manageForm.serviceId,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
           memo: manageForm.note,
         }),
       });
-      await lookupBookings(lookupPhone);
+      await lookupBookings(lookupPhone, lookupReservationCode);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -282,23 +287,31 @@ export default function CustomerBookingManagePanel({
   return (
     <>
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
-        <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">← 처음 화면으로</button>
-        <h2 className="mt-3 text-lg font-extrabold">예약 확인 / 취소 / 변경</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">연락처로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요.</p>
+        <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">{"← 처음 화면으로"}</button>
+        <h2 className="mt-3 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"연락처와 예약번호로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
       </section>
 
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
-        <h2 className="text-base font-extrabold">예약 조회</h2>
-        <div className="mt-4 flex gap-2">
+        <h2 className="text-base font-extrabold">{"예약 조회"}</h2>
+        <div className="mt-4 space-y-3">
           <input
             value={lookupPhone}
             onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
-            placeholder="연락처 입력"
-            className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+            placeholder={"연락처 입력"}
+            className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
           />
-          <button type="button" onClick={() => void lookupBookings()} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">
-            조회
-          </button>
+          <div className="flex gap-2">
+            <input
+              value={lookupReservationCode}
+              onChange={(event) => setLookupReservationCode(event.target.value.toUpperCase())}
+              placeholder={"예약번호 입력"}
+              className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+            />
+            <button type="button" onClick={() => void lookupBookings()} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">
+              {"조회"}
+            </button>
+          </div>
         </div>
 
         {lookupError ? <p className="mt-3 text-sm text-red-600">{lookupError}</p> : null}
@@ -323,8 +336,9 @@ export default function CustomerBookingManagePanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet?.name || "예약"} · {service?.name || "서비스"}</p>
-                      <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)} · {formatClockTime(appointment.appointment_time)}</p>
-                      <p className="mt-1 text-[13px] text-[var(--muted)]">상태: {statusLabelMap[appointment.status] || appointment.status}</p>
+                      <p className="mt-2 text-[13px] text-[var(--muted)]">{formatDateLabel(appointment.appointment_date)}{" · "}{formatClockTime(appointment.appointment_time)}</p>
+                      <p className="mt-1 text-[13px] text-[var(--muted)]">{"예약번호 "}{formatReservationCode(appointment.id)}</p>
+                      <p className="mt-1 text-[13px] text-[var(--muted)]">{"상태: "}{statusLabelMap[appointment.status] || appointment.status}</p>
                       {appointment.memo ? <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">메모: {appointment.memo}</p> : null}
                     </div>
                     <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${manageable ? "bg-white text-[var(--accent)]" : "bg-white text-[var(--muted)]"}`}>

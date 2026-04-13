@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+ï»¿import { NextRequest, NextResponse } from "next/server";
 
 import { retryOwnerSubscriptionCharge } from "@/server/owner-billing";
 import { requireOwnerBillingSession } from "@/server/owner-billing-session";
@@ -13,6 +13,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    return NextResponse.json({ message: "Àç°áÁ¦¸¦ Ã³¸®ÇÏÁö ¸øÇß½À´Ï´Ù." }, { status: 500 });
+    return NextResponse.json({ message: "ìž¬ê²°ì œë¥¼ ì²˜ë¦¬í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤." }, { status: 500 });
   }
 }

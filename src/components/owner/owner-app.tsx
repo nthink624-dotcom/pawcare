@@ -544,6 +544,8 @@ export default function OwnerApp({
           status: "sent",
           templateKey: "appointment_reminder_10m",
           message: `${data.shop.name}입니다. ${pet.name} 예약이 ${appointment.appointment_date} ${formatClockTime(appointment.appointment_time)}에 예정되어 있어요. 방문 10분 전까지 편하게 방문해 주세요.`,
+          recipientPhone: guardian.phone,
+          recipientName: guardian.name,
           metadata: {
             serviceName: service.name,
             appointmentDate: appointment.appointment_date,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+ï»¿import { NextRequest, NextResponse } from "next/server";
 
 import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const summary = await syncOwnerSubscriptionFromPayment(paymentId);
     return NextResponse.json({ ok: true, paymentId, synced: Boolean(summary) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Æ÷Æ®¿ø À¥ÈÅÀ» Ã³¸®ÇÏÁö ¸øÇß½À´Ï´Ù.";
+    const message = error instanceof Error ? error.message : "í¬íŠ¸ì› ì›¹í›…ì„ ì²˜ë¦¬í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.";
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

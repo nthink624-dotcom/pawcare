@@ -78,10 +78,10 @@ export default function LandingPage({ shop, services }: { shop: Shop; services: 
             </IntegratedPreview>
 
             <IntegratedPreview
-              title="고객이 더 편하게 예약을 완료하는 모바일 화면"
-              body="예약 과정이 간단해져 이탈을 줄입니다."
+              title="고객이 첫 방문과 재방문을 쉽게 고르는 모바일 화면"
+              body="예약 시작이 더 간단해져 망설임 없이 이어집니다."
             >
-              <ConsumerBookingMock services={visibleServices} />
+              <ConsumerBookingMock />
             </IntegratedPreview>
           </div>
         </section>
@@ -341,7 +341,7 @@ function OwnerCustomerMock() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">고객 관리</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#716960]">김민지 · 차이 · 최근 방문 3회</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#716960]">보호자 정보와 반려동물 정보를 함께 관리</p>
         </div>
         <span className="rounded-full border border-[#ddd5c8] bg-[#fffdfa] px-3 py-1 text-[11px] font-semibold text-[#6e665c]">
           상세 연결
@@ -349,64 +349,77 @@ function OwnerCustomerMock() {
       </div>
       <div className="mt-4 space-y-3">
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6b655e]">아기 이름</p>
-          <div className="mt-2 rounded-[14px] border border-[#e6dfd4] bg-white px-4 py-3 text-[15px] font-bold text-[#18211f]">
-            몽이
-          </div>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6b655e]">견종</p>
-          <div className="mt-2 rounded-[14px] border border-[#e6dfd4] bg-white px-4 py-3 text-[15px] font-bold text-[#18211f]">
-            말티즈
-          </div>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6b655e]">생일</p>
-          <div className="mt-2 flex items-center justify-between rounded-[14px] border border-[#e6dfd4] bg-white px-4 py-3 text-[15px] font-semibold text-[#6c655d]">
-            <span>연도-월-일</span>
-            <span className="text-[#18211f]">▣</span>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[#6b655e]">보호자명</p>
+              <p className="mt-1 text-[16px] font-extrabold text-[#18211f]">김민지</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[12px] font-semibold text-[#6b655e]">연락처</p>
+              <p className="mt-1 text-[15px] font-bold text-[#18211f]">010-1234-5678</p>
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className="flex h-[44px] items-center justify-center rounded-[14px] border border-[#ddd5c8] bg-white text-[13px] font-semibold text-[#6d655c]"
-          >
-            아기 정보 저장
-          </button>
-          <button
-            type="button"
-            className="flex h-[44px] items-center justify-center rounded-[14px] border border-[#ddd5c8] bg-white text-[13px] font-semibold text-[#6d655c]"
-          >
-            재방문 알림
-          </button>
+          <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+            <p className="text-[12px] font-semibold text-[#6b655e]">반려동물 이름</p>
+            <p className="mt-1 text-[15px] font-bold text-[#18211f]">몽이, 차이</p>
+          </div>
+          <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+            <p className="text-[12px] font-semibold text-[#6b655e]">최근 서비스</p>
+            <p className="mt-1 text-[15px] font-bold text-[#18211f]">목욕 + 부분미용</p>
+          </div>
         </div>
-        <div className="rounded-[14px] bg-[#f6f3ee] px-4 py-3 text-center text-[13px] font-semibold text-[#8b8378]">
-          생일 미등록
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+          <p className="text-[12px] font-semibold text-[#6b655e]">고객 메모</p>
+          <p className="mt-1 text-[14px] leading-6 text-[#18211f]">문 앞 픽업 선호 · 피부가 예민해 짧은 클리핑보다 정리 위주 선호</p>
+        </div>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[#6b655e]">반려동물 정보</p>
+              <p className="mt-1 text-[15px] font-bold text-[#18211f]">몽이 · 말티즈 · 4살</p>
+            </div>
+            <span className="rounded-full bg-[#eef5f3] px-3 py-1 text-[11px] font-semibold text-[#1e5d51]">
+              재방문 알림
+            </span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ConsumerBookingMock({ services }: { services: Service[] }) {
+function ConsumerBookingMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
       <div className="rounded-[18px] bg-[#1e5d51] px-4 py-4 text-white">
         <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">예약 진입</p>
-        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">모바일 예약</p>
+        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">예약 선택</p>
       </div>
       <div className="mt-3 space-y-2.5">
-        {services.map((service) => (
-          <div key={service.id} className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[14px] font-bold text-[#18211f]">{service.name}</p>
-              <span className="rounded-full bg-[#eef5f3] px-3 py-1 text-[11px] font-semibold text-[#1e5d51]">
-                {formatServicePrice(service.price, service.price_type ?? "starting")}
-              </span>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[16px] font-extrabold text-[#18211f]">첫 방문 예약</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">상담부터 차분하게 시작하는 예약</p>
             </div>
+            <span className="rounded-full bg-[#eef5f3] px-3 py-1 text-[11px] font-semibold text-[#1e5d51]">처음 방문</span>
           </div>
-        ))}
+        </div>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[16px] font-extrabold text-[#18211f]">재방문 예약</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">이전 방문 정보를 바탕으로 빠르게 예약</p>
+            </div>
+            <span className="rounded-full bg-[#fff4e8] px-3 py-1 text-[11px] font-semibold text-[#9b6a47]">다시 예약</span>
+          </div>
+        </div>
+        <div className="rounded-[16px] border border-dashed border-[#ddd5c8] bg-[#fffdfa] px-4 py-3">
+          <p className="text-[12px] font-semibold text-[#6d665d]">예약 확인 / 취소 / 변경</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#8a837a]">기존 예약도 같은 화면에서 바로 확인할 수 있어요.</p>
+        </div>
       </div>
     </div>
   );
@@ -468,6 +481,9 @@ function MiniStat({
     </div>
   );
 }
+
+
+
 
 
 

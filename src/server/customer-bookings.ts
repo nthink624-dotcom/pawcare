@@ -12,7 +12,6 @@ import {
   phoneNormalize,
   timeFromMinutes,
 } from "@/lib/utils";
-import { formatReservationCode, normalizeReservationCode } from "@/lib/reservation-code";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getBootstrap } from "@/server/bootstrap";
@@ -48,14 +47,14 @@ const customerBookingUpdateSchema = z.discriminatedUnion("action", [
     shopId: z.string().min(1),
     appointmentId: z.string().min(1),
     phone: z.string().trim().min(10),
-    reservationCode: z.string().trim().min(4),
+    guardianName: z.string().trim().min(1),
   }),
   z.object({
     action: z.literal("reschedule"),
     shopId: z.string().min(1),
     appointmentId: z.string().min(1),
     phone: z.string().trim().min(10),
-    reservationCode: z.string().trim().min(4),
+    guardianName: z.string().trim().min(1),
     serviceId: z.string().min(1),
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),
@@ -115,7 +114,7 @@ function makePetBase(
     shop_id: payload.shopId,
     guardian_id: guardianId,
     name: petName,
-    breed: breed || "?? ???",
+    breed: breed || "??",
     weight: null,
     age: null,
     notes: "",
@@ -316,7 +315,7 @@ export async function createCustomerBooking(input: unknown) {
 
 export async function lookupCustomerBookings(shopId: string, phone: string, reservationCode: string) {
   const normalizedPhone = normalizePhone(phone);
-  const normalizedCode = normalizeReservationCode(reservationCode);
+  const normalizedCode = (reservationCode);
   const bootstrap = await getBootstrap(shopId);
   const guardians = bootstrap.guardians.filter((guardian) => matchPhone(guardian.phone, normalizedPhone));
   const guardianIds = new Set(guardians.map((guardian) => guardian.id));
@@ -324,7 +323,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, rese
   const petIds = new Set(pets.map((pet) => pet.id));
   const appointments = bootstrap.appointments.filter((appointment) => guardianIds.has(appointment.guardian_id) || petIds.has(appointment.pet_id));
   const matchedAppointment = appointments.find(
-    (appointment) => normalizeReservationCode(formatReservationCode(appointment.id)) === normalizedCode,
+    (appointment) => ((appointment.id)) === normalizedCode,
   );
 
   if (!matchedAppointment) {
@@ -403,7 +402,7 @@ export async function updateCustomerBooking(input: unknown) {
   if (!guardian || !matchPhone(guardian.phone, payload.phone)) {
     throw new Error("예약자 정보를 확인할 수 없습니다.");
   }
-  if (normalizeReservationCode(formatReservationCode(appointment.id)) !== normalizeReservationCode(payload.reservationCode)) {
+  if (((appointment.id)) !== (payload.reservationCode)) {
     throw new Error("예약번호와 연락처가 일치하지 않습니다.");
   }
 

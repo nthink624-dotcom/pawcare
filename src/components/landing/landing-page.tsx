@@ -59,7 +59,6 @@ export default function LandingPage({ shop, services }: { shop: Shop; services: 
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f4efe7] text-[#18211f]">
       <section className="px-5 pb-10 pt-5">
         <HeroSection shopId={shop.id} onOpenPlans={() => setPlanModalOpen(true)} />
-        <PricingSection onOpenPlans={() => setPlanModalOpen(true)} />
 
         <section className={`${SURFACE} mt-6 p-4`}>
           <div className="space-y-6">
@@ -127,52 +126,6 @@ function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () 
           무료체험 시작하기
         </button>
       </div>
-    </section>
-  );
-}
-
-function PricingSection({ onOpenPlans }: { onOpenPlans: () => void }) {
-  const yearlyPlan = ownerPlans.find((plan) => plan.code === "yearly")!;
-  const compactPlans: OwnerPlanCode[] = ["monthly", "quarterly", "halfyearly"];
-
-  return (
-    <section className={`${SURFACE} mt-4 p-4`}>
-      <div className="rounded-[22px] border border-[#cfe0da] bg-[#edf5f2] p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[12px] font-semibold tracking-[0.08em] text-[#7c7166]">12개월 플랜</p>
-            <h2 className="mt-2 text-[26px] font-extrabold tracking-[-0.04em] text-[#18211f]">12개월 79,000원</h2>
-            <p className="mt-1 text-[13px] font-medium text-[#1f5b51]">
-              월 {yearlyPlan.monthlyEquivalent.toLocaleString("ko-KR")}원꼴
-            </p>
-          </div>
-          <span className="rounded-full border border-[#b9d0c7] bg-white/80 px-3 py-1 text-[12px] font-semibold text-[#1f5b51]">
-            가장 많이 선택
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-[18px] border border-[#e2ddd5] bg-[#fcfaf7] px-3 py-3">
-        <p className="text-[12px] font-semibold text-[#7a746d]">다른 플랜</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#5f5a54]">
-          {compactPlans.map((code) => {
-            const plan = ownerPlans.find((item) => item.code === code)!;
-            return (
-              <span key={plan.code} className="font-medium">
-                {plan.name} {formatWon(plan.price)}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onOpenPlans}
-        className="mt-3 flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#d6d0c5] bg-white text-[15px] font-semibold text-[#1f5b51]"
-      >
-        모든 플랜 보기
-      </button>
     </section>
   );
 }
@@ -394,31 +347,21 @@ function ConsumerBookingMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
       <div className="rounded-[18px] bg-[#1e5d51] px-4 py-4 text-white">
-        <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">예약 진입</p>
-        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">예약 선택</p>
+        <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">?? ??</p>
+        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">?? ??</p>
       </div>
       <div className="mt-3 space-y-2.5">
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[16px] font-extrabold text-[#18211f]">첫 방문 예약</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">상담부터 차분하게 시작하는 예약</p>
-            </div>
-            <span className="rounded-full bg-[#eef5f3] px-3 py-1 text-[11px] font-semibold text-[#1e5d51]">처음 방문</span>
-          </div>
+          <p className="text-[16px] font-extrabold text-[#18211f]">? ?? ??</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">???? ???? ???? ??</p>
         </div>
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[16px] font-extrabold text-[#18211f]">재방문 예약</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">이전 방문 정보를 바탕으로 빠르게 예약</p>
-            </div>
-            <span className="rounded-full bg-[#fff4e8] px-3 py-1 text-[11px] font-semibold text-[#9b6a47]">다시 예약</span>
-          </div>
+          <p className="text-[16px] font-extrabold text-[#18211f]">??? ??</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">?? ?? ??? ???? ??? ??</p>
         </div>
-        <div className="rounded-[16px] border border-dashed border-[#ddd5c8] bg-[#fffdfa] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6d665d]">예약 확인 / 취소 / 변경</p>
-          <p className="mt-1 text-[13px] leading-5 text-[#8a837a]">기존 예약도 같은 화면에서 바로 확인할 수 있어요.</p>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
+          <p className="text-[16px] font-extrabold text-[#18211f]">?? ?? / ?? / ??</p>
+          <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">?? ??? ?? ???? ?? ??? ? ???.</p>
         </div>
       </div>
     </div>

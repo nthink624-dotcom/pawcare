@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
-import { formatReservationCode } from "@/lib/reservation-code";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type LookupPayload = {
@@ -120,7 +119,7 @@ export default function CustomerBookingManagePanel({
 }) {
   const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
   const [lookupPhone, setLookupPhone] = useState("");
-  const [lookupReservationCode, setLookupReservationCode] = useState("");
+  const [lookupGuardianName, setLookupGuardianName] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -174,10 +173,10 @@ export default function CustomerBookingManagePanel({
     };
   }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.timeSlot, shopId]);
 
-  async function lookupBookings(phone = lookupPhone, reservationCode = lookupReservationCode) {
+  async function lookupBookings(phone = lookupPhone, guardianName = lookupGuardianName) {
     try {
       setLookupError(null);
-      const query = new URLSearchParams({ shopId, phone, reservationCode });
+      const query = new URLSearchParams({ shopId, phone, guardianName });
       const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       setLookupResult(result);
       setOpenAppointmentId(null);
@@ -213,7 +212,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function cancelAppointment(appointmentId: string) {
-    if (submitting || !lookupPhone || !lookupReservationCode) return;
+    if (submitting || !lookupPhone || !lookupGuardianName) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -225,10 +224,10 @@ export default function CustomerBookingManagePanel({
           shopId,
           appointmentId,
           phone: lookupPhone,
-          reservationCode: lookupReservationCode,
+          guardianName: lookupGuardianName,
         }),
       });
-      await lookupBookings(lookupPhone, lookupReservationCode);
+      await lookupBookings(lookupPhone, lookupGuardianName);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -247,7 +246,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
-    if (submitting || !lookupPhone || !lookupReservationCode || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
+    if (submitting || !lookupPhone || !lookupGuardianName || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -259,14 +258,14 @@ export default function CustomerBookingManagePanel({
           shopId,
           appointmentId: manageForm.appointmentId,
           phone: lookupPhone,
-          reservationCode: lookupReservationCode,
+          guardianName: lookupGuardianName,
           serviceId: manageForm.serviceId,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
           memo: manageForm.note,
         }),
       });
-      await lookupBookings(lookupPhone, lookupReservationCode);
+      await lookupBookings(lookupPhone, lookupGuardianName);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -303,9 +302,9 @@ export default function CustomerBookingManagePanel({
           />
           <div className="flex gap-2">
             <input
-              value={lookupReservationCode}
-              onChange={(event) => setLookupReservationCode(event.target.value.toUpperCase())}
-              placeholder={"예약번호 입력"}
+              value={lookupGuardianName}
+              onChange={(event) => setLookupGuardianName(event.target.value)}
+              placeholder={"??? ?? ??"}
               className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
             />
             <button type="button" onClick={() => void lookupBookings()} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">

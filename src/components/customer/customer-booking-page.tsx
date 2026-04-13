@@ -9,7 +9,6 @@ import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
-import { formatReservationCode } from "@/lib/reservation-code";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type ActiveMode = "first" | "returning" | "manage" | null;
@@ -52,7 +51,6 @@ type FirstVisitState = {
 type ReturningVisitState = {
   phone: string;
   guardianName: string;
-  reservationCode: string;
   date: string;
   timeSlot: string;
   serviceId: string;
@@ -92,7 +90,6 @@ const initialFirstVisitState: FirstVisitState = {
 const initialReturningVisitState: ReturningVisitState = {
   phone: "",
   guardianName: "",
-  reservationCode: "",
   date: "",
   timeSlot: "",
   serviceId: "",
@@ -345,7 +342,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     setSubmitting(true);
     try {
       setReturningError(null);
-      const query = new URLSearchParams({ shopId, phone: returningVisit.phone, reservationCode: returningVisit.reservationCode });
+      const query = new URLSearchParams({ shopId, phone: returningVisit.phone, guardianName: returningVisit.guardianName });
       const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       const guardian = result.guardians.find((item) => item.name.trim() === returningVisit.guardianName.trim());
       if (!guardian) {
@@ -629,9 +626,8 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
               <SectionCard title={"고객 확인"}>
                 <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder={"연락처"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 <input value={returningVisit.guardianName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, guardianName: event.target.value }))} placeholder={"보호자 이름"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
-                <input value={returningVisit.reservationCode} onChange={(event) => setReturningVisit((prev) => ({ ...prev, reservationCode: event.target.value.toUpperCase() }))} placeholder={"예약번호"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 {returningError ? <p className="text-sm text-red-600">{returningError}</p> : null}
-                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName || !returningVisit.reservationCode} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
+                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
               </SectionCard>
               {returningHistory ? (
                 <SectionCard title="지난 방문 정보">

@@ -256,36 +256,31 @@ export default function OwnerBillingScreen({
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">선택한 플랜을 확인해 주세요</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
 
-        <div className="relative mt-5 rounded-[24px] border border-[#1f5b51] bg-[#fffdf9] px-4 py-4 shadow-[0_10px_24px_rgba(23,59,51,0.06)]">
+        <div className="relative mt-5 rounded-[22px] border border-[#1f5b51] bg-[#fffdf9] px-4 py-3.5 shadow-[0_8px_18px_rgba(23,59,51,0.05)]">
           {selectedPlan.discountPercent > 0 ? (
             <span className="absolute -top-[13px] right-4 rounded-[10px] border border-[#0b4d3f] bg-[#1f5b51] px-3 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-sm">
               {selectedPlan.badge ?? `약 ${selectedPlan.discountPercent}% 할인`}
             </span>
           ) : null}
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
             <div className="min-w-0">
-              <p className="pt-0.5 text-[25px] font-extrabold tracking-[-0.04em] text-[#173b33]">{selectedPlan.title}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">{selectedPlan.billingLabel}</span>
+              <p className="text-[22px] font-extrabold tracking-[-0.04em] text-[#173b33]">{selectedPlan.shortTitle} 플랜</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 {selectedPlan.dailyPriceText ? (
                   <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">{selectedPlan.dailyPriceText}</span>
                 ) : null}
+                {selectedPlan.billingType === "one_time" ? (
+                  <span className="rounded-full border border-[#d9d2c7] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#665e54]">일반결제</span>
+                ) : null}
               </div>
             </div>
-            <div className="shrink-0 pt-1 text-right">
+            <div className="shrink-0 text-right">
               <p className="text-[28px] font-extrabold tracking-[-0.05em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
               <p className="mt-1 text-[13px] font-semibold text-[#6a6259]">
-                {selectedPlan.billingType === "one_time" ? "1회 결제" : selectedPlan.totalLabel}
+                {selectedPlan.billingType === "one_time" ? "1개월 이용" : selectedPlan.totalLabel}
               </p>
             </div>
           </div>
-          <p className="mt-4 text-[13px] leading-5 text-[#7b756d]">
-            {summary.status === "trialing" || summary.status === "trial_will_end"
-              ? `서비스 종료일 ${formatDate(summary.trialEndsAt)}`
-              : summary.currentPeriodEndsAt
-                ? `서비스 종료일 ${formatDate(summary.currentPeriodEndsAt)}`
-                : "결제 후 바로 사용이 시작됩니다."}
-          </p>
         </div>
 
         <div className="mt-4 rounded-[24px] border border-[#dcd5ca] bg-[#fffdf9] px-4 py-4 shadow-[0_10px_24px_rgba(23,59,51,0.05)]">

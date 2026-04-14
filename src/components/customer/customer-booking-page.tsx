@@ -614,8 +614,8 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
             <>
               <FlowHeader title="재방문 예약" onBack={resetView} />
               <SectionCard title={"고객 확인"}>
-                <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder={"연락처"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 <input value={returningVisit.guardianName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, guardianName: event.target.value }))} placeholder={"보호자 이름"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder={"연락처"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 {returningError ? <p className="text-sm text-red-600">{returningError}</p> : null}
                 <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
               </SectionCard>

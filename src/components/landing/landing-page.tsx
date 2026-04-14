@@ -98,9 +98,9 @@ function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () 
         <a href={`/entry/${shopId}`} className={SECONDARY_BUTTON}>
           소비자 예약 화면 보기
         </a>
-        <button type="button" onClick={onOpenPlans} className={TERTIARY_BUTTON}>
+                <a href="/signup?next=%2Fowner" className={TERTIARY_BUTTON}>
           무료체험 시작하기
-        </button>
+        </a>
       </div>
     </section>
   );
@@ -255,55 +255,75 @@ function OwnerCustomerMock() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">고객 관리</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#716960]">보호자 정보와 반려동물 정보를 함께 관리</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#716960]">고객정보와 반려동물 정보를 한 흐름으로 봅니다</p>
         </div>
-        <span className="rounded-full border border-[#ddd5c8] bg-[#fffdfa] px-3 py-1 text-[11px] font-semibold text-[#6e665c]">
-          상세 연결
-        </span>
+        <span className="text-[12px] font-semibold text-[#1e5d51]">편집</span>
       </div>
       <div className="mt-4 space-y-3">
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[12px] font-semibold text-[#6b655e]">보호자명</p>
-              <p className="mt-1 text-[16px] font-extrabold text-[#18211f]">김민지</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[12px] font-semibold text-[#6b655e]">연락처</p>
-              <p className="mt-1 text-[15px] font-bold text-[#18211f]">010-1234-5678</p>
-            </div>
-          </div>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3.5">
+          <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#18211f]">김민지 보호자</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-            <p className="text-[12px] font-semibold text-[#6b655e]">반려동물 이름</p>
-            <p className="mt-1 text-[15px] font-bold text-[#18211f]">몽이, 차이</p>
+            <p className="text-[12px] font-medium leading-4 text-[#7a7268]">보호자명</p>
+            <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">김민지</p>
           </div>
           <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-            <p className="text-[12px] font-semibold text-[#6b655e]">최근 서비스</p>
-            <p className="mt-1 text-[15px] font-bold text-[#18211f]">목욕 + 부분미용</p>
+            <p className="text-[12px] font-medium leading-4 text-[#7a7268]">연락처</p>
+            <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">010-1234-5678</p>
           </div>
         </div>
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6b655e]">고객 메모</p>
-          <p className="mt-1 text-[14px] leading-6 text-[#18211f]">문 앞 픽업 선호 · 피부가 예민해 짧은 클리핑보다 정리 위주 선호</p>
+          <p className="text-[12px] font-medium leading-4 text-[#7a7268]">반려동물 이름</p>
+          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">몽이, 차이</p>
+        </div>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+          <p className="text-[12px] font-medium leading-4 text-[#7a7268]">고객 메모</p>
+          <p className="mt-1.5 text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[#18211f]">문 앞 픽업 선호</p>
+        </div>
+        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
+          <p className="text-sm font-bold text-[#18211f]">빠른 액션</p>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-center rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3 text-sm font-semibold text-[#18211f]">
+              전화하기
+            </div>
+            <div className="flex items-center justify-center rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3 text-sm font-semibold text-[#6d665d]">
+              문자 보내기
+            </div>
+          </div>
+        </div>
+        <div className="mt-1 flex gap-2">
+          <div className="flex-1 rounded-[14px] border border-[#1e5d51] bg-[#1e5d51] px-3 py-2.5 text-center text-xs font-semibold text-white">
+            반려동물
+          </div>
+          <div className="flex-1 rounded-[14px] border border-[#e2ddd5] bg-white px-3 py-2.5 text-center text-xs font-semibold text-[#7a7268]">
+            기록
+          </div>
+          <div className="flex-1 rounded-[14px] border border-[#e2ddd5] bg-white px-3 py-2.5 text-center text-xs font-semibold text-[#7a7268]">
+            예약
+          </div>
         </div>
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[12px] font-semibold text-[#6b655e]">반려동물 정보</p>
-              <p className="mt-1 text-[15px] font-bold text-[#18211f]">몽이 · 말티즈 · 4살</p>
+            <p className="text-sm font-bold text-[#18211f]">아기 정보</p>
+            <span className="text-[12px] font-semibold text-[#1e5d51]">+ 아기 추가하기</span>
+          </div>
+          <div className="mt-3 rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#18211f]">몽이</p>
+                <p className="mt-1 text-xs text-[#7a7268]">말티즈 · 생일 미등록</p>
+              </div>
+              <span className="rounded-full border border-[#e2ddd5] bg-[#fffdfa] px-2.5 py-1 text-[11px] font-semibold text-[#7a7268]">
+                상세 연결
+              </span>
             </div>
-            <span className="rounded-full bg-[#eef5f3] px-3 py-1 text-[11px] font-semibold text-[#1e5d51]">
-              재방문 알림
-            </span>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
 function ConsumerBookingMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
@@ -375,3 +395,6 @@ function MiniStat({
     </div>
   );
 }
+
+
+

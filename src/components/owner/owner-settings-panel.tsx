@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { getOwnerPlanByCode, ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
@@ -25,7 +25,7 @@ type SaveFeedback = {
   message: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "services" | "notifications" | "account" | null;
 
 type PriceType = "fixed" | "starting";
 type AddressSuggestion = {
@@ -104,6 +104,40 @@ const addressSuggestions: AddressSuggestion[] = [
     detailHint: "청당 포레스트 더힐",
   },
 ];
+
+function getNotificationTypeLabel(type: string) {
+  switch (type) {
+    case "booking_confirmed":
+      return "예약 완료";
+    case "booking_rejected":
+      return "예약 거절";
+    case "booking_cancelled":
+      return "예약 취소";
+    case "booking_rescheduled_confirmed":
+      return "예약 변경";
+    case "appointment_reminder_10m":
+      return "방문 전 안내";
+    case "grooming_started":
+      return "미용 시작 안내";
+    case "grooming_almost_done":
+      return "예상 종료 5분 전 안내";
+    case "grooming_completed":
+      return "미용 완료 안내";
+    case "revisit_notice":
+      return "재방문 안내";
+    case "birthday_greeting":
+      return "생일 안내";
+    default:
+      return "알림 발송";
+  }
+}
+
+function formatNotificationDate(value: string) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+}
 
 function monthCursorFromDate(date: string) {
   return date.slice(0, 7);
@@ -220,6 +254,14 @@ export default function OwnerSettingsPanel({
   const selectedPlan = useMemo(
     () => getOwnerPlanByCode(selectedPlanCode) ?? subscriptionSummary?.currentPlan ?? null,
     [selectedPlanCode, subscriptionSummary?.currentPlan],
+  );
+
+  const recentAlimtalkNotifications = useMemo(
+    () =>
+      data.notifications
+        .filter((item) => item.channel === "alimtalk")
+        .slice(0, 20),
+    [data.notifications],
   );
 
   const subscriptionEndDate = useMemo(() => {
@@ -363,35 +405,42 @@ export default function OwnerSettingsPanel({
     <section className="space-y-3">
       {(() => {
         const currentPlan = selectedPlan ?? subscriptionSummary.currentPlan;
-        const currentPlanLine = currentPlan.billingLabel;
+        const currentPlanTitle =
+          currentPlan.months === 1 ? "1개월" : `${currentPlan.months}개월 약정`;
+        const currentPlanLine =
+          currentPlan.billingType === "one_time"
+            ? "일반결제"
+            : `${currentPlan.months}개월 동안 매월 ${won(currentPlan.monthlyPrice)} 결제`;
 
         return (
       <div className="overflow-hidden rounded-[26px] border border-[#ddd6ca] bg-white shadow-[0_10px_22px_rgba(30,31,28,0.06)]">
-        <div className="bg-[#86c9b0] px-5 pb-6 pt-4 text-white">
+        <div className="bg-[#86c9b0] px-5 pb-5 pt-4 text-white">
           <div className="mt-1 flex items-end justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[12px] font-semibold tracking-[0.01em] text-white/80">현재 플랜</p>
-              <p className="text-[34px] font-extrabold leading-[0.95] tracking-[-0.06em] text-white">
-                {currentPlan.title}
+              <p className="mt-1 text-[30px] font-extrabold leading-[0.96] tracking-[-0.06em] text-white">
+                {currentPlanTitle}
               </p>
-              <p className="mt-2 text-[14px] font-semibold text-white/90">{currentPlanLine}</p>
+              <p className="mt-2 text-[13px] font-semibold text-white/90">{currentPlanLine}</p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-[27px] font-extrabold tracking-[-0.05em] text-white">월 {won(currentPlan.monthlyPrice)}</p>
-              <p className="mt-2 text-[12px] font-semibold text-white/80">{currentPlan.totalLabel ?? "1회 결제"}</p>
+              <p className="mt-1.5 text-[12px] font-semibold text-white/80">
+                {currentPlan.billingType === "one_time" ? "1회 결제" : currentPlan.totalLabel}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 bg-white px-5 py-4">
+        <div className="flex items-center justify-between gap-4 bg-white px-5 py-3.5">
           <div className="min-w-0">
             <p className="text-[12px] font-semibold tracking-[0.01em] text-[#877f72]">서비스 종료일</p>
-            <p className="mt-1 text-[22px] font-extrabold tracking-[-0.04em] text-[var(--text)]">{subscriptionEndDate}</p>
+            <p className="mt-1 text-[20px] font-extrabold tracking-[-0.04em] text-[var(--text)]">{subscriptionEndDate}</p>
           </div>
           <button
             type="button"
             onClick={() => setIsPlanPickerOpen((prev) => !prev)}
-            className="shrink-0 rounded-full bg-[#f7e3c0] px-5 py-3 text-[15px] font-extrabold tracking-[-0.02em] text-[#d38361] transition hover:bg-[#f3dbb2]"
+            className="shrink-0 rounded-full bg-[#f7e3c0] px-5 py-2.5 text-[14px] font-extrabold tracking-[-0.02em] text-[#d38361] transition hover:bg-[#f3dbb2]"
           >
             업그레이드 플랜
           </button>
@@ -698,11 +747,55 @@ export default function OwnerSettingsPanel({
     </SettingsCard>
   ) : null;
 
+  const notificationsSection = (
+    <SettingsCard title="알림 발송 내역">
+      {recentAlimtalkNotifications.length === 0 ? (
+        <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">
+          아직 발송된 알림톡 내역이 없어요.
+        </div>
+      ) : (
+        <div className="divide-y divide-[var(--border)]">
+          {recentAlimtalkNotifications.map((item) => (
+            <div key={item.id} className="space-y-2 px-1 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--text)]">{getNotificationTypeLabel(item.type)}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{formatNotificationDate(item.sent_at ?? item.created_at)}</p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    item.status === "sent" || item.status === "mocked"
+                      ? "bg-[#eef8f3] text-[var(--accent)]"
+                      : item.status === "failed"
+                        ? "bg-[#fdf0ec] text-[#b85c47]"
+                        : "bg-[#f4f0ea] text-[var(--muted)]"
+                  }`}
+                >
+                  {item.status === "sent"
+                    ? "발송 완료"
+                    : item.status === "failed"
+                      ? "발송 실패"
+                      : item.status === "queued"
+                        ? "발송 대기"
+                        : item.status === "mocked"
+                          ? "테스트 발송"
+                          : "건너뜀"}
+                </span>
+              </div>
+              <p className="text-[14px] leading-6 text-[var(--text)]">{item.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsCard>
+  );
+
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "운영시간 안내", content: closuresSection },
     services: { title: "서비스 관리", content: servicesSection },
+    notifications: { title: "알림 발송 내역", content: notificationsSection },
     account: { title: "계정", content: accountSection },
   };
 
@@ -772,6 +865,11 @@ export default function OwnerSettingsPanel({
           icon={Scissors}
           title="서비스 관리"
           onClick={() => setActiveScreen("services")}
+        />
+        <SettingsNavRow
+          icon={Bell}
+          title="알림 발송 내역"
+          onClick={() => setActiveScreen("notifications")}
         />
         {onLogout ? (
           <SettingsNavRow

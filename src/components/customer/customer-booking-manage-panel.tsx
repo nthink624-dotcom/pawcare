@@ -304,7 +304,7 @@ export default function CustomerBookingManagePanel({
             <input
               value={lookupGuardianName}
               onChange={(event) => setLookupGuardianName(event.target.value)}
-              placeholder={"??? ?? ??"}
+              placeholder={"보호자 이름 입력"}
               className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
             />
             <button type="button" onClick={() => void lookupBookings()} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">
@@ -461,3 +461,4 @@ export default function CustomerBookingManagePanel({
     </>
   );
 }
+

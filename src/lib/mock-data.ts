@@ -133,6 +133,7 @@ export function buildDemoBootstrap(): BootstrapPayload {
     mode: "mock",
     shop: demoShop,
     guardians: demoGuardians,
+    deletedGuardians: [],
     pets: demoPets,
     services: demoServices,
     appointments: demoAppointments,

@@ -1,4 +1,4 @@
-export const LEGAL_SERVICE_NAME = "멍매니저";
+export const LEGAL_SERVICE_NAME = "펫매니저";
 export const LEGAL_OPERATOR_NAME = "오도독상회";
 
 export const LEGAL_BUSINESS_INFO = {

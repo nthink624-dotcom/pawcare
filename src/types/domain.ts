@@ -97,6 +97,8 @@ export type Guardian = {
   phone: string;
   memo: string;
   notification_settings: GuardianNotificationSettings;
+  deleted_at?: string | null;
+  deleted_restore_until?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -173,8 +175,13 @@ export type Notification = {
   message: string;
   status: NotificationStatus;
   template_key?: string | null;
+  template_type?: string | null;
   provider?: string | null;
-  metadata?: Record<string, string | boolean | null>;
+  provider_message_id?: string | null;
+  recipient_phone?: string | null;
+  fail_reason?: string | null;
+  scheduled_at?: string | null;
+  metadata?: Record<string, string | boolean | number | null>;
   sent_at: string | null;
   created_at: string;
 };
@@ -199,6 +206,7 @@ export type BootstrapPayload = {
   mode: "mock" | "supabase";
   shop: Shop;
   guardians: Guardian[];
+  deletedGuardians?: Guardian[];
   pets: Pet[];
   services: Service[];
   appointments: Appointment[];

@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import type { ReactNode } from "react";
 
-type SocialProvider = "google" | "kakao" | "naver";
+import type { SocialProvider } from "@/lib/auth/social-auth";
 
 const providerMeta: Record<SocialProvider, { label: string; icon: ReactNode; enabled: boolean }> = {
   google: {
@@ -18,7 +18,7 @@ const providerMeta: Record<SocialProvider, { label: string; icon: ReactNode; ena
   naver: {
     label: "네이버로 계속하기",
     icon: <span className="text-[15px] font-black text-white">N</span>,
-    enabled: false,
+    enabled: true,
   },
 };
 
@@ -58,4 +58,3 @@ export default function SocialLoginButtons({
     </div>
   );
 }
-

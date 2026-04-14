@@ -152,7 +152,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
     shop: {
       ...base.shop,
       id: "owner-demo",
-      name: "멍매니저 데모 매장",
+      name: "펫매니저 데모 매장",
       description: "오너 설득 페이지에서 보여주는 체험용 데모 매장입니다.",
       customer_page_settings: normalizeCustomerPageSettings(
         {
@@ -170,6 +170,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
       ),
     },
     guardians: base.guardians.map((guardian) => ({ ...guardian, shop_id: "owner-demo" })),
+    deletedGuardians: [],
     pets: base.pets.map((pet) => ({ ...pet, shop_id: "owner-demo" })),
     services: base.services.map((service) => ({ ...service, shop_id: "owner-demo" })),
     appointments,

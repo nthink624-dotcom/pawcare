@@ -6,11 +6,12 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ shopId: string }>;
-  searchParams?: Promise<{ mode?: string }>;
+  searchParams?: Promise<{ mode?: string; token?: string }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
+  const initialAccessToken = resolvedSearchParams?.token;
   const initialMode = requestedMode === "returning" || requestedMode === "manage" ? requestedMode : "first";
   const data = await getBootstrap(shopId);
 
@@ -22,6 +23,7 @@ export default async function BookPage({
       initialAppointments={data.appointments}
       initialRecords={data.groomingRecords}
       initialMode={initialMode}
+      initialAccessToken={initialAccessToken}
       entryHref={`/entry/${shopId}`}
     />
   );

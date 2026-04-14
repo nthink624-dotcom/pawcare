@@ -151,7 +151,7 @@ export default function OwnerBillingScreen({
     try {
       const registeredSummary = await issueOwnerBillingKey({
         customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "멍매니저 사장님",
+        customerName: summary.ownerName || "펫매니저 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
@@ -201,12 +201,12 @@ export default function OwnerBillingScreen({
     try {
       const nextSummary = await requestOwnerOneTimePayment({
         customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "멍매니저 사장님",
+        customerName: summary.ownerName || "펫매니저 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
         amount: selectedPlan.totalPrice,
-        orderName: `${selectedPlan.title} 멍매니저 이용권`,
+        orderName: `${selectedPlan.title} 펫매니저 이용권`,
       });
 
       setSummary(nextSummary);
@@ -252,7 +252,7 @@ export default function OwnerBillingScreen({
       </button>
 
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_14px_32px_rgba(41,41,38,0.06)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">멍매니저 플랜 및 결제</p>
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 플랜 및 결제</p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">선택한 플랜을 확인해 주세요</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
 

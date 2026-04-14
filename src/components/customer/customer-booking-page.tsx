@@ -51,6 +51,7 @@ type FirstVisitState = {
 type ReturningVisitState = {
   phone: string;
   guardianName: string;
+  petName: string;
   date: string;
   timeSlot: string;
   serviceId: string;
@@ -74,6 +75,12 @@ type SubmitFeedback = {
   message: string;
 };
 
+type BookingCreateResponse = {
+  appointment: Appointment;
+  bookingAccessToken: string;
+  bookingManageUrl: string;
+};
+
 const initialFirstVisitState: FirstVisitState = {
   ownerName: "",
   phone: "",
@@ -90,6 +97,7 @@ const initialFirstVisitState: FirstVisitState = {
 const initialReturningVisitState: ReturningVisitState = {
   phone: "",
   guardianName: "",
+  petName: "",
   date: "",
   timeSlot: "",
   serviceId: "",
@@ -190,7 +198,23 @@ function createAdditionalPetDraft(): AdditionalPetDraft {
   };
 }
 
-export default function CustomerBookingPage({ shopId, initialShop, initialServices, initialMode = "first", entryHref }: { shopId: string; initialShop: Shop; initialServices: Service[]; initialAppointments?: Appointment[]; initialRecords?: GroomingRecord[]; initialMode?: ActiveMode; entryHref?: string }) {
+export default function CustomerBookingPage({
+  shopId,
+  initialShop,
+  initialServices,
+  initialMode = "first",
+  initialAccessToken,
+  entryHref,
+}: {
+  shopId: string;
+  initialShop: Shop;
+  initialServices: Service[];
+  initialAppointments?: Appointment[];
+  initialRecords?: GroomingRecord[];
+  initialMode?: ActiveMode;
+  initialAccessToken?: string;
+  entryHref?: string;
+}) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
@@ -317,7 +341,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         memo: firstVisit.note.trim(),
       };
 
-      await fetchJson<Appointment>("/api/customer-bookings", {
+      await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
@@ -339,12 +363,17 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
     setSubmitting(true);
     try {
       setReturningError(null);
-      const query = new URLSearchParams({ shopId, phone: returningVisit.phone, guardianName: returningVisit.guardianName });
+      const query = new URLSearchParams({
+        shopId,
+        phone: returningVisit.phone,
+        guardianName: returningVisit.guardianName,
+        petName: returningVisit.petName,
+      });
       const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       const guardian = result.guardians.find((item) => item.name.trim() === returningVisit.guardianName.trim());
       if (!guardian) {
         setReturningHistory(null);
-        setReturningError("지난 방문 정보를 찾지 못했어요. 연락처와 보호자 이름을 다시 확인해 주세요.");
+        setReturningError("입력한 정보와 일치하는 지난 방문 정보를 찾지 못했어요.");
         return;
       }
 
@@ -421,7 +450,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
         memo: [returningVisit.note ? `메모: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
       };
 
-      await fetchJson<Appointment>("/api/customer-bookings", {
+      await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
@@ -616,8 +645,9 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
               <SectionCard title={"고객 확인"}>
                 <input value={returningVisit.guardianName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, guardianName: event.target.value }))} placeholder={"보호자 이름"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 <input value={returningVisit.phone} onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))} placeholder={"연락처"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
+                <input value={returningVisit.petName} onChange={(event) => setReturningVisit((prev) => ({ ...prev, petName: event.target.value }))} placeholder={"반려동물 이름"} className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4" />
                 {returningError ? <p className="text-sm text-red-600">{returningError}</p> : null}
-                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
+                <ActionButton disabled={submitting || !returningVisit.phone || !returningVisit.guardianName || !returningVisit.petName} onClick={lookupReturningHistory}>{"지난 방문 불러오기"}</ActionButton>
               </SectionCard>
               {returningHistory ? (
                 <SectionCard title="지난 방문 정보">
@@ -666,6 +696,7 @@ export default function CustomerBookingPage({ shopId, initialShop, initialServic
               shopId={shopId}
               shop={initialShop}
               services={services}
+              initialAccessToken={initialAccessToken}
               onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView}
             />
           ) : null}

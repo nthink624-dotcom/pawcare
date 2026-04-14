@@ -15,7 +15,7 @@ export default function BusinessPage() {
   return (
     <LegalPageLayout
       title="사업자 정보"
-      subtitle="멍매니저 서비스의 공개 사업자 정보와 고객센터 안내입니다."
+      subtitle="펫매니저 서비스의 공개 사업자 정보와 고객센터 안내입니다."
     >
       <section className="rounded-[22px] border border-[#eee6db] bg-[#fcfaf6] px-4 py-4">
         <div className="space-y-3">

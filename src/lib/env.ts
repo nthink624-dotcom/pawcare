@@ -13,6 +13,7 @@ export const env = {
   portoneKakaoPayChannelKey: process.env.NEXT_PUBLIC_PORTONE_KAKAOPAY_CHANNEL_KEY,
   portoneNaverPayChannelKey: process.env.NEXT_PUBLIC_PORTONE_NAVERPAY_CHANNEL_KEY,
   portoneBillingChannelKey: process.env.NEXT_PUBLIC_PORTONE_BILLING_CHANNEL_KEY,
+  naverOAuthProvider: process.env.NEXT_PUBLIC_NAVER_OAUTH_PROVIDER || "custom:naver",
 };
 
 export function hasSupabaseBrowserEnv() {

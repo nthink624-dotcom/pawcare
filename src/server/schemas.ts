@@ -36,6 +36,16 @@ export const guardianUpdateSchema = z.object({
   revisitEnabled: z.boolean().optional(),
 });
 
+export const guardianDeleteSchema = z.object({
+  guardianId: z.string().optional(),
+  guardianIds: z.array(z.string()).default([]).optional(),
+});
+
+export const guardianRestoreSchema = z.object({
+  guardianId: z.string().optional(),
+  guardianIds: z.array(z.string()).default([]).optional(),
+});
+
 export const petInputSchema = z.object({
   shopId: z.string(),
   guardianId: z.string(),

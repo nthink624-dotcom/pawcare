@@ -110,16 +110,19 @@ export default function CustomerBookingManagePanel({
   shopId,
   shop,
   services,
+  initialAccessToken,
   onBack,
 }: {
   shopId: string;
   shop: Shop;
   services: Service[];
+  initialAccessToken?: string;
   onBack: () => void;
 }) {
   const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupGuardianName, setLookupGuardianName] = useState("");
+  const [lookupPetName, setLookupPetName] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -173,17 +176,50 @@ export default function CustomerBookingManagePanel({
     };
   }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.timeSlot, shopId]);
 
-  async function lookupBookings(phone = lookupPhone, guardianName = lookupGuardianName) {
+  useEffect(() => {
+    let active = true;
+
+    async function loadFromToken() {
+      if (!initialAccessToken) return;
+
+      try {
+        setLookupError(null);
+        const query = new URLSearchParams({ shopId, token: initialAccessToken });
+        const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
+        if (!active) return;
+
+        setLookupResult(result);
+        const guardian = result.guardians[0];
+        const pet = result.pets[0];
+        if (guardian) setLookupGuardianName(guardian.name);
+        if (guardian?.phone) setLookupPhone(guardian.phone);
+        if (pet) setLookupPetName(pet.name);
+        setOpenAppointmentId(null);
+        setManageForm(null);
+        setFeedback(null);
+      } catch (error) {
+        if (!active) return;
+        setLookupError(error instanceof Error ? error.message : "예약 정보를 불러오지 못했어요.");
+      }
+    }
+
+    void loadFromToken();
+    return () => {
+      active = false;
+    };
+  }, [initialAccessToken, shopId]);
+
+  async function lookupBookings(phone = lookupPhone, guardianName = lookupGuardianName, petName = lookupPetName) {
     try {
       setLookupError(null);
-      const query = new URLSearchParams({ shopId, phone, guardianName });
+      const query = new URLSearchParams({ shopId, phone, guardianName, petName });
       const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       setLookupResult(result);
       setOpenAppointmentId(null);
       setManageForm(null);
       setFeedback(null);
       if (result.appointments.length === 0 && result.groomingRecords.length === 0) {
-        setLookupError("해당 연락처와 보호자 이름으로 조회된 예약이 없어요.");
+        setLookupError("입력한 정보와 일치하는 예약이 없어요.");
       }
     } catch (error) {
       setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
@@ -212,7 +248,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function cancelAppointment(appointmentId: string) {
-    if (submitting || !lookupPhone || !lookupGuardianName) return;
+    if (submitting || !lookupPhone || !lookupGuardianName || !lookupPetName) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -225,9 +261,10 @@ export default function CustomerBookingManagePanel({
           appointmentId,
           phone: lookupPhone,
           guardianName: lookupGuardianName,
+          petName: lookupPetName,
         }),
       });
-      await lookupBookings(lookupPhone, lookupGuardianName);
+      await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -246,7 +283,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
-    if (submitting || !lookupPhone || !lookupGuardianName || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
+    if (submitting || !lookupPhone || !lookupGuardianName || !lookupPetName || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -259,13 +296,14 @@ export default function CustomerBookingManagePanel({
           appointmentId: manageForm.appointmentId,
           phone: lookupPhone,
           guardianName: lookupGuardianName,
+          petName: lookupPetName,
           serviceId: manageForm.serviceId,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
           memo: manageForm.note,
         }),
       });
-      await lookupBookings(lookupPhone, lookupGuardianName);
+      await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -288,12 +326,18 @@ export default function CustomerBookingManagePanel({
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
         <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">{"← 처음 화면으로"}</button>
         <h2 className="mt-3 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"연락처와 보호자 이름으로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"보호자 이름, 연락처, 반려동물 이름으로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
       </section>
 
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
         <h2 className="text-base font-extrabold">{"예약 조회"}</h2>
         <div className="mt-4 space-y-3">
+          <input
+            value={lookupGuardianName}
+            onChange={(event) => setLookupGuardianName(event.target.value)}
+            placeholder={"보호자 이름 입력"}
+            className="field rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+          />
           <input
             value={lookupPhone}
             onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
@@ -302,12 +346,12 @@ export default function CustomerBookingManagePanel({
           />
           <div className="flex gap-2">
             <input
-              value={lookupGuardianName}
-              onChange={(event) => setLookupGuardianName(event.target.value)}
-              placeholder={"보호자 이름 입력"}
+              value={lookupPetName}
+              onChange={(event) => setLookupPetName(event.target.value)}
+              placeholder={"반려동물 이름 입력"}
               className="field flex-1 rounded-[22px] border-[var(--border)] bg-[var(--surface)] px-4 py-4"
             />
-            <button type="button" onClick={() => void lookupBookings()} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white">
+            <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-full bg-[var(--accent)] px-5 text-[15px] font-semibold text-white disabled:opacity-50">
               {"조회"}
             </button>
           </div>

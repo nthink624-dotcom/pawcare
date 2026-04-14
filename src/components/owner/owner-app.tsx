@@ -82,6 +82,8 @@ export default function OwnerApp({
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedGuardianIds, setSelectedGuardianIds] = useState<string[]>([]);
+  const [isCustomerListEditing, setIsCustomerListEditing] = useState(false);
   const [visitDateFilter, setVisitDateFilter] = useState(currentDateInTimeZone());
   const [visitSelectionMode, setVisitSelectionMode] = useState<"single" | "range">("single");
   const [visitRange, setVisitRange] = useState<{ start: string; end: string } | null>(null);
@@ -179,6 +181,25 @@ export default function OwnerApp({
       return matchesQuery;
     });
   }, [customerSearch, customerSummaries]);
+  const deletedGuardians = useMemo(
+    () =>
+      (data.deletedGuardians ?? [])
+        .filter((guardian) => guardian.deleted_at && guardian.deleted_restore_until)
+        .sort((a, b) => (b.deleted_at ?? "").localeCompare(a.deleted_at ?? "")),
+    [data.deletedGuardians],
+  );
+  const filteredDeletedGuardians = useMemo(() => {
+    const query = customerSearch.trim();
+    return deletedGuardians.filter((guardian) => {
+      if (!query) return true;
+      const pets = data.pets.filter((pet) => pet.guardian_id === guardian.id);
+      return (
+        guardian.name.includes(query) ||
+        guardian.phone.includes(query) ||
+        pets.some((pet) => pet.name.includes(query) || pet.breed.includes(query))
+      );
+    });
+  }, [customerSearch, data.pets, deletedGuardians]);
 
   const visitTimeline = useMemo(() => {
     const dates = Array.from(new Set([
@@ -259,7 +280,17 @@ export default function OwnerApp({
   const selectedGuardian = selectedPet ? guardianMap[selectedPet.guardian_id] : null;
   const selectedGuardianPets = selectedGuardian ? data.pets.filter((item) => item.guardian_id === selectedGuardian.id) : [];
   const selectedRecords = selectedPet ? data.groomingRecords.filter((item) => item.pet_id === selectedPet.id) : [];
-  const selectedAppointments = selectedPet ? data.appointments.filter((item) => item.pet_id === selectedPet.id) : [];
+  const selectedRecordAppointmentIds = useMemo(
+    () => new Set(selectedRecords.map((record) => record.appointment_id).filter(Boolean)),
+    [selectedRecords],
+  );
+  const selectedAppointments = selectedPet
+    ? data.appointments.filter(
+        (item) =>
+          item.pet_id === selectedPet.id &&
+          (!selectedRecordAppointmentIds.has(item.id) || !["completed"].includes(item.status)),
+      )
+    : [];
   const selectedLatestRecord = selectedPet ? [...selectedRecords].sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))[0] : null;
   const selectedLatestAppointment = selectedPet ? [...selectedAppointments].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`))[0] : null;
   const selectedLatestService = selectedLatestRecord ? serviceMap[selectedLatestRecord.service_id] : selectedLatestAppointment ? serviceMap[selectedLatestAppointment.service_id] : null;
@@ -286,6 +317,11 @@ export default function OwnerApp({
     setIsGuardianEditing(false);
     setIsGuardianMemoEditing(false);
   }, [selectedGuardian]);
+
+  useEffect(() => {
+    const activeGuardianIds = new Set(data.guardians.map((guardian) => guardian.id));
+    setSelectedGuardianIds((prev) => prev.filter((guardianId) => activeGuardianIds.has(guardianId)));
+  }, [data.guardians]);
 
   async function mutate(url: string, init: RequestInit) {
     if (isOwnerDemo) {
@@ -387,6 +423,145 @@ export default function OwnerApp({
     setIsGuardianMemoEditing(false);
   }
 
+  async function deleteGuardianProfile(guardianId: string) {
+    if (isOwnerDemo) {
+      const deletedAt = new Date().toISOString();
+      const restoreUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      setData((prev) => {
+        return {
+          ...prev,
+          guardians: prev.guardians.filter((guardian) => guardian.id !== guardianId),
+          deletedGuardians: [
+            {
+              ...(prev.guardians.find((guardian) => guardian.id === guardianId)!),
+              deleted_at: deletedAt,
+              deleted_restore_until: restoreUntil,
+              updated_at: deletedAt,
+            },
+            ...(prev.deletedGuardians ?? []),
+          ],
+        };
+      });
+      setSelectedPetId(null);
+      setSelectedGuardianIds((prev) => prev.filter((id) => id !== guardianId));
+      setIsGuardianEditing(false);
+      setIsGuardianMemoEditing(false);
+      return;
+    }
+
+    await mutate("/api/guardians", {
+      method: "DELETE",
+      body: JSON.stringify({ guardianId }),
+    });
+    setSelectedPetId(null);
+    setSelectedGuardianIds((prev) => prev.filter((id) => id !== guardianId));
+    setIsGuardianEditing(false);
+    setIsGuardianMemoEditing(false);
+  }
+
+  async function deleteGuardianIds(guardianIds: string[]) {
+    if (guardianIds.length === 0 || saving) return;
+    const confirmDelete = window.confirm(`선택한 고객 ${guardianIds.length}명을 삭제하시겠어요?\n3일 안에는 다시 복구할 수 있어요.`);
+    if (!confirmDelete) return;
+
+    if (isOwnerDemo) {
+      const deletedAt = new Date().toISOString();
+      const restoreUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      setData((prev) => {
+        const deleting = prev.guardians.filter((guardian) => guardianIds.includes(guardian.id));
+        return {
+          ...prev,
+          guardians: prev.guardians.filter((guardian) => !guardianIds.includes(guardian.id)),
+          deletedGuardians: [
+            ...deleting.map((guardian) => ({
+              ...guardian,
+              deleted_at: deletedAt,
+              deleted_restore_until: restoreUntil,
+              updated_at: deletedAt,
+            })),
+            ...(prev.deletedGuardians ?? []),
+          ],
+        };
+      });
+      setSelectedGuardianIds([]);
+      if (selectedGuardian && guardianIds.includes(selectedGuardian.id)) {
+        setSelectedPetId(null);
+      }
+      return;
+    }
+
+    await mutate("/api/guardians", {
+      method: "DELETE",
+      body: JSON.stringify({ guardianIds }),
+    });
+    setSelectedGuardianIds([]);
+    if (selectedGuardian && guardianIds.includes(selectedGuardian.id)) {
+      setSelectedPetId(null);
+    }
+  }
+
+  async function deleteSelectedGuardians() {
+    await deleteGuardianIds(selectedGuardianIds);
+  }
+
+  async function restoreDeletedGuardians(guardianIds: string[]) {
+    if (guardianIds.length === 0 || saving) return;
+
+    if (isOwnerDemo) {
+      setData((prev) => {
+        const restoring = (prev.deletedGuardians ?? []).filter((guardian) => guardianIds.includes(guardian.id));
+        return {
+          ...prev,
+          guardians: [
+            ...restoring.map((guardian) => ({
+              ...guardian,
+              deleted_at: null,
+              deleted_restore_until: null,
+              updated_at: new Date().toISOString(),
+            })),
+            ...prev.guardians,
+          ],
+          deletedGuardians: (prev.deletedGuardians ?? []).filter((guardian) => !guardianIds.includes(guardian.id)),
+        };
+      });
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await fetchJson("/api/guardians/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guardianIds }),
+      });
+      await refresh();
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "복구에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleGuardianSelection(guardianId: string) {
+    setSelectedGuardianIds((prev) =>
+      prev.includes(guardianId) ? prev.filter((id) => id !== guardianId) : [...prev, guardianId],
+    );
+  }
+
+  function toggleAllVisibleGuardians() {
+    if (filteredGuardians.length === 0) return;
+    const visibleIds = filteredGuardians.map((summary) => summary.guardian.id);
+    const allSelected = visibleIds.every((guardianId) => selectedGuardianIds.includes(guardianId));
+
+    setSelectedGuardianIds((prev) => {
+      if (allSelected) {
+        return prev.filter((guardianId) => !visibleIds.includes(guardianId));
+      }
+      return Array.from(new Set([...prev, ...visibleIds]));
+    });
+  }
+
   async function handleGuardianProfileSave() {
     if (!selectedGuardian || saving || !canSaveGuardianProfile) return;
     await updateGuardianProfile(
@@ -409,6 +584,13 @@ export default function OwnerApp({
       isGuardianEditing ? guardianDraft.phone.trim() : selectedGuardian.phone,
       guardianDraft.memo.trim(),
     );
+  }
+
+  async function handleGuardianDelete() {
+    if (!selectedGuardian || saving) return;
+    const confirmed = window.confirm(`${selectedGuardian.name} 고객 정보를 삭제할까요?\n3일 안에는 다시 복구할 수 있어요.`);
+    if (!confirmed) return;
+    await deleteGuardianProfile(selectedGuardian.id);
   }
 
   async function updatePetProfile(petId: string, name: string, breed: string, birthday: string | null) {
@@ -624,7 +806,136 @@ export default function OwnerApp({
 
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[15px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
-        {activeTab === "customers" && !selectedPet && <section className="space-y-4 p-4"><Panel title="고객 정보" action={filteredGuardians.length + "명"}><div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5"><input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="보호자명, 연락처, 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{filteredGuardians.length === 0 ? <EmptyState title="조건에 맞는 고객이 없어요" /> : <div className="space-y-3">{filteredGuardians.map((summary) => <button key={summary.guardian.id} className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]" onClick={() => { setSelectedPetId(summary.pets[0]?.id || null); setDetailTab("info"); }}><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{summary.guardian.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{summary.guardian.phone}</p><p className="mt-2 text-sm text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p></div><span className="text-xs font-semibold text-[var(--accent)]">상세</span></div></button>)}</div>}</Panel></section>}
+        {activeTab === "customers" && !selectedPet && (
+          <section className="space-y-4 p-4">
+            <Panel
+              title="고객 정보"
+              action={
+                <button
+                  type="button"
+                  className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
+                  onClick={() => {
+                    setIsCustomerListEditing((prev) => {
+                      if (prev) setSelectedGuardianIds([]);
+                      return !prev;
+                    });
+                  }}
+                >
+                  {isCustomerListEditing ? "완료" : "편집"}
+                </button>
+              }
+            >
+              <div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5">
+                <input
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder="보호자명, 연락처, 아기 이름 검색"
+                  className="w-full bg-transparent text-sm outline-none"
+                />
+              </div>
+
+              {isCustomerListEditing && filteredGuardians.length > 0 ? (
+                <div className="flex items-center justify-between px-1 py-1">
+                  <label className="flex items-center gap-2.5 text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">
+                    <input
+                      type="checkbox"
+                      checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
+                      onChange={toggleAllVisibleGuardians}
+                      className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                    />
+                    전체 선택
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-1 py-1 text-[13px] font-semibold tracking-[-0.01em] text-[#9a756a] transition hover:text-[#805a4f] disabled:text-[var(--muted)]"
+                      onClick={deleteSelectedGuardians}
+                      disabled={selectedGuardianIds.length === 0 || saving}
+                    >
+                      선택 삭제
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {filteredGuardians.length === 0 ? (
+                <EmptyState title="조건에 맞는 고객이 없어요" />
+              ) : (
+                <div className="space-y-3">
+                  {filteredGuardians.map((summary) => (
+                    <div
+                      key={summary.guardian.id}
+                      className="flex items-start gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 transition hover:bg-[#fcfaf7]"
+                    >
+                      {isCustomerListEditing ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedGuardianIds.includes(summary.guardian.id)}
+                          onChange={() => toggleGuardianSelection(summary.guardian.id)}
+                          className="mt-1 h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                        />
+                      ) : null}
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => {
+                          setSelectedPetId(summary.pets[0]?.id || null);
+                          setDetailTab("info");
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                            <p className="mt-1 text-[14px] font-medium text-[var(--muted)]">{summary.guardian.phone}</p>
+                            <p className="mt-1.5 text-[14px] font-medium leading-5 text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
+                          </div>
+                          <span className="pt-0.5 text-[13px] font-semibold text-[var(--accent)]">상세</span>
+                        </div>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {filteredDeletedGuardians.length > 0 ? (
+                <div className="space-y-3 rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-[var(--text)]">최근 삭제</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-[var(--accent)]"
+                      onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
+                      disabled={saving}
+                    >
+                      전체 복구
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {filteredDeletedGuardians.map((guardian) => (
+                      <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--border)] bg-white px-3 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[var(--text)]">{guardian.name}</p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">{guardian.phone}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs font-semibold text-[var(--accent)]"
+                          onClick={() => restoreDeletedGuardians([guardian.id])}
+                          disabled={saving}
+                        >
+                          복구
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </Panel>
+          </section>
+        )}
                 {activeTab === "customers" && selectedPet && selectedGuardian && (
                   <section className="space-y-4 p-4">
                     <button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>
@@ -634,6 +945,15 @@ export default function OwnerApp({
                       title={`${selectedGuardian.name} 보호자`}
                       action={
                         <div className="flex items-center gap-3">
+                          {!isGuardianEditing ? (
+                            <button
+                              className="text-xs font-medium tracking-[0.01em] text-[#8f756e] transition hover:text-[#6b5b57]"
+                              onClick={handleGuardianDelete}
+                              disabled={saving}
+                            >
+                              삭제
+                            </button>
+                          ) : null}
                           {isGuardianEditing ? (
                             <button
                               className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]"
@@ -777,7 +1097,7 @@ export default function OwnerApp({
                             }`}
                             onClick={() => setDetailTab(item)}
                           >
-                            {item === "info" ? "반려동물" : item === "records" ? "기록" : "예약"}
+                            {item === "info" ? "반려동물" : item === "records" ? "미용 기록" : "예약 내역"}
                           </button>
                         ))}
                       </div>
@@ -1163,7 +1483,19 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
 
 
 function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, serviceMap, saving, onOpenAppointment, onStatusChange }: { currentAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
-  return <div className="overflow-hidden rounded-[20px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || currentAppointments.length === 0) return;
+    const hintKey = "owner-home-swipe-cancel-hint-seen";
+    if (window.localStorage.getItem(hintKey)) return;
+    window.localStorage.setItem(hintKey, "true");
+    setShowSwipeHint(true);
+    const timeout = window.setTimeout(() => setShowSwipeHint(false), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [currentAppointments.length]);
+
+  return <div className="overflow-hidden rounded-[20px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div>{showSwipeHint ? <div className="mb-2.5 rounded-[14px] border border-[#d7e8e0] bg-white/90 px-3 py-2 text-[12px] font-medium leading-5 text-[#4d6b62]">예약 카드를 왼쪽으로 밀면 바로 취소할 수 있어요.</div> : null}<div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
 }
 
 function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
@@ -1217,7 +1549,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
     setStartX(null);
   };
 
-  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 items-center justify-center bg-[#a86957] text-sm font-semibold text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}>{ownerHomeCopy.slideCancel}</button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p></div><span className="rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em]" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
+  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 flex-col items-center justify-center gap-1 bg-[#a86957] text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}><span className="text-[18px] leading-none">←</span><span className="text-sm font-semibold">{ownerHomeCopy.slideCancel}</span><span className="text-[11px] font-medium text-white/80">밀어서 취소</span></button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p></div><span className="rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em]" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
 }
 
 function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
@@ -1290,7 +1622,7 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
   return <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${cls}`}>{text}</span>;
 }
 
-function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 ${className}`.trim()}><p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1.5 flex min-h-[24px] items-center text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
+function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 ${className}`.trim()}><p className="text-[13px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1.5 flex min-h-[24px] items-center text-[18px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
 
 
 

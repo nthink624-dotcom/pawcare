@@ -8,7 +8,7 @@ export default function TermsPage() {
   return (
     <LegalPageLayout
       title="이용약관"
-      subtitle="멍매니저 서비스 이용과 관련된 기본 규정과 위치기반서비스 안내를 확인할 수 있어요."
+      subtitle="펫매니저 서비스 이용과 관련된 기본 규정과 위치기반서비스 안내를 확인할 수 있어요."
     >
       {serviceTerms ? <LegalSection title={serviceTerms.title} body={serviceTerms.content} /> : null}
       {locationTerms ? <LegalSection title={locationTerms.title} body={locationTerms.content} /> : null}

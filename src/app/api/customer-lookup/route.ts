@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { lookupCustomerBookings } from "@/server/customer-bookings";
+import { lookupCustomerBookings, lookupCustomerBookingsByToken } from "@/server/customer-bookings";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get("shopId") ?? "";
+    const token = searchParams.get("token") ?? "";
     const phone = searchParams.get("phone") ?? "";
     const guardianName = searchParams.get("guardianName") ?? "";
+    const petName = searchParams.get("petName") ?? "";
 
-    if (!shopId || !phone || !guardianName) {
-      return NextResponse.json(
-        { message: "조회에 필요한 연락처와 보호자 이름을 입력해 주세요." },
-        { status: 400 },
-      );
+    if (!shopId) {
+      return NextResponse.json({ message: "Missing required shop information." }, { status: 400 });
     }
 
-    const result = await lookupCustomerBookings(shopId, phone, guardianName);
+    const result = token
+      ? await lookupCustomerBookingsByToken(shopId, token)
+      : await lookupCustomerBookings(shopId, phone, guardianName, petName);
+
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "예약 조회 중 문제가 발생했습니다.";
+    const message = error instanceof Error ? error.message : "Unable to load booking information.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

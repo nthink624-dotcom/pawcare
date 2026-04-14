@@ -39,6 +39,24 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
   return store;
 }
 
+function splitActiveGuardians(guardians: Guardian[]) {
+  const activeGuardians = guardians.filter((guardian) => !guardian.deleted_at);
+  const now = Date.now();
+  const deletedGuardians = guardians.filter(
+    (guardian) =>
+      guardian.deleted_at &&
+      guardian.deleted_restore_until &&
+      new Date(guardian.deleted_restore_until).getTime() >= now,
+  );
+  const activeGuardianIds = new Set(activeGuardians.map((guardian) => guardian.id));
+
+  return {
+    activeGuardians,
+    deletedGuardians,
+    activeGuardianIds,
+  };
+}
+
 export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Promise<BootstrapPayload> {
   if (!hasSupabaseServerEnv()) {
     return buildMockBootstrap(shopId);
@@ -75,11 +93,22 @@ export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Prom
   if (isEmptyForTesting) {
     await seedDemoDataForShop(
       shopId,
-      ((shopRes.data as Shop).name || "멍매니저 테스트 매장") as string,
+      ((shopRes.data as Shop).name || "펫매니저 테스트 매장") as string,
       ((shopRes.data as Shop).address || "서울시 강남구 테스트로 1") as string,
     );
     return getBootstrap(shopId, false);
   }
+
+  const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map((guardian) => ({
+    ...guardian,
+    notification_settings: normalizeGuardianNotificationSettings(guardian.notification_settings),
+  }));
+  const { activeGuardians, deletedGuardians, activeGuardianIds } = splitActiveGuardians(normalizedGuardians);
+  const activePetIds = new Set(
+    ((petsRes.data ?? []) as Pet[])
+      .filter((pet) => activeGuardianIds.has(pet.guardian_id))
+      .map((pet) => pet.id),
+  );
 
   return normalizeBootstrapNotifications({
     mode: "supabase",
@@ -92,15 +121,19 @@ export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Prom
         (shopRes.data as Shop).description,
       ),
     },
-    guardians: ((guardiansRes.data ?? []) as Guardian[]).map((guardian) => ({
-      ...guardian,
-      notification_settings: normalizeGuardianNotificationSettings(guardian.notification_settings),
-    })),
-    pets: (petsRes.data ?? []) as Pet[],
+    guardians: activeGuardians,
+    deletedGuardians,
+    pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),
     services: (servicesRes.data ?? []) as Service[],
-    appointments: (appointmentsRes.data ?? []) as Appointment[],
-    groomingRecords: (recordsRes.data ?? []) as GroomingRecord[],
-    notifications: (notificationsRes.data ?? []) as BootstrapPayload["notifications"],
+    appointments: ((appointmentsRes.data ?? []) as Appointment[]).filter((appointment) =>
+      activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id),
+    ),
+    groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
+      activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),
+    ),
+    notifications: ((notificationsRes.data ?? []) as BootstrapPayload["notifications"]).filter((notification) =>
+      !notification.guardian_id || activeGuardianIds.has(notification.guardian_id),
+    ),
     landingInterests: (interestsRes.data ?? []) as LandingInterest[],
     landingFeedback: (feedbackRes.data ?? []) as LandingFeedback[],
   });

@@ -7,6 +7,7 @@ import { CircleUserRound, Eye, EyeOff, X } from "lucide-react";
 
 import SocialLoginButtons from "@/components/auth/social-login-buttons";
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
+import { getSocialOAuthProvider, type SocialProvider } from "@/lib/auth/social-auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function toKoreanAuthError(message: string) {
@@ -37,7 +38,7 @@ export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<"google" | "kakao" | "naver" | null>(null);
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
 
   const handleLogin = async () => {
@@ -71,9 +72,7 @@ export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/
     router.push(("/login/reset" + query) as never);
   };
 
-  const handleSocialLogin = async (provider: "google" | "kakao" | "naver") => {
-    if (provider === "naver") return;
-
+  const handleSocialLogin = async (provider: SocialProvider) => {
     if (!supabaseReady || !supabase) {
       setMessage("Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.");
       return;
@@ -85,7 +84,7 @@ export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/
     try {
       const redirectTo = window.location.origin + "/auth/callback?next=" + encodeURIComponent(nextPath);
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider as "google" | "kakao",
+        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: { redirectTo },
       });
 
@@ -100,7 +99,7 @@ export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
       <div className="flex items-start justify-between">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">멍매니저 OWNER</div>
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">펫매니저 OWNER</div>
         <Link href="/" className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#fafafa] text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]">
           <X className="h-6 w-6" strokeWidth={2.2} />
         </Link>
@@ -111,7 +110,7 @@ export default function LoginForm({ supabaseReady, initialMessage, nextPath = "/
       </div>
 
       <div className="mt-10">
-        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">멍매니저 사장님 로그인</h1>
+        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">펫매니저 사장님 로그인</h1>
         <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">아이디와 비밀번호로 로그인하고 매장 운영 화면으로 바로 들어가세요.</p>
       </div>
 

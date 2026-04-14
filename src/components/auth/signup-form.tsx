@@ -4,12 +4,14 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, Eye, EyeOff, X } from "lucide-react";
 
+import SocialLoginButtons from "@/components/auth/social-login-buttons";
 import { env } from "@/lib/env";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
   ownerSignupTerms,
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
+import { getSocialOAuthProvider, type SocialProvider } from "@/lib/auth/social-auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   isValidBirthDate8,
@@ -135,6 +137,7 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
   const [devVerificationCode, setDevVerificationCode] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [checkingLoginId, setCheckingLoginId] = useState(false);
   const [loginIdMessage, setLoginIdMessage] = useState<string | null>(null);
   const [loginIdAvailable, setLoginIdAvailable] = useState<boolean | null>(null);
@@ -502,10 +505,34 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
     }
   };
 
+  const handleSocialLogin = async (provider: SocialProvider) => {
+    if (!supabaseReady || !supabase) {
+      setMessage("Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.");
+      return;
+    }
+
+    setSocialLoading(provider);
+    setMessage(null);
+
+    try {
+      const redirectTo = window.location.origin + "/auth/callback?next=" + encodeURIComponent(nextPath);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
+        options: { redirectTo },
+      });
+
+      if (error) {
+        setMessage("소셜 로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fafaf5] px-6 pb-10 pt-6 text-[#111111]">
       <div className="flex items-start justify-between">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">멍매니저 OWNER</div>
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">펫매니저 OWNER</div>
         <a
           href="/login"
           className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-white text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]"
@@ -533,6 +560,24 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
           </p>
         ) : null}
       </div>
+
+      {step === "terms" ? (
+        <>
+          <div className="my-8 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#e4e0d8]" />
+            <span className="text-[15px] font-medium text-[#353535]">소셜로 시작하기</span>
+            <div className="h-px flex-1 bg-[#e4e0d8]" />
+          </div>
+
+          <SocialLoginButtons onLogin={handleSocialLogin} loadingProvider={socialLoading} disabled={loading} />
+
+          <div className="my-8 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#e4e0d8]" />
+            <span className="text-[15px] font-medium text-[#353535]">또는 직접 가입</span>
+            <div className="h-px flex-1 bg-[#e4e0d8]" />
+          </div>
+        </>
+      ) : null}
 
       {step === "terms" ? (
         <div className="mt-7 space-y-3.5">

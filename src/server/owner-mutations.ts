@@ -8,11 +8,14 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
+import { dispatchNotification } from "@/server/notification-dispatch";
 import {
   appointmentInputSchema,
   appointmentStatusSchema,
+  guardianDeleteSchema,
   customerPageSettingsSchema,
   guardianInputSchema,
+  guardianRestoreSchema,
   guardianUpdateSchema,
   petInputSchema,
   petUpdateSchema,
@@ -61,6 +64,15 @@ function hasMissingColumnError(
 
 function getMutableStore() {
   return normalizeBootstrapNotifications(getMockStore());
+}
+
+function resolveGuardianIds(payload: { guardianId?: string; guardianIds?: string[] }) {
+  const ids = new Set<string>();
+  if (payload.guardianId) ids.add(payload.guardianId);
+  for (const guardianId of payload.guardianIds ?? []) {
+    if (guardianId) ids.add(guardianId);
+  }
+  return Array.from(ids);
 }
 
 export async function updateShopSettings(input: unknown) {
@@ -423,6 +435,169 @@ export async function updateGuardian(input: unknown) {
   return data;
 }
 
+export async function deleteGuardian(input: unknown) {
+  const payload = guardianDeleteSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const guardian = store.guardians.find((item) => item.id === payload.guardianId);
+    if (!guardian) throw new Error("고객 정보를 찾을 수 없어요.");
+
+    const petIds = new Set(store.pets.filter((item) => item.guardian_id === payload.guardianId).map((item) => item.id));
+
+    store.guardians = store.guardians.filter((item) => item.id !== payload.guardianId);
+    store.pets = store.pets.filter((item) => item.guardian_id !== payload.guardianId);
+    store.appointments = store.appointments.filter((item) => item.guardian_id !== payload.guardianId);
+    store.groomingRecords = store.groomingRecords.filter((item) => item.guardian_id !== payload.guardianId);
+    store.notifications = store.notifications.filter(
+      (item) => item.guardian_id !== payload.guardianId && !(item.pet_id && petIds.has(item.pet_id)),
+    );
+
+    setMockStore(store);
+    return { success: true, guardianId: payload.guardianId };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const petQuery = await supabase.from("pets").select("id").eq("guardian_id", payload.guardianId);
+  if (petQuery.error) throw new Error(petQuery.error.message);
+  const petIds = (petQuery.data ?? []).map((item) => item.id);
+
+  const notificationDelete = await supabase.from("notifications").delete().eq("guardian_id", payload.guardianId);
+  if (notificationDelete.error) throw new Error(notificationDelete.error.message);
+
+  if (petIds.length > 0) {
+    const orphanNotificationDelete = await supabase.from("notifications").delete().in("pet_id", petIds);
+    if (orphanNotificationDelete.error) throw new Error(orphanNotificationDelete.error.message);
+  }
+
+  const recordDelete = await supabase.from("grooming_records").delete().eq("guardian_id", payload.guardianId);
+  if (recordDelete.error) throw new Error(recordDelete.error.message);
+
+  const appointmentDelete = await supabase.from("appointments").delete().eq("guardian_id", payload.guardianId);
+  if (appointmentDelete.error) throw new Error(appointmentDelete.error.message);
+
+  const petDelete = await supabase.from("pets").delete().eq("guardian_id", payload.guardianId);
+  if (petDelete.error) throw new Error(petDelete.error.message);
+
+  const guardianDelete = await supabase.from("guardians").delete().eq("id", payload.guardianId);
+  if (guardianDelete.error) throw new Error(guardianDelete.error.message);
+
+  return { success: true, guardianId: payload.guardianId };
+}
+
+export async function softDeleteGuardians(input: unknown) {
+  const payload = guardianDeleteSchema.parse(input);
+  const guardianIds = resolveGuardianIds(payload);
+
+  if (guardianIds.length === 0) {
+    throw new Error("삭제할 고객을 선택해 주세요.");
+  }
+
+  const deletedAt = nowIso();
+  const restoreUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const existingIds = new Set(store.guardians.map((guardian) => guardian.id));
+    const missingId = guardianIds.find((guardianId) => !existingIds.has(guardianId));
+    if (missingId) throw new Error("삭제할 고객 정보를 찾을 수 없습니다.");
+
+    store.guardians = store.guardians.map((guardian) =>
+      guardianIds.includes(guardian.id)
+        ? {
+            ...guardian,
+            deleted_at: deletedAt,
+            deleted_restore_until: restoreUntil,
+            updated_at: deletedAt,
+          }
+        : guardian,
+    );
+
+    setMockStore(store);
+    return { success: true, guardianIds, restoreUntil };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { error } = await supabase
+    .from("guardians")
+    .update({
+      deleted_at: deletedAt,
+      deleted_restore_until: restoreUntil,
+      updated_at: deletedAt,
+    })
+    .in("id", guardianIds);
+
+  if (error) throw new Error(error.message);
+
+  return { success: true, guardianIds, restoreUntil };
+}
+
+export async function restoreGuardians(input: unknown) {
+  const payload = guardianRestoreSchema.parse(input);
+  const guardianIds = resolveGuardianIds(payload);
+
+  if (guardianIds.length === 0) {
+    throw new Error("복구할 고객을 선택해 주세요.");
+  }
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const now = Date.now();
+
+    store.guardians = store.guardians.map((guardian) => {
+      if (!guardianIds.includes(guardian.id)) return guardian;
+      const restoreUntil = guardian.deleted_restore_until ? new Date(guardian.deleted_restore_until).getTime() : 0;
+      if (!guardian.deleted_at || (restoreUntil && restoreUntil < now)) return guardian;
+
+      return {
+        ...guardian,
+        deleted_at: null,
+        deleted_restore_until: null,
+        updated_at: nowIso(),
+      };
+    });
+
+    setMockStore(store);
+    return { success: true, guardianIds };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const guardiansQuery = await supabase
+    .from("guardians")
+    .select("id, deleted_at, deleted_restore_until")
+    .in("id", guardianIds);
+
+  if (guardiansQuery.error) throw new Error(guardiansQuery.error.message);
+
+  const restorableIds = (guardiansQuery.data ?? [])
+    .filter((guardian) => guardian.deleted_at)
+    .filter((guardian) => guardian.deleted_restore_until && new Date(guardian.deleted_restore_until).getTime() >= Date.now())
+    .map((guardian) => guardian.id);
+
+  if (restorableIds.length === 0) {
+    throw new Error("복구 가능한 고객이 없습니다.");
+  }
+
+  const { error } = await supabase
+    .from("guardians")
+    .update({
+      deleted_at: null,
+      deleted_restore_until: null,
+      updated_at: nowIso(),
+    })
+    .in("id", restorableIds);
+
+  if (error) throw new Error(error.message);
+
+  return { success: true, guardianIds: restorableIds };
+}
+
 export async function createPet(input: unknown) {
   const payload = petInputSchema.parse(input);
   const pet: Pet = {
@@ -534,6 +709,15 @@ export async function createAppointment(input: unknown) {
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
+    if (appointment.status === "confirmed") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "booking_confirmed",
+      });
+    }
     return appointment;
   }
 
@@ -560,11 +744,30 @@ export async function createAppointment(input: unknown) {
       });
 
       if (fallbackError) throw new Error(fallbackError.message);
+      if (appointment.status === "confirmed") {
+        await dispatchNotification({
+          shopId: appointment.shop_id,
+          appointmentId: appointment.id,
+          guardianId: appointment.guardian_id,
+          petId: appointment.pet_id,
+          type: "booking_confirmed",
+        });
+      }
       return appointment;
     }
 
     throw new Error(error.message);
   }
+  if (appointment.status === "confirmed") {
+    await dispatchNotification({
+      shopId: appointment.shop_id,
+      appointmentId: appointment.id,
+      guardianId: appointment.guardian_id,
+      petId: appointment.pet_id,
+      type: "booking_confirmed",
+    });
+  }
+
   return appointment;
 }
 
@@ -603,6 +806,61 @@ export async function updateAppointmentStatus(input: unknown) {
     }
 
     setMockStore(store);
+    if (payload.status === "confirmed") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: payload.eventType === "booking_rescheduled_confirmed" ? "booking_rescheduled_confirmed" : "booking_confirmed",
+      });
+    }
+    if (payload.status === "rejected") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "booking_rejected",
+      });
+    }
+    if (payload.status === "cancelled") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "booking_cancelled",
+      });
+    }
+    if (payload.status === "in_progress") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "grooming_started",
+      });
+    }
+    if (payload.status === "almost_done") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "grooming_almost_done",
+        skipIfExists: true,
+      });
+    }
+    if (payload.status === "completed") {
+      await dispatchNotification({
+        shopId: appointment.shop_id,
+        appointmentId: appointment.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        type: "grooming_completed",
+      });
+    }
     return appointment;
   }
 
@@ -662,6 +920,62 @@ export async function updateAppointmentStatus(input: unknown) {
 
       if (recordError) throw new Error(recordError.message);
     }
+  }
+
+  if (payload.status === "confirmed") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: payload.eventType === "booking_rescheduled_confirmed" ? "booking_rescheduled_confirmed" : "booking_confirmed",
+    });
+  }
+  if (payload.status === "rejected") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: "booking_rejected",
+    });
+  }
+  if (payload.status === "cancelled") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: "booking_cancelled",
+    });
+  }
+  if (payload.status === "in_progress") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: "grooming_started",
+    });
+  }
+  if (payload.status === "almost_done") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: "grooming_almost_done",
+      skipIfExists: true,
+    });
+  }
+  if (payload.status === "completed") {
+    await dispatchNotification({
+      shopId: resolvedAppointment.shop_id,
+      appointmentId: resolvedAppointment.id,
+      guardianId: resolvedAppointment.guardian_id,
+      petId: resolvedAppointment.pet_id,
+      type: "grooming_completed",
+    });
   }
 
   return resolvedAppointment;

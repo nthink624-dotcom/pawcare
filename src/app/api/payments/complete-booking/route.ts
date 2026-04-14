@@ -90,9 +90,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "결제 금액이 예약 금액과 일치하지 않습니다." }, { status: 400 });
     }
 
-    const appointment = await createCustomerBooking(payload.booking);
+    const bookingResult = await createCustomerBooking(payload.booking);
     return NextResponse.json({
-      appointment,
+      ...bookingResult,
       message: "결제가 완료되어 예약이 접수되었어요.",
     });
   } catch (error) {

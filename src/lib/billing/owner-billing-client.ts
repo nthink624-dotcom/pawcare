@@ -131,7 +131,7 @@ export async function issueOwnerBillingKey(params: {
     channelKey: env.portoneBillingChannelKey,
     billingKeyMethod: "CARD",
     issueId,
-    issueName: "멍매니저 결제수단 등록",
+    issueName: "펫매니저 결제수단 등록",
     customer: {
       customerId: params.customerId,
       fullName: params.customerName,

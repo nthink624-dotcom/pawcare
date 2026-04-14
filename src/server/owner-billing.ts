@@ -100,7 +100,7 @@ function isMissingRelationError(error: { code?: string; message?: string } | nul
 function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null, shopId: string) {
   return {
     customerId: `owner_${identity.id}`,
-    fullName: profile?.name ?? "멍매니저 사장님",
+    fullName: profile?.name ?? "펫매니저 사장님",
     phoneNumber: profile?.phone_number ?? undefined,
     email: identity.email ?? undefined,
     customData: JSON.stringify({ shopId }),
@@ -428,7 +428,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
       storeId: env.portoneStoreId,
       payment: {
         billingKey: record.billing_key,
-        orderName: `${plan.name} 멍매니저 구독`,
+        orderName: `${plan.name} 펫매니저 구독`,
         customer: buildPortoneCustomer(identity, profile, record.shop_id),
         amount: { total: chargeAmount },
         currency: "KRW",
@@ -662,7 +662,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     body: JSON.stringify({
       storeId: env.portoneStoreId,
       billingKey: record.billing_key,
-      orderName: `${plan.name} 멍매니저 구독`,
+      orderName: `${plan.name} 펫매니저 구독`,
       customer: buildPortoneCustomer(identity, profile, shopId),
       amount: { total: chargeAmount },
       currency: "KRW",

@@ -1,7 +1,7 @@
 ﻿import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
 import { ownerPaidServiceTerms } from "@/lib/auth/owner-paid-service-terms";
 
-const refundSummary = `멍매니저는 카드 등록 없이 2주 무료체험을 시작하고, 계속 사용하려는 시점에 직접 결제를 진행하는 방식으로 운영됩니다.
+const refundSummary = `펫매니저는 카드 등록 없이 2주 무료체험을 시작하고, 계속 사용하려는 시점에 직접 결제를 진행하는 방식으로 운영됩니다.
 
 - 무료체험 기간 중에는 요금이 청구되지 않습니다.
 - 무료체험이 끝난 뒤에는 자동결제되지 않으며, 결제 전까지 서비스 사용이 제한될 수 있습니다.

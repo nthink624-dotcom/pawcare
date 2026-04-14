@@ -53,7 +53,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">
       <div className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">멍매니저 이용 상태</p>
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 이용 상태</p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">{title}</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{body}</p>
 

@@ -1,4 +1,4 @@
-﻿import { LEGAL_BUSINESS_INFO, LEGAL_LINKS } from "@/lib/legal/legal-info";
+import { LEGAL_BUSINESS_INFO, LEGAL_LINKS } from "@/lib/legal/legal-info";
 
 export default function LegalLinksFooter() {
   return (
@@ -12,6 +12,7 @@ export default function LegalLinksFooter() {
           대표자 {LEGAL_BUSINESS_INFO.representativeName} · 사업자등록번호 {LEGAL_BUSINESS_INFO.businessRegistrationNumber}
         </p>
         <p className="text-[11px] leading-5">주소 {LEGAL_BUSINESS_INFO.address}</p>
+        <p className="text-[11px] leading-5">호스팅서비스 제공자 {LEGAL_BUSINESS_INFO.hostingProvider}</p>
         <p className="text-[11px] leading-5">
           고객센터 {LEGAL_BUSINESS_INFO.customerServicePhone} · {LEGAL_BUSINESS_INFO.customerServiceEmail}
         </p>

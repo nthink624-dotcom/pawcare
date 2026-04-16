@@ -9,6 +9,7 @@ const rows = [
   ["주소", LEGAL_BUSINESS_INFO.address],
   ["고객센터 전화", LEGAL_BUSINESS_INFO.customerServicePhone],
   ["고객센터 이메일", LEGAL_BUSINESS_INFO.customerServiceEmail],
+  ["호스팅서비스 제공자", LEGAL_BUSINESS_INFO.hostingProvider],
 ] as const;
 
 export default function BusinessPage() {

@@ -108,7 +108,7 @@ export default function CustomerBookingEntryPage({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="inline-flex rounded-full border border-white/28 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-white/92">
-              PAWCARE RESERVATION
+              PETMANAGER RESERVATION
             </div>
             <a
               href={infoHref}

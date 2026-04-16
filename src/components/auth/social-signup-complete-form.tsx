@@ -5,25 +5,43 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronRight, CircleUserRound, X } from "lucide-react";
 
-import { OWNER_SIGNUP_TERMS_VERSION, ownerSignupTerms, type OwnerSignupTermId } from "@/lib/auth/owner-signup-terms";
-import { isValidBirthDate8 } from "@/lib/auth/owner-credentials";
+import {
+  OWNER_SIGNUP_TERMS_VERSION,
+  ownerSignupTerms,
+  type OwnerSignupTermId,
+} from "@/lib/auth/owner-signup-terms";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 
 const initialAgreements: AgreementState = {
-  service: true,
-  privacy: true,
-  location: true,
+  service: false,
+  privacy: false,
+  location: false,
   marketing: false,
 };
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
-
-function isValidPhoneNumber(value: string) {
-  return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
+function AgreementRow({
+  checked,
+  label,
+  onClick,
+}: {
+  checked: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 text-left">
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
+          checked ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"
+        }`}
+      >
+        <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
+      </span>
+      <span className="text-[14px] text-[#3d3d3d]">{label}</span>
+    </button>
+  );
 }
 
 function FieldShell({ label, children }: { label: string; children: React.ReactNode }) {
@@ -44,37 +62,22 @@ export default function SocialSignupCompleteForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [name, setName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const requiredAgreed = ownerSignupTerms.filter((term) => term.required).every((term) => agreements[term.id]);
+  const requiredAgreed = ownerSignupTerms
+    .filter((term) => term.required)
+    .every((term) => agreements[term.id]);
+  const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
 
   const handleSubmit = async () => {
     if (loading) return;
 
-    if (!name.trim()) {
-      setMessage("이름을 입력해 주세요.");
-      return;
-    }
-
-    if (!isValidBirthDate8(birthDate)) {
-      setMessage("생년월일은 8자리 숫자로 입력해 주세요.");
-      return;
-    }
-
-    if (!isValidPhoneNumber(phoneNumber)) {
-      setMessage("휴대폰 번호를 올바르게 입력해 주세요.");
-      return;
-    }
-
     if (!shopName.trim() || !shopAddress.trim()) {
-      setMessage("매장 정보를 입력해 주세요.");
+      setMessage("매장명과 매장 주소를 입력해 주세요.");
       return;
     }
 
@@ -91,9 +94,6 @@ export default function SocialSignupCompleteForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
-          birthDate,
-          phoneNumber,
           shopName: shopName.trim(),
           shopAddress: shopAddress.trim(),
           agreements,
@@ -103,7 +103,7 @@ export default function SocialSignupCompleteForm({
 
       const result = (await response.json()) as { message?: string };
       if (!response.ok) {
-        setMessage(result.message ?? "가입 마무리 중 문제가 발생했습니다.");
+        setMessage(result.message ?? "소셜 로그인 정보를 저장하지 못했어요.");
         return;
       }
 
@@ -111,7 +111,7 @@ export default function SocialSignupCompleteForm({
       router.replace(nextPath as never);
       router.refresh();
     } catch {
-      setMessage("가입 마무리 중 문제가 발생했습니다.");
+      setMessage("소셜 로그인 정보를 저장하지 못했어요.");
     } finally {
       setLoading(false);
     }
@@ -135,46 +135,14 @@ export default function SocialSignupCompleteForm({
 
       <div className="mt-8">
         <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">
-          {providerLabel} 로그인 마무리
+          {providerLabel} 로그인
         </h1>
         <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">
-          매장 정보만 입력하면 바로 2주 무료체험을 시작할 수 있어요.
+          {providerLabel} 계정으로 로그인했어요. 매장 정보만 입력하면 바로 무료체험을 시작할 수 있어요.
         </p>
       </div>
 
       <div className="mt-7 space-y-3.5">
-        <FieldShell label="이름">
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="이름 입력"
-            className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
-          />
-        </FieldShell>
-
-        <FieldShell label="생년월일 8자리">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={birthDate}
-            onChange={(event) => setBirthDate(event.target.value.replace(/\D/g, "").slice(0, 8))}
-            placeholder="예: 19990321"
-            className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
-          />
-        </FieldShell>
-
-        <FieldShell label="휴대폰 번호">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={phoneNumber}
-            onChange={(event) => setPhoneNumber(normalizePhoneNumber(event.target.value))}
-            placeholder="숫자만 입력"
-            className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
-          />
-        </FieldShell>
-
         <FieldShell label="매장명">
           <input
             type="text"
@@ -190,30 +158,38 @@ export default function SocialSignupCompleteForm({
             type="text"
             value={shopAddress}
             onChange={(event) => setShopAddress(event.target.value)}
-            placeholder="주소 입력"
+            placeholder="매장 주소 입력"
             className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
           />
         </FieldShell>
 
         <div className="rounded-[18px] border border-[#d8e7df] bg-[#eef8f3] px-4 py-4">
-          <p className="text-[14px] font-semibold text-[#111111]">약관 동의</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-semibold text-[#111111]">약관 동의</p>
+            <button
+              type="button"
+              onClick={() =>
+                setAgreements({
+                  service: !allAgreed,
+                  privacy: !allAgreed,
+                  location: !allAgreed,
+                  marketing: !allAgreed,
+                })
+              }
+              className="text-[13px] font-semibold text-[#2f786b]"
+            >
+              {allAgreed ? "전체 해제" : "전체 선택"}
+            </button>
+          </div>
+          <p className="mt-2 text-[12px] leading-5 text-[#5f6b66]">필수 약관은 무료체험 시작 전에 동의가 필요해요.</p>
           <div className="mt-3 space-y-2.5">
             {ownerSignupTerms.map((term) => (
-              <button
+              <AgreementRow
                 key={term.id}
-                type="button"
+                checked={agreements[term.id]}
+                label={`[${term.required ? "필수" : "선택"}] ${term.title}`}
                 onClick={() => setAgreements((prev) => ({ ...prev, [term.id]: !prev[term.id] }))}
-                className="flex w-full items-center gap-3 text-left"
-              >
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${agreements[term.id] ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"}`}
-                >
-                  <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
-                </span>
-                <span className="text-[14px] text-[#3d3d3d]">
-                  [{term.required ? "필수" : "선택"}] {term.title}
-                </span>
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -224,7 +200,7 @@ export default function SocialSignupCompleteForm({
           disabled={loading}
           className="mt-6 flex h-[52px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "가입 마무리 중..." : "무료체험 시작하기"}
+          {loading ? "무료체험 준비 중..." : "무료체험 시작하기"}
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>

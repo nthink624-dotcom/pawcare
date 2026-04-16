@@ -1,6 +1,10 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 import { isValidBirthDate8, isValidOwnerLoginId, normalizeOwnerLoginId } from "@/lib/auth/owner-credentials";
+
+function normalizePhoneNumber(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
 
 export const ownerPasswordResetSchema = z
   .object({
@@ -16,6 +20,14 @@ export const ownerPasswordResetSchema = z
     birthDate: z.string().trim().refine((value) => isValidBirthDate8(value), {
       message: "생년월일은 8자리 숫자로 입력해 주세요.",
     }),
+    phoneNumber: z
+      .string()
+      .trim()
+      .transform((value) => normalizePhoneNumber(value))
+      .refine((value) => /^01\d{8,9}$/.test(value), {
+        message: "휴대폰 번호를 올바르게 입력해 주세요.",
+      }),
+    identityVerificationToken: z.string().trim().min(1, "본인인증을 먼저 완료해 주세요."),
     password: z.string().min(6, "비밀번호는 6자 이상 입력해 주세요."),
     passwordConfirm: z.string().min(6, "비밀번호 확인을 입력해 주세요."),
   })

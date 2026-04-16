@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { X } from "lucide-react";
 
 import OwnerApp from "@/components/owner/owner-app";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -13,6 +14,9 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   if (summary.status === "past_due" || summary.status === "expired") return null;
   if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
 
+  const dismissKey = `owner-trial-banner:${summary.noticeLevel}:${summary.trialEndsAt}`;
+  const [dismissed, setDismissed] = useState(false);
+
   const title =
     summary.noticeLevel === "1day"
       ? "무료체험이 내일 종료됩니다"
@@ -22,22 +26,42 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
       ? "계속 사용하려면 종료 후 플랜을 확인하고 결제를 진행해 주세요. 자동결제는 되지 않습니다."
       : "미리 플랜을 확인해 두면 무료체험 종료 후 바로 이어서 사용할 수 있어요.";
 
+  useEffect(() => {
+    const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
+    setDismissed(savedDismissKey === dismissKey);
+  }, [dismissKey]);
+
+  if (dismissed) return null;
+
+  const handleDismiss = () => {
+    window.localStorage.setItem("owner-trial-banner-dismissed", dismissKey);
+    setDismissed(true);
+  };
+
   return (
     <div className="mx-auto w-full max-w-[430px] px-4 pt-4">
       <div className="rounded-[22px] border border-[#cfe0da] bg-[#eef8f3] px-4 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-[#18211f]">{title}</p>
-            <p className="mt-1 text-[13px] leading-5 text-[#5f5a54]">{body}</p>
-            <p className="mt-2 text-[12px] text-[#6d746f]">무료체험이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
+          <div className="min-w-0 pr-1">
+            <p className="text-[19px] font-extrabold tracking-[-0.03em] text-[#173b33]">{title}</p>
+            <p className="mt-2 text-[14px] leading-[1.65] text-[#46645c]">{body}</p>
+            <p className="mt-3 text-[12px] leading-5 text-[#6d746f]">무료체험이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
           </div>
-          <a
-            href="/owner/billing"
-            className="shrink-0 rounded-full border border-[#1f5b51] bg-white px-3 py-2 text-xs font-semibold text-[#1f5b51]"
+          <button
+            type="button"
+            onClick={handleDismiss}
+            aria-label="무료체험 안내 닫기"
+            className="shrink-0 rounded-full border border-[#d2dfd9] bg-white p-2.5 text-[#587169] shadow-[0_1px_2px_rgba(23,59,51,0.06)]"
           >
-            플랜 보기
-          </a>
+            <X className="h-4 w-4" strokeWidth={2.2} />
+          </button>
         </div>
+        <a
+          href="/owner/billing"
+          className="mt-5 flex h-[54px] w-full items-center justify-center rounded-[16px] bg-[#1f5b51] px-4 text-[17px] font-bold tracking-[-0.02em] text-white"
+        >
+          업그레이드 플랜
+        </a>
       </div>
     </div>
   );

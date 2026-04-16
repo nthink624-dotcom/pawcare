@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { ownerFindLoginIdSchema } from "@/lib/auth/owner-find-login-id";
+import { readVerifiedIdentityToken } from "@/lib/auth/owner-identity";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 
@@ -12,6 +13,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = ownerFindLoginIdSchema.parse(await request.json());
+    const verifiedIdentity = readVerifiedIdentityToken(body.identityVerificationToken);
+    if (!verifiedIdentity) {
+      return NextResponse.json({ message: "본인인증이 만료되었어요. 다시 인증해 주세요." }, { status: 400 });
+    }
+
+    if (
+      verifiedIdentity.name !== body.name ||
+      verifiedIdentity.birthDate !== body.birthDate ||
+      verifiedIdentity.phoneNumber !== body.phoneNumber
+    ) {
+      return NextResponse.json({ message: "본인인증 정보와 입력한 정보가 일치하지 않습니다." }, { status: 400 });
+    }
+
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });

@@ -1,5 +1,5 @@
 export const env = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "PawCare",
+  appName: process.env.NEXT_PUBLIC_APP_NAME || "petmanager",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,

@@ -3,7 +3,7 @@
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PawCare",
+  title: "petmanager",
   description: "반려동물 미용샵 예약과 고객 관리를 위한 모바일 SaaS",
 };
 

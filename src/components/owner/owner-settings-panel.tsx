@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { getOwnerPlanByCode, ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
@@ -25,7 +25,7 @@ type SaveFeedback = {
   message: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "services" | "notifications" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
 
 type PriceType = "fixed" | "starting";
 type AddressSuggestion = {
@@ -104,40 +104,6 @@ const addressSuggestions: AddressSuggestion[] = [
     detailHint: "청당 포레스트 더힐",
   },
 ];
-
-function getNotificationTypeLabel(type: string) {
-  switch (type) {
-    case "booking_confirmed":
-      return "예약 완료";
-    case "booking_rejected":
-      return "예약 거절";
-    case "booking_cancelled":
-      return "예약 취소";
-    case "booking_rescheduled_confirmed":
-      return "예약 변경";
-    case "appointment_reminder_10m":
-      return "방문 전 안내";
-    case "grooming_started":
-      return "미용 시작 안내";
-    case "grooming_almost_done":
-      return "예상 종료 5분 전 안내";
-    case "grooming_completed":
-      return "미용 완료 안내";
-    case "revisit_notice":
-      return "재방문 안내";
-    case "birthday_greeting":
-      return "생일 안내";
-    default:
-      return "알림 발송";
-  }
-}
-
-function formatNotificationDate(value: string) {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
-}
 
 function monthCursorFromDate(date: string) {
   return date.slice(0, 7);
@@ -254,14 +220,6 @@ export default function OwnerSettingsPanel({
   const selectedPlan = useMemo(
     () => getOwnerPlanByCode(selectedPlanCode) ?? subscriptionSummary?.currentPlan ?? null,
     [selectedPlanCode, subscriptionSummary?.currentPlan],
-  );
-
-  const recentAlimtalkNotifications = useMemo(
-    () =>
-      data.notifications
-        .filter((item) => item.channel === "alimtalk")
-        .slice(0, 20),
-    [data.notifications],
   );
 
   const subscriptionEndDate = useMemo(() => {
@@ -747,55 +705,11 @@ export default function OwnerSettingsPanel({
     </SettingsCard>
   ) : null;
 
-  const notificationsSection = (
-    <SettingsCard title="알림 발송 내역">
-      {recentAlimtalkNotifications.length === 0 ? (
-        <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">
-          아직 발송된 알림톡 내역이 없어요.
-        </div>
-      ) : (
-        <div className="divide-y divide-[var(--border)]">
-          {recentAlimtalkNotifications.map((item) => (
-            <div key={item.id} className="space-y-2 px-1 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[var(--text)]">{getNotificationTypeLabel(item.type)}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{formatNotificationDate(item.sent_at ?? item.created_at)}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    item.status === "sent" || item.status === "mocked"
-                      ? "bg-[#eef8f3] text-[var(--accent)]"
-                      : item.status === "failed"
-                        ? "bg-[#fdf0ec] text-[#b85c47]"
-                        : "bg-[#f4f0ea] text-[var(--muted)]"
-                  }`}
-                >
-                  {item.status === "sent"
-                    ? "발송 완료"
-                    : item.status === "failed"
-                      ? "발송 실패"
-                      : item.status === "queued"
-                        ? "발송 대기"
-                        : item.status === "mocked"
-                          ? "테스트 발송"
-                          : "건너뜀"}
-                </span>
-              </div>
-              <p className="text-[14px] leading-6 text-[var(--text)]">{item.message}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </SettingsCard>
-  );
-
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "운영시간 안내", content: closuresSection },
     services: { title: "서비스 관리", content: servicesSection },
-    notifications: { title: "알림 발송 내역", content: notificationsSection },
     account: { title: "계정", content: accountSection },
   };
 
@@ -865,11 +779,6 @@ export default function OwnerSettingsPanel({
           icon={Scissors}
           title="서비스 관리"
           onClick={() => setActiveScreen("services")}
-        />
-        <SettingsNavRow
-          icon={Bell}
-          title="알림 발송 내역"
-          onClick={() => setActiveScreen("notifications")}
         />
         {onLogout ? (
           <SettingsNavRow

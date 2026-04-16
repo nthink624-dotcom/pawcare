@@ -87,7 +87,7 @@ export default function OwnerApp({
   const [visitDateFilter, setVisitDateFilter] = useState(currentDateInTimeZone());
   const [visitSelectionMode, setVisitSelectionMode] = useState<"single" | "range">("single");
   const [visitRange, setVisitRange] = useState<{ start: string; end: string } | null>(null);
-  const [detailTab, setDetailTab] = useState<"info" | "records" | "appointments">("info");
+  const [detailTab, setDetailTab] = useState<"pets" | "records" | "notifications">("pets");
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
   const [pendingVisitDate, setPendingVisitDate] = useState(currentDateInTimeZone());
@@ -284,18 +284,18 @@ export default function OwnerApp({
     () => new Set(selectedRecords.map((record) => record.appointment_id).filter(Boolean)),
     [selectedRecords],
   );
-  const selectedAppointments = selectedPet
-    ? data.appointments.filter(
-        (item) =>
-          item.pet_id === selectedPet.id &&
-          (!selectedRecordAppointmentIds.has(item.id) || !["completed"].includes(item.status)),
-      )
-    : [];
+  const selectedNotifications = useMemo(() => {
+    if (!selectedGuardian) return [];
+    const selectedPetIds = new Set(selectedGuardianPets.map((item) => item.id));
+    return data.notifications
+      .filter((item) => {
+        const sameGuardian = item.guardian_id === selectedGuardian.id;
+        const samePet = item.pet_id ? selectedPetIds.has(item.pet_id) : false;
+        return sameGuardian || samePet;
+      })
+      .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at));
+  }, [data.notifications, selectedGuardian, selectedGuardianPets]);
   const selectedLatestRecord = selectedPet ? [...selectedRecords].sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))[0] : null;
-  const selectedLatestAppointment = selectedPet ? [...selectedAppointments].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`))[0] : null;
-  const selectedLatestService = selectedLatestRecord ? serviceMap[selectedLatestRecord.service_id] : selectedLatestAppointment ? serviceMap[selectedLatestAppointment.service_id] : null;
-  const selectedVisitCount = selectedRecords.length;
-  const selectedRevisitState = selectedPet ? revisitRows.find((row) => row.pet.id === selectedPet.id) : null;
   const canSaveGuardianProfile = Boolean(
     selectedGuardian &&
       guardianDraft.name.trim() &&
@@ -656,30 +656,126 @@ export default function OwnerApp({
 
   async function sendBirthdayGreeting(pet: Pet) {
     const guardian = guardianMap[pet.guardian_id];
-    await mutate("/api/notifications", {
-      method: "POST",
-      body: JSON.stringify({
-        shopId: data.shop.id,
-        guardianId: guardian.id,
-        petId: pet.id,
-        type: "birthday_greeting",
-        message: `안녕하세요. ${data.shop.name}입니다. ${pet.name}의 생일을 축하드려요! 오늘도 행복한 하루 보내세요.`,
-      }),
-    });
+    if (!guardian) return;
+
+    if (isOwnerDemo) {
+      const now = new Date().toISOString();
+      setData((prev) => ({
+        ...prev,
+        notifications: [
+          {
+            id: `demo-birthday-${pet.id}-${Date.now()}`,
+            shop_id: prev.shop.id,
+            appointment_id: null,
+            pet_id: pet.id,
+            guardian_id: guardian.id,
+            type: "birthday_greeting",
+            channel: "alimtalk",
+            message: `[${prev.shop.name}] ${pet.name}의 생일을 축하드려요. 오늘도 행복한 하루 보내세요.`,
+            status: "mocked",
+            provider: "mock",
+            provider_message_id: null,
+            recipient_phone: guardian.phone,
+            fail_reason: null,
+            scheduled_at: null,
+            sent_at: now,
+            created_at: now,
+            template_key: "birthday_greeting",
+            template_type: "birthday_greeting",
+            metadata: { source: "manual" },
+          },
+          ...prev.notifications,
+        ],
+      }));
+      setDetailTab("notifications");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await fetchJson("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId: data.shop.id,
+          guardianId: guardian.id,
+          petId: pet.id,
+          type: "birthday_greeting",
+          templateKey: "birthday_greeting",
+          templateType: "birthday_greeting",
+          message: `[${data.shop.name}] ${pet.name}의 생일을 축하드려요. 오늘도 행복한 하루 보내세요.`,
+        }),
+      });
+      await refresh();
+      setDetailTab("notifications");
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "생일 축하 알림 발송에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function sendRevisitNotice(pet: Pet) {
     const guardian = guardianMap[pet.guardian_id];
-    await mutate("/api/notifications", {
-      method: "POST",
-      body: JSON.stringify({
-        shopId: data.shop.id,
-        guardianId: guardian.id,
-        petId: pet.id,
-        type: "revisit_notice",
-        message: `${pet.name} 재방문 안내 알림을 발송했어요.`,
-      }),
-    });
+    if (!guardian) return;
+
+    if (isOwnerDemo) {
+      const now = new Date().toISOString();
+      setData((prev) => ({
+        ...prev,
+        notifications: [
+          {
+            id: `demo-revisit-${pet.id}-${Date.now()}`,
+            shop_id: prev.shop.id,
+            appointment_id: null,
+            pet_id: pet.id,
+            guardian_id: guardian.id,
+            type: "revisit_notice",
+            channel: "alimtalk",
+            message: `[${prev.shop.name}] ${pet.name} 재방문 안내 알림을 발송했어요.`,
+            status: "mocked",
+            provider: "mock",
+            provider_message_id: null,
+            recipient_phone: guardian.phone,
+            fail_reason: null,
+            scheduled_at: null,
+            sent_at: now,
+            created_at: now,
+            template_key: "revisit_notice",
+            template_type: "revisit_notice",
+            metadata: { source: "manual" },
+          },
+          ...prev.notifications,
+        ],
+      }));
+      setDetailTab("notifications");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await fetchJson("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId: data.shop.id,
+          guardianId: guardian.id,
+          petId: pet.id,
+          type: "revisit_notice",
+          templateKey: "revisit_notice",
+          templateType: "revisit_notice",
+          message: `[${data.shop.name}] ${pet.name} 재방문 안내 알림을 발송했어요.`,
+        }),
+      });
+      await refresh();
+      setDetailTab("notifications");
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "재방문 알림 발송에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function sendAppointmentReminder(appointment: Appointment, pet: Pet, guardian: Guardian, service: Service) {
@@ -825,18 +921,18 @@ export default function OwnerApp({
                 </button>
               }
             >
-              <div className="rounded-[16px] border border-[var(--border)] bg-white p-3.5">
+              <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-3">
                 <input
                   value={customerSearch}
                   onChange={(event) => setCustomerSearch(event.target.value)}
                   placeholder="보호자명, 연락처, 아기 이름 검색"
-                  className="w-full bg-transparent text-sm outline-none"
+                  className="w-full bg-transparent text-[14px] outline-none"
                 />
               </div>
 
               {isCustomerListEditing && filteredGuardians.length > 0 ? (
                 <div className="flex items-center justify-between px-1 py-1">
-                  <label className="flex items-center gap-2.5 text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">
+                  <label className="flex items-center gap-2.5 text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">
                     <input
                       type="checkbox"
                       checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
@@ -845,18 +941,16 @@ export default function OwnerApp({
                     />
                     전체 선택
                   </label>
-                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className="px-1 py-1 text-[13px] font-semibold tracking-[-0.01em] text-[#9a756a] transition hover:text-[#805a4f] disabled:text-[var(--muted)]"
+                      className="px-1 py-1 text-[14px] font-medium tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
                       onClick={deleteSelectedGuardians}
                       disabled={selectedGuardianIds.length === 0 || saving}
                     >
                       선택 삭제
                     </button>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
               {filteredGuardians.length === 0 ? (
                 <EmptyState title="조건에 맞는 고객이 없어요" />
@@ -865,7 +959,7 @@ export default function OwnerApp({
                   {filteredGuardians.map((summary) => (
                     <div
                       key={summary.guardian.id}
-                      className="flex items-start gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 transition hover:bg-[#fcfaf7]"
+                      className="flex items-start gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 transition hover:bg-[#fcfaf7]"
                     >
                       {isCustomerListEditing ? (
                         <input
@@ -880,16 +974,16 @@ export default function OwnerApp({
                         className="min-w-0 flex-1 text-left"
                         onClick={() => {
                           setSelectedPetId(summary.pets[0]?.id || null);
-                          setDetailTab("info");
+                          setDetailTab("pets");
                         }}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                            <p className="mt-1 text-[14px] font-medium text-[var(--muted)]">{summary.guardian.phone}</p>
-                            <p className="mt-1.5 text-[14px] font-medium leading-5 text-[var(--text)]">아기 이름: {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
+                            <p className="mt-0.5 text-[14px] font-medium leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
+                            <p className="mt-1 text-[14px] font-medium leading-5 text-[var(--text)]">아기 이름 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
                           </div>
-                          <span className="pt-0.5 text-[13px] font-semibold text-[var(--accent)]">상세</span>
+                          <span className="pt-1 text-[12px] font-semibold text-[var(--accent)]">상세</span>
                         </div>
                       </button>
                     </div>
@@ -947,7 +1041,7 @@ export default function OwnerApp({
                         <div className="flex items-center gap-3">
                           {!isGuardianEditing ? (
                             <button
-                              className="text-xs font-medium tracking-[0.01em] text-[#8f756e] transition hover:text-[#6b5b57]"
+                              className="text-[12px] font-medium tracking-[0.01em] text-[var(--muted)] transition hover:text-[#6b5b57]"
                               onClick={handleGuardianDelete}
                               disabled={saving}
                             >
@@ -985,7 +1079,7 @@ export default function OwnerApp({
                         </div>
                       }
                     >
-                      <div className="grid grid-cols-2 gap-2.5 text-sm">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
                           {isGuardianEditing ? (
                             <>
                               <Field label="보호자 이름">
@@ -1017,7 +1111,7 @@ export default function OwnerApp({
                       </div>
 
                       {isGuardianMemoEditing ? (
-                        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+                        <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
                           <div className="mb-3 flex items-center justify-between">
                             <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
                             <div className="flex items-center gap-3">
@@ -1051,35 +1145,35 @@ export default function OwnerApp({
                       ) : selectedGuardian.memo ? (
                         <button
                           type="button"
-                          className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition hover:bg-[#fcfaf7]"
+                          className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left transition hover:bg-[#fcfaf7]"
                           onClick={() => setIsGuardianMemoEditing(true)}
                         >
                           <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
-                          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{selectedGuardian.memo}</p>
+                          <p className="mt-1 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{selectedGuardian.memo}</p>
                         </button>
                       ) : (
                         <button
                           type="button"
-                          className="w-full rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4 text-left transition hover:bg-[#f8f3ed]"
+                          className="w-full rounded-[16px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-2.5 text-left transition hover:bg-[#f8f3ed]"
                           onClick={() => setIsGuardianMemoEditing(true)}
                         >
                           <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
-                          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[var(--muted)]">터치해서 고객 메모를 적어주세요</p>
+                          <p className="mt-1 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--muted)]">터치해서 고객 메모를 적어주세요</p>
                         </button>
                       )}
 
-                      <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
-                        <p className="text-sm font-bold">빠른 액션</p>
-                        <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+                        <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">빠른 액션</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
                           <a
                             href={`tel:${selectedGuardian.phone}`}
-                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--text)]"
+                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--text)]"
                           >
                             전화하기
                           </a>
                           <a
                             href={`sms:${selectedGuardian.phone}`}
-                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]"
+                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--muted)]"
                           >
                             문자 보내기
                           </a>
@@ -1087,28 +1181,34 @@ export default function OwnerApp({
                       </div>
 
                       <div className="mt-3 flex gap-2">
-                        {(["info", "records", "appointments"] as const).map((item) => (
+                        {(["pets", "records", "notifications"] as const).map((item) => (
                           <button
                             key={item}
-                            className={`flex-1 rounded-[14px] border px-3 py-2.5 text-xs font-semibold ${
+                            className={`flex-1 rounded-[14px] border px-3 py-2.5 text-[12px] font-semibold ${
                               detailTab === item
                                 ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                                 : "border-[var(--border)] bg-white text-[var(--muted)]"
                             }`}
                             onClick={() => setDetailTab(item)}
                           >
-                            {item === "info" ? "반려동물" : item === "records" ? "미용 기록" : "예약 내역"}
+                            {item === "pets" ? (
+                              "아기 정보"
+                            ) : item === "records" ? (
+                              "미용 기록"
+                            ) : (
+                              <span className="leading-[1.15]">알림톡<br />발송내역</span>
+                            )}
                           </button>
                         ))}
                       </div>
 
-                      {detailTab === "info" ? (
+                      {detailTab === "pets" ? (
                         <div className="mt-4 space-y-3">
-                          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+                          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                             <div className="mb-3 flex items-center justify-between">
-                              <p className="text-sm font-bold">아기 정보</p>
+                              <p className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">아기 정보</p>
                               <button
-                                className="text-xs font-semibold text-[var(--accent)]"
+                                className="text-[12px] font-semibold text-[var(--accent)]"
                                 onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
                               >
                                 + 아기 추가하기
@@ -1131,7 +1231,7 @@ export default function OwnerApp({
                           </div>
 
                           <button
-                            className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
+                            className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
                             onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}
                           >
                             이 아기로 예약 등록
@@ -1156,19 +1256,16 @@ export default function OwnerApp({
                         </div>
                       ) : null}
 
-                      {detailTab === "appointments" ? (
+                      {detailTab === "notifications" ? (
                         <div className="mt-4 space-y-3">
-                          {selectedAppointments.length === 0 ? (
-                            <EmptyState title="예약 이력이 없어요" />
+                          {selectedNotifications.length === 0 ? (
+                            <EmptyState title="발송된 알림이 없어요" />
                           ) : (
-                            selectedAppointments.map((appointment) => (
-                              <AppointmentRow
-                                key={appointment.id}
-                                appointment={appointment}
-                                pet={selectedPet}
-                                guardian={selectedGuardian}
-                                service={serviceMap[appointment.service_id]}
-                                onClick={() => setModal({ type: "appointment", appointment })}
+                            selectedNotifications.map((notification) => (
+                              <NotificationHistoryRow
+                                key={notification.id}
+                                notification={notification}
+                                pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
                               />
                             ))
                           )}
@@ -1565,7 +1662,7 @@ function RejectionReasonEditor({ template, customReason, onTemplateChange, onCus
 }
 
 
-function GuardianPetEditorCard({ pet, saving, isBirthdayToday, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) { const [name, setName] = useState(pet.name); const [breed, setBreed] = useState(pet.breed); const [birthday, setBirthday] = useState(pet.birthday ?? ""); return <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><button className="text-left" onClick={onSelect}><p className="text-sm font-semibold">{pet.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p></button><span className="rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)]">상세 연결</span></div><div className="mt-3 space-y-3"><Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field><Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field></div><div className="mt-2.5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>아기 정보 저장</ActionButton><ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton></div><div className="mt-2">{birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-2xl bg-[#fcfaf7] px-4 py-3 text-center text-sm text-[var(--muted)]">생일 미등록</div>}</div></div>; }
+function GuardianPetEditorCard({ pet, saving, isBirthdayToday, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) { const [name, setName] = useState(pet.name); const [breed, setBreed] = useState(pet.breed); const [birthday, setBirthday] = useState(pet.birthday ?? ""); return <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5"><div className="flex items-center justify-between gap-3"><button className="text-left" onClick={onSelect}><p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet.name}</p><p className="mt-0.5 text-[12px] font-medium text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p></button></div><div className="mt-2.5 space-y-2"><Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field><Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field></div><div className="mt-2.5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>아기 정보 저장</ActionButton><ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton></div><div className="mt-2">{birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-[14px] bg-[#fcfaf7] px-4 py-2 text-center text-[12px] font-medium text-[var(--muted)]">생일 미등록</div>}</div></div>; }
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
   return (
     <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -1622,7 +1719,57 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
   return <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${cls}`}>{text}</span>;
 }
 
-function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 ${className}`.trim()}><p className="text-[13px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1.5 flex min-h-[24px] items-center text-[18px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
+function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2 ${className}`.trim()}><p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1 flex min-h-[20px] items-center text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
+
+function NotificationHistoryRow({ notification, pet }: { notification: BootstrapPayload["notifications"][number]; pet: Pet | null }) {
+  const typeLabel = (() => {
+    switch (notification.type) {
+      case "booking_confirmed":
+        return "예약 완료";
+      case "booking_rejected":
+        return "예약 거절";
+      case "booking_cancelled":
+        return "예약 취소";
+      case "booking_rescheduled_confirmed":
+        return "예약 변경";
+      case "appointment_reminder_10m":
+        return "방문 전 안내";
+      case "grooming_started":
+        return "미용 시작";
+      case "grooming_almost_done":
+        return "픽업 준비";
+      case "grooming_completed":
+        return "미용 완료";
+      case "revisit_notice":
+        return "재방문 안내";
+      case "birthday_greeting":
+        return "생일 축하";
+      default:
+        return "알림 발송";
+    }
+  })();
+  const statusLabel =
+    notification.status === "sent" || notification.status === "mocked"
+      ? "발송 완료"
+      : notification.status === "failed"
+        ? "발송 실패"
+        : notification.status === "queued"
+          ? "발송 대기"
+          : "건너뜀";
+  const statusTone =
+    notification.status === "sent" || notification.status === "mocked"
+      ? "bg-[#eef8f3] text-[var(--accent)]"
+      : notification.status === "failed"
+        ? "bg-[#fdf0ec] text-[#b85c47]"
+        : "bg-[#f4f0ea] text-[var(--muted)]";
+  const timestamp = notification.sent_at ?? notification.created_at;
+  const parsed = new Date(timestamp);
+  const timeLabel = Number.isNaN(parsed.getTime())
+    ? timestamp
+    : `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+
+  return <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><p className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">{typeLabel}</p>{pet ? <span className="text-[12px] font-medium text-[var(--muted)]">{pet.name}</span> : null}</div><p className="mt-1 text-[12px] font-medium text-[var(--muted)]">{timeLabel}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusTone}`}>{statusLabel}</span></div><p className="mt-2 text-[14px] leading-6 text-[var(--text)]">{notification.message}</p></div>;
+}
 
 
 

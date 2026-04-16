@@ -1,50 +1,27 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, CircleUserRound, Eye, EyeOff, X } from "lucide-react";
+import { CircleUserRound, Eye, EyeOff, X } from "lucide-react";
 
 import SocialLoginButtons from "@/components/auth/social-login-buttons";
-import { env } from "@/lib/env";
+import { OWNER_SIGNUP_TERMS_VERSION, ownerSignupTerms, type OwnerSignupTermId } from "@/lib/auth/owner-signup-terms";
 import {
-  OWNER_SIGNUP_TERMS_VERSION,
-  ownerSignupTerms,
-  type OwnerSignupTermId,
-} from "@/lib/auth/owner-signup-terms";
-import { getSocialOAuthProvider, type SocialProvider } from "@/lib/auth/social-auth";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import {
+  buildOwnerAuthEmail,
   isValidBirthDate8,
   isValidOwnerLoginId,
   isValidOwnerPassword,
   normalizeOwnerLoginId,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
+import { env } from "@/lib/env";
+import { getSocialOAuthProvider, type SocialProvider } from "@/lib/auth/social-auth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type SignupStep = "terms" | "verification" | "profile";
+type Step = "entry" | "verify" | "profile";
+type StartTarget = { kind: "email" } | { kind: "social"; provider: SocialProvider } | null;
 type AgreementState = Record<OwnerSignupTermId, boolean>;
-
-type FieldState = {
-  loginId: string;
-  password: string;
-  passwordConfirm: string;
-  name: string;
-  birthDate: string;
-  phoneNumber: string;
-  verificationCode: string;
-  shopName: string;
-  shopAddress: string;
-};
-
-type VerificationState = {
-  requested: boolean;
-  verified: boolean;
-  verificationToken: string | null;
-  challengeToken: string | null;
-  requesting: boolean;
-  verifying: boolean;
-  passLoading: boolean;
-};
 
 const initialAgreements: AgreementState = {
   service: false,
@@ -53,25 +30,23 @@ const initialAgreements: AgreementState = {
   marketing: false,
 };
 
-const initialVerificationState: VerificationState = {
-  requested: false,
-  verified: false,
-  verificationToken: null,
-  challengeToken: null,
-  requesting: false,
-  verifying: false,
-  passLoading: false,
-};
-
-function normalizePhoneNumber(value: string) {
+function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
 
-function isValidPhoneNumber(value: string) {
-  return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
+function toKoreanAuthError(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("invalid login credentials")) return "아이디 또는 비밀번호가 맞지 않습니다.";
+  if (normalized.includes("email not confirmed")) return "이메일 인증이 완료되지 않았습니다.";
+  if (normalized.includes("user already registered")) return "이미 가입된 계정입니다.";
+  if (normalized.includes("password should be at least")) return "비밀번호는 6자 이상 입력해 주세요.";
+  if (normalized.includes("unable to validate email address")) return "아이디 형식을 다시 확인해 주세요.";
+  if (normalized.includes("oauth")) return "소셜 로그인 처리 중 문제가 발생했습니다.";
+  return "로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
-function FieldShell({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block rounded-[20px] border border-[#dbd7d0] bg-white px-[14px] py-[9px]">
       <span className="block text-[13px] font-medium text-[#757575]">{label}</span>
@@ -80,184 +55,269 @@ function FieldShell({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-function AgreementRow({
-  checked,
-  title,
-  required,
-  description,
-  onToggle,
-  onOpen,
+function EntrySection({
+  loginId,
+  password,
+  showPassword,
+  loading,
+  socialLoading,
+  onLoginIdChange,
+  onPasswordChange,
+  onTogglePassword,
+  onLogin,
+  onStartEmail,
+  onStartSocial,
 }: {
-  checked: boolean;
-  title: string;
-  required: boolean;
-  description: string;
-  onToggle: () => void;
-  onOpen: () => void;
+  loginId: string;
+  password: string;
+  showPassword: boolean;
+  loading: boolean;
+  socialLoading: SocialProvider | null;
+  onLoginIdChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onTogglePassword: () => void;
+  onLogin: () => void;
+  onStartEmail: () => void;
+  onStartSocial: (provider: SocialProvider) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-[18px] border border-[#e4ddd2] bg-white px-4 py-4">
-      <button
-        type="button"
-        aria-label={`${required ? "필수" : "선택"} ${title} 동의`}
-        onClick={onToggle}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${checked ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"}`}
-      >
-        <Check className="h-4 w-4" strokeWidth={2.4} />
-      </button>
-      <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
-        <p className="text-[15px] font-medium text-[#111111]">[{required ? "필수" : "선택"}] {title}</p>
-        <p className="mt-1 text-[12px] text-[#8a857d]">{description}</p>
-      </button>
-      <button type="button" onClick={onOpen} className="text-[14px] font-medium text-[#6f6f6f] underline underline-offset-4">
-        보기
-      </button>
+    <div className="mt-8 space-y-6">
+      <div className="space-y-3.5">
+        <Field label="아이디">
+          <input
+            type="text"
+            value={loginId}
+            onChange={(event) => onLoginIdChange(event.target.value)}
+            placeholder="아이디 입력"
+            className="h-5 w-full border-0 bg-transparent p-0 text-[14px] font-medium leading-5 text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+          />
+        </Field>
+
+        <Field label="비밀번호">
+          <div className="flex items-center gap-3">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              placeholder="비밀번호 입력"
+              className="h-5 w-full border-0 bg-transparent p-0 text-[14px] font-medium leading-5 text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+            />
+            <button type="button" onClick={onTogglePassword} className="text-[#111111]" aria-label="비밀번호 표시 전환">
+              {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
+            </button>
+          </div>
+        </Field>
+
+        <button
+          type="button"
+          onClick={onLogin}
+          disabled={loading || !loginId || !password}
+          className="flex h-[54px] w-full items-center justify-center rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-4">
+          <div className="h-px flex-1 bg-[#e4e0d8]" />
+          <span className="text-[15px] font-medium text-[#353535]">일반 회원가입</span>
+          <div className="h-px flex-1 bg-[#e4e0d8]" />
+        </div>
+        <button
+          type="button"
+          onClick={onStartEmail}
+          className="flex h-[56px] w-full items-center justify-center rounded-[20px] border border-[#d9d2c7] bg-white px-5 text-[16px] font-semibold text-[#111111]"
+        >
+          회원가입으로 시작하기
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-4">
+          <div className="h-px flex-1 bg-[#e4e0d8]" />
+          <span className="text-[15px] font-medium text-[#353535]">빠른 로그인 / 회원가입</span>
+          <div className="h-px flex-1 bg-[#e4e0d8]" />
+        </div>
+        <SocialLoginButtons onLogin={onStartSocial} loadingProvider={socialLoading} disabled={loading} />
+      </div>
     </div>
   );
 }
 
-export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/owner/billing" }: { supabaseReady: boolean; portoneReady: boolean; nextPath?: string }) {
+export default function SignupForm({
+  supabaseReady,
+  portoneReady,
+  nextPath = "/owner",
+  initialStart = null,
+}: {
+  supabaseReady: boolean;
+  portoneReady: boolean;
+  nextPath?: string;
+  initialStart?: "email" | null;
+}) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [step, setStep] = useState<SignupStep>("terms");
+  const [step, setStep] = useState<Step>("entry");
+  const [startTarget, setStartTarget] = useState<StartTarget>(null);
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
-  const [activeTermId, setActiveTermId] = useState<OwnerSignupTermId | null>(null);
-  const [fields, setFields] = useState<FieldState>({
-    loginId: "",
-    password: "",
-    passwordConfirm: "",
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [entryLoginId, setEntryLoginId] = useState("");
+  const [entryPassword, setEntryPassword] = useState("");
+  const [fields, setFields] = useState({
     name: "",
     birthDate: "",
     phoneNumber: "",
     verificationCode: "",
+    loginId: "",
+    password: "",
+    passwordConfirm: "",
     shopName: "",
     shopAddress: "",
   });
-  const [verification, setVerification] = useState<VerificationState>(initialVerificationState);
-  const [devVerificationCode, setDevVerificationCode] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
-  const [checkingLoginId, setCheckingLoginId] = useState(false);
-  const [loginIdMessage, setLoginIdMessage] = useState<string | null>(null);
-  const [loginIdAvailable, setLoginIdAvailable] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  const activeTerm = activeTermId ? ownerSignupTerms.find((term) => term.id === activeTermId) ?? null : null;
-  const requiredAgreed = ownerSignupTerms.filter((term) => term.required).every((term) => agreements[term.id]);
+  const requiredAgreed = agreements.service && agreements.privacy;
   const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
 
-  const resetVerification = () => {
-    setVerification(initialVerificationState);
-    setDevVerificationCode(null);
-    setFields((prev) => ({ ...prev, verificationCode: "" }));
-  };
+  useEffect(() => {
+    let active = true;
 
-  const updateField = (key: keyof FieldState, value: string) => {
+    async function run() {
+      if (!supabaseReady || !supabase) return;
+      const { data } = await supabase.auth.getSession();
+      if (!active || !data.session?.access_token) return;
+
+      if (initialStart === "email") {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      router.replace(nextPath as never);
+      router.refresh();
+    }
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [initialStart, nextPath, router, supabase, supabaseReady]);
+
+  useEffect(() => {
+    if (initialStart !== "email") return;
+
+    setStep("entry");
+    setStartTarget({ kind: "email" });
+  }, [initialStart]);
+
+  const updateField = (key: keyof typeof fields, value: string) => {
+    const normalizedValue =
+      key === "birthDate"
+        ? value.replace(/\D/g, "").slice(0, 8)
+        : key === "phoneNumber"
+          ? normalizePhone(value)
+          : value;
+
     setFields((prev) => ({
       ...prev,
-      [key]:
-        key === "birthDate"
-          ? value.replace(/\D/g, "").slice(0, 8)
-          : key === "phoneNumber"
-            ? normalizePhoneNumber(value)
-            : value,
+      [key]: normalizedValue,
+      ...(key === "name" || key === "birthDate" || key === "phoneNumber" ? { verificationCode: "" } : {}),
     }));
 
-    if (key === "loginId") {
-      setLoginIdAvailable(null);
-      setLoginIdMessage(null);
-    }
-
     if (key === "name" || key === "birthDate" || key === "phoneNumber") {
-      resetVerification();
+      setChallengeToken(null);
+      setVerificationToken(null);
+      setDevCode(null);
     }
   };
 
-  const updateAgreement = (id: OwnerSignupTermId, checked: boolean) => {
-    setAgreements((prev) => ({ ...prev, [id]: checked }));
-  };
-
-  const toggleAgreement = (id: OwnerSignupTermId) => {
-    setAgreements((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const toggleAllAgreements = () => {
-    const nextValue = !allAgreed;
-    setAgreements({
-      service: nextValue,
-      privacy: nextValue,
-      location: nextValue,
-      marketing: nextValue,
-    });
-  };
-
-  const openTermModal = (id: OwnerSignupTermId) => {
-    setActiveTermId(id);
-  };
-
-  const closeTermModal = () => {
-    setActiveTermId(null);
-  };
-
-  const checkLoginId = async () => {
-    const normalized = normalizeOwnerLoginId(fields.loginId);
-
-    if (!normalized) {
-      setLoginIdAvailable(null);
-      setLoginIdMessage("아이디를 입력해 주세요.");
-      return false;
+  const handleEntryLogin = async () => {
+    if (!supabaseReady || !supabase) {
+      setMessage("Supabase 환경 변수가 설정되지 않았습니다. 먼저 환경 설정을 확인해 주세요.");
+      return;
     }
 
-    if (!isValidOwnerLoginId(normalized)) {
-      setLoginIdAvailable(false);
-      setLoginIdMessage("아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요.");
-      return false;
-    }
-
-    setCheckingLoginId(true);
-    setLoginIdMessage(null);
+    setLoading(true);
+    setMessage(null);
 
     try {
-      const response = await fetch(`/api/auth/check-login-id?loginId=${encodeURIComponent(normalized)}`);
-      const result = (await response.json()) as { available?: boolean; message?: string };
-      setLoginIdAvailable(Boolean(result.available));
-      setLoginIdMessage(result.message ?? null);
-      return Boolean(result.available);
-    } catch {
-      setLoginIdAvailable(false);
-      setLoginIdMessage("아이디 중복 확인 중 문제가 발생했습니다.");
-      return false;
+      const { error } = await supabase.auth.signInWithPassword({
+        email: buildOwnerAuthEmail(entryLoginId),
+        password: entryPassword,
+      });
+
+      if (error) {
+        setMessage(toKoreanAuthError(error.message));
+        return;
+      }
+
+      router.replace(nextPath as never);
+      router.refresh();
     } finally {
-      setCheckingLoginId(false);
+      setLoading(false);
     }
   };
 
-  const validateIdentityFields = () => {
-    if (!fields.name.trim()) {
-      setMessage("이름을 먼저 입력해 주세요.");
-      return false;
+  const handleSocialLogin = async (provider: SocialProvider) => {
+    if (!supabaseReady || !supabase) {
+      setMessage("소셜 로그인을 위한 환경 설정이 아직 준비되지 않았어요.");
+      return;
     }
 
-    if (!isValidBirthDate8(fields.birthDate)) {
-      setMessage("생년월일은 8자리 숫자로 입력해 주세요.");
-      return false;
-    }
+    setSocialLoading(provider);
+    setMessage(null);
 
-    if (!isValidPhoneNumber(fields.phoneNumber)) {
-      setMessage("휴대폰 번호를 올바르게 입력해 주세요.");
-      return false;
-    }
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
+        options: { redirectTo },
+      });
 
-    return true;
+      if (error) {
+        setMessage("소셜 로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      setSocialLoading(null);
+    }
   };
 
-  const requestVerificationCode = async () => {
-    if (verification.requesting) return;
-    if (!validateIdentityFields()) return;
+  const openStart = (target: StartTarget) => {
+    setMessage(null);
+    setStartTarget(target);
+  };
 
-    setVerification((prev) => ({ ...prev, requesting: true }));
+  const continueStart = async () => {
+    if (!requiredAgreed || !startTarget) {
+      setMessage("필수 약관에 동의해 주세요.");
+      return;
+    }
+
+    const target = startTarget;
+    setStartTarget(null);
+
+    if (target.kind === "email") {
+      setStep("verify");
+      return;
+    }
+
+    await handleSocialLogin(target.provider);
+  };
+
+  const requestCode = async () => {
+    if (!fields.name.trim()) return setMessage("이름을 입력해 주세요.");
+    if (!isValidBirthDate8(fields.birthDate)) return setMessage("생년월일 8자리를 입력해 주세요.");
+    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) return setMessage("휴대폰 번호를 다시 확인해 주세요.");
+
+    setLoading(true);
     setMessage(null);
 
     try {
@@ -270,42 +330,28 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
           phoneNumber: fields.phoneNumber,
         }),
       });
-
-      const result = (await response.json()) as {
-        message?: string;
-        devVerificationCode?: string;
-        challengeToken?: string;
-      };
+      const result = await response.json();
 
       if (!response.ok) {
-        setMessage(result.message ?? "인증번호 요청에 실패했습니다.");
+        setMessage(result.message ?? "인증번호 요청에 실패했어요.");
         return;
       }
 
-      setVerification((prev) => ({ ...prev, requested: true, challengeToken: result.challengeToken ?? null }));
-      setDevVerificationCode(result.devVerificationCode ?? null);
-      setMessage("로컬 테스트용 인증번호를 준비했어요.");
-    } catch {
-      setMessage("인증번호 요청 중 문제가 발생했습니다.");
+      setChallengeToken(result.challengeToken ?? null);
+      setDevCode(result.devVerificationCode ?? null);
+      setMessage("인증번호를 전송했어요.");
     } finally {
-      setVerification((prev) => ({ ...prev, requesting: false }));
+      setLoading(false);
     }
   };
 
-  const verifyIdentity = async () => {
-    if (verification.verifying) return;
-
-    if (!verification.requested || !verification.challengeToken) {
-      setMessage("먼저 인증번호를 요청해 주세요.");
+  const verifyCode = async () => {
+    if (!challengeToken) {
+      setMessage("먼저 인증번호를 받아 주세요.");
       return;
     }
 
-    if (fields.verificationCode.trim().length !== 6) {
-      setMessage("인증번호 6자리를 입력해 주세요.");
-      return;
-    }
-
-    setVerification((prev) => ({ ...prev, verifying: true }));
+    setLoading(true);
     setMessage(null);
 
     try {
@@ -317,44 +363,36 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
           birthDate: fields.birthDate,
           phoneNumber: fields.phoneNumber,
           code: fields.verificationCode,
-          challengeToken: verification.challengeToken,
+          challengeToken,
         }),
       });
+      const result = await response.json();
 
-      const result = (await response.json()) as { verificationToken?: string; message?: string };
       if (!response.ok || !result.verificationToken) {
         setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
         return;
       }
 
-      setVerification((prev) => ({
-        ...prev,
-        requested: true,
-        verified: true,
-        verificationToken: result.verificationToken ?? null,
-        verifying: false,
-      }));
-      setMessage("본인인증이 완료되었습니다.");
-    } catch {
-      setMessage("본인인증 처리 중 문제가 발생했습니다.");
-      setVerification((prev) => ({ ...prev, verifying: false }));
+      setVerificationToken(result.verificationToken);
+      setMessage("본인인증이 완료되었어요.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const startPassVerification = async () => {
-    if (verification.passLoading) return;
+  const verifyPass = async () => {
     if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-      setMessage("포트원 본인인증 환경 변수가 아직 설정되지 않았습니다.");
+      setMessage("PASS 본인인증 환경이 아직 준비되지 않았어요.");
       return;
     }
-    if (!validateIdentityFields()) return;
 
-    setVerification((prev) => ({ ...prev, passLoading: true }));
+    setLoading(true);
     setMessage(null);
 
     try {
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `mungmanager_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey: env.portoneIdentityChannelKey,
@@ -370,11 +408,11 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
       });
 
       if (!result?.identityVerificationId) {
-        setMessage(result?.message ?? "PASS 본인인증을 시작하지 못했습니다.");
+        setMessage("PASS 본인인증을 완료하지 못했어요.");
         return;
       }
 
-      const verifyResponse = await fetch("/api/auth/verify-pass", {
+      const response = await fetch("/api/auth/verify-pass", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -384,86 +422,29 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
           phoneNumber: fields.phoneNumber,
         }),
       });
+      const verifyResult = await response.json();
 
-      const verifyResult = (await verifyResponse.json()) as { verificationToken?: string; message?: string };
-      if (!verifyResponse.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인인증 확인 중 문제가 발생했습니다.");
+      if (!response.ok || !verifyResult.verificationToken) {
+        setMessage(verifyResult.message ?? "PASS 본인인증 확인에 실패했어요.");
         return;
       }
 
-      setVerification((prev) => ({
-        ...prev,
-        requested: true,
-        verified: true,
-        verificationToken: verifyResult.verificationToken ?? null,
-      }));
-      setMessage("PASS 본인인증이 완료되었습니다.");
-    } catch {
-      setMessage("PASS 본인인증을 진행하지 못했습니다.");
+      setVerificationToken(verifyResult.verificationToken);
+      setMessage("PASS 본인인증이 완료되었어요.");
     } finally {
-      setVerification((prev) => ({ ...prev, passLoading: false }));
+      setLoading(false);
     }
   };
 
-  const handleTermsNext = () => {
-    if (!requiredAgreed) {
-      setMessage("필수 약관에 동의해주세요.");
-      return;
-    }
+  const submitSignup = async () => {
+    if (!verificationToken) return setMessage("본인인증을 먼저 완료해 주세요.");
 
-    setMessage(null);
-    setStep("verification");
-  };
-
-  const handleVerificationNext = () => {
-    if (!verification.verified || !verification.verificationToken) {
-      setMessage("본인인증을 완료해 주세요.");
-      return;
-    }
-
-    setMessage(null);
-    setStep("profile");
-  };
-
-  const handleSignup = async () => {
-    if (loading) return;
-
-    if (!supabaseReady || !supabase) {
-      setMessage("Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.");
-      return;
-    }
-
-    if (!requiredAgreed) {
-      setMessage("필수 약관에 동의해주세요.");
-      setStep("terms");
-      return;
-    }
-
-    if (!verification.verified || !verification.verificationToken) {
-      setMessage("본인인증을 완료해 주세요.");
-      setStep("verification");
-      return;
-    }
-
-    if (!(await checkLoginId())) {
-      return;
-    }
-
-    if (!isValidOwnerPassword(fields.password)) {
-      setMessage(ownerPasswordRuleMessage);
-      return;
-    }
-
-    if (fields.password !== fields.passwordConfirm) {
-      setMessage("비밀번호 확인이 일치하지 않습니다.");
-      return;
-    }
-
-    if (!fields.shopName || !fields.shopAddress) {
-      setMessage("입력하지 않은 항목이 없는지 확인해 주세요.");
-      return;
-    }
-
+    const loginId = normalizeOwnerLoginId(fields.loginId);
+    if (!isValidOwnerLoginId(loginId)) return setMessage("아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요.");
+    if (!isValidOwnerPassword(fields.password)) return setMessage(ownerPasswordRuleMessage);
+    if (fields.password !== fields.passwordConfirm) return setMessage("비밀번호 확인이 일치하지 않아요.");
+    if (!fields.shopName.trim()) return setMessage("매장 이름을 입력해 주세요.");
+    if (!fields.shopAddress.trim()) return setMessage("매장 주소를 입력해 주세요.");
 
     setLoading(true);
     setMessage(null);
@@ -473,59 +454,32 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId: fields.loginId,
+          loginId,
           password: fields.password,
           passwordConfirm: fields.passwordConfirm,
-          name: fields.name,
+          name: fields.name.trim(),
           birthDate: fields.birthDate,
           phoneNumber: fields.phoneNumber,
-          identityVerificationToken: verification.verificationToken,
-          shopName: fields.shopName,
-          shopAddress: fields.shopAddress,
+          identityVerificationToken: verificationToken,
+          shopName: fields.shopName.trim(),
+          shopAddress: fields.shopAddress.trim(),
           agreements,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),
       });
+      const result = await response.json();
 
-      const result = (await response.json()) as { message?: string };
-      if (!response.ok) {
-        setMessage(result.message ?? "회원가입에 실패했습니다.");
+      if (!response.ok || !result.success) {
+        setMessage(result.message ?? "회원가입 처리 중 문제가 발생했어요.");
         return;
       }
 
-      setMessage(result.message ?? "회원가입이 완료되었습니다. 로그인 화면으로 이동합니다.");
-      setTimeout(() => {
-        router.replace(`/login?message=signup-success&next=${encodeURIComponent(nextPath)}` as never);
-        router.refresh();
-      }, 900);
-    } catch {
-      setMessage("회원가입 처리 중 문제가 발생했습니다.");
+      router.replace(
+        `/login?next=${encodeURIComponent(nextPath)}&message=${encodeURIComponent("회원가입이 완료되었어요. 로그인 후 2주 무료체험을 시작해 보세요.")}` as never,
+      );
+      router.refresh();
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !supabase) {
-      setMessage("Supabase 환경 변수가 설정되지 않았습니다. .env.local을 먼저 확인해 주세요.");
-      return;
-    }
-
-    setSocialLoading(provider);
-    setMessage(null);
-
-    try {
-      const redirectTo = window.location.origin + "/auth/callback?next=" + encodeURIComponent(nextPath);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
-        options: { redirectTo },
-      });
-
-      if (error) {
-        setMessage("소셜 로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-      }
-    } finally {
-      setSocialLoading(null);
     }
   };
 
@@ -533,12 +487,12 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fafaf5] px-6 pb-10 pt-6 text-[#111111]">
       <div className="flex items-start justify-between">
         <div className="text-[11px] font-semibold tracking-[0.08em] text-[#6f6f6f]">펫매니저 OWNER</div>
-        <a
-          href="/login"
+        <Link
+          href="/"
           className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-white text-[#111111] shadow-[0_8px_20px_rgba(17,17,17,0.05)]"
         >
           <X className="h-6 w-6" strokeWidth={2.2} />
-        </a>
+        </Link>
       </div>
 
       <div className="mt-10 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-[#dcfae8] text-[#2d645c]">
@@ -547,196 +501,122 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
 
       <div className="mt-8">
         <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.04em] text-[#111111]">
-          {step === "terms" ? "약관 동의" : step === "verification" ? "본인인증" : "회원 정보 입력"}
+          {step === "entry" ? "무료체험 시작" : step === "verify" ? "본인인증" : "회원 정보 입력"}
         </h1>
-        {step === "terms" ? (
-          <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">필수 약관에 동의하면 다음 단계로 넘어갈 수 있어요.</p>
-        ) : null}
-        {step === "verification" ? (
-          <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">
-            {portoneReady
-              ? "PASS 본인인증을 먼저 완료한 뒤 회원 정보를 입력할 수 있어요."
-              : "현재는 로컬 테스트용 본인인증 단계예요. 실제 문자 대신 화면에 표시되는 인증번호로 확인할 수 있어요."}
-          </p>
-        ) : null}
+        <p className="mt-3 text-[14px] leading-6 text-[#6f6f6f]">
+          {step === "entry"
+            ? "로그인하거나 회원가입한 뒤 2주 무료체험을 바로 시작할 수 있어요."
+            : step === "verify"
+              ? "회원가입 전에 본인인증을 먼저 완료해 주세요."
+              : "운영에 필요한 계정 정보와 매장 정보를 입력하면 바로 시작할 수 있어요."}
+        </p>
       </div>
 
-      {step === "terms" ? (
-        <>
-          <div className="my-8 flex items-center gap-4">
-            <div className="h-px flex-1 bg-[#e4e0d8]" />
-            <span className="text-[15px] font-medium text-[#353535]">소셜로 시작하기</span>
-            <div className="h-px flex-1 bg-[#e4e0d8]" />
-          </div>
-
-          <SocialLoginButtons onLogin={handleSocialLogin} loadingProvider={socialLoading} disabled={loading} />
-
-          <div className="my-8 flex items-center gap-4">
-            <div className="h-px flex-1 bg-[#e4e0d8]" />
-            <span className="text-[15px] font-medium text-[#353535]">또는 직접 가입</span>
-            <div className="h-px flex-1 bg-[#e4e0d8]" />
-          </div>
-        </>
+      {step === "entry" ? (
+        <EntrySection
+          loginId={entryLoginId}
+          password={entryPassword}
+          showPassword={showLoginPassword}
+          loading={loading}
+          socialLoading={socialLoading}
+          onLoginIdChange={setEntryLoginId}
+          onPasswordChange={setEntryPassword}
+          onTogglePassword={() => setShowLoginPassword((prev) => !prev)}
+          onLogin={handleEntryLogin}
+          onStartEmail={() => openStart({ kind: "email" })}
+          onStartSocial={(provider) => openStart({ kind: "social", provider })}
+        />
       ) : null}
 
-      {step === "terms" ? (
+      {step === "verify" ? (
         <div className="mt-7 space-y-3.5">
-          <div className="rounded-[18px] border border-[#d8e7df] bg-[#eef8f3] px-4 py-4">
-            <button type="button" onClick={toggleAllAgreements} className="flex w-full items-center gap-3 text-left">
-              <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${allAgreed ? "border-[#6b9e8a] bg-[#6b9e8a] text-white" : "border-[#cfc7b8] bg-white text-transparent"}`}
-                aria-hidden="true"
-              >
-                <Check className="h-4 w-4" strokeWidth={2.4} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-semibold text-[#111111]">전체 동의하기</span>
-                <span className="mt-1 block text-[12px] leading-5 text-[#6b756f]">필수 및 선택 약관에 모두 동의합니다.</span>
-              </span>
-            </button>
-          </div>
-
-          {ownerSignupTerms.map((term) => (
-            <AgreementRow
-              key={term.id}
-              checked={agreements[term.id]}
-              title={term.title}
-              required={term.required}
-              description={term.required ? "필수 약관이에요." : "선택 동의 항목이에요."}
-              onToggle={() => toggleAgreement(term.id)}
-              onOpen={() => openTermModal(term.id)}
-            />
-          ))}
-
-          <p className="px-1 text-[13px] leading-5 text-[#7f786f]">
-            체크박스로 바로 동의하거나, 보기에서 내용을 확인한 뒤 동의할 수 있어요.
-          </p>
-
-          <button
-            type="button"
-            onClick={handleTermsNext}
-            aria-disabled={!requiredAgreed}
-            className={`mt-6 flex h-[52px] w-full items-center justify-center gap-2 rounded-[18px] px-5 text-[16px] font-semibold text-white transition ${requiredAgreed ? "bg-[#6b9e8a]" : "bg-[#6b9e8a]/45"}`}
-          >
-            다음
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      ) : null}
-
-      {step === "verification" ? (
-        <div className="mt-7 space-y-3.5">
-          <FieldShell label="이름">
+          <Field label="이름">
             <input
               type="text"
               value={fields.name}
               onChange={(event) => updateField("name", event.target.value)}
               placeholder="이름 입력"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
-
-          <FieldShell label="생년월일 8자리">
+          </Field>
+          <Field label="생년월일 8자리">
             <input
               type="text"
               inputMode="numeric"
               value={fields.birthDate}
               onChange={(event) => updateField("birthDate", event.target.value)}
               placeholder="예: 19990321"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
-          <p className="px-1 text-[13px] leading-5 text-[#7f786f]">
-            실제 운영 단계에서는 외부 본인인증 연동으로 대체하고, 주민등록번호 전체는 직접 저장하지 않는 방향으로 진행할 예정이에요.
-          </p>
-
-          <FieldShell label="휴대폰 번호">
+          </Field>
+          <Field label="휴대폰 번호">
             <input
               type="text"
               inputMode="numeric"
               value={fields.phoneNumber}
               onChange={(event) => updateField("phoneNumber", event.target.value)}
               placeholder="숫자만 입력"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
+          </Field>
 
-          {portoneReady ? (
-            <div className="space-y-3">
-              <div className="rounded-[18px] border border-[#d8e7df] bg-[#eef8f3] px-4 py-3 text-[13px] leading-5 text-[#5f6f69]">
-                PASS 또는 통합인증 창에서 본인인증을 완료해 주세요. 인증이 끝나면 자동으로 다음 단계로 연결됩니다.
-              </div>
-              <button
-                type="button"
-                onClick={startPassVerification}
-                disabled={verification.passLoading}
-                className="flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#6b9e8a] text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {verification.passLoading ? "PASS 인증 준비 중..." : "PASS 본인인증 시작"}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <FieldShell label="인증번호">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={fields.verificationCode}
-                      onChange={(event) => updateField("verificationCode", event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="6자리 입력"
-                      className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
-                    />
-                  </FieldShell>
-                </div>
-                <button
-                  type="button"
-                  onClick={requestVerificationCode}
-                  disabled={verification.requesting}
-                  className="mt-auto h-[48px] shrink-0 rounded-[16px] border border-[#d9d2c7] bg-white px-4 text-[14px] font-semibold text-[#111111] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {verification.requesting ? "요청 중..." : verification.requested ? "재요청" : "인증번호 요청"}
-                </button>
-              </div>
-
-              <div className="rounded-[18px] border border-[#e4ddd2] bg-white px-4 py-3 text-[13px] leading-5 text-[#6f6f6f]">
-                로컬 테스트 단계에서는 실제 문자가 발송되지 않아요. 아래에 표시되는 인증번호를 입력해 본인인증을 완료해 주세요.
-              </div>
-
-              {devVerificationCode ? (
-                <div className="rounded-[18px] border border-[#cfe4db] bg-[#eef8f3] px-4 py-3">
-                  <p className="text-[12px] font-medium text-[#5b6f67]">로컬 테스트용 인증번호</p>
-                  <p className="mt-1 text-[24px] font-semibold tracking-[0.18em] text-[#1f5d53]">{devVerificationCode}</p>
-                  <p className="mt-1 text-[12px] leading-5 text-[#6b7f77]">실제 SMS 연동 전까지는 이 번호로만 인증이 진행됩니다.</p>
-                </div>
-              ) : null}
-            </>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setStep("terms")}
-              className="flex h-[52px] items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white text-[15px] font-semibold text-[#111111]"
+              onClick={requestCode}
+              disabled={loading}
+              className="flex h-[50px] items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white px-4 text-[15px] font-semibold text-[#111111] disabled:opacity-60"
+            >
+              {challengeToken ? "인증번호 다시 받기" : "인증번호 받기"}
+            </button>
+            <button
+              type="button"
+              onClick={verifyPass}
+              disabled={loading}
+              className="flex h-[50px] items-center justify-center rounded-[18px] border border-[#2f786b] bg-[#eff8f6] px-4 text-[15px] font-semibold text-[#2f786b] disabled:opacity-60"
+            >
+              PASS 인증
+            </button>
+          </div>
+
+          {challengeToken ? (
+            <>
+              <Field label="인증번호">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={fields.verificationCode}
+                  onChange={(event) => updateField("verificationCode", event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6자리 입력"
+                  className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
+                />
+              </Field>
+              {devCode ? <p className="px-1 text-[12px] leading-5 text-[#6f6f6f]">로컬 테스트용 인증번호: {devCode}</p> : null}
+              <button
+                type="button"
+                onClick={verifyCode}
+                disabled={loading}
+                className="flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white disabled:opacity-60"
+              >
+                인증 확인
+              </button>
+            </>
+          ) : null}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setStep("entry")}
+              className="flex h-[52px] flex-1 items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white px-5 text-[16px] font-semibold text-[#111111]"
             >
               이전
             </button>
             <button
               type="button"
-              onClick={verification.verified ? handleVerificationNext : verifyIdentity}
-              disabled={portoneReady ? !verification.verified : verification.verifying}
-              className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#6b9e8a] text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => (verificationToken ? setStep("profile") : setMessage("본인인증을 먼저 완료해 주세요."))}
+              className="flex h-[52px] flex-1 items-center justify-center rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white"
             >
-              {portoneReady
-                ? verification.verified
-                  ? "다음"
-                  : "PASS 인증 완료 후 활성화"
-                : verification.verifying
-                  ? "확인 중..."
-                  : verification.verified
-                    ? "다음"
-                    : "인증 확인"}
+              다음
             </button>
           </div>
         </div>
@@ -744,163 +624,162 @@ export default function SignupForm({ supabaseReady, portoneReady, nextPath = "/o
 
       {step === "profile" ? (
         <div className="mt-7 space-y-3.5">
-          <div className="rounded-[18px] border border-[#e4ddd2] bg-white px-4 py-3">
-            <p className="text-[13px] font-medium text-[#757575]">본인인증 완료</p>
-            <p className="mt-1 text-[15px] font-semibold text-[#111111]">
-              {fields.name} · {fields.birthDate} · {fields.phoneNumber}
-            </p>
-          </div>
-
-          <FieldShell label="아이디">
+          <Field label="아이디">
             <input
               type="text"
               value={fields.loginId}
               onChange={(event) => updateField("loginId", event.target.value)}
-              onBlur={checkLoginId}
-              placeholder="아이디 입력"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              placeholder="영문 소문자와 숫자 조합"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
-          {loginIdMessage ? (
-            <p className={`px-1 text-[13px] ${loginIdAvailable ? "text-[#2f786b]" : "text-[#b14b4b]"}`}>
-              {checkingLoginId ? "아이디 확인 중..." : loginIdMessage}
-            </p>
-          ) : null}
-
-          <FieldShell label="비밀번호">
+          </Field>
+          <Field label="비밀번호">
             <div className="flex items-center gap-3">
               <input
                 type={showPassword ? "text" : "password"}
                 value={fields.password}
                 onChange={(event) => updateField("password", event.target.value)}
                 placeholder="비밀번호 입력"
-                className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+                className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
               />
-              <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#111111]" aria-label="비밀번호 표시 전환">
-                {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
+              <button type="button" onClick={() => setShowPassword((prev) => !prev)}>
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-          </FieldShell>
-          <p className="px-1 text-[13px] text-[#6f6f6f]">영문 대문자, 영문 소문자, 숫자, 특수문자 중 3종류 이상을 포함해 주세요.</p>
-
-          <FieldShell label="비밀번호 확인">
+          </Field>
+          <p className="px-1 text-[12px] leading-5 text-[#6f6f6f]">{ownerPasswordRuleMessage}</p>
+          <Field label="비밀번호 확인">
             <div className="flex items-center gap-3">
               <input
                 type={showPasswordConfirm ? "text" : "password"}
                 value={fields.passwordConfirm}
                 onChange={(event) => updateField("passwordConfirm", event.target.value)}
-                placeholder="비밀번호 확인 입력"
-                className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+                placeholder="비밀번호 다시 입력"
+                className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
               />
-              <button type="button" onClick={() => setShowPasswordConfirm((prev) => !prev)} className="text-[#111111]" aria-label="비밀번호 확인 표시 전환">
-                {showPasswordConfirm ? <EyeOff className="h-5 w-5" strokeWidth={2.1} /> : <Eye className="h-5 w-5" strokeWidth={2.1} />}
+              <button type="button" onClick={() => setShowPasswordConfirm((prev) => !prev)}>
+                {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-          </FieldShell>
-
-          <FieldShell label="매장명">
+          </Field>
+          <Field label="매장 이름">
             <input
               type="text"
               value={fields.shopName}
               onChange={(event) => updateField("shopName", event.target.value)}
-              placeholder="매장명 입력"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              placeholder="예: 포근한 발바닥 미용실"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
-
-          <FieldShell label="매장 주소">
+          </Field>
+          <Field label="매장 주소">
             <input
               type="text"
               value={fields.shopAddress}
               onChange={(event) => updateField("shopAddress", event.target.value)}
               placeholder="매장 주소 입력"
-              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium text-[#111111] outline-none placeholder:text-[#b0aaa1]"
+              className="h-[18px] w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none placeholder:text-[#b0aaa1]"
             />
-          </FieldShell>
+          </Field>
 
-          <div className="grid grid-cols-2 gap-3 pt-1"> 
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setStep("verification")}
-              className="flex h-[52px] items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white text-[15px] font-semibold text-[#111111]"
+              onClick={() => setStep("verify")}
+              className="flex h-[52px] flex-1 items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white px-5 text-[16px] font-semibold text-[#111111]"
             >
               이전
             </button>
             <button
               type="button"
-              onClick={handleSignup}
+              onClick={submitSignup}
               disabled={loading}
-              className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#6b9e8a] text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-[52px] flex-1 items-center justify-center rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white disabled:opacity-60"
             >
-              {loading ? "가입 중..." : "회원가입"}
+              {loading ? "가입 중..." : "무료체험 시작하기"}
             </button>
           </div>
         </div>
       ) : null}
 
-      {activeTerm ? (
+      {message ? <p className="mt-5 text-[14px] leading-6 text-[#6f6f6f]">{message}</p> : null}
+
+      {startTarget ? (
         <div
           className="fixed inset-0 z-50 flex items-end bg-black/30 sm:items-center sm:justify-center"
           onClick={(event) => {
-            if (event.target === event.currentTarget) closeTermModal();
+            if (event.target === event.currentTarget) setStartTarget(null);
           }}
         >
-          <div className="w-full max-w-[430px] rounded-t-[28px] bg-[#fafaf5] px-5 pb-5 pt-4 sm:rounded-[28px]">
-            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-[#ddd6cb] sm:hidden" />
+          <div className="w-full rounded-t-[28px] bg-[#fafaf5] px-6 pb-6 pt-5 shadow-[0_-18px_40px_rgba(17,17,17,0.12)] sm:max-w-[430px] sm:rounded-[28px]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[19px] font-semibold text-[#111111]">[{activeTerm.required ? "필수" : "선택"}] {activeTerm.title}</p>
-                <p className="mt-1 text-[13px] text-[#6f6f6f]">시행일 {OWNER_SIGNUP_TERMS_VERSION}</p>
+                <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#111111]">약관 동의</p>
+                <p className="mt-2 text-[13px] leading-5 text-[#6f6f6f]">필수 약관에 동의하면 다음 단계로 넘어갈 수 있어요.</p>
               </div>
-              <button type="button" onClick={closeTermModal} className="text-[15px] font-medium text-[#6f6f6f]">
+              <button type="button" onClick={() => setStartTarget(null)} className="text-[15px] font-medium text-[#6f6f6f]">
                 닫기
               </button>
             </div>
-            <p className="mt-3 text-[13px] leading-5 text-[#6f6f6f]">약관 내용을 확인한 뒤 바로 동의하거나 닫을 수 있어요.</p>
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={activeTerm.title}
-              className="mt-4 max-h-[400px] overflow-y-auto rounded-[20px] border border-[#ddd6cb] bg-white px-4 py-4 text-[14px] leading-6 text-[#424242]"
-            >
-              <div className="whitespace-pre-wrap">{activeTerm.content}</div>
-            </div>
-            <div className="mt-3 text-[12px] text-[#8a857d]">스크롤은 확인용이에요. 체크박스나 동의 버튼으로 바로 진행할 수 있어요.</div>
-            <div className="mt-4 flex gap-3">
+
+            <div className="mt-5 rounded-[18px] border border-[#dcefe7] bg-[#eef8f4] p-4">
               <button
                 type="button"
-                onClick={closeTermModal}
-                className="flex h-[48px] flex-1 items-center justify-center rounded-[16px] border border-[#ddd6cb] bg-white text-[15px] font-medium text-[#111111]"
+                onClick={() =>
+                  setAgreements({
+                    service: true,
+                    privacy: true,
+                    location: true,
+                    marketing: true,
+                  })
+                }
+                className="w-full text-left text-[15px] font-semibold text-[#111111]"
+              >
+                전체 동의하기
+              </button>
+              <p className="mt-1 text-[12px] leading-5 text-[#6b756f]">필수 및 선택 약관에 모두 동의합니다.</p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {ownerSignupTerms.map((term) => (
+                <div key={term.id} className="rounded-[18px] border border-[#e4ddd2] bg-white px-4 py-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAgreements((prev) => ({
+                        ...prev,
+                        [term.id]: !prev[term.id],
+                      }))
+                    }
+                    className="w-full text-left"
+                  >
+                    <p className="text-[15px] font-medium text-[#111111]">
+                      [{term.required ? "필수" : "선택"}] {term.title}
+                    </p>
+                    <p className="mt-1 text-[12px] text-[#8a857d]">{term.required ? "필수 약관이에요." : "선택 동의 항목이에요."}</p>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setStartTarget(null)}
+                className="flex h-[52px] items-center justify-center rounded-[18px] border border-[#d9d2c7] bg-white px-5 text-[16px] font-semibold text-[#111111]"
               >
                 닫기
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  updateAgreement(activeTerm.id, true);
-                  closeTermModal();
-                }}
-                className="flex h-[48px] flex-1 items-center justify-center rounded-[16px] bg-[#6b9e8a] text-[15px] font-semibold text-white"
+                onClick={continueStart}
+                className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#2f786b] px-5 text-[16px] font-semibold text-white"
               >
-                동의
+                계속하기
               </button>
             </div>
           </div>
         </div>
       ) : null}
-
-      {message ? (
-        <div className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 rounded-[16px] bg-[#111111] px-4 py-3 text-[14px] font-medium text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]">
-          {message}
-        </div>
-      ) : null}
     </div>
   );
 }
-
-
-
-
-
-
-

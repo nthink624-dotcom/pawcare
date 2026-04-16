@@ -74,7 +74,10 @@ export default function LandingPage({ shop }: { shop: Shop; services: Service[] 
 function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () => void }) {
   return (
     <section className="rounded-[32px] bg-[#1f5b51] px-5 pb-5 pt-5 text-white shadow-[0_18px_38px_rgba(24,33,31,0.12)]">
-      <h1 className="text-[32px] font-extrabold leading-[1.1] tracking-[-0.05em] text-white">
+      <div className="inline-flex items-center rounded-full border border-white/18 bg-white/8 px-3 py-1 text-[12px] font-semibold tracking-[0.02em] text-white/90">
+        펫매니저
+      </div>
+      <h1 className="mt-4 text-[32px] font-extrabold leading-[1.1] tracking-[-0.05em] text-white">
         모든 예약은 한곳에,
         <br />
         고객 관리는 매출로
@@ -98,7 +101,7 @@ function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () 
         <a href={`/entry/${shopId}`} className={SECONDARY_BUTTON}>
           소비자 예약 화면 보기
         </a>
-                <a href="/signup?next=%2Fowner" className={TERTIARY_BUTTON}>
+                <a href="/login?next=%2Fowner" className={TERTIARY_BUTTON}>
           무료체험 시작하기
         </a>
       </div>

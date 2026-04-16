@@ -6,17 +6,17 @@ import type { SocialProvider } from "@/lib/auth/social-auth";
 
 const providerMeta: Record<SocialProvider, { label: string; icon: ReactNode; enabled: boolean }> = {
   google: {
-    label: "Google로 계속하기",
+    label: "구글로 시작하기",
     icon: <span className="text-[20px] font-bold text-[#4285F4]">G</span>,
     enabled: true,
   },
   kakao: {
-    label: "카카오로 계속하기",
+    label: "카카오로 시작하기",
     icon: <span className="text-[15px] font-black text-[#191600]">K</span>,
     enabled: true,
   },
   naver: {
-    label: "네이버로 계속하기",
+    label: "네이버로 시작하기",
     icon: <span className="text-[15px] font-black text-white">N</span>,
     enabled: true,
   },
@@ -46,7 +46,7 @@ export default function SocialLoginButtons({
             onClick={() => meta.enabled && onLogin(provider)}
             disabled={isDisabled}
             aria-disabled={isDisabled}
-            className="flex h-[54px] w-full items-center justify-center gap-3.5 rounded-[18px] border border-[#bfc7d0] bg-white px-5 text-[15px] font-semibold text-[#111111] transition disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-[54px] w-full items-center justify-center gap-3.5 rounded-[18px] border border-[#d5d0c8] bg-white px-5 text-[15px] font-semibold text-[#111111] transition disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: iconBg }}>
               {meta.icon}

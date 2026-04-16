@@ -7,18 +7,14 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { isValidBirthDate8 } from "@/lib/auth/owner-credentials";
 
 const payloadSchema = z.object({
-  name: z.string().trim().min(1),
-  birthDate: z.string().trim().length(8),
-  phoneNumber: z.string().trim().min(9).max(11),
   shopName: z.string().trim().min(1),
   shopAddress: z.string().trim().min(1),
   agreements: z.object({
     service: z.boolean(),
     privacy: z.boolean(),
-    location: z.boolean(),
+    location: z.boolean().optional().default(false),
     marketing: z.boolean().optional().default(false),
   }),
   termsVersion: z.string().trim().optional(),
@@ -28,24 +24,51 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function readMetadataValue(source: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!source) return "";
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function resolveOwnerName(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) {
+  const metadataName = readMetadataValue(user.user_metadata, ["name", "full_name", "nickname", "given_name"]);
+  if (metadataName) return metadataName;
+
+  const emailPrefix = user.email?.split("@")[0]?.trim();
+  if (emailPrefix) return emailPrefix;
+
+  return "사장님";
+}
+
+function resolvePhoneNumber(user: { phone?: string | null; user_metadata?: Record<string, unknown> }) {
+  const metadataPhone = readMetadataValue(user.user_metadata, ["phone", "phone_number", "phoneNumber"]);
+  return normalizePhone(metadataPhone || user.phone || "");
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!env.supabaseUrl || !env.supabasePublishableKey) {
-      return NextResponse.json({ message: "Supabase 설정을 확인해 주세요." }, { status: 503 });
+      return NextResponse.json({ message: "Supabase 환경 변수가 설정되지 않았습니다." }, { status: 503 });
     }
 
     const body = await request.json();
     const parsed = payloadSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ message: "입력한 정보를 다시 확인해 주세요." }, { status: 400 });
+      return NextResponse.json({ message: "매장 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
     const payload = parsed.data;
-    if (!isValidBirthDate8(payload.birthDate)) {
-      return NextResponse.json({ message: "생년월일은 8자리 숫자로 입력해 주세요." }, { status: 400 });
-    }
-
-    if (!payload.agreements.service || !payload.agreements.privacy || !payload.agreements.location) {
+    if (!payload.agreements.service || !payload.agreements.privacy) {
       return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
     }
 
@@ -69,12 +92,12 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+      return NextResponse.json({ message: "로그인 정보를 확인할 수 없습니다." }, { status: 401 });
     }
 
     const admin = getSupabaseAdmin();
     if (!admin) {
-      return NextResponse.json({ message: "Supabase 서버 설정을 확인해 주세요." }, { status: 503 });
+      return NextResponse.json({ message: "Supabase 관리자 설정을 확인해 주세요." }, { status: 503 });
     }
 
     const existingShop = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
@@ -90,12 +113,14 @@ export async function POST(request: NextRequest) {
     const now = nowIso();
     const provider = typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "social";
     const loginId = `social_${provider}_${user.id.replace(/-/g, "").slice(0, 12)}`;
+    const ownerName = resolveOwnerName(user);
+    const ownerPhoneNumber = resolvePhoneNumber(user) || null;
 
     const shopInsert = await admin.from("shops").insert({
       id: shopId,
       owner_user_id: user.id,
       name: payload.shopName,
-      phone: payload.phoneNumber,
+      phone: ownerPhoneNumber,
       address: payload.shopAddress,
       description: "",
       business_hours: {},
@@ -108,7 +133,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (shopInsert.error) {
-      return NextResponse.json({ message: "매장 정보를 저장하지 못했습니다." }, { status: 400 });
+      return NextResponse.json({ message: "매장 정보를 저장하지 못했어요." }, { status: 400 });
     }
 
     const agreementPayload = {
@@ -121,9 +146,9 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       shop_id: shopId,
       login_id: loginId,
-      name: payload.name,
-      birth_date: payload.birthDate,
-      phone_number: payload.phoneNumber,
+      name: ownerName,
+      birth_date: null,
+      phone_number: ownerPhoneNumber,
       identity_verified_at: null,
       agreements: agreementPayload,
       created_at: now,
@@ -132,16 +157,16 @@ export async function POST(request: NextRequest) {
 
     if (profileInsert.error) {
       await admin.from("shops").delete().eq("id", shopId);
-      return NextResponse.json({ message: "회원 정보를 저장하지 못했습니다." }, { status: 400 });
+      return NextResponse.json({ message: "사장님 정보를 저장하지 못했어요." }, { status: 400 });
     }
 
     return NextResponse.json({
       success: true,
       shopId,
-      message: "소셜 로그인 가입이 완료되었습니다. 바로 무료체험을 시작할 수 있어요.",
+      message: "소셜 로그인 정보 확인이 끝났어요. 이제 무료체험을 시작할 수 있어요.",
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "가입 처리 중 문제가 발생했습니다.";
+    const message = error instanceof Error ? error.message : "소셜 로그인 처리 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

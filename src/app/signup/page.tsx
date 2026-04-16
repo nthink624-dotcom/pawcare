@@ -7,7 +7,15 @@ export default async function SignupPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner/billing";
+  const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
+  const initialStart = typeof params.start === "string" && params.start === "email" ? "email" : null;
 
-  return <SignupForm supabaseReady={hasSupabaseBrowserEnv()} portoneReady={hasPortoneBrowserEnv()} nextPath={nextPath} />;
+  return (
+    <SignupForm
+      supabaseReady={hasSupabaseBrowserEnv()}
+      portoneReady={hasPortoneBrowserEnv()}
+      nextPath={nextPath}
+      initialStart={initialStart}
+    />
+  );
 }

@@ -40,6 +40,10 @@ export default function OwnerPage() {
       }
 
       setUserEmail(session.user.email ?? null);
+      const provider =
+        typeof session.user.app_metadata?.provider === "string"
+          ? session.user.app_metadata.provider
+          : "google";
 
       try {
         const [bootstrap, subscription] = await Promise.all([
@@ -62,7 +66,9 @@ export default function OwnerPage() {
         }
 
         if (nextMessage.includes("소유한 매장이 없습니다.")) {
-          router.replace("/login?error=no-shop" as never);
+          router.replace(
+            `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider)}` as never,
+          );
           router.refresh();
           return;
         }

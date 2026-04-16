@@ -82,6 +82,8 @@ function shouldSendNotification(shop: BootstrapPayload["shop"], type: Notificati
       return shop.notification_settings.grooming_completed_enabled;
     case "appointment_reminder_10m":
     case "grooming_started":
+    case "revisit_notice":
+    case "birthday_greeting":
       return true;
     default:
       return false;

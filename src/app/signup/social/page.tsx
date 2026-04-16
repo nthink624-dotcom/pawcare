@@ -1,9 +1,18 @@
-import SocialSignupCompleteForm from "@/components/auth/social-signup-complete-form";
+import type { Metadata } from "next";
 
-function getProviderLabel(provider: string) {
-  if (provider === "naver") return "네이버";
-  if (provider === "kakao") return "카카오";
-  return "구글";
+import SocialSignupCompleteForm from "@/components/auth/social-signup-complete-form";
+import type { SocialProvider } from "@/lib/auth/social-auth";
+
+export const metadata: Metadata = {
+  title: "기본정보 입력 | 펫매니저",
+};
+
+function resolveProvider(provider: string | string[] | undefined): SocialProvider | undefined {
+  if (provider === "google" || provider === "kakao" || provider === "naver") {
+    return provider;
+  }
+
+  return undefined;
 }
 
 export default async function SocialSignupPage({
@@ -13,7 +22,7 @@ export default async function SocialSignupPage({
 }) {
   const params = (await searchParams) ?? {};
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
-  const provider = typeof params.provider === "string" ? params.provider : "google";
+  const provider = resolveProvider(params.provider);
 
-  return <SocialSignupCompleteForm nextPath={nextPath} providerLabel={getProviderLabel(provider)} />;
+  return <SocialSignupCompleteForm nextPath={nextPath} provider={provider} />;
 }

@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  PENDING_SOCIAL_PROVIDER_STORAGE,
+  resolveSocialProviderFromAuthUser,
+} from "@/lib/auth/social-auth";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -20,6 +24,8 @@ export default function OwnerPage() {
 
   useEffect(() => {
     let active = true;
+    const pendingProvider =
+      typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
 
     async function load() {
       if (!hasSupabaseBrowserEnv() || !supabase) {
@@ -41,9 +47,9 @@ export default function OwnerPage() {
 
       setUserEmail(session.user.email ?? null);
       const provider =
-        typeof session.user.app_metadata?.provider === "string"
-          ? session.user.app_metadata.provider
-          : "google";
+        pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
+          ? pendingProvider
+          : resolveSocialProviderFromAuthUser(session.user);
 
       try {
         const [bootstrap, subscription] = await Promise.all([
@@ -65,7 +71,10 @@ export default function OwnerPage() {
           return;
         }
 
-        if (nextMessage.includes("소유한 매장이 없습니다.")) {
+        if (
+          nextMessage.includes("소유한 매장이 없습니다.") ||
+          nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
+        ) {
           router.replace(
             `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider)}` as never,
           );

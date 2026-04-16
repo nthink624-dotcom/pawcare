@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, House, PawPrint, Settings, type LucideIcon } from "lucide-react";
+import { CalendarDays, CircleUserRound, House, PawPrint, Settings, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
@@ -843,6 +843,7 @@ export default function OwnerApp({
   const overdueCount = revisitRows.filter((item) => item.status === "overdue").length;
   const urgentCount = revisitRows.filter((item) => item.status === "overdue" || item.status === "soon").length;
   const estimatedRevenue = todayConfirmedAppointments.reduce((sum, item) => sum + (serviceMap[item.service_id]?.price || 0), 0);
+  const accountDisplayName = userEmail?.split("@")[0] || "현재 계정";
 
   return (
     <div
@@ -863,7 +864,24 @@ export default function OwnerApp({
             {activeTab === "home" ? <p className="text-[12px] leading-5 text-[var(--muted)]">{`${shortDate(todayDate)} 운영 요약`}</p> : null}
           </div>
           <div className="flex gap-2">
-            {(activeTab === "home" || activeTab === "book") && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-appointment", petId: selectedPetId || undefined })}>{"예약 추가"}</button>}
+            {(activeTab === "home" || activeTab === "book") && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("settings")}
+                className="flex min-w-[148px] items-center gap-2 rounded-[16px] border border-[var(--border)] bg-white px-3 py-2 text-left shadow-[var(--shadow-soft)]"
+                aria-label="오너 계정 정보 열기"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef6f2] text-[var(--accent)]">
+                  <CircleUserRound className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold tracking-[-0.02em] text-[var(--text)]">{data.shop.name}</p>
+                  <p className="truncate text-[11px] leading-4 text-[var(--muted)]">
+                    {userEmail ? accountDisplayName : "로그인된 계정 확인"}
+                  </p>
+                </div>
+              </button>
+            )}
             {activeTab === "customers" && !selectedGuardian && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-customer" })}>{"고객 추가"}</button>}
           </div>
         </div>

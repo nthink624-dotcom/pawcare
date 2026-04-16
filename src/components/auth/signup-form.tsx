@@ -16,7 +16,12 @@ import {
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { env } from "@/lib/env";
-import { getSocialOAuthProvider, type SocialProvider } from "@/lib/auth/social-auth";
+import {
+  getSocialOAuthProvider,
+  PENDING_SOCIAL_PROVIDER_COOKIE,
+  PENDING_SOCIAL_PROVIDER_STORAGE,
+  type SocialProvider,
+} from "@/lib/auth/social-auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Step = "entry" | "verify" | "profile";
@@ -276,10 +281,20 @@ export default function SignupForm({
     setMessage(null);
 
     try {
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+      document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
+      window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
-        options: { redirectTo },
+        options: {
+          redirectTo,
+          queryParams:
+            provider === "google"
+              ? { prompt: "select_account" }
+              : provider === "naver"
+                ? { auth_type: "reauthenticate" }
+                : undefined,
+        },
       });
 
       if (error) {

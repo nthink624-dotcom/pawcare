@@ -5,10 +5,19 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { env } from "@/lib/env";
+import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 const payloadSchema = z.object({
+  ownerName: z.string().trim().min(1),
+  phoneNumber: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\D/g, "").slice(0, 11))
+    .refine((value) => /^01\d{8,9}$/.test(value), {
+      message: "휴대폰 번호를 올바르게 입력해 주세요.",
+    }),
   shopName: z.string().trim().min(1),
   shopAddress: z.string().trim().min(1),
   agreements: z.object({
@@ -111,10 +120,10 @@ export async function POST(request: NextRequest) {
 
     const shopId = `shop-${randomUUID().slice(0, 8)}`;
     const now = nowIso();
-    const provider = typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "social";
+    const provider = resolveSocialProviderFromAuthUser(user);
     const loginId = `social_${provider}_${user.id.replace(/-/g, "").slice(0, 12)}`;
-    const ownerName = resolveOwnerName(user);
-    const ownerPhoneNumber = resolvePhoneNumber(user) || null;
+    const ownerName = payload.ownerName.trim() || resolveOwnerName(user);
+    const ownerPhoneNumber = payload.phoneNumber || resolvePhoneNumber(user) || null;
 
     const shopInsert = await admin.from("shops").insert({
       id: shopId,

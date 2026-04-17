@@ -3,13 +3,13 @@ import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 
 const rows = [
   ["서비스명", LEGAL_BUSINESS_INFO.serviceName],
-  ["운영주체", LEGAL_BUSINESS_INFO.operatorName],
+  ["운영사", LEGAL_BUSINESS_INFO.operatorName],
   ["대표자명", LEGAL_BUSINESS_INFO.representativeName],
   ["사업자등록번호", LEGAL_BUSINESS_INFO.businessRegistrationNumber],
   ["주소", LEGAL_BUSINESS_INFO.address],
-  ["고객센터 전화", LEGAL_BUSINESS_INFO.customerServicePhone],
+  ["고객센터 연락처", LEGAL_BUSINESS_INFO.customerServicePhone],
   ["고객센터 이메일", LEGAL_BUSINESS_INFO.customerServiceEmail],
-  ["호스팅서비스 제공자", LEGAL_BUSINESS_INFO.hostingProvider],
+  ["호스팅 제공자", LEGAL_BUSINESS_INFO.hostingProvider],
 ] as const;
 
 export default function BusinessPage() {

@@ -7,9 +7,10 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope") || "owner";
+    const requestedShopId = searchParams.get("shopId") || undefined;
 
     if (scope === "public") {
-      const shopId = searchParams.get("shopId") || "demo-shop";
+      const shopId = requestedShopId || "demo-shop";
       const data = await getBootstrap(shopId);
       return NextResponse.json({
         mode: data.mode,
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const owner = await requireOwnerShop(request);
+    const owner = await requireOwnerShop(request, requestedShopId);
     const data = await getBootstrap(owner.shopId);
     return NextResponse.json(data);
   } catch (error) {

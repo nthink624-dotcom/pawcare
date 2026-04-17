@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getOwnerPlanByCode, ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -18,6 +18,7 @@ type SettingsPanelProps = {
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
+  initialScreen?: SettingsScreen;
 };
 
 type SaveFeedback = {
@@ -126,6 +127,7 @@ export default function OwnerSettingsPanel({
   loggingOut = false,
   userEmail,
   subscriptionSummary,
+  initialScreen = null,
 }: SettingsPanelProps) {
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
@@ -142,6 +144,7 @@ export default function OwnerSettingsPanel({
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
   const [holidayNotice, setHolidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
   const [parkingNotice, setParkingNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.parking_notice ?? ""));
+  const [heroImageUrl, setHeroImageUrl] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
   const [notices, setNotices] = useState<string[]>([
     decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[0] ?? ""),
     decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[1] ?? ""),
@@ -169,6 +172,12 @@ export default function OwnerSettingsPanel({
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
     subscriptionSummary?.currentPlanCode ?? "monthly",
   );
+
+  useEffect(() => {
+    if (initialScreen) {
+      setActiveScreen(initialScreen);
+    }
+  }, [initialScreen]);
 
   const notificationSettings = useMemo(
     () => ({
@@ -282,6 +291,7 @@ export default function OwnerSettingsPanel({
           ...data.shop.customer_page_settings,
           shop_name: name,
           tagline: description,
+          hero_image_url: heroImageUrl.trim(),
           operating_hours_note: operatingHoursNote,
           holiday_notice: holidayNotice,
           parking_notice: parkingNotice,
@@ -478,6 +488,12 @@ export default function OwnerSettingsPanel({
         </div>
         <Field label="한줄 소개">
           <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요." />
+        </Field>
+        <Field label="매장 대표 이미지">
+          <div className="space-y-2">
+            <input className="field" value={heroImageUrl} onChange={(event) => setHeroImageUrl(event.target.value)} placeholder="이미지 URL을 붙여 넣어 주세요 (선택)" />
+            <p className="text-sm text-[var(--muted)]">비워두면 기본 프로필 스타일로 보여요. 나중에 매장 전환 카드와 고객 예약 화면 대표 이미지에 같이 활용됩니다.</p>
+          </div>
         </Field>
         <Field label="주소">
           <div className="space-y-2">

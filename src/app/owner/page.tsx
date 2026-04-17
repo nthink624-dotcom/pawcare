@@ -14,10 +14,21 @@ import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
+type OwnedShopSummary = {
+  id: string;
+  name: string;
+  address: string;
+  heroImageUrl: string;
+};
+
+const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
+
 export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
+  const [ownedShops, setOwnedShops] = useState<OwnedShopSummary[]>([]);
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
@@ -52,12 +63,28 @@ export default function OwnerPage() {
           : resolveSocialProviderFromAuthUser(session.user);
 
       try {
+        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
+        const storedShopId =
+          typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
+        const resolvedShopId =
+          (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
+
+        if (!resolvedShopId) {
+          throw new Error("소유한 매장이 없습니다.");
+        }
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
+        }
+
         const [bootstrap, subscription] = await Promise.all([
-          fetchApiJsonWithAuth<BootstrapPayload>("/api/bootstrap"),
+          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
           fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription"),
         ]);
 
         if (!active) return;
+        setOwnedShops(shops);
+        setSelectedShopId(resolvedShopId);
         setData(bootstrap);
         setSubscriptionSummary(subscription);
       } catch (error) {
@@ -101,5 +128,15 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerShell initialData={data} subscriptionSummary={subscriptionSummary} userEmail={userEmail} />;
+  return <OwnerShell initialData={data} ownedShops={ownedShops} selectedShopId={selectedShopId} subscriptionSummary={subscriptionSummary} userEmail={userEmail} onSwitchShop={async (shopId) => {
+    if (!shopId || shopId === selectedShopId) return;
+    setMessage("매장을 바꾸는 중입니다.");
+    setData(null);
+    const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(shopId)}`);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, shopId);
+    }
+    setSelectedShopId(shopId);
+    setData(nextBootstrap);
+  }} />;
 }

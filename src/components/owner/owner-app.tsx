@@ -1,31 +1,80 @@
 ﻿"use client";
 
-import { CalendarDays, CircleUserRound, House, PawPrint, Settings, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronDown, Copy, House, PawPrint, Settings, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
+import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
 import { addDate, currentDateInTimeZone, formatClockTime, shortDate, won } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
+type OwnerGuideScreen = "getting-started" | null;
+type OwnedShopSummary = {
+  id: string;
+  name: string;
+  address: string;
+  heroImageUrl: string;
+};
+type ShopBusinessHours = Record<string, { open: string; close: string; enabled: boolean }>;
+type ShopProfileSavePayload = {
+  settingsPayload: {
+    shopId: string;
+    name: string;
+    phone: string;
+    address: string;
+    description: string;
+    concurrentCapacity: number;
+    approvalMode: "manual" | "auto";
+    regularClosedDays: number[];
+    temporaryClosedDates: string[];
+    businessHours: ShopBusinessHours;
+    notificationSettings: {
+      enabled: boolean;
+      revisitEnabled: boolean;
+      bookingConfirmedEnabled: boolean;
+      bookingRejectedEnabled: boolean;
+      bookingCancelledEnabled: boolean;
+      bookingRescheduledEnabled: boolean;
+      groomingAlmostDoneEnabled: boolean;
+      groomingCompletedEnabled: boolean;
+    };
+  };
+  customerPageSettingsPayload: {
+    shopId: string;
+    customerPageSettings: BootstrapPayload["shop"]["customer_page_settings"];
+  };
+};
 type Guardian = BootstrapPayload["guardians"][number];
-type AppointmentUpdatePayload = {
+type AppointmentStatusUpdatePayload = {
   status: AppointmentStatus;
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
   eventType?: "booking_rescheduled_confirmed";
 };
+type AppointmentEditPayload = {
+  mode: "edit";
+  serviceId: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  memo: string;
+};
+type AppointmentUpdatePayload = AppointmentStatusUpdatePayload | AppointmentEditPayload;
 type ModalState =
   | { type: "appointment"; appointment: Appointment }
+  | { type: "edit-shop-profile" }
   | { type: "new-appointment"; petId?: string }
   | { type: "new-customer" }
   | { type: "add-pet"; guardianId: string }
   | { type: "edit-record"; record: GroomingRecord }
   | { type: "stat"; kind: "today" | "pending" | "completed" | "cancel_change" }
   | null;
+
+const compactWeekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
 const rejectionReasonTemplates = [
   "\uD574\uB2F9 \uC2DC\uAC04 \uC608\uC57D\uC740 \uC5B4\uB824\uC6CC\uC694",
@@ -65,13 +114,19 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
 
 export default function OwnerApp({
   initialData,
+  ownedShops,
+  selectedShopId,
   onLogout,
+  onSwitchShop,
   loggingOut = false,
   userEmail = null,
   subscriptionSummary = null,
 }: {
   initialData: BootstrapPayload;
+  ownedShops: OwnedShopSummary[];
+  selectedShopId: string | null;
   onLogout?: () => void;
+  onSwitchShop?: (shopId: string) => Promise<void>;
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
@@ -95,6 +150,10 @@ export default function OwnerApp({
   const [pendingVisitRangeEnd, setPendingVisitRangeEnd] = useState<string | null>(null);
   const [visitCalendarMonthCursor, setVisitCalendarMonthCursor] = useState(currentDateInTimeZone().slice(0, 7));
   const [modal, setModal] = useState<ModalState>(null);
+  const [settingsEntryScreen, setSettingsEntryScreen] = useState<SettingsEntryScreen>(null);
+  const [guideScreen, setGuideScreen] = useState<OwnerGuideScreen>(null);
+  const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
+  const [pendingShopProfileEditId, setPendingShopProfileEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGuardianEditing, setIsGuardianEditing] = useState(false);
@@ -115,6 +174,12 @@ export default function OwnerApp({
   useEffect(() => {
     setData(initialData);
   }, [initialData]);
+
+  useEffect(() => {
+    if (!pendingShopProfileEditId || data.shop.id !== pendingShopProfileEditId) return;
+    setModal({ type: "edit-shop-profile" });
+    setPendingShopProfileEditId(null);
+  }, [data.shop.id, pendingShopProfileEditId]);
 
   useEffect(() => {
     if (visitSelectionMode === "range" && visitRange) {
@@ -144,6 +209,43 @@ export default function OwnerApp({
   const serviceMap = useMemo(() => Object.fromEntries(data.services.map((item) => [item.id, item])), [data.services]);
   const guardianMap = useMemo(() => Object.fromEntries(data.guardians.map((item) => [item.id, item])), [data.guardians]);
   const petMap = useMemo(() => Object.fromEntries(data.pets.map((item) => [item.id, item])), [data.pets]);
+  const activeServiceCount = useMemo(() => data.services.filter((item) => item.is_active).length, [data.services]);
+  const currentOwnedShop = useMemo(
+    () => ownedShops.find((shop) => shop.id === (selectedShopId || data.shop.id)) ?? {
+      id: data.shop.id,
+      name: data.shop.name,
+      address: data.shop.address,
+      heroImageUrl: data.shop.customer_page_settings?.hero_image_url || "",
+    },
+    [data.shop.address, data.shop.customer_page_settings, data.shop.id, data.shop.name, ownedShops, selectedShopId],
+  );
+  const enabledBusinessDayCount = useMemo(
+    () => Object.values(data.shop.business_hours).filter((item) => item?.enabled).length,
+    [data.shop.business_hours],
+  );
+  const onboardingTasks = useMemo(
+    () =>
+      [
+        activeServiceCount === 0
+          ? {
+              key: "services" as const,
+              title: "서비스를 1개 이상 등록해 주세요",
+              description: "고객이 예약할 메뉴가 아직 없어서 예약 화면이 비어 보여요.",
+              cta: "서비스 추가",
+            }
+          : null,
+        enabledBusinessDayCount === 0
+          ? {
+              key: "closures" as const,
+              title: "영업시간을 열어 주세요",
+              description: "영업일과 시간을 정해야 실제 예약 가능 시간이 계산돼요.",
+              cta: "영업시간 설정",
+            }
+          : null,
+      ].filter(Boolean),
+    [activeServiceCount, enabledBusinessDayCount],
+  );
+  const isOnboardingIncomplete = onboardingTasks.length > 0;
 
   const todayConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, todayDate]);
   const pendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "pending"), [data.appointments, todayDate]);
@@ -344,17 +446,32 @@ export default function OwnerApp({
 
   async function updateAppointment(appointmentId: string, payload: AppointmentUpdatePayload) {
     if (isOwnerDemo) {
+      const isEditPayload = "mode" in payload && payload.mode === "edit";
+      const statusPayload: AppointmentStatusUpdatePayload | null = isEditPayload
+        ? null
+        : (payload as AppointmentStatusUpdatePayload);
       setData((prev) => ({
         ...prev,
         appointments: prev.appointments.map((appointment) =>
           appointment.id === appointmentId
             ? {
                 ...appointment,
-                status: payload.status,
-                rejection_reason:
-                  payload.status === "rejected"
-                    ? payload.rejectionReasonCustom?.trim() || payload.rejectionReasonTemplate || appointment.rejection_reason
-                    : null,
+                ...(isEditPayload
+                  ? {
+                      service_id: payload.serviceId,
+                      appointment_date: payload.appointmentDate,
+                      appointment_time: payload.appointmentTime,
+                      memo: payload.memo,
+                      status: "confirmed" as AppointmentStatus,
+                      rejection_reason: null,
+                    }
+                  : {
+                      status: statusPayload!.status,
+                      rejection_reason:
+                        statusPayload!.status === "rejected"
+                          ? statusPayload!.rejectionReasonCustom?.trim() || statusPayload!.rejectionReasonTemplate || appointment.rejection_reason
+                          : null,
+                    }),
               }
             : appointment,
         ),
@@ -367,6 +484,11 @@ export default function OwnerApp({
       method: "PATCH",
       body: JSON.stringify({ appointmentId, ...payload }),
     });
+  }
+
+  function openSettingsScreen(screen: Exclude<SettingsEntryScreen, null>) {
+    setSettingsEntryScreen(screen);
+    setActiveTab("settings");
   }
 
   async function updateGuardianNotifications(guardianId: string, enabled: boolean, revisitEnabled: boolean) {
@@ -497,6 +619,46 @@ export default function OwnerApp({
     setSelectedGuardianIds([]);
     if (selectedGuardian && guardianIds.includes(selectedGuardian.id)) {
       setSelectedPetId(null);
+    }
+  }
+
+  async function saveShopProfile(payload: ShopProfileSavePayload) {
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        shop: {
+          ...prev.shop,
+          name: payload.settingsPayload.name,
+          phone: payload.settingsPayload.phone,
+          address: payload.settingsPayload.address,
+          description: payload.settingsPayload.description,
+          business_hours: payload.settingsPayload.businessHours,
+          customer_page_settings: payload.customerPageSettingsPayload.customerPageSettings,
+        },
+      }));
+      setModal(null);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await fetchJson("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.settingsPayload),
+      });
+      await fetchJson("/api/customer-page-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.customerPageSettingsPayload),
+      });
+      await refresh();
+      setModal(null);
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "매장 정보 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -843,44 +1005,46 @@ export default function OwnerApp({
   const overdueCount = revisitRows.filter((item) => item.status === "overdue").length;
   const urgentCount = revisitRows.filter((item) => item.status === "overdue" || item.status === "soon").length;
   const estimatedRevenue = todayConfirmedAppointments.reduce((sum, item) => sum + (serviceMap[item.service_id]?.price || 0), 0);
-  const accountDisplayName = userEmail?.split("@")[0] || "현재 계정";
+  const screenTitle =
+    activeTab === "customers"
+      ? selectedGuardian
+        ? "고객정보"
+        : "고객관리"
+      : selectedPet
+        ? selectedPet.name
+        : tabItems.find((item) => item.key === activeTab)?.label;
+  const bookingEntryUrl =
+    typeof window === "undefined" ? `/book/${data.shop.id}` : `${window.location.origin}/book/${data.shop.id}`;
+  const isHomeTab = activeTab === "home";
 
   return (
     <div
       className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(47,49,46,0.03)]"
     >
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(248,246,242,0.94)] px-6 py-3 backdrop-blur">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">
-              {activeTab === "customers"
-                ? selectedGuardian
-                  ? "고객정보"
-                  : "고객관리"
-                : selectedPet
-                  ? selectedPet.name
-                  : tabItems.find((item) => item.key === activeTab)?.label}
-            </h1>
-            {activeTab === "home" ? <p className="text-[12px] leading-5 text-[var(--muted)]">{`${shortDate(todayDate)} 운영 요약`}</p> : null}
-          </div>
-          <div className="flex gap-2">
-            {(activeTab === "home" || activeTab === "book") && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            {isHomeTab ? (
               <button
                 type="button"
-                onClick={() => setActiveTab("settings")}
-                className="flex min-w-[148px] items-center gap-2 rounded-[16px] border border-[var(--border)] bg-white px-3 py-2 text-left shadow-[var(--shadow-soft)]"
-                aria-label="오너 계정 정보 열기"
+                onClick={() => setIsShopPickerOpen((prev) => !prev)}
+                className="flex max-w-[250px] items-center gap-3 rounded-[18px] bg-transparent py-1 text-left"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef6f2] text-[var(--accent)]">
-                  <CircleUserRound className="h-4.5 w-4.5" />
-                </div>
+                <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold tracking-[-0.02em] text-[var(--text)]">{data.shop.name}</p>
-                  <p className="truncate text-[11px] leading-4 text-[var(--muted)]">
-                    {userEmail ? accountDisplayName : "로그인된 계정 확인"}
-                  </p>
+                  <p className="truncate text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{currentOwnedShop.name}</p>
                 </div>
+                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
               </button>
+            ) : (
+              <div className="space-y-1">
+                <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">{screenTitle}</h1>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {activeTab === "book" && (
+              <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-appointment" })}>{"예약 추가"}</button>
             )}
             {activeTab === "customers" && !selectedGuardian && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-customer" })}>{"고객 추가"}</button>}
           </div>
@@ -892,6 +1056,27 @@ export default function OwnerApp({
 
         {activeTab === "home" && (
           <section className="space-y-5 px-6 pb-5 pt-4">
+            {isOnboardingIncomplete ? (
+              <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
+                <div className="space-y-2.5">
+                  {onboardingTasks.map((task) =>
+                    task ? (
+                      <div key={task.key} className="rounded-[18px] border border-[var(--border)] bg-white px-4 py-3.5">
+                        <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">{task.title}</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">{task.description}</p>
+                        <button
+                          type="button"
+                          className="mt-3 inline-flex rounded-[12px] border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2 text-[12px] font-semibold text-[var(--accent)]"
+                          onClick={() => openSettingsScreen(task.key)}
+                        >
+                          {task.cta}
+                        </button>
+                      </div>
+                    ) : null,
+                  )}
+                </div>
+              </Panel>
+            ) : null}
             <div className="grid grid-cols-2 gap-2.5">
               <StatCard label={ownerHomeCopy.statPending} value={String(pendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
               <StatCard label={ownerHomeCopy.statUpcoming} value={String(pendingAppointments.length + todayActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
@@ -913,6 +1098,26 @@ export default function OwnerApp({
                 onStatusChange={(appointmentId, status) => updateAppointment(appointmentId, { status })}
                 onApprovalModeChange={updateApprovalMode}
               />
+            </Panel>
+            <Panel title="예약 링크 사용법" action={<button type="button" className="text-xs font-semibold text-[var(--accent)]" onClick={() => setGuideScreen("getting-started")}>자세히 보기</button>}>
+              <div className="space-y-2 rounded-[18px] border border-[var(--border)] bg-white px-4 py-3.5">
+                <p className="text-[13px] font-semibold text-[var(--text)]">고객 예약 링크</p>
+                <div className="flex items-center gap-2 rounded-[14px] bg-[#f7f4ef] px-3 py-2.5">
+                  <p className="min-w-0 flex-1 truncate text-[12px] text-[var(--muted)]">{bookingEntryUrl}</p>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--accent)]"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(bookingEntryUrl);
+                      setError("예약 링크를 복사했어요. 인스타 프로필, 네이버 예약 안내, 카카오 채널에 붙여 넣어 주세요.");
+                    }}
+                    aria-label="예약 링크 복사"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-[12px] leading-5 text-[var(--muted)]">인스타그램 프로필, 네이버 플레이스 소개글, 카카오 채널 버튼에 같은 링크를 넣으면 여러 곳의 예약 유입을 한 화면에서 관리할 수 있어요.</p>
+              </div>
             </Panel>
           </section>
         )}
@@ -1293,7 +1498,7 @@ export default function OwnerApp({
                   </section>
                 )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-[rgba(255,255,255,0.98)] px-2.5 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(31,40,37,0.08)] backdrop-blur">
@@ -1319,6 +1524,7 @@ export default function OwnerApp({
                       setVisitRange(null);
                       setVisitDateFilter(todayDate);
                     }
+                    if (item.key !== "settings") setSettingsEntryScreen(null);
                     if (item.key !== "customers") setSelectedPetId(null);
                   }}
                 >
@@ -1344,7 +1550,36 @@ export default function OwnerApp({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {isShopPickerOpen ? (
+        <Overlay>
+          <ShopPickerSheet
+            shops={ownedShops}
+            currentShopId={currentOwnedShop.id}
+            switching={saving}
+            onClose={() => setIsShopPickerOpen(false)}
+            onSelect={async (shopId) => {
+              if (!onSwitchShop || shopId === currentOwnedShop.id) {
+                setIsShopPickerOpen(false);
+                return;
+              }
+              await onSwitchShop(shopId);
+              setIsShopPickerOpen(false);
+            }}
+            onEdit={async (shopId) => {
+              if (!onSwitchShop || shopId === currentOwnedShop.id) {
+                setIsShopPickerOpen(false);
+                setModal({ type: "edit-shop-profile" });
+                return;
+              }
+              setPendingShopProfileEditId(shopId);
+              setIsShopPickerOpen(false);
+              await onSwitchShop(shopId);
+            }}
+          />
+        </Overlay>
+      ) : null}
+      {guideScreen === "getting-started" ? <Overlay><BookingGuideSheet bookingEntryUrl={bookingEntryUrl} onClose={() => setGuideScreen(null)} /></Overlay> : null}
     </div>
   );
 }
@@ -1423,14 +1658,56 @@ function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appo
   );
 }
 
-function AppointmentDetail({ appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
+function AppointmentDetail({ data, appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
   const rollbackStatus = appointment.status === "cancelled" ? "confirmed" : null;
   const rollbackLabel = appointment.status === "cancelled" ? "\uCDE8\uC18C/\uBCC0\uACBD \uCCA0\uD68C" : null;
   const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(rejectionReasonTemplates[0]);
   const [customReason, setCustomReason] = useState("");
   const [reminderSent, setReminderSent] = useState(false);
+  const canEditSchedule = ["pending", "confirmed", "cancelled"].includes(appointment.status);
+  const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+  const [serviceId, setServiceId] = useState(appointment.service_id);
+  const [date, setDate] = useState(appointment.appointment_date);
+  const [time, setTime] = useState(appointment.appointment_time);
+  const [memo, setMemo] = useState(appointment.memo);
+  const selectableServices = useMemo(
+    () => data.services.filter((item) => item.is_active || item.id === appointment.service_id),
+    [appointment.service_id, data.services],
+  );
+  const selectedService = selectableServices.find((item) => item.id === serviceId) ?? service;
+  const dateOptions = useMemo(() => {
+    const base = Array.from({ length: 14 }, (_, index) => addDate(currentDateInTimeZone(), index));
+    return base.includes(appointment.appointment_date)
+      ? base
+      : [appointment.appointment_date, ...base].sort((a, b) => a.localeCompare(b));
+  }, [appointment.appointment_date]);
+  const slots = computeAvailableSlots({
+    date,
+    serviceId,
+    shop: data.shop,
+    services: data.services,
+    appointments: data.appointments,
+    excludeAppointmentId: appointment.id,
+  });
+  const hasEditChanges =
+    serviceId !== appointment.service_id ||
+    date !== appointment.appointment_date ||
+    time !== appointment.appointment_time ||
+    memo !== appointment.memo;
+  const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
 
-  return <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}><div className="space-y-4"><div className="rounded-2xl bg-[#fcfaf7] p-4 text-sm"><p className="font-bold">{pet.name} {ownerHomeCopy.separator} {guardian.name}</p><p className="mt-1 text-[var(--muted)]">{appointment.appointment_date} {formatClockTime(appointment.appointment_time)}</p><p className="mt-1 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {won(service.price)}</p><p className="mt-1 text-[var(--muted)]">{ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}</p>{appointment.rejection_reason && <p className="mt-2 rounded-2xl bg-[#fff1f1] px-3 py-2 text-xs font-semibold text-red-700">미승인 사유: {appointment.rejection_reason}</p>}</div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 연락</p><QuickContactRow phone={guardian.phone} reminderSent={reminderSent} sending={saving} onSendReminder={async () => { await onSendReminder(); setReminderSent(true); }} /></div>{appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}<div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="secondary" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div></div></Sheet>;
+  useEffect(() => {
+    if (slots.length === 0) {
+      setTime("");
+      return;
+    }
+
+    if (!slots.includes(time)) {
+      setTime(slots[0]);
+    }
+  }, [slots, time]);
+
+  return <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}><div className="space-y-4"><div className="rounded-2xl bg-[#fcfaf7] p-4 text-sm"><p className="font-bold">{pet.name} {ownerHomeCopy.separator} {guardian.name}</p><p className="mt-1 text-[var(--muted)]">{appointment.appointment_date} {formatClockTime(appointment.appointment_time)}</p><p className="mt-1 text-[var(--muted)]">{selectedService.name} {ownerHomeCopy.separator} {won(selectedService.price)}</p><p className="mt-1 text-[var(--muted)]">{ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}</p>{appointment.rejection_reason && <p className="mt-2 rounded-2xl bg-[#fff1f1] px-3 py-2 text-xs font-semibold text-red-700">미승인 사유: {appointment.rejection_reason}</p>}</div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 연락</p><QuickContactRow phone={guardian.phone} reminderSent={reminderSent} sending={saving} onSendReminder={async () => { await onSendReminder(); setReminderSent(true); }} /></div>{canEditSchedule && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">예약 일정 수정</p><button type="button" className="text-xs font-semibold text-[var(--accent)]" onClick={() => setIsEditingSchedule((prev) => !prev)}>{isEditingSchedule ? "닫기" : "수정"}</button></div>{isEditingSchedule ? <div className="space-y-3"><div className="grid grid-cols-2 gap-2">{selectableServices.map((item) => <button key={item.id} type="button" className={`rounded-2xl border px-3 py-3 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => setServiceId(item.id)}><p className="text-sm font-bold text-[var(--text)]">{item.name}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{won(item.price)}</p></button>)}</div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p><HorizontalDragScroll>{dateOptions.map((item, index) => <button key={item} type="button" className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setDate(item)}><span className="text-sm font-bold">{index === 0 && item === currentDateInTimeZone() ? "오늘" : shortDate(item)}</span></button>)}</HorizontalDragScroll></div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>{slots.length === 0 ? <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div> : <HorizontalDragScroll>{slots.map((slot) => <button key={slot} type="button" className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setTime(slot)}>{slot}</button>)}</HorizontalDragScroll>}</div><Field label="메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="변경 안내 메모를 남겨 주세요" /></Field><ActionButton disabled={!canSaveSchedule} onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}>예약 수정 저장</ActionButton></div> : <p className="text-xs leading-5 text-[var(--muted)]">서비스, 날짜, 시간, 메모를 한 번에 바꿔서 고객과 조정한 예약을 바로 반영할 수 있어요.</p>}</div>}{appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}<div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="secondary" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div></div></Sheet>;
 }
 
 function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) {
@@ -1513,8 +1790,174 @@ function AddPetForm({ shopId, guardianId, saving, onClose, onSave }: { shopId: s
 }
 function EditRecordForm({ services, record, saving, onClose, onSave }: { shopId: string; services: Service[]; record: GroomingRecord; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) { const [styleNotes, setStyleNotes] = useState(record.style_notes); const [memo, setMemo] = useState(record.memo); const [pricePaid, setPricePaid] = useState(String(record.price_paid)); const [serviceId, setServiceId] = useState(record.service_id); return <Sheet title="미용 기록 수정" onClose={onClose}><div className="space-y-3"><Field label="서비스"><select value={serviceId} onChange={(event) => setServiceId(event.target.value)} className="field">{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="스타일 메모"><input value={styleNotes} onChange={(event) => setStyleNotes(event.target.value)} className="field" /></Field><Field label="상세 메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" /></Field><Field label="결제 금액"><input value={pricePaid} onChange={(event) => setPricePaid(event.target.value)} className="field" /></Field><ActionButton disabled={saving} onClick={() => onSave({ recordId: record.id, styleNotes, memo, pricePaid: Number(pricePaid), serviceId })}>기록 저장</ActionButton></div></Sheet>; }
 
+function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: BootstrapPayload; saving: boolean; onClose: () => void; onSave: (payload: ShopProfileSavePayload) => void }) {
+  const [name, setName] = useState(data.shop.name);
+  const [phone, setPhone] = useState(data.shop.phone);
+  const [address, setAddress] = useState(data.shop.address);
+  const [description, setDescription] = useState(data.shop.description);
+  const [heroImageUrl, setHeroImageUrl] = useState(data.shop.customer_page_settings?.hero_image_url || "");
+  const [businessHours, setBusinessHours] = useState<ShopBusinessHours>(() =>
+    Object.fromEntries(
+      Object.entries(data.shop.business_hours).map(([key, value]) => [
+        key,
+        value || { open: "10:00", close: "19:00", enabled: false },
+      ]),
+    ),
+  );
+
+  const normalizedCustomerPageSettings = useMemo(
+    () => normalizeCustomerPageSettings(data.shop.customer_page_settings, data.shop.name, data.shop.description),
+    [data.shop.customer_page_settings, data.shop.description, data.shop.name],
+  );
+  const canSave = Boolean(name.trim() && phone.trim() && address.trim());
+
+  return (
+    <Sheet title="매장 프로필 편집" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+          <p className="text-sm font-semibold text-[var(--text)]">기본 정보</p>
+          <div className="mt-3 space-y-3">
+            <Field label="매장 이름">
+              <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+            <Field label="연락처">
+              <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
+            </Field>
+            <Field label="매장 주소">
+              <input className="field" value={address} onChange={(event) => setAddress(event.target.value)} />
+            </Field>
+            <Field label="매장 소개">
+              <textarea className="field min-h-24" value={description} onChange={(event) => setDescription(event.target.value)} />
+            </Field>
+            <Field label="프로필 이미지 URL">
+              <input
+                className="field"
+                value={heroImageUrl}
+                onChange={(event) => setHeroImageUrl(event.target.value)}
+                placeholder="비워두면 기본 프로필 아이콘이 보여요"
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+          <p className="text-sm font-semibold text-[var(--text)]">운영 가능 시간</p>
+          <div className="mt-3 space-y-2.5">
+            {Object.entries(businessHours).map(([key, value], index) => {
+              const dayValue = value || { open: "10:00", close: "19:00", enabled: false };
+
+              return <div key={key} className="rounded-[16px] border border-[var(--border)] bg-white px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--text)]">{compactWeekdayLabels[index] || key}</p>
+                  <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
+                    <input
+                      type="checkbox"
+                      checked={dayValue.enabled}
+                      onChange={(event) =>
+                        setBusinessHours((prev) => ({
+                          ...prev,
+                          [key]: {
+                            ...(prev[key] || dayValue),
+                            enabled: event.target.checked,
+                          },
+                        }))
+                      }
+                    />
+                    운영
+                  </label>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <input
+                    type="time"
+                    className="field"
+                    value={dayValue.open}
+                    disabled={!dayValue.enabled}
+                    onChange={(event) =>
+                      setBusinessHours((prev) => ({
+                        ...prev,
+                        [key]: {
+                          ...(prev[key] || dayValue),
+                          open: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                  <input
+                    type="time"
+                    className="field"
+                    value={dayValue.close}
+                    disabled={!dayValue.enabled}
+                    onChange={(event) =>
+                      setBusinessHours((prev) => ({
+                        ...prev,
+                        [key]: {
+                          ...(prev[key] || dayValue),
+                          close: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              </div>;
+            })}
+          </div>
+        </div>
+
+        <ActionButton
+          disabled={saving || !canSave}
+          onClick={() =>
+            onSave({
+              settingsPayload: {
+                shopId: data.shop.id,
+                name: name.trim(),
+                phone: phone.trim(),
+                address: address.trim(),
+                description: description.trim(),
+                concurrentCapacity: data.shop.concurrent_capacity,
+                approvalMode: data.shop.approval_mode,
+                regularClosedDays: data.shop.regular_closed_days,
+                temporaryClosedDates: data.shop.temporary_closed_dates,
+                businessHours,
+                notificationSettings: {
+                  enabled: data.shop.notification_settings.enabled,
+                  revisitEnabled: data.shop.notification_settings.revisit_enabled,
+                  bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
+                  bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
+                  bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
+                  bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
+                  groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
+                  groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
+                },
+              },
+              customerPageSettingsPayload: {
+                shopId: data.shop.id,
+                customerPageSettings: {
+                  ...normalizedCustomerPageSettings,
+                  shop_name: name.trim(),
+                  hero_image_url: heroImageUrl.trim(),
+                },
+              },
+            })
+          }
+        >
+          매장 정보 저장
+        </ActionButton>
+      </div>
+    </Sheet>
+  );
+}
+
+function ShopPickerSheet({ shops, currentShopId, switching, onClose, onSelect, onEdit }: { shops: OwnedShopSummary[]; currentShopId: string; switching: boolean; onClose: () => void; onSelect: (shopId: string) => Promise<void>; onEdit: (shopId: string) => Promise<void> }) {
+  return <Sheet title="매장 전환" onClose={onClose}><div className="space-y-3">{shops.map((shop) => <div key={shop.id} className={`flex items-center gap-3 rounded-[18px] border px-4 py-3 ${shop.id === currentShopId ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`}><button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => void onSelect(shop.id)} disabled={switching}><ShopAvatar name={shop.name} imageUrl={shop.heroImageUrl} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--text)]">{shop.name}</p><p className="truncate text-xs text-[var(--muted)]">{shop.address}</p></div></button><button type="button" className="shrink-0 rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]" onClick={() => void onEdit(shop.id)} disabled={switching}>편집</button></div>)}</div></Sheet>;
+}
+
+function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: string; onClose: () => void }) {
+  return <Sheet title="예약 링크 사용법" onClose={onClose}><div className="space-y-4"><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold text-[var(--text)]">1. 고객용 예약 링크</p><div className="mt-3 flex items-center gap-2 rounded-[14px] bg-white px-3 py-3"><p className="min-w-0 flex-1 break-all text-[12px] text-[var(--muted)]">{bookingEntryUrl}</p><button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)]" onClick={() => void navigator.clipboard.writeText(bookingEntryUrl)} aria-label="예약 링크 복사"><Copy className="h-4 w-4" /></button></div></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold text-[var(--text)]">2. 어디에 붙이면 좋은가요?</p><ul className="mt-3 space-y-2 text-[13px] leading-6 text-[var(--muted)]"><li>인스타그램 프로필 링크</li><li>네이버 플레이스 소개글/예약 안내</li><li>카카오채널 채팅방 버튼 또는 자동응답</li><li>문자, 알림톡, 단골 고객 안내 메시지</li></ul></div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold text-[var(--text)]">3. 왜 한 링크로 모으나요?</p><p className="mt-3 text-[13px] leading-6 text-[var(--muted)]">여러 채널에서 예약이 들어와도 결국 같은 예약 페이지로 모이면 일정 확인, 승인, 변경, 고객 관리가 한 화면에서 정리됩니다.</p></div></div></Sheet>;
+}
+
 function SettingsPanel({
   data,
+  initialScreen = null,
   onSave,
   onSaveService,
   onSaveCustomerPageSettings,
@@ -1524,6 +1967,7 @@ function SettingsPanel({
   subscriptionSummary,
 }: {
   data: BootstrapPayload;
+  initialScreen?: SettingsEntryScreen;
   onSave: (payload: unknown) => void;
   onSaveService: (payload: unknown) => void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
@@ -1535,6 +1979,7 @@ function SettingsPanel({
   return (
     <OwnerSettingsPanel
       data={data}
+      initialScreen={initialScreen}
       onSave={onSave}
       onSaveService={onSaveService}
       onSaveCustomerPageSettings={onSaveCustomerPageSettings}
@@ -1730,6 +2175,14 @@ function ActionButton({ children, disabled, onClick, variant = "primary" }: { ch
 }
 
 function EmptyState({ title }: { title: string }) { return <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-5 text-center text-sm leading-6 text-[var(--muted)]">{title}</div>; }
+function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-11 w-11 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;
+  }
+
+  return <div className="flex size-11 items-center justify-center rounded-full border border-[#dfeae5] bg-[#f4f5f4] text-[#9ea4a1] shadow-[0_2px_8px_rgba(31,107,91,0.05)]"><UserRound className="h-5 w-5" strokeWidth={1.9} /></div>;
+}
+
 function Avatar({ seed }: { seed: string }) { return <div className="flex size-11 items-center justify-center rounded-full border border-[#dfeae5] bg-[#f6fbf9] text-lg shadow-[0_2px_8px_rgba(31,107,91,0.05)]">{seed}</div>; }
 function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "unknown"; days: number | null }) {
   const text = status === "overdue" ? `${Math.abs(days || 0)}일 초과` : status === "soon" ? `${days}일 남음` : status === "ok" ? `${days}일 여유` : "미산정";

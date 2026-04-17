@@ -10,6 +10,13 @@ import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
+type OwnedShopSummary = {
+  id: string;
+  name: string;
+  address: string;
+  heroImageUrl: string;
+};
+
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   if (summary.status === "past_due" || summary.status === "expired") return null;
   if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
@@ -114,12 +121,18 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
 
 export default function OwnerShell({
   initialData,
+  ownedShops,
+  selectedShopId,
   subscriptionSummary,
   userEmail,
+  onSwitchShop,
 }: {
   initialData: BootstrapPayload;
+  ownedShops: OwnedShopSummary[];
+  selectedShopId: string | null;
   subscriptionSummary: OwnerSubscriptionSummary | null;
   userEmail: string | null;
+  onSwitchShop: (shopId: string) => Promise<void>;
 }) {
   const router = useRouter();
   const [supabase] = useState<SupabaseClient | null>(() => getSupabaseBrowserClient());
@@ -154,8 +167,11 @@ export default function OwnerShell({
       {summary ? <TrialNoticeBanner summary={summary} /> : null}
       <OwnerApp
         initialData={initialData}
+        ownedShops={ownedShops}
+        selectedShopId={selectedShopId}
         subscriptionSummary={summary}
         onLogout={handleLogout}
+        onSwitchShop={onSwitchShop}
         loggingOut={loggingOut}
         userEmail={userEmail}
       />

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
-import { createAppointment, updateAppointmentStatus } from "@/server/owner-mutations";
+import { createAppointment, updateAppointmentDetails, updateAppointmentStatus } from "@/server/owner-mutations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +31,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: "예약을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const result = await updateAppointmentStatus(body);
+    const result =
+      typeof body?.status === "string"
+        ? await updateAppointmentStatus(body)
+        : await updateAppointmentDetails({ ...body, shopId: owner.shopId });
+
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {

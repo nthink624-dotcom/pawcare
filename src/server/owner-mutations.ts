@@ -11,6 +11,7 @@ import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import {
   appointmentInputSchema,
+  appointmentEditSchema,
   appointmentStatusSchema,
   guardianDeleteSchema,
   customerPageSettingsSchema,
@@ -977,6 +978,107 @@ export async function updateAppointmentStatus(input: unknown) {
       type: "grooming_completed",
     });
   }
+
+  return resolvedAppointment;
+}
+
+export async function updateAppointmentDetails(input: unknown) {
+  const payload = appointmentEditSchema.parse(input);
+  const data = await getBootstrap(payload.shopId);
+  const appointment = data.appointments.find((item) => item.id === payload.appointmentId);
+
+  if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+  if (!["pending", "confirmed", "cancelled"].includes(appointment.status)) {
+    throw new Error("이 예약 상태에서는 일정 수정이 어렵습니다.");
+  }
+
+  const service = data.services.find((item) => item.id === payload.serviceId);
+  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+
+  const availableSlots = computeAvailableSlots({
+    date: payload.appointmentDate,
+    serviceId: payload.serviceId,
+    shop: data.shop,
+    services: data.services,
+    appointments: data.appointments,
+    excludeAppointmentId: payload.appointmentId,
+  });
+
+  if (!availableSlots.includes(payload.appointmentTime)) {
+    throw new Error("선택한 시간에는 예약할 수 없습니다.");
+  }
+
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+  const nextValues = {
+    service_id: payload.serviceId,
+    appointment_date: payload.appointmentDate,
+    appointment_time: payload.appointmentTime,
+    memo: payload.memo.trim(),
+    status: "confirmed" as const,
+    rejection_reason: null,
+    start_at: appointmentWindow.start_at,
+    end_at: appointmentWindow.end_at,
+    updated_at: nowIso(),
+  };
+
+  if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const target = store.appointments.find((item) => item.id === payload.appointmentId);
+    if (!target) throw new Error("예약 정보를 찾을 수 없습니다.");
+
+    Object.assign(target, nextValues);
+    setMockStore(store);
+
+    await dispatchNotification({
+      shopId: target.shop_id,
+      appointmentId: target.id,
+      guardianId: target.guardian_id,
+      petId: target.pet_id,
+      type: "booking_rescheduled_confirmed",
+    });
+
+    return target;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
+
+  const { data: updatedAppointment, error } = await supabase
+    .from("appointments")
+    .update(nextValues)
+    .eq("id", payload.appointmentId)
+    .select("*")
+    .single();
+
+  let resolvedAppointment = updatedAppointment;
+
+  if (error) {
+    if (hasMissingColumnError(error, "rejection_reason")) {
+      const { rejection_reason: _ignored, ...fallbackValues } = nextValues;
+      const fallback = await supabase
+        .from("appointments")
+        .update(fallbackValues)
+        .eq("id", payload.appointmentId)
+        .select("*")
+        .single();
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      resolvedAppointment = {
+        ...fallback.data,
+        rejection_reason: null,
+      };
+    } else {
+      throw new Error(error.message);
+    }
+  }
+
+  await dispatchNotification({
+    shopId: resolvedAppointment.shop_id,
+    appointmentId: resolvedAppointment.id,
+    guardianId: resolvedAppointment.guardian_id,
+    petId: resolvedAppointment.pet_id,
+    type: "booking_rescheduled_confirmed",
+  });
 
   return resolvedAppointment;
 }

@@ -20,6 +20,15 @@ export const appointmentStatusSchema = z.object({
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
 });
 
+export const appointmentEditSchema = z.object({
+  appointmentId: z.string(),
+  shopId: z.string(),
+  serviceId: z.string(),
+  appointmentDate: z.string(),
+  appointmentTime: z.string(),
+  memo: z.string().default(""),
+});
+
 export const guardianInputSchema = z.object({
   shopId: z.string(),
   name: z.string().trim().min(1),

@@ -39,21 +39,27 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     throw new OwnerApiError("로그인이 필요합니다.", 401);
   }
 
-  const shopResult = await admin.from("shops").select("id").eq("owner_user_id", userResult.data.user.id).maybeSingle();
-  if (shopResult.error) {
-    throw new OwnerApiError(shopResult.error.message, 500);
+  const shopsResult = await admin
+    .from("shops")
+    .select("id")
+    .eq("owner_user_id", userResult.data.user.id)
+    .order("created_at");
+
+  if (shopsResult.error) {
+    throw new OwnerApiError(shopsResult.error.message, 500);
   }
 
-  if (!shopResult.data?.id) {
+  const ownedShopIds = (shopsResult.data ?? []).map((shop) => shop.id).filter(Boolean);
+  if (ownedShopIds.length === 0) {
     throw new OwnerApiError("소유한 매장이 없습니다.", 403);
   }
 
-  if (requestedShopId && requestedShopId !== shopResult.data.id) {
+  if (requestedShopId && !ownedShopIds.includes(requestedShopId)) {
     throw new OwnerApiError("다른 매장 데이터에는 접근할 수 없습니다.", 403);
   }
 
   return {
-    shopId: shopResult.data.id,
+    shopId: requestedShopId || ownedShopIds[0],
     userId: userResult.data.user.id,
   };
 }

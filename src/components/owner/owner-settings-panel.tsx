@@ -373,45 +373,64 @@ export default function OwnerSettingsPanel({
     <section className="space-y-3">
       {(() => {
         const currentPlan = selectedPlan ?? subscriptionSummary.currentPlan;
-        const currentPlanTitle =
-          currentPlan.months === 1 ? "1개월" : `${currentPlan.months}개월 약정`;
-        const currentPlanLine =
-          currentPlan.billingType === "one_time"
+        const isTrialStatus =
+          subscriptionSummary.status === "trialing" || subscriptionSummary.status === "trial_will_end";
+        const showTrialCard =
+          isTrialStatus &&
+          !subscriptionSummary.currentPeriodEndsAt &&
+          subscriptionSummary.lastPaymentStatus === "none";
+        const currentPlanTitle = showTrialCard
+          ? "무료체험"
+          : currentPlan.months === 1
+            ? "1개월"
+            : `${currentPlan.months}개월 약정`;
+        const currentPlanLine = showTrialCard
+          ? "카드 등록 없이 이용 중"
+          : currentPlan.billingType === "one_time"
             ? "일반결제"
             : `${currentPlan.months}개월 동안 매월 ${won(currentPlan.monthlyPrice)} 결제`;
+        const currentPlanPriceLabel = showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
+        const currentPlanSubLabel = showTrialCard
+          ? "2주 체험"
+          : currentPlan.billingType === "one_time"
+            ? "1회 결제"
+            : currentPlan.totalLabel;
+        const endDateLabel = showTrialCard ? "무료체험 종료일" : "서비스 종료일";
 
         return (
-      <div className="overflow-hidden rounded-[26px] border border-[#ddd6ca] bg-white shadow-[0_10px_22px_rgba(30,31,28,0.06)]">
-        <div className="bg-[#86c9b0] px-5 pb-5 pt-4 text-white">
-          <div className="mt-1 flex items-end justify-between gap-4">
+      <div className="overflow-hidden rounded-[20px] border border-[#d9d4cb] bg-white shadow-[0_6px_16px_rgba(21,22,19,0.04)]">
+        <div className="px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[12px] font-semibold tracking-[0.01em] text-white/80">현재 플랜</p>
-              <p className="mt-1 text-[30px] font-extrabold leading-[0.96] tracking-[-0.06em] text-white">
+              <p className="text-[11px] font-semibold tracking-[0.08em] text-[#8a8277]">현재 플랜</p>
+              <p className="mt-2 text-[25px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">
                 {currentPlanTitle}
               </p>
-              <p className="mt-2 text-[13px] font-semibold text-white/90">{currentPlanLine}</p>
+              <p className="mt-2 text-[12px] font-medium leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[27px] font-extrabold tracking-[-0.05em] text-white">월 {won(currentPlan.monthlyPrice)}</p>
-              <p className="mt-1.5 text-[12px] font-semibold text-white/80">
-                {currentPlan.billingType === "one_time" ? "1회 결제" : currentPlan.totalLabel}
+              <p className="text-[24px] font-extrabold leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
+              <p className="mt-2 text-[11px] font-medium text-[#8a8277]">
+                {currentPlanSubLabel}
               </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-between gap-4 bg-white px-5 py-3.5">
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold tracking-[0.01em] text-[#877f72]">서비스 종료일</p>
-            <p className="mt-1 text-[20px] font-extrabold tracking-[-0.04em] text-[var(--text)]">{subscriptionEndDate}</p>
+          <div className="mt-4 border-t border-[#ebe5dc] pt-3.5">
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold tracking-[0.06em] text-[#8a8277]">{endDateLabel}</p>
+                <p className="mt-1 text-[18px] font-bold tracking-[-0.03em] text-[#171411]">{subscriptionEndDate}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPlanPickerOpen((prev) => !prev)}
+                className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white transition hover:bg-[#195748]"
+              >
+                업그레이드 플랜
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsPlanPickerOpen((prev) => !prev)}
-            className="shrink-0 rounded-full bg-[#f7e3c0] px-5 py-2.5 text-[14px] font-extrabold tracking-[-0.02em] text-[#d38361] transition hover:bg-[#f3dbb2]"
-          >
-            업그레이드 플랜
-          </button>
         </div>
       </div>
         );

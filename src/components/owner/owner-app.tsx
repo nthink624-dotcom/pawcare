@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { CalendarDays, ChevronDown, Copy, House, PawPrint, Settings, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Camera, ChevronDown, Copy, House, PawPrint, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -1129,10 +1129,11 @@ export default function OwnerApp({
           <section className="space-y-4 p-4">
             <Panel
               title="고객 정보"
+              titleClassName="text-[16px] tracking-[-0.03em]"
               action={
                 <button
                   type="button"
-                  className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
+                  className="inline-flex h-8 items-center rounded-full px-2 text-[12px] font-medium tracking-[-0.01em] text-[var(--accent)]"
                   onClick={() => {
                     setIsCustomerListEditing((prev) => {
                       if (prev) setSelectedGuardianIds([]);
@@ -1144,18 +1145,18 @@ export default function OwnerApp({
                 </button>
               }
             >
-              <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-3">
+              <div className="rounded-[14px] border border-[var(--border)] bg-white px-3.5 py-2.5">
                 <input
                   value={customerSearch}
                   onChange={(event) => setCustomerSearch(event.target.value)}
                   placeholder="보호자명, 연락처, 아기 이름 검색"
-                  className="w-full bg-transparent text-[14px] outline-none"
+                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-[var(--muted)]"
                 />
               </div>
 
               {isCustomerListEditing && filteredGuardians.length > 0 ? (
-                <div className="flex items-center justify-between px-1 py-1">
-                  <label className="flex items-center gap-2.5 text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">
+                <div className="flex items-center justify-between rounded-[14px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-2">
+                  <label className="flex items-center gap-2 text-[12px] font-medium tracking-[-0.01em] text-[var(--text)]">
                     <input
                       type="checkbox"
                       checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
@@ -1164,32 +1165,32 @@ export default function OwnerApp({
                     />
                     전체 선택
                   </label>
-                    <button
-                      type="button"
-                      className="px-1 py-1 text-[14px] font-medium tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
-                      onClick={deleteSelectedGuardians}
-                      disabled={selectedGuardianIds.length === 0 || saving}
-                    >
-                      선택 삭제
-                    </button>
-                  </div>
-                ) : null}
+                  <button
+                    type="button"
+                    className="px-1 py-1 text-[12px] font-medium tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
+                    onClick={deleteSelectedGuardians}
+                    disabled={selectedGuardianIds.length === 0 || saving}
+                  >
+                    선택 삭제
+                  </button>
+                </div>
+              ) : null}
 
               {filteredGuardians.length === 0 ? (
                 <EmptyState title="조건에 맞는 고객이 없어요" />
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {filteredGuardians.map((summary) => (
                     <div
                       key={summary.guardian.id}
-                      className="flex items-start gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 transition hover:bg-[#fcfaf7]"
+                      className="flex items-start gap-3 rounded-[15px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 transition hover:bg-[#fcfaf7]"
                     >
                       {isCustomerListEditing ? (
                         <input
                           type="checkbox"
                           checked={selectedGuardianIds.includes(summary.guardian.id)}
                           onChange={() => toggleGuardianSelection(summary.guardian.id)}
-                          className="mt-1 h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                          className="mt-[3px] h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                         />
                       ) : null}
                       <button
@@ -1200,13 +1201,15 @@ export default function OwnerApp({
                           setDetailTab("pets");
                         }}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                            <p className="mt-0.5 text-[14px] font-medium leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
-                            <p className="mt-1 text-[14px] font-medium leading-5 text-[var(--text)]">아기 이름 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                              <span className="shrink-0 text-[11px] font-medium tracking-[-0.01em] text-[var(--accent)]">상세</span>
+                            </div>
+                            <p className="mt-1 text-[12px] font-medium leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
+                            <p className="mt-0.5 text-[12px] font-medium leading-5 text-[#5e5a56]">반려동물 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
                           </div>
-                          <span className="pt-1 text-[12px] font-semibold text-[var(--accent)]">상세</span>
                         </div>
                       </button>
                     </div>
@@ -1584,11 +1587,11 @@ export default function OwnerApp({
   );
 }
 
-function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, action, children, titleClassName = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; titleClassName?: string }) {
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
       <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)]">{title}</h2>
+        <h2 className={`text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)] ${titleClassName}`.trim()}>{title}</h2>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       <div className="space-y-3">{children}</div>
@@ -1796,6 +1799,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
   const [address, setAddress] = useState(data.shop.address);
   const [description, setDescription] = useState(data.shop.description);
   const [heroImageUrl, setHeroImageUrl] = useState(data.shop.customer_page_settings?.hero_image_url || "");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [businessHours, setBusinessHours] = useState<ShopBusinessHours>(() =>
     Object.fromEntries(
       Object.entries(data.shop.business_hours).map(([key, value]) => [
@@ -1811,42 +1815,103 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
   );
   const canSave = Boolean(name.trim() && phone.trim() && address.trim());
 
+  function handleProfileImageChange(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setHeroImageUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   return (
     <Sheet title="매장 프로필 편집" onClose={onClose}>
-      <div className="space-y-4">
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
-          <p className="text-sm font-semibold text-[var(--text)]">기본 정보</p>
-          <div className="mt-3 space-y-3">
+      <div className="space-y-3">
+        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border border-[#dfeae5] bg-white shadow-[0_2px_8px_rgba(31,107,91,0.05)]"
+                aria-label="프로필 이미지 변경"
+              >
+                {heroImageUrl ? (
+                  <img src={heroImageUrl} alt={`${name || data.shop.name} 프로필`} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
+                    <UserRound className="h-8 w-8" strokeWidth={1.8} />
+                  </div>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
+                aria-label="프로필 이미지 선택"
+              >
+                <Camera className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
+              <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">프로필 사진을 누르면 바로 바꿀 수 있어요.</p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]"
+                >
+                  사진 변경
+                </button>
+                {heroImageUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setHeroImageUrl("")}
+                    className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] font-medium text-[var(--muted)]"
+                  >
+                    기본 아이콘
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
             <Field label="매장 이름">
               <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
             </Field>
             <Field label="연락처">
               <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
             </Field>
+          </div>
+
+          <div className="mt-2.5 space-y-2.5">
             <Field label="매장 주소">
               <input className="field" value={address} onChange={(event) => setAddress(event.target.value)} />
             </Field>
             <Field label="매장 소개">
-              <textarea className="field min-h-24" value={description} onChange={(event) => setDescription(event.target.value)} />
-            </Field>
-            <Field label="프로필 이미지 URL">
-              <input
-                className="field"
-                value={heroImageUrl}
-                onChange={(event) => setHeroImageUrl(event.target.value)}
-                placeholder="비워두면 기본 프로필 아이콘이 보여요"
-              />
+              <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} />
             </Field>
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
           <p className="text-sm font-semibold text-[var(--text)]">운영 가능 시간</p>
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-2.5 space-y-2">
             {Object.entries(businessHours).map(([key, value], index) => {
               const dayValue = value || { open: "10:00", close: "19:00", enabled: false };
 
-              return <div key={key} className="rounded-[16px] border border-[var(--border)] bg-white px-3 py-3">
+              return <div key={key} className="rounded-[14px] border border-[var(--border)] bg-white px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-[var(--text)]">{compactWeekdayLabels[index] || key}</p>
                   <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
@@ -1866,7 +1931,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                     운영
                   </label>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
                   <input
                     type="time"
                     className="field"

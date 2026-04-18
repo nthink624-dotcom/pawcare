@@ -8,7 +8,7 @@ import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription"
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
-import { addDate, currentDateInTimeZone, formatClockTime, shortDate, won } from "@/lib/utils";
+import { addDate, currentDateInTimeZone, formatClockTime, phoneNormalize, shortDate, won } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
@@ -131,6 +131,7 @@ export default function OwnerApp({
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
 }) {
+  const isAdminUser = (userEmail ?? "").trim().toLowerCase() === "nthink624@gmail.com";
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
@@ -397,6 +398,8 @@ export default function OwnerApp({
       })
       .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at));
   }, [data.notifications, selectedGuardian, selectedGuardianPets]);
+  const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
+  const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
   const selectedLatestRecord = selectedPet ? [...selectedRecords].sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))[0] : null;
   const canSaveGuardianProfile = Boolean(
     selectedGuardian &&
@@ -819,6 +822,10 @@ export default function OwnerApp({
   async function sendBirthdayGreeting(pet: Pet) {
     const guardian = guardianMap[pet.guardian_id];
     if (!guardian) return;
+    if (!guardian.notification_settings.enabled) {
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      return;
+    }
 
     if (isOwnerDemo) {
       const now = new Date().toISOString();
@@ -881,6 +888,14 @@ export default function OwnerApp({
   async function sendRevisitNotice(pet: Pet) {
     const guardian = guardianMap[pet.guardian_id];
     if (!guardian) return;
+    if (!guardian.notification_settings.enabled) {
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      return;
+    }
+    if (!guardian.notification_settings.revisit_enabled) {
+      setError("이 고객은 재방문 알림이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      return;
+    }
 
     if (isOwnerDemo) {
       const now = new Date().toISOString();
@@ -941,6 +956,11 @@ export default function OwnerApp({
   }
 
   async function sendAppointmentReminder(appointment: Appointment, pet: Pet, guardian: Guardian, service: Service) {
+    if (!guardian.notification_settings.enabled) {
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      return;
+    }
+
     if (isOwnerDemo) {
       setData((prev) => ({
         ...prev,
@@ -1155,19 +1175,19 @@ export default function OwnerApp({
               </div>
 
               {isCustomerListEditing && filteredGuardians.length > 0 ? (
-                <div className="flex items-center justify-between rounded-[14px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-2">
-                  <label className="flex items-center gap-2 text-[12px] font-medium tracking-[-0.01em] text-[var(--text)]">
+                <div className="flex items-center justify-between rounded-[13px] border border-[var(--border)] bg-[#fcfaf7] px-2.5 py-1">
+                  <label className="flex items-center gap-1.5 text-[10px] font-normal tracking-[-0.01em] text-[var(--text)]">
                     <input
                       type="checkbox"
                       checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
                       onChange={toggleAllVisibleGuardians}
-                      className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                      className="h-[12px] w-[12px] rounded-[3px] border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                     />
-                    전체 선택
+                    <span className="leading-none">전체 선택</span>
                   </label>
                   <button
                     type="button"
-                    className="px-1 py-1 text-[12px] font-medium tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
+                    className="px-1 py-0.5 text-[10px] font-normal leading-none tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
                     onClick={deleteSelectedGuardians}
                     disabled={selectedGuardianIds.length === 0 || saving}
                   >
@@ -1205,7 +1225,14 @@ export default function OwnerApp({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-3">
                               <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                              <span className="shrink-0 text-[11px] font-medium tracking-[-0.01em] text-[var(--accent)]">상세</span>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {summary.isAlertsOff ? (
+                                  <span className="rounded-full bg-[#f4f0ea] px-2 py-1 text-[10px] font-medium tracking-[-0.01em] text-[var(--muted)]">
+                                    알림 꺼짐
+                                  </span>
+                                ) : null}
+                                <span className="text-[11px] font-medium tracking-[-0.01em] text-[var(--accent)]">상세</span>
+                              </div>
                             </div>
                             <p className="mt-1 text-[12px] font-medium leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
                             <p className="mt-0.5 text-[12px] font-medium leading-5 text-[#5e5a56]">반려동물 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
@@ -1392,17 +1419,50 @@ export default function OwnerApp({
                         <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">빠른 액션</p>
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <a
-                            href={`tel:${selectedGuardian.phone}`}
+                            href={buildTelHref(selectedGuardian.phone)}
                             className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--text)]"
                           >
                             전화하기
                           </a>
                           <a
-                            href={`sms:${selectedGuardian.phone}`}
+                            href={buildSmsHref(selectedGuardian.phone)}
                             className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--muted)]"
                           >
                             문자 보내기
                           </a>
+                        </div>
+                      </div>
+
+                      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">알림톡 설정</p>
+                            <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">고객별로 알림톡 비용이 나가지 않도록 수신을 직접 조절할 수 있어요.</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          <ToggleRow
+                            label="알림톡 받기"
+                            description="예약 안내, 방문 안내, 완료 알림 등 기본 알림을 보낼 수 있어요."
+                            checked={guardianNotificationsEnabled}
+                            disabled={saving}
+                            onChange={(checked) => {
+                              void updateGuardianNotifications(
+                                selectedGuardian.id,
+                                checked,
+                                checked ? guardianRevisitNotificationsEnabled : false,
+                              );
+                            }}
+                          />
+                          <ToggleRow
+                            label="재방문 알림"
+                            description="재방문 시기가 다가왔을 때만 별도로 다시 알려드려요."
+                            checked={guardianNotificationsEnabled && guardianRevisitNotificationsEnabled}
+                            disabled={saving || !guardianNotificationsEnabled}
+                            onChange={(checked) => {
+                              void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
+                            }}
+                          />
                         </div>
                       </div>
 
@@ -1501,7 +1561,7 @@ export default function OwnerApp({
                   </section>
                 )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} isAdminUser={isAdminUser} subscriptionSummary={subscriptionSummary} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-[rgba(255,255,255,0.98)] px-2.5 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(31,40,37,0.08)] backdrop-blur">
@@ -1585,6 +1645,14 @@ export default function OwnerApp({
       {guideScreen === "getting-started" ? <Overlay><BookingGuideSheet bookingEntryUrl={bookingEntryUrl} onClose={() => setGuideScreen(null)} /></Overlay> : null}
     </div>
   );
+}
+
+function buildTelHref(phone: string) {
+  return `tel:${phoneNormalize(phone)}`;
+}
+
+function buildSmsHref(phone: string) {
+  return `sms:${phoneNormalize(phone)}`;
 }
 
 function Panel({ title, action, children, titleClassName = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; titleClassName?: string }) {
@@ -2029,6 +2097,7 @@ function SettingsPanel({
   onLogout,
   loggingOut = false,
   userEmail,
+  isAdminUser = false,
   subscriptionSummary,
 }: {
   data: BootstrapPayload;
@@ -2039,6 +2108,7 @@ function SettingsPanel({
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
+  isAdminUser?: boolean;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
 }) {
   return (
@@ -2051,6 +2121,7 @@ function SettingsPanel({
       onLogout={onLogout}
       loggingOut={loggingOut}
       userEmail={userEmail}
+      isAdminUser={isAdminUser}
       subscriptionSummary={subscriptionSummary}
     />
   );
@@ -2194,8 +2265,8 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, onSelect, onSave,
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
   return (
     <div className="mt-2.5 grid grid-cols-2 gap-2">
-      <a href={`tel:${phone}`} className="flex items-center justify-center rounded-2xl bg-[#f7f4ef] px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a>
-      <a href={`sms:${phone}`} className="flex items-center justify-center rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a>
+      <a href={buildTelHref(phone)} className="flex items-center justify-center rounded-2xl bg-[#f7f4ef] px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a>
+      <a href={buildSmsHref(phone)} className="flex items-center justify-center rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a>
       {onSendReminder ? <button type="button" onClick={() => void onSendReminder()} disabled={sending || reminderSent} className="col-span-2 flex items-center justify-center rounded-2xl border border-[#d8e7e0] bg-[#f4faf7] px-4 py-3 text-sm font-semibold text-[var(--accent)] disabled:opacity-60">{reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}</button> : null}
     </div>
   );

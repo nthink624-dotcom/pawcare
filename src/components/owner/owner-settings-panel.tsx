@@ -17,6 +17,7 @@ type SettingsPanelProps = {
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
+  isAdminUser?: boolean;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   initialScreen?: SettingsScreen;
 };
@@ -126,6 +127,7 @@ export default function OwnerSettingsPanel({
   onLogout,
   loggingOut = false,
   userEmail,
+  isAdminUser = false,
   subscriptionSummary,
   initialScreen = null,
 }: SettingsPanelProps) {
@@ -734,6 +736,7 @@ export default function OwnerSettingsPanel({
     <SettingsCard title="계정">
       <div className="divide-y divide-[var(--border)]">
         {userEmail ? <AccountRow icon={Mail} label="로그인 이메일" value={userEmail} /> : null}
+        {isAdminUser ? <AccountRow href="/owner/admin" icon={Store} label="오너 계정 관리" value="가입한 사장님 계정을 직접 관리해요" /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>

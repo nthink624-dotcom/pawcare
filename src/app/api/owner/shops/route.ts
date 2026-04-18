@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { OwnerApiError } from "@/server/owner-api-auth";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
+import { OwnerApiError } from "@/server/owner-api-auth";
+
+function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
+  return metadata?.account_suspended === true;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,6 +36,10 @@ export async function GET(request: NextRequest) {
     const userResult = await authClient.auth.getUser(token);
     if (userResult.error || !userResult.data.user) {
       throw new OwnerApiError("로그인이 필요합니다.", 401);
+    }
+
+    if (isSuspendedMetadata(userResult.data.user.user_metadata)) {
+      throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
     }
 
     const shopsResult = await admin

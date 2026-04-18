@@ -17,6 +17,10 @@ export const serverEnv = {
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
+  adminOwnerEmails: (process.env.ADMIN_OWNER_EMAILS || "nthink624@gmail.com")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 export function hasSupabaseServerEnv() {

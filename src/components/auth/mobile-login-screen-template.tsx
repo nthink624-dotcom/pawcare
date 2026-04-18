@@ -163,6 +163,8 @@ export default function MobileLoginScreenTemplate({
         />
       </div>
 
+      {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
+
       <div className="mt-4 flex items-center gap-6 text-[15px] text-[#111111]">
         <label className="flex items-center gap-2">
           <input
@@ -183,8 +185,6 @@ export default function MobileLoginScreenTemplate({
       >
         {loading ? loginButtonLoadingLabel : loginButtonLabel}
       </button>
-
-      {message ? <p className="mt-4 text-[14px] leading-6 text-[#6f6f6f]">{message}</p> : null}
 
       <div className="mt-7 flex items-center justify-center gap-3 text-[15px] text-[#8b847b]">
         {resolvedHelperLinks.map((link, index) => (

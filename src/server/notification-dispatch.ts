@@ -90,6 +90,21 @@ function shouldSendNotification(shop: BootstrapPayload["shop"], type: Notificati
   }
 }
 
+function shouldSendGuardianNotification(
+  guardian: BootstrapPayload["guardians"][number] | null,
+  type: NotificationType,
+) {
+  if (!guardian) return true;
+  if (!guardian.notification_settings.enabled) return false;
+
+  switch (type) {
+    case "revisit_notice":
+      return guardian.notification_settings.revisit_enabled;
+    default:
+      return true;
+  }
+}
+
 function buildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
@@ -226,11 +241,17 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   let providerMessageId: string | null = null;
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
-  const canSend = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
+  const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
+  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
+  const canSend = canSendShop && canSendGuardian;
 
   if (!canSend) {
     status = "skipped";
-    failReason = "Notification disabled by shop settings.";
+    failReason = !canSendShop
+      ? "Notification disabled by shop settings."
+      : input.type === "revisit_notice"
+        ? "Notification disabled by guardian revisit settings."
+        : "Notification disabled by guardian settings.";
   } else if (!recipientPhone) {
     status = "failed";
     failReason = "Recipient phone number not found.";

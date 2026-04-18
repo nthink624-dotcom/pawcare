@@ -12,6 +12,10 @@ export class OwnerApiError extends Error {
   }
 }
 
+function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
+  return metadata?.account_suspended === true;
+}
+
 export async function requireOwnerShop(request: NextRequest, requestedShopId?: string) {
   if (!hasSupabaseServerEnv()) {
     return {
@@ -39,10 +43,15 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     throw new OwnerApiError("로그인이 필요합니다.", 401);
   }
 
+  const user = userResult.data.user;
+  if (isSuspendedMetadata(user.user_metadata)) {
+    throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
+  }
+
   const shopsResult = await admin
     .from("shops")
     .select("id")
-    .eq("owner_user_id", userResult.data.user.id)
+    .eq("owner_user_id", user.id)
     .order("created_at");
 
   if (shopsResult.error) {
@@ -60,6 +69,6 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
 
   return {
     shopId: requestedShopId || ownedShopIds[0],
-    userId: userResult.data.user.id,
+    userId: user.id,
   };
 }

@@ -57,6 +57,13 @@ export default function OwnerPage() {
       }
 
       setUserEmail(session.user.email ?? null);
+      if (session.user.user_metadata?.account_suspended === true) {
+        if (active) {
+          setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+        }
+        return;
+      }
+
       const provider =
         pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
           ? pendingProvider
@@ -106,6 +113,11 @@ export default function OwnerPage() {
             `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider)}` as never,
           );
           router.refresh();
+          return;
+        }
+
+        if (nextMessage.includes("일시 중지")) {
+          setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           return;
         }
 

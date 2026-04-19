@@ -1,7 +1,9 @@
 ﻿"use client";
 
+import Link from "next/link";
+
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
-import { ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { billableOwnerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { Service, Shop } from "@/types/domain";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -71,7 +73,7 @@ export default function LandingPage({ shop }: { shop: Shop; services: Service[] 
   );
 }
 
-function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () => void }) {
+function HeroSection({ shopId: _shopId, onOpenPlans }: { shopId: string; onOpenPlans: () => void }) {
   return (
     <section className="rounded-[32px] bg-[#1f5b51] px-5 pb-5 pt-5 text-white shadow-[0_18px_38px_rgba(24,33,31,0.12)]">
       <div className="inline-flex items-center rounded-full border border-white/18 bg-white/8 px-3 py-1 text-[12px] font-semibold tracking-[0.02em] text-white/90">
@@ -95,15 +97,15 @@ function HeroSection({ shopId, onOpenPlans }: { shopId: string; onOpenPlans: () 
       </div>
 
       <div className="mt-5 grid gap-2.5">
-        <a href="/owner/demo" className={PRIMARY_BUTTON}>
-          오너 화면 확인하기
-        </a>
-        <a href={`/entry/${shopId}`} className={SECONDARY_BUTTON}>
-          소비자 예약 화면 보기
-        </a>
-                <a href="/login?next=%2Fowner" className={TERTIARY_BUTTON}>
+        <Link href="/demo/owner" className={PRIMARY_BUTTON}>
+          오너 화면 데모 보기
+        </Link>
+        <Link href="/demo/book" className={SECONDARY_BUTTON}>
+          소비자 예약 데모 보기
+        </Link>
+        <Link href="/login?next=%2Fowner" replace className={TERTIARY_BUTTON}>
           무료체험 시작하기
-        </a>
+        </Link>
       </div>
     </section>
   );
@@ -120,11 +122,13 @@ function IntegratedPreview({ title, body, children }: { title: string; body: str
 }
 
 function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const featuredPlan = ownerPlans.find((plan) => plan.featured) ?? ownerPlans[ownerPlans.length - 1];
-  const otherPlans = ownerPlans.filter((plan) => plan.code !== featuredPlan.code);
+  const featuredPlan =
+    billableOwnerPlans.find((plan) => plan.featured) ??
+    billableOwnerPlans[billableOwnerPlans.length - 1];
+  const otherPlans = billableOwnerPlans.filter((plan) => plan.code !== featuredPlan.code);
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(featuredPlan.code);
   const selectedPlan = useMemo(
-    () => ownerPlans.find((plan) => plan.code === selectedPlanCode) ?? featuredPlan,
+    () => billableOwnerPlans.find((plan) => plan.code === selectedPlanCode) ?? featuredPlan,
     [featuredPlan, selectedPlanCode],
   );
 

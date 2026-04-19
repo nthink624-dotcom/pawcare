@@ -17,10 +17,9 @@ export const serverEnv = {
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
-  adminOwnerEmails: (process.env.ADMIN_OWNER_EMAILS || "nthink624@gmail.com")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean),
+  adminSetupKey: process.env.ADMIN_SETUP_KEY || "petmanager-admin-setup-2026",
+  adminSessionSecret:
+    process.env.ADMIN_SESSION_SECRET || "petmanager-local-admin-session-secret-change-this",
 };
 
 export function hasSupabaseServerEnv() {

@@ -10,7 +10,7 @@ import {
 } from "@/lib/billing/owner-subscription";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
-import { AdminApiError, requireAdminUser } from "@/server/admin-api-auth";
+import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 
 type OwnerProfileRow = {
   user_id: string;
@@ -33,7 +33,7 @@ type SubscriptionRow = {
   user_id: string;
   shop_id: string;
   current_plan_code: OwnerPlanCode;
-  billing_cycle: "1m" | "3m" | "6m" | "12m";
+  billing_cycle: "0m" | "1m" | "3m" | "6m" | "12m";
   trial_started_at: string;
   trial_ends_at: string;
   next_billing_at: string | null;
@@ -45,10 +45,14 @@ type SubscriptionRow = {
   last_payment_failed_at: string | null;
   last_payment_at: string | null;
   last_payment_id: string | null;
+  billing_key: string | null;
+  billing_issue_id: string | null;
+  portone_customer_id: string;
   featured_plan_code: OwnerPlanCode;
   auto_renew_plan_code: OwnerPlanCode;
   current_period_started_at: string | null;
   current_period_ends_at: string | null;
+  last_schedule_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -74,6 +78,13 @@ type AdminOwnerEventRow = {
   created_at: string;
 };
 
+type DatabaseErrorLike = {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+};
+
 type AdminOwnerHistoryItem = {
   id: string;
   type: AdminOwnerEventType;
@@ -84,16 +95,20 @@ type AdminOwnerHistoryItem = {
   createdAt: string;
 };
 
+type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
+
 type AdminOwnerItem = {
   userId: string;
   ownerName: string;
   loginId: string | null;
   ownerPhoneNumber: string | null;
   ownerEmail: string | null;
+  loginMethods: AdminLoginMethod[];
   shopId: string;
   shopName: string;
   shopAddress: string;
   joinedAt: string;
+  serviceStartedAt: string;
   status: OwnerSubscriptionStatus;
   currentPlanCode: OwnerPlanCode;
   currentPlanName: string;
@@ -106,17 +121,105 @@ type AdminOwnerItem = {
   recentEvents: AdminOwnerHistoryItem[];
 };
 
+function normalizeLoginProvider(value: string | null | undefined): AdminLoginMethod | null {
+  if (!value) return null;
+
+  const normalized = value.toLowerCase();
+  if (normalized === "google" || normalized === "kakao" || normalized === "naver") {
+    return normalized;
+  }
+
+  if (normalized === "custom:naver" || normalized.endsWith(":naver")) {
+    return "naver";
+  }
+
+  return null;
+}
+
+function extractLoginMethods(user: {
+  email?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  identities?: Array<{ provider?: string | null } | null> | null;
+}, loginId: string | null): AdminLoginMethod[] {
+  const methods = new Set<AdminLoginMethod>();
+
+  if (loginId || user.email?.endsWith("@owner.pawcare.local")) {
+    methods.add("id");
+  }
+
+  const directProvider =
+    typeof user.app_metadata?.provider === "string" ? normalizeLoginProvider(user.app_metadata.provider) : null;
+  if (directProvider) {
+    methods.add(directProvider);
+  }
+
+  const providers = Array.isArray(user.app_metadata?.providers) ? user.app_metadata.providers : [];
+  for (const provider of providers) {
+    if (typeof provider === "string") {
+      const normalized = normalizeLoginProvider(provider);
+      if (normalized) {
+        methods.add(normalized);
+      }
+    }
+  }
+
+  const identities = Array.isArray(user.identities) ? user.identities : [];
+  for (const identity of identities) {
+    const normalized = normalizeLoginProvider(identity?.provider);
+    if (normalized) {
+      methods.add(normalized);
+    }
+  }
+
+  if (methods.size === 0) {
+    methods.add("id");
+  }
+
+  return Array.from(methods);
+}
+
 const patchSchema = z.object({
   userId: z.string().min(1),
   shopId: z.string().min(1),
-  currentPlanCode: z.enum(["monthly", "quarterly", "halfyearly", "yearly"]).optional(),
-  trialEndsAt: z.string().datetime().optional(),
-  currentPeriodEndsAt: z.string().datetime().nullable().optional(),
+  currentPlanCode: z.enum(["free", "monthly", "quarterly", "halfyearly", "yearly"]).optional(),
+  serviceStartedAt: z.string().datetime({ offset: true }).optional(),
+  trialEndsAt: z.string().datetime({ offset: true }).optional(),
+  currentPeriodEndsAt: z.string().datetime({ offset: true }).nullable().optional(),
   status: z.enum(["trialing", "trial_will_end", "active", "past_due", "canceled", "expired"]).optional(),
   lastPaymentStatus: z.enum(["none", "scheduled", "paid", "failed", "cancelled"]).optional(),
   suspended: z.boolean().optional(),
   suspensionReason: z.string().trim().max(200).nullable().optional(),
 });
+
+function resolveAdminStatus(params: {
+  requestedStatus?: OwnerSubscriptionStatus;
+  currentPeriodEndsAt: string | null;
+  trialEndsAt: string;
+}) {
+  if (params.requestedStatus) {
+    return params.requestedStatus;
+  }
+
+  const now = Date.now();
+  const serviceEndsAt = params.currentPeriodEndsAt ? new Date(params.currentPeriodEndsAt).getTime() : null;
+  const trialEndsAt = new Date(params.trialEndsAt).getTime();
+
+  if (serviceEndsAt && serviceEndsAt > now) {
+    return "active" as const;
+  }
+
+  if (Number.isFinite(trialEndsAt) && trialEndsAt > now) {
+    const diffDays = Math.ceil((trialEndsAt - now) / 86400000);
+    return diffDays <= 3 ? ("trial_will_end" as const) : ("trialing" as const);
+  }
+
+  return "expired" as const;
+}
+
+function isMissingTableError(error: DatabaseErrorLike | null | undefined, tableName: string) {
+  const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+  return error?.code === "42P01" || (haystack.includes(tableName.toLowerCase()) && haystack.includes("schema cache"));
+}
 
 function buildMetadataFromRecord(record: SubscriptionRow) {
   return {
@@ -166,7 +269,7 @@ async function readAdminOwners() {
     admin
       .from("owner_subscriptions")
       .select(
-        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, created_at, updated_at",
+        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_key, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
       )
       .order("created_at", { ascending: false }),
     admin
@@ -178,10 +281,10 @@ async function readAdminOwners() {
 
   if (profilesResult.error) throw new AdminApiError(profilesResult.error.message, 500);
   if (shopsResult.error) throw new AdminApiError(shopsResult.error.message, 500);
-  if (subscriptionsResult.error && subscriptionsResult.error.code !== "42P01") {
+  if (subscriptionsResult.error && !isMissingTableError(subscriptionsResult.error, "owner_subscriptions")) {
     throw new AdminApiError(subscriptionsResult.error.message, 500);
   }
-  if (eventsResult.error && eventsResult.error.code !== "42P01") {
+  if (eventsResult.error && !isMissingTableError(eventsResult.error, "owner_admin_events")) {
     throw new AdminApiError(eventsResult.error.message, 500);
   }
 
@@ -263,14 +366,20 @@ async function readAdminOwners() {
         loginId: profile?.login_id ?? null,
         ownerPhoneNumber: profile?.phone_number ?? null,
         ownerEmail: authUser.email ?? null,
+        loginMethods: extractLoginMethods(authUser, profile?.login_id ?? null),
         shopId: shop.id,
         shopName: shop.name,
         shopAddress: shop.address,
         joinedAt: profile?.created_at ?? shop.created_at ?? authUser.created_at ?? nowIso(),
+        serviceStartedAt: summary.currentPeriodStartedAt ?? summary.trialStartedAt,
         status: summary.status,
         currentPlanCode: summary.currentPlanCode,
         currentPlanName:
-          summary.status === "trialing" || summary.status === "trial_will_end" ? "무료체험" : summary.currentPlan.name,
+          summary.currentPlanCode === "free"
+            ? summary.currentPlan.name
+            : summary.status === "trialing" || summary.status === "trial_will_end"
+              ? "무료체험"
+              : summary.currentPlan.name,
         trialEndsAt: summary.trialEndsAt,
         currentPeriodEndsAt: summary.currentPeriodEndsAt,
         lastPaymentStatus: summary.lastPaymentStatus,
@@ -371,7 +480,7 @@ function createAdminEvents(params: {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdminUser(request);
+    await requireAdminSession(request);
     const owners = await readAdminOwners();
     return NextResponse.json(owners);
   } catch (error) {
@@ -385,7 +494,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const adminUser = await requireAdminUser(request);
+    const adminSession = await requireAdminSession(request);
     const body = patchSchema.parse(await request.json());
     const admin = getSupabaseAdmin();
     if (!admin) {
@@ -407,7 +516,7 @@ export async function PATCH(request: NextRequest) {
     const subscriptionResult = await admin
       .from("owner_subscriptions")
       .select(
-        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, created_at, updated_at",
+        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_key, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
       )
       .eq("user_id", body.userId)
       .maybeSingle();
@@ -418,12 +527,21 @@ export async function PATCH(request: NextRequest) {
 
     const existingRecord = (subscriptionResult.data as SubscriptionRow | null) ?? null;
     const nextPlanCode = body.currentPlanCode ?? existingRecord?.current_plan_code ?? previousOwner.currentPlanCode;
-    const nextStatus = body.status ?? existingRecord?.subscription_status ?? previousOwner.status;
+    const nextServiceStartedAt =
+      body.serviceStartedAt ??
+      existingRecord?.current_period_started_at ??
+      existingRecord?.trial_started_at ??
+      previousOwner.serviceStartedAt;
     const nextTrialEndsAt = body.trialEndsAt ?? existingRecord?.trial_ends_at ?? previousOwner.trialEndsAt;
     const nextCurrentPeriodEndsAt =
       body.currentPeriodEndsAt !== undefined
         ? body.currentPeriodEndsAt
         : existingRecord?.current_period_ends_at ?? previousOwner.currentPeriodEndsAt ?? null;
+    const nextStatus = resolveAdminStatus({
+      requestedStatus: body.status,
+      currentPeriodEndsAt: nextCurrentPeriodEndsAt,
+      trialEndsAt: nextTrialEndsAt,
+    });
     const nextLastPaymentStatus =
       body.lastPaymentStatus ?? existingRecord?.last_payment_status ?? previousOwner.lastPaymentStatus;
     const nextSuspended = body.suspended ?? getSuspensionState(user.user_metadata).suspended;
@@ -446,16 +564,22 @@ export async function PATCH(request: NextRequest) {
         current_plan_code: nextPlanCode,
         auto_renew_plan_code: nextPlanCode,
         billing_cycle: planCodeToBillingCycle(nextPlanCode),
+        trial_started_at: nextServiceStartedAt,
         subscription_status: nextStatus,
         trial_ends_at: nextTrialEndsAt,
-        current_period_started_at: nextCurrentPeriodStartedAt,
+        current_period_started_at: nextCurrentPeriodStartedAt ?? nextServiceStartedAt,
         current_period_ends_at: nextCurrentPeriodEndsAt,
         next_billing_at: nextCurrentPeriodEndsAt,
         last_payment_status: nextLastPaymentStatus,
         updated_at: nowIso(),
       };
 
-      const updateResult = await admin.from("owner_subscriptions").upsert(updatePayload).select("user_id").single();
+      const updateResult = await admin
+        .from("owner_subscriptions")
+        .update(updatePayload)
+        .eq("user_id", body.userId)
+        .select("user_id")
+        .single();
       if (updateResult.error) {
         throw new AdminApiError(updateResult.error.message, 500);
       }
@@ -465,8 +589,7 @@ export async function PATCH(request: NextRequest) {
         shop_id: body.shopId,
         current_plan_code: nextPlanCode,
         billing_cycle: planCodeToBillingCycle(nextPlanCode),
-        trial_started_at:
-          typeof user.user_metadata?.trial_started_at === "string" ? user.user_metadata.trial_started_at : nowIso(),
+        trial_started_at: nextServiceStartedAt,
         trial_ends_at: nextTrialEndsAt,
         next_billing_at: nextCurrentPeriodEndsAt,
         payment_method_exists: false,
@@ -482,7 +605,7 @@ export async function PATCH(request: NextRequest) {
         portone_customer_id: `owner_${body.userId}`,
         featured_plan_code: "yearly" as OwnerPlanCode,
         auto_renew_plan_code: nextPlanCode,
-        current_period_started_at: nextCurrentPeriodStartedAt,
+        current_period_started_at: nextCurrentPeriodStartedAt ?? nextServiceStartedAt,
         current_period_ends_at: nextCurrentPeriodEndsAt,
         last_schedule_id: null,
         created_at: nowIso(),
@@ -526,7 +649,7 @@ export async function PATCH(request: NextRequest) {
       const events = createAdminEvents({
         previousOwner,
         nextOwner,
-        adminEmail: adminUser.email?.toLowerCase().trim() ?? "unknown-admin",
+        adminEmail: adminSession.email.toLowerCase().trim() || "unknown-admin",
       });
 
       if (events.length > 0) {
@@ -541,7 +664,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, owners: refreshedOwners });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "입력한 값을 다시 확인해 주세요." }, { status: 400 });
+      return NextResponse.json({ message: "날짜 형식이나 입력값을 다시 확인해 주세요." }, { status: 400 });
     }
 
     if (error instanceof AdminApiError) {

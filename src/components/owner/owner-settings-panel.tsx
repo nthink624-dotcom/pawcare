@@ -1,9 +1,9 @@
 ﻿"use client";
 
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { getOwnerPlanByCode, ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { billableOwnerPlans, getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
@@ -17,7 +17,6 @@ type SettingsPanelProps = {
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
-  isAdminUser?: boolean;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   initialScreen?: SettingsScreen;
 };
@@ -127,7 +126,6 @@ export default function OwnerSettingsPanel({
   onLogout,
   loggingOut = false,
   userEmail,
-  isAdminUser = false,
   subscriptionSummary,
   initialScreen = null,
 }: SettingsPanelProps) {
@@ -147,6 +145,7 @@ export default function OwnerSettingsPanel({
   const [holidayNotice, setHolidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
   const [parkingNotice, setParkingNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.parking_notice ?? ""));
   const [heroImageUrl, setHeroImageUrl] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
+  const profileImageInputRef = useRef<HTMLInputElement | null>(null);
   const [notices, setNotices] = useState<string[]>([
     decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[0] ?? ""),
     decodeUnicodeEscapes(data.shop.customer_page_settings?.notices?.[1] ?? ""),
@@ -263,6 +262,17 @@ export default function OwnerSettingsPanel({
 
   function updateNotice(index: number, value: string) {
     setNotices((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  }
+
+  function handleProfileImageChange(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setHeroImageUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   function startEditingService(service: Service) {
@@ -440,7 +450,7 @@ export default function OwnerSettingsPanel({
 
       {isPlanPickerOpen ? (
           <div className="space-y-2.5 border-t border-[#efe5d8] bg-[var(--surface)] px-4 py-4">
-            {ownerPlans.map((plan) => {
+            {billableOwnerPlans.map((plan) => {
               const active = plan.code === selectedPlanCode;
               const isYearly = plan.code === "yearly";
 
@@ -511,9 +521,67 @@ export default function OwnerSettingsPanel({
           <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요." />
         </Field>
         <Field label="매장 대표 이미지">
-          <div className="space-y-2">
-            <input className="field" value={heroImageUrl} onChange={(event) => setHeroImageUrl(event.target.value)} placeholder="이미지 URL을 붙여 넣어 주세요 (선택)" />
-            <p className="text-sm text-[var(--muted)]">비워두면 기본 프로필 스타일로 보여요. 나중에 매장 전환 카드와 고객 예약 화면 대표 이미지에 같이 활용됩니다.</p>
+          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex items-center gap-3">
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => profileImageInputRef.current?.click()}
+                  className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border border-[#dfeae5] bg-white shadow-[0_2px_8px_rgba(31,107,91,0.05)]"
+                  aria-label="매장 대표 이미지 변경"
+                >
+                  {heroImageUrl ? (
+                    <img src={heroImageUrl} alt={`${name || data.shop.name} 대표 이미지`} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
+                      <UserRound className="h-8 w-8" strokeWidth={1.8} />
+                    </div>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => profileImageInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
+                  aria-label="대표 이미지 선택"
+                >
+                  <Camera className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+                <input
+                  ref={profileImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">
+                  카카오톡처럼 사진을 눌러 휴대폰이나 PC에서 바로 바꿀 수 있어요.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => profileImageInputRef.current?.click()}
+                    className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]"
+                  >
+                    사진 변경
+                  </button>
+                  {heroImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setHeroImageUrl("")}
+                      className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] font-medium text-[var(--muted)]"
+                    >
+                      기본 아이콘
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-[12px] leading-5 text-[var(--muted)]">
+              저장하면 매장 전환 카드와 고객 예약 화면 대표 이미지에도 같이 반영돼요.
+            </p>
           </div>
         </Field>
         <Field label="주소">
@@ -736,7 +804,6 @@ export default function OwnerSettingsPanel({
     <SettingsCard title="계정">
       <div className="divide-y divide-[var(--border)]">
         {userEmail ? <AccountRow icon={Mail} label="로그인 이메일" value={userEmail} /> : null}
-        {isAdminUser ? <AccountRow href="/owner/admin" icon={Store} label="오너 계정 관리" value="가입한 사장님 계정을 직접 관리해요" /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>

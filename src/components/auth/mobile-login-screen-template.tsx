@@ -190,7 +190,7 @@ export default function MobileLoginScreenTemplate({
         {resolvedHelperLinks.map((link, index) => (
           <span key={`${link.href}-${link.label}`} className="contents">
             {index > 0 ? <span>|</span> : null}
-            <Link href={link.href as never} className="hover:text-[#111111]">
+            <Link href={link.href as never} replace className="hover:text-[#111111]">
               {link.label}
             </Link>
           </span>

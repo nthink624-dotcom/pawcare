@@ -1,4 +1,4 @@
-export type OwnerPlanCode = "monthly" | "quarterly" | "halfyearly" | "yearly";
+export type OwnerPlanCode = "free" | "monthly" | "quarterly" | "halfyearly" | "yearly";
 
 export type OwnerPlanBillingType = "one_time" | "subscription";
 
@@ -50,7 +50,8 @@ function makePlan({
 }) {
   const totalPrice = monthlyPrice * months;
   const regularTotal = BASE_MONTHLY_PRICE * months;
-  const discountPercent = Math.max(0, Math.round((1 - totalPrice / regularTotal) * 100));
+  const discountPercent =
+    months > 0 ? Math.max(0, Math.round((1 - totalPrice / regularTotal) * 100)) : 0;
 
   return {
     code,
@@ -65,8 +66,8 @@ function makePlan({
     billingType,
     billingLabel:
       billingType === "one_time"
-        ? `${months}개월 이용 · 일반결제`
-        : `${months}개월 약정 · 매달 결제`,
+        ? `${months}개월 이용권 1회 결제`
+        : `${months}개월 약정 월 정기결제`,
     totalLabel: months > 1 ? `총 ${totalPrice.toLocaleString("ko-KR")}원` : undefined,
     dailyPriceText,
     description,
@@ -78,6 +79,21 @@ function makePlan({
 }
 
 export const ownerPlans: OwnerPlan[] = [
+  {
+    code: "free",
+    name: "무료 플랜",
+    title: "무료 플랜",
+    shortTitle: "무료",
+    months: 0,
+    price: 0,
+    totalPrice: 0,
+    monthlyPrice: 0,
+    monthlyEquivalent: 0,
+    billingType: "one_time",
+    billingLabel: "관리자 배정용 무료 플랜",
+    description: "관리자가 서비스 시작용으로 배정하는 무료 플랜입니다.",
+    discountPercent: 0,
+  },
   makePlan({
     code: "monthly",
     title: "1개월 플랜",
@@ -85,7 +101,7 @@ export const ownerPlans: OwnerPlan[] = [
     months: 1,
     monthlyPrice: 12900,
     billingType: "one_time",
-    description: "가볍게 시작해보고 싶은 매장에 잘 맞는 플랜입니다.",
+    description: "약정 없이 한 달씩 가볍게 시작할 수 있는 기본 플랜입니다.",
   }),
   makePlan({
     code: "quarterly",
@@ -94,7 +110,7 @@ export const ownerPlans: OwnerPlan[] = [
     months: 3,
     monthlyPrice: 10900,
     billingType: "subscription",
-    description: "짧지 않은 운영 리듬으로 차분하게 써보기 좋은 플랜입니다.",
+    description: "짧은 약정으로 부담을 줄이면서 월 요금을 아낄 수 있는 플랜입니다.",
   }),
   makePlan({
     code: "halfyearly",
@@ -103,7 +119,7 @@ export const ownerPlans: OwnerPlan[] = [
     months: 6,
     monthlyPrice: 9900,
     billingType: "subscription",
-    description: "꾸준한 예약 관리와 고객 관리를 이어가기 좋은 플랜입니다.",
+    description: "운영이 안정화된 매장을 위한 중간 약정 플랜입니다.",
   }),
   makePlan({
     code: "yearly",
@@ -112,12 +128,14 @@ export const ownerPlans: OwnerPlan[] = [
     months: 12,
     monthlyPrice: 8900,
     billingType: "subscription",
-    description: "오래 운영할수록 가장 부담이 낮게 느껴지는 플랜입니다.",
+    description: "가장 긴 약정으로 월 부담을 가장 크게 낮출 수 있는 추천 플랜입니다.",
     badge: "가장 인기",
-    dailyPriceText: "하루 296원꼴",
+    dailyPriceText: "하루 약 296원",
     featured: true,
   }),
 ];
+
+export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "free");
 
 export function getOwnerPlanByCode(code: string | null | undefined) {
   return ownerPlans.find((plan) => plan.code === code) ?? null;

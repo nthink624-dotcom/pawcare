@@ -1,4 +1,7 @@
-﻿import SignupForm from "@/components/auth/signup-form";
+import { redirect } from "next/navigation";
+
+import SignupForm from "@/components/auth/signup-form";
+import { getServerSessionUser } from "@/lib/auth/server-session";
 import { hasPortoneBrowserEnv, hasSupabaseBrowserEnv } from "@/lib/env";
 
 export default async function SignupPage({
@@ -9,6 +12,11 @@ export default async function SignupPage({
   const params = (await searchParams) ?? {};
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
   const initialStart = typeof params.start === "string" && params.start === "email" ? "email" : null;
+  const user = await getServerSessionUser();
+
+  if (user) {
+    redirect(nextPath as never);
+  }
 
   return (
     <SignupForm

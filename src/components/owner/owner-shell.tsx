@@ -100,10 +100,10 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
 
         <div className="mt-5 grid gap-2.5">
           <a
-            href="/owner/billing"
+            href={`/owner/billing?plan=${summary.featuredPlanCode}`}
             className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white"
           >
-            플랜 및 결제 관리 열기
+            업그레이드 플랜
           </a>
           <button
             type="button"

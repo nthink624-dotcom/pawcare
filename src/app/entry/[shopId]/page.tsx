@@ -1,4 +1,6 @@
-﻿import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import { redirect } from "next/navigation";
+
+import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { getBootstrap } from "@/server/bootstrap";
 
 export default async function EntryPage({
@@ -7,6 +9,11 @@ export default async function EntryPage({
   params: Promise<{ shopId: string }>;
 }) {
   const { shopId } = await params;
+
+  if (shopId === "demo-shop") {
+    redirect("/demo/book");
+  }
+
   const data = await getBootstrap(shopId);
 
   return (
@@ -18,4 +25,3 @@ export default async function EntryPage({
     />
   );
 }
-

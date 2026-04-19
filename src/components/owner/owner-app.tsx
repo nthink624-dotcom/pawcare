@@ -131,7 +131,6 @@ export default function OwnerApp({
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
 }) {
-  const isAdminUser = (userEmail ?? "").trim().toLowerCase() === "nthink624@gmail.com";
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
@@ -1561,7 +1560,7 @@ export default function OwnerApp({
                   </section>
                 )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} isAdminUser={isAdminUser} subscriptionSummary={subscriptionSummary} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-[rgba(255,255,255,0.98)] px-2.5 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(31,40,37,0.08)] backdrop-blur">
@@ -2097,7 +2096,6 @@ function SettingsPanel({
   onLogout,
   loggingOut = false,
   userEmail,
-  isAdminUser = false,
   subscriptionSummary,
 }: {
   data: BootstrapPayload;
@@ -2108,7 +2106,6 @@ function SettingsPanel({
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
-  isAdminUser?: boolean;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
 }) {
   return (
@@ -2121,7 +2118,6 @@ function SettingsPanel({
       onLogout={onLogout}
       loggingOut={loggingOut}
       userEmail={userEmail}
-      isAdminUser={isAdminUser}
       subscriptionSummary={subscriptionSummary}
     />
   );

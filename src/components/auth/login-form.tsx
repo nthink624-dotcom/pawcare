@@ -21,22 +21,22 @@ function toKoreanAuthError(message: string) {
     return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   }
   if (normalized.includes("email not confirmed")) {
-    return "이메일 인증이 완료되지 않았어요.";
+    return "이메일 인증이 아직 완료되지 않았어요.";
   }
   if (normalized.includes("user already registered")) {
-    return "이미 가입된 계정입니다.";
+    return "이미 가입된 계정이에요.";
   }
   if (normalized.includes("password should be at least")) {
     return "비밀번호는 6자 이상 입력해 주세요.";
   }
   if (normalized.includes("unable to validate email address")) {
-    return "이메일 주소를 다시 확인해 주세요.";
+    return "이메일 형식을 다시 확인해 주세요.";
   }
   if (normalized.includes("oauth")) {
-    return "소셜 로그인 중 문제가 생겼어요. 다시 시도해 주세요.";
+    return "소셜 로그인 처리 중 문제가 발생했어요. 다시 시도해 주세요.";
   }
 
-  return "로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
+  return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 const SAVED_LOGIN_ID_KEY = "pawcare.savedLoginId";
@@ -69,7 +69,7 @@ export default function LoginForm({
 
   const handleLogin = async () => {
     if (!supabaseReady || !supabase) {
-      setMessage("로그인 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+      setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
 
@@ -102,7 +102,7 @@ export default function LoginForm({
 
   const handleSocialLogin = async (provider: SocialProvider) => {
     if (!supabaseReady || !supabase) {
-      setMessage("소셜 로그인 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+      setMessage("소셜 로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
 

@@ -38,7 +38,7 @@ type OwnerSubscriptionRecord = {
   user_id: string;
   shop_id: string;
   current_plan_code: OwnerPlanCode;
-  billing_cycle: "1m" | "3m" | "6m" | "12m";
+  billing_cycle: "0m" | "1m" | "3m" | "6m" | "12m";
   trial_started_at: string;
   trial_ends_at: string;
   next_billing_at: string | null;
@@ -281,7 +281,15 @@ function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSub
 }
 
 function getBillingCycleForPlan(plan: { months: number }) {
-  return plan.months === 12 ? "12m" : plan.months === 6 ? "6m" : plan.months === 3 ? "3m" : "1m";
+  return plan.months === 12
+    ? "12m"
+    : plan.months === 6
+      ? "6m"
+      : plan.months === 3
+        ? "3m"
+        : plan.months === 0
+          ? "0m"
+          : "1m";
 }
 
 function getChargeAmountForPlan(plan: { billingType: "one_time" | "subscription"; monthlyPrice: number; totalPrice: number }) {

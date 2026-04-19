@@ -5,6 +5,7 @@ type Props = {
   shop: Shop;
   services: Service[];
   showBackLink?: boolean;
+  backHref?: string;
 };
 
 function formatBusinessHours(shop: Shop) {
@@ -22,7 +23,7 @@ function formatBusinessHours(shop: Shop) {
     .join(" · ");
 }
 
-export default function CustomerShopInfoContent({ shop, services, showBackLink = false }: Props) {
+export default function CustomerShopInfoContent({ shop, services, showBackLink = false, backHref }: Props) {
   const settings = shop.customer_page_settings;
   const displayName = settings.shop_name?.trim() || shop.name;
   const notices = settings.notices.filter(Boolean).slice(0, 3);
@@ -33,7 +34,11 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
   return (
     <div className="space-y-4">
       <section className="rounded-[28px] bg-white p-5 shadow-[var(--shadow-soft)]">
-        {showBackLink ? <a href={`/book/${shop.id}`} className="text-sm font-semibold text-[var(--accent)]">← 예약 화면으로</a> : null}
+        {showBackLink ? (
+          <a href={backHref || `/book/${shop.id}`} className="text-sm font-semibold text-[var(--accent)]">
+            ← 예약 화면으로
+          </a>
+        ) : null}
         <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-[var(--text)]">매장 정보</h1>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{displayName}</p>
         <p className="mt-2 text-sm leading-6 text-[var(--text)]">{shop.description}</p>

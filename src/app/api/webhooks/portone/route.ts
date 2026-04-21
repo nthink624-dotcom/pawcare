@@ -2,7 +2,7 @@ import { Webhook } from "@portone/server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env";
-import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
+import { OwnerBillingError, syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
 function extractPaymentId(webhook: { data?: unknown }) {
   const data = webhook.data;
@@ -35,13 +35,24 @@ export async function POST(request: NextRequest) {
     }
 
     const summary = await syncOwnerSubscriptionFromPayment(paymentId);
-    return NextResponse.json({ ok: true, paymentId, synced: Boolean(summary) });
+    if (!summary) {
+      return NextResponse.json({ ok: true, paymentId, ignored: true });
+    }
+
+    return NextResponse.json({ ok: true, paymentId, synced: true });
   } catch (error) {
     if (error instanceof Webhook.WebhookVerificationError) {
       return NextResponse.json({ ok: false, message: "유효하지 않은 웹훅 서명입니다." }, { status: 401 });
     }
 
     if (error instanceof ServerEnvError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+    }
+
+    if (error instanceof OwnerBillingError) {
+      if (error.status === 404) {
+        return NextResponse.json({ ok: true, ignored: true, message: error.message }, { status: 200 });
+      }
       return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
     }
 

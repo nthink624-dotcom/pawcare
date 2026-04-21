@@ -1,5 +1,7 @@
 ﻿import { randomUUID } from "node:crypto";
 
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+
 import { env } from "@/lib/env";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import {
@@ -9,7 +11,7 @@ import {
   type OwnerSubscriptionStatus,
   type OwnerSubscriptionSummary,
 } from "@/lib/billing/owner-subscription";
-import { serverEnv } from "@/lib/server-env";
+import { requireServerSecret, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 
@@ -51,6 +53,8 @@ type OwnerSubscriptionRecord = {
   last_payment_at: string | null;
   last_payment_id: string | null;
   billing_key: string | null;
+  billing_key_encrypted?: string | null;
+  billing_key_encryption_version?: number | null;
   billing_issue_id: string | null;
   portone_customer_id: string;
   featured_plan_code: OwnerPlanCode;
@@ -58,6 +62,26 @@ type OwnerSubscriptionRecord = {
   current_period_started_at: string | null;
   current_period_ends_at: string | null;
   last_schedule_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type LedgerPaymentStatus = "PAID" | "FAILED" | "CANCELLED" | "REQUESTED" | "SCHEDULED" | "UNKNOWN";
+
+type OwnerPaymentLedgerRow = {
+  id: string;
+  payment_id: string;
+  user_id: string;
+  shop_id: string;
+  plan_code: OwnerPlanCode | null;
+  schedule_id: string | null;
+  amount: number | null;
+  status: LedgerPaymentStatus;
+  paid_at: string | null;
+  failed_at: string | null;
+  cancelled_at: string | null;
+  last_event_type: string | null;
+  payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -120,6 +144,8 @@ type PortoneBillingKeyInfoResponse = {
 
 const BILLING_TABLE = "owner_subscriptions";
 const BILLING_EVENT_TABLE = "owner_billing_events";
+const PAYMENT_LEDGER_TABLE = "owner_payment_ledger";
+const BILLING_KEY_ENCRYPTION_VERSION = 1;
 
 function isMissingRelationError(error: { code?: string; message?: string } | null | undefined) {
   return (
@@ -127,8 +153,115 @@ function isMissingRelationError(error: { code?: string; message?: string } | nul
     error?.message?.includes("relation") ||
     error?.message?.includes("schema cache") ||
     error?.message?.includes(BILLING_TABLE) ||
+    error?.message?.includes(PAYMENT_LEDGER_TABLE) ||
     false
   );
+}
+
+function normalizeLedgerStatus(value: string | null | undefined, eventType?: string | null): LedgerPaymentStatus {
+  const normalized = value?.trim().toUpperCase();
+  if (
+    normalized === "PAID" ||
+    normalized === "FAILED" ||
+    normalized === "CANCELLED" ||
+    normalized === "REQUESTED" ||
+    normalized === "SCHEDULED"
+  ) {
+    return normalized;
+  }
+
+  switch (eventType) {
+    case "payment_paid":
+      return "PAID";
+    case "payment_failed":
+      return "FAILED";
+    case "payment_cancelled":
+      return "CANCELLED";
+    case "payment_cancel_requested":
+      return "REQUESTED";
+    case "payment_scheduled":
+      return "SCHEDULED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+function normalizeLedgerPlanCode(value: unknown): OwnerPlanCode | null {
+  if (value === "free" || value === "monthly" || value === "quarterly" || value === "halfyearly" || value === "yearly") {
+    return value;
+  }
+  return null;
+}
+
+function readLedgerTimestamp(payload: Record<string, unknown>, key: "paidAt" | "failedAt" | "cancelledAt" | "requestedAt") {
+  const value = payload[key];
+  return typeof value === "string" && value ? value : null;
+}
+
+function getBillingKeyCipherKey() {
+  return createHash("sha256")
+    .update(requireServerSecret(serverEnv.billingKeyEncryptionSecret, "BILLING_KEY_ENCRYPTION_SECRET"), "utf8")
+    .digest();
+}
+
+function encryptBillingKey(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", getBillingKeyCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1:${iv.toString("base64url")}:${tag.toString("base64url")}:${encrypted.toString("base64url")}`;
+}
+
+function decryptBillingKey(value: string) {
+  const [version, ivEncoded, tagEncoded, encryptedEncoded] = value.split(":");
+  if (version !== "v1" || !ivEncoded || !tagEncoded || !encryptedEncoded) {
+    throw new OwnerBillingError("암호화된 결제수단 정보를 해석하지 못했습니다.", 500);
+  }
+
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    getBillingKeyCipherKey(),
+    Buffer.from(ivEncoded, "base64url"),
+  );
+  decipher.setAuthTag(Buffer.from(tagEncoded, "base64url"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedEncoded, "base64url")),
+    decipher.final(),
+  ]).toString("utf8");
+}
+
+function readStoredBillingKey(record: OwnerSubscriptionRecord) {
+  if (record.billing_key_encrypted) {
+    return decryptBillingKey(record.billing_key_encrypted);
+  }
+  return record.billing_key;
+}
+
+function buildBillingKeyStorageColumns(
+  record: Pick<OwnerSubscriptionRecord, "billing_key" | "billing_key_encrypted" | "billing_key_encryption_version">,
+) {
+  if (record.billing_key) {
+    return {
+      billing_key: null,
+      billing_key_encrypted: encryptBillingKey(record.billing_key),
+      billing_key_encryption_version: BILLING_KEY_ENCRYPTION_VERSION,
+    };
+  }
+
+  if (record.billing_key_encrypted) {
+    return {
+      billing_key: null,
+      billing_key_encrypted: record.billing_key_encrypted,
+      billing_key_encryption_version: record.billing_key_encryption_version ?? BILLING_KEY_ENCRYPTION_VERSION,
+    };
+  }
+
+  return {
+    billing_key: null,
+    billing_key_encrypted: null,
+    billing_key_encryption_version: null,
+  };
 }
 
 function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null) {
@@ -230,7 +363,9 @@ function buildBillingMethodLabelFromInfo(payload: PortoneBillingKeyInfoResponse 
 
 async function resolveBillingMethodLabel(billingKey: string, fallback?: string | null) {
   const preferredFallback =
-    fallback && fallback.trim() && fallback.trim() !== "등록된 카드" ? fallback.trim() : null;
+    fallback && fallback.trim() && fallback.trim() !== "등록된 카드"
+      ? normalizeCardCompanyLabel(fallback.replace(/\s*\([^)]*\)\s*$/, ""))
+      : null;
 
   try {
     const billingKeyInfo = await portoneFetch<PortoneBillingKeyInfoResponse>(
@@ -240,6 +375,83 @@ async function resolveBillingMethodLabel(billingKey: string, fallback?: string |
     return buildBillingMethodLabelFromInfo(billingKeyInfo) ?? preferredFallback ?? "등록된 카드";
   } catch {
     return preferredFallback ?? "등록된 카드";
+  }
+}
+
+async function upsertPaymentLedgerEntry(payload: {
+  userId: string;
+  shopId: string;
+  eventType: string;
+  paymentId: string;
+  scheduleId?: string | null;
+  amount?: number | null;
+  status?: string | null;
+  detailPayload?: Record<string, unknown> | null;
+}) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return;
+
+  const selectResult = await admin
+    .from(PAYMENT_LEDGER_TABLE)
+    .select("id, payment_id, user_id, shop_id, plan_code, schedule_id, amount, status, paid_at, failed_at, cancelled_at, last_event_type, payload, created_at, updated_at")
+    .eq("payment_id", payload.paymentId)
+    .maybeSingle();
+
+  if (selectResult.error) {
+    if (isMissingRelationError(selectResult.error)) {
+      return;
+    }
+    console.error("owner_payment_ledger read failed", selectResult.error);
+    return;
+  }
+
+  const current = (selectResult.data ?? null) as OwnerPaymentLedgerRow | null;
+  const detailPayload = payload.detailPayload ?? {};
+  const nextStatus = normalizeLedgerStatus(payload.status, payload.eventType);
+  const nextPlanCode =
+    current?.plan_code ??
+    normalizeLedgerPlanCode(detailPayload.planCode) ??
+    null;
+  const now = nowIso();
+  const paidAt = readLedgerTimestamp(detailPayload, "paidAt");
+  const failedAt = readLedgerTimestamp(detailPayload, "failedAt");
+  const cancelledAt = readLedgerTimestamp(detailPayload, "cancelledAt") ?? readLedgerTimestamp(detailPayload, "requestedAt");
+
+  const upsertPayload = {
+    id: current?.id,
+    payment_id: payload.paymentId,
+    user_id: payload.userId,
+    shop_id: payload.shopId,
+    plan_code: nextPlanCode,
+    schedule_id: payload.scheduleId ?? current?.schedule_id ?? null,
+    amount: current?.amount ?? payload.amount ?? null,
+    status: nextStatus,
+    paid_at:
+      nextStatus === "PAID"
+        ? current?.paid_at ?? paidAt ?? now
+        : current?.paid_at ?? null,
+    failed_at:
+      nextStatus === "FAILED"
+        ? current?.failed_at ?? failedAt ?? now
+        : current?.failed_at ?? null,
+    cancelled_at:
+      nextStatus === "CANCELLED"
+        ? current?.cancelled_at ?? cancelledAt ?? now
+        : current?.cancelled_at ?? null,
+    last_event_type: payload.eventType,
+    payload: {
+      ...(current?.payload ?? {}),
+      ...detailPayload,
+    },
+    updated_at: now,
+  };
+
+  const upsertResult = await admin
+    .from(PAYMENT_LEDGER_TABLE)
+    .upsert(upsertPayload, { onConflict: "payment_id" });
+
+  if (upsertResult.error && !isMissingRelationError(upsertResult.error)) {
+    console.error("owner_payment_ledger upsert failed", upsertResult.error);
   }
 }
 
@@ -295,6 +507,19 @@ async function recordBillingEvent(payload: {
 
   if (insertResult.error && !isMissingRelationError(insertResult.error)) {
     console.error("owner_billing_events insert failed", insertResult.error);
+  }
+
+  if (payload.paymentId) {
+    await upsertPaymentLedgerEntry({
+      userId: payload.userId,
+      shopId: payload.shopId,
+      eventType: payload.eventType,
+      paymentId: payload.paymentId,
+      scheduleId: payload.scheduleId ?? null,
+      amount: payload.amount ?? null,
+      status: payload.status ?? null,
+      detailPayload: payload.payload ?? null,
+    });
   }
 }
 
@@ -353,6 +578,8 @@ function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSub
     last_payment_at: summary.lastPaymentAt,
     last_payment_id: summary.lastPaymentId,
     billing_key: null,
+    billing_key_encrypted: null,
+    billing_key_encryption_version: null,
     billing_issue_id: null,
     portone_customer_id: `owner_${identity.id}`,
     featured_plan_code: summary.featuredPlanCode,
@@ -429,6 +656,10 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
     await syncUserMetadata(identity, record);
   }
 
+  if (record.billing_key && !record.billing_key_encrypted && serverEnv.billingKeyEncryptionSecret) {
+    record = await persistSubscriptionRecord(identity, record);
+  }
+
   const summary = normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
     userId: identity.id,
     shopId,
@@ -448,6 +679,7 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
 
   const nextRecord = {
     ...record,
+    ...buildBillingKeyStorageColumns(record),
     updated_at: nowIso(),
   };
 
@@ -488,13 +720,14 @@ function nextStatusForRecord(record: OwnerSubscriptionRecord) {
 }
 
 async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
-  if (!record.billing_key || !serverEnv.portoneApiSecret) return;
+  const billingKey = readStoredBillingKey(record);
+  if (!billingKey || !serverEnv.portoneApiSecret) return;
   try {
     await portoneFetch<{ revokedScheduleIds?: string[] }>("/payment-schedules", {
       method: "DELETE",
       body: JSON.stringify({
         storeId: env.portoneStoreId,
-        billingKey: record.billing_key,
+        billingKey,
       }),
     });
   } catch {
@@ -503,7 +736,8 @@ async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
 }
 
 async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerProfileRecord | null, record: OwnerSubscriptionRecord) {
-  if (!record.billing_key || !record.payment_method_exists || record.cancel_at_period_end || !env.portoneStoreId) {
+  const billingKey = readStoredBillingKey(record);
+  if (!billingKey || !record.payment_method_exists || record.cancel_at_period_end || !env.portoneStoreId) {
     return record;
   }
 
@@ -520,8 +754,8 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
     body: JSON.stringify({
       storeId: env.portoneStoreId,
       payment: {
-        billingKey: record.billing_key,
-        orderName: `${plan.name} 펫매니저 구독`,
+        billingKey,
+        orderName: `펫매니저 ${plan.name} 정기결제`,
         customer: buildPortoneCustomer(identity, profile),
         amount: { total: chargeAmount },
         currency: "KRW",
@@ -614,9 +848,173 @@ function applyCancelledCharge(record: OwnerSubscriptionRecord, paymentId: string
   } satisfies OwnerSubscriptionRecord;
 }
 
+function extractOwnerSubscriptionPaymentContext(payment: { customData?: string | null }) {
+  const customData = parseCustomData(payment.customData ?? null);
+  if (!customData || customData.kind !== "owner-subscription") {
+    return null;
+  }
+
+  const userId = typeof customData.userId === "string" ? customData.userId : null;
+  const shopId = typeof customData.shopId === "string" ? customData.shopId : null;
+  const planCode = typeof customData.planCode === "string" ? (customData.planCode as OwnerPlanCode) : "monthly";
+
+  if (!userId || !shopId) {
+    return null;
+  }
+
+  return { userId, shopId, planCode, customData };
+}
+
+function buildOwnerSubscriptionSummary(
+  identity: BillingIdentity,
+  shopId: string,
+  record: OwnerSubscriptionRecord,
+  profile: OwnerProfileRecord | null,
+) {
+  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
+    userId: identity.id,
+    shopId,
+    ownerName: profile?.name ?? null,
+    ownerPhoneNumber: profile?.phone_number ?? null,
+    ownerEmail: identity.email ?? null,
+  });
+}
+
+async function reconcileOwnerSubscriptionRecordIfNeeded(
+  identity: BillingIdentity,
+  shopId: string,
+  record: OwnerSubscriptionRecord | null,
+) {
+  if (!record?.last_payment_id) return null;
+
+  const shouldReconcile =
+    record.subscription_status === "past_due" ||
+    record.last_payment_status === "failed" ||
+    record.last_payment_status === "scheduled";
+
+  if (!shouldReconcile) return null;
+
+  try {
+    return await syncOwnerSubscriptionFromPayment(record.last_payment_id);
+  } catch {
+    return null;
+  }
+}
+
+async function listRecentOwnerPaymentIds(userId: string, shopId: string, limit = 30) {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
+  }
+
+  const ledgerResult = await admin
+    .from(PAYMENT_LEDGER_TABLE)
+    .select("payment_id, updated_at")
+    .eq("user_id", userId)
+    .eq("shop_id", shopId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (!ledgerResult.error) {
+    return (ledgerResult.data ?? [])
+      .map((row) => (typeof row.payment_id === "string" ? row.payment_id : null))
+      .filter((paymentId): paymentId is string => Boolean(paymentId));
+  }
+
+  if (!isMissingRelationError(ledgerResult.error)) {
+    throw new OwnerBillingError(ledgerResult.error.message, 500);
+  }
+
+  const eventsResult = await admin
+    .from(BILLING_EVENT_TABLE)
+    .select("payment_id, created_at")
+    .eq("user_id", userId)
+    .eq("shop_id", shopId)
+    .not("payment_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (eventsResult.error) {
+    if (isMissingRelationError(eventsResult.error)) {
+      return [];
+    }
+    throw new OwnerBillingError(eventsResult.error.message, 500);
+  }
+
+  const seen = new Set<string>();
+  const paymentIds: string[] = [];
+
+  for (const row of eventsResult.data ?? []) {
+    const paymentId = typeof row.payment_id === "string" ? row.payment_id : null;
+    if (!paymentId || seen.has(paymentId)) continue;
+    seen.add(paymentId);
+    paymentIds.push(paymentId);
+  }
+
+  return paymentIds;
+}
+
+async function rebuildOwnerSubscriptionFromRecentPayments(
+  identity: BillingIdentity,
+  shopId: string,
+  record: OwnerSubscriptionRecord,
+  profile: OwnerProfileRecord | null,
+  fallbackCancelledPaymentId?: string,
+) {
+  const paymentIds = await listRecentOwnerPaymentIds(identity.id, shopId);
+
+  for (const paymentId of paymentIds) {
+    try {
+      const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`);
+      const payment = extractPaymentShape(paymentResponse);
+      const context = extractOwnerSubscriptionPaymentContext(payment);
+
+      if (!context || context.userId !== identity.id || context.shopId !== shopId) {
+        continue;
+      }
+
+      if (payment.status !== "PAID") {
+        continue;
+      }
+
+      const rebuiltRecord = applySuccessfulCharge(record, context.planCode, payment.paidAt, paymentId);
+      const saved = await persistSubscriptionRecord(identity, rebuiltRecord);
+      return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+    } catch {
+      continue;
+    }
+  }
+
+  const expiredRecord = applyCancelledCharge(record, fallbackCancelledPaymentId ?? record.last_payment_id ?? `cancel_${Date.now()}`);
+  const saved = await persistSubscriptionRecord(identity, expiredRecord);
+  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+}
+
+function hasRecentSuccessfulCharge(record: OwnerSubscriptionRecord) {
+  if (
+    record.subscription_status !== "active" ||
+    record.last_payment_status !== "paid" ||
+    !record.current_period_ends_at ||
+    !record.last_payment_at
+  ) {
+    return false;
+  }
+
+  const now = Date.now();
+  const currentPeriodEndsAt = new Date(record.current_period_ends_at).getTime();
+  const lastPaymentAt = new Date(record.last_payment_at).getTime();
+
+  if (!Number.isFinite(currentPeriodEndsAt) || !Number.isFinite(lastPaymentAt)) {
+    return false;
+  }
+
+  return currentPeriodEndsAt > now && now - lastPaymentAt < 1000 * 60 * 10;
+}
+
 export async function getOwnerSubscriptionSummary(identity: BillingIdentity, shopId: string) {
-  const { summary } = await readOrCreateSubscription(identity, shopId);
-  return summary;
+  const { summary, record } = await readOrCreateSubscription(identity, shopId);
+  const reconciled = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
+  return reconciled ?? summary;
 }
 
 export async function updateOwnerSubscriptionPreferences(
@@ -705,9 +1103,10 @@ export async function registerOwnerBillingMethod(
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
   }
 
-  if (record.billing_key && record.billing_key !== payload.billingKey) {
+  const previousBillingKey = readStoredBillingKey(record);
+  if (previousBillingKey && previousBillingKey !== payload.billingKey) {
     try {
-      await portoneFetch(`/billing-keys/${encodeURIComponent(record.billing_key)}?storeId=${encodeURIComponent(env.portoneStoreId ?? "")}`, {
+      await portoneFetch(`/billing-keys/${encodeURIComponent(previousBillingKey)}?storeId=${encodeURIComponent(env.portoneStoreId ?? "")}`, {
         method: "DELETE",
       });
     } catch {
@@ -740,7 +1139,7 @@ export async function registerOwnerBillingMethod(
     shopId,
     eventType: "payment_method_registered",
     status: saved.subscription_status,
-    payload: { billingKey: payload.billingKey, planCode: saved.auto_renew_plan_code },
+    payload: { planCode: saved.auto_renew_plan_code },
   });
 
   return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
@@ -758,7 +1157,20 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
   }
 
-  if (!record.billing_key || !record.payment_method_exists) {
+  const reconciledSummary = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
+  if (reconciledSummary) {
+    const { record: refreshedRecord, profile: refreshedProfile } = await readOrCreateSubscription(identity, shopId);
+    if (refreshedRecord && hasRecentSuccessfulCharge(refreshedRecord)) {
+      return buildOwnerSubscriptionSummary(identity, shopId, refreshedRecord, refreshedProfile);
+    }
+  }
+
+  if (hasRecentSuccessfulCharge(record)) {
+    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+  }
+
+  const billingKey = readStoredBillingKey(record);
+  if (!billingKey || !record.payment_method_exists) {
     throw new OwnerBillingError("먼저 카드 결제수단을 등록해 주세요.", 400);
   }
 
@@ -773,8 +1185,8 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     method: "POST",
     body: JSON.stringify({
       storeId: env.portoneStoreId,
-      billingKey: record.billing_key,
-      orderName: `${plan.name} 펫매니저 구독`,
+      billingKey,
+      orderName: `펫매니저 ${plan.name} 정기결제`,
       customer: buildPortoneCustomer(identity, profile),
       amount: { total: chargeAmount },
       currency: "KRW",
@@ -805,7 +1217,11 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     paymentId,
     amount: chargeAmount,
     status: payment.status,
-    payload: { planCode: plan.code },
+    payload: {
+      planCode: plan.code,
+      paidAt: payment.paidAt,
+      failedAt: payment.failedAt,
+    },
   });
 
   return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
@@ -817,7 +1233,10 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   });
 }
 
-export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
+export async function syncOwnerSubscriptionFromPayment(
+  paymentId: string,
+  expectedContext?: { userId?: string; shopId?: string },
+) {
   const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`);
   const payment = extractPaymentShape(paymentResponse);
   const customData = parseCustomData(payment.customData);
@@ -831,6 +1250,14 @@ export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
   const planCode = typeof customData.planCode === "string" ? (customData.planCode as OwnerPlanCode) : "monthly";
   if (!userId || !shopId) {
     return null;
+  }
+
+  if (expectedContext?.userId && expectedContext.userId !== userId) {
+    throw new OwnerBillingError("다른 계정의 결제 정보입니다.", 403);
+  }
+
+  if (expectedContext?.shopId && expectedContext.shopId !== shopId) {
+    throw new OwnerBillingError("다른 매장의 결제 정보입니다.", 403);
   }
 
   const admin = getSupabaseAdmin();
@@ -872,7 +1299,11 @@ export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
     paymentId,
     amount: extractPaymentShape(paymentResponse).amount,
     status: payment.status,
-    payload: customData,
+    payload: {
+      ...customData,
+      paidAt: payment.paidAt,
+      failedAt: payment.failedAt,
+    },
   });
 
   return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
@@ -889,16 +1320,55 @@ export async function refundOwnerLatestPayment(
   shopId: string,
   reason: string,
 ) {
-  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
+  const { record, tableReady } = await readOrCreateSubscription(identity, shopId);
   if (!tableReady || !record) {
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
   }
 
-  if (!record.last_payment_id || record.last_payment_status !== "paid") {
-    throw new OwnerBillingError("최근 결제 완료 건이 있어야 취소할 수 있습니다.", 400);
+  if (!record.last_payment_id) {
+    throw new OwnerBillingError("최근 결제 건을 찾지 못했습니다.", 400);
   }
 
-  const paymentId = record.last_payment_id;
+  return refundOwnerPayment(identity, shopId, record.last_payment_id, reason);
+}
+
+export async function refundOwnerPayment(
+  identity: BillingIdentity,
+  shopId: string,
+  paymentId: string,
+  reason: string,
+) {
+  const initial = await readOrCreateSubscription(identity, shopId);
+  if (!initial.tableReady || !initial.record) {
+    throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
+  }
+
+  await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, initial.record);
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
+  if (!tableReady || !record) {
+    throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
+  }
+  const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`);
+  const payment = extractPaymentShape(paymentResponse);
+  const context = extractOwnerSubscriptionPaymentContext(payment);
+
+  if (!context || context.userId !== identity.id || context.shopId !== shopId) {
+    throw new OwnerBillingError("선택한 결제 건을 찾지 못했습니다.", 404);
+  }
+
+  if (payment.status === "CANCELLED") {
+    const summary = await rebuildOwnerSubscriptionFromRecentPayments(identity, shopId, record, profile, paymentId);
+    return {
+      summary,
+      refundStatus: "succeeded" as const,
+      message: "이미 취소된 결제입니다.",
+    };
+  }
+
+  if (payment.status !== "PAID") {
+    throw new OwnerBillingError("결제 완료 상태인 건만 취소할 수 있습니다.", 400);
+  }
+
   const cancellationResponse = await portoneFetch<PortoneCancelResponse>(
     `/payments/${encodeURIComponent(paymentId)}/cancel`,
     {
@@ -915,24 +1385,6 @@ export async function refundOwnerLatestPayment(
     throw new OwnerBillingError("결제 취소를 완료하지 못했습니다.", 400);
   }
 
-  const syncedSummary = await syncOwnerSubscriptionFromPayment(paymentId);
-  if (syncedSummary && syncedSummary.lastPaymentStatus === "cancelled") {
-    await recordBillingEvent({
-      userId: identity.id,
-      shopId,
-      eventType: "payment_cancelled",
-      paymentId,
-      status: cancellationStatus ?? "CANCELLED",
-      payload: { reason },
-    });
-
-    return {
-      summary: syncedSummary,
-      refundStatus: "succeeded" as const,
-      message: "최근 결제를 취소하고 이용 상태를 만료로 되돌렸습니다.",
-    };
-  }
-
   if (cancellationStatus === "REQUESTED") {
     await recordBillingEvent({
       userId: identity.id,
@@ -940,42 +1392,38 @@ export async function refundOwnerLatestPayment(
       eventType: "payment_cancel_requested",
       paymentId,
       status: "REQUESTED",
-      payload: { reason },
+      payload: {
+        reason,
+        planCode: context.planCode,
+        requestedAt: cancellationResponse.cancellation?.requestedAt ?? null,
+      },
     });
 
     return {
-      summary: normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
-        userId: identity.id,
-        shopId,
-        ownerName: profile?.name ?? null,
-        ownerPhoneNumber: profile?.phone_number ?? null,
-        ownerEmail: identity.email ?? null,
-      }),
+      summary: buildOwnerSubscriptionSummary(identity, shopId, record, profile),
       refundStatus: "requested" as const,
       message: "결제 취소 요청이 접수되었습니다. 잠시 후 상태를 다시 확인해 주세요.",
     };
   }
 
-  const fallbackRecord = applyCancelledCharge(record, paymentId);
-  const saved = await persistSubscriptionRecord(identity, fallbackRecord);
+  const summary = await rebuildOwnerSubscriptionFromRecentPayments(identity, shopId, record, profile, paymentId);
   await recordBillingEvent({
     userId: identity.id,
     shopId,
     eventType: "payment_cancelled",
     paymentId,
     status: cancellationStatus ?? "CANCELLED",
-    payload: { reason, source: "fallback" },
+    payload: {
+      reason,
+      source: "fallback",
+      planCode: context.planCode,
+      cancelledAt: cancellationResponse.cancellation?.cancelledAt ?? null,
+    },
   });
 
   return {
-    summary: normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
-      userId: identity.id,
-      shopId,
-      ownerName: profile?.name ?? null,
-      ownerPhoneNumber: profile?.phone_number ?? null,
-      ownerEmail: identity.email ?? null,
-    }),
+    summary,
     refundStatus: "succeeded" as const,
-    message: "최근 결제를 취소하고 이용 상태를 만료로 되돌렸습니다.",
+    message: "선택한 결제를 취소했습니다.",
   };
 }

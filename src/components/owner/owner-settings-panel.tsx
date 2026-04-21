@@ -408,6 +408,11 @@ export default function OwnerSettingsPanel({
             ? "1회 결제"
             : currentPlan.totalLabel;
         const endDateLabel = "서비스 종료일";
+        const isInService =
+          subscriptionSummary.status === "active" ||
+          subscriptionSummary.status === "trialing" ||
+          subscriptionSummary.status === "trial_will_end";
+        const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
 
         return (
       <div className="overflow-hidden rounded-[20px] border border-[#d9d4cb] bg-white shadow-[0_6px_16px_rgba(21,22,19,0.04)]">
@@ -439,7 +444,7 @@ export default function OwnerSettingsPanel({
                 onClick={() => setIsPlanPickerOpen((prev) => !prev)}
                 className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white transition hover:bg-[#195748]"
               >
-                업그레이드 플랜
+                {planCtaLabel}
               </button>
             </div>
           </div>

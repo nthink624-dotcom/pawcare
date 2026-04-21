@@ -1,27 +1,34 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { Webhook } from "@portone/server-sdk";
+import { NextRequest, NextResponse } from "next/server";
 
+import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env";
 import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
-function extractPaymentId(payload: unknown) {
-  if (!payload || typeof payload !== "object") return null;
-
-  const record = payload as Record<string, unknown>;
-  if (typeof record.paymentId === "string") return record.paymentId;
-  if (typeof record.id === "string") return record.id;
-
-  if (record.data && typeof record.data === "object") {
-    const data = record.data as Record<string, unknown>;
-    if (typeof data.paymentId === "string") return data.paymentId;
-    if (typeof data.id === "string") return data.id;
+function extractPaymentId(webhook: { data?: unknown }) {
+  const data = webhook.data;
+  if (!data || typeof data !== "object") {
+    return null;
   }
 
+  const record = data as Record<string, unknown>;
+  if (typeof record.paymentId === "string") {
+    return record.paymentId;
+  }
+  if (typeof record.id === "string") {
+    return record.id;
+  }
   return null;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = await request.json().catch(() => null);
-    const paymentId = extractPaymentId(payload);
+    const rawBody = await request.text();
+    const webhookSecret = requireServerSecret(serverEnv.portoneWebhookSecret, "PORTONE_WEBHOOK_SECRET");
+    const headers = Object.fromEntries(request.headers.entries());
+
+    await Webhook.verify(webhookSecret, rawBody, headers);
+    const payload = rawBody ? (JSON.parse(rawBody) as { data?: unknown }) : null;
+    const paymentId = extractPaymentId(payload ?? {});
 
     if (!paymentId) {
       return NextResponse.json({ ok: true, ignored: true });
@@ -30,6 +37,14 @@ export async function POST(request: NextRequest) {
     const summary = await syncOwnerSubscriptionFromPayment(paymentId);
     return NextResponse.json({ ok: true, paymentId, synced: Boolean(summary) });
   } catch (error) {
+    if (error instanceof Webhook.WebhookVerificationError) {
+      return NextResponse.json({ ok: false, message: "유효하지 않은 웹훅 서명입니다." }, { status: 401 });
+    }
+
+    if (error instanceof ServerEnvError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+    }
+
     const message = error instanceof Error ? error.message : "포트원 웹훅을 처리하지 못했습니다.";
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }

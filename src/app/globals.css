@@ -24,6 +24,28 @@ body {
   color: var(--text);
 }
 
+.owner-font {
+  font-family:
+    "Pretendard Variable",
+    "Pretendard",
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    "Malgun Gothic",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.owner-font button,
+.owner-font input,
+.owner-font select,
+.owner-font textarea {
+  font: inherit;
+}
+
 button,
 input,
 select,

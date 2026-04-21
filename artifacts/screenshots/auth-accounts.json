@@ -1,0 +1,11 @@
+{
+  "owner": {
+    "loginId": "captureowner",
+    "password": "CaptureOwner!2026",
+    "email": "captureowner@owner.pawcare.local"
+  },
+  "admin": {
+    "loginId": "capture-admin",
+    "password": "CaptureAdmin!2026"
+  }
+}

@@ -29,6 +29,18 @@ type AdminOwnerHistoryItem = {
   createdAt: string;
 };
 
+type AdminOwnerPaymentStatus = "PAID" | "FAILED" | "CANCELLED" | "REQUESTED" | "SCHEDULED" | null;
+
+type AdminOwnerPaymentItem = {
+  id: string;
+  paymentId: string;
+  amount: number | null;
+  status: AdminOwnerPaymentStatus;
+  planCode: OwnerPlanCode | null;
+  createdAt: string;
+  refundable: boolean;
+};
+
 type AdminOwnerItem = {
   userId: string;
   ownerName: string;
@@ -51,6 +63,7 @@ type AdminOwnerItem = {
   suspended: boolean;
   suspensionReason: string | null;
   recentEvents: AdminOwnerHistoryItem[];
+  recentPayments: AdminOwnerPaymentItem[];
 };
 
 type OwnerDraft = {
@@ -88,6 +101,32 @@ const paymentStatusOptions = [
   { value: "cancelled", label: "결제 취소" },
 ] as const satisfies Array<{ value: OwnerLastPaymentStatus; label: string }>;
 
+const recentPaymentStatusMeta: Record<
+  NonNullable<AdminOwnerPaymentStatus>,
+  { label: string; tone: string }
+> = {
+  PAID: {
+    label: "결제 완료",
+    tone: "border-[#cfe4d7] bg-[#f2fbf5] text-[#1f6b5b]",
+  },
+  CANCELLED: {
+    label: "취소 완료",
+    tone: "border-[#e7d8cf] bg-[#fcf7f2] text-[#8a5a41]",
+  },
+  REQUESTED: {
+    label: "취소 요청",
+    tone: "border-[#ecdcb9] bg-[#fff9ea] text-[#8f6a18]",
+  },
+  FAILED: {
+    label: "결제 실패",
+    tone: "border-[#efcfcf] bg-[#fff4f4] text-[#bb4f4f]",
+  },
+  SCHEDULED: {
+    label: "예약 결제",
+    tone: "border-[#d8e1ed] bg-[#f6f8fc] text-[#54657e]",
+  },
+};
+
 const loginMethodLabels: Record<AdminLoginMethod, string> = {
   id: "아이디",
   google: "구글",
@@ -121,6 +160,32 @@ const eventLabelMap: Record<AdminOwnerEventType, string> = {
   restored: "계정 복구",
 };
 
+function getPlanLabel(value: OwnerPlanCode | string | null | undefined) {
+  if (!value) return "-";
+  return planOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function getStatusLabel(value: OwnerSubscriptionStatus | string | null | undefined) {
+  if (!value) return "-";
+  return statusOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function getPaymentStatusLabel(value: OwnerLastPaymentStatus | string | null | undefined) {
+  if (!value) return "-";
+  return paymentStatusOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function getRecentPaymentStatusMeta(value: AdminOwnerPaymentStatus) {
+  if (!value) {
+    return {
+      label: "상태 확인 필요",
+      tone: "border-[#e8dfd3] bg-[#fcfbf8] text-[#6f665f]",
+    };
+  }
+
+  return recentPaymentStatusMeta[value];
+}
+
 function formatDateLabel(value: string | null) {
   if (!value) return "-";
   return value.slice(0, 10).replace(/-/g, ".");
@@ -138,6 +203,15 @@ function toDateInputValue(value: string | null) {
 
 function toKstIsoEndOfDay(dateText: string) {
   return dateText ? `${dateText}T23:59:59+09:00` : null;
+}
+
+function todayKstDateText() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const year = kst.getUTCFullYear();
+  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function plusDays(dateText: string, days: number) {
@@ -165,11 +239,27 @@ function buildDraft(item: AdminOwnerItem): OwnerDraft {
 function summarizeEvent(event: AdminOwnerHistoryItem) {
   switch (event.type) {
     case "plan_changed":
-      return `${String(event.previousPayload.currentPlanName ?? event.previousPayload.currentPlanCode ?? "-")} → ${String(event.nextPayload.currentPlanName ?? event.nextPayload.currentPlanCode ?? "-")}`;
+      return `${getPlanLabel(
+        typeof event.previousPayload.currentPlanName === "string"
+          ? event.previousPayload.currentPlanName
+          : typeof event.previousPayload.currentPlanCode === "string"
+            ? event.previousPayload.currentPlanCode
+            : null,
+      )} → ${getPlanLabel(
+        typeof event.nextPayload.currentPlanName === "string"
+          ? event.nextPayload.currentPlanName
+          : typeof event.nextPayload.currentPlanCode === "string"
+            ? event.nextPayload.currentPlanCode
+            : null,
+      )}`;
     case "status_changed":
-      return `${String(event.previousPayload.status ?? "-")} → ${String(event.nextPayload.status ?? "-")}`;
+      return `${getStatusLabel(typeof event.previousPayload.status === "string" ? event.previousPayload.status : null)} → ${getStatusLabel(
+        typeof event.nextPayload.status === "string" ? event.nextPayload.status : null,
+      )}`;
     case "payment_status_changed":
-      return `${String(event.previousPayload.lastPaymentStatus ?? "-")} → ${String(event.nextPayload.lastPaymentStatus ?? "-")}`;
+      return `${getPaymentStatusLabel(
+        typeof event.previousPayload.lastPaymentStatus === "string" ? event.previousPayload.lastPaymentStatus : null,
+      )} → ${getPaymentStatusLabel(typeof event.nextPayload.lastPaymentStatus === "string" ? event.nextPayload.lastPaymentStatus : null)}`;
     case "trial_extended":
       return `${formatDateLabel(typeof event.previousPayload.trialEndsAt === "string" ? event.previousPayload.trialEndsAt : null)} → ${formatDateLabel(typeof event.nextPayload.trialEndsAt === "string" ? event.nextPayload.trialEndsAt : null)}`;
     case "service_extended":
@@ -198,7 +288,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
-  const [refundingUserId, setRefundingUserId] = useState<string | null>(null);
+  const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
 
@@ -297,9 +387,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     }
   }
 
-  async function refundOwner(item: AdminOwnerItem) {
+  async function refundOwner(item: AdminOwnerItem, paymentId?: string) {
     const reason = refundReasons[item.userId]?.trim() || "관리자 환불 처리";
-    setRefundingUserId(item.userId);
+    setRefundingPaymentId(paymentId ?? item.userId);
     setError(null);
     setNotice(null);
 
@@ -309,6 +399,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
         body: JSON.stringify({
           userId: item.userId,
           shopId: item.shopId,
+          paymentId,
           reason,
         }),
         headers: { "Content-Type": "application/json" },
@@ -323,7 +414,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "결제 취소를 처리하지 못했습니다.");
     } finally {
-      setRefundingUserId(null);
+      setRefundingPaymentId(null);
     }
   }
 
@@ -549,7 +640,8 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           ...prev,
                           [selectedOwner.userId]: {
                             ...prev[selectedOwner.userId],
-                            currentPeriodEndsAt: plusDays(prev[selectedOwner.userId]?.currentPeriodEndsAt || prev[selectedOwner.userId]?.serviceStartedAt, 7),
+                            serviceStartedAt: todayKstDateText(),
+                            currentPeriodEndsAt: plusDays(todayKstDateText(), 7),
                           },
                         }))
                       }
@@ -562,7 +654,8 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           ...prev,
                           [selectedOwner.userId]: {
                             ...prev[selectedOwner.userId],
-                            currentPeriodEndsAt: plusDays(prev[selectedOwner.userId]?.currentPeriodEndsAt || prev[selectedOwner.userId]?.serviceStartedAt, 30),
+                            serviceStartedAt: todayKstDateText(),
+                            currentPeriodEndsAt: plusDays(todayKstDateText(), 30),
                           },
                         }))
                       }
@@ -639,9 +732,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         <RotateCcw className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[14px] font-semibold text-[#171411]">환불 / 결제 취소</p>
+                        <p className="text-[14px] font-semibold text-[#171411]">결제 내역 / 취소</p>
                         <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
-                          최근 결제 1건을 전액 취소하고 현재 서비스 기간을 바로 만료 상태로 되돌립니다.
+                          결제된 건을 확인하고, 필요한 건만 선택해서 취소할 수 있습니다.
                         </p>
                       </div>
                     </div>
@@ -661,25 +754,54 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                       />
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={() => void refundOwner(selectedOwner)}
-                      disabled={selectedOwner.lastPaymentStatus !== "paid" || refundingUserId === selectedOwner.userId}
-                      className="mt-4 inline-flex h-[42px] w-full items-center justify-center rounded-[12px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[13px] font-semibold text-[#b45d3c] disabled:opacity-50"
-                    >
-                      {refundingUserId === selectedOwner.userId ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          환불 처리 중...
-                        </span>
+                    <div className="mt-4 space-y-2.5">
+                      {selectedOwner.recentPayments.length === 0 ? (
+                        <p className="rounded-[14px] border border-[#e5ddd2] bg-white px-3 py-3 text-[12px] leading-5 text-[#8a8277]">
+                          확인된 결제 내역이 아직 없습니다.
+                        </p>
                       ) : (
-                        "최근 결제 취소"
+                        selectedOwner.recentPayments.map((payment) => (
+                          <div key={payment.paymentId} className="rounded-[16px] border border-[#e5ddd2] bg-white px-4 py-3.5 shadow-[0_1px_0_rgba(31,22,17,0.02)]">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-semibold text-[#171411]">
+                                  {payment.planCode ? planOptions.find((option) => option.value === payment.planCode)?.label ?? payment.planCode : "플랜 정보 없음"}
+                                </p>
+                                <p className="mt-1 text-[12px] font-medium text-[#5f574f]">
+                                  {payment.amount !== null ? `${payment.amount.toLocaleString("ko-KR")}원` : "금액 확인 필요"}
+                                </p>
+                                <p className="mt-2 text-[11px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
+                                <p className="mt-1 break-all rounded-[10px] bg-[#faf7f2] px-2.5 py-2 text-[11px] font-medium text-[#7b7269]">
+                                  결제 번호 · {payment.paymentId}
+                                </p>
+                              </div>
+                              <span
+                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getRecentPaymentStatusMeta(payment.status).tone}`}
+                              >
+                                {getRecentPaymentStatusMeta(payment.status).label}
+                              </span>
+                            </div>
+                            {payment.refundable ? (
+                              <button
+                                type="button"
+                                onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
+                                disabled={refundingPaymentId === payment.paymentId}
+                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[12px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[12px] font-semibold text-[#b45d3c] disabled:opacity-50"
+                              >
+                                {refundingPaymentId === payment.paymentId ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    취소 처리 중...
+                                  </span>
+                                ) : (
+                                  "이 결제 취소"
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        ))
                       )}
-                    </button>
-
-                    {selectedOwner.lastPaymentStatus !== "paid" ? (
-                      <p className="mt-2 text-[11px] leading-5 text-[#8a8277]">결제 완료 상태인 최근 결제 건이 있을 때만 취소할 수 있습니다.</p>
-                    ) : null}
+                    </div>
                   </div>
 
                   <button

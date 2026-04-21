@@ -25,8 +25,7 @@ type BillingKeyIssueResponse = {
 function buildPaymentMethodLabel(result: BillingKeyIssueResponse) {
   const source = result.billingKeyInfo ?? result;
   const company = source.cardCompany || source.methodName || "등록된 카드";
-  const number = source.cardNumber ? ` (${source.cardNumber})` : "";
-  return `${company}${number}`.trim();
+  return company.trim();
 }
 
 function extractBillingKey(result: BillingKeyIssueResponse) {
@@ -88,6 +87,8 @@ export async function requestOwnerOneTimePayment(params: {
   customerName: string;
   phoneNumber?: string | null;
   email?: string | null;
+  userId: string;
+  shopId: string;
   planCode: OwnerPlanCode;
   amount: number;
   orderName: string;
@@ -114,6 +115,8 @@ export async function requestOwnerOneTimePayment(params: {
     redirectUrl: buildOwnerBillingReturnUrl(params.planCode),
     customData: {
       kind: "owner-subscription",
+      userId: params.userId,
+      shopId: params.shopId,
       planCode: params.planCode,
     },
     noticeUrls: [`${window.location.origin}/api/webhooks/portone`],
@@ -151,7 +154,7 @@ export async function issueOwnerBillingKey(params: {
     channelKey: env.portoneBillingChannelKey,
     billingKeyMethod: "CARD",
     issueId,
-    issueName: "펫매니저 결제수단 등록",
+    issueName: "펫매니저 정기결제 카드 등록",
     customer: {
       customerId: params.customerId,
       fullName: params.customerName,

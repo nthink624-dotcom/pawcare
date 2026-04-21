@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { env } from "@/lib/env";
-import { serverEnv } from "@/lib/server-env";
+import { requireServerSecret, serverEnv } from "@/lib/server-env";
 
 type BookingAccessPayload = {
   shopId: string;
@@ -12,7 +12,7 @@ type BookingAccessPayload = {
 };
 
 function getBookingAccessSecret() {
-  return serverEnv.bookingAccessSecret || serverEnv.authFlowSecret;
+  return requireServerSecret(serverEnv.bookingAccessSecret, "BOOKING_ACCESS_SECRET");
 }
 
 function base64UrlEncode(input: string) {

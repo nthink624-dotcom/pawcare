@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { serverEnv } from "@/lib/server-env";
+import { requireServerSecret, ServerEnvError, serverEnv } from "@/lib/server-env";
 import { AdminAccountError, resetAdminPassword } from "@/server/admin-account";
 import { ADMIN_SESSION_COOKIE, createAdminSessionToken, getAdminSessionCookieOptions } from "@/server/admin-session";
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "비밀번호 재설정 정보를 다시 확인해 주세요." }, { status: 400 });
   }
 
-  if (parsed.data.setupKey !== serverEnv.adminSetupKey) {
+  if (parsed.data.setupKey !== requireServerSecret(serverEnv.adminSetupKey, "ADMIN_SETUP_KEY")) {
     return NextResponse.json({ message: "운영자 등록 키를 다시 확인해 주세요." }, { status: 401 });
   }
 
@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    if (error instanceof ServerEnvError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     if (error instanceof AdminAccountError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

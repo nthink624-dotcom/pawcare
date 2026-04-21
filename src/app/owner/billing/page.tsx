@@ -102,7 +102,7 @@ function OwnerBillingPageContent() {
   }, []);
 
   if (!summary) {
-    return <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">{message}</div>;
+    return <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">{message}</div>;
   }
 
   const shouldForcePlanPicker = forcePlanPicker || openPaymentSheet || summary.status === "expired" || summary.status === "past_due";
@@ -119,7 +119,7 @@ function OwnerBillingPageContent() {
 
 export default function OwnerBillingPage() {
   return (
-    <Suspense fallback={<div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">구독 정보를 불러오는 중입니다.</div>}>
+    <Suspense fallback={<div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">구독 정보를 불러오는 중입니다.</div>}>
       <OwnerBillingPageContent />
     </Suspense>
   );

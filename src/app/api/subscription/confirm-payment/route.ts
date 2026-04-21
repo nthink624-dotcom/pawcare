@@ -10,16 +10,15 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const { identity } = await requireOwnerBillingSession(request);
+    const { identity, shopId } = await requireOwnerBillingSession(request);
     const body = bodySchema.parse(await request.json());
-    const summary = await syncOwnerSubscriptionFromPayment(body.paymentId);
+    const summary = await syncOwnerSubscriptionFromPayment(body.paymentId, {
+      userId: identity.id,
+      shopId,
+    });
 
     if (!summary) {
       return NextResponse.json({ message: "결제 정보를 아직 확인하지 못했습니다." }, { status: 400 });
-    }
-
-    if (summary.userId !== identity.id) {
-      return NextResponse.json({ message: "다른 계정의 결제 정보입니다." }, { status: 403 });
     }
 
     return NextResponse.json(summary);

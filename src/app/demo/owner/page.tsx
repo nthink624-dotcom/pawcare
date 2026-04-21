@@ -7,19 +7,21 @@ export default function DemoOwnerPage() {
   const data = buildOwnerDemoBootstrap();
 
   return (
-    <OwnerApp
-      initialData={data}
-      ownedShops={[
-        {
-          id: data.shop.id,
-          name: data.shop.name,
-          address: data.shop.address,
-          heroImageUrl: data.shop.customer_page_settings?.hero_image_url || "",
-        },
-      ]}
-      selectedShopId={data.shop.id}
-      userEmail="demo@meongmanager.kr"
-      onSwitchShop={async () => {}}
-    />
+    <div className="owner-font">
+      <OwnerApp
+        initialData={data}
+        ownedShops={[
+          {
+            id: data.shop.id,
+            name: data.shop.name,
+            address: data.shop.address,
+            heroImageUrl: data.shop.customer_page_settings?.hero_image_url || "",
+          },
+        ]}
+        selectedShopId={data.shop.id}
+        userEmail="demo@meongmanager.kr"
+        onSwitchShop={async () => {}}
+      />
+    </div>
   );
 }

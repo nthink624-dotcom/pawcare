@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { ServerEnvError } from "@/lib/server-env";
 import { AdminAccountError, getAdminAccountByLoginId, verifyAdminPassword } from "@/server/admin-account";
 import { ADMIN_SESSION_COOKIE, createAdminSessionToken, getAdminSessionCookieOptions } from "@/server/admin-session";
 
@@ -43,6 +44,10 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    if (error instanceof ServerEnvError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     if (error instanceof AdminAccountError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

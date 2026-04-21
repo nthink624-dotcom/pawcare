@@ -12,15 +12,7 @@ type OwnerBillingSession = {
 
 export async function requireOwnerBillingSession(request: NextRequest): Promise<OwnerBillingSession> {
   if (!hasSupabaseServerEnv()) {
-    return {
-      identity: {
-        id: "demo-owner",
-        email: null,
-        created_at: null,
-        user_metadata: null,
-      },
-      shopId: "demo-shop",
-    };
+    throw new OwnerBillingError("서버 결제 설정을 확인해 주세요.", 503);
   }
 
   const authorization = request.headers.get("authorization") || "";

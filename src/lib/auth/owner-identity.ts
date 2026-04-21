@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod";
 
-import { serverEnv } from "@/lib/server-env";
+import { requireServerSecret, serverEnv } from "@/lib/server-env";
 import { nowIso } from "@/lib/utils";
 
 const localChallengeSchema = z.object({
@@ -27,7 +27,9 @@ type LocalChallenge = z.infer<typeof localChallengeSchema>;
 type VerifiedIdentity = z.infer<typeof verifiedIdentitySchema>;
 
 function sign(value: string) {
-  return createHmac("sha256", serverEnv.authFlowSecret).update(value).digest("base64url");
+  return createHmac("sha256", requireServerSecret(serverEnv.authFlowSecret, "AUTH_FLOW_SECRET"))
+    .update(value)
+    .digest("base64url");
 }
 
 function encode(payload: object) {

@@ -1,0 +1,198 @@
+[
+  {
+    "name": "home",
+    "url": "http://127.0.0.1:3000/",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\home.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "login",
+    "url": "http://127.0.0.1:3000/login",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\login.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "signup",
+    "url": "http://127.0.0.1:3000/signup",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\signup.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "signup-social",
+    "url": "http://127.0.0.1:3000/signup/social?provider=naver",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\signup-social.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "find-id",
+    "url": "http://127.0.0.1:3000/login/find-id",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\find-id.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "reset-password",
+    "url": "http://127.0.0.1:3000/login/reset",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\reset-password.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "landing-business",
+    "url": "http://127.0.0.1:3000/business",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\landing-business.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "landing-privacy",
+    "url": "http://127.0.0.1:3000/privacy",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\landing-privacy.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "landing-terms",
+    "url": "http://127.0.0.1:3000/terms",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\landing-terms.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "landing-refund",
+    "url": "http://127.0.0.1:3000/refund",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\landing-refund.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "admin-login",
+    "url": "http://127.0.0.1:3000/admin/login",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\admin-login.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "admin-register",
+    "url": "http://127.0.0.1:3000/admin/register",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\admin-register.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "admin-reset",
+    "url": "http://127.0.0.1:3000/admin/reset",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\admin-reset.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "owner-billing",
+    "url": "http://127.0.0.1:3000/owner/billing",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\owner-billing.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "owner-billing-success",
+    "url": "http://127.0.0.1:3000/owner/billing/success?plan=monthly&endAt=2026-12-31&method=%EC%B9%B4%EB%93%9C",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\owner-billing-success.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "owner-demo",
+    "url": "http://127.0.0.1:3000/owner/demo",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\owner-demo.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "demo-owner",
+    "url": "http://127.0.0.1:3000/demo/owner",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\demo-owner.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "demo-book",
+    "url": "http://127.0.0.1:3000/demo/book",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\demo-book.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "demo-book-start",
+    "url": "http://127.0.0.1:3000/demo/book/start",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\demo-book-start.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "demo-book-info",
+    "url": "http://127.0.0.1:3000/demo/book/info",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\demo-book-info.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "demo-book-manage",
+    "url": "http://127.0.0.1:3000/demo/book/manage",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\demo-book-manage.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "book-demo-shop",
+    "url": "http://127.0.0.1:3000/book/demo-shop",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\book-demo-shop.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "book-demo-shop-info",
+    "url": "http://127.0.0.1:3000/book/demo-shop/info",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\book-demo-shop-info.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "book-demo-shop-manage",
+    "url": "http://127.0.0.1:3000/book/demo-shop/manage",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\book-demo-shop-manage.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "entry-demo-shop",
+    "url": "http://127.0.0.1:3000/entry/demo-shop",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\entry-demo-shop.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "owner",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\owner.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "owner-admin",
+    "url": "http://127.0.0.1:3000/owner/admin",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\owner-admin.png",
+    "title": "petmanager"
+  },
+  {
+    "name": "admin",
+    "url": "http://127.0.0.1:3000/admin",
+    "status": "ok",
+    "file": "D:\\pawcare\\artifacts\\screenshots\\admin.png",
+    "title": "petmanager"
+  }
+]

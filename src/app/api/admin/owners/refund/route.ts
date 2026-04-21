@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { refundOwnerLatestPayment } from "@/server/owner-billing";
+import { refundOwnerLatestPayment, refundOwnerPayment } from "@/server/owner-billing";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 
 const bodySchema = z.object({
   userId: z.string().min(1),
   shopId: z.string().min(1),
+  paymentId: z.string().min(1).optional(),
   reason: z.string().trim().min(1).max(120),
 });
 
@@ -26,7 +27,9 @@ export async function POST(request: NextRequest) {
       throw new AdminApiError("환불할 오너 계정을 찾지 못했습니다.", 404);
     }
 
-    const result = await refundOwnerLatestPayment(user, body.shopId, body.reason);
+    const result = body.paymentId
+      ? await refundOwnerPayment(user, body.shopId, body.paymentId, body.reason)
+      : await refundOwnerLatestPayment(user, body.shopId, body.reason);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     if (error instanceof z.ZodError) {

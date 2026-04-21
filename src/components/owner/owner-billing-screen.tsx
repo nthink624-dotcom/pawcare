@@ -405,9 +405,11 @@ export default function OwnerBillingScreen({
         customerName: summary.ownerName || "펫매니저 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
+        userId: summary.userId,
+        shopId: summary.shopId,
         planCode: selectedPlanCode,
         amount: selectedPlan.totalPrice,
-        orderName: `${selectedPlan.title} 펫매니저 이용권`,
+        orderName: `펫매니저 ${selectedPlan.title} 결제`,
       });
 
       setSummary(nextSummary);
@@ -487,7 +489,7 @@ export default function OwnerBillingScreen({
     const comparePlans = [featuredPlan, ...otherPlans];
 
     return (
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#171411]">
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#171411]">
         <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_8px_24px_rgba(41,41,38,0.04)]">
           <div className="flex items-center">
             <button
@@ -727,6 +729,12 @@ export default function OwnerBillingScreen({
                   </div>
                 )}
 
+                {!usesOneTimePayment ? (
+                  <p className="mt-3 text-[11px] leading-[1.45] text-[#7a736b]">
+                    카드사 알림에는 ‘KG이니시스 정기과금’으로 표시될 수 있으며, 펫매니저 이용요금입니다.
+                  </p>
+                ) : null}
+
                 <div className="mt-4">
                   <button
                     type="button"
@@ -754,7 +762,7 @@ export default function OwnerBillingScreen({
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 플랜 및 결제</p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>

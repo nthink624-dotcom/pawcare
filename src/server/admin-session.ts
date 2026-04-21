@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
-import { serverEnv } from "@/lib/server-env";
+import { requireServerSecret, serverEnv } from "@/lib/server-env";
 
 export const ADMIN_SESSION_COOKIE = "petmanager_admin_session";
 
@@ -21,7 +21,9 @@ function base64UrlDecode(value: string) {
 }
 
 function sign(value: string) {
-  return createHmac("sha256", serverEnv.adminSessionSecret).update(value).digest("base64url");
+  return createHmac("sha256", requireServerSecret(serverEnv.adminSessionSecret, "ADMIN_SESSION_SECRET"))
+    .update(value)
+    .digest("base64url");
 }
 
 function safeEqual(left: string, right: string) {

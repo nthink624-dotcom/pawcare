@@ -1,3 +1,25 @@
+export class ServerEnvError extends Error {
+  constructor(
+    message: string,
+    public status = 503,
+  ) {
+    super(message);
+  }
+}
+
+function readOptionalSecret(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export function requireServerSecret(value: string | undefined, name: string) {
+  const normalized = readOptionalSecret(value);
+  if (!normalized) {
+    throw new ServerEnvError(`${name} 서버 설정을 확인해 주세요.`, 503);
+  }
+  return normalized;
+}
+
 export const serverEnv = {
   supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabasePublishableKey:
@@ -5,9 +27,11 @@ export const serverEnv = {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  authFlowSecret: process.env.AUTH_FLOW_SECRET || "mungmanager-local-auth-flow-secret",
-  bookingAccessSecret: process.env.BOOKING_ACCESS_SECRET || process.env.AUTH_FLOW_SECRET || "petmanager-local-booking-access-secret",
-  portoneApiSecret: process.env.PORTONE_API_SECRET,
+  authFlowSecret: readOptionalSecret(process.env.AUTH_FLOW_SECRET),
+  bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
+  portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),
+  portoneWebhookSecret: readOptionalSecret(process.env.PORTONE_WEBHOOK_SECRET),
+  billingKeyEncryptionSecret: readOptionalSecret(process.env.BILLING_KEY_ENCRYPTION_SECRET),
   alimtalkProvider: process.env.ALIMTALK_PROVIDER || "generic",
   alimtalkApiUrl: process.env.ALIMTALK_API_URL,
   alimtalkApiKey: process.env.ALIMTALK_API_KEY,
@@ -17,9 +41,8 @@ export const serverEnv = {
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
-  adminSetupKey: process.env.ADMIN_SETUP_KEY || "petmanager-admin-setup-2026",
-  adminSessionSecret:
-    process.env.ADMIN_SESSION_SECRET || "petmanager-local-admin-session-secret-change-this",
+  adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
+  adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
 };
 
 export function hasSupabaseServerEnv() {

@@ -71,7 +71,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[430px] px-4 pt-4">
+    <div className="owner-font mx-auto w-full max-w-[430px] px-4 pt-4">
       <div className="rounded-[22px] border border-[#cfe0da] bg-[#eef8f3] px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 pr-1">
@@ -109,7 +109,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
   const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent("펫매니저 이용 재개 문의")}`;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">
       <div className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
         <div className="space-y-4">
           <div>
@@ -191,10 +191,21 @@ export default function OwnerShell({
   const [supabase] = useState<SupabaseClient | null>(() => getSupabaseBrowserClient());
   const [loggingOut, setLoggingOut] = useState(false);
   const [summary, setSummary] = useState(subscriptionSummary);
+  const [redirectingToBilling, setRedirectingToBilling] = useState(false);
 
   useEffect(() => {
     setSummary(subscriptionSummary);
   }, [subscriptionSummary]);
+
+  useEffect(() => {
+    if (!summary || summary.status !== "past_due") {
+      setRedirectingToBilling(false);
+      return;
+    }
+
+    setRedirectingToBilling(true);
+    router.replace(`/owner/billing?compare=1&plan=${getResumePlanCode(summary)}` as never);
+  }, [router, summary]);
 
   useEffect(() => {
     let active = true;
@@ -247,12 +258,20 @@ export default function OwnerShell({
     }
   };
 
-  if (summary && (summary.status === "expired" || summary.status === "past_due")) {
+  if (redirectingToBilling) {
+    return (
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
+        결제 화면으로 이동하고 있습니다.
+      </div>
+    );
+  }
+
+  if (summary && summary.status === "expired") {
     return <ServiceLockedScreen summary={summary} onLogout={handleLogout} loggingOut={loggingOut} />;
   }
 
   return (
-    <>
+    <div className="owner-font">
       {summary ? <TrialNoticeBanner summary={summary} /> : null}
       <OwnerApp
         initialData={initialData}
@@ -264,6 +283,6 @@ export default function OwnerShell({
         loggingOut={loggingOut}
         userEmail={userEmail}
       />
-    </>
+    </div>
   );
 }

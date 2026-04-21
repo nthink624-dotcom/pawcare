@@ -150,11 +150,11 @@ function OwnerBillingSuccessPageContent() {
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;
 
   if (!displayPlan) {
-    return <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">{message}</div>;
+    return <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">{message}</div>;
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] overflow-hidden bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#171411]">
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] overflow-hidden bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#171411]">
       <style jsx global>{`
         @keyframes owner-success-confetti {
           0% {
@@ -349,7 +349,7 @@ export default function OwnerBillingSuccessPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
+        <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
           결제 내용을 확인하고 있어요.
         </div>
       }

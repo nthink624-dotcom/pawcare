@@ -11,6 +11,7 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/utils";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+import { syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
 type OwnerProfileRow = {
   user_id: string;
@@ -45,7 +46,6 @@ type SubscriptionRow = {
   last_payment_failed_at: string | null;
   last_payment_at: string | null;
   last_payment_id: string | null;
-  billing_key: string | null;
   billing_issue_id: string | null;
   portone_customer_id: string;
   featured_plan_code: OwnerPlanCode;
@@ -66,6 +66,8 @@ type AdminOwnerEventType =
   | "suspended"
   | "restored";
 
+type BillingEventStatus = "PAID" | "FAILED" | "CANCELLED" | "REQUESTED" | "SCHEDULED" | null;
+
 type AdminOwnerEventRow = {
   id: string;
   target_user_id: string;
@@ -76,6 +78,31 @@ type AdminOwnerEventRow = {
   next_payload: Record<string, unknown>;
   note: string | null;
   created_at: string;
+};
+
+type OwnerBillingEventRow = {
+  id: string;
+  user_id: string;
+  shop_id: string;
+  event_type: string;
+  payment_id: string | null;
+  schedule_id: string | null;
+  amount: number | null;
+  status: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type OwnerPaymentLedgerRow = {
+  id: string;
+  payment_id: string;
+  user_id: string;
+  shop_id: string;
+  plan_code: OwnerPlanCode | null;
+  amount: number | null;
+  status: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type DatabaseErrorLike = {
@@ -93,6 +120,16 @@ type AdminOwnerHistoryItem = {
   previousPayload: Record<string, unknown>;
   nextPayload: Record<string, unknown>;
   createdAt: string;
+};
+
+type AdminOwnerPaymentItem = {
+  id: string;
+  paymentId: string;
+  amount: number | null;
+  status: BillingEventStatus;
+  planCode: OwnerPlanCode | null;
+  createdAt: string;
+  refundable: boolean;
 };
 
 type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
@@ -119,6 +156,7 @@ type AdminOwnerItem = {
   suspended: boolean;
   suspensionReason: string | null;
   recentEvents: AdminOwnerHistoryItem[];
+  recentPayments: AdminOwnerPaymentItem[];
 };
 
 function normalizeLoginProvider(value: string | null | undefined): AdminLoginMethod | null {
@@ -254,13 +292,65 @@ function getSuspensionState(metadata: Record<string, unknown> | null | undefined
   };
 }
 
+function normalizeBillingEventStatus(value: string | null | undefined): BillingEventStatus {
+  if (!value) return null;
+  const normalized = value.toUpperCase();
+  if (normalized === "PAID" || normalized === "FAILED" || normalized === "CANCELLED" || normalized === "REQUESTED" || normalized === "SCHEDULED") {
+    return normalized;
+  }
+  return null;
+}
+
+function inferBillingEventStatus(eventType: string, value: string | null | undefined): BillingEventStatus {
+  switch (eventType) {
+    case "payment_paid":
+      return "PAID";
+    case "payment_failed":
+      return "FAILED";
+    case "payment_cancelled":
+      return "CANCELLED";
+    case "payment_cancel_requested":
+      return "REQUESTED";
+    case "payment_scheduled":
+      return "SCHEDULED";
+    default:
+      return normalizeBillingEventStatus(value);
+  }
+}
+
+function getBillingStatusPriority(status: BillingEventStatus) {
+  switch (status) {
+    case "CANCELLED":
+      return 5;
+    case "PAID":
+      return 4;
+    case "REQUESTED":
+      return 3;
+    case "FAILED":
+      return 2;
+    case "SCHEDULED":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function todayKstIsoStart() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const year = kst.getUTCFullYear();
+  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}T00:00:00+09:00`;
+}
+
 async function readAdminOwners() {
   const admin = getSupabaseAdmin();
   if (!admin) {
     throw new AdminApiError("Supabase 설정을 확인해 주세요.", 503);
   }
 
-  const [profilesResult, shopsResult, subscriptionsResult, eventsResult] = await Promise.all([
+  const [profilesResult, shopsResult, subscriptionsResult, eventsResult, billingEventsResult, paymentLedgerResult] = await Promise.all([
     admin
       .from("owner_profiles")
       .select("user_id, shop_id, login_id, name, phone_number, created_at")
@@ -269,7 +359,7 @@ async function readAdminOwners() {
     admin
       .from("owner_subscriptions")
       .select(
-        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_key, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
+        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
       )
       .order("created_at", { ascending: false }),
     admin
@@ -277,6 +367,16 @@ async function readAdminOwners() {
       .select("id, target_user_id, target_shop_id, admin_email, event_type, previous_payload, next_payload, note, created_at")
       .order("created_at", { ascending: false })
       .limit(300),
+    admin
+      .from("owner_billing_events")
+      .select("id, user_id, shop_id, event_type, payment_id, schedule_id, amount, status, payload, created_at")
+      .order("created_at", { ascending: false })
+      .limit(1000),
+    admin
+      .from("owner_payment_ledger")
+      .select("id, payment_id, user_id, shop_id, plan_code, amount, status, created_at, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1000),
   ]);
 
   if (profilesResult.error) throw new AdminApiError(profilesResult.error.message, 500);
@@ -287,11 +387,19 @@ async function readAdminOwners() {
   if (eventsResult.error && !isMissingTableError(eventsResult.error, "owner_admin_events")) {
     throw new AdminApiError(eventsResult.error.message, 500);
   }
+  if (billingEventsResult.error && !isMissingTableError(billingEventsResult.error, "owner_billing_events")) {
+    throw new AdminApiError(billingEventsResult.error.message, 500);
+  }
+  if (paymentLedgerResult.error && !isMissingTableError(paymentLedgerResult.error, "owner_payment_ledger")) {
+    throw new AdminApiError(paymentLedgerResult.error.message, 500);
+  }
 
   const profiles = (profilesResult.data ?? []) as OwnerProfileRow[];
   const shops = (shopsResult.data ?? []) as ShopRow[];
   const subscriptions = (subscriptionsResult.data ?? []) as SubscriptionRow[];
   const events = (eventsResult.data ?? []) as AdminOwnerEventRow[];
+  const billingEvents = (billingEventsResult.data ?? []) as OwnerBillingEventRow[];
+  const paymentLedger = (paymentLedgerResult.data ?? []) as OwnerPaymentLedgerRow[];
 
   const shopByUserId = new Map<string, ShopRow>();
   for (const shop of shops) {
@@ -331,6 +439,65 @@ async function readAdminOwners() {
     }
   }
 
+  const recentPaymentsByUserId = new Map<string, AdminOwnerPaymentItem[]>();
+  const paymentMapByUserId = new Map<string, Map<string, AdminOwnerPaymentItem>>();
+  for (const payment of paymentLedger) {
+    const status = normalizeBillingEventStatus(payment.status);
+    const currentMap = paymentMapByUserId.get(payment.user_id) ?? new Map<string, AdminOwnerPaymentItem>();
+    currentMap.set(payment.payment_id, {
+      id: payment.id,
+      paymentId: payment.payment_id,
+      amount: payment.amount ?? null,
+      status,
+      planCode: payment.plan_code ?? null,
+      createdAt: payment.updated_at ?? payment.created_at,
+      refundable: status === "PAID",
+    });
+    paymentMapByUserId.set(payment.user_id, currentMap);
+  }
+
+  for (const event of billingEvents) {
+    if (!event.payment_id) continue;
+
+    const currentMap = paymentMapByUserId.get(event.user_id) ?? new Map<string, AdminOwnerPaymentItem>();
+    const current = currentMap.get(event.payment_id) ?? null;
+    if (current) {
+      continue;
+    }
+
+    const payload = event.payload ?? {};
+    const planCode =
+      typeof payload.planCode === "string" &&
+      ["free", "monthly", "quarterly", "halfyearly", "yearly"].includes(payload.planCode)
+        ? (payload.planCode as OwnerPlanCode)
+        : null;
+    const status = inferBillingEventStatus(event.event_type, event.status);
+
+    currentMap.set(event.payment_id, {
+      id: event.id,
+      paymentId: event.payment_id,
+      amount: event.amount ?? null,
+      status,
+      planCode,
+      createdAt: event.created_at,
+      refundable: status === "PAID",
+    });
+    paymentMapByUserId.set(event.user_id, currentMap);
+  }
+
+  for (const [userId, paymentMap] of paymentMapByUserId.entries()) {
+    recentPaymentsByUserId.set(
+      userId,
+      Array.from(paymentMap.values())
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .map((payment) => ({
+          ...payment,
+          refundable: payment.status === "PAID",
+        }))
+        .slice(0, 10),
+    );
+  }
+
   const userIds = Array.from(new Set([...shopByUserId.keys(), ...profileByUserId.keys()]));
   const owners = await Promise.all(
     userIds.map(async (userId) => {
@@ -342,7 +509,16 @@ async function readAdminOwners() {
       if (!authUser || !shop) return null;
 
       const subscription = subscriptionByUserId.get(userId) ?? null;
-      const summary = subscription
+      const reconciledSummary =
+        subscription?.last_payment_id &&
+        (subscription.subscription_status === "past_due" ||
+          subscription.last_payment_status === "failed" ||
+          subscription.last_payment_status === "scheduled")
+          ? await syncOwnerSubscriptionFromPayment(subscription.last_payment_id).catch(() => null)
+          : null;
+      const summary = reconciledSummary
+        ? reconciledSummary
+        : subscription
         ? normalizeOwnerSubscriptionMetadata(buildMetadataFromRecord(subscription), subscription.created_at, {
             userId,
             shopId: shop.id,
@@ -385,6 +561,7 @@ async function readAdminOwners() {
         suspended: suspension.suspended,
         suspensionReason: suspension.suspensionReason,
         recentEvents: eventsByUserId.get(userId) ?? [],
+        recentPayments: recentPaymentsByUserId.get(userId) ?? [],
       } satisfies AdminOwnerItem;
     }),
   );
@@ -514,7 +691,7 @@ export async function PATCH(request: NextRequest) {
     const subscriptionResult = await admin
       .from("owner_subscriptions")
       .select(
-        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_key, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
+        "user_id, shop_id, current_plan_code, billing_cycle, trial_started_at, trial_ends_at, next_billing_at, payment_method_exists, payment_method_label, subscription_status, cancel_at_period_end, last_payment_status, last_payment_failed_at, last_payment_at, last_payment_id, billing_issue_id, portone_customer_id, featured_plan_code, auto_renew_plan_code, current_period_started_at, current_period_ends_at, last_schedule_id, created_at, updated_at",
       )
       .eq("user_id", body.userId)
       .maybeSingle();
@@ -525,21 +702,44 @@ export async function PATCH(request: NextRequest) {
 
     const existingRecord = (subscriptionResult.data as SubscriptionRow | null) ?? null;
     const nextPlanCode = body.currentPlanCode ?? existingRecord?.current_plan_code ?? previousOwner.currentPlanCode;
-    const nextServiceStartedAt =
-      body.serviceStartedAt ??
-      existingRecord?.current_period_started_at ??
-      existingRecord?.trial_started_at ??
-      previousOwner.serviceStartedAt;
     const nextTrialEndsAt = body.trialEndsAt ?? existingRecord?.trial_ends_at ?? previousOwner.trialEndsAt;
     const nextCurrentPeriodEndsAt =
       body.currentPeriodEndsAt !== undefined
         ? body.currentPeriodEndsAt
         : existingRecord?.current_period_ends_at ?? previousOwner.currentPeriodEndsAt ?? null;
+    const hasFutureServiceEnd =
+      !!nextCurrentPeriodEndsAt && new Date(nextCurrentPeriodEndsAt).getTime() > new Date(nowIso()).getTime();
+    const previousServiceEndedAt =
+      existingRecord?.current_period_ends_at ??
+      previousOwner.currentPeriodEndsAt ??
+      existingRecord?.trial_ends_at ??
+      previousOwner.trialEndsAt;
+    const shouldResetServiceStart =
+      !body.serviceStartedAt &&
+      hasFutureServiceEnd &&
+      (!!previousServiceEndedAt && new Date(previousServiceEndedAt).getTime() < new Date(nowIso()).getTime());
+    const nextServiceStartedAt =
+      body.serviceStartedAt ??
+      (shouldResetServiceStart
+        ? todayKstIsoStart()
+        : existingRecord?.current_period_started_at ?? existingRecord?.trial_started_at ?? previousOwner.serviceStartedAt);
     const nextStatus = resolveAdminStatus({
       requestedStatus: body.status,
       currentPeriodEndsAt: nextCurrentPeriodEndsAt,
       trialEndsAt: nextTrialEndsAt,
     });
+    const nextAutoRenewPlanCode: OwnerPlanCode =
+      nextPlanCode === "free"
+        ? (existingRecord?.auto_renew_plan_code && existingRecord.auto_renew_plan_code !== "free"
+            ? existingRecord.auto_renew_plan_code
+            : "monthly")
+        : nextPlanCode;
+    const nextFeaturedPlanCode: OwnerPlanCode =
+      nextPlanCode === "free"
+        ? (existingRecord?.featured_plan_code && existingRecord.featured_plan_code !== "free"
+            ? existingRecord.featured_plan_code
+            : "yearly")
+        : nextPlanCode;
     const nextLastPaymentStatus =
       body.lastPaymentStatus ?? existingRecord?.last_payment_status ?? previousOwner.lastPaymentStatus;
     const nextSuspended = body.suspended ?? getSuspensionState(user.user_metadata).suspended;
@@ -560,7 +760,8 @@ export async function PATCH(request: NextRequest) {
         ...existingRecord,
         shop_id: body.shopId,
         current_plan_code: nextPlanCode,
-        auto_renew_plan_code: nextPlanCode,
+        featured_plan_code: nextFeaturedPlanCode,
+        auto_renew_plan_code: nextAutoRenewPlanCode,
         billing_cycle: planCodeToBillingCycle(nextPlanCode),
         trial_started_at: nextServiceStartedAt,
         subscription_status: nextStatus,
@@ -601,8 +802,8 @@ export async function PATCH(request: NextRequest) {
         billing_key: null,
         billing_issue_id: null,
         portone_customer_id: `owner_${body.userId}`,
-        featured_plan_code: "yearly" as OwnerPlanCode,
-        auto_renew_plan_code: nextPlanCode,
+        featured_plan_code: nextFeaturedPlanCode,
+        auto_renew_plan_code: nextAutoRenewPlanCode,
         current_period_started_at: nextCurrentPeriodStartedAt ?? nextServiceStartedAt,
         current_period_ends_at: nextCurrentPeriodEndsAt,
         last_schedule_id: null,
@@ -619,7 +820,8 @@ export async function PATCH(request: NextRequest) {
     const nextMetadata = {
       ...(user.user_metadata ?? {}),
       current_plan_code: nextPlanCode,
-      auto_renew_plan_code: nextPlanCode,
+      featured_plan_code: nextFeaturedPlanCode,
+      auto_renew_plan_code: nextAutoRenewPlanCode,
       auto_renew_enabled: false,
       cancel_at_period_end: false,
       subscription_status: nextStatus,

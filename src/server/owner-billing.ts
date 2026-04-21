@@ -84,6 +84,40 @@ type PortonePaymentResponse = {
   message?: string;
 };
 
+type PortoneCancelResponse = {
+  cancellation?: {
+    status?: string;
+    cancelledAt?: string | null;
+    requestedAt?: string | null;
+    reason?: string | null;
+    id?: string | null;
+  } | null;
+  message?: string;
+};
+
+type PortoneBillingKeyInfoResponse = {
+  billingKeyInfo?: {
+    paymentMethod?: {
+      type?: string;
+      card?: {
+        issuer?: string | null;
+        publisher?: string | null;
+        brand?: string | null;
+        number?: string | null;
+      } | null;
+    } | null;
+  } | null;
+  paymentMethod?: {
+    type?: string;
+    card?: {
+      issuer?: string | null;
+      publisher?: string | null;
+      brand?: string | null;
+      number?: string | null;
+    } | null;
+  } | null;
+};
+
 const BILLING_TABLE = "owner_subscriptions";
 const BILLING_EVENT_TABLE = "owner_billing_events";
 
@@ -97,13 +131,16 @@ function isMissingRelationError(error: { code?: string; message?: string } | nul
   );
 }
 
-function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null, shopId: string) {
+function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null) {
+  const fullName = profile?.name ?? "펫매니저 사장님";
+
   return {
-    customerId: `owner_${identity.id}`,
-    fullName: profile?.name ?? "펫매니저 사장님",
+    id: `owner_${identity.id}`,
+    name: {
+      full: fullName,
+    },
     phoneNumber: profile?.phone_number ?? undefined,
     email: identity.email ?? undefined,
-    customData: JSON.stringify({ shopId }),
   };
 }
 
@@ -155,6 +192,54 @@ function parseCustomData(raw: string | null) {
     return parsed;
   } catch {
     return null;
+  }
+}
+
+function normalizeCardCompanyLabel(value: string | null | undefined) {
+  if (!value) return null;
+  const normalized = value.trim();
+  const upper = normalized.toUpperCase();
+
+  if (normalized.endsWith("카드")) return normalized;
+  if (upper.includes("SHINHAN")) return "신한카드";
+  if (upper.includes("HANA")) return "하나카드";
+  if (upper.includes("KB") || upper.includes("KOOKMIN")) return "KB국민카드";
+  if (upper.includes("HYUNDAI")) return "현대카드";
+  if (upper.includes("SAMSUNG")) return "삼성카드";
+  if (upper.includes("LOTTE")) return "롯데카드";
+  if (upper.includes("WOORI")) return "우리카드";
+  if (upper.includes("NH")) return "NH농협카드";
+  if (upper.includes("BC")) return "BC카드";
+  if (upper.includes("KAKAO")) return "카카오뱅크카드";
+  if (upper.includes("TOSS")) return "토스카드";
+
+  return normalized;
+}
+
+function buildBillingMethodLabelFromInfo(payload: PortoneBillingKeyInfoResponse | null | undefined) {
+  const source = payload?.billingKeyInfo?.paymentMethod ?? payload?.paymentMethod ?? null;
+  const card = source?.card ?? null;
+  const company = normalizeCardCompanyLabel(card?.issuer ?? card?.publisher ?? null);
+
+  if (!company) {
+    return null;
+  }
+
+  return company;
+}
+
+async function resolveBillingMethodLabel(billingKey: string, fallback?: string | null) {
+  const preferredFallback =
+    fallback && fallback.trim() && fallback.trim() !== "등록된 카드" ? fallback.trim() : null;
+
+  try {
+    const billingKeyInfo = await portoneFetch<PortoneBillingKeyInfoResponse>(
+      `/billing-keys/${encodeURIComponent(billingKey)}?storeId=${encodeURIComponent(env.portoneStoreId ?? "")}`,
+    );
+
+    return buildBillingMethodLabelFromInfo(billingKeyInfo) ?? preferredFallback ?? "등록된 카드";
+  } catch {
+    return preferredFallback ?? "등록된 카드";
   }
 }
 
@@ -437,7 +522,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
       payment: {
         billingKey: record.billing_key,
         orderName: `${plan.name} 펫매니저 구독`,
-        customer: buildPortoneCustomer(identity, profile, record.shop_id),
+        customer: buildPortoneCustomer(identity, profile),
         amount: { total: chargeAmount },
         currency: "KRW",
         customData: JSON.stringify({
@@ -511,6 +596,20 @@ function applyFailedCharge(record: OwnerSubscriptionRecord, failedAt: string | n
     subscription_status: "past_due" as const,
     last_payment_status: "failed" as const,
     last_payment_failed_at: failedAt ?? nowIso(),
+    last_payment_id: paymentId,
+  } satisfies OwnerSubscriptionRecord;
+}
+
+function applyCancelledCharge(record: OwnerSubscriptionRecord, paymentId: string) {
+  return {
+    ...record,
+    subscription_status: "expired" as const,
+    current_period_started_at: null,
+    current_period_ends_at: null,
+    next_billing_at: null,
+    last_payment_status: "cancelled" as const,
+    last_payment_failed_at: null,
+    last_schedule_id: null,
     last_payment_id: paymentId,
   } satisfies OwnerSubscriptionRecord;
 }
@@ -616,12 +715,17 @@ export async function registerOwnerBillingMethod(
     }
   }
 
+  const resolvedPaymentMethodLabel = await resolveBillingMethodLabel(
+    payload.billingKey,
+    payload.paymentMethodLabel ?? record.payment_method_label,
+  );
+
   let nextRecord: OwnerSubscriptionRecord = {
     ...record,
     billing_key: payload.billingKey,
     billing_issue_id: payload.issueId ?? null,
     payment_method_exists: true,
-    payment_method_label: payload.paymentMethodLabel ?? record.payment_method_label ?? "등록된 카드",
+    payment_method_label: resolvedPaymentMethodLabel,
     auto_renew_plan_code: payload.autoRenewPlanCode ?? record.auto_renew_plan_code,
     current_plan_code: payload.autoRenewPlanCode ?? record.current_plan_code,
     cancel_at_period_end: false,
@@ -671,7 +775,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
       storeId: env.portoneStoreId,
       billingKey: record.billing_key,
       orderName: `${plan.name} 펫매니저 구독`,
-      customer: buildPortoneCustomer(identity, profile, shopId),
+      customer: buildPortoneCustomer(identity, profile),
       amount: { total: chargeAmount },
       currency: "KRW",
       customData: JSON.stringify({
@@ -747,6 +851,8 @@ export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
   let nextRecord = record;
   if (payment.status === "PAID") {
     nextRecord = applySuccessfulCharge(record, planCode, payment.paidAt, paymentId);
+  } else if (payment.status === "CANCELLED") {
+    nextRecord = applyCancelledCharge(record, paymentId);
   } else if (payment.status === "FAILED") {
     nextRecord = applyFailedCharge(record, payment.failedAt, paymentId);
   } else {
@@ -757,7 +863,12 @@ export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
   await recordBillingEvent({
     userId,
     shopId,
-    eventType: payment.status === "PAID" ? "payment_paid" : "payment_failed",
+    eventType:
+      payment.status === "PAID"
+        ? "payment_paid"
+        : payment.status === "CANCELLED"
+        ? "payment_cancelled"
+        : "payment_failed",
     paymentId,
     amount: extractPaymentShape(paymentResponse).amount,
     status: payment.status,
@@ -771,4 +882,100 @@ export async function syncOwnerSubscriptionFromPayment(paymentId: string) {
     ownerPhoneNumber: profile?.phone_number ?? null,
     ownerEmail: userResult.data.user.email ?? null,
   });
+}
+
+export async function refundOwnerLatestPayment(
+  identity: BillingIdentity,
+  shopId: string,
+  reason: string,
+) {
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
+  if (!tableReady || !record) {
+    throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
+  }
+
+  if (!record.last_payment_id || record.last_payment_status !== "paid") {
+    throw new OwnerBillingError("최근 결제 완료 건이 있어야 취소할 수 있습니다.", 400);
+  }
+
+  const paymentId = record.last_payment_id;
+  const cancellationResponse = await portoneFetch<PortoneCancelResponse>(
+    `/payments/${encodeURIComponent(paymentId)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reason: reason.trim() || "관리자 환불 처리",
+      }),
+    },
+  );
+
+  const cancellationStatus = cancellationResponse.cancellation?.status ?? null;
+
+  if (cancellationStatus === "FAILED") {
+    throw new OwnerBillingError("결제 취소를 완료하지 못했습니다.", 400);
+  }
+
+  const syncedSummary = await syncOwnerSubscriptionFromPayment(paymentId);
+  if (syncedSummary && syncedSummary.lastPaymentStatus === "cancelled") {
+    await recordBillingEvent({
+      userId: identity.id,
+      shopId,
+      eventType: "payment_cancelled",
+      paymentId,
+      status: cancellationStatus ?? "CANCELLED",
+      payload: { reason },
+    });
+
+    return {
+      summary: syncedSummary,
+      refundStatus: "succeeded" as const,
+      message: "최근 결제를 취소하고 이용 상태를 만료로 되돌렸습니다.",
+    };
+  }
+
+  if (cancellationStatus === "REQUESTED") {
+    await recordBillingEvent({
+      userId: identity.id,
+      shopId,
+      eventType: "payment_cancel_requested",
+      paymentId,
+      status: "REQUESTED",
+      payload: { reason },
+    });
+
+    return {
+      summary: normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
+        userId: identity.id,
+        shopId,
+        ownerName: profile?.name ?? null,
+        ownerPhoneNumber: profile?.phone_number ?? null,
+        ownerEmail: identity.email ?? null,
+      }),
+      refundStatus: "requested" as const,
+      message: "결제 취소 요청이 접수되었습니다. 잠시 후 상태를 다시 확인해 주세요.",
+    };
+  }
+
+  const fallbackRecord = applyCancelledCharge(record, paymentId);
+  const saved = await persistSubscriptionRecord(identity, fallbackRecord);
+  await recordBillingEvent({
+    userId: identity.id,
+    shopId,
+    eventType: "payment_cancelled",
+    paymentId,
+    status: cancellationStatus ?? "CANCELLED",
+    payload: { reason, source: "fallback" },
+  });
+
+  return {
+    summary: normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
+      userId: identity.id,
+      shopId,
+      ownerName: profile?.name ?? null,
+      ownerPhoneNumber: profile?.phone_number ?? null,
+      ownerEmail: identity.email ?? null,
+    }),
+    refundStatus: "succeeded" as const,
+    message: "최근 결제를 취소하고 이용 상태를 만료로 되돌렸습니다.",
+  };
 }

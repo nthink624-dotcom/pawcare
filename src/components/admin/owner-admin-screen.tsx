@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Loader2, Search, ShieldAlert, Store } from "lucide-react";
+import { ChevronLeft, Loader2, RotateCcw, Search, ShieldAlert, Store } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
@@ -57,22 +57,23 @@ type OwnerDraft = {
   currentPlanCode: OwnerPlanCode;
   serviceStartedAt: string;
   currentPeriodEndsAt: string;
+  trialEndsAt: string;
   lastPaymentStatus: OwnerLastPaymentStatus;
   suspended: boolean;
   suspensionReason: string;
 };
 
 const planOptions = [
-  { value: "free", label: "무료 플랜" },
-  { value: "monthly", label: "1개월" },
-  { value: "quarterly", label: "3개월 고정" },
-  { value: "halfyearly", label: "6개월 고정" },
-  { value: "yearly", label: "12개월 고정" },
+  { value: "free", label: "체험 플랜" },
+  { value: "monthly", label: "한 달 플랜" },
+  { value: "quarterly", label: "세 달 플랜" },
+  { value: "halfyearly", label: "여섯 달 플랜" },
+  { value: "yearly", label: "일 년 플랜" },
 ] as const satisfies Array<{ value: OwnerPlanCode; label: string }>;
 
 const statusOptions = [
-  { value: "trialing", label: "무료체험 중" },
-  { value: "trial_will_end", label: "무료체험 종료 임박" },
+  { value: "trialing", label: "체험 플랜 이용 중" },
+  { value: "trial_will_end", label: "체험 플랜 종료 임박" },
   { value: "active", label: "이용 중" },
   { value: "past_due", label: "결제 확인 필요" },
   { value: "canceled", label: "해지" },
@@ -111,7 +112,7 @@ const statusToneMap: Record<OwnerSubscriptionStatus, string> = {
 };
 
 const eventLabelMap: Record<AdminOwnerEventType, string> = {
-  trial_extended: "무료체험 연장",
+  trial_extended: "체험 플랜 연장",
   service_extended: "서비스 기간 연장",
   plan_changed: "플랜 변경",
   status_changed: "이용 상태 변경",
@@ -153,7 +154,8 @@ function buildDraft(item: AdminOwnerItem): OwnerDraft {
   return {
     currentPlanCode: item.currentPlanCode,
     serviceStartedAt: toDateInputValue(item.serviceStartedAt),
-    currentPeriodEndsAt: toDateInputValue(item.currentPeriodEndsAt),
+    currentPeriodEndsAt: toDateInputValue(item.currentPlanCode === "free" ? item.trialEndsAt : item.currentPeriodEndsAt),
+    trialEndsAt: toDateInputValue(item.trialEndsAt),
     lastPaymentStatus: item.lastPaymentStatus,
     suspended: item.suspended,
     suspensionReason: item.suspensionReason ?? "",
@@ -194,7 +196,10 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [refundingUserId, setRefundingUserId] = useState<string | null>(null);
+  const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -207,6 +212,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
         setDrafts(Object.fromEntries(nextOwners.map((item) => [item.userId, buildDraft(item)])));
         setSelectedUserId((current) => current ?? nextOwners[0]?.userId ?? null);
         setError(null);
+        setNotice(null);
       } catch (nextError) {
         if (active) {
           setError(nextError instanceof Error ? nextError.message : "오너 계정 정보를 불러오지 못했습니다.");
@@ -259,6 +265,10 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     if (!draft) return;
     setSavingUserId(item.userId);
     setError(null);
+    setNotice(null);
+
+    const isFreePlan = draft.currentPlanCode === "free";
+    const nextServiceEndAt = draft.currentPeriodEndsAt ? toKstIsoEndOfDay(draft.currentPeriodEndsAt) : null;
 
     try {
       const response = await fetchApiJson<{ success: true; owners: AdminOwnerItem[] }>("/api/admin/owners", {
@@ -268,7 +278,8 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
           shopId: item.shopId,
           currentPlanCode: draft.currentPlanCode,
           serviceStartedAt: toKstIsoEndOfDay(draft.serviceStartedAt),
-          currentPeriodEndsAt: draft.currentPeriodEndsAt ? toKstIsoEndOfDay(draft.currentPeriodEndsAt) : null,
+          trialEndsAt: isFreePlan ? nextServiceEndAt ?? toKstIsoEndOfDay(draft.trialEndsAt || draft.serviceStartedAt) : undefined,
+          currentPeriodEndsAt: isFreePlan ? null : nextServiceEndAt,
           lastPaymentStatus: draft.lastPaymentStatus,
           suspended: draft.suspended,
           suspensionReason: draft.suspended ? draft.suspensionReason.trim() || "운영자에 의해 계정이 일시 정지되었습니다." : null,
@@ -283,6 +294,36 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
       setError(nextError instanceof Error ? nextError.message : "오너 계정 정보를 저장하지 못했습니다.");
     } finally {
       setSavingUserId(null);
+    }
+  }
+
+  async function refundOwner(item: AdminOwnerItem) {
+    const reason = refundReasons[item.userId]?.trim() || "관리자 환불 처리";
+    setRefundingUserId(item.userId);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchApiJson<{ success: true; message: string }>("/api/admin/owners/refund", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: item.userId,
+          shopId: item.shopId,
+          reason,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const nextOwners = await fetchOwners();
+      setOwners(nextOwners);
+      setDrafts(Object.fromEntries(nextOwners.map((nextItem) => [nextItem.userId, buildDraft(nextItem)])));
+      setSelectedUserId(item.userId);
+      setRefundReasons((prev) => ({ ...prev, [item.userId]: reason }));
+      setNotice(response.message);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "결제 취소를 처리하지 못했습니다.");
+    } finally {
+      setRefundingUserId(null);
     }
   }
 
@@ -342,6 +383,11 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
               {error ? (
                 <p className="mt-4 rounded-[14px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[13px] leading-6 text-[#b54b4b]">
                   {error}
+                </p>
+              ) : null}
+              {notice ? (
+                <p className="mt-4 rounded-[14px] border border-[#d7e7e1] bg-[#f4faf7] px-4 py-3 text-[13px] leading-6 text-[#1f6b5b]">
+                  {notice}
                 </p>
               ) : null}
             </div>
@@ -584,6 +630,55 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           placeholder="왜 계정을 정지했는지 운영 메모를 남겨 주세요."
                         />
                       </label>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
+                        <RotateCcw className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-[#171411]">환불 / 결제 취소</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
+                          최근 결제 1건을 전액 취소하고 현재 서비스 기간을 바로 만료 상태로 되돌립니다.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="mt-4 block">
+                      <span className="mb-1.5 block text-[12px] font-semibold text-[#6f665f]">취소 사유</span>
+                      <textarea
+                        value={refundReasons[selectedOwner.userId] ?? ""}
+                        onChange={(event) =>
+                          setRefundReasons((prev) => ({
+                            ...prev,
+                            [selectedOwner.userId]: event.target.value,
+                          }))
+                        }
+                        className="min-h-[72px] w-full rounded-[14px] border border-[#ddd4c8] bg-white px-3 py-3 text-[14px] text-[#171411] outline-none placeholder:text-[#a2978a]"
+                        placeholder="예: 중복 결제 확인, 고객 요청 환불"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => void refundOwner(selectedOwner)}
+                      disabled={selectedOwner.lastPaymentStatus !== "paid" || refundingUserId === selectedOwner.userId}
+                      className="mt-4 inline-flex h-[42px] w-full items-center justify-center rounded-[12px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[13px] font-semibold text-[#b45d3c] disabled:opacity-50"
+                    >
+                      {refundingUserId === selectedOwner.userId ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          환불 처리 중...
+                        </span>
+                      ) : (
+                        "최근 결제 취소"
+                      )}
+                    </button>
+
+                    {selectedOwner.lastPaymentStatus !== "paid" ? (
+                      <p className="mt-2 text-[11px] leading-5 text-[#8a8277]">결제 완료 상태인 최근 결제 건이 있을 때만 취소할 수 있습니다.</p>
                     ) : null}
                   </div>
 

@@ -79,7 +79,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
                 <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
                 <h1 className="mt-2 text-[34px] font-bold tracking-[-0.04em] text-[#171411]">관리자 콘솔</h1>
                 <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#6f665f]">
-                  오너 계정 상태, 플랜, 무료체험, 계정 정지와 복구까지 관리자 시점에서 빠르게 관리할 수 있는 화면입니다.
+                  오너 계정 상태, 플랜, 체험 플랜, 계정 정지와 복구까지 관리자 시점에서 빠르게 관리할 수 있는 화면입니다.
                   운영용 화면이므로 모바일 프레임이 아니라 넓은 웹 레이아웃으로 구성했습니다.
                 </p>
               </div>
@@ -108,7 +108,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             href="/owner/admin"
             icon={LayoutDashboard}
             title="오너 계정 관리"
-            description="가입한 사장님 계정의 플랜, 무료체험 종료일, 결제 상태, 계정 정지와 복구를 직접 조정합니다."
+            description="가입한 사장님 계정의 플랜, 체험 플랜 종료일, 결제 상태, 계정 정지와 복구를 직접 조정합니다."
           />
           <DashboardLink
             href="/owner"
@@ -132,7 +132,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             href="/"
             icon={ShieldCheck}
             title="서비스 메인 보기"
-            description="랜딩과 무료체험 진입 화면을 확인하고 전체 퍼널을 점검합니다."
+            description="랜딩과 체험 플랜 진입 화면을 확인하고 전체 퍼널을 점검합니다."
           />
           <button
             type="button"

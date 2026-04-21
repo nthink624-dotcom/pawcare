@@ -6,6 +6,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { X } from "lucide-react";
 
 import OwnerApp from "@/components/owner/owner-app";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -17,6 +20,28 @@ type OwnedShopSummary = {
   heroImageUrl: string;
 };
 
+function formatServiceEndDate(summary: OwnerSubscriptionSummary) {
+  const serviceEndsAt = summary.currentPeriodEndsAt ?? summary.trialEndsAt;
+  return serviceEndsAt ? serviceEndsAt.slice(0, 10).replace(/-/g, ".") : "-";
+}
+
+function isTrialSummary(summary: OwnerSubscriptionSummary) {
+  return (
+    summary.currentPlanCode === "free" ||
+    (!summary.currentPeriodStartedAt &&
+      !summary.currentPeriodEndsAt &&
+      (summary.status === "trialing" || summary.status === "trial_will_end" || summary.status === "expired"))
+  );
+}
+
+function getCurrentPlanLabel(summary: OwnerSubscriptionSummary) {
+  return isTrialSummary(summary) ? "체험 플랜" : getOwnerPlanDisplayName(summary.currentPlanCode);
+}
+
+function getResumePlanCode(summary: OwnerSubscriptionSummary) {
+  return isTrialSummary(summary) ? "monthly" : summary.currentPlanCode;
+}
+
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   if (summary.status === "past_due" || summary.status === "expired") return null;
   if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
@@ -26,12 +51,12 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
 
   const title =
     summary.noticeLevel === "1day"
-      ? "무료체험이 내일 종료됩니다"
-      : `무료체험이 ${summary.daysUntilTrialEnds}일 후 종료됩니다`;
+      ? "체험 플랜이 내일 종료됩니다"
+      : `체험 플랜이 ${summary.daysUntilTrialEnds}일 후 종료됩니다`;
   const body =
     summary.noticeLevel === "1day"
       ? "계속 사용하려면 종료 후 플랜을 확인하고 결제를 진행해 주세요. 자동결제는 되지 않습니다."
-      : "미리 플랜을 확인해 두면 무료체험 종료 후 바로 이어서 사용할 수 있어요.";
+      : "미리 플랜을 확인해 두면 체험 플랜 종료 후 바로 이어서 사용할 수 있어요.";
 
   useEffect(() => {
     const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
@@ -52,12 +77,12 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
           <div className="min-w-0 pr-1">
             <p className="text-[19px] font-extrabold tracking-[-0.03em] text-[#173b33]">{title}</p>
             <p className="mt-2 text-[14px] leading-[1.65] text-[#46645c]">{body}</p>
-            <p className="mt-3 text-[12px] leading-5 text-[#6d746f]">무료체험이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
+            <p className="mt-3 text-[12px] leading-5 text-[#6d746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
           </div>
           <button
             type="button"
             onClick={handleDismiss}
-            aria-label="무료체험 안내 닫기"
+            aria-label="체험 플랜 안내 닫기"
             className="shrink-0 rounded-full border border-[#d2dfd9] bg-white p-2.5 text-[#587169] shadow-[0_1px_2px_rgba(23,59,51,0.06)]"
           >
             <X className="h-4 w-4" strokeWidth={2.2} />
@@ -75,43 +100,71 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
 }
 
 function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: OwnerSubscriptionSummary; onLogout: () => void; loggingOut: boolean }) {
-  const title = summary.status === "past_due" ? "결제가 필요합니다" : "무료체험이 종료되었습니다";
+  const title = summary.status === "past_due" ? "이용 재개가 필요합니다" : "이용 기간이 종료되었습니다";
   const body =
     summary.status === "past_due"
-      ? "결제가 완료되지 않아 현재 서비스 사용이 제한되어 있습니다. 카드 정보를 확인하고 다시 결제하면 바로 이용을 재개할 수 있어요."
-      : "2주 무료체험이 종료되었습니다. 계속 사용하려면 플랜을 확인하고 결제를 진행해 주세요.";
+      ? "결제가 완료되지 않아 현재 예약·고객관리 기능이 일시적으로 제한되어 있습니다. 결제를 완료하면 바로 다시 이용할 수 있습니다."
+      : "서비스 이용 기간이 종료되어 현재 예약·고객관리 기능이 일시적으로 제한되어 있습니다. 플랜을 다시 선택하고 결제하면 바로 이용을 재개할 수 있습니다.";
+  const resumePlanCode = getResumePlanCode(summary);
+  const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent("펫매니저 이용 재개 문의")}`;
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">
-      <div className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 이용 상태</p>
-        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">{title}</h1>
-        <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{body}</p>
+      <div className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
+        <div className="space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">이용 재개 안내</p>
+            <h1 className="mt-2 text-[29px] font-extrabold tracking-[-0.04em] text-[#173b33]">{title}</h1>
+            <p className="mt-3 max-w-[330px] text-[15px] leading-[1.5] tracking-[-0.02em] text-[#615d56]">{body}</p>
+          </div>
 
-        <div className="mt-5 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
-          <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
-          <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{summary.currentPlan.name}</p>
-          <p className="mt-1 text-sm leading-6 text-[#6e6a61]">
-            무료체험 종료일 {summary.trialEndsAt.slice(0, 10).replace(/-/g, ".")}
-            {summary.currentPeriodEndsAt ? ` · 현재 이용 종료일 ${summary.currentPeriodEndsAt.slice(0, 10).replace(/-/g, ".")}` : ""}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-[#6e6a61]">로그인과 플랜 확인, 결제 관련 기능은 계속 사용할 수 있습니다.</p>
+          <div className="rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
+            <p className="text-[17px] font-semibold text-[#111111]">이용 상태 요약</p>
+            <div className="mt-3 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-[15px] font-medium text-[#7a736b]">서비스 종료일</p>
+                <p className="text-[15px] font-semibold text-[#173b33]">{formatServiceEndDate(summary)}</p>
+              </div>
+              <div className="flex items-start justify-between gap-4 border-t border-[#eee7dc] pt-3">
+                <p className="text-[15px] font-medium text-[#7a736b]">마지막 이용 플랜</p>
+                <p className="text-[15px] font-semibold text-[#173b33]">{getCurrentPlanLabel(summary)}</p>
+              </div>
+              <div className="border-t border-[#eee7dc] pt-3">
+                <div className="flex items-start justify-between gap-4">
+                  <p className="text-[15px] font-medium text-[#7a736b]">데이터 보관 상태</p>
+                  <p className="text-[15px] font-semibold text-[#173b33]">정상 보관 중</p>
+                </div>
+                <p className="mt-2 text-[14px] leading-6 text-[#5f5a54]">기존 고객·예약·이용 기록은 그대로 유지되며, 결제 후 바로 이어서 사용할 수 있습니다.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-2.5">
+        <div className="mt-5 grid gap-2">
           <a
-            href={`/owner/billing?plan=${summary.featuredPlanCode}`}
-            className="flex h-[52px] items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white"
+            href={`/owner/billing?compare=1&plan=${resumePlanCode}`}
+            className="flex h-[54px] items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(31,91,81,0.12)]"
           >
-            업그레이드 플랜
+            기간 연장하기
           </a>
+        </div>
+
+        <div className="mt-3">
+          <a
+            href={supportHref}
+            className="flex h-[52px] items-center justify-center rounded-[16px] border border-[#e3ddd3] bg-white px-4 text-[15px] font-semibold text-[#6b655d]"
+          >
+            문의하기
+          </a>
+        </div>
+        <div className="mt-2 flex justify-center">
           <button
             type="button"
             onClick={onLogout}
             disabled={loggingOut}
-            className="flex h-[52px] items-center justify-center rounded-[18px] border border-[#ddd6ca] bg-white px-4 text-[15px] font-semibold text-[#1f5b51] disabled:opacity-60"
+            className="inline-flex h-[38px] items-center justify-center px-3 text-[12px] font-medium text-[#8b847b] disabled:opacity-60"
           >
-            {loggingOut ? "로그아웃 중..." : "다른 계정으로 로그인"}
+            {loggingOut ? "로그아웃 중..." : "로그아웃"}
           </button>
         </div>
       </div>
@@ -142,6 +195,42 @@ export default function OwnerShell({
   useEffect(() => {
     setSummary(subscriptionSummary);
   }, [subscriptionSummary]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshSummary() {
+      try {
+        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+          cache: "no-store",
+        });
+        if (active) {
+          setSummary(nextSummary);
+        }
+      } catch {
+        // Keep the latest known state when background refresh fails.
+      }
+    }
+
+    const handleFocus = () => {
+      void refreshSummary();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshSummary();
+      }
+    };
+
+    void refreshSummary();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   const handleLogout = async () => {
     if (loggingOut) return;

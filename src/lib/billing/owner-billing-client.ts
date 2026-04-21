@@ -2,7 +2,7 @@ import { requestIssueBillingKey, requestPayment } from "@portone/browser-sdk/v2"
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { env } from "@/lib/env";
-import type { OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 
 type BillingKeyIssueResponse = {
@@ -35,6 +35,26 @@ function extractBillingKey(result: BillingKeyIssueResponse) {
 
 function extractIssueId(result: BillingKeyIssueResponse) {
   return result.billingKeyInfo?.issueId || result.issueId || null;
+}
+
+function buildOwnerBillingReturnUrl(planCode: OwnerPlanCode) {
+  const url = new URL("/owner/billing", window.location.origin);
+  url.searchParams.set("compare", "1");
+  url.searchParams.set("plan", planCode);
+  return url.toString();
+}
+
+function buildOwnerBillingOfferPeriod(planCode: OwnerPlanCode) {
+  const plan = getOwnerPlanByCode(planCode);
+  if (!plan || plan.months <= 0) {
+    return undefined;
+  }
+
+  if (plan.months % 12 === 0) {
+    return { interval: `${plan.months / 12}y` };
+  }
+
+  return { interval: `${plan.months}m` };
 }
 
 export async function fetchOwnerSubscriptionSummary() {
@@ -91,7 +111,7 @@ export async function requestOwnerOneTimePayment(params: {
       phoneNumber: params.phoneNumber || undefined,
       email: params.email || undefined,
     },
-    redirectUrl: `${window.location.origin}/owner/billing`,
+    redirectUrl: buildOwnerBillingReturnUrl(params.planCode),
     customData: {
       kind: "owner-subscription",
       planCode: params.planCode,
@@ -138,7 +158,8 @@ export async function issueOwnerBillingKey(params: {
       phoneNumber: params.phoneNumber || undefined,
       email: params.email || undefined,
     },
-    redirectUrl: `${window.location.origin}/owner/billing`,
+    offerPeriod: buildOwnerBillingOfferPeriod(params.planCode),
+    redirectUrl: buildOwnerBillingReturnUrl(params.planCode),
   });
 
   if (!result) {

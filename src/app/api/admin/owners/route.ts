@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import type { OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import {
   normalizeOwnerSubscriptionMetadata,
   planCodeToBillingCycle,
@@ -375,11 +375,9 @@ async function readAdminOwners() {
         status: summary.status,
         currentPlanCode: summary.currentPlanCode,
         currentPlanName:
-          summary.currentPlanCode === "free"
-            ? summary.currentPlan.name
-            : summary.status === "trialing" || summary.status === "trial_will_end"
-              ? "무료체험"
-              : summary.currentPlan.name,
+          summary.status === "trialing" || summary.status === "trial_will_end"
+            ? "체험 플랜"
+            : getOwnerPlanDisplayName(summary.currentPlanCode),
         trialEndsAt: summary.trialEndsAt,
         currentPeriodEndsAt: summary.currentPeriodEndsAt,
         lastPaymentStatus: summary.lastPaymentStatus,
@@ -444,7 +442,7 @@ function createAdminEvents(params: {
       "trial_extended",
       { trialEndsAt: previousOwner.trialEndsAt },
       { trialEndsAt: nextOwner.trialEndsAt },
-      "무료체험 종료일이 변경되었습니다.",
+      "체험 플랜 종료일이 변경되었습니다.",
     );
   }
 

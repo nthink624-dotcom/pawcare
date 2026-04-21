@@ -235,15 +235,8 @@ export default function OwnerSettingsPanel({
   const subscriptionEndDate = useMemo(() => {
     if (!subscriptionSummary) return "-";
 
-    if (subscriptionSummary.status === "trialing" || subscriptionSummary.status === "trial_will_end") {
-      return subscriptionSummary.trialEndsAt.slice(0, 10).replace(/-/g, ".");
-    }
-
-    if (subscriptionSummary.currentPeriodEndsAt) {
-      return subscriptionSummary.currentPeriodEndsAt.slice(0, 10).replace(/-/g, ".");
-    }
-
-    return "-";
+    const serviceEndsAt = subscriptionSummary.currentPeriodEndsAt ?? subscriptionSummary.trialEndsAt;
+    return serviceEndsAt ? serviceEndsAt.slice(0, 10).replace(/-/g, ".") : "-";
   }, [subscriptionSummary]);
 
   const closedDateMonthCells = useMemo(() => {
@@ -391,23 +384,30 @@ export default function OwnerSettingsPanel({
           isTrialStatus &&
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
-        const currentPlanTitle = showTrialCard
-          ? "무료체험"
+        const isFreePlan = currentPlan.code === "free";
+        const currentPlanTitle = isFreePlan || showTrialCard
+          ? "체험 플랜"
           : currentPlan.months === 1
-            ? "1개월"
-            : `${currentPlan.months}개월 약정`;
-        const currentPlanLine = showTrialCard
+            ? "한 달 플랜"
+            : currentPlan.months === 3
+              ? "세 달 플랜"
+              : currentPlan.months === 6
+                ? "여섯 달 플랜"
+                : "일 년 플랜";
+        const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
           : currentPlan.billingType === "one_time"
             ? "일반결제"
             : `${currentPlan.months}개월 동안 매월 ${won(currentPlan.monthlyPrice)} 결제`;
-        const currentPlanPriceLabel = showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
-        const currentPlanSubLabel = showTrialCard
-          ? "2주 체험"
+        const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
+        const currentPlanSubLabel = isFreePlan
+          ? "관리자 설정"
+          : showTrialCard
+            ? "체험 플랜"
           : currentPlan.billingType === "one_time"
             ? "1회 결제"
             : currentPlan.totalLabel;
-        const endDateLabel = showTrialCard ? "무료체험 종료일" : "서비스 종료일";
+        const endDateLabel = "서비스 종료일";
 
         return (
       <div className="overflow-hidden rounded-[20px] border border-[#d9d4cb] bg-white shadow-[0_6px_16px_rgba(21,22,19,0.04)]">
@@ -509,17 +509,6 @@ export default function OwnerSettingsPanel({
   const shopSection = (
     <SettingsCard title="매장 기본 정보">
       <div className="space-y-2">
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <Field label="매장명">
-            <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="업체 연락처">
-            <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
-          </Field>
-        </div>
-        <Field label="한줄 소개">
-          <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요." />
-        </Field>
         <Field label="매장 대표 이미지">
           <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center gap-3">
@@ -583,6 +572,17 @@ export default function OwnerSettingsPanel({
               저장하면 매장 전환 카드와 고객 예약 화면 대표 이미지에도 같이 반영돼요.
             </p>
           </div>
+        </Field>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <Field label="매장명">
+            <input className="field" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="업체 연락처">
+            <input className="field" value={phone} onChange={(event) => setPhone(event.target.value)} />
+          </Field>
+        </div>
+        <Field label="한줄 소개">
+          <textarea className="field min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요." />
         </Field>
         <Field label="주소">
           <div className="space-y-2">

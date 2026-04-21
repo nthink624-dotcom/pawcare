@@ -14,6 +14,8 @@ function OwnerBillingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preferredPlan = (searchParams.get("plan") && getOwnerPlanByCode(searchParams.get("plan"))?.code) as OwnerPlanCode | null;
+  const forcePlanPicker = searchParams.get("compare") === "1";
+  const openPaymentSheet = searchParams.get("sheet") === "1";
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("구독 정보를 불러오는 중입니다.");
@@ -40,7 +42,9 @@ function OwnerBillingPageContent() {
       }
 
       try {
-        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription");
+        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+          cache: "no-store",
+        });
         if (active) {
           setSummary(nextSummary);
         }
@@ -62,11 +66,55 @@ function OwnerBillingPageContent() {
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function refreshSummary() {
+      try {
+        const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+          cache: "no-store",
+        });
+        if (active) {
+          setSummary(nextSummary);
+        }
+      } catch {
+        // Keep the latest visible summary when background refresh fails.
+      }
+    }
+
+    const handleFocus = () => {
+      void refreshSummary();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshSummary();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   if (!summary) {
     return <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">{message}</div>;
   }
 
-  return <OwnerBillingScreen initialSummary={summary} preferredPlanCode={preferredPlan} />;
+  const shouldForcePlanPicker = forcePlanPicker || openPaymentSheet || summary.status === "expired" || summary.status === "past_due";
+
+  return (
+    <OwnerBillingScreen
+      initialSummary={summary}
+      preferredPlanCode={preferredPlan}
+      forcePlanPicker={shouldForcePlanPicker}
+      openPaymentSheet={openPaymentSheet}
+    />
+  );
 }
 
 export default function OwnerBillingPage() {

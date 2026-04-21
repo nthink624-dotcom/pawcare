@@ -12,6 +12,7 @@ import { addDate, currentDateInTimeZone, formatClockTime, phoneNormalize, shortD
 import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
+type CustomerDetailTab = "pets" | "records" | "notifications";
 type SettingsEntryScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type OwnedShopSummary = {
@@ -135,14 +136,15 @@ export default function OwnerApp({
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
-  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
+  const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedGuardianIds, setSelectedGuardianIds] = useState<string[]>([]);
   const [isCustomerListEditing, setIsCustomerListEditing] = useState(false);
   const [visitDateFilter, setVisitDateFilter] = useState(currentDateInTimeZone());
   const [visitSelectionMode, setVisitSelectionMode] = useState<"single" | "range">("single");
   const [visitRange, setVisitRange] = useState<{ start: string; end: string } | null>(null);
-  const [detailTab, setDetailTab] = useState<"pets" | "records" | "notifications">("pets");
+  const [detailTab, setDetailTab] = useState<CustomerDetailTab>("records");
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
   const [pendingVisitDate, setPendingVisitDate] = useState(currentDateInTimeZone());
@@ -158,6 +160,8 @@ export default function OwnerApp({
   const [error, setError] = useState<string | null>(null);
   const [isGuardianEditing, setIsGuardianEditing] = useState(false);
   const [isGuardianMemoEditing, setIsGuardianMemoEditing] = useState(false);
+  const [isCustomerToolsOpen, setIsCustomerToolsOpen] = useState(false);
+  const [isDeletedCustomersOpen, setIsDeletedCustomersOpen] = useState(false);
   const [guardianDraft, setGuardianDraft] = useState({
     name: "",
     phone: "",
@@ -267,21 +271,46 @@ export default function OwnerApp({
     const appointments = data.appointments.filter((appointment) => petIds.has(appointment.pet_id)).sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`));
     const latestRecord = records[0];
     const latestAppointment = appointments[0];
+    const upcomingAppointment = [...appointments]
+      .filter((appointment) => appointment.appointment_date >= todayDate && ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status))
+      .sort((a, b) => `${a.appointment_date} ${a.appointment_time}`.localeCompare(`${b.appointment_date} ${b.appointment_time}`))[0];
     const latestPet = latestRecord ? petMap[latestRecord.pet_id] : latestAppointment ? petMap[latestAppointment.pet_id] : pets[0];
     const latestService = latestRecord ? serviceMap[latestRecord.service_id] : latestAppointment ? serviceMap[latestAppointment.service_id] : undefined;
-    const latestVisitedAt = latestRecord?.groomed_at?.slice(0, 10) || latestAppointment?.appointment_date || null;
+    const latestVisitedAt = latestRecord?.groomed_at?.slice(0, 10) || null;
+    const latestActivityAt = latestVisitedAt || latestAppointment?.appointment_date || null;
     const latestNote = latestRecord?.style_notes || latestRecord?.memo || latestAppointment?.memo || "메모 없음";
     const revisitCandidates = revisitRows.filter((row) => row.guardian?.id === guardian.id && ["overdue", "soon"].includes(row.status));
-    const recentVisited = latestVisitedAt ? Math.abs((new Date(todayDate).getTime() - new Date(latestVisitedAt).getTime()) / 86400000) <= 30 : false;
-    return { guardian, pets, latestPet, latestService, latestVisitedAt, latestNote, visitCount: records.length, revisitCandidates, isAlertsOff: !guardian.notification_settings.enabled, isRecent: recentVisited };
+    const recentActivity = latestActivityAt ? Math.abs((new Date(todayDate).getTime() - new Date(latestActivityAt).getTime()) / 86400000) <= 30 : false;
+    return {
+      guardian,
+      pets,
+      latestPet,
+      latestService,
+      latestRecord,
+      latestAppointment,
+      latestVisitedAt,
+      latestActivityAt,
+      latestNote,
+      upcomingAppointment,
+      visitCount: records.length,
+      revisitCandidates,
+      isAlertsOff: !guardian.notification_settings.enabled,
+      isRecent: recentActivity,
+    };
   }), [data.guardians, data.pets, data.groomingRecords, data.appointments, petMap, serviceMap, revisitRows, todayDate]);
 
   const filteredGuardians = useMemo(() => {
     const query = customerSearch.trim();
-    return customerSummaries.filter((summary) => {
-      const matchesQuery = !query || summary.guardian.name.includes(query) || summary.guardian.phone.includes(query) || summary.pets.some((pet) => pet.name.includes(query) || pet.breed.includes(query));
-      return matchesQuery;
-    });
+    return customerSummaries
+      .filter((summary) => {
+        return (
+          !query ||
+          summary.guardian.name.includes(query) ||
+          summary.guardian.phone.includes(query) ||
+          summary.pets.some((pet) => pet.name.includes(query) || pet.breed.includes(query))
+        );
+      })
+      .sort((a, b) => (b.latestActivityAt ?? "").localeCompare(a.latestActivityAt ?? "") || a.guardian.name.localeCompare(b.guardian.name, "ko-KR"));
   }, [customerSearch, customerSummaries]);
   const deletedGuardians = useMemo(
     () =>
@@ -378,13 +407,20 @@ export default function OwnerApp({
       return addDate(visitCalendarMonthStart, dayOffset);
     });
   }, [visitCalendarMonthStart]);
-  const selectedPet = selectedPetId ? petMap[selectedPetId] : null;
-  const selectedGuardian = selectedPet ? guardianMap[selectedPet.guardian_id] : null;
+  const selectedGuardian = selectedGuardianId ? guardianMap[selectedGuardianId] : null;
+  const selectedGuardianSummary = selectedGuardian ? customerSummaries.find((summary) => summary.guardian.id === selectedGuardian.id) ?? null : null;
   const selectedGuardianPets = selectedGuardian ? data.pets.filter((item) => item.guardian_id === selectedGuardian.id) : [];
-  const selectedRecords = selectedPet ? data.groomingRecords.filter((item) => item.pet_id === selectedPet.id) : [];
-  const selectedRecordAppointmentIds = useMemo(
-    () => new Set(selectedRecords.map((record) => record.appointment_id).filter(Boolean)),
-    [selectedRecords],
+  const selectedCustomerPet = selectedCustomerPetId && selectedGuardianPets.some((pet) => pet.id === selectedCustomerPetId)
+    ? petMap[selectedCustomerPetId]
+    : selectedGuardianSummary?.latestPet ?? selectedGuardianPets[0] ?? null;
+  const selectedRecords = useMemo(
+    () =>
+      selectedGuardian
+        ? data.groomingRecords
+            .filter((item) => item.guardian_id === selectedGuardian.id)
+            .sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))
+        : [],
+    [data.groomingRecords, selectedGuardian],
   );
   const selectedNotifications = useMemo(() => {
     if (!selectedGuardian) return [];
@@ -399,7 +435,6 @@ export default function OwnerApp({
   }, [data.notifications, selectedGuardian, selectedGuardianPets]);
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
-  const selectedLatestRecord = selectedPet ? [...selectedRecords].sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))[0] : null;
   const canSaveGuardianProfile = Boolean(
     selectedGuardian &&
       guardianDraft.name.trim() &&
@@ -412,7 +447,11 @@ export default function OwnerApp({
   );
 
   useEffect(() => {
-    if (!selectedGuardian) return;
+    if (!selectedGuardian) {
+      setSelectedCustomerPetId(null);
+      setIsCustomerToolsOpen(false);
+      return;
+    }
     setGuardianDraft({
       name: selectedGuardian.name,
       phone: selectedGuardian.phone,
@@ -420,12 +459,20 @@ export default function OwnerApp({
     });
     setIsGuardianEditing(false);
     setIsGuardianMemoEditing(false);
-  }, [selectedGuardian]);
+    setIsCustomerToolsOpen(false);
+    setSelectedCustomerPetId((prev) => {
+      if (prev && selectedGuardianPets.some((pet) => pet.id === prev)) return prev;
+      return selectedGuardianSummary?.latestPet?.id ?? selectedGuardianPets[0]?.id ?? null;
+    });
+  }, [selectedGuardian, selectedGuardianPets, selectedGuardianSummary]);
 
   useEffect(() => {
     const activeGuardianIds = new Set(data.guardians.map((guardian) => guardian.id));
     setSelectedGuardianIds((prev) => prev.filter((guardianId) => activeGuardianIds.has(guardianId)));
-  }, [data.guardians]);
+    setSelectedGuardianId((prev) => (prev && activeGuardianIds.has(prev) ? prev : null));
+    const activePetIds = new Set(data.pets.map((pet) => pet.id));
+    setSelectedCustomerPetId((prev) => (prev && activePetIds.has(prev) ? prev : null));
+  }, [data.guardians, data.pets]);
 
   async function mutate(url: string, init: RequestInit) {
     if (isOwnerDemo) {
@@ -566,7 +613,8 @@ export default function OwnerApp({
           ],
         };
       });
-      setSelectedPetId(null);
+      setSelectedGuardianId(null);
+      setSelectedCustomerPetId(null);
       setSelectedGuardianIds((prev) => prev.filter((id) => id !== guardianId));
       setIsGuardianEditing(false);
       setIsGuardianMemoEditing(false);
@@ -577,7 +625,8 @@ export default function OwnerApp({
       method: "DELETE",
       body: JSON.stringify({ guardianId }),
     });
-    setSelectedPetId(null);
+    setSelectedGuardianId(null);
+    setSelectedCustomerPetId(null);
     setSelectedGuardianIds((prev) => prev.filter((id) => id !== guardianId));
     setIsGuardianEditing(false);
     setIsGuardianMemoEditing(false);
@@ -609,7 +658,8 @@ export default function OwnerApp({
       });
       setSelectedGuardianIds([]);
       if (selectedGuardian && guardianIds.includes(selectedGuardian.id)) {
-        setSelectedPetId(null);
+        setSelectedGuardianId(null);
+        setSelectedCustomerPetId(null);
       }
       return;
     }
@@ -620,7 +670,8 @@ export default function OwnerApp({
     });
     setSelectedGuardianIds([]);
     if (selectedGuardian && guardianIds.includes(selectedGuardian.id)) {
-      setSelectedPetId(null);
+      setSelectedGuardianId(null);
+      setSelectedCustomerPetId(null);
     }
   }
 
@@ -1027,14 +1078,19 @@ export default function OwnerApp({
   const screenTitle =
     activeTab === "customers"
       ? selectedGuardian
-        ? "고객정보"
+        ? selectedGuardian.name
         : "고객관리"
-      : selectedPet
-        ? selectedPet.name
-        : tabItems.find((item) => item.key === activeTab)?.label;
+      : tabItems.find((item) => item.key === activeTab)?.label;
   const bookingEntryUrl =
     typeof window === "undefined" ? `/book/${data.shop.id}` : `${window.location.origin}/book/${data.shop.id}`;
   const isHomeTab = activeTab === "home";
+  const customerEmptyTitle = customerSearch.trim() ? "검색 조건과 맞는 활성 고객이 없어요" : "등록된 고객이 아직 없어요";
+  const customerEmptyDescription =
+    customerSearch.trim() && filteredDeletedGuardians.length > 0
+      ? "삭제 고객에서는 일치하는 항목이 있어요. 삭제 고객 보기를 열어 확인해 주세요."
+      : customerSearch.trim()
+        ? "이름, 연락처, 반려동물 이름을 다시 확인해 주세요."
+        : "고객 추가로 첫 보호자와 반려동물을 등록해 주세요.";
 
   return (
     <div
@@ -1062,10 +1118,18 @@ export default function OwnerApp({
             )}
           </div>
           <div className="flex gap-2">
+            {activeTab === "customers" && !selectedGuardian && (
+              <button
+                type="button"
+                className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-soft)]"
+                onClick={() => setModal({ type: "new-customer" })}
+              >
+                고객 추가
+              </button>
+            )}
             {activeTab === "book" && (
               <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-appointment" })}>{"예약 추가"}</button>
             )}
-            {activeTab === "customers" && !selectedGuardian && <button className="h-11 rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-[var(--shadow-soft)]" onClick={() => setModal({ type: "new-customer" })}>{"고객 추가"}</button>}
           </div>
         </div>
       </header>
@@ -1144,15 +1208,16 @@ export default function OwnerApp({
 
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[24px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[15px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[12px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
-        {activeTab === "customers" && !selectedPet && (
+        {activeTab === "customers" && !selectedGuardian && (
           <section className="space-y-4 p-4">
             <Panel
-              title="고객 정보"
-              titleClassName="text-[16px] tracking-[-0.03em]"
+              title="고객 목록"
               action={
                 <button
                   type="button"
-                  className="inline-flex h-8 items-center rounded-full px-2 text-[12px] font-medium tracking-[-0.01em] text-[var(--accent)]"
+                  className={`text-[13px] font-semibold transition ${
+                    isCustomerListEditing ? "text-[var(--accent)]" : "text-[var(--muted)]"
+                  }`}
                   onClick={() => {
                     setIsCustomerListEditing((prev) => {
                       if (prev) setSelectedGuardianIds([]);
@@ -1164,401 +1229,401 @@ export default function OwnerApp({
                 </button>
               }
             >
-              <div className="rounded-[14px] border border-[var(--border)] bg-white px-3.5 py-2.5">
-                <input
-                  value={customerSearch}
-                  onChange={(event) => setCustomerSearch(event.target.value)}
-                  placeholder="보호자명, 연락처, 아기 이름 검색"
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-[12px] placeholder:font-medium placeholder:text-[var(--muted)]"
-                />
-              </div>
-
-              {isCustomerListEditing && filteredGuardians.length > 0 ? (
-                <div className="flex items-center justify-between rounded-[13px] border border-[var(--border)] bg-[#fcfaf7] px-2.5 py-1">
-                  <label className="flex items-center gap-1.5 text-[10px] font-normal tracking-[-0.01em] text-[var(--text)]">
+              <div className="space-y-3">
+                <div className="space-y-2.5">
+                  <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-3.5">
                     <input
-                      type="checkbox"
-                      checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
-                      onChange={toggleAllVisibleGuardians}
-                      className="h-[12px] w-[12px] rounded-[3px] border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      placeholder="보호자명, 연락처, 반려동물 이름 검색"
+                      className="w-full bg-transparent text-[14px] font-medium leading-6 outline-none placeholder:text-[14px] placeholder:font-medium placeholder:text-[var(--muted)]"
                     />
-                    <span className="leading-none">전체 선택</span>
-                  </label>
+                  </div>
+                </div>
+
+                {filteredDeletedGuardians.length > 0 ? (
                   <button
                     type="button"
-                    className="px-1 py-0.5 text-[10px] font-normal leading-none tracking-[-0.01em] text-[#8f756e] transition hover:text-[#6f5d57] disabled:text-[var(--muted)]"
-                    onClick={deleteSelectedGuardians}
-                    disabled={selectedGuardianIds.length === 0 || saving}
+                    className={`flex w-full items-center justify-between rounded-[16px] border px-4 py-3 text-left transition ${
+                      isDeletedCustomersOpen
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                        : "border-[var(--border)] bg-[#fcfaf7]"
+                    }`}
+                    onClick={() => setIsDeletedCustomersOpen((prev) => !prev)}
                   >
-                    선택 삭제
-                  </button>
-                </div>
-              ) : null}
-
-              {filteredGuardians.length === 0 ? (
-                <EmptyState title="조건에 맞는 고객이 없어요" />
-              ) : (
-                <div className="space-y-2.5">
-                  {filteredGuardians.map((summary) => (
-                    <div
-                      key={summary.guardian.id}
-                      className="flex items-start gap-3 rounded-[15px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 transition hover:bg-[#fcfaf7]"
-                    >
-                      {isCustomerListEditing ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedGuardianIds.includes(summary.guardian.id)}
-                          onChange={() => toggleGuardianSelection(summary.guardian.id)}
-                          className="mt-[3px] h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
-                        />
-                      ) : null}
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => {
-                          setSelectedPetId(summary.pets[0]?.id || null);
-                          setDetailTab("pets");
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                              <div className="flex shrink-0 items-center gap-2">
-                                {summary.isAlertsOff ? (
-                                  <span className="rounded-full bg-[#f4f0ea] px-2 py-1 text-[10px] font-medium tracking-[-0.01em] text-[var(--muted)]">
-                                    알림 꺼짐
-                                  </span>
-                                ) : null}
-                                <span className="text-[11px] font-medium tracking-[-0.01em] text-[var(--accent)]">상세</span>
-                              </div>
-                            </div>
-                            <p className="mt-1 text-[12px] font-medium leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
-                            <p className="mt-0.5 text-[12px] font-medium leading-5 text-[#5e5a56]">반려동물 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}</p>
-                          </div>
-                        </div>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {filteredDeletedGuardians.length > 0 ? (
-                <div className="space-y-3 rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
-                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text)]">최근 삭제</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
+                      <p className="text-[14px] font-semibold text-[var(--text)]">삭제 고객</p>
+                      <p className="mt-0.5 text-[13px] text-[var(--muted)]">복구 가능한 고객 {filteredDeletedGuardians.length}명</p>
                     </div>
+                    <span className="text-[13px] font-semibold text-[var(--accent)]">{isDeletedCustomersOpen ? "닫기" : "보기"}</span>
+                  </button>
+                ) : null}
+
+                {isCustomerListEditing && filteredGuardians.length > 0 ? (
+                  <div className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-3">
+                    <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text)]">
+                      <input
+                        type="checkbox"
+                        checked={filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id))}
+                        onChange={toggleAllVisibleGuardians}
+                        className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                      />
+                      전체 선택
+                    </label>
                     <button
                       type="button"
-                      className="text-xs font-semibold text-[var(--accent)]"
-                      onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
-                      disabled={saving}
+                      className="text-[13px] font-semibold text-[#8a5b4d] transition disabled:text-[var(--muted)]"
+                      onClick={deleteSelectedGuardians}
+                      disabled={selectedGuardianIds.length === 0 || saving}
                     >
-                      전체 복구
+                      삭제
                     </button>
                   </div>
-                  <div className="space-y-2">
-                    {filteredDeletedGuardians.map((guardian) => (
-                      <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--border)] bg-white px-3 py-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[var(--text)]">{guardian.name}</p>
-                          <p className="mt-1 text-xs text-[var(--muted)]">{guardian.phone}</p>
-                        </div>
+                ) : null}
+
+                {filteredGuardians.length === 0 ? (
+                  <CustomerEmptyState
+                    title={customerEmptyTitle}
+                    description={customerEmptyDescription}
+                    action={
+                      filteredDeletedGuardians.length > 0 && !isDeletedCustomersOpen ? (
                         <button
                           type="button"
-                          className="shrink-0 text-xs font-semibold text-[var(--accent)]"
-                          onClick={() => restoreDeletedGuardians([guardian.id])}
-                          disabled={saving}
+                          className="mt-3 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1.5 text-[13px] font-semibold text-[var(--accent)]"
+                          onClick={() => setIsDeletedCustomersOpen(true)}
                         >
-                          복구
+                          삭제 고객 보기
+                        </button>
+                      ) : null
+                    }
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {filteredGuardians.map((summary) => (
+                      <div
+                        key={summary.guardian.id}
+                        className={`rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition hover:bg-[#fcfaf7] ${
+                          isCustomerListEditing ? "flex items-start gap-3" : ""
+                        }`}
+                      >
+                        {isCustomerListEditing ? (
+                          <div className="mt-1 flex w-5 shrink-0 justify-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedGuardianIds.includes(summary.guardian.id)}
+                              onChange={() => toggleGuardianSelection(summary.guardian.id)}
+                              className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                            />
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left disabled:cursor-default"
+                          disabled={isCustomerListEditing}
+                          onClick={() => {
+                            setSelectedGuardianId(summary.guardian.id);
+                            setSelectedCustomerPetId(summary.latestPet?.id ?? summary.pets[0]?.id ?? null);
+                            setDetailTab("records");
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                              </div>
+                              <p className="mt-1 text-[14px] font-medium leading-6 text-[var(--muted)]">{summary.guardian.phone}</p>
+                              <p className="mt-0.5 text-[14px] font-medium leading-6 text-[#5e5a56]">
+                                반려동물 · {summary.pets.map((pet) => pet.name).join(", ") || "없음"}
+                              </p>
+                            </div>
+                            <span className="shrink-0 pt-1 text-[14px] font-semibold text-[var(--accent)]">상세 보기</span>
+                          </div>
                         </button>
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : null}
+                )}
+
+                {isDeletedCustomersOpen ? (
+                  <div className="space-y-3 rounded-[20px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[15px] font-semibold text-[var(--text)]">삭제 고객 보관함</p>
+                        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
+                      </div>
+                      {filteredDeletedGuardians.length > 0 ? (
+                        <button
+                          type="button"
+                          className="text-[13px] font-semibold text-[var(--accent)]"
+                          onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
+                          disabled={saving}
+                        >
+                          전체 복구
+                        </button>
+                      ) : null}
+                    </div>
+                    {filteredDeletedGuardians.length === 0 ? (
+                      <CustomerEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
+                    ) : (
+                      <div className="space-y-2.5">
+                        {filteredDeletedGuardians.map((guardian) => (
+                          <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-white px-3.5 py-3">
+                            <div className="min-w-0">
+                              <p className="text-[14px] font-semibold text-[var(--text)]">{guardian.name}</p>
+                              <p className="mt-1 text-[13px] text-[var(--muted)]">{guardian.phone}</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-full border border-[var(--border)] bg-[#fcfaf7] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]"
+                              onClick={() => restoreDeletedGuardians([guardian.id])}
+                              disabled={saving}
+                            >
+                              복구
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </Panel>
           </section>
         )}
-                {activeTab === "customers" && selectedPet && selectedGuardian && (
-                  <section className="space-y-4 p-4">
-                    <button className="text-sm font-bold text-[var(--muted)]" onClick={() => setSelectedPetId(null)}>
-                      ← 이전
-                    </button>
-                    <Panel
-                      title={`${selectedGuardian.name} 보호자`}
-                      action={
-                        <div className="flex items-center gap-3">
-                          {!isGuardianEditing ? (
-                            <button
-                              className="text-[12px] font-medium tracking-[0.01em] text-[var(--muted)] transition hover:text-[#6b5b57]"
-                              onClick={handleGuardianDelete}
-                              disabled={saving}
-                            >
-                              삭제
-                            </button>
-                          ) : null}
-                          {isGuardianEditing ? (
-                            <button
-                              className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]"
-                              onClick={() => {
-                                setGuardianDraft({
-                                  name: selectedGuardian.name,
-                                  phone: selectedGuardian.phone,
-                                  memo: selectedGuardian.memo || "",
-                                });
-                                setIsGuardianEditing(false);
-                              }}
-                            >
-                              취소
-                            </button>
-                          ) : null}
-                          <button
-                            className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
-                            onClick={() => {
-                              if (isGuardianEditing) {
-                                if (!canSaveGuardianProfile || saving) return;
-                                handleGuardianProfileSave();
-                                return;
-                              }
-                              setIsGuardianEditing(true);
-                            }}
-                          >
-                            {isGuardianEditing ? "저장" : "편집"}
-                          </button>
-                        </div>
-                      }
+        {activeTab === "customers" && selectedGuardian && (
+          <section className="space-y-4 p-4">
+            <button
+              className="text-[14px] font-semibold text-[var(--muted)]"
+              onClick={() => {
+                setSelectedGuardianId(null);
+                setSelectedCustomerPetId(null);
+                setIsCustomerToolsOpen(false);
+              }}
+            >
+              ← 고객 목록
+            </button>
+            <Panel
+              title="고객 정보"
+              action={
+                <div className="flex items-center gap-3">
+                  {isGuardianEditing ? (
+                    <button
+                      className="text-[13px] font-medium tracking-[0.01em] text-[var(--muted)]"
+                      onClick={() => {
+                        setGuardianDraft({
+                          name: selectedGuardian.name,
+                          phone: selectedGuardian.phone,
+                          memo: selectedGuardian.memo || "",
+                        });
+                        setIsGuardianEditing(false);
+                      }}
                     >
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                          {isGuardianEditing ? (
-                            <>
-                              <Field label="보호자 이름">
-                                <input
-                                  className="field"
-                                  value={guardianDraft.name}
-                                onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))}
-                              />
-                            </Field>
-                            <Field label="연락처">
-                              <input
-                                className="field"
-                                value={guardianDraft.phone}
-                                onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))}
-                              />
-                            </Field>
-                          </>
-                        ) : (
-                          <>
-                            <InfoItem label="보호자명" value={selectedGuardian.name} />
-                            <InfoItem label="연락처" value={selectedGuardian.phone} />
-                          </>
-                        )}
-                        <InfoItem
-                          label="반려동물 이름"
-                          value={selectedGuardianPets.length ? selectedGuardianPets.map((pet) => pet.name).join(", ") : "없음"}
-                          className="col-span-2"
+                      취소
+                    </button>
+                  ) : null}
+                  <button
+                    className="text-[13px] font-semibold tracking-[0.01em] text-[var(--accent)] disabled:opacity-50"
+                    disabled={saving || (isGuardianEditing && !canSaveGuardianProfile)}
+                    onClick={() => {
+                      if (isGuardianEditing) {
+                        if (!canSaveGuardianProfile || saving) return;
+                        void handleGuardianProfileSave();
+                        return;
+                      }
+                      setIsGuardianEditing(true);
+                    }}
+                  >
+                    {isGuardianEditing ? "저장" : "편집"}
+                  </button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedGuardianSummary?.isAlertsOff ? <CustomerStatusPill label="알림 꺼짐" tone="muted" /> : null}
+                  {(selectedGuardianSummary?.revisitCandidates.length ?? 0) > 0 ? (
+                    <CustomerStatusPill label={`재방문 관리 ${selectedGuardianSummary?.revisitCandidates.length ?? 0}마리`} tone="warning" />
+                  ) : null}
+                  {selectedGuardianSummary?.upcomingAppointment ? (
+                    <CustomerStatusPill
+                      label={`다음 예약 ${shortDate(selectedGuardianSummary.upcomingAppointment?.appointment_date ?? todayDate)}`}
+                      tone="accent"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {isGuardianEditing ? (
+                    <>
+                      <Field label="보호자 이름">
+                        <input
+                          className="field"
+                          value={guardianDraft.name}
+                          onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))}
                         />
-                      </div>
+                      </Field>
+                      <Field label="연락처">
+                        <input
+                          className="field"
+                          value={guardianDraft.phone}
+                          onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))}
+                        />
+                      </Field>
+                    </>
+                  ) : (
+                    <>
+                      <InfoItem label="보호자명" value={selectedGuardian.name} />
+                      <InfoItem label="연락처" value={selectedGuardian.phone} />
+                    </>
+                  )}
+                  <InfoItem
+                    label="반려동물"
+                    value={selectedGuardianPets.length ? selectedGuardianPets.map((pet) => pet.name).join(", ") : "없음"}
+                    className="col-span-2"
+                  />
+                </div>
 
-                      {isGuardianMemoEditing ? (
-                        <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
-                          <div className="mb-3 flex items-center justify-between">
-                            <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                className="text-xs font-medium tracking-[0.01em] text-[var(--muted)]"
-                                onClick={() => {
-                                  setGuardianDraft((prev) => ({ ...prev, memo: selectedGuardian.memo || "" }));
-                                  setIsGuardianMemoEditing(false);
-                                }}
-                              >
-                                취소
-                              </button>
-                              <button
-                                type="button"
-                                className="text-xs font-semibold tracking-[0.01em] text-[var(--accent)]"
-                                onClick={handleGuardianMemoSave}
-                                disabled={saving}
-                              >
-                                저장
-                              </button>
-                            </div>
-                          </div>
-                          <textarea
-                            className="field min-h-24"
-                            value={guardianDraft.memo}
-                            onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
-                            placeholder="고객에게 기억해 둘 내용을 적어주세요"
-                          />
-                        </div>
-                      ) : selectedGuardian.memo ? (
+                {isGuardianMemoEditing ? (
+                  <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[13px] font-medium text-[var(--muted)]">고객 메모</p>
+                      <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left transition hover:bg-[#fcfaf7]"
-                          onClick={() => setIsGuardianMemoEditing(true)}
+                          className="text-[13px] font-medium tracking-[0.01em] text-[var(--muted)]"
+                          onClick={() => {
+                            setGuardianDraft((prev) => ({ ...prev, memo: selectedGuardian.memo || "" }));
+                            setIsGuardianMemoEditing(false);
+                          }}
                         >
-                          <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
-                          <p className="mt-1 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{selectedGuardian.memo}</p>
+                          취소
                         </button>
-                      ) : (
                         <button
                           type="button"
-                          className="w-full rounded-[16px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-2.5 text-left transition hover:bg-[#f8f3ed]"
-                          onClick={() => setIsGuardianMemoEditing(true)}
+                          className="text-[13px] font-semibold tracking-[0.01em] text-[var(--accent)]"
+                          onClick={handleGuardianMemoSave}
+                          disabled={saving}
                         >
-                          <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">고객 메모</p>
-                          <p className="mt-1 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--muted)]">터치해서 고객 메모를 적어주세요</p>
+                          저장
                         </button>
-                      )}
-
-                      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
-                        <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">빠른 액션</p>
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <a
-                            href={buildTelHref(selectedGuardian.phone)}
-                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--text)]"
-                          >
-                            전화하기
-                          </a>
-                          <a
-                            href={buildSmsHref(selectedGuardian.phone)}
-                            className="flex items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--muted)]"
-                          >
-                            문자 보내기
-                          </a>
-                        </div>
                       </div>
-
-                      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--text)]">알림톡 설정</p>
-                            <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">고객별로 알림톡 비용이 나가지 않도록 수신을 직접 조절할 수 있어요.</p>
-                          </div>
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          <ToggleRow
-                            label="알림톡 받기"
-                            description="예약 안내, 방문 안내, 완료 알림 등 기본 알림을 보낼 수 있어요."
-                            checked={guardianNotificationsEnabled}
-                            disabled={saving}
-                            onChange={(checked) => {
-                              void updateGuardianNotifications(
-                                selectedGuardian.id,
-                                checked,
-                                checked ? guardianRevisitNotificationsEnabled : false,
-                              );
-                            }}
-                          />
-                          <ToggleRow
-                            label="재방문 알림"
-                            description="재방문 시기가 다가왔을 때만 별도로 다시 알려드려요."
-                            checked={guardianNotificationsEnabled && guardianRevisitNotificationsEnabled}
-                            disabled={saving || !guardianNotificationsEnabled}
-                            onChange={(checked) => {
-                              void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        {(["pets", "records", "notifications"] as const).map((item) => (
-                          <button
-                            key={item}
-                            className={`flex-1 rounded-[14px] border px-3 py-2.5 text-[12px] font-semibold ${
-                              detailTab === item
-                                ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                                : "border-[var(--border)] bg-white text-[var(--muted)]"
-                            }`}
-                            onClick={() => setDetailTab(item)}
-                          >
-                            {item === "pets" ? (
-                              "아기 정보"
-                            ) : item === "records" ? (
-                              "미용 기록"
-                            ) : (
-                              <span className="leading-[1.15]">알림톡<br />발송내역</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      {detailTab === "pets" ? (
-                        <div className="mt-4 space-y-3">
-                          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-                            <div className="mb-3 flex items-center justify-between">
-                              <p className="text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">아기 정보</p>
-                              <button
-                                className="text-[12px] font-semibold text-[var(--accent)]"
-                                onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
-                              >
-                                + 아기 추가하기
-                              </button>
-                            </div>
-                            <div className="space-y-3">
-                              {selectedGuardianPets.map((pet) => (
-                                <GuardianPetEditorCard
-                                  key={pet.id}
-                                  pet={pet}
-                                  saving={saving}
-                                  isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")}
-                                  onSelect={() => setSelectedPetId(pet.id)}
-                                  onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
-                                  onSendBirthday={() => sendBirthdayGreeting(pet)}
-                                  onSendRevisit={() => sendRevisitNotice(pet)}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          <button
-                            className="w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
-                            onClick={() => setModal({ type: "new-appointment", petId: selectedPet.id })}
-                          >
-                            이 아기로 예약 등록
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {detailTab === "records" ? (
-                        <div className="mt-4 space-y-3">
-                          {selectedRecords.length === 0 ? (
-                            <EmptyState title="미용 기록이 없어요" />
-                          ) : (
-                            selectedRecords.map((record) => (
-                              <RecordCard
-                                key={record.id}
-                                record={record}
-                                service={serviceMap[record.service_id]}
-                                onEdit={() => setModal({ type: "edit-record", record })}
-                              />
-                            ))
-                          )}
-                        </div>
-                      ) : null}
-
-                      {detailTab === "notifications" ? (
-                        <div className="mt-4 space-y-3">
-                          {selectedNotifications.length === 0 ? (
-                            <EmptyState title="발송된 알림이 없어요" />
-                          ) : (
-                            selectedNotifications.map((notification) => (
-                              <NotificationHistoryRow
-                                key={notification.id}
-                                notification={notification}
-                                pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
-                              />
-                            ))
-                          )}
-                        </div>
-                      ) : null}
-                    </Panel>
-                  </section>
+                    </div>
+                    <textarea
+                      className="field min-h-24"
+                      value={guardianDraft.memo}
+                      onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
+                      placeholder="고객에게 기억해 둘 내용을 적어주세요"
+                    />
+                  </div>
+                ) : selectedGuardian.memo ? (
+                  <button
+                    type="button"
+                    className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left transition hover:bg-[#fcfaf7]"
+                    onClick={() => setIsGuardianMemoEditing(true)}
+                  >
+                    <p className="text-[13px] font-medium text-[var(--muted)]">고객 메모</p>
+                    <p className="mt-1 text-[15px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{selectedGuardian.memo}</p>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-3 text-left transition hover:bg-[#f8f3ed]"
+                    onClick={() => setIsGuardianMemoEditing(true)}
+                  >
+                    <p className="text-[13px] font-medium text-[var(--muted)]">고객 메모</p>
+                    <p className="mt-1 text-[15px] font-semibold leading-6 tracking-[-0.02em] text-[var(--muted)]">고객 특이사항을 남겨두면 다음 방문 때 바로 확인할 수 있어요.</p>
+                  </button>
                 )}
+
+                </div>
+            </Panel>
+
+            <Panel title="고객 이력" action={<span className="text-[13px] font-semibold text-[var(--muted)]">반려동물 {selectedGuardianPets.length}마리</span>}>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  {(["records", "pets", "notifications"] as const).map((item) => (
+                    <button
+                      key={item}
+                      className={`flex-1 rounded-[14px] border px-3 py-2.5 text-[13px] font-semibold ${
+                        detailTab === item
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                          : "border-[var(--border)] bg-white text-[var(--muted)]"
+                      }`}
+                      onClick={() => setDetailTab(item)}
+                    >
+                      {item === "records" ? "미용 기록" : item === "pets" ? "반려동물" : "알림톡 발송내역"}
+                    </button>
+                  ))}
+                </div>
+
+                {detailTab === "records" ? (
+                  <div className="space-y-3">
+                    {selectedRecords.length === 0 ? (
+                      <CustomerEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
+                    ) : (
+                      selectedRecords.map((record) => (
+                        <RecordCard
+                          key={record.id}
+                          record={record}
+                          pet={petMap[record.pet_id]}
+                          service={serviceMap[record.service_id]}
+                          onEdit={() => setModal({ type: "edit-record", record })}
+                        />
+                      ))
+                    )}
+                  </div>
+                ) : null}
+
+                {detailTab === "pets" ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-[16px] border border-[var(--border)] bg-[#fcfaf7] px-4 py-3">
+                      <div>
+                        <p className="text-[14px] font-semibold text-[var(--text)]">반려동물 관리</p>
+                        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">수정하거나 작업 대상으로 지정한 뒤 예약 등록에 바로 연결할 수 있어요.</p>
+                      </div>
+                      <button
+                        className="shrink-0 whitespace-nowrap text-[13px] font-semibold leading-5 text-[var(--accent)]"
+                        onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
+                      >
+                        + 아기 추가
+                      </button>
+                    </div>
+
+                    {selectedGuardianPets.map((pet) => (
+                      <GuardianPetEditorCard
+                        key={pet.id}
+                        pet={pet}
+                        saving={saving}
+                        isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")}
+                        isSelected={selectedCustomerPet?.id === pet.id}
+                        onSelect={() => setSelectedCustomerPetId(pet.id)}
+                        onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
+                        onSendBirthday={() => sendBirthdayGreeting(pet)}
+                        onSendRevisit={() => sendRevisitNotice(pet)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {detailTab === "notifications" ? (
+                  <div className="space-y-3">
+                    {selectedNotifications.length === 0 ? (
+                      <CustomerEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
+                    ) : (
+                      selectedNotifications.map((notification) => (
+                        <NotificationHistoryRow
+                          key={notification.id}
+                          notification={notification}
+                          pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
+                        />
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </Panel>
+          </section>
+        )}
 
         {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
@@ -1587,7 +1652,11 @@ export default function OwnerApp({
                       setVisitDateFilter(todayDate);
                     }
                     if (item.key !== "settings") setSettingsEntryScreen(null);
-                    if (item.key !== "customers") setSelectedPetId(null);
+                    if (item.key !== "customers") {
+                      setSelectedGuardianId(null);
+                      setSelectedCustomerPetId(null);
+                      setIsCustomerToolsOpen(false);
+                    }
                   }}
                 >
                   <div
@@ -2123,7 +2192,24 @@ function SettingsPanel({
   );
 }
 
-function RecordCard({ record, service, onEdit }: { record: GroomingRecord; service?: Service; onEdit: () => void }) { return <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3"><div className="flex items-center justify-between"><div><p className="text-sm font-bold">{service?.name || "서비스"}</p><p className="text-xs text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p></div><button className="text-xs font-semibold text-[var(--accent)]" onClick={onEdit}>수정</button></div><p className="mt-2 text-sm text-[var(--muted)]">{record.style_notes || "스타일 메모 없음"}</p><p className="mt-1 text-sm text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p></div>; }
+function RecordCard({ record, pet, service, onEdit }: { record: GroomingRecord; pet: Pet; service?: Service; onEdit: () => void }) {
+  return (
+    <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[14px] font-semibold text-[var(--text)]">{service?.name || "서비스"}</p>
+            <span className="text-[12px] font-medium text-[var(--muted)]">{pet.name}</span>
+          </div>
+          <p className="mt-1 text-[13px] text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p>
+        </div>
+        <button className="shrink-0 text-[13px] font-semibold text-[var(--accent)]" onClick={onEdit}>수정</button>
+      </div>
+      <p className="mt-3 text-[14px] leading-6 text-[var(--text)]">{record.style_notes || "스타일 메모 없음"}</p>
+      <p className="mt-1 text-[13px] leading-6 text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p>
+    </div>
+  );
+}
 function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <CurrentReservationsContent currentAppointments={currentAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
 
 function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void }) {
@@ -2257,7 +2343,48 @@ function RejectionReasonEditor({ template, customReason, onTemplateChange, onCus
 }
 
 
-function GuardianPetEditorCard({ pet, saving, isBirthdayToday, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) { const [name, setName] = useState(pet.name); const [breed, setBreed] = useState(pet.breed); const [birthday, setBirthday] = useState(pet.birthday ?? ""); return <div className="rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5"><div className="flex items-center justify-between gap-3"><button className="text-left" onClick={onSelect}><p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet.name}</p><p className="mt-0.5 text-[12px] font-medium text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p></button></div><div className="mt-2.5 space-y-2"><Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field><Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field></div><div className="mt-2.5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>아기 정보 저장</ActionButton><ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton></div><div className="mt-2">{birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-[14px] bg-[#fcfaf7] px-4 py-2 text-center text-[12px] font-medium text-[var(--muted)]">생일 미등록</div>}</div></div>; }
+function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; isSelected: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) {
+  const [name, setName] = useState(pet.name);
+  const [breed, setBreed] = useState(pet.breed);
+  const [birthday, setBirthday] = useState(pet.birthday ?? "");
+
+  useEffect(() => {
+    setName(pet.name);
+    setBreed(pet.breed);
+    setBirthday(pet.birthday ?? "");
+  }, [pet.birthday, pet.breed, pet.name]);
+
+  return (
+    <div className={`rounded-[18px] border bg-white px-4 py-3 ${isSelected ? "border-[var(--accent)] shadow-[0_8px_18px_rgba(31,107,91,0.08)]" : "border-[var(--border)]"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <button className="text-left" onClick={onSelect}>
+          <div className="flex items-center gap-2">
+            <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+            {isSelected ? <CustomerStatusPill label="작업 중" tone="accent" /> : null}
+          </div>
+          <p className="mt-0.5 text-[13px] font-medium text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p>
+        </button>
+        {!isSelected ? (
+          <button type="button" className="text-[12px] font-semibold text-[var(--accent)]" onClick={onSelect}>
+            작업 대상으로 지정
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-3 space-y-2">
+        <Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field>
+        <Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>정보 저장</ActionButton>
+        <ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton>
+      </div>
+      <div className="mt-2">
+        {birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-[14px] bg-[#fcfaf7] px-4 py-2 text-center text-[12px] font-medium text-[var(--muted)]">생일 미등록</div>}
+      </div>
+    </div>
+  );
+}
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
   return (
     <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -2268,7 +2395,7 @@ function QuickContactRow({ phone, sending = false, reminderSent = false, onSendR
   );
 }
 
-function ToggleRow({ label, description, checked, disabled, onChange }: { label: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) { return <label className={`flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 ${disabled ? "opacity-50" : ""}`}><div><p className="text-sm font-semibold text-[var(--text)]">{label}</p><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{description}</p></div><button type="button" disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} /></button></label>; }
+function ToggleRow({ label, description, checked, disabled, onChange }: { label: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) { return <label className={`flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 ${disabled ? "opacity-50" : ""}`}><div><p className="text-[14px] font-semibold text-[var(--text)]">{label}</p><p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{description}</p></div><button type="button" disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} /></button></label>; }
 function Overlay({ children }: { children: React.ReactNode }) { return <div>{children}</div>; }
 function Sheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
@@ -2304,6 +2431,36 @@ function ActionButton({ children, disabled, onClick, variant = "primary" }: { ch
                   ? "border border-[#6d7d77] bg-[#6d7d77] text-white shadow-[0_8px_18px_rgba(109,125,119,0.16)]"
                   : "border border-[var(--border)] bg-white text-[var(--muted)]";
   return <button disabled={disabled} onClick={onClick} className={`flex h-[43px] w-full items-center justify-center rounded-[14px] px-4 text-sm font-semibold tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${className}`}>{children}</button>;
+}
+
+function CustomerStatusPill({ label, tone }: { label: string; tone: "accent" | "warning" | "muted" }) {
+  const toneClass =
+    tone === "accent"
+      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+      : tone === "warning"
+        ? "bg-[#f6eee3] text-[#8c6e53]"
+        : "bg-[#f4f0ea] text-[var(--muted)]";
+
+  return <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${toneClass}`}>{label}</span>;
+}
+
+function CustomerMetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
+  return (
+    <div className={`rounded-[16px] border border-[var(--border)] bg-white px-3.5 ${compact ? "py-3" : "py-3.5"}`}>
+      <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p>
+      <p className={`mt-1 font-semibold tracking-[-0.02em] text-[var(--text)] ${compact ? "line-clamp-2 text-[14px] leading-5" : "text-[15px] leading-5"}`}>{value}</p>
+    </div>
+  );
+}
+
+function CustomerEmptyState({ title, description, action = null }: { title: string; description: string; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-5 text-center">
+      <p className="text-[15px] font-semibold text-[var(--text)]">{title}</p>
+      <p className="mt-1 text-[13px] leading-6 text-[var(--muted)]">{description}</p>
+      {action}
+    </div>
+  );
 }
 
 function EmptyState({ title }: { title: string }) { return <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-5 text-center text-sm leading-6 text-[var(--muted)]">{title}</div>; }

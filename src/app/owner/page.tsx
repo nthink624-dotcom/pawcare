@@ -86,7 +86,7 @@ export default function OwnerPage() {
 
         const [bootstrap, subscription] = await Promise.all([
           fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription"),
+          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
         ]);
 
         if (!active) return;

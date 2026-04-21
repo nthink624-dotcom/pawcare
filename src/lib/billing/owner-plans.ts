@@ -67,7 +67,7 @@ function makePlan({
     billingLabel:
       billingType === "one_time"
         ? `${months}개월 이용권 1회 결제`
-        : `${months}개월 약정 월 정기결제`,
+        : `${months}개월 기간 연장 정기결제`,
     totalLabel: months > 1 ? `총 ${totalPrice.toLocaleString("ko-KR")}원` : undefined,
     dailyPriceText,
     description,
@@ -81,56 +81,56 @@ function makePlan({
 export const ownerPlans: OwnerPlan[] = [
   {
     code: "free",
-    name: "무료 플랜",
-    title: "무료 플랜",
-    shortTitle: "무료",
+    name: "체험 플랜",
+    title: "체험 플랜",
+    shortTitle: "체험 플랜",
     months: 0,
     price: 0,
     totalPrice: 0,
     monthlyPrice: 0,
     monthlyEquivalent: 0,
     billingType: "one_time",
-    billingLabel: "관리자 배정용 무료 플랜",
-    description: "관리자가 서비스 시작용으로 배정하는 무료 플랜입니다.",
+    billingLabel: "관리자 배정 체험 플랜",
+    description: "초기 사용 확인을 위해 제공되는 체험 플랜입니다.",
     discountPercent: 0,
   },
   makePlan({
     code: "monthly",
-    title: "1개월 플랜",
-    shortTitle: "1개월",
+    title: "한 달 플랜",
+    shortTitle: "한 달 플랜",
     months: 1,
     monthlyPrice: 12900,
     billingType: "one_time",
-    description: "약정 없이 한 달씩 가볍게 시작할 수 있는 기본 플랜입니다.",
+    description: "부담 없이 바로 다시 시작할 수 있는 기본 플랜입니다.",
   }),
   makePlan({
     code: "quarterly",
-    title: "3개월 약정 플랜",
-    shortTitle: "3개월",
+    title: "세 달 플랜",
+    shortTitle: "세 달 플랜",
     months: 3,
     monthlyPrice: 10900,
     billingType: "subscription",
-    description: "짧은 약정으로 부담을 줄이면서 월 요금을 아낄 수 있는 플랜입니다.",
+    description: "짧은 기간 동안 운영 흐름을 다시 잡기 좋은 플랜입니다.",
   }),
   makePlan({
     code: "halfyearly",
-    title: "6개월 약정 플랜",
-    shortTitle: "6개월",
+    title: "여섯 달 플랜",
+    shortTitle: "여섯 달 플랜",
     months: 6,
     monthlyPrice: 9900,
     billingType: "subscription",
-    description: "운영이 안정화된 매장을 위한 중간 약정 플랜입니다.",
+    description: "운영을 안정적으로 이어가기 좋은 중간 기간 플랜입니다.",
   }),
   makePlan({
     code: "yearly",
-    title: "12개월 약정 플랜",
-    shortTitle: "12개월",
+    title: "일 년 플랜",
+    shortTitle: "일 년 플랜",
     months: 12,
-    monthlyPrice: 8900,
+    monthlyPrice: 7900,
     billingType: "subscription",
-    description: "가장 긴 약정으로 월 부담을 가장 크게 낮출 수 있는 추천 플랜입니다.",
+    description: "가장 낮은 월 요금으로 오래 이어가기 좋은 추천 플랜입니다.",
     badge: "가장 인기",
-    dailyPriceText: "하루 약 296원",
+    dailyPriceText: "하루 약 260원",
     featured: true,
   }),
 ];
@@ -139,4 +139,21 @@ export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "fre
 
 export function getOwnerPlanByCode(code: string | null | undefined) {
   return ownerPlans.find((plan) => plan.code === code) ?? null;
+}
+
+export function getOwnerPlanDisplayName(code: string | null | undefined) {
+  switch (code) {
+    case "free":
+      return "체험 플랜";
+    case "monthly":
+      return "한 달 플랜";
+    case "quarterly":
+      return "세 달 플랜";
+    case "halfyearly":
+      return "여섯 달 플랜";
+    case "yearly":
+      return "일 년 플랜";
+    default:
+      return getOwnerPlanByCode(code)?.shortTitle ?? "-";
+  }
 }

@@ -94,9 +94,9 @@ function AuthField({
 }) {
   return (
     <label className="block">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-[#6d675f]">{label}</span>
-        {hint ? <span className="text-[12px] text-[#8b847b]">{hint}</span> : null}
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[12px] font-medium text-[#6d675f]">{label}</span>
+        {hint ? <span className="text-[11px] text-[#8b847b]">{hint}</span> : null}
       </div>
       {children}
     </label>
@@ -126,7 +126,7 @@ function AuthInput({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         inputMode={inputMode}
-        className={cn(INPUT_BASE, rightSlot ? "pr-11" : "")}
+        className={cn(INPUT_BASE, "h-[46px] rounded-[12px] px-3.5 text-[16px]", rightSlot ? "pr-11" : "")}
       />
       {rightSlot ? <div className="absolute inset-y-0 right-0 flex items-center pr-3">{rightSlot}</div> : null}
     </div>
@@ -189,7 +189,7 @@ export default function SignupForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [step, setStep] = useState<Step>("entry");
+  const [step, setStep] = useState<Step>(initialStart === "email" ? "verify" : "entry");
   const [startTarget, setStartTarget] = useState<StartTarget>(null);
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
@@ -241,7 +241,7 @@ export default function SignupForm({
 
   useEffect(() => {
     if (initialStart !== "email") return;
-    setStep("entry");
+    setStep("verify");
     setStartTarget({ kind: "email" });
   }, [initialStart]);
 
@@ -540,7 +540,7 @@ export default function SignupForm({
         </Link>
       </div>
 
-      <div className="mt-10">
+      <div className="mt-7">
         {step === "entry" ? (
           <EntryStep
             loading={loading}
@@ -552,8 +552,8 @@ export default function SignupForm({
         ) : null}
 
         {step === "verify" ? (
-          <div className="space-y-7">
-            <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-[#ece4da] bg-[#fcfaf7] p-4 space-y-3">
               <AuthField label="이름">
                 <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
               </AuthField>
@@ -577,22 +577,22 @@ export default function SignupForm({
               </AuthField>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={requestCode} disabled={loading} className={BUTTON_SECONDARY}>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button type="button" onClick={requestCode} disabled={loading} className={cn(BUTTON_SECONDARY, "h-[50px]")}>
                 {challengeToken ? "인증번호 다시 받기" : "인증번호 받기"}
               </button>
               <button
                 type="button"
                 onClick={verifyPass}
                 disabled={loading}
-                className={cn(BUTTON_SECONDARY, "border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
+                className={cn(BUTTON_SECONDARY, "h-[50px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
               >
                 PASS 인증
               </button>
             </div>
 
             {challengeToken ? (
-              <div className="space-y-4">
+              <div className="rounded-[18px] bg-[#f7f3ec] p-3 space-y-3">
                 <AuthField label="인증번호">
                   <AuthInput
                     value={fields.verificationCode}
@@ -604,20 +604,26 @@ export default function SignupForm({
 
                 {devCode ? <p className={INLINE_HELP}>로컬 테스트용 인증번호: {devCode}</p> : null}
 
-                <button type="button" onClick={verifyCode} disabled={loading} className={BUTTON_PRIMARY}>
+                <button type="button" onClick={verifyCode} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[50px]")}>
                   인증 확인
                 </button>
               </div>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setStep("entry")} className={BUTTON_SECONDARY}>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() =>
+                  initialStart === "email" ? router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never) : setStep("entry")
+                }
+                className={cn(BUTTON_SECONDARY, "h-[50px]")}
+              >
                 이전
               </button>
               <button
                 type="button"
                 onClick={() => (verificationToken ? setStep("profile") : setMessage("본인 인증을 먼저 완료해 주세요."))}
-                className={BUTTON_PRIMARY}
+                className={cn(BUTTON_PRIMARY, "h-[50px]")}
               >
                 다음
               </button>
@@ -626,8 +632,8 @@ export default function SignupForm({
         ) : null}
 
         {step === "profile" ? (
-          <div className="space-y-7">
-            <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-[#ece4da] bg-[#fcfaf7] p-4 space-y-3">
               <AuthField label="아이디" hint="영문 소문자, 숫자, ., -, _">
                 <AuthInput
                   value={fields.loginId}
@@ -686,18 +692,18 @@ export default function SignupForm({
               </AuthField>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setStep("verify")} className={BUTTON_SECONDARY}>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button type="button" onClick={() => setStep("verify")} className={cn(BUTTON_SECONDARY, "h-[50px]")}>
                 이전
               </button>
-              <button type="button" onClick={submitSignup} disabled={loading} className={BUTTON_PRIMARY}>
+              <button type="button" onClick={submitSignup} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[50px]")}>
                 {loading ? "가입 처리 중.." : "무료체험 시작하기"}
               </button>
             </div>
           </div>
         ) : null}
 
-        {message ? <p className={cn(INLINE_ERROR, "mt-5")}>{message}</p> : null}
+        {message ? <p className={cn(INLINE_ERROR, "mt-3.5")}>{message}</p> : null}
       </div>
 
       {startTarget ? (

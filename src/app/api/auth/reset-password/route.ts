@@ -2,7 +2,6 @@
 import { ZodError } from "zod";
 
 import { ownerPasswordResetSchema } from "@/lib/auth/owner-password-reset";
-import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
 import { readVerifiedIdentityToken } from "@/lib/auth/owner-identity";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const profile = await supabase
       .from("owner_profiles")
-      .select("id")
+      .select("user_id")
       .eq("login_id", body.loginId)
       .eq("name", verifiedIdentity.name)
       .eq("birth_date", verifiedIdentity.birthDate)
@@ -45,19 +44,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: profile.error.message || "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 400 });
     }
 
-    if (!profile.data?.id) {
+    if (!profile.data?.user_id) {
       return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
     }
 
-    const authEmail = buildOwnerAuthEmail(body.loginId);
-    const users = await supabase.auth.admin.listUsers();
-    const matchedUser = users.data.users.find((user) => user.email === authEmail);
-
-    if (!matchedUser) {
-      return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
-    }
-
-    const updated = await supabase.auth.admin.updateUserById(matchedUser.id, { password: body.password });
+    const updated = await supabase.auth.admin.updateUserById(profile.data.user_id, { password: body.password });
     if (updated.error) {
       return NextResponse.json({ message: updated.error.message || "비밀번호를 변경하지 못했어요." }, { status: 400 });
     }

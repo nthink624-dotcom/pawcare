@@ -153,6 +153,7 @@ type AdminOwnerItem = {
   currentPeriodEndsAt: string | null;
   lastPaymentStatus: OwnerLastPaymentStatus;
   paymentMethodExists: boolean;
+  paymentMethodLabel: string | null;
   suspended: boolean;
   suspensionReason: string | null;
   recentEvents: AdminOwnerHistoryItem[];
@@ -558,6 +559,7 @@ async function readAdminOwners() {
         currentPeriodEndsAt: summary.currentPeriodEndsAt,
         lastPaymentStatus: summary.lastPaymentStatus,
         paymentMethodExists: summary.paymentMethodExists,
+        paymentMethodLabel: summary.paymentMethodLabel,
         suspended: suspension.suspended,
         suspensionReason: suspension.suspensionReason,
         recentEvents: eventsByUserId.get(userId) ?? [],

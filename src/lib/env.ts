@@ -6,6 +6,10 @@ export const env = {
   supabasePublishableKey:
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  supabaseEnvName:
+    process.env.NEXT_PUBLIC_SUPABASE_ENV_NAME ||
+    ((process.env.NEXT_PUBLIC_SITE_URL || "").includes("petmanager.co.kr") ? "production" : "development"),
+  allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
   portoneIdentityChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
@@ -29,4 +33,30 @@ export function hasPortonePaymentBrowserEnv() {
     env.portoneStoreId &&
       (env.portonePaymentChannelKey || env.portoneKakaoPayChannelKey || env.portoneNaverPayChannelKey),
   );
+}
+
+export function getSupabaseRuntimeStage() {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "development" as const;
+    }
+    if (hostname.endsWith(".vercel.app")) {
+      return "preview" as const;
+    }
+    return "production" as const;
+  }
+
+  const normalizedSiteUrl = env.siteUrl.toLowerCase();
+  if (normalizedSiteUrl.includes("localhost") || normalizedSiteUrl.includes("127.0.0.1")) {
+    return "development" as const;
+  }
+  if (normalizedSiteUrl.includes(".vercel.app")) {
+    return "preview" as const;
+  }
+  return "production" as const;
+}
+
+export function isUnsafeProdSupabaseBrowserEnv() {
+  return getSupabaseRuntimeStage() !== "production" && env.supabaseEnvName === "production" && !env.allowProdSupabaseInDev;
 }

@@ -27,6 +27,10 @@ export const serverEnv = {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  supabaseEnvName:
+    process.env.SUPABASE_ENV_NAME ||
+    (process.env.VERCEL_ENV === "production" ? "production" : "development"),
+  allowProdSupabaseInDev: process.env.ALLOW_PROD_SUPABASE_IN_DEV === "true",
   authFlowSecret: readOptionalSecret(process.env.AUTH_FLOW_SECRET),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),
@@ -47,6 +51,20 @@ export const serverEnv = {
 
 export function hasSupabaseServerEnv() {
   return Boolean(serverEnv.supabaseUrl && serverEnv.supabasePublishableKey && serverEnv.supabaseServiceRoleKey);
+}
+
+export function getSupabaseServerRuntimeStage() {
+  if (process.env.VERCEL_ENV === "preview") return "preview" as const;
+  if (process.env.VERCEL_ENV === "production") return "production" as const;
+  return "development" as const;
+}
+
+export function isUnsafeProdSupabaseServerEnv() {
+  return (
+    getSupabaseServerRuntimeStage() !== "production" &&
+    serverEnv.supabaseEnvName === "production" &&
+    !serverEnv.allowProdSupabaseInDev
+  );
 }
 
 export function hasPortoneServerEnv() {

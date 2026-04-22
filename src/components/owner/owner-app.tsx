@@ -4,6 +4,9 @@ import { CalendarDays, Camera, ChevronDown, Copy, House, PawPrint, Settings, Use
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
+import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
+import { SectionHeader as AppSectionHeader } from "@/components/ui/section-header";
+import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -1282,7 +1285,7 @@ export default function OwnerApp({
                 ) : null}
 
                 {filteredGuardians.length === 0 ? (
-                  <CustomerEmptyState
+                  <AppEmptyState
                     title={customerEmptyTitle}
                     description={customerEmptyDescription}
                     action={
@@ -1363,7 +1366,7 @@ export default function OwnerApp({
                       ) : null}
                     </div>
                     {filteredDeletedGuardians.length === 0 ? (
-                      <CustomerEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
+                      <AppEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
                     ) : (
                       <div className="space-y-2.5">
                         {filteredDeletedGuardians.map((guardian) => (
@@ -1559,7 +1562,7 @@ export default function OwnerApp({
                 {detailTab === "records" ? (
                   <div className="space-y-3">
                     {selectedRecords.length === 0 ? (
-                      <CustomerEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
+                      <AppEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
                     ) : (
                       selectedRecords.map((record) => (
                         <RecordCard
@@ -1608,7 +1611,7 @@ export default function OwnerApp({
                 {detailTab === "notifications" ? (
                   <div className="space-y-3">
                     {selectedNotifications.length === 0 ? (
-                      <CustomerEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
+                      <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
                     ) : (
                       selectedNotifications.map((notification) => (
                         <NotificationHistoryRow
@@ -1723,19 +1726,35 @@ function buildSmsHref(phone: string) {
   return `sms:${phoneNormalize(phone)}`;
 }
 
+function badgeToneForAppointmentStatus(status: AppointmentStatus): "success" | "warning" | "danger" | "neutral" | "info" {
+  switch (status) {
+    case "pending":
+      return "warning";
+    case "confirmed":
+    case "in_progress":
+      return "success";
+    case "almost_done":
+      return "info";
+    case "cancelled":
+    case "rejected":
+    case "noshow":
+      return "danger";
+    case "completed":
+    default:
+      return "neutral";
+  }
+}
+
 function Panel({ title, action, children, titleClassName = "" }: { title: string; action?: React.ReactNode; children: React.ReactNode; titleClassName?: string }) {
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 className={`text-[18px] font-semibold tracking-[-0.02em] text-[var(--text)] ${titleClassName}`.trim()}>{title}</h2>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
+      <AppSectionHeader title={title} action={action} className={`mb-3 ${titleClassName}`.trim()} />
       <div className="space-y-3">{children}</div>
     </section>
   );
 }
 
-function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <EmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
+function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <AppEmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
 function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRecord; pet: Pet; guardian: Guardian; service?: Service }) {
   return (
     <div className="rounded-[20px] border border-[var(--border)] bg-[var(--peach-soft)] px-4 py-3.5">
@@ -1746,7 +1765,7 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
           <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
           <p className="text-xs text-[var(--muted)]">{service?.name || "서비스"} {ownerHomeCopy.separator} {record.groomed_at.slice(0, 10)}</p>
         </div>
-        <span className="rounded-full bg-[#f3f4f2] px-2.5 py-1 text-[11px] font-semibold text-[#5f6b66]">완료</span>
+        <AppStatusBadge label="완료" status="completed" />
       </div>
       {(record.style_notes || record.memo) && <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--muted)]">{record.style_notes || record.memo}</p>}
     </div>
@@ -1792,7 +1811,7 @@ function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appo
         <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
         <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
       </div>
-      <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span>
+      <AppStatusBadge label={statusMeta[appointment.status].label} tone={badgeToneForAppointmentStatus(appointment.status)} />
     </button>
   );
 }
@@ -2238,7 +2257,7 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
           <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
           <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
         </div>
-        <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span>
+        <AppStatusBadge label={statusMeta[appointment.status].label} tone={badgeToneForAppointmentStatus(appointment.status)} />
       </button>
       {!isRejectOpen ? (
         <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -2295,7 +2314,7 @@ function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick 
         <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
         <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
       </div>
-      <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: statusMeta.completed.color, background: statusMeta.completed.bg }}>{statusMeta.completed.label}</span>
+      <AppStatusBadge label={statusMeta.completed.label} status="completed" />
     </button>
   );
 }
@@ -2327,7 +2346,7 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
     setStartX(null);
   };
 
-  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 flex-col items-center justify-center gap-1 bg-[#a86957] text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}><span className="text-[18px] leading-none">←</span><span className="text-sm font-semibold">{ownerHomeCopy.slideCancel}</span><span className="text-[11px] font-medium text-white/80">밀어서 취소</span></button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p></div><span className="rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.01em]" style={{ color: statusMeta[appointment.status].color, background: statusMeta[appointment.status].bg }}>{statusMeta[appointment.status].label}</span></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
+  return <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-transparent"><div className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[20px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}><button type="button" className="flex h-full w-24 flex-col items-center justify-center gap-1 bg-[#a86957] text-white" onClick={() => { closeSwipe(); onStatusChange("cancelled"); }}><span className="text-[18px] leading-none">←</span><span className="text-sm font-semibold">{ownerHomeCopy.slideCancel}</span><span className="text-[11px] font-medium text-white/80">밀어서 취소</span></button></div><div className={`relative rounded-[20px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`} style={{ transform: "translateX(" + translateX + "px)", touchAction: allowSwipeCancel ? "pan-y" : "auto" }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={isDragging ? handlePointerUp : undefined}><button onClick={() => { if (translateX !== 0) { closeSwipe(); return; } onOpen(); }} className="flex w-full items-center gap-3 px-4 py-3 text-left"><div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p><span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span></div><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p></div><AppStatusBadge label={statusMeta[appointment.status].label} tone={badgeToneForAppointmentStatus(appointment.status)} className="px-2.5 py-1.5 tracking-[0.01em]" /></button><div className="grid grid-cols-2 gap-2 px-4 pb-3">{appointment.status === "confirmed" && <ActionButton variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}{appointment.status === "completed" && <div className="col-span-2 rounded-[16px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}</div></div></div>;
 }
 
 function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
@@ -2454,16 +2473,10 @@ function CustomerMetricCard({ label, value, compact = false }: { label: string; 
 }
 
 function CustomerEmptyState({ title, description, action = null }: { title: string; description: string; action?: React.ReactNode }) {
-  return (
-    <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-5 text-center">
-      <p className="text-[15px] font-semibold text-[var(--text)]">{title}</p>
-      <p className="mt-1 text-[13px] leading-6 text-[var(--muted)]">{description}</p>
-      {action}
-    </div>
-  );
+  return <AppEmptyState title={title} description={description} action={action} className="rounded-[18px] bg-[#fcfaf7] px-4 py-5" />;
 }
 
-function EmptyState({ title }: { title: string }) { return <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[#fcfaf7] px-4 py-5 text-center text-sm leading-6 text-[var(--muted)]">{title}</div>; }
+function EmptyState({ title }: { title: string }) { return <AppEmptyState title={title} className="rounded-[18px] bg-[#fcfaf7] px-4 py-5" />; }
 function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
   if (imageUrl) {
     return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-11 w-11 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;

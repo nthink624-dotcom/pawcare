@@ -11,7 +11,6 @@ export default async function SignupPage({
 }) {
   const params = (await searchParams) ?? {};
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
-  const initialStart = typeof params.start === "string" && params.start === "email" ? "email" : null;
   const user = await getServerSessionUser();
 
   if (user) {
@@ -23,7 +22,7 @@ export default async function SignupPage({
       supabaseReady={hasSupabaseBrowserEnv()}
       portoneReady={hasPortoneBrowserEnv()}
       nextPath={nextPath}
-      initialStart={initialStart}
+      initialStart="email"
     />
   );
 }

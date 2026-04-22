@@ -39,15 +39,15 @@ export async function POST(request: NextRequest) {
 
     const challenge = readLocalChallengeToken(payload.challengeToken);
     if (!challenge) {
-      return NextResponse.json({ message: "인증 요청이 만료되었어요. 다시 요청해 주세요." }, { status: 400 });
+      return NextResponse.json({ message: "인증 요청이 만료되었어요. 인증번호를 다시 받아 주세요." }, { status: 400 });
     }
 
     if (
       challenge.name !== payload.name.trim() ||
-      challenge.birthDate != payload.birthDate ||
+      challenge.birthDate !== payload.birthDate ||
       challenge.phoneNumber !== payload.phoneNumber
     ) {
-      return NextResponse.json({ message: "입력한 본인 정보와 인증 요청 정보가 일치하지 않습니다." }, { status: 400 });
+      return NextResponse.json({ message: "입력한 정보와 인증 요청 정보가 일치하지 않아요." }, { status: 400 });
     }
 
     if (challenge.code !== payload.code) {
@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verificationToken,
-      message: "본인인증이 완료되었습니다.",
+      message: "본인 확인이 완료되었어요.",
     });
   } catch {
-    return NextResponse.json({ message: "인증 처리 중 문제가 발생했습니다." }, { status: 400 });
+    return NextResponse.json({ message: "본인 확인 처리 중 문제가 발생했습니다." }, { status: 400 });
   }
 }

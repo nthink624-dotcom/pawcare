@@ -60,6 +60,7 @@ type AdminOwnerItem = {
   currentPeriodEndsAt: string | null;
   lastPaymentStatus: OwnerLastPaymentStatus;
   paymentMethodExists: boolean;
+  paymentMethodLabel: string | null;
   suspended: boolean;
   suspensionReason: string | null;
   recentEvents: AdminOwnerHistoryItem[];
@@ -289,6 +290,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
+  const [resettingPaymentMethodUserId, setResettingPaymentMethodUserId] = useState<string | null>(null);
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
 
@@ -415,6 +417,34 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
       setError(nextError instanceof Error ? nextError.message : "결제 취소를 처리하지 못했습니다.");
     } finally {
       setRefundingPaymentId(null);
+    }
+  }
+
+  async function resetOwnerPaymentMethod(item: AdminOwnerItem) {
+    setResettingPaymentMethodUserId(item.userId);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchApiJson<{ success: true; message: string }>("/api/admin/owners/payment-method/reset", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: item.userId,
+          shopId: item.shopId,
+          reason: "복호화 오류 또는 카드 재등록 복구",
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const nextOwners = await fetchOwners();
+      setOwners(nextOwners);
+      setDrafts(Object.fromEntries(nextOwners.map((nextItem) => [nextItem.userId, buildDraft(nextItem)])));
+      setSelectedUserId(item.userId);
+      setNotice(response.message);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "결제수단을 초기화하지 못했습니다.");
+    } finally {
+      setResettingPaymentMethodUserId(null);
     }
   }
 
@@ -736,6 +766,34 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
                           결제된 건을 확인하고, 필요한 건만 선택해서 취소할 수 있습니다.
                         </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-[14px] border border-[#e5ddd2] bg-white px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-[#171411]">등록 결제수단 복구</p>
+                          <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
+                            {selectedOwner.paymentMethodExists
+                              ? `${selectedOwner.paymentMethodLabel ?? "등록된 카드"} 정보를 지우고, 오너가 배포 서버에서 새 카드를 다시 등록할 수 있게 합니다.`
+                              : "현재 등록된 카드가 없어서 초기화할 결제수단이 없습니다."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
+                          disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
+                          className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#d8d1c5] bg-[#f8f5ef] px-3 text-[12px] font-semibold text-[#5e564f] disabled:opacity-50"
+                        >
+                          {resettingPaymentMethodUserId === selectedOwner.userId ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              초기화 중...
+                            </span>
+                          ) : (
+                            "결제수단 초기화"
+                          )}
+                        </button>
                       </div>
                     </div>
 

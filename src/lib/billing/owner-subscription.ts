@@ -23,6 +23,8 @@ export type OwnerSubscriptionSummary = {
   nextBillingAt: string | null;
   paymentMethodExists: boolean;
   paymentMethodLabel: string | null;
+  paymentMethodResetRequired: boolean;
+  paymentMethodProblemCode: "decrypt_failed" | "missing_key" | null;
   autoRenewEnabled: boolean;
   autoRenewPlanCode: OwnerPlanCode;
   autoRenewPlan: OwnerPlan;
@@ -117,6 +119,12 @@ export function normalizeOwnerSubscriptionMetadata(
   const paymentMethodExists = metadata?.payment_method_exists === true;
   const paymentMethodLabel =
     typeof metadata?.payment_method_label === "string" ? metadata.payment_method_label : null;
+  const paymentMethodResetRequired = metadata?.payment_method_reset_required === true;
+  const paymentMethodProblemCode =
+    metadata?.payment_method_problem_code === "decrypt_failed" ||
+    metadata?.payment_method_problem_code === "missing_key"
+      ? metadata.payment_method_problem_code
+      : null;
   const lastPaymentStatus =
     metadata?.last_payment_status === "scheduled" ||
     metadata?.last_payment_status === "paid" ||
@@ -192,6 +200,8 @@ export function normalizeOwnerSubscriptionMetadata(
     nextBillingAt,
     paymentMethodExists,
     paymentMethodLabel,
+    paymentMethodResetRequired,
+    paymentMethodProblemCode,
     autoRenewEnabled,
     autoRenewPlanCode,
     autoRenewPlan,

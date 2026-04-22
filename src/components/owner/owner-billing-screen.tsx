@@ -118,6 +118,7 @@ function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
 function getCardCompanyBadge(label: string | null | undefined) {
   const normalized = label?.trim() ?? "";
   if (!normalized) return "카드";
+  if (normalized === "등록된 카드") return "카드";
   if (normalized.includes("신한")) return "신한";
   if (normalized.includes("하나")) return "하나";
   if (normalized.includes("KB") || normalized.includes("국민")) return "KB";
@@ -261,7 +262,7 @@ export default function OwnerBillingScreen({
   const [retryingPayment, setRetryingPayment] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<"existing" | "new">(
-    initialSummary.paymentMethodExists ? "existing" : "new",
+    initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "existing" : "new",
   );
   const [resumingRegisteredCardPayment, setResumingRegisteredCardPayment] = useState(false);
   const copy = statusCopy(summary);
@@ -273,6 +274,7 @@ export default function OwnerBillingScreen({
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
   const projectedServiceEndDate = formatProjectedServiceEndDate(summary, selectedPlan);
   const hasRegisteredPaymentMethod = summary.paymentMethodExists;
+  const hasUsableRegisteredPaymentMethod = summary.paymentMethodExists && !summary.paymentMethodResetRequired;
 
   useEffect(() => {
     setSummary(initialSummary);
@@ -281,8 +283,8 @@ export default function OwnerBillingScreen({
   }, [featuredPlan.code, forcePlanPicker, initialSummary, preferredPlanCode]);
 
   useEffect(() => {
-    setSelectedPaymentOption(summary.paymentMethodExists ? "existing" : "new");
-  }, [summary.paymentMethodExists]);
+    setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "existing" : "new");
+  }, [summary.paymentMethodExists, summary.paymentMethodResetRequired]);
 
   useEffect(() => {
     if (!openPaymentSheet || isFreePlan) return;
@@ -462,7 +464,7 @@ export default function OwnerBillingScreen({
         onClick: handleOneTimePayment,
         disabled: retryingPayment,
       }
-    : summary.paymentMethodExists
+    : hasUsableRegisteredPaymentMethod
     ? {
         label: retryingPayment ? "처리 중..." : "결제하고 다시 이용하기",
         onClick: handlePayNow,
@@ -488,7 +490,7 @@ export default function OwnerBillingScreen({
     if (registeringCard || retryingPayment) return;
 
     try {
-      if (selectedPaymentOption === "existing" && hasRegisteredPaymentMethod) {
+      if (selectedPaymentOption === "existing" && hasUsableRegisteredPaymentMethod) {
         await persistSelectedPlanIfNeeded();
         setPaymentSheetOpen(false);
         await handlePayNow();
@@ -698,9 +700,15 @@ export default function OwnerBillingScreen({
                       {summary.paymentMethodExists ? (
                         <button
                           type="button"
-                          onClick={() => setSelectedPaymentOption("existing")}
+                          onClick={() => {
+                            if (!summary.paymentMethodResetRequired) {
+                              setSelectedPaymentOption("existing");
+                            }
+                          }}
                           className={`flex w-full items-center gap-2.5 py-3 text-left transition ${
-                            selectedPaymentOption === "existing" ? "text-[#171411]" : "text-[#4f4a44]"
+                            selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
+                              ? "text-[#171411]"
+                              : "text-[#4f4a44]"
                           }`}
                         >
                           <CreditCard className="h-[18px] w-[18px] shrink-0 text-[#171411]" />
@@ -710,21 +718,32 @@ export default function OwnerBillingScreen({
                                 {getCardCompanyBadge(summary.paymentMethodLabel)}
                               </span>
                               <p className="text-[15px] font-semibold tracking-[-0.03em]">{summary.paymentMethodLabel ?? "등록된 카드"}</p>
+                              {summary.paymentMethodResetRequired ? (
+                                <span className="inline-flex items-center rounded-full border border-[#ecd7c9] bg-[#fff7f1] px-2 py-0.5 text-[10px] font-semibold text-[#b2643f]">
+                                  재등록 필요
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">
-                              {getCardNumberHint(summary.paymentMethodLabel)
-                                ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
-                                : "등록된 카드로 바로 결제를 진행합니다."}
+                              {summary.paymentMethodResetRequired
+                                ? "등록 카드 정보를 다시 확인할 수 없어, 새 카드 등록이 한 번 필요해요."
+                                : getCardNumberHint(summary.paymentMethodLabel)
+                                  ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
+                                  : "등록된 카드로 바로 결제를 진행합니다."}
                             </p>
                           </div>
                           <span
                             className={`inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
-                              selectedPaymentOption === "existing" ? "border-[#1f5b51]" : "border-[#cdc4b8]"
+                              selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
+                                ? "border-[#1f5b51]"
+                                : "border-[#cdc4b8]"
                             }`}
                           >
                             <span
                               className={`h-2 w-2 rounded-full ${
-                                selectedPaymentOption === "existing" ? "bg-[#1f5b51]" : "bg-transparent"
+                                selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
+                                  ? "bg-[#1f5b51]"
+                                  : "bg-transparent"
                               }`}
                             />
                           </span>

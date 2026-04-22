@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
+import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
   getSocialOAuthProvider,
   PENDING_SOCIAL_PROVIDER_COOKIE,
@@ -52,9 +53,11 @@ export default function LoginForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const showDevOwnerHelper = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberLoginId, setRememberLoginId] = useState(false);
@@ -135,20 +138,67 @@ export default function LoginForm({
     }
   };
 
+  const createDevOwner = async () => {
+    setCreatingDevOwner(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/dev/create-owner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = (await response.json()) as { loginId?: string; password?: string; message?: string };
+
+      if (!response.ok || !result.loginId || !result.password) {
+        setMessage(result.message ?? "개발용 테스트 계정을 만들지 못했어요.");
+        return;
+      }
+
+      setLoginId(result.loginId);
+      setPassword(result.password);
+      setRememberLoginId(true);
+      window.localStorage.setItem(SAVED_LOGIN_ID_KEY, result.loginId);
+      setMessage(result.message ?? "개발용 테스트 계정을 준비했어요. 바로 로그인해 보세요.");
+    } finally {
+      setCreatingDevOwner(false);
+    }
+  };
+
   return (
-    <MobileLoginScreenTemplate
-      loginId={loginId}
-      password={password}
-      rememberLoginId={rememberLoginId}
-      loading={loading}
-      socialLoading={socialLoading}
-      message={message}
-      nextPath={nextPath}
-      onLoginIdChange={setLoginId}
-      onPasswordChange={setPassword}
-      onRememberLoginIdChange={setRememberLoginId}
-      onLogin={handleLogin}
-      onSocialLogin={(provider) => void handleSocialLogin(provider)}
-    />
+    <div>
+      <MobileLoginScreenTemplate
+        loginId={loginId}
+        password={password}
+        rememberLoginId={rememberLoginId}
+        loading={loading}
+        socialLoading={socialLoading}
+        message={message}
+        nextPath={nextPath}
+        onLoginIdChange={setLoginId}
+        onPasswordChange={setPassword}
+        onRememberLoginIdChange={setRememberLoginId}
+        onLogin={handleLogin}
+        onSocialLogin={(provider) => void handleSocialLogin(provider)}
+      />
+
+      {showDevOwnerHelper ? (
+        <div className="mx-auto -mt-6 w-full max-w-[430px] px-6 pb-12">
+          <div className="rounded-[22px] border border-[#dfe7e2] bg-[#f6fbf9] p-4">
+            <p className="text-[13px] font-semibold text-[#1f6b5b]">개발용 테스트 계정</p>
+            <p className="mt-2 text-[13px] leading-6 text-[#5f6c66]">
+              새 개발용 DB에서는 운영 계정이 자동으로 복사되지 않아요. 버튼 한 번으로 테스트 오너 계정을 만들고 바로 로그인할 수 있어요.
+            </p>
+            <button
+              type="button"
+              onClick={() => void createDevOwner()}
+              disabled={creatingDevOwner || loading || socialLoading !== null}
+              className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-white text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
+            >
+              {creatingDevOwner ? "테스트 계정 준비 중..." : "개발용 테스트 오너 만들기"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

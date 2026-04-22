@@ -23,7 +23,7 @@ function isValidPhoneNumber(value: string) {
 export async function POST(request: NextRequest) {
   try {
     if (!hasPortoneServerEnv()) {
-      return NextResponse.json({ message: "포트원 본인인증 환경 변수가 아직 설정되지 않았습니다." }, { status: 503 });
+      return NextResponse.json({ message: "PASS 본인인증 환경이 아직 설정되지 않았어요." }, { status: 503 });
     }
 
     const body = await request.json();
@@ -53,17 +53,16 @@ export async function POST(request: NextRequest) {
 
     const result = (await verificationResponse.json()) as {
       identityVerification?: { status?: string };
-      type?: string;
       message?: string;
     };
 
     if (!verificationResponse.ok) {
-      return NextResponse.json({ message: result.message ?? "PASS 인증 확인에 실패했습니다." }, { status: 400 });
+      return NextResponse.json({ message: result.message ?? "PASS 본인인증 확인에 실패했어요." }, { status: 400 });
     }
 
     const status = result.identityVerification?.status;
     if (status && status !== "VERIFIED") {
-      return NextResponse.json({ message: "PASS 본인인증이 완료되지 않았습니다." }, { status: 400 });
+      return NextResponse.json({ message: "PASS 본인인증이 아직 완료되지 않았어요." }, { status: 400 });
     }
 
     const verificationToken = issueVerifiedIdentityToken({
@@ -77,9 +76,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verificationToken,
-      message: "PASS 본인인증이 완료되었습니다.",
+      message: "PASS 본인 확인이 완료되었어요.",
     });
   } catch {
-    return NextResponse.json({ message: "PASS 인증 처리 중 문제가 발생했습니다." }, { status: 400 });
+    return NextResponse.json({ message: "PASS 본인인증 처리 중 문제가 발생했습니다." }, { status: 400 });
   }
 }

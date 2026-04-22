@@ -16,3 +16,4 @@ PawCare는 모바일 퍼스트 반려동물 미용샵 SaaS MVP입니다. 현재 
 
 ## 참고 문서
 - 분리 실행/인증/API 흐름: [docs/frontend-backend-split.md](/D:/pawcare/docs/frontend-backend-split.md)
+- 로컬/운영 Supabase 분리: [docs/supabase-environment-separation.md](/D:/pawcare/docs/supabase-environment-separation.md)

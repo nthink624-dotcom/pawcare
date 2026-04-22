@@ -27,7 +27,7 @@ export const ownerPasswordResetSchema = z
       .refine((value) => /^01\d{8,9}$/.test(value), {
         message: "휴대폰 번호를 올바르게 입력해 주세요.",
       }),
-    identityVerificationToken: z.string().trim().min(1, "본인인증을 먼저 완료해 주세요."),
+    identityVerificationToken: z.string().trim().min(1, "본인 인증을 먼저 완료해 주세요."),
     password: z.string().min(6, "비밀번호는 6자 이상 입력해 주세요."),
     passwordConfirm: z.string().min(6, "비밀번호 확인을 입력해 주세요."),
   })

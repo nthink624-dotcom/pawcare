@@ -94,6 +94,15 @@ type PortonePaymentShape = {
   customData?: string | null;
   paidAt?: string | null;
   failedAt?: string | null;
+  paymentMethod?: {
+    type?: string;
+    card?: {
+      issuer?: string | null;
+      publisher?: string | null;
+      brand?: string | null;
+      number?: string | null;
+    } | null;
+  } | null;
 };
 
 type PortonePaymentResponse = {
@@ -105,6 +114,15 @@ type PortonePaymentResponse = {
   customData?: string | null;
   paidAt?: string | null;
   failedAt?: string | null;
+  paymentMethod?: {
+    type?: string;
+    card?: {
+      issuer?: string | null;
+      publisher?: string | null;
+      brand?: string | null;
+      number?: string | null;
+    } | null;
+  } | null;
   message?: string;
 };
 
@@ -161,6 +179,12 @@ const BILLING_TABLE = "owner_subscriptions";
 const BILLING_EVENT_TABLE = "owner_billing_events";
 const PAYMENT_LEDGER_TABLE = "owner_payment_ledger";
 const BILLING_KEY_ENCRYPTION_VERSION = 1;
+
+type BillingKeyReadState = {
+  billingKey: string | null;
+  resetRequired: boolean;
+  problemCode: "decrypt_failed" | "missing_key" | null;
+};
 
 function isMissingRelationError(error: { code?: string; message?: string } | null | undefined) {
   return (
@@ -224,6 +248,10 @@ function getBillingKeyCipherKey() {
     .digest();
 }
 
+function canWriteProtectedBillingData() {
+  return process.env.NODE_ENV === "production" || process.env.ALLOW_LOCAL_BILLING_KEY_WRITE === "true";
+}
+
 function encryptBillingKey(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", getBillingKeyCipherKey(), iv);
@@ -255,21 +283,54 @@ function decryptBillingKey(value: string) {
   }
 }
 
-function readStoredBillingKey(record: OwnerSubscriptionRecord) {
+function readStoredBillingKeyState(record: OwnerSubscriptionRecord): BillingKeyReadState {
   if (record.billing_key_encrypted) {
     try {
-      return decryptBillingKey(record.billing_key_encrypted);
+      return {
+        billingKey: decryptBillingKey(record.billing_key_encrypted),
+        resetRequired: false,
+        problemCode: null,
+      };
     } catch {
-      return null;
+      return {
+        billingKey: null,
+        resetRequired: record.payment_method_exists,
+        problemCode: "decrypt_failed",
+      };
     }
   }
-  return record.billing_key;
+
+  if (record.billing_key) {
+    return {
+      billingKey: record.billing_key,
+      resetRequired: false,
+      problemCode: null,
+    };
+  }
+
+  return {
+    billingKey: null,
+    resetRequired: record.payment_method_exists,
+    problemCode: record.payment_method_exists ? "missing_key" : null,
+  };
+}
+
+function readStoredBillingKey(record: OwnerSubscriptionRecord) {
+  return readStoredBillingKeyState(record).billingKey;
 }
 
 function buildBillingKeyStorageColumns(
   record: Pick<OwnerSubscriptionRecord, "billing_key" | "billing_key_encrypted" | "billing_key_encryption_version">,
 ) {
   if (record.billing_key) {
+    if (!canWriteProtectedBillingData()) {
+      return {
+        billing_key: record.billing_key,
+        billing_key_encrypted: record.billing_key_encrypted ?? null,
+        billing_key_encryption_version: record.billing_key_encryption_version ?? null,
+      };
+    }
+
     return {
       billing_key: null,
       billing_key_encrypted: encryptBillingKey(record.billing_key),
@@ -306,6 +367,7 @@ function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRe
 }
 
 function buildSubscriptionMetadata(record: OwnerSubscriptionRecord) {
+  const billingKeyState = readStoredBillingKeyState(record);
   return {
     current_plan_code: record.current_plan_code,
     billing_cycle: record.billing_cycle,
@@ -314,6 +376,8 @@ function buildSubscriptionMetadata(record: OwnerSubscriptionRecord) {
     next_billing_at: record.next_billing_at,
     payment_method_exists: record.payment_method_exists,
     payment_method_label: record.payment_method_label,
+    payment_method_reset_required: billingKeyState.resetRequired,
+    payment_method_problem_code: billingKeyState.problemCode,
     subscription_status: record.subscription_status,
     cancel_at_period_end: record.cancel_at_period_end,
     auto_renew_enabled: !record.cancel_at_period_end,
@@ -396,6 +460,19 @@ function buildBillingMethodLabelFromInfo(payload: PortoneBillingKeyInfoResponse 
   return prefix ? `${company} · ${prefix}` : company;
 }
 
+function buildBillingMethodLabelFromPayment(payload: PortonePaymentResponse | null | undefined) {
+  const source = payload?.payment?.paymentMethod ?? payload?.paymentMethod ?? null;
+  const card = source?.card ?? null;
+  const company = normalizeCardCompanyLabel(card?.issuer ?? card?.publisher ?? null);
+  const prefix = extractCardPrefix(card?.number ?? null);
+
+  if (!company) {
+    return null;
+  }
+
+  return prefix ? `${company} · ${prefix}` : company;
+}
+
 function shouldRefreshPaymentMethodLabel(value: string | null | undefined) {
   if (!value) return true;
   const normalized = value.trim();
@@ -415,6 +492,20 @@ async function resolveBillingMethodLabel(billingKey: string, fallback?: string |
     );
 
     return buildBillingMethodLabelFromInfo(billingKeyInfo) ?? preferredFallback ?? "등록된 카드";
+  } catch {
+    return preferredFallback ?? "등록된 카드";
+  }
+}
+
+async function resolveBillingMethodLabelFromLastPayment(paymentId: string, fallback?: string | null) {
+  const preferredFallback =
+    fallback && fallback.trim() && fallback.trim() !== "등록된 카드"
+      ? normalizeCardCompanyLabel(fallback.replace(/\s*\([^)]*\)\s*$/, ""))
+      : null;
+
+  try {
+    const paymentInfo = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`);
+    return buildBillingMethodLabelFromPayment(paymentInfo) ?? preferredFallback ?? "등록된 카드";
   } catch {
     return preferredFallback ?? "등록된 카드";
   }
@@ -565,6 +656,36 @@ async function recordBillingEvent(payload: {
   }
 }
 
+async function recordBillingKeyReadFailure(params: {
+  identity: BillingIdentity;
+  shopId: string;
+  record: OwnerSubscriptionRecord;
+  source:
+    | "retry_charge"
+    | "schedule_charge"
+    | "payment_method_refresh"
+    | "admin_reset_check";
+  problemCode: BillingKeyReadState["problemCode"];
+}) {
+  await recordBillingEvent({
+    userId: params.identity.id,
+    shopId: params.shopId,
+    eventType: "payment_method_decrypt_failed",
+    status: "REQUIRES_RESET",
+    payload: {
+      source: params.source,
+      problemCode: params.problemCode,
+      paymentMethodLabel: params.record.payment_method_label,
+      billingIssueId: params.record.billing_issue_id,
+      hasEncryptedBillingKey: Boolean(params.record.billing_key_encrypted),
+      hasLegacyBillingKey: Boolean(params.record.billing_key),
+      encryptionVersion: params.record.billing_key_encryption_version ?? null,
+      runtime: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
+      siteUrl: env.siteUrl,
+    },
+  });
+}
+
 async function syncUserMetadata(identity: BillingIdentity, record: OwnerSubscriptionRecord) {
   const admin = getSupabaseAdmin();
   if (!admin) return;
@@ -698,14 +819,21 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
     await syncUserMetadata(identity, record);
   }
 
-  if (record.billing_key && !record.billing_key_encrypted && serverEnv.billingKeyEncryptionSecret) {
+  if (record.billing_key && !record.billing_key_encrypted && serverEnv.billingKeyEncryptionSecret && canWriteProtectedBillingData()) {
     record = await persistSubscriptionRecord(identity, record);
   }
 
   if (record.payment_method_exists) {
-    const billingKey = readStoredBillingKey(record);
-    if (billingKey && shouldRefreshPaymentMethodLabel(record.payment_method_label)) {
-      const resolvedPaymentMethodLabel = await resolveBillingMethodLabel(billingKey, record.payment_method_label);
+    if (shouldRefreshPaymentMethodLabel(record.payment_method_label)) {
+      const billingKeyState = readStoredBillingKeyState(record);
+      const billingKey = billingKeyState.billingKey;
+      const resolvedPaymentMethodLabel =
+        record.last_payment_id
+          ? await resolveBillingMethodLabelFromLastPayment(record.last_payment_id, record.payment_method_label)
+          : billingKey
+          ? await resolveBillingMethodLabel(billingKey, record.payment_method_label)
+          : record.payment_method_label ?? "등록된 카드";
+
       if (resolvedPaymentMethodLabel !== record.payment_method_label) {
         record = await persistSubscriptionRecord(identity, {
           ...record,
@@ -816,8 +944,18 @@ async function cancelScheduledPayment(record: OwnerSubscriptionRecord) {
 }
 
 async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerProfileRecord | null, record: OwnerSubscriptionRecord) {
-  const billingKey = readStoredBillingKey(record);
+  const billingKeyState = readStoredBillingKeyState(record);
+  const billingKey = billingKeyState.billingKey;
   if (!billingKey || !record.payment_method_exists || record.cancel_at_period_end || !env.portoneStoreId) {
+    if (record.payment_method_exists && !billingKey) {
+      await recordBillingKeyReadFailure({
+        identity,
+        shopId: record.shop_id,
+        record,
+        source: "schedule_charge",
+        problemCode: billingKeyState.problemCode,
+      });
+    }
     return record;
   }
 
@@ -1092,9 +1230,17 @@ function hasRecentSuccessfulCharge(record: OwnerSubscriptionRecord) {
 }
 
 export async function getOwnerSubscriptionSummary(identity: BillingIdentity, shopId: string) {
-  const { summary, record } = await readOrCreateSubscription(identity, shopId);
+  const { summary, record, profile } = await readOrCreateSubscription(identity, shopId);
   const reconciled = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
-  return reconciled ?? summary;
+  if (reconciled) {
+    return reconciled;
+  }
+
+  if (record) {
+    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+  }
+
+  return summary;
 }
 
 export async function updateOwnerSubscriptionPreferences(
@@ -1149,13 +1295,7 @@ export async function updateOwnerSubscriptionPreferences(
   nextRecord.last_schedule_id = null;
 
   const saved = await persistSubscriptionRecord(identity, nextRecord);
-  const nextSummary = normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
-    userId: identity.id,
-    shopId,
-    ownerName: profile?.name ?? null,
-    ownerPhoneNumber: profile?.phone_number ?? null,
-    ownerEmail: identity.email ?? null,
-  });
+  const nextSummary = buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 
   await recordBillingEvent({
     userId: identity.id,
@@ -1178,6 +1318,10 @@ export async function registerOwnerBillingMethod(
     autoRenewPlanCode?: OwnerPlanCode;
   },
 ) {
+  if (!canWriteProtectedBillingData()) {
+    throw new OwnerBillingError("운영 결제수단 보호를 위해 카드 등록은 배포 서버에서만 진행할 수 있습니다.", 400);
+  }
+
   const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
   if (!tableReady || !record) {
     throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
@@ -1222,13 +1366,7 @@ export async function registerOwnerBillingMethod(
     payload: { planCode: saved.auto_renew_plan_code },
   });
 
-  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
-    userId: identity.id,
-    shopId,
-    ownerName: profile?.name ?? null,
-    ownerPhoneNumber: profile?.phone_number ?? null,
-    ownerEmail: identity.email ?? null,
-  });
+  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, shopId: string) {
@@ -1249,12 +1387,20 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
   }
 
-  const billingKey = readStoredBillingKey(record);
+  const billingKeyState = readStoredBillingKeyState(record);
+  const billingKey = billingKeyState.billingKey;
   if (!record.payment_method_exists) {
     throw new OwnerBillingError("먼저 카드 결제수단을 등록해 주세요.", 400);
   }
   if (!billingKey) {
-    throw new OwnerBillingError("등록된 결제수단 정보를 읽지 못했습니다. 배포 서버에서 진행하거나 결제수단을 다시 등록해 주세요.", 400);
+    await recordBillingKeyReadFailure({
+      identity,
+      shopId,
+      record,
+      source: "retry_charge",
+      problemCode: billingKeyState.problemCode,
+    });
+    throw new OwnerBillingError("등록된 결제수단을 다시 확인할 수 없어 새 카드를 한 번만 다시 등록해 주세요.", 400);
   }
 
   const plan = getOwnerPlanByCode(record.current_plan_code) ?? getOwnerPlanByCode("monthly");
@@ -1307,13 +1453,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     },
   });
 
-  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
-    userId: identity.id,
-    shopId,
-    ownerName: profile?.name ?? null,
-    ownerPhoneNumber: profile?.phone_number ?? null,
-    ownerEmail: identity.email ?? null,
-  });
+  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function syncOwnerSubscriptionFromPayment(
@@ -1389,13 +1529,77 @@ export async function syncOwnerSubscriptionFromPayment(
     },
   });
 
-  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(saved), saved.created_at, {
-    userId,
+  return buildOwnerSubscriptionSummary(
+    {
+      id: userId,
+      email: userResult.data.user.email ?? null,
+      created_at: userResult.data.user.created_at ?? null,
+      user_metadata: userResult.data.user.user_metadata ?? null,
+    },
     shopId,
-    ownerName: profile?.name ?? null,
-    ownerPhoneNumber: profile?.phone_number ?? null,
-    ownerEmail: userResult.data.user.email ?? null,
+    saved,
+    profile,
+  );
+}
+
+export async function resetOwnerPaymentMethod(
+  identity: BillingIdentity,
+  shopId: string,
+  reason = "운영자 결제수단 초기화",
+) {
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
+  if (!tableReady || !record) {
+    throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다. 마이그레이션을 먼저 적용해 주세요.", 503);
+  }
+
+  const billingKeyState = readStoredBillingKeyState(record);
+  const previousBillingKey = billingKeyState.billingKey;
+  if (previousBillingKey && env.portoneStoreId) {
+    try {
+      await portoneFetch(`/billing-keys/${encodeURIComponent(previousBillingKey)}?storeId=${encodeURIComponent(env.portoneStoreId)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // ignore billing key delete errors during manual reset
+    }
+  }
+
+  if (!previousBillingKey && record.payment_method_exists) {
+    await recordBillingKeyReadFailure({
+      identity,
+      shopId,
+      record,
+      source: "admin_reset_check",
+      problemCode: billingKeyState.problemCode,
+    });
+  }
+
+  const saved = await persistSubscriptionRecord(identity, {
+    ...record,
+    payment_method_exists: false,
+    payment_method_label: null,
+    billing_key: null,
+    billing_key_encrypted: null,
+    billing_key_encryption_version: null,
+    billing_issue_id: null,
+    last_schedule_id: null,
   });
+
+  await recordBillingEvent({
+    userId: identity.id,
+    shopId,
+    eventType: "payment_method_reset",
+    status: saved.subscription_status,
+    payload: {
+      reason,
+      previousPaymentMethodLabel: record.payment_method_label,
+      hadEncryptedBillingKey: Boolean(record.billing_key_encrypted),
+      hadLegacyBillingKey: Boolean(record.billing_key),
+      previousProblemCode: billingKeyState.problemCode,
+    },
+  });
+
+  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function refundOwnerLatestPayment(

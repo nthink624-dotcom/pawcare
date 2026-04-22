@@ -158,6 +158,11 @@ function isMissingRelationError(error: { code?: string; message?: string } | nul
   );
 }
 
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, columnName: string) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return error?.code === "PGRST204" || (message.includes(columnName.toLowerCase()) && message.includes("schema cache"));
+}
+
 function normalizeLedgerStatus(value: string | null | undefined, eventType?: string | null): LedgerPaymentStatus {
   const normalized = value?.trim().toUpperCase();
   if (
@@ -685,6 +690,31 @@ async function persistSubscriptionRecord(identity: BillingIdentity, record: Owne
 
   const updateResult = await admin.from(BILLING_TABLE).upsert(nextRecord).select("*").single();
   if (updateResult.error) {
+    if (
+      isMissingColumnError(updateResult.error, "billing_key_encrypted") ||
+      isMissingColumnError(updateResult.error, "billing_key_encryption_version")
+    ) {
+      const fallbackRecord = {
+        ...record,
+        billing_key: record.billing_key ?? null,
+        updated_at: nowIso(),
+      };
+
+      const { billing_key_encrypted, billing_key_encryption_version, ...fallbackPayload } = fallbackRecord as OwnerSubscriptionRecord & {
+        billing_key_encrypted?: string | null;
+        billing_key_encryption_version?: number | null;
+      };
+
+      const fallbackResult = await admin.from(BILLING_TABLE).upsert(fallbackPayload).select("*").single();
+      if (fallbackResult.error) {
+        throw new OwnerBillingError(fallbackResult.error.message, 500);
+      }
+
+      const savedFallback = fallbackResult.data as OwnerSubscriptionRecord;
+      await syncUserMetadata(identity, savedFallback);
+      return savedFallback;
+    }
+
     throw new OwnerBillingError(updateResult.error.message, 500);
   }
 

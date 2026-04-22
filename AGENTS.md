@@ -16,3 +16,23 @@
 - Validation: Zod.
 - Forms: React Hook Form for substantial forms.
 - Scheduling logic must enforce real booking availability based on hours, closures, service duration, and concurrent capacity.
+
+## File Size & Component Structure
+- React UI files should generally stay under 500 lines.
+- Files over 500 lines are not automatically wrong, but they must be treated as structure review candidates.
+- Files over 800 lines require a split/refactor plan before UI changes.
+- Do not split large files blindly by line count.
+- Split only by clear responsibility:
+  - page shell
+  - toolbar
+  - list
+  - list item/card
+  - detail panel
+  - form
+  - modal/bottom sheet
+  - status badge
+  - presentational component
+- Prefer extracting presentational components first.
+- When extracting components, do not change API calls, state logic, validation, routing, billing, auth, notification, or data models.
+- If splitting or UI changes may affect behavior, stop and report it as deferred.
+- Detailed rules are in `docs/engineering/file-structure-standard.md`.

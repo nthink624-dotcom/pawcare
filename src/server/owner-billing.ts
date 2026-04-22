@@ -119,6 +119,21 @@ type PortoneCancelResponse = {
   message?: string;
 };
 
+const DEFAULT_PUBLIC_NOTICE_ORIGIN = "https://www.petmanager.co.kr";
+
+function isLocalOrigin(value: string | null | undefined) {
+  return Boolean(value && /localhost|127\.0\.0\.1/i.test(value));
+}
+
+function buildOwnerBillingNoticeUrl() {
+  const configuredOrigin = env.siteUrl?.replace(/\/$/, "");
+  if (configuredOrigin && !isLocalOrigin(configuredOrigin)) {
+    return `${configuredOrigin}/api/webhooks/portone`;
+  }
+
+  return `${DEFAULT_PUBLIC_NOTICE_ORIGIN}/api/webhooks/portone`;
+}
+
 type PortoneBillingKeyInfoResponse = {
   billingKeyInfo?: {
     paymentMethod?: {
@@ -796,7 +811,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
           planCode: plan.code,
           cycle: getBillingCycleForPlan(plan),
         }),
-        noticeUrls: [`${env.siteUrl.replace(/\/$/, "")}/api/webhooks/portone`],
+        noticeUrls: [buildOwnerBillingNoticeUrl()],
       },
       timeToPay,
     }),
@@ -1227,7 +1242,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
         planCode: plan.code,
         cycle: getBillingCycleForPlan(plan),
       }),
-      noticeUrls: [`${env.siteUrl.replace(/\/$/, "")}/api/webhooks/portone`],
+      noticeUrls: [buildOwnerBillingNoticeUrl()],
     }),
   });
 

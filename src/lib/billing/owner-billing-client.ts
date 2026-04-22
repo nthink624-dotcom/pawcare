@@ -22,6 +22,12 @@ type BillingKeyIssueResponse = {
   };
 };
 
+const DEFAULT_PUBLIC_NOTICE_ORIGIN = "https://www.petmanager.co.kr";
+
+function isLocalOrigin(value: string | null | undefined) {
+  return Boolean(value && /localhost|127\.0\.0\.1/i.test(value));
+}
+
 function buildPaymentMethodLabel(result: BillingKeyIssueResponse) {
   const source = result.billingKeyInfo ?? result;
   const company = source.cardCompany || source.methodName || "등록된 카드";
@@ -41,6 +47,20 @@ function buildOwnerBillingReturnUrl(planCode: OwnerPlanCode) {
   url.searchParams.set("compare", "1");
   url.searchParams.set("plan", planCode);
   return url.toString();
+}
+
+function buildOwnerBillingNoticeUrl() {
+  const currentOrigin = window.location.origin.replace(/\/$/, "");
+  if (!isLocalOrigin(currentOrigin)) {
+    return `${currentOrigin}/api/webhooks/portone`;
+  }
+
+  const configuredOrigin = env.siteUrl?.replace(/\/$/, "");
+  if (configuredOrigin && !isLocalOrigin(configuredOrigin)) {
+    return `${configuredOrigin}/api/webhooks/portone`;
+  }
+
+  return `${DEFAULT_PUBLIC_NOTICE_ORIGIN}/api/webhooks/portone`;
 }
 
 function buildOwnerBillingOfferPeriod(planCode: OwnerPlanCode) {
@@ -119,7 +139,7 @@ export async function requestOwnerOneTimePayment(params: {
       shopId: params.shopId,
       planCode: params.planCode,
     },
-    noticeUrls: [`${window.location.origin}/api/webhooks/portone`],
+    noticeUrls: [buildOwnerBillingNoticeUrl()],
   });
 
   if (!result) {

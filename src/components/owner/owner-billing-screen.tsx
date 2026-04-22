@@ -115,6 +115,29 @@ function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
   return summary.lastPaymentStatus === "paid" || summary.status === "active";
 }
 
+function getCardCompanyBadge(label: string | null | undefined) {
+  const normalized = label?.trim() ?? "";
+  if (!normalized) return "카드";
+  if (normalized.includes("신한")) return "신한";
+  if (normalized.includes("하나")) return "하나";
+  if (normalized.includes("KB") || normalized.includes("국민")) return "KB";
+  if (normalized.includes("현대")) return "현대";
+  if (normalized.includes("삼성")) return "삼성";
+  if (normalized.includes("롯데")) return "롯데";
+  if (normalized.includes("우리")) return "우리";
+  if (normalized.includes("농협") || normalized.includes("NH")) return "NH";
+  if (normalized.includes("BC")) return "BC";
+  if (normalized.includes("카카오")) return "카카오";
+  if (normalized.includes("토스")) return "토스";
+  return normalized.replace(/카드.*/, "").trim().slice(0, 4) || "카드";
+}
+
+function getCardNumberHint(label: string | null | undefined) {
+  const match = label?.match(/(\d{3,4})/);
+  if (!match) return null;
+  return `앞자리 ${match[1]}`;
+}
+
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
 
 function storePendingBillingRegistration(planCode: OwnerPlanCode) {
@@ -682,8 +705,17 @@ export default function OwnerBillingScreen({
                         >
                           <CreditCard className="h-[18px] w-[18px] shrink-0 text-[#171411]" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[15px] font-semibold tracking-[-0.03em]">{summary.paymentMethodLabel ?? "등록된 카드"}</p>
-                            <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">등록된 카드로 바로 결제를 진행합니다.</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex min-w-[42px] items-center justify-center rounded-[8px] border border-[#d8d1c5] bg-[#fffdf8] px-2 py-1 text-[11px] font-semibold leading-none text-[#173b33]">
+                                {getCardCompanyBadge(summary.paymentMethodLabel)}
+                              </span>
+                              <p className="text-[15px] font-semibold tracking-[-0.03em]">{summary.paymentMethodLabel ?? "등록된 카드"}</p>
+                            </div>
+                            <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">
+                              {getCardNumberHint(summary.paymentMethodLabel)
+                                ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
+                                : "등록된 카드로 바로 결제를 진행합니다."}
+                            </p>
                           </div>
                           <span
                             className={`inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${

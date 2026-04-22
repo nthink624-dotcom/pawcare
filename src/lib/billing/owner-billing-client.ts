@@ -28,10 +28,17 @@ function isLocalOrigin(value: string | null | undefined) {
   return Boolean(value && /localhost|127\.0\.0\.1/i.test(value));
 }
 
+function extractCardPrefix(value: string | null | undefined) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 3 ? digits.slice(0, 3) : null;
+}
+
 function buildPaymentMethodLabel(result: BillingKeyIssueResponse) {
   const source = result.billingKeyInfo ?? result;
   const company = source.cardCompany || source.methodName || "등록된 카드";
-  return company.trim();
+  const prefix = extractCardPrefix(source.cardNumber);
+  return prefix ? `${company.trim()} · ${prefix}` : company.trim();
 }
 
 function extractBillingKey(result: BillingKeyIssueResponse) {

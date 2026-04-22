@@ -238,24 +238,36 @@ function decryptBillingKey(value: string) {
     throw new OwnerBillingError("암호화된 결제수단 정보를 해석하지 못했습니다.", 500);
   }
 
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    getBillingKeyCipherKey(),
-    Buffer.from(ivEncoded, "base64url"),
-  );
-  decipher.setAuthTag(Buffer.from(tagEncoded, "base64url"));
+  try {
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      getBillingKeyCipherKey(),
+      Buffer.from(ivEncoded, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(tagEncoded, "base64url"));
 
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedEncoded, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedEncoded, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new OwnerBillingError("등록된 결제수단 정보를 읽지 못했습니다. 결제수단을 다시 등록해 주세요.", 500);
+  }
 }
 
 function readStoredBillingKey(record: OwnerSubscriptionRecord) {
   if (record.billing_key_encrypted) {
-    return decryptBillingKey(record.billing_key_encrypted);
+    try {
+      return decryptBillingKey(record.billing_key_encrypted);
+    } catch {
+      return null;
+    }
   }
   return record.billing_key;
+}
+
+function hasReadableStoredBillingKey(record: OwnerSubscriptionRecord) {
+  return Boolean(readStoredBillingKey(record));
 }
 
 function buildBillingKeyStorageColumns(
@@ -298,14 +310,16 @@ function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRe
 }
 
 function buildSubscriptionMetadata(record: OwnerSubscriptionRecord) {
+  const paymentMethodAvailable = record.payment_method_exists && hasReadableStoredBillingKey(record);
+
   return {
     current_plan_code: record.current_plan_code,
     billing_cycle: record.billing_cycle,
     trial_started_at: record.trial_started_at,
     trial_ends_at: record.trial_ends_at,
     next_billing_at: record.next_billing_at,
-    payment_method_exists: record.payment_method_exists,
-    payment_method_label: record.payment_method_label,
+    payment_method_exists: paymentMethodAvailable,
+    payment_method_label: paymentMethodAvailable ? record.payment_method_label : null,
     subscription_status: record.subscription_status,
     cancel_at_period_end: record.cancel_at_period_end,
     auto_renew_enabled: !record.cancel_at_period_end,
@@ -369,16 +383,30 @@ function normalizeCardCompanyLabel(value: string | null | undefined) {
   return normalized;
 }
 
+function extractCardPrefix(value: string | null | undefined) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 3 ? digits.slice(0, 3) : null;
+}
+
 function buildBillingMethodLabelFromInfo(payload: PortoneBillingKeyInfoResponse | null | undefined) {
   const source = payload?.billingKeyInfo?.paymentMethod ?? payload?.paymentMethod ?? null;
   const card = source?.card ?? null;
   const company = normalizeCardCompanyLabel(card?.issuer ?? card?.publisher ?? null);
+  const prefix = extractCardPrefix(card?.number ?? null);
 
   if (!company) {
     return null;
   }
 
-  return company;
+  return prefix ? `${company} · ${prefix}` : company;
+}
+
+function shouldRefreshPaymentMethodLabel(value: string | null | undefined) {
+  if (!value) return true;
+  const normalized = value.trim();
+  if (!normalized || normalized === "등록된 카드") return true;
+  return !/\d{3,}/.test(normalized);
 }
 
 async function resolveBillingMethodLabel(billingKey: string, fallback?: string | null) {
@@ -678,6 +706,19 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
 
   if (record.billing_key && !record.billing_key_encrypted && serverEnv.billingKeyEncryptionSecret) {
     record = await persistSubscriptionRecord(identity, record);
+  }
+
+  if (record.payment_method_exists) {
+    const billingKey = readStoredBillingKey(record);
+    if (billingKey && shouldRefreshPaymentMethodLabel(record.payment_method_label)) {
+      const resolvedPaymentMethodLabel = await resolveBillingMethodLabel(billingKey, record.payment_method_label);
+      if (resolvedPaymentMethodLabel !== record.payment_method_label) {
+        record = await persistSubscriptionRecord(identity, {
+          ...record,
+          payment_method_label: resolvedPaymentMethodLabel,
+        });
+      }
+    }
   }
 
   const summary = normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {

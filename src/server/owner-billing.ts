@@ -266,10 +266,6 @@ function readStoredBillingKey(record: OwnerSubscriptionRecord) {
   return record.billing_key;
 }
 
-function hasReadableStoredBillingKey(record: OwnerSubscriptionRecord) {
-  return Boolean(readStoredBillingKey(record));
-}
-
 function buildBillingKeyStorageColumns(
   record: Pick<OwnerSubscriptionRecord, "billing_key" | "billing_key_encrypted" | "billing_key_encryption_version">,
 ) {
@@ -310,16 +306,14 @@ function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRe
 }
 
 function buildSubscriptionMetadata(record: OwnerSubscriptionRecord) {
-  const paymentMethodAvailable = record.payment_method_exists && hasReadableStoredBillingKey(record);
-
   return {
     current_plan_code: record.current_plan_code,
     billing_cycle: record.billing_cycle,
     trial_started_at: record.trial_started_at,
     trial_ends_at: record.trial_ends_at,
     next_billing_at: record.next_billing_at,
-    payment_method_exists: paymentMethodAvailable,
-    payment_method_label: paymentMethodAvailable ? record.payment_method_label : null,
+    payment_method_exists: record.payment_method_exists,
+    payment_method_label: record.payment_method_label,
     subscription_status: record.subscription_status,
     cancel_at_period_end: record.cancel_at_period_end,
     auto_renew_enabled: !record.cancel_at_period_end,
@@ -1256,8 +1250,11 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   }
 
   const billingKey = readStoredBillingKey(record);
-  if (!billingKey || !record.payment_method_exists) {
+  if (!record.payment_method_exists) {
     throw new OwnerBillingError("먼저 카드 결제수단을 등록해 주세요.", 400);
+  }
+  if (!billingKey) {
+    throw new OwnerBillingError("등록된 결제수단 정보를 읽지 못했습니다. 배포 서버에서 진행하거나 결제수단을 다시 등록해 주세요.", 400);
   }
 
   const plan = getOwnerPlanByCode(record.current_plan_code) ?? getOwnerPlanByCode("monthly");

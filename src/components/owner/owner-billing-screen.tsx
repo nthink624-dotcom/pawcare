@@ -231,7 +231,7 @@ export default function OwnerBillingScreen({
   );
   const [summary, setSummary] = useState(initialSummary);
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
-    forcePlanPicker ? featuredPlan.code : preferredPlanCode ?? initialSummary.currentPlanCode,
+    preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode),
   );
   const [isSelectingPlan, setIsSelectingPlan] = useState(forcePlanPicker || !preferredPlanCode);
   const [registeringCard, setRegisteringCard] = useState(false);
@@ -253,7 +253,7 @@ export default function OwnerBillingScreen({
 
   useEffect(() => {
     setSummary(initialSummary);
-    setSelectedPlanCode(forcePlanPicker ? featuredPlan.code : preferredPlanCode ?? initialSummary.currentPlanCode);
+    setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode));
     setIsSelectingPlan(forcePlanPicker || !preferredPlanCode);
   }, [featuredPlan.code, forcePlanPicker, initialSummary, preferredPlanCode]);
 

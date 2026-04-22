@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    return NextResponse.json({ message: "재결제를 처리하지 못했습니다." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "재결제를 처리하지 못했습니다.";
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

@@ -3,7 +3,6 @@
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, Scissors, Search, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { billableOwnerPlans, getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
@@ -169,10 +168,6 @@ export default function OwnerSettingsPanel({
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [activeScreen, setActiveScreen] = useState<SettingsScreen>(null);
-  const [isPlanPickerOpen, setIsPlanPickerOpen] = useState(false);
-  const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
-    subscriptionSummary?.currentPlanCode ?? "monthly",
-  );
 
   useEffect(() => {
     if (initialScreen) {
@@ -226,11 +221,6 @@ export default function OwnerSettingsPanel({
       )
       .slice(0, 8);
   }, [address, addressSearchQuery, detailAddress]);
-
-  const selectedPlan = useMemo(
-    () => getOwnerPlanByCode(selectedPlanCode) ?? subscriptionSummary?.currentPlan ?? null,
-    [selectedPlanCode, subscriptionSummary?.currentPlan],
-  );
 
   const subscriptionEndDate = useMemo(() => {
     if (!subscriptionSummary) return "-";
@@ -377,7 +367,7 @@ export default function OwnerSettingsPanel({
   const subscriptionSection = subscriptionSummary ? (
     <section className="space-y-3">
       {(() => {
-        const currentPlan = selectedPlan ?? subscriptionSummary.currentPlan;
+        const currentPlan = subscriptionSummary.currentPlan;
         const isTrialStatus =
           subscriptionSummary.status === "trialing" || subscriptionSummary.status === "trial_will_end";
         const showTrialCard =
@@ -439,75 +429,18 @@ export default function OwnerSettingsPanel({
                 <p className="text-[11px] font-semibold tracking-[0.06em] text-[#8a8277]">{endDateLabel}</p>
                 <p className="mt-1 text-[18px] font-bold tracking-[-0.03em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPlanPickerOpen((prev) => !prev)}
+              <a
+                href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
                 className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white transition hover:bg-[#195748]"
               >
                 {planCtaLabel}
-              </button>
+              </a>
             </div>
           </div>
         </div>
       </div>
         );
       })()}
-
-      {isPlanPickerOpen ? (
-          <div className="space-y-2.5 border-t border-[#efe5d8] bg-[var(--surface)] px-4 py-4">
-            {billableOwnerPlans.map((plan) => {
-              const active = plan.code === selectedPlanCode;
-              const isYearly = plan.code === "yearly";
-
-              return (
-                <div key={plan.code} className={plan.discountPercent > 0 ? "pt-3" : ""}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPlanCode(plan.code)}
-                    className={`relative w-full rounded-[18px] border px-4 py-3.5 text-left transition ${
-                      active
-                        ? "border-[var(--accent)] bg-[#f6fbf9]"
-                        : "border-[var(--border)] bg-white"
-                    } ${
-                      isYearly ? "shadow-[0_10px_24px_rgba(31,107,91,0.08)]" : ""
-                    }`}
-                  >
-                    {plan.discountPercent > 0 ? (
-                      <span className="absolute -top-[13px] right-3 rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
-                        약 {plan.discountPercent}% 할인
-                      </span>
-                    ) : null}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-[18px] font-bold tracking-[-0.02em] text-[var(--text)]">{plan.title}</p>
-                          {plan.badge ? (
-                            <span className="rounded-full border border-[var(--accent)] bg-[#eef8f3] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                              {plan.badge}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-[14px] font-medium text-[var(--muted)]">{plan.billingLabel}</p>
-                        {plan.dailyPriceText ? <p className="mt-1 text-[13px] font-medium text-[var(--accent)]">{plan.dailyPriceText}</p> : null}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className={`font-extrabold tracking-[-0.03em] text-[var(--text)] ${isYearly ? "text-[28px]" : "text-[24px]"}`}>월 {won(plan.monthlyPrice)}</p>
-                        <p className="mt-1 text-[13px] font-medium text-[var(--muted)]">{plan.totalLabel ?? "일반결제"}</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              );
-            })}
-
-            <a
-              href={`/owner/billing?plan=${selectedPlanCode}`}
-              className="inline-flex w-full items-center justify-center rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
-            >
-              선택한 플랜으로 결제하기
-            </a>
-          </div>
-        ) : null}
     </section>
   ) : null;
 

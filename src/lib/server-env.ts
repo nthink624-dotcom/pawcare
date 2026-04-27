@@ -44,6 +44,16 @@ export const serverEnv = {
   alimtalkSenderKey: process.env.ALIMTALK_SENDER_KEY,
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
+  alimtalkTemplateBookingConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED),
+  alimtalkTemplateBookingRejected: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED),
+  alimtalkTemplateBookingCancelled: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED),
+  alimtalkTemplateBookingRescheduledConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED),
+  alimtalkTemplateAppointmentReminder10m: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M),
+  alimtalkTemplateGroomingStarted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED),
+  alimtalkTemplateGroomingAlmostDone: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE),
+  alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
+  alimtalkTemplateRevisitNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE),
+  alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
   notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
@@ -85,4 +95,33 @@ export function hasAlimtalkServerEnv() {
   }
 
   return true;
+}
+
+export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
+  if (!alias) return null;
+
+  switch (alias) {
+    case "booking_confirmed":
+      return serverEnv.alimtalkTemplateBookingConfirmed ?? null;
+    case "booking_rejected":
+      return serverEnv.alimtalkTemplateBookingRejected ?? null;
+    case "booking_cancelled":
+      return serverEnv.alimtalkTemplateBookingCancelled ?? null;
+    case "booking_rescheduled_confirmed":
+      return serverEnv.alimtalkTemplateBookingRescheduledConfirmed ?? null;
+    case "appointment_reminder_10m":
+      return serverEnv.alimtalkTemplateAppointmentReminder10m ?? null;
+    case "grooming_started":
+      return serverEnv.alimtalkTemplateGroomingStarted ?? null;
+    case "grooming_almost_done":
+      return serverEnv.alimtalkTemplateGroomingAlmostDone ?? null;
+    case "grooming_completed":
+      return serverEnv.alimtalkTemplateGroomingCompleted ?? null;
+    case "revisit_notice":
+      return serverEnv.alimtalkTemplateRevisitNotice ?? null;
+    case "birthday_greeting":
+      return serverEnv.alimtalkTemplateBirthdayGreeting ?? null;
+    default:
+      return alias;
+  }
 }

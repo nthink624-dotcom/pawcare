@@ -33,6 +33,30 @@ export default function OwnerPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
 
+  async function getSessionWithRecovery() {
+    if (!supabase) return null;
+
+    const initialSession = await supabase.auth.getSession();
+    if (initialSession.data.session?.access_token) {
+      return initialSession.data.session;
+    }
+
+    const refreshedSession = await supabase.auth.refreshSession();
+    if (refreshedSession.data.session?.access_token) {
+      return refreshedSession.data.session;
+    }
+
+    const userResult = await supabase.auth.getUser();
+    if (userResult.data.user) {
+      const recoveredSession = await supabase.auth.getSession();
+      if (recoveredSession.data.session?.access_token) {
+        return recoveredSession.data.session;
+      }
+    }
+
+    return null;
+  }
+
   useEffect(() => {
     let active = true;
     const pendingProvider =
@@ -46,9 +70,7 @@ export default function OwnerPage() {
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSessionWithRecovery();
 
       if (!session?.access_token) {
         router.replace("/login" as never);

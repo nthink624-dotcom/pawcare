@@ -97,6 +97,14 @@ function matchPhone(a: string, b: string) {
   return normalizePhone(a) === normalizePhone(b);
 }
 
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function matchName(a: string, b: string) {
+  return normalizeName(a) === normalizeName(b);
+}
+
 function makeGuardianBase(payload: z.infer<typeof customerBookingCreateSchema>) {
   return {
     id: randomUUID(),
@@ -135,14 +143,33 @@ function makePetBase(
 
 async function findOrCreateMockEntities(payload: z.infer<typeof customerBookingCreateSchema>) {
   const store = getMockStore();
-  let guardian = store.guardians.find((item) => item.shop_id === payload.shopId && matchPhone(item.phone, payload.phone));
+  const scopedGuardians = store.guardians.filter((item) => item.shop_id === payload.shopId);
+  const exactActiveGuardian = scopedGuardians.find(
+    (item) => !item.deleted_at && matchPhone(item.phone, payload.phone) && matchName(item.name, payload.guardianName),
+  );
+  const exactDeletedGuardian = scopedGuardians.find(
+    (item) => item.deleted_at && matchPhone(item.phone, payload.phone) && matchName(item.name, payload.guardianName),
+  );
+  const phoneOnlyActiveGuardian = scopedGuardians.find(
+    (item) => !item.deleted_at && matchPhone(item.phone, payload.phone),
+  );
+  let guardian = exactActiveGuardian ?? exactDeletedGuardian ?? phoneOnlyActiveGuardian;
 
   if (!guardian) {
     guardian = {
       ...makeGuardianBase(payload),
-      notification_settings: { enabled: false, revisit_enabled: false },
+      notification_settings: { enabled: true, revisit_enabled: true },
     } as Guardian;
     store.guardians = [...store.guardians, guardian];
+  } else if (guardian.deleted_at) {
+    guardian.deleted_at = null;
+    guardian.deleted_restore_until = null;
+    guardian.name = normalizeName(payload.guardianName);
+    guardian.phone = normalizePhone(payload.phone);
+    guardian.updated_at = nowIso();
+  } else {
+    guardian.phone = normalizePhone(payload.phone);
+    guardian.updated_at = nowIso();
   }
 
   let pet = store.pets.find(
@@ -180,16 +207,26 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
 
   const phone = normalizePhone(payload.phone);
+  const guardianName = normalizeName(payload.guardianName);
   const guardianQuery = await supabase
     .from("guardians")
-    .select("id,name,phone")
+    .select("id,name,phone,deleted_at")
     .eq("shop_id", payload.shopId)
     .order("created_at");
 
   if (guardianQuery.error) throw new Error(guardianQuery.error.message);
 
-  const existingGuardian = (guardianQuery.data ?? []).find((guardian) => matchPhone(guardian.phone, phone));
-  let guardianId = existingGuardian?.id;
+  const guardians = guardianQuery.data ?? [];
+  const exactActiveGuardian = guardians.find(
+    (guardian) => !guardian.deleted_at && matchPhone(guardian.phone, phone) && matchName(guardian.name, guardianName),
+  );
+  const exactDeletedGuardian = guardians.find(
+    (guardian) => guardian.deleted_at && matchPhone(guardian.phone, phone) && matchName(guardian.name, guardianName),
+  );
+  const phoneOnlyActiveGuardian = guardians.find(
+    (guardian) => !guardian.deleted_at && matchPhone(guardian.phone, phone),
+  );
+  let guardianId = exactActiveGuardian?.id ?? exactDeletedGuardian?.id ?? phoneOnlyActiveGuardian?.id;
 
   if (!guardianId) {
     const guardianBase = makeGuardianBase(payload);
@@ -201,6 +238,7 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
         name: guardianBase.name,
         phone: guardianBase.phone,
         memo: guardianBase.memo,
+        notification_settings: { enabled: true, revisit_enabled: true },
         created_at: guardianBase.created_at,
         updated_at: guardianBase.updated_at,
       })
@@ -209,6 +247,22 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
 
     if (insertGuardian.error) throw new Error(insertGuardian.error.message);
     guardianId = insertGuardian.data.id;
+  } else if (exactDeletedGuardian) {
+    const restoredGuardian = await supabase
+      .from("guardians")
+      .update({
+        deleted_at: null,
+        deleted_restore_until: null,
+        name: guardianName,
+        phone,
+        updated_at: nowIso(),
+      })
+      .eq("id", exactDeletedGuardian.id)
+      .select("id")
+      .single();
+
+    if (restoredGuardian.error) throw new Error(restoredGuardian.error.message);
+    guardianId = restoredGuardian.data.id;
   }
 
   const petQuery = await supabase
@@ -335,11 +389,11 @@ export async function createCustomerBooking(input: unknown) {
 
 export async function lookupCustomerBookings(shopId: string, phone: string, guardianName: string, petName: string) {
   const normalizedPhone = normalizePhone(phone);
-  const normalizedGuardianName = guardianName.trim();
-  const normalizedPetName = petName.trim();
+  const normalizedGuardianName = normalizeName(guardianName);
+  const normalizedPetName = normalizeName(petName);
   const bootstrap = await getBootstrap(shopId);
   const scopedGuardians = bootstrap.guardians.filter(
-    (guardian) => matchPhone(guardian.phone, normalizedPhone) && guardian.name.trim() === normalizedGuardianName,
+    (guardian) => matchPhone(guardian.phone, normalizedPhone) && matchName(guardian.name, normalizedGuardianName),
   );
 
   if (scopedGuardians.length === 0) {
@@ -348,7 +402,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
 
   const scopedGuardianIds = new Set(scopedGuardians.map((guardian) => guardian.id));
   const scopedPets = bootstrap.pets.filter(
-    (pet) => scopedGuardianIds.has(pet.guardian_id) && pet.name.trim() === normalizedPetName,
+    (pet) => scopedGuardianIds.has(pet.guardian_id) && matchName(pet.name, normalizedPetName),
   );
 
   if (scopedPets.length === 0) {
@@ -450,8 +504,8 @@ export async function updateCustomerBooking(input: unknown) {
     !guardian ||
     !pet ||
     !matchPhone(guardian.phone, payload.phone) ||
-    guardian.name.trim() !== payload.guardianName.trim() ||
-    pet.name.trim() !== payload.petName.trim()
+    !matchName(guardian.name, payload.guardianName) ||
+    !matchName(pet.name, payload.petName)
   ) {
     throw new Error("예약자 정보를 확인할 수 없습니다.");
   }

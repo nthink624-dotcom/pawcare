@@ -97,6 +97,7 @@ export default function OwnerSettingsPanel({
     priceType: "starting" as PriceType,
     isActive: true,
   });
+  const [isNewServiceFormOpen, setIsNewServiceFormOpen] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editingServiceName, setEditingServiceName] = useState("");
   const [editingServicePrice, setEditingServicePrice] = useState("");
@@ -287,6 +288,7 @@ export default function OwnerSettingsPanel({
       }),
     );
     setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
+    setIsNewServiceFormOpen(false);
   }
 
   const subscriptionSection = subscriptionSummary ? (
@@ -474,11 +476,27 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주차 안내">
-          <div className="space-y-3.5">
-            <ToggleRow label="주차 안내 노출" checked={showParkingNotice} onChange={setShowParkingNotice} />
+        <SettingsFieldCard label="주차 안내" className="px-0 pb-0 pt-2">
+          <div className="px-3.5 pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                  {parkingNotice.trim() || "건물 뒤편 공용 주차장을 이용해 주세요."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowParkingNotice(!showParkingNotice)}
+                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+              >
+                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-6" : "left-1"}`} />
+              </button>
+            </div>
+          </div>
+          <div className="border-t border-[var(--border)] px-3.5 py-3">
             <textarea
-              className="min-h-[88px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="min-h-[58px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={parkingNotice}
               onChange={(event) => setParkingNotice(event.target.value)}
               placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
@@ -486,16 +504,47 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="예약 전 안내">
-          <div className="space-y-3.5">
-            <p className="text-[13px] leading-5 text-[var(--muted)]">예약 전 고객에게 전할 내용을 편하게 적어둘 수 있어요.</p>
-            <ToggleRow label="고객에게 미리 보여주기" checked={showNotices} onChange={setShowNotices} />
-            <div className="space-y-3.5">
-              <input className="w-full bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]" value={notices[0] || ""} onChange={(event) => updateNotice(0, event.target.value)} placeholder="예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요." />
+        <SettingsFieldCard label="예약 전 안내" className="px-0 pb-0 pt-2">
+          <div className="px-3.5 pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
+                <p className="mt-1 text-[13px] leading-5 text-[#938a80]">고객에게 미리 보여주기</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                  {[notices[0], notices[1], notices[2]].find((item) => item.trim()) || "첫 방문은 상담 포함으로 여유 있게 예약해 주세요."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNotices(!showNotices)}
+                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+              >
+                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showNotices ? "left-6" : "left-1"}`} />
+              </button>
+            </div>
+          </div>
+          <div className="border-t border-[var(--border)] px-3.5 py-2.5">
+            <div className="space-y-0">
+              <input
+                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                value={notices[0] || ""}
+                onChange={(event) => updateNotice(0, event.target.value)}
+                placeholder="예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요."
+              />
               <div className="border-t border-[#eee7de]" />
-              <input className="w-full bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]" value={notices[1] || ""} onChange={(event) => updateNotice(1, event.target.value)} placeholder="예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요." />
+              <input
+                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                value={notices[1] || ""}
+                onChange={(event) => updateNotice(1, event.target.value)}
+                placeholder="예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요."
+              />
               <div className="border-t border-[#eee7de]" />
-              <input className="w-full bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]" value={notices[2] || ""} onChange={(event) => updateNotice(2, event.target.value)} placeholder="예: 고객에게 미리 보여줄 안내를 간단히 적어주세요." />
+              <input
+                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                value={notices[2] || ""}
+                onChange={(event) => updateNotice(2, event.target.value)}
+                placeholder="예: 고객에게 미리 보여줄 안내를 간단히 적어주세요."
+              />
             </div>
           </div>
         </SettingsFieldCard>
@@ -635,32 +684,42 @@ export default function OwnerSettingsPanel({
 
   const servicesSection = (
     <SettingsCard>
-      <div className="space-y-2.5">
+      <div className="space-y-1">
         {data.services.map((service) => {
           const isEditing = editingServiceId === service.id;
           return (
-            <div key={service.id} className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5">
+            <div key={service.id}>
               {isEditing ? (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-[var(--muted)]">서비스 이름</p>
-                    <input className="field" value={editingServiceName} onChange={(event) => setEditingServiceName(event.target.value)} placeholder="서비스 이름 입력" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-[var(--muted)]">가격</p>
+                <div className="space-y-2.5">
+                  <SettingsFieldCard label="서비스 이름">
+                    <input
+                      className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                      value={editingServiceName}
+                      onChange={(event) => setEditingServiceName(event.target.value)}
+                      placeholder="서비스 이름 입력"
+                    />
+                  </SettingsFieldCard>
+                  <SettingsFieldCard label="가격">
                     <div className="flex items-center gap-2">
-                      <input className="field flex-1" value={editingServicePrice} onChange={(event) => setEditingServicePrice(event.target.value)} placeholder="최소 가격 입력" />
-                      <span className="text-sm font-semibold text-[var(--muted)]">원</span>
+                      <input
+                        className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                        value={editingServicePrice}
+                        onChange={(event) => setEditingServicePrice(event.target.value)}
+                        placeholder="최소 가격 입력"
+                      />
+                      <span className="shrink-0 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">원</span>
                     </div>
                     <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
                       <input type="checkbox" checked={editingServicePriceType === "starting"} onChange={(event) => setEditingServicePriceType(event.target.checked ? "starting" : "fixed")} />
                       <span>시작가로 표시하기</span>
                     </label>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                    <input type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
-                    <span>소비자 화면에 노출</span>
-                  </label>
+                  </SettingsFieldCard>
+                  <SettingsFieldCard label="노출 설정" className="pb-3 pt-2.5">
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</span>
+                      <input type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
+                    </label>
+                  </SettingsFieldCard>
                   <div className="grid grid-cols-2 gap-2">
                     <OutlineButton onClick={stopEditingService}>취소</OutlineButton>
                     <SolidButton onClick={() => handleServiceSave(service)} disabled={!editingServiceName || !editingServicePrice}>
@@ -669,50 +728,81 @@ export default function OwnerSettingsPanel({
                   </div>
                 </div>
               ) : (
-                <>
+                <SettingsFieldCard label={service.name}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-bold text-[var(--text)]">{service.name}</p>
-                        {!service.is_active ? <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]">비노출</span> : null}
-                      </div>
+                      <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">
+                        가격 {formatServicePrice(service.price, service.price_type ?? "starting")}
+                      </p>
+                      {!service.is_active ? (
+                        <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">소비자 화면에 노출되지 않아요.</p>
+                      ) : null}
                     </div>
-                    <button className="shrink-0 text-sm font-semibold text-[var(--accent)]" onClick={() => startEditingService(service)}>
+                    <button className="shrink-0 text-[13px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
                       수정
                     </button>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--muted)]">가격 {formatServicePrice(service.price, service.price_type ?? "starting")}</p>
-                </>
+                </SettingsFieldCard>
               )}
             </div>
           );
         })}
 
-        <div className="rounded-[10px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-[var(--muted)]">서비스 이름</p>
-              <input className="field" placeholder="서비스 이름 입력" value={newService.name} onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-[var(--muted)]">가격</p>
-              <div className="flex items-center gap-2">
-                <input className="field flex-1" placeholder="최소 가격 입력" value={newService.price} onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))} />
-                <span className="text-sm font-semibold text-[var(--muted)]">원</span>
+        {isNewServiceFormOpen ? (
+          <div className="space-y-2.5">
+              <SettingsFieldCard label="서비스 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  placeholder="서비스 이름 입력"
+                  value={newService.name}
+                  onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))}
+                />
+              </SettingsFieldCard>
+              <SettingsFieldCard label="가격">
+                <div className="flex items-center gap-2">
+                  <input
+                    className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    placeholder="최소 가격 입력"
+                    value={newService.price}
+                    onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))}
+                  />
+                  <span className="shrink-0 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">원</span>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                  <input type="checkbox" checked={newService.priceType === "starting"} onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))} />
+                  <span>시작가로 표시하기</span>
+                </label>
+              </SettingsFieldCard>
+              <SettingsFieldCard label="노출 설정" className="pb-3 pt-2.5">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</span>
+                  <input type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
+                </label>
+              </SettingsFieldCard>
+              <div className="grid grid-cols-2 gap-2">
+                <OutlineButton
+                  onClick={() => {
+                    setIsNewServiceFormOpen(false);
+                    setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
+                  }}
+                >
+                  취소
+                </OutlineButton>
+                <SolidButton onClick={() => void handleServiceCreate()} disabled={!newService.name || !newService.price}>
+                  추가
+                </SolidButton>
               </div>
-              <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={newService.priceType === "starting"} onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))} />
-                <span>시작가로 표시하기</span>
-              </label>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-              <input type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
-              <span>소비자 화면에 노출</span>
-            </label>
-            <button className="w-full rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 py-[11px] text-sm font-semibold text-white" onClick={() => void handleServiceCreate()}>
-              서비스 추가
-            </button>
           </div>
+        ) : null}
+
+        <div className="pt-1">
+          <button
+            type="button"
+            className="w-full rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 py-[11px] text-[14px] font-medium text-white"
+            onClick={() => setIsNewServiceFormOpen(true)}
+          >
+            서비스 추가
+          </button>
         </div>
       </div>
     </SettingsCard>
@@ -928,7 +1018,7 @@ function SettingsCard({ title, children }: { title?: string; children: ReactNode
           <h2 className="text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
         </div>
       ) : null}
-      <div className={`space-y-1.5 ${title ? "pt-2.5" : ""}`}>{children}</div>
+      <div className={`space-y-1 ${title ? "pt-2.5" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -986,8 +1076,8 @@ function SettingsFieldCard({
   className?: string;
 }) {
   return (
-    <fieldset className={`min-w-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-3.5 pt-2.5 ${className}`.trim()}>
-      <legend className="ml-2 px-1.5 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">
+    <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
+      <legend className="ml-0.5 px-1.5 text-[15px] font-medium tracking-[-0.01em] text-[var(--muted)]">
         {label}
       </legend>
       {children}

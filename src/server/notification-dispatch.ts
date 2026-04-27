@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { hasAlimtalkServerEnv, hasSupabaseServerEnv } from "@/lib/server-env";
+import { hasAlimtalkServerEnv, hasSupabaseServerEnv, resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import { buildBookingManageUrl, createBookingAccessToken } from "@/server/booking-access-token";
@@ -111,6 +111,7 @@ function buildNotificationMessage(params: {
   appointment: Appointment | null;
   petName: string;
   rejectionReason: string | null;
+  bookingManageUrl: string | null;
 }) {
   const dateLabel =
     params.appointment
@@ -119,27 +120,43 @@ function buildNotificationMessage(params: {
 
   switch (params.type) {
     case "booking_confirmed":
-      return `[${params.shopName}] ${params.petName} booking confirmed for ${dateLabel}.`;
+      return `[${params.shopName}] ${params.petName} 예약이 확정되었어요.\n방문 일정: ${dateLabel}`;
     case "booking_rejected":
-      return `[${params.shopName}] ${params.petName} booking could not be accepted.${params.rejectionReason ? ` Reason: ${params.rejectionReason}` : ""}`;
+      return `[${params.shopName}] ${params.petName} 예약이 접수되지 않았어요.${params.rejectionReason ? `\n사유: ${params.rejectionReason}` : ""}`;
     case "booking_cancelled":
-      return `[${params.shopName}] ${params.petName} booking has been cancelled.`;
+      return `[${params.shopName}] ${params.petName} 예약이 취소되었어요.`;
     case "booking_rescheduled_confirmed":
-      return `[${params.shopName}] ${params.petName} booking changed to ${dateLabel}.`;
+      return `[${params.shopName}] ${params.petName} 예약 일정이 변경되었어요.\n변경 일정: ${dateLabel}`;
     case "appointment_reminder_10m":
-      return `[${params.shopName}] ${params.petName} booking starts soon. Please check your visit time: ${dateLabel}.`;
+      return `[${params.shopName}] ${params.petName} 예약이 곧 시작돼요.\n방문 일정: ${dateLabel}`;
     case "grooming_started":
-      return `[${params.shopName}] ${params.petName} grooming has started.`;
+      return `[${params.shopName}] ${params.petName} 미용이 시작되었어요.`;
     case "grooming_almost_done":
-      return `[${params.shopName}] ${params.petName} is almost ready for pickup.`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 미용이 곧 끝나요`,
+        "",
+        "마무리 단계라 곧 픽업 가능하세요.",
+        "",
+        "잠시 후 픽업하실 수 있어요.",
+        "",
+        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "grooming_completed":
-      return `[${params.shopName}] ${params.petName} grooming is complete. Pickup is available now.`;
+      return `[${params.shopName}] ${params.petName} 미용이 완료되었어요.\n지금 픽업하실 수 있어요.`;
     case "revisit_notice":
-      return `[${params.shopName}] It may be time to book ${params.petName}'s next visit.`;
+      return `[${params.shopName}] ${params.petName} 재방문 시기가 가까워졌어요.`;
     case "birthday_greeting":
-      return `[${params.shopName}] Happy birthday to ${params.petName}.`;
+      return `[${params.shopName}] ${params.petName}의 생일을 축하드려요.`;
     default:
-      return `[${params.shopName}] Notification.`;
+      return `[${params.shopName}] 알림을 확인해 주세요.`;
   }
 }
 
@@ -212,8 +229,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? normalizePhone(guardian.phone)
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
-  const templateKey = input.templateKey ?? getTemplateKey(input.type);
-  const templateType = input.templateType ?? input.type;
+  const templateAlias = input.templateKey ?? getTemplateKey(input.type);
+  const templateKey = resolveAlimtalkTemplateKey(templateAlias);
+  const templateType = input.templateType ?? "alimtalk";
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
@@ -232,6 +250,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       appointment,
       petName: pet?.name ?? "pet",
       rejectionReason: appointment?.rejection_reason ?? null,
+      bookingManageUrl,
     });
 
   let status: NotificationStatus = "queued";
@@ -255,6 +274,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   } else if (!recipientPhone) {
     status = "failed";
     failReason = "Recipient phone number not found.";
+  } else if ((input.channel ?? "alimtalk") === "alimtalk" && serverEnv.alimtalkProvider === "ssodaa" && !templateKey) {
+    status = "failed";
+    failReason = `Missing Alimtalk template mapping for ${input.type}.`;
   } else if (!shouldSendNow) {
     status = "queued";
   } else if ((input.channel ?? "alimtalk") === "alimtalk") {

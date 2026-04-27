@@ -218,8 +218,7 @@ export default function SocialSignupCompleteForm({
       }
 
       await supabase?.auth.refreshSession();
-      router.replace(nextPath as never);
-      router.refresh();
+      window.location.assign(nextPath);
     } catch {
       setMessage("기본 정보를 저장하지 못했어요. 다시 시도해 주세요.");
     } finally {

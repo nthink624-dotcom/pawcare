@@ -297,8 +297,8 @@ export async function createGuardian(input: unknown) {
     phone: payload.phone,
     memo: payload.memo ?? "",
     notification_settings: {
-      enabled: false,
-      revisit_enabled: false,
+      enabled: true,
+      revisit_enabled: true,
     },
     created_at: nowIso(),
     updated_at: nowIso(),

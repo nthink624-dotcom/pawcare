@@ -17,6 +17,31 @@ type SendAlimtalkResult = {
   responseBody: unknown;
 };
 
+function extractProviderMessageId(responseBody: unknown) {
+  if (typeof responseBody !== "object" || responseBody === null) return null;
+
+  const directId =
+    (responseBody as { messageId?: string; requestId?: string; id?: string; cmid?: string }).messageId ||
+    (responseBody as { messageId?: string; requestId?: string; id?: string; cmid?: string }).requestId ||
+    (responseBody as { messageId?: string; requestId?: string; id?: string; cmid?: string }).cmid ||
+    (responseBody as { messageId?: string; requestId?: string; id?: string; cmid?: string }).id ||
+    null;
+
+  if (directId) return directId;
+
+  const sentMessages = (responseBody as { sent_messages?: Array<{ msg_id?: string | null }> }).sent_messages;
+  if (Array.isArray(sentMessages) && sentMessages[0]?.msg_id) {
+    return sentMessages[0].msg_id;
+  }
+
+  const result = (responseBody as { result?: Array<{ msg_id?: string | null }> }).result;
+  if (Array.isArray(result) && result[0]?.msg_id) {
+    return result[0].msg_id;
+  }
+
+  return null;
+}
+
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
     const relayResponse = await fetch(serverEnv.alimtalkRelayUrl, {
@@ -122,14 +147,18 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
     throw new Error(message);
   }
 
-  const providerMessageId =
-    typeof responseBody === "object" && responseBody !== null
-      ? ((responseBody as { messageId?: string; requestId?: string; id?: string }).messageId ||
-          (responseBody as { messageId?: string; requestId?: string; id?: string }).requestId ||
-          (responseBody as { messageId?: string; requestId?: string; id?: string; cmid?: string }).cmid ||
-          (responseBody as { messageId?: string; requestId?: string; id?: string }).id ||
-          null)
-      : null;
+  if (typeof responseBody === "object" && responseBody !== null) {
+    const providerCode = (responseBody as { code?: string | number }).code;
+    if (providerCode !== undefined && String(providerCode) !== "200") {
+      const message =
+        (responseBody as { error?: string; message?: string } | null)?.error ||
+        (responseBody as { error?: string; message?: string } | null)?.message ||
+        "알림톡 발송이 공급자 단계에서 거절되었습니다.";
+      throw new Error(message);
+    }
+  }
+
+  const providerMessageId = extractProviderMessageId(responseBody);
 
   return {
     provider: serverEnv.alimtalkProvider || "generic",

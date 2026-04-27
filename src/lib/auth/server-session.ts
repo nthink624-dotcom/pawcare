@@ -20,10 +20,15 @@ export async function getServerSessionUser() {
   });
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  return session?.user ?? null;
+  if (error) {
+    return null;
+  }
+
+  return user ?? null;
 }
 
 export async function getServerUserShopId(userId: string) {

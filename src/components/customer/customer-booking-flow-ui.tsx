@@ -123,7 +123,7 @@ export function BookingFieldCard({
 }) {
   return (
     <fieldset className={`rounded-[12px] border border-[#ddd5ca] bg-white px-3.5 pb-2.5 pt-1.5 ${className}`}>
-      <legend className="px-2 text-[14px] font-medium tracking-[-0.01em] text-[#8a8074]">{label}</legend>
+      <legend className="px-2 text-[15px] font-medium tracking-[-0.01em] text-[#8a8074]">{label}</legend>
       {children}
     </fieldset>
   );

@@ -67,25 +67,41 @@ export async function getPublicBootstrap(shopId?: string) {
   });
 }
 
-export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+async function getAccessTokenWithRecovery() {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.access_token) {
-    throw new Error("로그인이 필요합니다.");
+  const initialSession = await supabase.auth.getSession();
+  if (initialSession.data.session?.access_token) {
+    return initialSession.data.session.access_token;
   }
+
+  const refreshedSession = await supabase.auth.refreshSession();
+  if (refreshedSession.data.session?.access_token) {
+    return refreshedSession.data.session.access_token;
+  }
+
+  const userResult = await supabase.auth.getUser();
+  if (userResult.data.user) {
+    const recoveredSession = await supabase.auth.getSession();
+    if (recoveredSession.data.session?.access_token) {
+      return recoveredSession.data.session.access_token;
+    }
+  }
+
+  throw new Error("로그인이 필요합니다.");
+}
+
+export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+  const accessToken = await getAccessTokenWithRecovery();
 
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  headers.set("Authorization", `Bearer ${session.access_token}`);
+  headers.set("Authorization", `Bearer ${accessToken}`);
 
   return fetchApiJson<T>(input, {
     ...init,

@@ -1,6 +1,8 @@
 import CustomerBookingPage from "@/components/customer/customer-booking-page";
 import { getBootstrap } from "@/server/bootstrap";
 
+export const dynamic = "force-dynamic";
+
 export default async function DemoBookManagePage({
   searchParams,
 }: {

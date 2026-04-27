@@ -3,7 +3,8 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $port = 3000
 $hostName = "127.0.0.1"
-$logPath = Join-Path $projectRoot ".next-start-live.log"
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$logPath = Join-Path $projectRoot ".next-start-live-$timestamp.log"
 
 $existing = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
@@ -19,10 +20,6 @@ if ($existing) {
 
 Push-Location $projectRoot
 try {
-  if (Test-Path $logPath) {
-    Remove-Item $logPath -Force
-  }
-
   $command = "cd /d `"$projectRoot`" && npm.cmd run dev:local > `"$logPath`" 2>&1"
   Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden | Out-Null
 

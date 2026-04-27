@@ -134,8 +134,10 @@ export default function OwnerPage() {
 
   if (!data) {
     return (
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
-        {message}
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
+        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]">
+          {message}
+        </div>
       </div>
     );
   }

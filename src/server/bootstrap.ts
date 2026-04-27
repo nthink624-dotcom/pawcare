@@ -8,7 +8,6 @@ import {
 } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { seedDemoDataForShop } from "@/server/demo-seed";
 import type {
   Appointment,
   BootstrapPayload,
@@ -57,7 +56,7 @@ function splitActiveGuardians(guardians: Guardian[]) {
   };
 }
 
-export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Promise<BootstrapPayload> {
+export async function getBootstrap(shopId = "demo-shop"): Promise<BootstrapPayload> {
   if (!hasSupabaseServerEnv()) {
     return buildMockBootstrap(shopId);
   }
@@ -81,22 +80,10 @@ export async function getBootstrap(shopId = "demo-shop", allowSeed = true): Prom
     ]);
 
   if (shopRes.error || !shopRes.data) {
+    if (shopId !== "demo-shop" && shopId !== "owner-demo") {
+      throw new Error("매장 정보를 찾을 수 없습니다.");
+    }
     return buildMockBootstrap(shopId);
-  }
-
-  const isEmptyForTesting =
-    allowSeed &&
-    process.env.NODE_ENV !== "production" &&
-    (appointmentsRes.data?.length ?? 0) === 0 &&
-    (recordsRes.data?.length ?? 0) === 0;
-
-  if (isEmptyForTesting) {
-    await seedDemoDataForShop(
-      shopId,
-      ((shopRes.data as Shop).name || "펫매니저 테스트 매장") as string,
-      ((shopRes.data as Shop).address || "서울시 강남구 테스트로 1") as string,
-    );
-    return getBootstrap(shopId, false);
   }
 
   const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map((guardian) => ({

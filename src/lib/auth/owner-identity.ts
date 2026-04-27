@@ -1,30 +1,22 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod";
 
 import { requireServerSecret, serverEnv } from "@/lib/server-env";
-import { nowIso } from "@/lib/utils";
 
-const localChallengeSchema = z.object({
-  name: z.string(),
-  birthDate: z.string().length(8),
-  phoneNumber: z.string(),
-  code: z.string().length(6),
-  expiresAt: z.number(),
-});
+export const identityVerificationPurposeSchema = z.enum(["signup", "reset-password", "find-login-id"]);
 
-const verifiedIdentitySchema = z.object({
-  name: z.string(),
-  birthDate: z.string().length(8),
-  phoneNumber: z.string(),
-  verifiedAt: z.string(),
-  expiresAt: z.number(),
+export type IdentityVerificationPurpose = z.infer<typeof identityVerificationPurposeSchema>;
+
+export const verifiedIdentityTokenSchema = z.object({
+  verificationId: z.string().uuid(),
+  tokenId: z.string().uuid(),
+  purpose: identityVerificationPurposeSchema,
   source: z.enum(["local", "portone"]),
-  identityVerificationId: z.string().optional(),
+  expiresAt: z.number(),
 });
 
-type LocalChallenge = z.infer<typeof localChallengeSchema>;
-type VerifiedIdentity = z.infer<typeof verifiedIdentitySchema>;
+export type VerifiedIdentityToken = z.infer<typeof verifiedIdentityTokenSchema>;
 
 function sign(value: string) {
   return createHmac("sha256", requireServerSecret(serverEnv.authFlowSecret, "AUTH_FLOW_SECRET"))
@@ -58,27 +50,28 @@ function issueToken(payload: object) {
   return `${encoded}.${sign(encoded)}`;
 }
 
-export function issueLocalChallengeToken(payload: Omit<LocalChallenge, "expiresAt"> & { expiresInMs?: number }) {
-  return issueToken({
-    ...payload,
-    expiresAt: Date.now() + (payload.expiresInMs ?? 1000 * 60 * 5),
-  });
+export function hashIdentityVerificationCode(code: string) {
+  return createHmac("sha256", requireServerSecret(serverEnv.authFlowSecret, "AUTH_FLOW_SECRET"))
+    .update(code)
+    .digest("hex");
 }
 
-export function readLocalChallengeToken(token: string) {
-  const parsed = decode(token);
-  if (!parsed) return null;
-  const result = localChallengeSchema.safeParse(parsed);
-  if (!result.success || result.data.expiresAt < Date.now()) return null;
-  return result.data;
+export function hashIdentityStableValue(value: string) {
+  return createHmac("sha256", requireServerSecret(serverEnv.authFlowSecret, "AUTH_FLOW_SECRET"))
+    .update(`identity:${value.trim()}`)
+    .digest("hex");
+}
+
+export function createIdentityVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 export function issueVerifiedIdentityToken(
-  payload: Omit<VerifiedIdentity, "expiresAt" | "verifiedAt"> & { expiresInMs?: number; verifiedAt?: string },
+  payload: Omit<VerifiedIdentityToken, "tokenId" | "expiresAt"> & { tokenId?: string; expiresInMs?: number },
 ) {
   return issueToken({
     ...payload,
-    verifiedAt: payload.verifiedAt ?? nowIso(),
+    tokenId: payload.tokenId ?? randomUUID(),
     expiresAt: Date.now() + (payload.expiresInMs ?? 1000 * 60 * 10),
   });
 }
@@ -86,7 +79,7 @@ export function issueVerifiedIdentityToken(
 export function readVerifiedIdentityToken(token: string) {
   const parsed = decode(token);
   if (!parsed) return null;
-  const result = verifiedIdentitySchema.safeParse(parsed);
+  const result = verifiedIdentityTokenSchema.safeParse(parsed);
   if (!result.success || result.data.expiresAt < Date.now()) return null;
   return result.data;
 }

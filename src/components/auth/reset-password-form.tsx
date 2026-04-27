@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
+import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
 
@@ -41,7 +42,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 type ApiMessage = {
   message?: string;
-  challengeToken?: string | null;
+  verificationRequestId?: string | null;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
 };
@@ -59,12 +60,13 @@ export default function ResetPasswordForm({
 }) {
   const router = useRouter();
   const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
+  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
   const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(ready ? null : "로그인 환경을 확인하는 중이에요. 잠시 후 다시 시도해 주세요.");
-  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
@@ -107,6 +109,8 @@ export default function ResetPasswordForm({
           name: values.name,
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
+          purpose: "reset-password",
+          method: "local",
         }),
       });
       const result = (await response.json()) as ApiMessage;
@@ -116,7 +120,7 @@ export default function ResetPasswordForm({
         return;
       }
 
-      setChallengeToken(result.challengeToken ?? null);
+      setVerificationRequestId(result.verificationRequestId ?? null);
       setDevCode(result.devVerificationCode ?? null);
       setVerificationCode("");
       syncVerificationToken(null);
@@ -128,7 +132,7 @@ export default function ResetPasswordForm({
 
   const verifyCode = async () => {
     const values = getValues();
-    if (!challengeToken) {
+    if (!verificationRequestId) {
       setMessage("먼저 인증번호를 받아 주세요.");
       return;
     }
@@ -145,7 +149,8 @@ export default function ResetPasswordForm({
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
           code: verificationCode,
-          challengeToken,
+          purpose: "reset-password",
+          verificationRequestId,
         }),
       });
       const result = (await response.json()) as ApiMessage;
@@ -173,6 +178,24 @@ export default function ResetPasswordForm({
     setMessage(null);
 
     try {
+      const requestResponse = await fetch("/api/auth/request-verification-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: values.name,
+          birthDate: values.birthDate,
+          phoneNumber: values.phoneNumber,
+          purpose: "reset-password",
+          method: "portone",
+        }),
+      });
+      const requestResult = (await requestResponse.json()) as ApiMessage;
+
+      if (!requestResponse.ok || !requestResult.verificationRequestId) {
+        setMessage(requestResult.message ?? "본인확인 요청을 준비하지 못했어요.");
+        return;
+      }
+
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `reset_pw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -199,10 +222,9 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          purpose: "reset-password",
+          verificationRequestId: requestResult.verificationRequestId,
           identityVerificationId: result.identityVerificationId,
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
         }),
       });
       const verifyResult = (await response.json()) as ApiMessage;
@@ -263,13 +285,7 @@ export default function ResetPasswordForm({
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
-      <button
-        type="button"
-        onClick={() => router.replace("/login")}
-        className="flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[#faf8f4] text-[#111111]"
-      >
-        <ArrowLeft className="h-5 w-5" strokeWidth={2.1} />
-      </button>
+      <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
 
       <div className="mt-8 flex h-[56px] w-[56px] items-center justify-center rounded-[18px] bg-[#f4efe3] text-[#7b654d]">
         <KeyRound className="h-7 w-7" strokeWidth={1.9} />
@@ -356,10 +372,10 @@ export default function ResetPasswordForm({
                 disabled={loading}
                 className="flex h-[50px] w-full items-center justify-center rounded-[16px] border border-[#d8d0c5] bg-[#fcfaf7] text-[15px] font-semibold text-[#111111] disabled:opacity-60"
               >
-                {challengeToken ? "인증번호 다시 받기" : "인증번호 받기"}
+                {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
               </button>
 
-              {challengeToken ? (
+              {verificationRequestId ? (
                 <>
                   <FieldShell label="인증번호">
                     <TextInput
@@ -371,7 +387,7 @@ export default function ResetPasswordForm({
                     />
                   </FieldShell>
 
-                  {devCode ? (
+                  {canShowDevVerificationCode && devCode ? (
                     <div className="rounded-[16px] bg-[#f7f2eb] px-4 py-3 text-[13px] leading-5 text-[#6f665d]">
                       개발용 인증번호: <span className="font-semibold text-[#111111]">{devCode}</span>
                     </div>

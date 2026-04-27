@@ -11,6 +11,11 @@ export const env = {
     ((process.env.NEXT_PUBLIC_SITE_URL || "").includes("petmanager.co.kr") ? "production" : "development"),
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
+  portoneIdentityUnifiedChannelKey:
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_UNIFIED_CHANNEL_KEY ||
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY ||
+    process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
+  portoneIdentityDanalChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_DANAL_CHANNEL_KEY,
   portoneIdentityChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
   portonePaymentChannelKey: process.env.NEXT_PUBLIC_PORTONE_PAYMENT_CHANNEL_KEY,
@@ -25,7 +30,7 @@ export function hasSupabaseBrowserEnv() {
 }
 
 export function hasPortoneBrowserEnv() {
-  return Boolean(env.portoneStoreId && env.portoneIdentityChannelKey);
+  return Boolean(env.portoneStoreId && (env.portoneIdentityUnifiedChannelKey || env.portoneIdentityDanalChannelKey));
 }
 
 export function hasPortonePaymentBrowserEnv() {

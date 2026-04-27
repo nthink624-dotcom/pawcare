@@ -1,6 +1,8 @@
 import ShopInfoPage from "@/components/customer/shop-info-page";
 import { getBootstrap } from "@/server/bootstrap";
 
+export const dynamic = "force-dynamic";
+
 export default async function DemoBookInfoPage() {
   const data = await getBootstrap("demo-shop");
 

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { env, hasPortoneBrowserEnv } from "@/lib/env";
+import { MobileBackButton } from "@/components/ui/mobile-back-button";
+import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerFindLoginIdSchema, type OwnerFindLoginIdInput } from "@/lib/auth/owner-find-login-id";
 
 function FieldShell({
@@ -31,7 +32,7 @@ function normalizePhoneNumber(value: string) {
 
 type ApiMessage = {
   message?: string;
-  challengeToken?: string | null;
+  verificationRequestId?: string | null;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
   loginId?: string | null;
@@ -39,11 +40,13 @@ type ApiMessage = {
 
 export default function FindLoginIdForm() {
   const router = useRouter();
+  const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
+  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
   const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
 
   const [message, setMessage] = useState<string | null>(null);
   const [foundLoginId, setFoundLoginId] = useState<string | null>(null);
-  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
@@ -83,6 +86,8 @@ export default function FindLoginIdForm() {
           name: values.name,
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
+          purpose: "find-login-id",
+          method: "local",
         }),
       });
       const result = (await response.json()) as ApiMessage;
@@ -92,7 +97,7 @@ export default function FindLoginIdForm() {
         return;
       }
 
-      setChallengeToken(result.challengeToken ?? null);
+      setVerificationRequestId(result.verificationRequestId ?? null);
       setDevCode(result.devVerificationCode ?? null);
       syncVerificationToken(null);
       setFoundLoginId(null);
@@ -104,7 +109,7 @@ export default function FindLoginIdForm() {
 
   const verifyCode = async () => {
     const values = getValues();
-    if (!challengeToken) {
+    if (!verificationRequestId) {
       setMessage("먼저 인증번호를 받아 주세요.");
       return;
     }
@@ -121,7 +126,8 @@ export default function FindLoginIdForm() {
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
           code: verificationCode,
-          challengeToken,
+          purpose: "find-login-id",
+          verificationRequestId,
         }),
       });
       const result = (await response.json()) as ApiMessage;
@@ -149,6 +155,24 @@ export default function FindLoginIdForm() {
     setMessage(null);
 
     try {
+      const requestResponse = await fetch("/api/auth/request-verification-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: values.name,
+          birthDate: values.birthDate,
+          phoneNumber: values.phoneNumber,
+          purpose: "find-login-id",
+          method: "portone",
+        }),
+      });
+      const requestResult = (await requestResponse.json()) as ApiMessage;
+
+      if (!requestResponse.ok || !requestResult.verificationRequestId) {
+        setMessage(requestResult.message ?? "본인확인 요청을 준비하지 못했어요.");
+        return;
+      }
+
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `find_id_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -175,10 +199,9 @@ export default function FindLoginIdForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          purpose: "find-login-id",
+          verificationRequestId: requestResult.verificationRequestId,
           identityVerificationId: result.identityVerificationId,
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
         }),
       });
       const verifyResult = (await response.json()) as ApiMessage;
@@ -223,13 +246,7 @@ export default function FindLoginIdForm() {
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
-      <button
-        type="button"
-        onClick={() => router.replace("/login")}
-        className="flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[#faf8f4] text-[#111111]"
-      >
-        <ArrowLeft className="h-5 w-5" strokeWidth={2.1} />
-      </button>
+      <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
 
       <div className="mt-8 flex h-[56px] w-[56px] items-center justify-center rounded-[18px] bg-[#eef6f1] text-[#1f6b5b]">
         <Search className="h-7 w-7" strokeWidth={1.9} />
@@ -281,14 +298,14 @@ export default function FindLoginIdForm() {
           />
         </FieldShell>
 
-        <div className="grid grid-cols-2 gap-3">
+        {isDevelopmentFlow ? <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={requestCode}
             disabled={loading}
             className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#ddd6cc] bg-white text-[15px] font-semibold text-[#111111] disabled:opacity-60"
           >
-            {challengeToken ? "인증번호 다시 받기" : "인증번호 받기"}
+            {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
           </button>
           <button
             type="button"
@@ -298,9 +315,18 @@ export default function FindLoginIdForm() {
           >
             PASS 본인인증
           </button>
-        </div>
+        </div> : (
+          <button
+            type="button"
+            onClick={verifyPass}
+            disabled={loading}
+            className="flex h-[50px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-[#f4fbf8] text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
+          >
+            PASS 본인인증
+          </button>
+        )}
 
-        {challengeToken ? (
+        {isDevelopmentFlow && verificationRequestId ? (
           <>
             <FieldShell label="인증번호">
               <input
@@ -313,7 +339,9 @@ export default function FindLoginIdForm() {
               />
             </FieldShell>
 
-            {devCode ? <p className="px-1 text-[12px] leading-5 text-[#7f766c]">로컬 테스트용 인증번호: {devCode}</p> : null}
+            {canShowDevVerificationCode && devCode ? (
+              <p className="px-1 text-[12px] leading-5 text-[#7f766c]">로컬 테스트용 인증번호: {devCode}</p>
+            ) : null}
 
             <button
               type="button"

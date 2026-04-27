@@ -1,10 +1,15 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import { ownerPasswordResetSchema } from "@/lib/auth/owner-password-reset";
-import { readVerifiedIdentityToken } from "@/lib/auth/owner-identity";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
+
+function normalizePhoneNumber(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "").slice(0, 11);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,17 +18,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = ownerPasswordResetSchema.parse(await request.json());
-    const verifiedIdentity = readVerifiedIdentityToken(body.identityVerificationToken);
+    const verifiedIdentity = await getVerifiedIdentityForToken({
+      verificationToken: body.identityVerificationToken,
+      purpose: "reset-password",
+      expectedName: body.name,
+      expectedBirthDate: body.birthDate,
+      expectedPhoneNumber: body.phoneNumber,
+    });
     if (!verifiedIdentity) {
       return NextResponse.json({ message: "본인인증이 만료되었어요. 다시 인증해 주세요." }, { status: 400 });
-    }
-
-    if (
-      verifiedIdentity.name !== body.name ||
-      verifiedIdentity.birthDate !== body.birthDate ||
-      verifiedIdentity.phoneNumber !== body.phoneNumber
-    ) {
-      return NextResponse.json({ message: "본인인증 정보와 입력한 정보가 일치하지 않습니다." }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -33,11 +36,10 @@ export async function POST(request: NextRequest) {
 
     const profile = await supabase
       .from("owner_profiles")
-      .select("user_id")
+      .select("user_id, phone_number, ci_hash, di_hash")
       .eq("login_id", body.loginId)
       .eq("name", verifiedIdentity.name)
-      .eq("birth_date", verifiedIdentity.birthDate)
-      .eq("phone_number", verifiedIdentity.phoneNumber)
+      .eq("birth_date", verifiedIdentity.birth_date)
       .maybeSingle();
 
     if (profile.error) {
@@ -48,9 +50,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
     }
 
+    const ciHash = verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null;
+    const diHash = verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null;
+    const hasStoredIdentityHash = Boolean(profile.data.ci_hash || profile.data.di_hash);
+    const hasVerifiedIdentityHash = Boolean(ciHash || diHash);
+    const strongIdentityMatch = Boolean(
+      (ciHash && profile.data.ci_hash === ciHash) || (diHash && profile.data.di_hash === diHash),
+    );
+    const legacyPhoneMatch = normalizePhoneNumber(profile.data.phone_number) === normalizePhoneNumber(verifiedIdentity.phone_number);
+
+    if (hasStoredIdentityHash) {
+      if (!strongIdentityMatch) {
+        return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
+      }
+    } else if (!legacyPhoneMatch && !hasVerifiedIdentityHash) {
+      return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
+    }
+
+    const consumed = await consumeVerifiedIdentity({
+      verificationId: verifiedIdentity.id,
+      tokenId: verifiedIdentity.tokenId,
+      action: "reset-password",
+    });
+
+    if (!consumed) {
+      return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
+    }
+
     const updated = await supabase.auth.admin.updateUserById(profile.data.user_id, { password: body.password });
     if (updated.error) {
       return NextResponse.json({ message: updated.error.message || "비밀번호를 변경하지 못했어요." }, { status: 400 });
+    }
+
+    if (!hasStoredIdentityHash && hasVerifiedIdentityHash) {
+      await supabase
+        .from("owner_profiles")
+        .update({
+          ci_hash: ciHash,
+          di_hash: diHash,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", profile.data.user_id);
     }
 
     return NextResponse.json({ success: true, message: "비밀번호가 변경되었습니다. 다시 로그인해 주세요." });

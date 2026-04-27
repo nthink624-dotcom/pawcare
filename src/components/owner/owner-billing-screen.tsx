@@ -1,9 +1,10 @@
 ﻿"use client";
 
-import { BadgePercent, Check, ChevronLeft, CreditCard, Plus, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BadgePercent, Check, CreditCard, Plus, Sparkles, X } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import {
   issueOwnerBillingKey,
   requestOwnerOneTimePayment,
@@ -115,28 +116,50 @@ function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
   return summary.lastPaymentStatus === "paid" || summary.status === "active";
 }
 
-function getCardCompanyBadge(label: string | null | undefined) {
-  const normalized = label?.trim() ?? "";
-  if (!normalized) return "카드";
-  if (normalized === "등록된 카드") return "카드";
-  if (normalized.includes("신한")) return "신한";
-  if (normalized.includes("하나")) return "하나";
-  if (normalized.includes("KB") || normalized.includes("국민")) return "KB";
-  if (normalized.includes("현대")) return "현대";
-  if (normalized.includes("삼성")) return "삼성";
-  if (normalized.includes("롯데")) return "롯데";
-  if (normalized.includes("우리")) return "우리";
-  if (normalized.includes("농협") || normalized.includes("NH")) return "NH";
-  if (normalized.includes("BC")) return "BC";
-  if (normalized.includes("카카오")) return "카카오";
-  if (normalized.includes("토스")) return "토스";
-  return normalized.replace(/카드.*/, "").trim().slice(0, 4) || "카드";
-}
-
 function getCardNumberHint(label: string | null | undefined) {
   const match = label?.match(/(\d{3,4})/);
   if (!match) return null;
   return `앞자리 ${match[1]}`;
+}
+
+function PaymentOptionRow({
+  icon,
+  title,
+  description,
+  selected,
+  disabled = false,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  selected: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-start gap-3 py-4 text-left transition ${
+        disabled ? "cursor-not-allowed opacity-55" : "hover:bg-[#fbf8f3]"
+      }`}
+    >
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[#171411]">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-semibold tracking-[-0.03em] text-[#171411]">{title}</p>
+        <p className="mt-1 text-[12px] leading-[1.45] text-[#6a645d]">{description}</p>
+      </div>
+      <span
+        className={`mt-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border ${
+          selected ? "border-[#1f5b51]" : "border-[#d4ccc0]"
+        }`}
+      >
+        <span className={`h-2 w-2 rounded-full ${selected ? "bg-[#1f5b51]" : "bg-transparent"}`} />
+      </span>
+    </button>
+  );
 }
 
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
@@ -275,6 +298,17 @@ export default function OwnerBillingScreen({
   const projectedServiceEndDate = formatProjectedServiceEndDate(summary, selectedPlan);
   const hasRegisteredPaymentMethod = summary.paymentMethodExists;
   const hasUsableRegisteredPaymentMethod = summary.paymentMethodExists && !summary.paymentMethodResetRequired;
+  const registeredPaymentTitle =
+    summary.paymentMethodLabel && summary.paymentMethodLabel.trim() && summary.paymentMethodLabel !== "등록된 카드"
+      ? summary.paymentMethodLabel
+      : hasUsableRegisteredPaymentMethod
+        ? "등록 카드"
+        : "카드 정보 확인 필요";
+  const registeredPaymentDescription = summary.paymentMethodResetRequired
+    ? "기존 카드 정보를 다시 확인할 수 없어 새 카드 등록이 한 번 필요해요."
+    : getCardNumberHint(summary.paymentMethodLabel)
+      ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
+      : "등록된 카드로 바로 결제를 진행합니다.";
 
   useEffect(() => {
     setSummary(initialSummary);
@@ -517,17 +551,14 @@ export default function OwnerBillingScreen({
       <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#171411]">
         <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_8px_24px_rgba(41,41,38,0.04)]">
           <div className="flex items-center">
-            <button
-              type="button"
+            <MobileBackButton
               onClick={() => {
                 if (window.history.length > 1) router.back();
                 else router.push("/owner");
               }}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#ddd6ca] bg-white text-[#1f5b51]"
-              aria-label="이전으로"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+              className="h-10 w-10 border-[#ddd6ca] text-[#1f5b51]"
+              label="이전으로"
+            />
           </div>
 
           <div className="mt-4 space-y-2.5">
@@ -637,20 +668,20 @@ export default function OwnerBillingScreen({
             className="fixed inset-0 z-30 bg-[rgba(28,23,18,0.28)]"
             onClick={() => setPaymentSheetOpen(false)}
           >
-            <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end px-3 pb-3">
+            <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
               <div
-                className="w-full rounded-[26px] border border-[#e4dbcf] bg-[#fffdf9] px-5 pb-5 pt-5 shadow-[0_16px_40px_rgba(32,27,22,0.12)]"
+                className="w-full rounded-t-[30px] bg-white px-5 pb-5 pt-3 shadow-[0_-16px_40px_rgba(32,27,22,0.14)]"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="grid grid-cols-[1fr_auto] items-start gap-2.5">
+                <div className="mx-auto h-1.5 w-11 rounded-full bg-[#dfd7cc]" />
+
+                <div className="mt-4 flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-[12px] font-semibold tracking-[0.08em] text-[#7f776d]">PAYMENT</p>
-                    <p className="mt-1.5 text-[22px] font-extrabold leading-none tracking-[-0.04em] text-[#171411]">
-                      {usesOneTimePayment ? "결제 방법" : "결제수단 선택"}
-                    </p>
-                    <p className="mt-2 text-[13px] leading-[1.45] tracking-[-0.02em] text-[#696259]">
+                    <p className="text-[11px] font-semibold tracking-[0.08em] text-[#8c8378]">PAYMENT</p>
+                    <p className="mt-2 text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">결제수단 선택</p>
+                    <p className="mt-2.5 text-[13px] leading-[1.5] tracking-[-0.02em] text-[#6b655d]">
                       {usesOneTimePayment
-                        ? "선택한 플랜을 바로 결제할 수 있는 방법이에요."
+                        ? "선택한 플랜을 바로 결제할 수 있는 수단을 선택해 주세요."
                         : "이번 기간 연장에 사용할 카드를 선택해 주세요."}
                     </p>
                   </div>
@@ -658,125 +689,72 @@ export default function OwnerBillingScreen({
                     type="button"
                     onClick={() => setPaymentSheetOpen(false)}
                     aria-label="닫기"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e7dfd4] text-[#7d756c]"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5ddd2] text-[#7d756c]"
                   >
                     <X className="h-4.5 w-4.5" />
                   </button>
                 </div>
 
-                <div className="mt-5 border-t border-[#ece3d7] pt-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1">
+                <div className="mt-6 border-t border-[#ece6dc] pt-5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5">
                     <div className="min-w-0">
-                      <p className="text-[24px] font-extrabold tracking-[-0.05em] text-[#173b33]">{selectedPlanLabel}</p>
-                      <p className="mt-0.5 text-[12px] text-[#7b7369]">{getPlanSelectionLine(selectedPlan)}</p>
+                      <p className="text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">{selectedPlanLabel}</p>
+                      <p className="mt-2 text-[13px] leading-none text-[#7b7369]">{getPlanSelectionLine(selectedPlan)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[24px] font-extrabold tracking-[-0.05em] text-[#171411]">월 {won(selectedPlan.monthlyPrice)}</p>
-                      <p className="mt-0.5 text-[12px] text-[#7b7369]">{usesOneTimePayment ? "1회 결제" : "자동결제"}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">월 {won(selectedPlan.monthlyPrice)}</p>
+                      <p className="mt-2 text-[13px] leading-none text-[#7b7369]">{usesOneTimePayment ? "1회 결제" : "자동결제"}</p>
                     </div>
-                    <div className="col-span-2 mt-3 flex items-center justify-between gap-3 border-t border-[#ece3d7] pt-3">
-                      <p className="text-[13px] font-medium text-[#7b7369]">예상 서비스 종료일</p>
+                  </div>
+
+                  <div className="mt-4 grid gap-2.5 border-t border-[#ece6dc] pt-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[13px] font-medium text-[#7c746a]">총 금액</p>
+                      <p className="text-[13px] font-semibold text-[#171411]">{getPlanSelectionLine(selectedPlan)}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[13px] font-medium text-[#7c746a]">서비스 종료일</p>
                       <p className="text-[13px] font-semibold text-[#171411]">{projectedServiceEndDate}</p>
                     </div>
                   </div>
                 </div>
 
                 {usesOneTimePayment && !hasRegisteredPaymentMethod ? (
-                  <div className="mt-4 border-t border-[#ece3d7] pt-1">
-                    <div className="flex items-center gap-3 py-3">
-                      <CreditCard className="h-[18px] w-[18px] shrink-0 text-[#171411]" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[15px] font-semibold tracking-[-0.03em] text-[#171411]">신용/체크카드</p>
-                        <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">카드 정보를 입력하면 바로 결제가 진행됩니다.</p>
-                      </div>
-                      <span className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border border-[#1f5b51]">
-                        <span className="h-2 w-2 rounded-full bg-[#1f5b51]" />
-                      </span>
-                    </div>
+                  <div className="mt-4 border-t border-[#ece6dc]">
+                    <PaymentOptionRow
+                      icon={<CreditCard className="h-[18px] w-[18px]" />}
+                      title="신용/체크카드"
+                      description="카드 정보를 입력하면 바로 결제가 진행됩니다."
+                      selected
+                      onClick={() => setSelectedPaymentOption("new")}
+                    />
                   </div>
                 ) : (
-                  <div className="mt-4 border-t border-[#ece3d7] pt-1">
-                    <div>
-                      {summary.paymentMethodExists ? (
-                        <button
-                          type="button"
+                  <div className="mt-4 border-t border-[#ece6dc]">
+                    {summary.paymentMethodExists ? (
+                      <div className="border-b border-[#ece6dc]">
+                        <PaymentOptionRow
+                          icon={<CreditCard className="h-[18px] w-[18px]" />}
+                          title={registeredPaymentTitle}
+                          description={registeredPaymentDescription}
+                          selected={selectedPaymentOption === "existing" && hasUsableRegisteredPaymentMethod}
+                          disabled={!hasUsableRegisteredPaymentMethod}
                           onClick={() => {
-                            if (!summary.paymentMethodResetRequired) {
+                            if (hasUsableRegisteredPaymentMethod) {
                               setSelectedPaymentOption("existing");
                             }
                           }}
-                          className={`flex w-full items-center gap-2.5 py-3 text-left transition ${
-                            selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
-                              ? "text-[#171411]"
-                              : "text-[#4f4a44]"
-                          }`}
-                        >
-                          <CreditCard className="h-[18px] w-[18px] shrink-0 text-[#171411]" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex min-w-[42px] items-center justify-center rounded-[8px] border border-[#d8d1c5] bg-[#fffdf8] px-2 py-1 text-[11px] font-semibold leading-none text-[#173b33]">
-                                {getCardCompanyBadge(summary.paymentMethodLabel)}
-                              </span>
-                              <p className="text-[15px] font-semibold tracking-[-0.03em]">{summary.paymentMethodLabel ?? "등록된 카드"}</p>
-                              {summary.paymentMethodResetRequired ? (
-                                <span className="inline-flex items-center rounded-full border border-[#ecd7c9] bg-[#fff7f1] px-2 py-0.5 text-[10px] font-semibold text-[#b2643f]">
-                                  재등록 필요
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">
-                              {summary.paymentMethodResetRequired
-                                ? "등록 카드 정보를 다시 확인할 수 없어, 새 카드 등록이 한 번 필요해요."
-                                : getCardNumberHint(summary.paymentMethodLabel)
-                                  ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
-                                  : "등록된 카드로 바로 결제를 진행합니다."}
-                            </p>
-                          </div>
-                          <span
-                            className={`inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
-                              selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
-                                ? "border-[#1f5b51]"
-                                : "border-[#cdc4b8]"
-                            }`}
-                          >
-                            <span
-                              className={`h-2 w-2 rounded-full ${
-                                selectedPaymentOption === "existing" && !summary.paymentMethodResetRequired
-                                  ? "bg-[#1f5b51]"
-                                  : "bg-transparent"
-                              }`}
-                            />
-                          </span>
-                        </button>
-                      ) : null}
+                        />
+                      </div>
+                    ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPaymentOption("new")}
-                          className={`flex w-full items-center gap-3 ${
-                            summary.paymentMethodExists ? "border-t border-[#ece3d7]" : ""
-                          } py-3 text-left transition ${
-                            selectedPaymentOption === "new" ? "text-[#171411]" : "text-[#4f4a44]"
-                          }`}
-                        >
-                        <Plus className="h-[18px] w-[18px] shrink-0 text-[#171411]" strokeWidth={2.2} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-semibold tracking-[-0.03em]">새 카드 등록</p>
-                          <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5f5a53]">새 카드를 등록하고 결제를 이어갑니다.</p>
-                        </div>
-                        <span
-                          className={`inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border ${
-                            selectedPaymentOption === "new" ? "border-[#1f5b51]" : "border-[#cdc4b8]"
-                          }`}
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              selectedPaymentOption === "new" ? "bg-[#1f5b51]" : "bg-transparent"
-                            }`}
-                          />
-                        </span>
-                      </button>
-                    </div>
+                    <PaymentOptionRow
+                      icon={<Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />}
+                      title="새 카드 등록"
+                      description="새 카드를 등록하고 결제를 이어갑니다."
+                      selected={selectedPaymentOption === "new"}
+                      onClick={() => setSelectedPaymentOption("new")}
+                    />
                   </div>
                 )}
 
@@ -791,17 +769,17 @@ export default function OwnerBillingScreen({
                     type="button"
                     onClick={() => void handlePaymentSheetSubmit()}
                     disabled={registeringCard || retryingPayment}
-                    className="flex h-[52px] w-full items-center justify-center rounded-[16px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white shadow-[0_8px_18px_rgba(31,91,81,0.12)] disabled:opacity-60"
+                    className="flex h-[54px] w-full items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white shadow-[0_8px_18px_rgba(31,91,81,0.12)] disabled:opacity-60"
                   >
                     {registeringCard
                       ? "카드 등록 중..."
                       : retryingPayment
-                      ? "결제 진행 중..."
-                      : selectedPaymentOption === "existing" && hasRegisteredPaymentMethod
-                      ? "계속하기"
-                      : usesOneTimePayment
-                      ? "결제창 열기"
-                      : "선택한 수단으로 계속하기"}
+                        ? "결제 진행 중..."
+                        : selectedPaymentOption === "existing" && hasRegisteredPaymentMethod
+                          ? "계속하기"
+                          : usesOneTimePayment
+                            ? "결제창 열기"
+                            : "선택한 수단으로 계속하기"}
                   </button>
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchApiJson } from "@/lib/api";
+import { getSupabaseRuntimeStage } from "@/lib/env";
 
 type AdminDashboardAccount = {
   id: string;
@@ -114,19 +115,19 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             href="/owner"
             icon={Store}
             title="오너 페이지 보기"
-            description="현재 브라우저에 로그인된 오너 세션 기준으로 오너 페이지를 확인합니다."
+            description="현재 로그인된 실제 오너 페이지를 확인합니다. 미리보기 예약은 여기 섞이지 않습니다."
           />
           <DashboardLink
             href="/demo/owner"
             icon={MonitorSmartphone}
-            title="오너 데모 보기"
-            description="데모 계정 기반 화면을 빠르게 확인하고 운영 흐름을 점검합니다."
+            title="오너 페이지 미리보기"
+            description="고객 예약 페이지 미리보기에서 만든 테스트 예약까지 같은 테스트 매장 기준으로 확인합니다."
           />
           <DashboardLink
             href="/demo/book"
             icon={ShoppingBag}
-            title="예약 데모 보기"
-            description="고객 예약 흐름을 데모 화면으로 확인하고 예약 퍼널을 점검합니다."
+            title="고객 예약 페이지 미리보기"
+            description="첫 방문, 재방문, 예약 확인 흐름을 테스트하고 오너 페이지 미리보기에서 함께 확인합니다."
           />
           <DashboardLink
             href="/"
@@ -164,6 +165,10 @@ function DashboardLink({
   title: string;
   description: string;
 }) {
+  if (getSupabaseRuntimeStage() === "production" && href.startsWith("/demo/")) {
+    return null;
+  }
+
   return (
     <a href={href} className="flex min-h-[148px] flex-col items-start justify-between rounded-[24px] border border-[#e8dfd3] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(23,20,17,0.04)]">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">

@@ -1,15 +1,16 @@
-"use client";
-
 import OwnerApp from "@/components/owner/owner-app";
-import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
+import { getBootstrap } from "@/server/bootstrap";
 
-export default function DemoOwnerPage() {
-  const data = buildOwnerDemoBootstrap();
+export const dynamic = "force-dynamic";
+
+export default async function DemoOwnerPage() {
+  const data = await getBootstrap("demo-shop");
 
   return (
     <div className="owner-font">
       <OwnerApp
         initialData={data}
+        isPreviewDemo
         ownedShops={[
           {
             id: data.shop.id,

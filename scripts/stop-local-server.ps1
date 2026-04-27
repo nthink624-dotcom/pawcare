@@ -6,11 +6,11 @@ if (-not $connections) {
   exit 0
 }
 
-foreach ($pid in $connections) {
+foreach ($processId in $connections) {
   try {
-    Stop-Process -Id $pid -Force -ErrorAction Stop
-    Write-Host "종료됨: PID $pid"
+    Stop-Process -Id $processId -Force -ErrorAction Stop
+    Write-Host "종료됨: PID $processId"
   } catch {
-    Write-Host "종료 실패: PID $pid"
+    Write-Host "종료 실패: PID $processId"
   }
 }

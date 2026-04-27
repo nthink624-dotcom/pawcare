@@ -1,4 +1,5 @@
 ﻿import { formatServicePrice } from "@/lib/utils";
+import { MobileBackAnchorButton } from "@/components/ui/mobile-back-button";
 import type { Service, Shop } from "@/types/domain";
 
 type Props = {
@@ -35,11 +36,9 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
     <div className="space-y-4">
       <section className="rounded-[28px] bg-white p-5 shadow-[var(--shadow-soft)]">
         {showBackLink ? (
-          <a href={backHref || `/book/${shop.id}`} className="text-sm font-semibold text-[var(--accent)]">
-            ← 예약 화면으로
-          </a>
+          <MobileBackAnchorButton href={backHref || `/book/${shop.id}`} label="예약 화면으로" />
         ) : null}
-        <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-[var(--text)]">매장 정보</h1>
+        <h1 className={`${showBackLink ? "mt-4" : "mt-3"} text-[28px] font-semibold tracking-[-0.03em] text-[var(--text)]`}>매장 정보</h1>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{displayName}</p>
         <p className="mt-2 text-sm leading-6 text-[var(--text)]">{shop.description}</p>
         <div className="mt-4 grid grid-cols-2 gap-2">

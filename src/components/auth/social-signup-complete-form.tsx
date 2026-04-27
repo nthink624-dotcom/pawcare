@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Search } from "lucide-react";
 
+import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
@@ -13,7 +14,6 @@ import {
 } from "@/lib/auth/social-auth";
 import {
   BUTTON_PRIMARY,
-  BUTTON_SECONDARY,
   INLINE_ERROR,
   INLINE_HELP,
   INPUT_BASE,
@@ -25,45 +25,17 @@ import {
 } from "@/lib/ui-system";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type AddressCandidate = {
-  id: string;
-  roadAddress: string;
-  jibunAddress: string;
-  postalCode: string;
-};
-
-const ADDRESS_CANDIDATES: AddressCandidate[] = [
-  {
-    id: "1",
-    roadAddress: "서울 강남구 테헤란로 123",
-    jibunAddress: "서울 강남구 삼성동 123-4",
-    postalCode: "06134",
-  },
-  {
-    id: "2",
-    roadAddress: "서울 송파구 올림픽로 300",
-    jibunAddress: "서울 송파구 신천동 29",
-    postalCode: "05551",
-  },
-  {
-    id: "3",
-    roadAddress: "경기 성남시 분당구 판교역로 235",
-    jibunAddress: "경기 성남시 삼평동 681",
-    postalCode: "13494",
-  },
-  {
-    id: "4",
-    roadAddress: "부산 해운대구 센텀남대로 35",
-    jibunAddress: "부산 해운대구 우동 1505",
-    postalCode: "48058",
-  },
-];
-
 const AGREEMENTS = {
   service: true,
   privacy: true,
   location: false,
   marketing: false,
+};
+
+const providerLabelMap: Record<SocialProvider, string> = {
+  google: "Google",
+  kakao: "카카오",
+  naver: "네이버",
 };
 
 function normalizePhone(value: string) {
@@ -91,6 +63,10 @@ function readMetadataValue(source: Record<string, unknown> | null | undefined, k
   return "";
 }
 
+function joinAddress(baseAddress: string, detailAddress: string) {
+  return [baseAddress.trim(), detailAddress.trim()].filter(Boolean).join(" ");
+}
+
 function FormField({
   label,
   hint,
@@ -116,24 +92,18 @@ function TextInput({
   onChange,
   placeholder,
   inputMode,
-  readOnly = false,
-  onClick,
 }: {
   value: string;
-  onChange?: (value: string) => void;
+  onChange: (value: string) => void;
   placeholder: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  readOnly?: boolean;
-  onClick?: () => void;
 }) {
   return (
     <input
       value={value}
-      onChange={onChange ? (event) => onChange(event.target.value) : undefined}
+      onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      readOnly={readOnly}
-      onClick={onClick}
       className={INPUT_BASE}
     />
   );
@@ -149,12 +119,13 @@ export default function SocialSignupCompleteForm({
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
-  const [, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
+  const [resolvedProvider, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
   const [ownerName, setOwnerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
-  const [addressQuery, setAddressQuery] = useState("");
+  const [shopDetailAddress, setShopDetailAddress] = useState("");
+  const [shopPostalCode, setShopPostalCode] = useState("");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -193,28 +164,12 @@ export default function SocialSignupCompleteForm({
     void syncUser();
   }, [supabase]);
 
-  const filteredAddresses = useMemo(() => {
-    const query = addressQuery.trim();
-    if (!query) return ADDRESS_CANDIDATES;
-
-    return ADDRESS_CANDIDATES.filter((item) =>
-      [item.roadAddress, item.jibunAddress, item.postalCode].some((value) =>
-        value.toLowerCase().includes(query.toLowerCase()),
-      ),
-    );
-  }, [addressQuery]);
-
+  const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
   const isFormValid =
     ownerName.trim().length > 0 &&
     /^01\d{8,9}$/.test(phoneNumber) &&
     shopName.trim().length > 0 &&
     shopAddress.trim().length > 0;
-
-  const handleSelectAddress = (value: string) => {
-    setShopAddress(value);
-    setAddressSheetOpen(false);
-    setAddressQuery("");
-  };
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -225,7 +180,7 @@ export default function SocialSignupCompleteForm({
     }
 
     if (!/^01\d{8,9}$/.test(phoneNumber)) {
-      setMessage("휴대폰번호를 확인해 주세요.");
+      setMessage("휴대폰번호를 다시 확인해 주세요.");
       return;
     }
 
@@ -235,7 +190,7 @@ export default function SocialSignupCompleteForm({
     }
 
     if (!shopAddress.trim()) {
-      setMessage("매장 주소를 입력해 주세요.");
+      setMessage("매장 주소를 선택해 주세요.");
       return;
     }
 
@@ -250,7 +205,7 @@ export default function SocialSignupCompleteForm({
           ownerName: ownerName.trim(),
           phoneNumber,
           shopName: shopName.trim(),
-          shopAddress: shopAddress.trim(),
+          shopAddress: joinAddress(shopAddress, shopDetailAddress),
           agreements: AGREEMENTS,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),
@@ -275,32 +230,27 @@ export default function SocialSignupCompleteForm({
   return (
     <>
       <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
-        <div className="flex items-center justify-between">
+        <div className="space-y-5">
+          <MobileBackLinkButton href="/login" replace aria-label="로그인으로 돌아가기" />
+
           <div className="space-y-3">
-            <p className={PAGE_EYEBROW}>프로필 등록하기</p>
+            <p className={PAGE_EYEBROW}>{providerLabel} 회원가입</p>
             <div>
               <h1 className={PAGE_TITLE}>기본 정보를 입력해 주세요</h1>
-              <p className={cn(PAGE_DESCRIPTION, "mt-3")}>가입을 마무리하려면 아래 정보만 확인하면 돼요.</p>
+              <p className={cn(PAGE_DESCRIPTION, "mt-3")}>
+                소셜 로그인 후 매장 정보를 한 번만 입력하면 바로 시작할 수 있어요.
+              </p>
             </div>
           </div>
-
-          <Link
-            href="/login"
-            replace
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e3ded3] text-[#3b3834] transition hover:bg-[#faf7f2]"
-            aria-label="로그인으로 돌아가기"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
         </div>
 
-        <div className="mt-10 space-y-7">
+        <div className="mt-8 space-y-6">
           <div className="space-y-4">
             <FormField label="이름">
-              <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 또는 운영자 이름" />
+              <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" />
             </FormField>
 
-            <FormField label="휴대폰번호" hint="숫자만 입력해도 돼요">
+            <FormField label="휴대폰번호" hint="숫자만 입력해도 괜찮아요">
               <TextInput
                 value={formatPhone(phoneNumber)}
                 onChange={(value) => setPhoneNumber(normalizePhone(value))}
@@ -310,24 +260,38 @@ export default function SocialSignupCompleteForm({
             </FormField>
 
             <FormField label="매장명">
-              <TextInput value={shopName} onChange={setShopName} placeholder="예: 포근한 발바닥 미용실" />
+              <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />
             </FormField>
 
-            <FormField label="매장 주소" hint="검색 후 상세 주소를 이어서 적어도 돼요">
+            <FormField label="매장 주소" hint="주소 검색 후 상세 주소를 이어서 적어 주세요">
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => setAddressSheetOpen(true)}
-                  className="flex h-[48px] w-full items-center gap-2 rounded-[14px] border border-[#cfd4cd] bg-white px-4 text-left text-[15px] font-medium tracking-[-0.02em] text-[#111827] transition hover:border-[#1f6b5b]"
+                  className={cn(
+                    INPUT_BASE,
+                    "flex h-auto min-h-[48px] items-center justify-between gap-3 py-3 text-left",
+                  )}
                 >
-                  <Search className="h-4 w-4 text-[#1f6b5b]" />
-                  <span className={shopAddress ? "text-[#111827]" : "text-[#b0b7bf]"}>
-                    {shopAddress || "주소를 검색하거나 선택해 주세요"}
-                  </span>
+                  <div className="min-w-0">
+                    <span className={shopAddress ? "block truncate text-[#111827]" : "block truncate text-[#b0b7bf]"}>
+                      {shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
+                    </span>
+                    {shopPostalCode ? (
+                      <span className="mt-1 block text-[12px] font-medium text-[#8a8176]">
+                        우편번호 {shopPostalCode}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 text-[13px] font-semibold text-[#1f6b5b]">주소 검색</span>
                 </button>
 
-                <TextInput value={shopAddress} onChange={setShopAddress} placeholder="상세 주소를 직접 입력해도 괜찮아요" />
-                <p className={INLINE_HELP}>건물명이나 층수처럼 상세 정보가 있으면 이어서 입력해 주세요.</p>
+                <TextInput
+                  value={shopDetailAddress}
+                  onChange={setShopDetailAddress}
+                  placeholder="상세 주소를 입력해 주세요"
+                />
+                <p className={INLINE_HELP}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
               </div>
             </FormField>
           </div>
@@ -335,73 +299,24 @@ export default function SocialSignupCompleteForm({
           {message ? <p className={INLINE_ERROR}>{message}</p> : null}
 
           <button type="button" onClick={handleSubmit} disabled={loading || !isFormValid} className={BUTTON_PRIMARY}>
-            <span>{loading ? "저장 중.." : "무료체험 시작하기"}</span>
+            <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="ml-1 h-4 w-4" /> : null}
           </button>
         </div>
       </div>
 
       {addressSheetOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/35" onClick={() => setAddressSheetOpen(false)}>
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div
-              className="w-full rounded-t-[26px] bg-white px-5 pb-5 pt-4 shadow-[0_-18px_50px_rgba(15,23,42,0.12)]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
-
-              <div className="mt-5 flex items-start justify-between gap-4">
-                <div>
-                  <p className={PAGE_EYEBROW}>주소 검색</p>
-                  <h2 className="mt-2 text-[22px] font-extrabold tracking-[-0.05em] text-[#111827]">매장 주소를 선택해 주세요</h2>
-                  <p className={cn(PAGE_DESCRIPTION, "mt-2")}>도로명, 지번, 우편번호로 검색해서 가장 가까운 주소를 선택할 수 있어요.</p>
-                </div>
-                <button type="button" onClick={() => setAddressSheetOpen(false)} className={cn(BUTTON_SECONDARY, "h-10 w-auto px-4")}>
-                  닫기
-                </button>
-              </div>
-
-              <div className="mt-4">
-                <TextInput value={addressQuery} onChange={setAddressQuery} placeholder="예: 강남구 테헤란로" />
-              </div>
-
-              <div className="mt-4 max-h-[45vh] space-y-2 overflow-y-auto pr-1">
-                {filteredAddresses.length ? (
-                  filteredAddresses.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleSelectAddress(item.roadAddress)}
-                      className="w-full rounded-[14px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-3 text-left transition hover:border-[#1f6b5b] hover:bg-white"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-[#e9f4ef] px-2 py-1 text-[11px] font-semibold text-[#1f6b5b]">도로명</span>
-                        <span className="text-[11px] font-medium text-[#8a8f98]">{item.postalCode}</span>
-                      </div>
-                      <p className="mt-1.5 text-[14px] font-semibold tracking-[-0.02em] text-[#111827]">{item.roadAddress}</p>
-                      <p className="mt-1 text-[12px] leading-5 text-[#7b828c]">{item.jibunAddress}</p>
-                    </button>
-                  ))
-                ) : (
-                  <div className="rounded-[16px] border border-dashed border-[#d9ddd8] bg-[#fafaf8] px-4 py-4">
-                    <p className="text-[14px] font-medium text-[#667085]">검색 결과가 없어요.</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#8a8f98]">
-                      검색어를 바꾸거나 현재 입력한 주소를 그대로 사용할 수 있어요.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAddress(addressQuery.trim())}
-                      disabled={!addressQuery.trim()}
-                      className={cn(BUTTON_PRIMARY, "mt-4 h-10")}
-                    >
-                      현재 입력한 주소 사용
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <KakaoPostcodeSheet
+          title="매장 주소 검색"
+          description="도로명, 건물명, 지번으로 검색한 뒤 매장 주소를 선택해 주세요."
+          initialQuery={shopAddress}
+          onClose={() => setAddressSheetOpen(false)}
+          onSelect={(selection) => {
+            setShopAddress(selection.address);
+            setShopPostalCode(selection.zonecode);
+            setAddressSheetOpen(false);
+          }}
+        />
       ) : null}
     </>
   );

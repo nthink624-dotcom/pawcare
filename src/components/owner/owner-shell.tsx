@@ -72,25 +72,25 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
 
   return (
     <div className="owner-font mx-auto w-full max-w-[430px] px-4 pt-4">
-      <div className="rounded-[22px] border border-[#cfe0da] bg-[#eef8f3] px-4 py-4">
+      <div className="rounded-[10px] border border-[#cfe0da] bg-[#eef8f3] px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 pr-1">
-            <p className="text-[19px] font-extrabold tracking-[-0.03em] text-[#173b33]">{title}</p>
-            <p className="mt-2 text-[14px] leading-[1.65] text-[#46645c]">{body}</p>
-            <p className="mt-3 text-[12px] leading-5 text-[#6d746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
+            <p className="text-[17px] font-semibold tracking-[-0.03em] text-[#173b33]">{title}</p>
+            <p className="mt-1.5 text-[13px] leading-6 text-[#46645c]">{body}</p>
+            <p className="mt-2 text-[12px] leading-5 text-[#6d746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
           </div>
           <button
             type="button"
             onClick={handleDismiss}
             aria-label="체험 플랜 안내 닫기"
-            className="shrink-0 rounded-full border border-[#d2dfd9] bg-white p-2.5 text-[#587169] shadow-[0_1px_2px_rgba(23,59,51,0.06)]"
+            className="shrink-0 rounded-[10px] border border-[#d2dfd9] bg-white p-2 text-[#587169] shadow-[0_1px_2px_rgba(23,59,51,0.06)]"
           >
             <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
         <a
           href="/owner/billing"
-          className="mt-5 flex h-[54px] w-full items-center justify-center rounded-[16px] bg-[#1f5b51] px-4 text-[17px] font-bold tracking-[-0.02em] text-white"
+          className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[15px] font-medium tracking-[-0.02em] text-white"
         >
           업그레이드 플랜
         </a>
@@ -110,31 +110,31 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
 
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">
-      <div className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-5 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
+      <div className="rounded-[10px] border border-[#dfd8cc] bg-[#fffdf8] px-4 py-4 shadow-[0_10px_24px_rgba(41,41,38,0.05)]">
         <div className="space-y-4">
           <div>
             <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">이용 재개 안내</p>
-            <h1 className="mt-2 text-[29px] font-extrabold tracking-[-0.04em] text-[#173b33]">{title}</h1>
-            <p className="mt-3 max-w-[330px] text-[15px] leading-[1.5] tracking-[-0.02em] text-[#615d56]">{body}</p>
+            <h1 className="mt-2 text-[23px] font-semibold tracking-[-0.04em] text-[#173b33]">{title}</h1>
+            <p className="mt-2.5 max-w-[330px] text-[14px] leading-6 tracking-[-0.02em] text-[#615d56]">{body}</p>
           </div>
 
-          <div className="rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
-            <p className="text-[17px] font-semibold text-[#111111]">이용 상태 요약</p>
-            <div className="mt-3 space-y-3">
+          <div className="rounded-[10px] border border-[#d9d2c7] bg-white px-4 py-3.5">
+            <p className="text-[16px] font-medium text-[#111111]">이용 상태 요약</p>
+            <div className="mt-2.5 space-y-2.5">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-[15px] font-medium text-[#7a736b]">서비스 종료일</p>
-                <p className="text-[15px] font-semibold text-[#173b33]">{formatServiceEndDate(summary)}</p>
+                <p className="text-[14px] font-medium text-[#7a736b]">서비스 종료일</p>
+                <p className="text-[14px] font-medium text-[#173b33]">{formatServiceEndDate(summary)}</p>
               </div>
-              <div className="flex items-start justify-between gap-4 border-t border-[#eee7dc] pt-3">
-                <p className="text-[15px] font-medium text-[#7a736b]">마지막 이용 플랜</p>
-                <p className="text-[15px] font-semibold text-[#173b33]">{getCurrentPlanLabel(summary)}</p>
+              <div className="flex items-start justify-between gap-4 border-t border-[#eee7dc] pt-2.5">
+                <p className="text-[14px] font-medium text-[#7a736b]">마지막 이용 플랜</p>
+                <p className="text-[14px] font-medium text-[#173b33]">{getCurrentPlanLabel(summary)}</p>
               </div>
-              <div className="border-t border-[#eee7dc] pt-3">
+              <div className="border-t border-[#eee7dc] pt-2.5">
                 <div className="flex items-start justify-between gap-4">
-                  <p className="text-[15px] font-medium text-[#7a736b]">데이터 보관 상태</p>
-                  <p className="text-[15px] font-semibold text-[#173b33]">정상 보관 중</p>
+                  <p className="text-[14px] font-medium text-[#7a736b]">데이터 보관 상태</p>
+                  <p className="text-[14px] font-medium text-[#173b33]">정상 보관 중</p>
                 </div>
-                <p className="mt-2 text-[14px] leading-6 text-[#5f5a54]">기존 고객·예약·이용 기록은 그대로 유지되며, 결제 후 바로 이어서 사용할 수 있습니다.</p>
+                <p className="mt-1.5 text-[13px] leading-5 text-[#5f5a54]">기존 고객·예약·이용 기록은 그대로 유지되며, 결제 후 바로 이어서 사용할 수 있습니다.</p>
               </div>
             </div>
           </div>
@@ -143,7 +143,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
         <div className="mt-5 grid gap-2">
           <a
             href={`/owner/billing?compare=1&plan=${resumePlanCode}`}
-            className="flex h-[54px] items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(31,91,81,0.12)]"
+            className="flex h-[48px] items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[15px] font-medium text-white shadow-[0_10px_20px_rgba(31,91,81,0.12)]"
           >
             기간 연장하기
           </a>
@@ -152,7 +152,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
         <div className="mt-3">
           <a
             href={supportHref}
-            className="flex h-[52px] items-center justify-center rounded-[16px] border border-[#e3ddd3] bg-white px-4 text-[15px] font-semibold text-[#6b655d]"
+            className="flex h-[46px] items-center justify-center rounded-[10px] border border-[#e3ddd3] bg-white px-4 text-[15px] font-medium text-[#6b655d]"
           >
             문의하기
           </a>
@@ -260,8 +260,10 @@ export default function OwnerShell({
 
   if (redirectingToBilling) {
     return (
-      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 py-10 text-sm text-[#6f6f6f]">
-        결제 화면으로 이동하고 있습니다.
+      <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
+        <div className="rounded-[10px] border border-[#e3ddd3] bg-white px-4 py-4 text-[14px] leading-6 text-[#6f665f]">
+          결제 화면으로 이동하고 있습니다.
+        </div>
       </div>
     );
   }

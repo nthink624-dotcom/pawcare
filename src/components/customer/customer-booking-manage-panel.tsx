@@ -4,6 +4,7 @@ import { addDays, format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
 
+import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
@@ -324,8 +325,8 @@ export default function CustomerBookingManagePanel({
   return (
     <>
       <section className="rounded-[28px] bg-white p-4 shadow-sm">
-        <button type="button" onClick={onBack} className="text-sm font-bold text-[var(--muted)]">{"← 처음 화면으로"}</button>
-        <h2 className="mt-3 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
+        <MobileBackButton onClick={onBack} label="처음 화면으로" />
+        <h2 className="mt-4 text-lg font-extrabold">{"예약 확인 / 취소 / 변경"}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{"보호자 이름, 연락처, 반려동물 이름으로 예약을 확인하고 가능한 건은 직접 취소하거나 시간 변경을 요청할 수 있어요."}</p>
       </section>
 

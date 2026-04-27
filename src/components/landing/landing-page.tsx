@@ -4,8 +4,9 @@ import Link from "next/link";
 
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import { billableOwnerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { getSupabaseRuntimeStage } from "@/lib/env";
 import type { Service, Shop } from "@/types/domain";
-import { X } from "lucide-react";
+import { CalendarDays, ChevronRight, Search, Settings2, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
@@ -21,9 +22,9 @@ const TERTIARY_BUTTON =
   "flex h-[54px] items-center justify-center rounded-[18px] border border-[#d6d0c5] bg-white px-4 text-[16px] font-semibold text-[#1f5b51]";
 
 const heroMetrics = [
-  { label: "한곳에 관리", value: "모든 예약" },
-  { label: "매출로 연결", value: "재방문 관리" },
-  { label: "더 편하게", value: "고객 예약" },
+  { label: "홈", value: "오늘 예약 한눈에" },
+  { label: "예약조회", value: "날짜별 확인" },
+  { label: "고객관리", value: "검색·상세·삭제" },
 ] as const;
 
 function formatWon(value: number) {
@@ -32,31 +33,50 @@ function formatWon(value: number) {
 
 export default function LandingPage({ shop }: { shop: Shop; services: Service[] }) {
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const canShowDemoLinks = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f4efe7] text-[#18211f]">
       <section className="px-5 pb-10 pt-5">
-        <HeroSection shopId={shop.id} onOpenPlans={() => setPlanModalOpen(true)} />
+        <HeroSection
+          shopId={shop.id}
+          onOpenPlans={() => setPlanModalOpen(true)}
+          canShowDemoLinks={canShowDemoLinks}
+        />
 
         <section className={`${SURFACE} mt-6 p-4`}>
           <div className="space-y-6">
             <IntegratedPreview
-              title="예약 현황을 한눈에 보는 홈 화면"
-              body="오늘 예약 흐름을 빠르게 확인합니다."
+              title="오늘 예약 흐름을 빠르게 확인하는 홈 화면"
+              body="승인 대기, 예약 현황, 완료 내역, 취소·변경을 한 번에 보고 바로 움직입니다."
             >
               <OwnerHomeMock />
             </IntegratedPreview>
 
             <IntegratedPreview
-              title="고객과 반려동물 정보를 한 흐름으로 관리하는 화면"
-              body="방문 기록부터 재방문 안내까지 이어집니다."
+              title="날짜별 예약과 완료·변경 내역을 나눠 보는 예약조회 화면"
+              body="날짜선택 한 번으로 예약, 완료 내역, 취소·변경 내역을 깔끔하게 확인합니다."
+            >
+              <OwnerBookingLookupMock />
+            </IntegratedPreview>
+
+            <IntegratedPreview
+              title="검색 중심으로 정리한 고객관리 화면"
+              body="고객 찾기, 상세 보기, 삭제 선택 모드를 섞지 않고 더 단순하게 정리했습니다."
             >
               <OwnerCustomerMock />
             </IntegratedPreview>
 
             <IntegratedPreview
-              title="고객이 첫 방문과 재방문을 쉽게 고르는 모바일 화면"
-              body="예약 시작이 더 간단해져 망설임 없이 이어집니다."
+              title="매장명, 연락처, 주소를 바로 고치는 설정 화면"
+              body="매장 기본정보와 운영 정보를 같은 톤으로 차분하게 관리합니다."
+            >
+              <OwnerSettingsMock />
+            </IntegratedPreview>
+
+            <IntegratedPreview
+              title="첫 방문과 재방문, 예약 확인까지 이어지는 고객 예약 화면"
+              body="고객은 모바일에서 예약 시작부터 예약 확인까지 같은 흐름으로 이어집니다."
             >
               <ConsumerBookingMock />
             </IntegratedPreview>
@@ -73,21 +93,29 @@ export default function LandingPage({ shop }: { shop: Shop; services: Service[] 
   );
 }
 
-function HeroSection({ shopId: _shopId, onOpenPlans }: { shopId: string; onOpenPlans: () => void }) {
+function HeroSection({
+  shopId: _shopId,
+  onOpenPlans,
+  canShowDemoLinks,
+}: {
+  shopId: string;
+  onOpenPlans: () => void;
+  canShowDemoLinks: boolean;
+}) {
   return (
     <section className="rounded-[32px] bg-[#1f5b51] px-5 pb-5 pt-5 text-white shadow-[0_18px_38px_rgba(24,33,31,0.12)]">
       <div className="inline-flex items-center rounded-full border border-white/18 bg-white/8 px-3 py-1 text-[12px] font-semibold tracking-[0.02em] text-white/90">
         펫매니저
       </div>
       <h1 className="mt-4 text-[32px] font-extrabold leading-[1.1] tracking-[-0.05em] text-white">
-        모든 예약은 한곳에,
+        홈부터 설정까지,
         <br />
-        고객 관리는 매출로
+        오너 업무를 한 흐름으로
       </h1>
       <p className="mt-4 text-[15px] leading-6 text-white/80">
-        업무는 더 빠르게, 고객 예약은 더 편하게.
+        홈, 예약조회, 고객관리, 설정을 모바일에 맞게 정리했습니다.
         <br />
-        재방문까지 자연스럽게 이어집니다.
+        고객 예약 페이지와도 자연스럽게 이어집니다.
       </p>
 
       <div className="mt-5 grid grid-cols-3 gap-2.5">
@@ -97,15 +125,24 @@ function HeroSection({ shopId: _shopId, onOpenPlans }: { shopId: string; onOpenP
       </div>
 
       <div className="mt-5 grid gap-2.5">
-        <Link href="/demo/owner" className={PRIMARY_BUTTON}>
-          오너 화면 데모 보기
-        </Link>
-        <Link href="/demo/book" className={SECONDARY_BUTTON}>
-          소비자 예약 데모 보기
-        </Link>
+        {canShowDemoLinks ? (
+          <Link href="/demo/owner" className={PRIMARY_BUTTON}>
+            오너 페이지 미리보기
+          </Link>
+        ) : null}
+        {canShowDemoLinks ? (
+          <Link href="/demo/book" className={SECONDARY_BUTTON}>
+            고객 예약 페이지 미리보기
+          </Link>
+        ) : null}
         <Link href="/login?next=%2Fowner" replace className={TERTIARY_BUTTON}>
           무료체험 시작하기
         </Link>
+        {canShowDemoLinks ? (
+          <p className="text-center text-[12px] leading-5 text-white/70">
+            미리보기 예약은 테스트 전용이며 실제 오너 페이지와는 분리됩니다.
+          </p>
+        ) : null}
       </div>
     </section>
   );
@@ -244,13 +281,93 @@ function OwnerHomeMock() {
         <div>
           <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">홈</p>
         </div>
-        <div className="rounded-[14px] bg-[#1e5d51] px-4 py-2 text-[12px] font-semibold text-white">예약 추가</div>
+        <div className="rounded-[12px] border border-[#d8e7e0] bg-[#f4faf7] px-3 py-1.5 text-[12px] font-medium text-[#1e5d51]">오늘 예약 관리</div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
         <MiniStat title="승인 대기" value="3건" tone="warning" />
         <MiniStat title="예약 현황" value="6건" tone="accent" />
         <MiniStat title="완료 내역" value="8건" tone="neutral" />
         <MiniStat title="취소·변경" value="1건" tone="danger" />
+      </div>
+      <div className="mt-3 rounded-[12px] border border-[#e6e0d6] bg-[#fcfaf7] px-3.5 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#18211f]">오늘 예약 관리</p>
+          <span className="text-[13px] font-medium text-[#6d665d]">1건</span>
+        </div>
+        <div className="mt-2.5 rounded-[10px] border border-[#e6dfd5] bg-white px-3.5 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-medium tracking-[-0.02em] text-[#18211f]">몽이</p>
+              <p className="mt-1 text-[12px] leading-5 text-[#6d665d]">11:00 · 목욕 + 부분정리 · 80분</p>
+            </div>
+            <span className="rounded-full border border-[#cfe3db] bg-[#eef8f3] px-2.5 py-1 text-[11px] font-medium text-[#1e5d51]">
+              확정
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerBookingLookupMock() {
+  return (
+    <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">예약조회</p>
+        <div className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e2ddd5] bg-[#fcfaf7] text-[#1e5d51]">
+          <CalendarDays className="h-4 w-4" />
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        {[
+          { day: "오늘", date: "25", active: true },
+          { day: "일", date: "26", active: false },
+          { day: "월", date: "27", active: false },
+        ].map((item) => (
+          <div
+            key={item.date}
+            className={`flex h-[58px] w-[58px] flex-col items-center justify-center rounded-[10px] border text-center ${
+              item.active
+                ? "border-[#1e5d51] bg-[#1e5d51] text-white"
+                : "border-[#e2ddd5] bg-white text-[#6d665d]"
+            }`}
+          >
+            <p className="text-[11px] font-medium">{item.day}</p>
+            <p className="mt-1 text-[18px] font-semibold leading-none">{item.date}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 space-y-2.5">
+        <div className="rounded-[10px] border border-[#e6dfd5] bg-[#fcfaf7] px-3.5 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#18211f]">예약</p>
+            <span className="text-[13px] font-medium text-[#6d665d]">1건</span>
+          </div>
+          <div className="mt-2 rounded-[10px] border border-[#e6dfd5] bg-white px-3.5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[14px] font-medium tracking-[-0.02em] text-[#18211f]">몽이 (김민지)</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#6d665d]">11:00 · 목욕 + 부분정리 · 80분</p>
+              </div>
+              <span className="rounded-full border border-[#cfe3db] bg-[#eef8f3] px-2.5 py-1 text-[11px] font-medium text-[#1e5d51]">
+                확정
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-[10px] border border-[#e6dfd5] bg-[#fcfaf7] px-3.5 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#18211f]">완료 내역</p>
+            <span className="text-[13px] font-medium text-[#6d665d]">0건</span>
+          </div>
+        </div>
+        <div className="rounded-[10px] border border-[#e6dfd5] bg-[#fcfaf7] px-3.5 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#18211f]">취소·변경 내역</p>
+            <span className="text-[13px] font-medium text-[#6d665d]">0건</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -259,84 +376,65 @@ function OwnerHomeMock() {
 function OwnerCustomerMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">고객 관리</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#716960]">고객정보와 반려동물 정보를 한 흐름으로 봅니다</p>
+      <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-[#e2ddd5] bg-[#fcfaf7] px-3 py-2.5">
+          <Search className="h-4 w-4 shrink-0 text-[#8c857c]" />
+          <p className="truncate text-[12px] text-[#726960]">보호자명, 연락처, 반려동물 이름 검색</p>
         </div>
-        <span className="text-[12px] font-semibold text-[#1e5d51]">편집</span>
+        <div className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#e2ddd5] bg-[#fcfaf7] text-[#8c857c]">
+          <Trash2 className="h-4 w-4" />
+        </div>
       </div>
-      <div className="mt-4 space-y-3">
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3.5">
-          <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#18211f]">김민지 보호자</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-            <p className="text-[12px] font-medium leading-4 text-[#7a7268]">보호자명</p>
-            <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">김민지</p>
-          </div>
-          <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-            <p className="text-[12px] font-medium leading-4 text-[#7a7268]">연락처</p>
-            <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">010-1234-5678</p>
-          </div>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-medium leading-4 text-[#7a7268]">반려동물 이름</p>
-          <p className="mt-1.5 text-[17px] font-semibold leading-5 tracking-[-0.02em] text-[#18211f]">몽이, 차이</p>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-[12px] font-medium leading-4 text-[#7a7268]">고객 메모</p>
-          <p className="mt-1.5 text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[#18211f]">문 앞 픽업 선호</p>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <p className="text-sm font-bold text-[#18211f]">빠른 액션</p>
-          <div className="mt-2.5 grid grid-cols-2 gap-2">
-            <div className="flex items-center justify-center rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3 text-sm font-semibold text-[#18211f]">
-              전화하기
-            </div>
-            <div className="flex items-center justify-center rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3 text-sm font-semibold text-[#6d665d]">
-              문자 보내기
-            </div>
-          </div>
-        </div>
-        <div className="mt-1 flex gap-2">
-          <div className="flex-1 rounded-[14px] border border-[#1e5d51] bg-[#1e5d51] px-3 py-2.5 text-center text-xs font-semibold text-white">
-            반려동물
-          </div>
-          <div className="flex-1 rounded-[14px] border border-[#e2ddd5] bg-white px-3 py-2.5 text-center text-xs font-semibold text-[#7a7268]">
-            기록
-          </div>
-          <div className="flex-1 rounded-[14px] border border-[#e2ddd5] bg-white px-3 py-2.5 text-center text-xs font-semibold text-[#7a7268]">
-            예약
-          </div>
-        </div>
-        <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-bold text-[#18211f]">아기 정보</p>
-            <span className="text-[12px] font-semibold text-[#1e5d51]">+ 아기 추가하기</span>
-          </div>
-          <div className="mt-3 rounded-[14px] border border-[#e2ddd5] bg-white px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[#18211f]">몽이</p>
-                <p className="mt-1 text-xs text-[#7a7268]">말티즈 · 생일 미등록</p>
+      <div className="mt-3 space-y-2.5">
+        {[
+          { name: "김민지", phone: "010-1234-5678", pets: "몽이, 차이" },
+          { name: "박서준", phone: "010-9876-5432", pets: "코코" },
+        ].map((customer) => (
+          <div key={customer.name} className="rounded-[10px] border border-[#e2ddd5] bg-white px-3.5 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-medium tracking-[-0.02em] text-[#18211f]">{customer.name}</p>
               </div>
-              <span className="rounded-full border border-[#e2ddd5] bg-[#fffdfa] px-2.5 py-1 text-[11px] font-semibold text-[#7a7268]">
-                상세 연결
-              </span>
+              <div className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#e7e0d6] bg-[#fcfaf7] text-[#8c857c]">
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 border-t border-[#ede6dc] pt-2.5">
+              <p className="text-[13px] text-[#645d56]">{customer.phone}</p>
+              <p className="mt-1 text-[13px] text-[#645d56]">{customer.pets}</p>
             </div>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
+
+function OwnerSettingsMock() {
+  return (
+    <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#18211f]">설정</p>
+        <div className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e2ddd5] bg-[#fcfaf7] text-[#1e5d51]">
+          <Settings2 className="h-4 w-4" />
+        </div>
+      </div>
+      <div className="mt-3 space-y-2.5">
+        <MockFieldCard label="매장명" value="오모리오" />
+        <MockFieldCard label="매장 연락처" value="010-8989-8498" />
+        <MockFieldCard label="매장 주소" value="충청남도 천안시 동남구 청수8로 72" />
+        <MockFieldCard label="매장 소개" value="소형견 중심의 1인 미용샵 운영을 돕는 예약 관리 앱" multiline />
+      </div>
+    </div>
+  );
+}
+
 function ConsumerBookingMock() {
   return (
     <div className="rounded-[18px] border border-[#e2ddd5] bg-white p-4 shadow-[0_10px_18px_rgba(24,33,31,0.05)]">
       <div className="rounded-[18px] bg-[#1e5d51] px-4 py-4 text-white">
         <p className="text-[12px] font-semibold tracking-[0.08em] text-white/76">예약 시작</p>
-        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">예약 화면</p>
+        <p className="mt-2 text-[22px] font-extrabold tracking-[-0.04em]">고객 예약 페이지</p>
       </div>
       <div className="mt-3 space-y-2.5">
         <div className="rounded-[16px] border border-[#e8e0d4] bg-[#fcfaf7] px-4 py-4">
@@ -352,6 +450,15 @@ function ConsumerBookingMock() {
           <p className="mt-1 text-[13px] leading-5 text-[#6d665d]">기존 예약도 같은 화면에서 바로 확인할 수 있어요.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MockFieldCard({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
+  return (
+    <div className="rounded-[10px] border border-[#e2ddd5] bg-[#fcfaf7] px-3.5 py-3">
+      <p className="text-[11px] font-medium text-[#7a7268]">{label}</p>
+      <p className={`mt-1.5 text-[14px] tracking-[-0.02em] text-[#18211f] ${multiline ? "leading-6" : "leading-5"}`}>{value}</p>
     </div>
   );
 }

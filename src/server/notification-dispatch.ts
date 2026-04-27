@@ -158,7 +158,7 @@ function hasExistingNotification(
 }
 
 export async function dispatchNotification(input: DispatchNotificationInput): Promise<DispatchNotificationResult> {
-  const bootstrap = await getBootstrap(input.shopId, false);
+  const bootstrap = await getBootstrap(input.shopId);
   const appointment =
     input.appointmentId ? bootstrap.appointments.find((item) => item.id === input.appointmentId) ?? null : null;
   const guardian =
@@ -389,7 +389,7 @@ export async function runScheduledNotificationDispatch() {
   let almostDoneQueued = 0;
 
   for (const shop of shopsResult.data ?? []) {
-    const bootstrap = await getBootstrap(shop.id, false);
+    const bootstrap = await getBootstrap(shop.id);
 
     for (const appointment of bootstrap.appointments) {
       const startTime = new Date(appointment.start_at).getTime();

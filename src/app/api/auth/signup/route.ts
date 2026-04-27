@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import {
   buildOwnerAuthEmail,
   isValidBirthDate8,
@@ -11,12 +12,12 @@ import {
   normalizeOwnerLoginId,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
-import { readVerifiedIdentityToken } from "@/lib/auth/owner-identity";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { nowIso } from "@/lib/utils";
+import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
 
 const schema = z.object({
   loginId: z.string().min(1),
@@ -27,6 +28,7 @@ const schema = z.object({
   phoneNumber: z.string().min(10).max(11),
   identityVerificationToken: z.string().min(1),
   shopName: z.string().min(1),
+  shopPhone: z.string().min(10).max(11),
   shopAddress: z.string().min(1),
   agreements: z.object({
     service: z.boolean(),
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
     const payload = schema.parse({
       ...body,
       phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
+      shopPhone: normalizePhoneNumber(body?.shopPhone ?? ""),
     });
 
     const loginId = normalizeOwnerLoginId(payload.loginId);
@@ -82,21 +85,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "휴대폰 번호를 올바르게 입력해 주세요." }, { status: 400 });
     }
 
+    if (!isValidPhoneNumber(payload.shopPhone)) {
+      return NextResponse.json({ message: "매장 연락처를 올바르게 입력해 주세요." }, { status: 400 });
+    }
+
     if (!payload.agreements.service || !payload.agreements.privacy) {
       return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
     }
 
-    const verifiedIdentity = readVerifiedIdentityToken(payload.identityVerificationToken);
+    const verifiedIdentity = await getVerifiedIdentityForToken({
+      verificationToken: payload.identityVerificationToken,
+      purpose: "signup",
+      expectedName: payload.name,
+      expectedBirthDate: payload.birthDate,
+      expectedPhoneNumber: payload.phoneNumber,
+    });
     if (!verifiedIdentity) {
       return NextResponse.json({ message: "본인인증이 완료되지 않았습니다." }, { status: 400 });
-    }
-
-    if (
-      verifiedIdentity.name !== payload.name.trim() ||
-      verifiedIdentity.birthDate !== payload.birthDate ||
-      verifiedIdentity.phoneNumber !== payload.phoneNumber
-    ) {
-      return NextResponse.json({ message: "본인인증 정보와 입력한 정보가 일치하지 않습니다." }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -107,6 +112,16 @@ export async function POST(request: NextRequest) {
     const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", loginId).maybeSingle();
     if (duplicate.data?.login_id) {
       return NextResponse.json({ message: "이미 사용 중인 아이디입니다." }, { status: 409 });
+    }
+
+    const consumed = await consumeVerifiedIdentity({
+      verificationId: verifiedIdentity.id,
+      tokenId: verifiedIdentity.tokenId,
+      action: "signup",
+    });
+
+    if (!consumed) {
+      return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
     }
 
     const authEmail = buildOwnerAuthEmail(loginId);
@@ -148,7 +163,7 @@ export async function POST(request: NextRequest) {
       id: shopId,
       owner_user_id: user.id,
       name: payload.shopName,
-      phone: payload.phoneNumber,
+      phone: payload.shopPhone,
       address: payload.shopAddress,
       description: "",
       business_hours: {},
@@ -178,6 +193,8 @@ export async function POST(request: NextRequest) {
       name: payload.name.trim(),
       birth_date: payload.birthDate,
       phone_number: payload.phoneNumber,
+      ci_hash: verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null,
+      di_hash: verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null,
       identity_verified_at: now,
       agreements: agreementPayload,
       created_at: now,

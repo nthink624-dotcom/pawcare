@@ -143,6 +143,22 @@ function getFirstVisitDraftStorageKey(shopId: string) {
   return `${FIRST_VISIT_DRAFT_STORAGE_KEY_PREFIX}${shopId}`;
 }
 
+function formatBookingPhoneNumber(value: string) {
+  const digits = phoneNormalize(value).slice(0, 11);
+  if (!digits) return "";
+
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
+
 function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId: string): FirstVisitState {
   return {
     ...initialFirstVisitState,
@@ -314,7 +330,7 @@ export default function CustomerBookingPage({
           ...initialFirstVisitState,
           ...draft,
           ownerName: draft.ownerName ?? "",
-          phone: draft.phone ? phoneNormalize(draft.phone) : "",
+          phone: draft.phone ? formatBookingPhoneNumber(draft.phone) : "",
           petName: draft.petName ?? "",
           extraPets: Array.isArray(draft.extraPets)
             ? draft.extraPets.map((pet, index) => ({
@@ -457,7 +473,7 @@ export default function CustomerBookingPage({
       const bookingPayload = {
         shopId,
         guardianName: firstVisit.ownerName,
-        phone: firstVisit.phone,
+        phone: phoneNormalize(firstVisit.phone),
         petName: firstVisit.petName,
         breed: firstVisit.breed,
         extraPets: firstVisit.extraPets
@@ -506,7 +522,7 @@ export default function CustomerBookingPage({
       setReturningError(null);
       const query = new URLSearchParams({
         shopId,
-        phone: returningVisit.phone,
+        phone: phoneNormalize(returningVisit.phone),
         guardianName: returningVisit.guardianName,
         petName: returningVisit.petName,
       });
@@ -549,7 +565,7 @@ export default function CustomerBookingPage({
 
       setReturningHistory({
         guardianName: guardian.name,
-        phone: returningVisit.phone,
+        phone: formatBookingPhoneNumber(returningVisit.phone),
         petName: latestPet.pet.name,
         lastServiceId,
         lastServiceLabel: services.find((service) => service.id === lastServiceId)?.name || "지난 서비스 정보 없음",
@@ -581,7 +597,7 @@ export default function CustomerBookingPage({
       const bookingPayload = {
         shopId,
         guardianName: returningHistory.guardianName,
-        phone: returningHistory.phone,
+        phone: phoneNormalize(returningHistory.phone),
         petName: returningHistory.petName,
         breed: "",
         serviceId: returningVisit.serviceId,
@@ -642,7 +658,7 @@ export default function CustomerBookingPage({
 
               {firstVisitStep === 1 ? (
                 <StepSection title="">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <BookingFieldCard label="보호자 이름">
                       <BookingTextInput
                         value={firstVisit.ownerName}
@@ -658,7 +674,7 @@ export default function CustomerBookingPage({
                     <BookingFieldCard label="연락처">
                       <BookingTextInput
                         value={firstVisit.phone}
-                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))}
+                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(event.target.value) }))}
                       />
                     </BookingFieldCard>
 
@@ -695,7 +711,9 @@ export default function CustomerBookingPage({
                       </div>
                     ))}
 
+                    <div className="pt-1.5">
                     <AddPetButton
+                      disabled={!firstVisit.petName.trim()}
                       onClick={() =>
                         setFirstVisit((prev) => ({
                           ...prev,
@@ -703,6 +721,7 @@ export default function CustomerBookingPage({
                         }))
                       }
                     />
+                    </div>
                   </div>
                 </StepSection>
               ) : null}
@@ -798,7 +817,7 @@ export default function CustomerBookingPage({
                 <BookingFieldCard label="연락처">
                   <BookingTextInput
                     value={returningVisit.phone}
-                    onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: phoneNormalize(event.target.value) }))}
+                    onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(event.target.value) }))}
                   />
                 </BookingFieldCard>
                 <BookingFieldCard label="반려동물 이름">

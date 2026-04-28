@@ -481,8 +481,14 @@ export default function OwnerApp({
     });
   }, [visitCalendarMonthStart]);
   const selectedGuardian = selectedGuardianId ? guardianMap[selectedGuardianId] : null;
-  const selectedGuardianSummary = selectedGuardian ? customerSummaries.find((summary) => summary.guardian.id === selectedGuardian.id) ?? null : null;
-  const selectedGuardianPets = selectedGuardian ? data.pets.filter((item) => item.guardian_id === selectedGuardian.id) : [];
+  const selectedGuardianSummary = useMemo(
+    () => (selectedGuardian ? customerSummaries.find((summary) => summary.guardian.id === selectedGuardian.id) ?? null : null),
+    [customerSummaries, selectedGuardian],
+  );
+  const selectedGuardianPets = useMemo(
+    () => (selectedGuardian ? data.pets.filter((item) => item.guardian_id === selectedGuardian.id) : []),
+    [data.pets, selectedGuardian],
+  );
   const selectedCustomerPet = selectedCustomerPetId && selectedGuardianPets.some((pet) => pet.id === selectedCustomerPetId)
     ? petMap[selectedCustomerPetId]
     : selectedGuardianSummary?.latestPet ?? selectedGuardianPets[0] ?? null;
@@ -509,22 +515,7 @@ export default function OwnerApp({
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
-  const hasInvalidCustomerInlineInput = Boolean(
-    (editingCustomerFields.name && !guardianDraft.name.trim()) ||
-      (editingCustomerFields.phone && !guardianDraft.phone.trim()) ||
-      (editingCustomerFields.pet && !petDraftName.trim()),
-  );
   const canSavePetProfile = Boolean(selectedCustomerPet && petDraftName.trim() && petDraftName.trim() !== selectedCustomerPet.name);
-  const canSaveCustomerInlineChanges = Boolean(
-    selectedGuardian &&
-      ((editingCustomerFields.name || editingCustomerFields.phone || editingCustomerFields.memo) &&
-        guardianDraft.name.trim() &&
-        guardianDraft.phone.trim() &&
-        (guardianDraft.name.trim() !== selectedGuardian.name ||
-          guardianDraft.phone.trim() !== selectedGuardian.phone ||
-          guardianDraft.memo.trim() !== (selectedGuardian.memo || ""))) ||
-      (editingCustomerFields.pet && canSavePetProfile),
-  );
   const canSaveGuardianProfile = Boolean(
     selectedGuardian &&
       guardianDraft.name.trim() &&
@@ -951,10 +942,18 @@ export default function OwnerApp({
 
   function openCustomerFieldEditor(field: CustomerEditableField) {
     if (!selectedGuardian) return;
-    if (!editingCustomerFields.pet) {
-      setPetDraftName(selectedCustomerPet?.name ?? "");
-    }
-    setEditingCustomerFields((prev) => ({ ...prev, [field]: true }));
+    setGuardianDraft({
+      name: selectedGuardian.name,
+      phone: selectedGuardian.phone,
+      memo: selectedGuardian.memo || "",
+    });
+    setPetDraftName(selectedCustomerPet?.name ?? "");
+    setEditingCustomerFields({
+      name: field === "name",
+      phone: field === "phone",
+      pet: field === "pet",
+      memo: field === "memo",
+    });
     setIsGuardianEditing(field === "name" || field === "phone" || field === "pet");
     setIsGuardianMemoEditing(field === "memo");
   }
@@ -1283,7 +1282,7 @@ export default function OwnerApp({
     activeTab === "customers"
       ? "고객관리"
       : tabItems.find((item) => item.key === activeTab)?.label;
-  const bookingEntryUrl = `${ownerPageOrigin || ""}/book/${data.shop.id}`;
+  const bookingEntryUrl = `${ownerPageOrigin || ""}/entry/${data.shop.id}`;
   const isHomeTab = activeTab === "home";
   const customerEmptyTitle = customerSearch.trim() ? "검색 조건과 맞는 활성 고객이 없어요" : "등록된 고객이 아직 없어요";
   const customerEmptyDescription =
@@ -1297,10 +1296,11 @@ export default function OwnerApp({
   const selectedGuardianCount = selectedGuardianIds.length;
   const customerListActionLabel = isCustomerListEditing ? "닫기" : "고객 삭제";
   const selectedGuardianPetNames = selectedGuardianPets.map((pet) => pet.name).join(", ");
-  const headerAction =
-    activeTab === "customers" && selectedGuardian && isAnyCustomerFieldEditing
-      ? { label: "저장", onClick: () => void handleCustomerInlineSave(), disabled: saving || hasInvalidCustomerInlineInput }
-      : activeTab === "book"
+  const customerInlineSaveButtonClass =
+    "inline-flex items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45";
+  const customerInlineInputClass = "field-input min-w-0 flex-1 !pt-0 !pb-[2px] !pr-[78px]";
+  const headerAction: { label: string; onClick: () => void; disabled?: boolean } | null =
+    activeTab === "book"
       ? { label: "예약추가", onClick: () => setModal({ type: "new-appointment" }) }
       : activeTab === "customers" && !selectedGuardian
         ? { label: "고객추가", onClick: () => setModal({ type: "new-customer" }) }
@@ -1566,7 +1566,7 @@ export default function OwnerApp({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
-                            <p className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                            <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
                           </div>
                           <div className="mt-1 border-t border-[#eee7de] pt-1.5">
                             <p className="text-[12.5px] font-normal leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
@@ -1587,11 +1587,11 @@ export default function OwnerApp({
                         }}
                         aria-label={`${summary.guardian.name} 상세 보기`}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                            <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
                           </div>
-                          <span className="inline-flex h-6 w-6 shrink-0 -translate-y-1 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
                             <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
                           </span>
                         </div>
@@ -1678,18 +1678,29 @@ export default function OwnerApp({
               <h2 className="text-[18px] font-medium tracking-[-0.03em] text-[var(--text)]">고객 상세</h2>
             </div>
 
-            <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-2.5">
-              <div className="space-y-2">
-                <CustomerDetailFieldCard label="기본 정보" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-1">
+            <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-2">
+              <div className="space-y-1.5">
+                <CustomerDetailFieldCard label="기본 정보" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
                   <div className="divide-y divide-[var(--border)]">
                     {editingCustomerFields.name ? (
-                      <div className="px-3.5 py-3">
+                      <div className="px-3 py-1.5">
+                        <div className="relative">
                         <input
-                          className="field-input"
+                          className={customerInlineInputClass}
                           value={guardianDraft.name}
                           onChange={(event) => setGuardianDraft((prev) => ({ ...prev, name: event.target.value }))}
                           placeholder="보호자 이름"
+                          autoFocus
                         />
+                        <button
+                          type="button"
+                          disabled={saving || !guardianDraft.name.trim()}
+                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          onClick={() => void handleCustomerInlineSave()}
+                        >
+                          저장
+                        </button>
+                        </div>
                       </div>
                     ) : (
                       <CustomerDetailInfoRow
@@ -1699,29 +1710,51 @@ export default function OwnerApp({
                       />
                     )}
                     {editingCustomerFields.phone ? (
-                      <div className="px-3.5 py-3">
+                      <div className="px-3 py-1.5">
+                        <div className="relative">
                         <input
-                          className="field-input"
+                          className={customerInlineInputClass}
                           value={guardianDraft.phone}
                           onChange={(event) => setGuardianDraft((prev) => ({ ...prev, phone: event.target.value }))}
                           placeholder="연락처"
+                          autoFocus
                         />
+                        <button
+                          type="button"
+                          disabled={saving || !guardianDraft.phone.trim()}
+                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          onClick={() => void handleCustomerInlineSave()}
+                        >
+                          저장
+                        </button>
+                        </div>
                       </div>
                     ) : (
                       <CustomerDetailInfoRow
                         label="연락처"
-                        value={selectedGuardian.phone}
+                        value={formatShopPhoneNumber(selectedGuardian.phone)}
                         onClick={() => openCustomerFieldEditor("phone")}
                       />
                     )}
                     {editingCustomerFields.pet ? (
-                      <div className="px-3.5 py-3">
+                      <div className="px-3 py-1.5">
+                        <div className="relative">
                         <input
-                          className="field-input"
+                          className={customerInlineInputClass}
                           value={petDraftName}
                           onChange={(event) => setPetDraftName(event.target.value)}
                           placeholder="반려동물 이름"
+                          autoFocus
                         />
+                        <button
+                          type="button"
+                          disabled={saving || !petDraftName.trim()}
+                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          onClick={() => void handleCustomerInlineSave()}
+                        >
+                          저장
+                        </button>
+                        </div>
                       </div>
                     ) : (
                       <CustomerDetailInfoRow
@@ -1733,32 +1766,43 @@ export default function OwnerApp({
                   </div>
                 </CustomerDetailFieldCard>
 
-                <CustomerDetailFieldCard label="고객 메모" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-1">
+                <CustomerDetailFieldCard label="고객 메모" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
                   {editingCustomerFields.memo ? (
-                    <div className="px-3.5 py-3">
-                      <textarea
-                        ref={guardianMemoTextareaRef}
-                        className="field-textarea !min-h-[72px] !resize-none overflow-hidden px-3 py-2.5 leading-5"
-                        value={guardianDraft.memo}
-                        onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
-                        onInput={resizeGuardianMemoTextarea}
-                        placeholder="고객에게 기억해 둘 내용을 적어주세요"
-                      />
+                    <div className="px-3 py-1.5">
+                      <div className="relative">
+                        <textarea
+                          ref={guardianMemoTextareaRef}
+                          className="field-textarea !min-h-[92px] !resize-none overflow-hidden px-3 py-2 !pb-12 leading-5"
+                          value={guardianDraft.memo}
+                          onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
+                          onInput={resizeGuardianMemoTextarea}
+                          placeholder="고객에게 기억해 둘 내용을 적어주세요"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={saving}
+                          className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
+                          onClick={() => void handleCustomerInlineSave()}
+                        >
+                          저장
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => openCustomerFieldEditor("memo")}
-                      className="w-full min-h-[72px] px-3.5 py-3 text-left transition hover:bg-[#fffdfa]"
+                      className="relative z-[1] w-full min-h-[56px] px-3.5 py-2 text-left transition hover:bg-[#fffdfa]"
                     >
-                      <p className={`text-[14px] leading-5 tracking-[-0.02em] ${selectedGuardian.memo ? "font-medium text-[var(--text)]" : "font-normal text-[var(--muted)]"}`}>
+                      <p className={`relative -top-0.5 text-[16px] leading-6 tracking-[-0.02em] ${selectedGuardian.memo ? "font-normal text-[var(--text)]" : "font-normal text-[var(--muted)]"}`}>
                         {selectedGuardian.memo || "메모를 추가해 주세요"}
                       </p>
                     </button>
                   )}
                 </CustomerDetailFieldCard>
 
-                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-1">
+                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
                   <div className="divide-y divide-[var(--border)]">
                     <CustomerDetailToggleRow
                       label="알림톡 수신"
@@ -1784,100 +1828,92 @@ export default function OwnerApp({
                     />
                   </div>
                 </CustomerDetailFieldCard>
-              </div>
-            </div>
 
-            <section className="space-y-3">
-              <div className="px-1">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">고객 이력</p>
-              </div>
-              <div className="space-y-3">
-                <div className="rounded-[12px] border border-[var(--border)] bg-white p-1">
-                  <div className="grid grid-cols-3 gap-1 rounded-[10px] bg-[#f7f3ee] p-0.5">
-                  {(["records", "pets", "notifications"] as const).map((item) => (
-                    <button
-                      key={item}
-                      className={`rounded-[10px] px-2 py-1.5 text-[11px] font-medium transition ${
-                        detailTab === item
-                          ? "bg-white text-[var(--text)] shadow-[0_3px_8px_rgba(35,35,31,0.05)]"
-                          : "text-[var(--muted)]"
-                      }`}
-                      onClick={() => setDetailTab(item)}
-                    >
-                      {item === "records" ? "미용 기록" : item === "pets" ? "반려동물" : "알림톡 발송내역"}
-                    </button>
-                  ))}
-                  </div>
-                </div>
-
-                {detailTab === "records" ? (
-                  <div className="space-y-3">
-                    {selectedRecords.length === 0 ? (
-                      <AppEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
-                    ) : (
-                      selectedRecords.map((record) => (
-                        <RecordCard
-                          key={record.id}
-                          record={record}
-                          pet={petMap[record.pet_id]}
-                          service={serviceMap[record.service_id]}
-                          onEdit={() => setModal({ type: "edit-record", record })}
-                        />
-                      ))
-                    )}
-                  </div>
-                ) : null}
-
-                {detailTab === "pets" ? (
-                  <div className="space-y-3">
-                    <CustomerDetailFieldCard label="반려동물 관리">
-                      <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[14px] font-medium text-[var(--text)]">반려동물 관리</p>
-                        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">수정하거나 작업 대상으로 지정한 뒤 예약 등록에 바로 연결할 수 있어요.</p>
-                      </div>
+                <div className="space-y-2">
+                  <div className="relative -top-px grid grid-cols-3 gap-1 rounded-[12px] border border-[var(--border)] bg-white p-1">
+                    {(["records", "pets", "notifications"] as const).map((item) => (
                       <button
-                        className="shrink-0 whitespace-nowrap text-[13px] font-medium leading-5 text-[var(--accent)]"
-                        onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
+                        key={item}
+                        className={`flex h-[52px] items-center justify-center rounded-[10px] border px-2 py-1.5 text-center text-[11px] font-medium leading-[1.25] transition ${
+                          detailTab === item
+                            ? "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)] shadow-[0_3px_8px_rgba(35,35,31,0.05)]"
+                            : "border-transparent text-[var(--muted)]"
+                        }`}
+                        onClick={() => setDetailTab(item)}
                       >
-                        + 아기 추가
+                        {item === "records" ? "미용 기록" : item === "pets" ? "반려 동물" : <>알림톡<br />발송 내역</>}
                       </button>
-                      </div>
-                    </CustomerDetailFieldCard>
-
-                    {selectedGuardianPets.map((pet) => (
-                      <GuardianPetEditorCard
-                        key={pet.id}
-                        pet={pet}
-                        saving={saving}
-                        isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")}
-                        isSelected={selectedCustomerPet?.id === pet.id}
-                        onSelect={() => setSelectedCustomerPetId(pet.id)}
-                        onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
-                        onSendBirthday={() => sendBirthdayGreeting(pet)}
-                        onSendRevisit={() => sendRevisitNotice(pet)}
-                      />
                     ))}
                   </div>
-                ) : null}
 
-                {detailTab === "notifications" ? (
-                  <div className="space-y-3">
-                    {selectedNotifications.length === 0 ? (
-                      <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
-                    ) : (
-                      selectedNotifications.map((notification) => (
-                        <NotificationHistoryRow
-                          key={notification.id}
-                          notification={notification}
-                          pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
+                  {detailTab === "records" ? (
+                    <div className="space-y-3">
+                      {selectedRecords.length === 0 ? (
+                        <AppEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
+                      ) : (
+                        selectedRecords.map((record) => (
+                          <RecordCard
+                            key={record.id}
+                            record={record}
+                            pet={petMap[record.pet_id]}
+                            service={serviceMap[record.service_id]}
+                          />
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+
+                  {detailTab === "pets" ? (
+                    <div className="space-y-3">
+                      <CustomerDetailFieldCard label="반려동물 관리">
+                        <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[14px] font-medium text-[var(--text)]">반려동물 관리</p>
+                          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">수정하거나 작업 대상으로 지정한 뒤 예약 등록에 바로 연결할 수 있어요.</p>
+                        </div>
+                        <button
+                          className="shrink-0 whitespace-nowrap text-[13px] font-medium leading-5 text-[var(--accent)]"
+                          onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
+                        >
+                          + 아기 추가
+                        </button>
+                        </div>
+                      </CustomerDetailFieldCard>
+
+                      {selectedGuardianPets.map((pet) => (
+                        <GuardianPetEditorCard
+                          key={pet.id}
+                          pet={pet}
+                          saving={saving}
+                          isBirthdayToday={Boolean(pet.birthday && pet.birthday.slice(5) === "03-17")}
+                          isSelected={selectedCustomerPet?.id === pet.id}
+                          onSelect={() => setSelectedCustomerPetId(pet.id)}
+                          onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
+                          onSendBirthday={() => sendBirthdayGreeting(pet)}
+                          onSendRevisit={() => sendRevisitNotice(pet)}
                         />
-                      ))
-                    )}
-                  </div>
-                ) : null}
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {detailTab === "notifications" ? (
+                    <div className="space-y-3">
+                      {selectedNotifications.length === 0 ? (
+                        <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
+                      ) : (
+                        selectedNotifications.map((notification) => (
+                          <NotificationHistoryRow
+                            key={notification.id}
+                            notification={notification}
+                            pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
+                          />
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </section>
+            </div>
           </section>
         )}
 
@@ -2698,21 +2734,19 @@ function SettingsPanel({
   );
 }
 
-function RecordCard({ record, pet, service, onEdit }: { record: GroomingRecord; pet: Pet; service?: Service; onEdit: () => void }) {
+function RecordCard({ record, pet, service }: { record: GroomingRecord; pet: Pet; service?: Service }) {
   return (
-    <CustomerDetailFieldCard label="미용 기록">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[14px] font-medium text-[var(--text)]">{service?.name || "서비스"}</p>
-            <span className="text-[12px] font-medium text-[var(--muted)]">{pet.name}</span>
+    <CustomerDetailFieldCard label="미용 기록" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
+      <div className="relative -top-0.5 px-2.5 py-1">
+        <div className="flex items-start justify-between gap-3">
+          <p className="min-w-0 text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+          <div className="shrink-0 text-right">
+            <p className="text-[14px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{service?.name || "시술내역 없음"}</p>
+            <p className="mt-px text-[11px] leading-4 text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p>
           </div>
-          <p className="mt-1 text-[13px] text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p>
         </div>
-        <button className="shrink-0 text-[13px] font-medium text-[var(--accent)]" onClick={onEdit}>수정</button>
+        <p className="mt-1.5 text-[13px] leading-5 text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p>
       </div>
-      <p className="mt-3 text-[14px] leading-6 text-[var(--text)]">{record.style_notes || "스타일 메모 없음"}</p>
-      <p className="mt-1 text-[13px] leading-6 text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p>
     </CustomerDetailFieldCard>
   );
 }
@@ -3038,8 +3072,18 @@ function ActionButton({ children, disabled, onClick, variant = "primary" }: { ch
   return <button disabled={disabled} onClick={onClick} className={`flex h-[42px] w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-medium tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${className}`}>{children}</button>;
 }
 
-function CustomerDetailFieldCard({ label, children, onClick, className = "" }: { label: string; children: React.ReactNode; onClick?: () => void; className?: string }) {
-  const sharedClassName = `min-w-0 overflow-visible rounded-[12px] border border-[var(--border)] bg-white px-3 pb-2 pt-1.5 text-left ${onClick ? "transition hover:border-[#d9d2c9] hover:bg-[#fffdfa]" : ""} ${className}`.trim();
+function CustomerDetailFieldCard({
+  label,
+  children,
+  onClick,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const sharedClassName = `isolate min-w-0 overflow-visible rounded-[12px] border border-[var(--border)] bg-white px-3 pb-1 pt-0.5 text-left ${onClick ? "transition hover:border-[#d9d2c9] hover:bg-[#fffdfa]" : ""} ${className}`.trim();
   const labelNode = (
     <legend className="ml-0.5 px-1.5 text-[15px] font-medium tracking-[-0.01em] text-[var(--muted)]">
       {label}
@@ -3078,13 +3122,13 @@ function CustomerDetailInfoRow({
   muted?: boolean;
   multiline?: boolean;
 }) {
-  const rowClassName = `flex min-h-[72px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
+  const rowClassName = `relative z-[1] flex min-h-[56px] w-full items-center justify-between gap-3 px-3.5 py-2 text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
   const valueClassName = multiline
-    ? `text-[15px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-medium text-[var(--text)]"}`
-    : `text-[15px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-medium text-[var(--text)]"}`;
+    ? `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
+    : `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`;
   const body = (
     <>
-      <div className="min-w-0 flex-1">
+      <div className="relative -top-0.5 min-w-0 flex-1">
         <p className={valueClassName}>{value}</p>
         <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">{label}</p>
       </div>
@@ -3117,9 +3161,9 @@ function CustomerDetailToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={`flex min-h-[72px] items-center justify-between gap-3 px-3.5 py-3 ${disabled ? "opacity-50" : ""}`}>
-      <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{label}</p>
+    <label className={`flex min-h-[56px] items-center justify-between gap-3 px-3.5 py-2 ${disabled ? "opacity-50" : ""}`}>
+      <div className="relative -top-0.5 min-w-0 flex-1">
+        <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
         <p className="mt-1 text-[11px] leading-[18px] text-[var(--muted)]">{description}</p>
       </div>
       <button

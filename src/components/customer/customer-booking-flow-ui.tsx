@@ -122,9 +122,9 @@ export function BookingFieldCard({
   className?: string;
 }) {
   return (
-    <fieldset className={`rounded-[12px] border border-[#ddd5ca] bg-white px-3.5 pb-2.5 pt-1.5 ${className}`}>
+    <fieldset className={`rounded-[12px] border border-[#ddd5ca] bg-white px-3.5 pb-1.5 pt-0.5 ${className}`}>
       <legend className="px-2 text-[15px] font-medium tracking-[-0.01em] text-[#8a8074]">{label}</legend>
-      {children}
+      <div className="flex min-h-[28px] items-center">{children}</div>
     </fieldset>
   );
 }
@@ -136,7 +136,7 @@ export function BookingTextInput({
   return (
     <input
       {...props}
-      className={`w-full border-0 bg-transparent px-0 py-0.5 text-[14px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:font-normal placeholder:text-[#b1a79b] ${className}`}
+      className={`relative -top-[2px] h-7 w-full border-0 bg-transparent px-0 pt-0 pb-[3px] text-[19px] font-medium leading-7 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:font-normal placeholder:text-[#b1a79b] ${className}`}
     />
   );
 }
@@ -148,19 +148,20 @@ export function BookingTextArea({
   return (
     <textarea
       {...props}
-      className={`w-full resize-none border-0 bg-transparent px-0 py-0.5 text-[14px] leading-6 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b1a79b] ${className}`}
+      className={`w-full resize-none border-0 bg-transparent px-0 py-0.5 text-[15px] leading-6 tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[#b1a79b] ${className}`}
     />
   );
 }
 
-export function AddPetButton({ onClick }: { onClick: () => void }) {
+export function AddPetButton({ onClick, disabled = false }: { onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#2f7866] bg-[#fbf8f2] px-4 py-3.5 text-[14px] font-medium tracking-[-0.02em] text-[var(--accent)]"
+      disabled={disabled}
+      className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:border-[#e6e0d7] disabled:bg-[#f7f3ed] disabled:text-[#b0a79b] disabled:shadow-none disabled:opacity-100"
     >
-      <Plus className="h-4 w-4" strokeWidth={2} />
+      <Plus className="h-4 w-4" strokeWidth={2.1} />
       아기 추가하기
     </button>
   );
@@ -184,7 +185,7 @@ export function ChoiceGrid({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`rounded-[12px] border px-3 py-2.5 text-[13px] font-medium tracking-[-0.02em] transition ${
+            className={`rounded-[12px] border px-3 py-2.5 text-[14px] font-medium tracking-[-0.02em] transition ${
               active
                 ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_16px_rgba(31,107,91,0.14)]"
                 : "border-[#ddd5ca] bg-[#fcfaf6] text-[var(--text)]"
@@ -222,8 +223,8 @@ export function DateGrid({
                 : "border-[#dfd8cd] bg-[#fdfbf7] text-[var(--text)] hover:bg-[#faf7f0]"
             }`}
           >
-            <span className={`block text-[11px] ${active ? "text-white/80" : "text-[#91887b]"}`}>{option.weekday}</span>
-            <span className="mt-1 block text-[15px] font-semibold tracking-[-0.03em]">{option.label}</span>
+            <span className={`block text-[12px] ${active ? "text-white/80" : "text-[#91887b]"}`}>{option.weekday}</span>
+            <span className="mt-1 block text-[16px] font-semibold tracking-[-0.03em]">{option.label}</span>
           </button>
         );
       })}
@@ -257,7 +258,7 @@ export function TimeGrid({
             key={slot}
             type="button"
             onClick={() => onSelect(slot)}
-            className={`rounded-[12px] border px-2 py-2.5 text-[14px] font-medium tracking-[-0.02em] transition ${
+            className={`rounded-[12px] border px-2 py-2.5 text-[15px] font-medium tracking-[-0.02em] transition ${
               active
                 ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(31,107,91,0.14)]"
                 : "border-[#dfd8cd] bg-[#fdfbf7] text-[var(--text)] hover:bg-[#faf7f0]"
@@ -299,9 +300,9 @@ export function ServiceCards({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{service.name}</p>
+                <p className="text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{service.name}</p>
               </div>
-              <span className={`shrink-0 text-[13px] font-medium ${active ? "text-[var(--accent)]" : "text-[#847b6e]"}`}>
+              <span className={`shrink-0 text-[14px] font-medium ${active ? "text-[var(--accent)]" : "text-[#847b6e]"}`}>
                 {formatServicePrice(service.price, service.price_type ?? "starting")}
               </span>
             </div>
@@ -375,7 +376,7 @@ export function ServiceSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full bg-transparent px-0 py-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+        className="w-full bg-transparent px-0 py-0.5 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
       >
         {services.map((item) => (
           <option key={item.id} value={item.id}>
@@ -392,7 +393,7 @@ export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-[12px] border border-[#e4ddd3] bg-[#fcfaf6] px-3.5 py-2.5">
       <span className="text-[13px] font-medium text-[#8a8074]">{label}</span>
-      <span className="text-right text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{value}</span>
+      <span className="text-right text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{value}</span>
     </div>
   );
 }
@@ -400,7 +401,7 @@ export function InfoRow({ label, value }: { label: string; value: string }) {
 export function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <BookingFieldCard label={label}>
-      <p className="text-[15px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)]">{value}</p>
+      <p className="relative -top-[2px] pb-[3px] text-[16px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)]">{value}</p>
     </BookingFieldCard>
   );
 }
@@ -427,7 +428,7 @@ export function ActionButton({
       type="button"
       disabled={disabled}
       onClick={() => void onClick()}
-      className="w-full rounded-[12px] bg-[var(--accent)] px-4 py-3.5 text-[16px] font-semibold tracking-[-0.02em] text-white shadow-[0_12px_22px_rgba(31,107,91,0.16)] transition disabled:cursor-not-allowed disabled:opacity-45"
+      className="w-full rounded-[12px] bg-[var(--accent)] px-4 py-3.5 text-[17px] font-semibold tracking-[-0.02em] text-white shadow-[0_12px_22px_rgba(31,107,91,0.16)] transition disabled:cursor-not-allowed disabled:opacity-45"
     >
       {children}
     </button>
@@ -448,7 +449,7 @@ export function SecondaryButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="shrink-0 rounded-[12px] border border-[#ddd5ca] bg-white px-4.5 py-3.5 text-[14px] font-medium tracking-[-0.02em] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-40"
+      className="shrink-0 rounded-[12px] border border-[#ddd5ca] bg-white px-4.5 py-3.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>

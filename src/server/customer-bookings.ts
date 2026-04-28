@@ -105,6 +105,19 @@ function matchName(a: string, b: string) {
   return normalizeName(a) === normalizeName(b);
 }
 
+function hasMissingColumnError(
+  error: {
+    message?: string | null;
+    details?: string | null;
+    hint?: string | null;
+  } | null | undefined,
+  column: string,
+) {
+  const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+  const needle = column.toLowerCase();
+  return haystack.includes(needle) && (haystack.includes("column") || haystack.includes("schema cache"));
+}
+
 function makeGuardianBase(payload: z.infer<typeof customerBookingCreateSchema>) {
   return {
     id: randomUUID(),
@@ -208,15 +221,23 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
 
   const phone = normalizePhone(payload.phone);
   const guardianName = normalizeName(payload.guardianName);
-  const guardianQuery = await supabase
+  const guardianQueryWithDeletedAt = await supabase
     .from("guardians")
     .select("id,name,phone,deleted_at")
     .eq("shop_id", payload.shopId)
     .order("created_at");
 
+  const guardianQuery = guardianQueryWithDeletedAt.error && hasMissingColumnError(guardianQueryWithDeletedAt.error, "deleted_at")
+    ? await supabase.from("guardians").select("id,name,phone").eq("shop_id", payload.shopId).order("created_at")
+    : guardianQueryWithDeletedAt;
+
   if (guardianQuery.error) throw new Error(guardianQuery.error.message);
 
-  const guardians = guardianQuery.data ?? [];
+  const supportsGuardianSoftDelete = !(guardianQueryWithDeletedAt.error && hasMissingColumnError(guardianQueryWithDeletedAt.error, "deleted_at"));
+  const guardians = (guardianQuery.data ?? []).map((guardian) => ({
+    ...guardian,
+    deleted_at: supportsGuardianSoftDelete ? (guardian as { deleted_at?: string | null }).deleted_at ?? null : null,
+  }));
   const exactActiveGuardian = guardians.find(
     (guardian) => !guardian.deleted_at && matchPhone(guardian.phone, phone) && matchName(guardian.name, guardianName),
   );
@@ -248,18 +269,29 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
     if (insertGuardian.error) throw new Error(insertGuardian.error.message);
     guardianId = insertGuardian.data.id;
   } else if (exactDeletedGuardian) {
-    const restoredGuardian = await supabase
-      .from("guardians")
-      .update({
-        deleted_at: null,
-        deleted_restore_until: null,
-        name: guardianName,
-        phone,
-        updated_at: nowIso(),
-      })
-      .eq("id", exactDeletedGuardian.id)
-      .select("id")
-      .single();
+    const restoredGuardian = supportsGuardianSoftDelete
+      ? await supabase
+          .from("guardians")
+          .update({
+            deleted_at: null,
+            deleted_restore_until: null,
+            name: guardianName,
+            phone,
+            updated_at: nowIso(),
+          })
+          .eq("id", exactDeletedGuardian.id)
+          .select("id")
+          .single()
+      : await supabase
+          .from("guardians")
+          .update({
+            name: guardianName,
+            phone,
+            updated_at: nowIso(),
+          })
+          .eq("id", exactDeletedGuardian.id)
+          .select("id")
+          .single();
 
     if (restoredGuardian.error) throw new Error(restoredGuardian.error.message);
     guardianId = restoredGuardian.data.id;

@@ -46,9 +46,28 @@ function normalizePhone(value: string) {
   return phoneNormalize(value).slice(0, 11);
 }
 
+function getPhoneTail(value: string | null | undefined) {
+  const normalized = phoneNormalize(value ?? "");
+  return normalized ? normalized.slice(-4) : null;
+}
+
+function logNotificationSkipped(params: {
+  reason: string;
+  type: NotificationType;
+  appointmentId: string | null | undefined;
+}) {
+  console.log("[notification-dispatch] skipped", {
+    reason: params.reason,
+    type: params.type,
+    appointmentId: params.appointmentId ?? null,
+  });
+}
+
 function getTemplateKey(type: NotificationType) {
   switch (type) {
+    case "booking_received":
     case "booking_confirmed":
+    case "owner_booking_requested":
     case "booking_rejected":
     case "booking_cancelled":
     case "booking_rescheduled_confirmed":
@@ -68,6 +87,9 @@ function shouldSendNotification(shop: BootstrapPayload["shop"], type: Notificati
   if (!shop.notification_settings.enabled) return false;
 
   switch (type) {
+    case "booking_received":
+    case "owner_booking_requested":
+      return true;
     case "booking_confirmed":
       return shop.notification_settings.booking_confirmed_enabled;
     case "booking_rejected":
@@ -119,6 +141,24 @@ function buildNotificationMessage(params: {
       : "";
 
   switch (params.type) {
+    case "booking_received":
+      return [
+        `[${params.shopName}] ${params.petName} 예약이 접수되었어요.`,
+        `방문 일정: ${dateLabel}`,
+        "",
+        "매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.",
+        "",
+        "예약 정보는 아래 링크에서 확인하실 수 있어요.",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
+    case "owner_booking_requested":
+      return `새 예약이 접수되었어요.\n${params.petName}\n${dateLabel}`;
     case "booking_confirmed":
       return `[${params.shopName}] ${params.petName} 예약이 확정되었어요.\n방문 일정: ${dateLabel}`;
     case "booking_rejected":
@@ -192,8 +232,22 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         : null;
   const service =
     appointment ? bootstrap.services.find((item) => item.id === appointment.service_id) ?? null : null;
+  const target = input.type === "owner_booking_requested" || (input.channel ?? "alimtalk") === "in_app" ? "owner" : "guardian";
+  const initialPhoneTail = getPhoneTail(input.recipientPhone) ?? getPhoneTail(guardian?.phone ?? null);
+
+  console.log("[notification-dispatch] called", {
+    type: input.type,
+    appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    target,
+    phoneTail: initialPhoneTail,
+  });
 
   if (input.skipIfExists && hasExistingNotification(bootstrap.notifications, input)) {
+    logNotificationSkipped({
+      reason: "already exists",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
     const existing = bootstrap.notifications.find(
       (item) =>
         item.type === input.type &&
@@ -229,9 +283,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ? normalizePhone(guardian.phone)
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
-  const templateAlias = input.templateKey ?? getTemplateKey(input.type);
+  const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
   const templateKey = resolveAlimtalkTemplateKey(templateAlias);
   const templateType = input.templateType ?? "alimtalk";
+  const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
@@ -261,8 +316,32 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
-  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
+  const canSendGuardian = input.force ? true : shouldSendGuardianNotification(guardian, input.type);
   const canSend = canSendShop && canSendGuardian;
+
+  if (input.appointmentId && !appointment) {
+    logNotificationSkipped({
+      reason: "missing appointment",
+      type: input.type,
+      appointmentId: input.appointmentId,
+    });
+  }
+
+  if ((input.guardianId || appointment?.guardian_id) && !guardian) {
+    logNotificationSkipped({
+      reason: "missing guardian",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  }
+
+  if ((input.channel ?? "alimtalk") !== "in_app" && !templateAlias) {
+    logNotificationSkipped({
+      reason: "unsupported notification type",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  }
 
   if (!canSend) {
     status = "skipped";
@@ -271,12 +350,36 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       : input.type === "revisit_notice"
         ? "Notification disabled by guardian revisit settings."
         : "Notification disabled by guardian settings.";
-  } else if (!recipientPhone) {
+    logNotificationSkipped({
+      reason: !canSendShop ? "notification disabled" : "customer notification setting off",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if ((input.channel ?? "alimtalk") !== "in_app" && !recipientPhone) {
     status = "failed";
     failReason = "Recipient phone number not found.";
-  } else if ((input.channel ?? "alimtalk") === "alimtalk" && serverEnv.alimtalkProvider === "ssodaa" && !templateKey) {
+    logNotificationSkipped({
+      reason: "missing phone",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if ((input.channel ?? "alimtalk") === "in_app") {
+    status = "sent";
+    provider = "in_app";
+    sentAt = nowIso();
+  } else if (
+    (input.channel ?? "alimtalk") === "alimtalk" &&
+    serverEnv.alimtalkProvider === "ssodaa" &&
+    !usesAlimtalkRelay &&
+    !templateKey
+  ) {
     status = "failed";
     failReason = `Missing Alimtalk template mapping for ${input.type}.`;
+    logNotificationSkipped({
+      reason: "missing template alias",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
   } else if (!shouldSendNow) {
     status = "queued";
   } else if ((input.channel ?? "alimtalk") === "alimtalk") {
@@ -289,6 +392,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         const delivery = await sendAlimtalkMessage({
           to: recipientPhone,
           message,
+          templateAlias,
           templateKey,
           templateType,
           recipientName,
@@ -305,6 +409,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     } else {
       status = "queued";
       failReason = "Alimtalk server environment is not configured yet.";
+      logNotificationSkipped({
+        reason: "no alimtalk payload",
+        type: input.type,
+        appointmentId: input.appointmentId ?? appointment?.id ?? null,
+      });
     }
   } else {
     status = bootstrap.mode === "supabase" ? "queued" : "mocked";

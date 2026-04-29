@@ -5,6 +5,7 @@ type AlimtalkMetadata = Record<string, string | boolean | number | null | undefi
 type SendAlimtalkInput = {
   to: string;
   message: string;
+  templateAlias?: string | null;
   templateKey?: string | null;
   templateType?: string | null;
   recipientName?: string | null;
@@ -42,50 +43,121 @@ function extractProviderMessageId(responseBody: unknown) {
   return null;
 }
 
+function getPhoneTail(value: string | null | undefined) {
+  const normalized = (value ?? "").replace(/\D/g, "");
+  return normalized ? normalized.slice(-4) : null;
+}
+
+function getRelayUrlParts(relayUrl: string | null | undefined) {
+  if (!relayUrl) {
+    return {
+      relayUrlHost: null,
+      relayUrlPathname: null,
+    };
+  }
+
+  try {
+    const parsed = new URL(relayUrl);
+    return {
+      relayUrlHost: parsed.host,
+      relayUrlPathname: parsed.pathname,
+    };
+  } catch {
+    return {
+      relayUrlHost: null,
+      relayUrlPathname: null,
+    };
+  }
+}
+
+function getBodyPreview(body: unknown) {
+  if (typeof body === "string") {
+    return body.slice(0, 500);
+  }
+
+  try {
+    return JSON.stringify(body).slice(0, 500);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
+  const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
+  const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
+  const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
+
+  console.log("[alimtalk-provider] env check", {
+    hasRelayUrl,
+    hasRelaySecret,
+    relayUrlHost,
+    relayUrlPathname,
+  });
+
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
-    const relayResponse = await fetch(serverEnv.alimtalkRelayUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-relay-secret": serverEnv.alimtalkRelaySecret,
-      },
-      body: JSON.stringify({
-        to: input.to,
-        message: input.message,
-        templateKey: input.templateKey ?? null,
-        templateType: input.templateType ?? null,
-        recipientName: input.recipientName ?? null,
-        metadata: input.metadata ?? null,
-      }),
-      cache: "no-store",
+    console.log("[alimtalk-provider] relay fetch start", {
+      relayUrlHost,
+      templateAlias: input.templateAlias ?? null,
+      phoneTail: getPhoneTail(input.to),
     });
 
-    const relayContentType = relayResponse.headers.get("content-type") ?? "";
-    const relayBody = relayContentType.includes("application/json") ? await relayResponse.json() : await relayResponse.text();
+    try {
+      const relayResponse = await fetch(serverEnv.alimtalkRelayUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-relay-secret": serverEnv.alimtalkRelaySecret,
+        },
+        body: JSON.stringify({
+          to: input.to,
+          message: input.message,
+          templateAlias: input.templateAlias ?? null,
+          templateKey: input.templateKey ?? null,
+          templateType: input.templateType ?? null,
+          recipientName: input.recipientName ?? null,
+          metadata: input.metadata ?? null,
+        }),
+        cache: "no-store",
+      });
 
-    if (!relayResponse.ok) {
-      const relayMessage =
-        typeof relayBody === "string"
-          ? relayBody
-          : (relayBody as { message?: string; error?: string } | null)?.message ||
-            (relayBody as { message?: string; error?: string } | null)?.error ||
-            "알림톡 중계 서버 호출에 실패했습니다.";
-      throw new Error(relayMessage);
+      const relayContentType = relayResponse.headers.get("content-type") ?? "";
+      const relayBody = relayContentType.includes("application/json") ? await relayResponse.json() : await relayResponse.text();
+
+      console.log("[alimtalk-provider] relay fetch response", {
+        status: relayResponse.status,
+        ok: relayResponse.ok,
+        bodyPreview: getBodyPreview(relayBody),
+      });
+
+      if (!relayResponse.ok) {
+        const relayMessage =
+          typeof relayBody === "string"
+            ? relayBody
+            : (relayBody as { message?: string; error?: string } | null)?.message ||
+              (relayBody as { message?: string; error?: string } | null)?.error ||
+              "알림톡 중계 서버 호출에 실패했습니다.";
+        throw new Error(relayMessage);
+      }
+
+      const providerMessageId =
+        typeof relayBody === "object" && relayBody !== null
+          ? ((relayBody as { messageId?: string; providerMessageId?: string | null }).providerMessageId ||
+              (relayBody as { messageId?: string; providerMessageId?: string | null }).messageId ||
+              null)
+          : null;
+
+      return {
+        provider: "ssodaa-relay",
+        providerMessageId,
+        responseBody: relayBody,
+      };
+    } catch (error) {
+      console.error("[alimtalk-provider] relay fetch error", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack ?? null : null,
+      });
+      throw error;
     }
-
-    const providerMessageId =
-      typeof relayBody === "object" && relayBody !== null
-        ? ((relayBody as { messageId?: string; providerMessageId?: string | null }).providerMessageId ||
-            (relayBody as { messageId?: string; providerMessageId?: string | null }).messageId ||
-            null)
-        : null;
-
-    return {
-      provider: "ssodaa-relay",
-      providerMessageId,
-      responseBody: relayBody,
-    };
   }
 
   if (!serverEnv.alimtalkApiUrl || !serverEnv.alimtalkApiKey) {

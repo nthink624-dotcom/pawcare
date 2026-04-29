@@ -26,6 +26,16 @@ export async function PATCH(request: NextRequest) {
     const owner = await requireOwnerShop(request);
     const bootstrap = await getBootstrap(owner.shopId);
     const appointment = bootstrap.appointments.find((item) => item.id === body?.appointmentId);
+    const nextStatus = typeof body?.status === "string" ? body.status : null;
+    const action =
+      typeof body?.eventType === "string" ? body.eventType : typeof body?.action === "string" ? body.action : null;
+
+    console.log("[appointments-api] PATCH received", {
+      appointmentId: body?.appointmentId ?? null,
+      action,
+      nextStatus,
+      storeId: owner.shopId,
+    });
 
     if (!appointment) {
       return NextResponse.json({ message: "예약을 찾을 수 없습니다." }, { status: 404 });
@@ -35,6 +45,14 @@ export async function PATCH(request: NextRequest) {
       typeof body?.status === "string"
         ? await updateAppointmentStatus(body)
         : await updateAppointmentDetails({ ...body, shopId: owner.shopId });
+
+    if (typeof body?.status === "string") {
+      console.log("[appointments-api] appointment updated", {
+        appointmentId: appointment.id,
+        previousStatus: appointment.status,
+        nextStatus: result?.status ?? body.status,
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error) {

@@ -48,6 +48,8 @@ export const demoShop: Shop = {
   regular_closed_days: [0],
   temporary_closed_dates: [temporaryClosedDate],
   concurrent_capacity: 2,
+  booking_slot_interval_minutes: 30,
+  booking_slot_offset_minutes: 0,
   approval_mode: "manual",
   notification_settings: normalizeShopNotificationSettings({
     enabled: true,

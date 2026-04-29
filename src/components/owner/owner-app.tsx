@@ -558,14 +558,6 @@ export default function OwnerApp({
       })
       .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at));
   }, [data.notifications, selectedGuardian, selectedGuardianPets]);
-  const recentBookingRequestNotifications = useMemo(
-    () =>
-      data.notifications
-        .filter((item) => item.type === "owner_booking_requested")
-        .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at))
-        .slice(0, 3),
-    [data.notifications],
-  );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
@@ -1449,34 +1441,6 @@ export default function OwnerApp({
               <StatCard label={ownerHomeCopy.statCompleted} value={String(completedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
               <StatCard label={ownerHomeCopy.statCancelChange} value={String(cancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
             </div>
-            {recentBookingRequestNotifications.length > 0 ? (
-              <Panel title="새 예약 접수" action={`${recentBookingRequestNotifications.length}건`}>
-                <div className="space-y-2">
-                  {recentBookingRequestNotifications.map((notification) => {
-                    const relatedAppointment = notification.appointment_id
-                      ? data.appointments.find((item) => item.id === notification.appointment_id) ?? null
-                      : null;
-                    return (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        className="w-full rounded-[12px] border border-[var(--border)] bg-white px-4 py-3 text-left transition hover:bg-[#fcfaf7]"
-                        onClick={() => {
-                          if (relatedAppointment) {
-                            setModal({ type: "appointment", appointment: relatedAppointment });
-                            return;
-                          }
-                          setActiveTab("book");
-                        }}
-                      >
-                        <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{notification.message.split("\n")[0]}</p>
-                        <p className="mt-1 whitespace-pre-line text-[12px] leading-5 text-[var(--muted)]">{notification.message.split("\n").slice(1).join("\n")}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Panel>
-            ) : null}
             <Panel title={homeReservationPanelTitle} action={String(homePendingAppointments.length + homeActionAppointments.length + homeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix}>
               <TodayConfirmedContent
                 pendingAppointments={homePendingAppointments}
@@ -2715,6 +2679,8 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                 address: combinedAddress,
                 description: description.trim(),
                 concurrentCapacity: data.shop.concurrent_capacity,
+                bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+                bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
                 approvalMode: data.shop.approval_mode,
                 regularClosedDays: data.shop.regular_closed_days,
                 temporaryClosedDates: data.shop.temporary_closed_dates,

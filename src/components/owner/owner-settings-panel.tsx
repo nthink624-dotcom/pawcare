@@ -5,6 +5,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import {
+  bookingSlotIntervalOptions,
+  normalizeBookingSlotOffsetMinutes,
+  slotOffsetOptionsForInterval,
+} from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
 import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
@@ -43,6 +48,7 @@ type ShopNotificationSettingsState = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
+const concurrentCapacityOptions = [1, 2, 3, 4, 5] as const;
 
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
@@ -149,6 +155,9 @@ export default function OwnerSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHours>(
     createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
   );
+  const [concurrentCapacity, setConcurrentCapacity] = useState(data.shop.concurrent_capacity);
+  const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] = useState(data.shop.booking_slot_interval_minutes);
+  const [bookingSlotOffsetMinutes, setBookingSlotOffsetMinutes] = useState(data.shop.booking_slot_offset_minutes);
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
   const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close });
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
@@ -196,8 +205,18 @@ export default function OwnerSettingsPanel({
 
   useEffect(() => {
     setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
+    setConcurrentCapacity(data.shop.concurrent_capacity);
+    setBookingSlotIntervalMinutes(data.shop.booking_slot_interval_minutes);
+    setBookingSlotOffsetMinutes(data.shop.booking_slot_offset_minutes);
     setTimeEditorTarget(null);
-  }, [data.shop.id, data.shop.business_hours, data.shop.regular_closed_days]);
+  }, [
+    data.shop.id,
+    data.shop.business_hours,
+    data.shop.regular_closed_days,
+    data.shop.concurrent_capacity,
+    data.shop.booking_slot_interval_minutes,
+    data.shop.booking_slot_offset_minutes,
+  ]);
 
   useEffect(() => {
     onActiveScreenChange?.(activeScreen);
@@ -299,6 +318,23 @@ export default function OwnerSettingsPanel({
 
     return allSame ? formatBusinessHoursRange(first) : "요일별로 다르게 설정 중";
   }, [businessHours, regularClosedDays]);
+  const bookingSlotOffsetOptions = useMemo(
+    () => slotOffsetOptionsForInterval(bookingSlotIntervalMinutes),
+    [bookingSlotIntervalMinutes],
+  );
+  const bookingSlotPatternPreview = useMemo(() => {
+    const samples: string[] = [];
+    for (
+      let minute = bookingSlotOffsetMinutes;
+      minute < bookingSlotOffsetMinutes + bookingSlotIntervalMinutes * 3;
+      minute += bookingSlotIntervalMinutes
+    ) {
+      const hour = Math.floor(minute / 60);
+      const minutePart = String(minute % 60).padStart(2, "0");
+      samples.push(`${String(hour).padStart(2, "0")}:${minutePart}`);
+    }
+    return samples.join(" · ");
+  }, [bookingSlotIntervalMinutes, bookingSlotOffsetMinutes]);
 
   function updateNotice(index: number, value: string) {
     setNotices((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)));
@@ -364,7 +400,9 @@ export default function OwnerSettingsPanel({
           phone,
           address: combinedAddress,
           description,
-          concurrentCapacity: data.shop.concurrent_capacity,
+          concurrentCapacity,
+          bookingSlotIntervalMinutes,
+          bookingSlotOffsetMinutes,
           approvalMode: data.shop.approval_mode,
           regularClosedDays,
           temporaryClosedDates,
@@ -751,7 +789,7 @@ export default function OwnerSettingsPanel({
                 key={label}
                 type="button"
                 onClick={() => toggleRegularClosedDay(index)}
-                className={`rounded-[10px] border px-3 py-3 text-sm font-semibold ${
+                className={`rounded-[10px] border px-3 py-3 text-sm font-medium ${
                   active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"
                 }`}
               >
@@ -776,7 +814,7 @@ export default function OwnerSettingsPanel({
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex flex-1 items-center justify-between rounded-[10px] border border-[var(--border)] bg-white px-3 py-3 text-sm font-semibold text-[var(--text)]"
+              className="flex flex-1 items-center justify-between rounded-[10px] border border-[var(--border)] bg-white px-3 py-3 text-sm font-medium text-[var(--text)]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -784,7 +822,7 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-medium text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
                 if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) return;
@@ -801,7 +839,7 @@ export default function OwnerSettingsPanel({
                 <button
                   key={date}
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text)]"
                   onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
                 >
                   {date} 삭제
@@ -822,11 +860,11 @@ export default function OwnerSettingsPanel({
             className="flex w-full items-center justify-between gap-3 py-1.5 text-left"
           >
             <div className="min-w-0">
-              <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
+              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
               <p className="mt-0.5 text-[11px] leading-4 text-[#938a80]">
                 월요일부터 일요일까지 같은 시간으로 한 번에 적용해요.
               </p>
-              <p className="mt-1 text-[12px] font-medium text-[var(--accent)]">{businessHoursSummary}</p>
+              <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
           </button>
@@ -842,21 +880,97 @@ export default function OwnerSettingsPanel({
                 onClick={() => openBusinessHoursEditor(day)}
                 className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left"
               >
-                <div className="min-w-0">
-                  <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
-                  <p className="mt-0.5 text-[11px] leading-4 text-[#938a80]">
-                    {isClosed ? "정기 휴무로 설정됨" : formatBusinessHoursRange(hours)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <p className="shrink-0 text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
                   {isClosed ? (
-                    <span className="rounded-full bg-[#f4f5f4] px-2 py-0.5 text-[10px] font-medium text-[#7f776c]">휴무</span>
-                  ) : null}
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                    <span className="rounded-full bg-[#f4f5f4] px-2 py-0.5 text-[10px] text-[#7f776c]">휴무</span>
+                  ) : (
+                    <p className="min-w-0 truncate text-[12px] leading-4 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
+                  )}
                 </div>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
               </button>
             );
           })}
+        </div>
+      </SettingsFieldCard>
+
+      <SettingsFieldCard label="예약 시간 설정">
+        <div className="space-y-3">
+          <div>
+            <p className="text-[12px] text-[var(--muted)]">동시 예약 가능 수</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {concurrentCapacityOptions.map((value) => {
+                const active = concurrentCapacity === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setConcurrentCapacity(value)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border)] bg-white text-[var(--muted)]"
+                    }`}
+                  >
+                    {value}명
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-[12px] text-[var(--muted)]">예약 시작 간격</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {bookingSlotIntervalOptions.map((value) => {
+                const active = bookingSlotIntervalMinutes === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setBookingSlotIntervalMinutes(value);
+                      setBookingSlotOffsetMinutes((previous) =>
+                        normalizeBookingSlotOffsetMinutes(previous, value),
+                      );
+                    }}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border)] bg-white text-[var(--muted)]"
+                    }`}
+                  >
+                    {value}분
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-[12px] text-[var(--muted)]">기준 분</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {bookingSlotOffsetOptions.map((value) => {
+                const active = bookingSlotOffsetMinutes === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setBookingSlotOffsetMinutes(value)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border)] bg-white text-[var(--muted)]"
+                    }`}
+                  >
+                    {String(value).padStart(2, "0")}분
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[11px] leading-4 text-[var(--muted)]">
+            예: {bookingSlotPatternPreview}부터 예약을 받을 수 있어요.
+          </p>
         </div>
       </SettingsFieldCard>
     </SettingsCard>
@@ -1324,7 +1438,7 @@ function SettingsFieldCard({
 }) {
   return (
     <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
-      <legend className="ml-0.5 px-1.5 text-[15px] font-medium tracking-[-0.01em] text-[var(--muted)]">
+      <legend className="ml-0.5 px-1.5 text-[15px] tracking-[-0.01em] text-[var(--muted)]">
         {label}
       </legend>
       {children}

@@ -52,9 +52,15 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
 }
 
 export function normalizeGuardianNotificationSettings(settings: Partial<GuardianNotificationSettings> | null | undefined): GuardianNotificationSettings {
-  return {
+  const normalized = {
     ...defaultGuardianNotificationSettings,
     ...(settings ?? {}),
+  };
+
+  return {
+    ...normalized,
+    enabled: true,
+    revisit_enabled: true,
   };
 }
 

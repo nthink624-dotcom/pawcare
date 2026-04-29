@@ -204,6 +204,13 @@ export async function updateShopSettings(input: unknown) {
     .single();
 
   if (error) {
+    if (
+      hasMissingColumnError(error, "booking_slot_interval_minutes") ||
+      hasMissingColumnError(error, "booking_slot_offset_minutes")
+    ) {
+      throw new Error("예약 시간 설정 컬럼이 아직 없습니다. 안내드린 SQL을 한 번만 실행해 주세요.");
+    }
+
     if (hasMissingColumnError(error, "notification_settings")) {
       const fallback = await supabase
         .from("shops")

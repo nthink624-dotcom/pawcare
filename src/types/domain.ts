@@ -85,6 +85,8 @@ export type Shop = {
   regular_closed_days: number[];
   temporary_closed_dates: string[];
   concurrent_capacity: number;
+  booking_slot_interval_minutes: number;
+  booking_slot_offset_minutes: number;
   approval_mode: ApprovalMode;
   notification_settings: ShopNotificationSettings;
   customer_page_settings: CustomerPageSettings;

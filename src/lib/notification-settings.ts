@@ -12,8 +12,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
 };
 
 export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {
-  enabled: false,
-  revisit_enabled: false,
+  enabled: true,
+  revisit_enabled: true,
 };
 
 export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {

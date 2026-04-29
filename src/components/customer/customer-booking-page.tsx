@@ -190,6 +190,17 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
   });
 }
 
+async function fetchAvailabilitySlots(
+  shopId: string,
+  date: string,
+  options: { serviceId?: string; previewDurationMinutes?: number },
+) {
+  const query = new URLSearchParams({ shopId, date });
+  if (options.serviceId) query.set("serviceId", options.serviceId);
+  if (options.previewDurationMinutes) query.set("previewDurationMinutes", String(options.previewDurationMinutes));
+  return fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
+}
+
 function buildDateOptions(shop: Shop): DateOption[] {
   const options: DateOption[] = [];
   const today = currentDateInTimeZone();
@@ -304,11 +315,6 @@ export default function CustomerBookingPage({
   const firstVisitProgress = (firstVisitStep / 4) * 100;
 
   useEffect(() => {
-    if (!firstVisit.serviceId && services[0]?.id) setFirstVisit((prev) => ({ ...prev, serviceId: services[0].id }));
-    if (!returningVisit.serviceId && services[0]?.id) setReturningVisit((prev) => ({ ...prev, serviceId: services[0].id }));
-  }, [firstVisit.serviceId, returningVisit.serviceId, services]);
-
-  useEffect(() => {
     if (draftHydrated || typeof window === "undefined") return;
 
     const rawDraft = window.localStorage.getItem(getFirstVisitDraftStorageKey(shopId));
@@ -354,17 +360,20 @@ export default function CustomerBookingPage({
   useEffect(() => {
     let active = true;
     async function load() {
-      const availabilityServiceId =
-        firstVisit.serviceId && firstVisit.serviceId !== CUSTOM_SERVICE_ID ? firstVisit.serviceId : services[0]?.id;
-
-      if (!firstVisit.date || !availabilityServiceId) {
+      if (!firstVisit.date) {
         setFirstVisitSlots([]);
         return;
       }
       setLoadingFirstVisitSlots(true);
       try {
-        const query = new URLSearchParams({ shopId, date: firstVisit.date, serviceId: availabilityServiceId });
-        const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
+        const usesPreviewSlots = firstVisitStep < 3 || !firstVisit.serviceId || firstVisit.serviceId === CUSTOM_SERVICE_ID;
+        const result = await fetchAvailabilitySlots(
+          shopId,
+          firstVisit.date,
+          usesPreviewSlots
+            ? { previewDurationMinutes: 30 }
+            : { serviceId: firstVisit.serviceId },
+        );
         if (!active) return;
         setFirstVisitSlots(result.slots);
         if (!result.slots.includes(firstVisit.timeSlot)) setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
@@ -374,22 +383,25 @@ export default function CustomerBookingPage({
     }
     void load();
     return () => { active = false; };
-  }, [firstVisit.date, firstVisit.serviceId, firstVisit.timeSlot, services, shopId]);
+  }, [firstVisit.date, firstVisit.serviceId, firstVisit.timeSlot, firstVisitStep, shopId]);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      const availabilityServiceId =
-        returningVisit.serviceId && returningVisit.serviceId !== CUSTOM_SERVICE_ID ? returningVisit.serviceId : services[0]?.id;
-
-      if (!returningVisit.date || !availabilityServiceId) {
+      if (!returningVisit.date) {
         setReturningVisitSlots([]);
         return;
       }
       setLoadingReturningVisitSlots(true);
       try {
-        const query = new URLSearchParams({ shopId, date: returningVisit.date, serviceId: availabilityServiceId });
-        const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
+        const usesPreviewSlots = !returningVisit.serviceId || returningVisit.serviceId === CUSTOM_SERVICE_ID;
+        const result = await fetchAvailabilitySlots(
+          shopId,
+          returningVisit.date,
+          usesPreviewSlots
+            ? { previewDurationMinutes: 30 }
+            : { serviceId: returningVisit.serviceId },
+        );
         if (!active) return;
         setReturningVisitSlots(result.slots);
         if (!result.slots.includes(returningVisit.timeSlot)) setReturningVisit((prev) => ({ ...prev, timeSlot: "" }));
@@ -399,7 +411,7 @@ export default function CustomerBookingPage({
     }
     void load();
     return () => { active = false; };
-  }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, services, shopId]);
+  }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, shopId]);
 
   function resetView() {
     window.location.href = entryHref || `/entry/${shopId}`;

@@ -1,3 +1,4 @@
+import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { buildDemoBootstrap } from "@/lib/mock-data";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
@@ -27,7 +28,7 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
 
   const store = normalizeBootstrapNotifications(buildDemoBootstrap());
   store.shop = {
-    ...store.shop,
+    ...normalizeShopBookingSettings(store.shop),
     id: shopId || store.shop.id,
     customer_page_settings: normalizeCustomerPageSettings(
       store.shop.customer_page_settings,
@@ -111,7 +112,7 @@ export async function getBootstrap(shopId = "demo-shop"): Promise<BootstrapPaylo
   return normalizeBootstrapNotifications({
     mode: "supabase",
     shop: {
-      ...(shopRes.data as Shop),
+      ...normalizeShopBookingSettings(shopRes.data as Shop),
       notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
       customer_page_settings: normalizeCustomerPageSettings(
         (shopRes.data as Shop).customer_page_settings,

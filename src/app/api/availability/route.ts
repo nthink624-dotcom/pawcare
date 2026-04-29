@@ -9,16 +9,19 @@ export async function GET(request: NextRequest) {
     const shopId = searchParams.get("shopId") ?? "";
     const date = searchParams.get("date") ?? "";
     const serviceId = searchParams.get("serviceId") ?? "";
+    const previewDurationMinutesRaw = searchParams.get("previewDurationMinutes") ?? "";
     const excludeAppointmentId = searchParams.get("excludeAppointmentId") ?? undefined;
+    const previewDurationMinutes = previewDurationMinutesRaw ? Number(previewDurationMinutesRaw) : undefined;
 
-    if (!shopId || !date || !serviceId) {
+    if (!shopId || !date || (!serviceId && !previewDurationMinutes)) {
       return NextResponse.json({ message: "예약 가능 시간을 조회할 정보가 부족합니다." }, { status: 400 });
     }
 
     const bootstrap = await getBootstrap(shopId);
     const slots = computeAvailableSlots({
       date,
-      serviceId,
+      serviceId: serviceId || undefined,
+      durationMinutesOverride: previewDurationMinutes,
       shop: bootstrap.shop,
       services: bootstrap.services,
       appointments: bootstrap.appointments,

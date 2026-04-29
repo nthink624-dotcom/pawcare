@@ -742,53 +742,7 @@ export default function OwnerSettingsPanel({
 
   const closuresSection = (
     <SettingsCard>
-      <SettingsFieldCard label="운영 시간" className="px-0 pb-0 pt-2">
-        <div className="px-3.5 pb-1.5">
-          <button
-            type="button"
-            onClick={() => openBusinessHoursEditor("all")}
-            className="flex w-full items-center justify-between gap-3 py-2 text-left"
-          >
-            <div className="min-w-0">
-              <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
-              <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
-                월요일부터 일요일까지 같은 시간으로 한 번에 적용해요.
-              </p>
-              <p className="mt-1 text-[13px] font-medium text-[var(--accent)]">{businessHoursSummary}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-          </button>
-        </div>
-        <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
-          {businessHoursWeekOrder.map((day) => {
-            const hours = getBusinessHour(day);
-            const isClosed = regularClosedDays.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => openBusinessHoursEditor(day)}
-                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
-              >
-                <div className="min-w-0">
-                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
-                  <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
-                    {isClosed ? "정기 휴무로 설정됨" : formatBusinessHoursRange(hours)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isClosed ? (
-                    <span className="rounded-full bg-[#f4f5f4] px-2 py-1 text-[11px] font-medium text-[#7f776c]">휴무</span>
-                  ) : null}
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </SettingsFieldCard>
-
-      <Field label="정기 휴무" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
+      <SettingsFieldCard label="정기 휴무">
         <div className="grid grid-cols-4 gap-2">
           {weekdayLabels.map((label, index) => {
             const active = regularClosedDays.includes(index);
@@ -806,12 +760,19 @@ export default function OwnerSettingsPanel({
             );
           })}
         </div>
-      </Field>
-      <Field label="휴무 안내 멘트" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
-        <textarea className="field min-h-20" value={holidayNotice} onChange={(event) => setHolidayNotice(event.target.value)} placeholder="매주 일요일은 쉽니다. 더 꼼꼼한 관리로 다시 뵐게요." />
-      </Field>
-      <Field label="특정 휴무일" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
-        <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
+      </SettingsFieldCard>
+
+      <SettingsFieldCard label="휴무 안내 멘트">
+        <textarea
+          className="min-h-[88px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          value={holidayNotice}
+          onChange={(event) => setHolidayNotice(event.target.value)}
+          placeholder="매주 일요일은 휴무, 임시 휴무는 공지사항으로 안내드려요."
+        />
+      </SettingsFieldCard>
+
+      <SettingsFieldCard label="특정 휴무일">
+        <div className="space-y-3">
           <div className="flex gap-2">
             <button
               type="button"
@@ -851,7 +812,53 @@ export default function OwnerSettingsPanel({
             <p className="text-sm text-[var(--muted)]">등록된 휴무일이 없어요.</p>
           )}
         </div>
-      </Field>
+      </SettingsFieldCard>
+
+      <SettingsFieldCard label="운영 시간" className="px-0 pb-0 pt-2">
+        <div className="px-3.5 pb-1">
+          <button
+            type="button"
+            onClick={() => openBusinessHoursEditor("all")}
+            className="flex w-full items-center justify-between gap-3 py-1.5 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-[#938a80]">
+                월요일부터 일요일까지 같은 시간으로 한 번에 적용해요.
+              </p>
+              <p className="mt-1 text-[12px] font-medium text-[var(--accent)]">{businessHoursSummary}</p>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+          </button>
+        </div>
+        <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
+          {businessHoursWeekOrder.map((day) => {
+            const hours = getBusinessHour(day);
+            const isClosed = regularClosedDays.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => openBusinessHoursEditor(day)}
+                className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left"
+              >
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-[#938a80]">
+                    {isClosed ? "정기 휴무로 설정됨" : formatBusinessHoursRange(hours)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isClosed ? (
+                    <span className="rounded-full bg-[#f4f5f4] px-2 py-0.5 text-[10px] font-medium text-[#7f776c]">휴무</span>
+                  ) : null}
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsFieldCard>
     </SettingsCard>
   );
 
@@ -1150,16 +1157,16 @@ function BusinessHoursSheet({
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
       <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
+        <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
-            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{description}</p>
+            <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
 
-        <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
           <div className="grid grid-cols-2 gap-2.5">
             <SettingsFieldCard label="시작 시간">
               <input
@@ -1178,10 +1185,10 @@ function BusinessHoursSheet({
               />
             </SettingsFieldCard>
           </div>
-          <p className="text-[12px] leading-5 text-[var(--muted)]">시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요.</p>
+          <p className="text-[11px] leading-4 text-[var(--muted)]">시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요.</p>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-3.5 grid grid-cols-2 gap-2">
           <OutlineButton onClick={onClose}>취소</OutlineButton>
           <SolidButton onClick={onApply}>적용</SolidButton>
         </div>
@@ -1303,15 +1310,6 @@ function SettingsNavRow({
       </div>
       <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
     </button>
-  );
-}
-
-function Field({ label, children, labelClassName }: { label: string; children: ReactNode; labelClassName?: string }) {
-  return (
-    <label className="block text-sm font-medium text-[var(--text)]">
-      <span className={labelClassName ?? "mb-1 block text-xs text-[var(--muted)]"}>{label}</span>
-      {children}
-    </label>
   );
 }
 

@@ -19,20 +19,22 @@ export function isShopClosedOnDate(shop: Shop, date: string) {
 
 export function computeAvailableSlots(params: {
   date: string;
-  serviceId: string;
+  serviceId?: string;
+  durationMinutesOverride?: number;
   shop: Shop;
   services: Service[];
   appointments: Appointment[];
   excludeAppointmentId?: string;
 }) {
-  const { date, serviceId, shop, services, appointments, excludeAppointmentId } = params;
+  const { date, serviceId, durationMinutesOverride, shop, services, appointments, excludeAppointmentId } = params;
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   if (isShopClosedOnDate(shop, date)) return [];
   const hours = shop.business_hours[weekday];
   if (!hours?.enabled) return [];
-  const service = services.find((item) => item.id === serviceId);
-  if (!service) return [];
+  const service = serviceId ? services.find((item) => item.id === serviceId) : null;
+  const durationMinutes = durationMinutesOverride ?? service?.duration_minutes;
+  if (!durationMinutes) return [];
 
   const open = minutesFromTime(hours.open);
   const close = minutesFromTime(hours.close);
@@ -40,7 +42,7 @@ export function computeAvailableSlots(params: {
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
 
-  for (let cursor = open; cursor + service.duration_minutes <= close; cursor += 30) {
+  for (let cursor = open; cursor + durationMinutes <= close; cursor += 30) {
     if (isToday && cursor <= nowMinutes) {
       continue;
     }
@@ -49,7 +51,7 @@ export function computeAvailableSlots(params: {
       isSlotAvailable({
         date,
         startMinute: cursor,
-        durationMinutes: service.duration_minutes,
+        durationMinutes,
         appointments,
         services,
         concurrentCapacity: shop.concurrent_capacity,

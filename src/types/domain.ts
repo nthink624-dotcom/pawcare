@@ -10,7 +10,9 @@ export type AppointmentStatus =
   | "noshow";
 
 export type NotificationType =
+  | "booking_received"
   | "booking_confirmed"
+  | "owner_booking_requested"
   | "booking_rejected"
   | "booking_cancelled"
   | "booking_rescheduled_confirmed"

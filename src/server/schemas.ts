@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
+
 export const appointmentInputSchema = z.object({
   shopId: z.string(),
   guardianId: z.string(),
@@ -91,6 +93,11 @@ export const shopSettingsSchema = z.object({
   address: z.string().min(1),
   description: z.string().default(""),
   concurrentCapacity: z.coerce.number().min(1).max(5),
+  bookingSlotIntervalMinutes: z.coerce.number().refine(
+    (value) => bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number]),
+    { message: "지원하지 않는 예약 시간 간격입니다." },
+  ),
+  bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
   approvalMode: z.enum(["manual", "auto"]),
   regularClosedDays: z.array(z.number().min(0).max(6)),
   temporaryClosedDates: z.array(z.string()),
@@ -112,6 +119,22 @@ export const shopSettingsSchema = z.object({
     groomingAlmostDoneEnabled: z.boolean(),
     groomingCompletedEnabled: z.boolean(),
   }),
+}).superRefine((value, ctx) => {
+  if (value.bookingSlotOffsetMinutes >= value.bookingSlotIntervalMinutes) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bookingSlotOffsetMinutes"],
+      message: "기준 분은 예약 간격보다 작아야 합니다.",
+    });
+  }
+
+  if (value.bookingSlotOffsetMinutes % 5 !== 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bookingSlotOffsetMinutes"],
+      message: "기준 분은 5분 단위로 선택해 주세요.",
+    });
+  }
 });
 
 export const customerPageSettingsSchema = z.object({

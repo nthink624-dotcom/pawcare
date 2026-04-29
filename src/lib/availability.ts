@@ -1,6 +1,10 @@
 ﻿import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import type { Appointment, Pet, Service, Shop } from "@/types/domain";
+import {
+  normalizeBookingSlotIntervalMinutes,
+  normalizeBookingSlotOffsetMinutes,
+} from "@/lib/booking-slot-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
 export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
@@ -41,8 +45,14 @@ export function computeAvailableSlots(params: {
   const nowMinutes = currentMinutesInTimeZone();
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
+  const slotIntervalMinutes = normalizeBookingSlotIntervalMinutes(shop.booking_slot_interval_minutes);
+  const slotOffsetMinutes = normalizeBookingSlotOffsetMinutes(
+    shop.booking_slot_offset_minutes,
+    slotIntervalMinutes,
+  );
+  const firstSlotMinute = alignToSlotPattern(open, slotIntervalMinutes, slotOffsetMinutes);
 
-  for (let cursor = open; cursor + durationMinutes <= close; cursor += 30) {
+  for (let cursor = firstSlotMinute; cursor + durationMinutes <= close; cursor += slotIntervalMinutes) {
     if (isToday && cursor <= nowMinutes) {
       continue;
     }
@@ -82,19 +92,52 @@ export function isSlotAvailable(params: {
       appointment.id !== excludeAppointmentId,
   );
 
-  for (let minute = startMinute; minute < endMinute; minute += 30) {
-    const overlaps = activeAppointments.filter((appointment) => {
-      const service = services.find((item) => item.id === appointment.service_id);
-      if (!service) return false;
-      const appointmentStart = minutesFromTime(appointment.appointment_time);
-      const appointmentEnd = appointmentStart + service.duration_minutes;
-      return minute >= appointmentStart && minute < appointmentEnd;
-    });
+  const overlapBoundaries = new Set<number>([startMinute, endMinute]);
+  const overlappingAppointments = activeAppointments.flatMap((appointment) => {
+    const service = services.find((item) => item.id === appointment.service_id);
+    if (!service) return [];
+
+    const appointmentStart = minutesFromTime(appointment.appointment_time);
+    const appointmentEnd = appointmentStart + service.duration_minutes;
+    const overlapsWindow = appointmentStart < endMinute && startMinute < appointmentEnd;
+    if (!overlapsWindow) return [];
+
+    overlapBoundaries.add(Math.max(startMinute, appointmentStart));
+    overlapBoundaries.add(Math.min(endMinute, appointmentEnd));
+
+    return [{ appointmentStart, appointmentEnd }];
+  });
+
+  const sortedBoundaries = Array.from(overlapBoundaries).sort((a, b) => a - b);
+
+  for (let index = 0; index < sortedBoundaries.length - 1; index += 1) {
+    const segmentStart = sortedBoundaries[index];
+    const segmentEnd = sortedBoundaries[index + 1];
+    if (segmentStart === segmentEnd) continue;
+
+    const probeMinute = segmentStart + 0.5;
+    const overlaps = overlappingAppointments.filter(
+      ({ appointmentStart, appointmentEnd }) =>
+        appointmentStart <= probeMinute && probeMinute < appointmentEnd,
+    );
+
     if (overlaps.length >= concurrentCapacity) {
       return false;
     }
   }
   return true;
+}
+
+function alignToSlotPattern(openMinute: number, intervalMinutes: number, offsetMinutes: number) {
+  const normalizedInterval = normalizeBookingSlotIntervalMinutes(intervalMinutes);
+  const normalizedOffset = normalizeBookingSlotOffsetMinutes(offsetMinutes, normalizedInterval);
+  const remainder = ((openMinute - normalizedOffset) % normalizedInterval + normalizedInterval) % normalizedInterval;
+
+  if (remainder === 0) {
+    return openMinute;
+  }
+
+  return openMinute + (normalizedInterval - remainder);
 }
 
 export function revisitInfo(

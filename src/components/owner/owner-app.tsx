@@ -35,6 +35,8 @@ type ShopProfileSavePayload = {
     address: string;
     description: string;
     concurrentCapacity: number;
+    bookingSlotIntervalMinutes: number;
+    bookingSlotOffsetMinutes: number;
     approvalMode: "manual" | "auto";
     regularClosedDays: number[];
     temporaryClosedDates: string[];
@@ -874,6 +876,9 @@ export default function OwnerApp({
           phone: payload.settingsPayload.phone,
           address: payload.settingsPayload.address,
           description: payload.settingsPayload.description,
+          concurrent_capacity: payload.settingsPayload.concurrentCapacity,
+          booking_slot_interval_minutes: payload.settingsPayload.bookingSlotIntervalMinutes,
+          booking_slot_offset_minutes: payload.settingsPayload.bookingSlotOffsetMinutes,
           business_hours: payload.settingsPayload.businessHours,
           customer_page_settings: payload.customerPageSettingsPayload.customerPageSettings,
         },
@@ -1102,6 +1107,8 @@ export default function OwnerApp({
         address: data.shop.address,
         description: data.shop.description,
         concurrentCapacity: data.shop.concurrent_capacity,
+        bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+        bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
         approvalMode: nextMode,
         regularClosedDays: data.shop.regular_closed_days,
         temporaryClosedDates: data.shop.temporary_closed_dates,

@@ -44,6 +44,7 @@ export const serverEnv = {
   alimtalkSenderKey: process.env.ALIMTALK_SENDER_KEY,
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
+  alimtalkTemplateBookingReceived: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED),
   alimtalkTemplateBookingConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED),
   alimtalkTemplateBookingRejected: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED),
   alimtalkTemplateBookingCancelled: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED),
@@ -101,6 +102,8 @@ export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
   if (!alias) return null;
 
   switch (alias) {
+    case "booking_received":
+      return serverEnv.alimtalkTemplateBookingReceived ?? null;
     case "booking_confirmed":
       return serverEnv.alimtalkTemplateBookingConfirmed ?? null;
     case "booking_rejected":

@@ -7,6 +7,7 @@ import {
   addDate,
   currentDateInTimeZone,
   currentMinutesInTimeZone,
+  formatClockTime,
   minutesFromTime,
   nowIso,
   phoneNormalize,
@@ -221,6 +222,21 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
 
   const phone = normalizePhone(payload.phone);
   const guardianName = normalizeName(payload.guardianName);
+  const guardianNotificationSettingsProbe = await supabase
+    .from("guardians")
+    .select("id,notification_settings")
+    .eq("shop_id", payload.shopId)
+    .limit(1);
+
+  const supportsGuardianNotificationSettings = !(
+    guardianNotificationSettingsProbe.error &&
+    hasMissingColumnError(guardianNotificationSettingsProbe.error, "notification_settings")
+  );
+
+  if (guardianNotificationSettingsProbe.error && supportsGuardianNotificationSettings) {
+    throw new Error(guardianNotificationSettingsProbe.error.message);
+  }
+
   const guardianQueryWithDeletedAt = await supabase
     .from("guardians")
     .select("id,name,phone,deleted_at")
@@ -259,15 +275,39 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
         name: guardianBase.name,
         phone: guardianBase.phone,
         memo: guardianBase.memo,
-        notification_settings: { enabled: true, revisit_enabled: true },
+        ...(supportsGuardianNotificationSettings
+          ? { notification_settings: { enabled: true, revisit_enabled: true } }
+          : {}),
         created_at: guardianBase.created_at,
         updated_at: guardianBase.updated_at,
       })
       .select("id")
       .single();
 
-    if (insertGuardian.error) throw new Error(insertGuardian.error.message);
-    guardianId = insertGuardian.data.id;
+    if (insertGuardian.error) {
+      if (hasMissingColumnError(insertGuardian.error, "notification_settings")) {
+        const fallbackGuardian = await supabase
+          .from("guardians")
+          .insert({
+            id: guardianBase.id,
+            shop_id: guardianBase.shop_id,
+            name: guardianBase.name,
+            phone: guardianBase.phone,
+            memo: guardianBase.memo,
+            created_at: guardianBase.created_at,
+            updated_at: guardianBase.updated_at,
+          })
+          .select("id")
+          .single();
+
+        if (fallbackGuardian.error) throw new Error(fallbackGuardian.error.message);
+        guardianId = fallbackGuardian.data.id;
+      } else {
+        throw new Error(insertGuardian.error.message);
+      }
+    } else {
+      guardianId = insertGuardian.data.id;
+    }
   } else if (exactDeletedGuardian) {
     const restoredGuardian = supportsGuardianSoftDelete
       ? await supabase
@@ -405,6 +445,44 @@ export async function createCustomerBooking(input: unknown) {
     memo: mergedMemo,
     source: "customer",
   });
+
+  await dispatchNotification({
+    shopId: appointment.shop_id,
+    appointmentId: appointment.id,
+    guardianId: appointment.guardian_id,
+    petId: appointment.pet_id,
+    type: "owner_booking_requested",
+    channel: "in_app",
+    force: true,
+    skipIfExists: true,
+    message: [
+      "새 예약이 접수되었어요.",
+      `${payload.guardianName.trim()} / ${payload.petName.trim()}`,
+      `${payload.appointmentDate} ${formatClockTime(payload.appointmentTime)}`,
+    ].join("\n"),
+    metadata: {
+      source: "customer_booking",
+      guardianName: payload.guardianName.trim(),
+      petName: payload.petName.trim(),
+      appointmentDate: payload.appointmentDate,
+      appointmentTime: payload.appointmentTime,
+    },
+  });
+
+  if (appointment.status === "pending") {
+    await dispatchNotification({
+      shopId: appointment.shop_id,
+      appointmentId: appointment.id,
+      guardianId: appointment.guardian_id,
+      petId: appointment.pet_id,
+      type: "booking_received",
+      channel: "alimtalk",
+      templateKey: "booking_received",
+      recipientPhone: payload.phone,
+      recipientName: payload.guardianName.trim(),
+      skipIfExists: true,
+    });
+  }
 
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,

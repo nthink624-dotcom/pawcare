@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronRight, Copy, House, PawPrint, Search, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, Search, Settings, Trash2, UserRound, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
@@ -145,6 +145,8 @@ export default function OwnerApp({
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
+  const [homeReservationDate, setHomeReservationDate] = useState(() => currentDateInTimeZone());
+  const [homeReservationSlideDirection, setHomeReservationSlideDirection] = useState<"prev" | "next">("next");
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
   const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
@@ -282,6 +284,15 @@ export default function OwnerApp({
     const timer = window.setInterval(syncToday, 60000);
     return () => window.clearInterval(timer);
   }, []);
+  const maxHomeReservationDate = useMemo(() => addDate(todayDate, 7), [todayDate]);
+
+  useEffect(() => {
+    setHomeReservationDate((current) => {
+      if (current < todayDate) return todayDate;
+      if (current > maxHomeReservationDate) return maxHomeReservationDate;
+      return current;
+    });
+  }, [maxHomeReservationDate, todayDate]);
 
   const serviceMap = useMemo(() => Object.fromEntries(data.services.map((item) => [item.id, item])), [data.services]);
   const guardianMap = useMemo(() => Object.fromEntries(data.guardians.map((item) => [item.id, item])), [data.guardians]);
@@ -330,7 +341,40 @@ export default function OwnerApp({
   const todayHistoryAppointments = useMemo(() => todayConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [todayConfirmedAppointments]);
   const completedHistoryAppointments = useMemo(() => todayHistoryAppointments.filter((item) => item.status === "completed"), [todayHistoryAppointments]);
   const cancelChangeAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "cancelled"), [data.appointments, todayDate]);
+  const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeReservationDate]);
+  const homePendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && item.status === "pending"), [data.appointments, homeReservationDate]);
+  const homeActionAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
+  const homeHistoryAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
+  const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments.filter((item) => item.status === "completed"), [homeHistoryAppointments]);
   const selectedDayAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === selectedDate).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [data.appointments, selectedDate]);
+  const homeReservationDateLabel = useMemo(() => {
+    if (homeReservationDate === todayDate) return "오늘";
+    return new Intl.DateTimeFormat("ko-KR", {
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+    })
+      .format(new Date(homeReservationDate + "T00:00:00"))
+      .replace("요일", "");
+  }, [homeReservationDate, todayDate]);
+  const homeReservationPanelTitle = useMemo(
+    () => (homeReservationDate === todayDate ? ownerHomeCopy.todayTimelineTitle : `${homeReservationDateLabel} 예약 관리`),
+    [homeReservationDate, homeReservationDateLabel, todayDate],
+  );
+  const homeReservationGuideStorageKey = useMemo(() => `owner-home-reservation-swipe-guide-dismissed:${userEmail ?? data.shop.id}`, [data.shop.id, userEmail]);
+  const canMoveHomeReservationBackward = homeReservationDate > todayDate;
+  const canMoveHomeReservationForward = homeReservationDate < maxHomeReservationDate;
+  const homeQuickReservationDates = useMemo(() => Array.from({ length: 8 }, (_, index) => addDate(todayDate, index)), [todayDate]);
+
+  const moveHomeReservationDate = (direction: "prev" | "next") => {
+    setHomeReservationSlideDirection(direction);
+    setHomeReservationDate((current) => {
+      if (direction === "prev") {
+        return current > todayDate ? addDate(current, -1) : current;
+      }
+      return current < maxHomeReservationDate ? addDate(current, 1) : current;
+    });
+  };
   const revisitRows = useMemo(() => data.pets.map((pet) => {
     const lastRecord = data.groomingRecords.filter((record) => record.pet_id === pet.id).sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))[0];
     const revisit = revisitInfo(pet, lastRecord?.groomed_at);
@@ -440,19 +484,24 @@ export default function OwnerApp({
     return dates;
   }, [selectedVisitEnd, selectedVisitStart]);
   const selectedVisitDateSet = useMemo(() => new Set(selectedVisitDates), [selectedVisitDates]);
-  const selectedVisitHasTodayOrFuture = selectedVisitDates.some((item) => item >= todayDate);
-  const shouldShowVisitActionSection = isSelectedVisitRange ? selectedVisitHasTodayOrFuture : selectedVisitDate >= todayDate;
   const selectedVisitAppointments = useMemo(() => data.appointments.filter((item) => selectedVisitDateSet.has(item.appointment_date)).sort((a, b) => (a.appointment_date + " " + a.appointment_time).localeCompare(b.appointment_date + " " + b.appointment_time)), [data.appointments, selectedVisitDateSet]);
   const selectedVisitRecords = useMemo(() => data.groomingRecords.filter((item) => selectedVisitDateSet.has(item.groomed_at.slice(0, 10))).sort((a, b) => b.groomed_at.localeCompare(a.groomed_at)), [data.groomingRecords, selectedVisitDateSet]);
-  const selectedVisitActionAppointments = useMemo(() => selectedVisitAppointments.filter((item) => item.appointment_date >= todayDate && ["pending", "confirmed", "in_progress", "almost_done"].includes(item.status)), [selectedVisitAppointments, todayDate]);
-  const selectedVisitCancelledAppointments = useMemo(() => selectedVisitAppointments.filter((item) => item.status === "cancelled"), [selectedVisitAppointments]);
   const completedAppointmentIds = useMemo(() => new Set(selectedVisitRecords.map((item) => item.appointment_id).filter(Boolean)), [selectedVisitRecords]);
+  const selectedVisitReservationAppointments = useMemo(
+    () =>
+      selectedVisitAppointments.filter(
+        (item) => item.status !== "cancelled" && item.status !== "completed" && !completedAppointmentIds.has(item.id),
+      ),
+    [completedAppointmentIds, selectedVisitAppointments],
+  );
+  const selectedVisitCancelledAppointments = useMemo(() => selectedVisitAppointments.filter((item) => item.status === "cancelled"), [selectedVisitAppointments]);
   const selectedVisitCompletedAppointments = useMemo(() => selectedVisitAppointments.filter((item) => {
     if (item.status === "cancelled") return false;
     const isPast = item.appointment_date < todayDate;
     if (isPast) return !completedAppointmentIds.has(item.id);
     return ["completed"].includes(item.status) && !completedAppointmentIds.has(item.id);
   }), [completedAppointmentIds, selectedVisitAppointments, todayDate]);
+  const visitSectionOrder: Array<"reservation" | "cancel_change" | "completed"> = ["reservation", "cancel_change", "completed"];
 
   const visitCalendarMonth = visitCalendarMonthCursor;
   const visitCalendarMonthStart = visitCalendarMonth + "-01";
@@ -512,6 +561,14 @@ export default function OwnerApp({
       })
       .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at));
   }, [data.notifications, selectedGuardian, selectedGuardianPets]);
+  const recentBookingRequestNotifications = useMemo(
+    () =>
+      data.notifications
+        .filter((item) => item.type === "owner_booking_requested")
+        .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at))
+        .slice(0, 3),
+    [data.notifications],
+  );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
@@ -1390,16 +1447,53 @@ export default function OwnerApp({
               <StatCard label={ownerHomeCopy.statCompleted} value={String(completedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
               <StatCard label={ownerHomeCopy.statCancelChange} value={String(cancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
             </div>
-            <Panel title={ownerHomeCopy.todayTimelineTitle} action={String(pendingAppointments.length + todayActionAppointments.length + completedHistoryAppointments.length) + ownerHomeCopy.countSuffix}>
+            {recentBookingRequestNotifications.length > 0 ? (
+              <Panel title="새 예약 접수" action={`${recentBookingRequestNotifications.length}건`}>
+                <div className="space-y-2">
+                  {recentBookingRequestNotifications.map((notification) => {
+                    const relatedAppointment = notification.appointment_id
+                      ? data.appointments.find((item) => item.id === notification.appointment_id) ?? null
+                      : null;
+                    return (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        className="w-full rounded-[12px] border border-[var(--border)] bg-white px-4 py-3 text-left transition hover:bg-[#fcfaf7]"
+                        onClick={() => {
+                          if (relatedAppointment) {
+                            setModal({ type: "appointment", appointment: relatedAppointment });
+                            return;
+                          }
+                          setActiveTab("book");
+                        }}
+                      >
+                        <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{notification.message.split("\n")[0]}</p>
+                        <p className="mt-1 whitespace-pre-line text-[12px] leading-5 text-[var(--muted)]">{notification.message.split("\n").slice(1).join("\n")}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Panel>
+            ) : null}
+            <Panel title={homeReservationPanelTitle} action={String(homePendingAppointments.length + homeActionAppointments.length + homeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix}>
               <TodayConfirmedContent
-                pendingAppointments={pendingAppointments}
-                currentAppointments={todayActionAppointments}
-                completedAppointments={completedHistoryAppointments}
+                pendingAppointments={homePendingAppointments}
+                currentAppointments={homeActionAppointments}
+                completedAppointments={homeCompletedHistoryAppointments}
                 petMap={petMap}
                 guardianMap={guardianMap}
                 serviceMap={serviceMap}
                 approvalMode={data.shop.approval_mode}
                 saving={saving}
+                selectedDateKey={homeReservationDate}
+                selectedDateLabel={homeReservationDateLabel}
+                quickDates={homeQuickReservationDates}
+                slideDirection={homeReservationSlideDirection}
+                canMoveBackward={canMoveHomeReservationBackward}
+                canMoveForward={canMoveHomeReservationForward}
+                onMoveBackward={() => moveHomeReservationDate("prev")}
+                onMoveForward={() => moveHomeReservationDate("next")}
+                onSelectDate={setHomeReservationDate}
                 onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
                 onPendingUpdate={(appointmentId, payload) => updateAppointment(appointmentId, payload)}
                 onStatusChange={(appointmentId, status) => updateAppointment(appointmentId, { status })}
@@ -1436,7 +1530,169 @@ export default function OwnerApp({
             </Panel>
           </section>
         )}
-{activeTab === "book" && <section className="space-y-3.5 p-4"><Panel title="날짜선택" titleTextClassName="text-[17px] font-semibold leading-6 tracking-[-0.02em]" action={<button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-[18px] text-[var(--text)] transition hover:bg-[#f7f4ef]" onClick={() => { setPendingVisitSelectionMode(visitSelectionMode); if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); setVisitCalendarMonthCursor(selectedVisitRange.start.slice(0, 7)); } else { setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); setVisitCalendarMonthCursor(selectedVisitDate.slice(0, 7)); } setIsVisitCalendarOpen(true); }} aria-label={"달력 열기"}><CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.9} /></button>}><div className="space-y-3"><div className="grid grid-cols-5 gap-1.5">{quickVisitDates.map((item, index) => { const active = !isSelectedVisitRange && selectedVisitDate === item; const label = index === 0 ? "오늘" : new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(new Date(item + "T00:00:00")).replace("요일", ""); return <button key={item} type="button" onClick={() => { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(item); }} className={`rounded-[15px] border px-1.5 py-2.5 text-center transition ${active ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#fcfaf7]"}`}><span className={`block text-[11px] font-normal ${active ? "text-white/80" : "text-[var(--muted)]"}`}>{label}</span><span className="mt-0.5 block text-[15px] font-medium tracking-[-0.02em]">{String(Number(item.slice(8, 10)))}</span></button>; })}</div>{(!isSelectedVisitInQuickRange || isSelectedVisitRange) && <div className="rounded-[16px] border border-[var(--border)] bg-[#fcfaf7] px-4 py-3 text-[13px] leading-5 text-[var(--muted)]">{isSelectedVisitRange ? <>현재 선택 기간: <span className="font-medium text-[var(--text)]">{selectedVisitDateHeader}</span></> : <>현재 선택 날짜: <span className="font-medium text-[var(--text)]">{selectedVisitDateHeader}</span></>}</div>}</div></Panel>{shouldShowVisitActionSection && <Panel title={ownerHomeCopy.visitActionTitle} titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]" action={selectedVisitActionAppointments.length + ownerHomeCopy.countSuffix}>{selectedVisitActionAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.visitActionEmpty} /> : <div className="space-y-2">{selectedVisitActionAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}</div>}</Panel>}<Panel title={ownerHomeCopy.visitCompletedTitle} titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]" action={selectedVisitCompletedAppointments.length + selectedVisitRecords.length + ownerHomeCopy.countSuffix}>{selectedVisitCompletedAppointments.length === 0 && selectedVisitRecords.length === 0 ? <EmptyState title={ownerHomeCopy.visitCompletedEmpty} /> : <div className="space-y-2">{selectedVisitCompletedAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}{selectedVisitRecords.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}</div>}</Panel><Panel title={ownerHomeCopy.visitCancelChangeTitle} titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]" action={selectedVisitCancelledAppointments.length + ownerHomeCopy.countSuffix}>{selectedVisitCancelledAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.visitCancelChangeEmpty} /> : <div className="space-y-2">{selectedVisitCancelledAppointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => setModal({ type: "appointment", appointment })} />)}</div>}</Panel></section>}
+{activeTab === "book" && (
+  <section className="space-y-3.5 p-4">
+    <Panel
+      title="날짜선택"
+      titleTextClassName="text-[17px] font-semibold leading-6 tracking-[-0.02em]"
+      action={
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-[18px] text-[var(--text)] transition hover:bg-[#f7f4ef]"
+          onClick={() => {
+            setPendingVisitSelectionMode(visitSelectionMode);
+            if (visitSelectionMode === "range" && selectedVisitRange) {
+              setPendingVisitRangeStart(selectedVisitRange.start);
+              setPendingVisitRangeEnd(selectedVisitRange.end);
+              setPendingVisitDate(selectedVisitRange.start);
+              setVisitCalendarMonthCursor(selectedVisitRange.start.slice(0, 7));
+            } else {
+              setPendingVisitDate(selectedVisitDate);
+              setPendingVisitRangeStart(null);
+              setPendingVisitRangeEnd(null);
+              setVisitCalendarMonthCursor(selectedVisitDate.slice(0, 7));
+            }
+            setIsVisitCalendarOpen(true);
+          }}
+          aria-label={"달력 열기"}
+        >
+          <CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.9} />
+        </button>
+      }
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-5 gap-1.5">
+          {quickVisitDates.map((item, index) => {
+            const active = !isSelectedVisitRange && selectedVisitDate === item;
+            const label = index === 0 ? "오늘" : new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(new Date(item + "T00:00:00")).replace("요일", "");
+
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setVisitSelectionMode("single");
+                  setVisitRange(null);
+                  setVisitDateFilter(item);
+                }}
+                className={`rounded-[15px] border px-1.5 py-2.5 text-center transition ${active ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#fcfaf7]"}`}
+              >
+                <span className={`block text-[11px] font-normal ${active ? "text-white/80" : "text-[var(--muted)]"}`}>{label}</span>
+                <span className="mt-0.5 block text-[15px] font-medium tracking-[-0.02em]">{String(Number(item.slice(8, 10)))}</span>
+              </button>
+            );
+          })}
+        </div>
+        {(!isSelectedVisitInQuickRange || isSelectedVisitRange) && (
+          <div className="rounded-[16px] border border-[var(--border)] bg-[#fcfaf7] px-4 py-3 text-[13px] leading-5 text-[var(--muted)]">
+            {isSelectedVisitRange ? (
+              <>
+                현재 선택 기간: <span className="font-medium text-[var(--text)]">{selectedVisitDateHeader}</span>
+              </>
+            ) : (
+              <>
+                현재 선택 날짜: <span className="font-medium text-[var(--text)]">{selectedVisitDateHeader}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </Panel>
+
+    {visitSectionOrder.map((sectionKey) => {
+      if (sectionKey === "reservation") {
+        return (
+          <Panel
+            key="reservation"
+            title={ownerHomeCopy.visitActionTitle}
+            titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]"
+            action={selectedVisitReservationAppointments.length + ownerHomeCopy.countSuffix}
+          >
+            {selectedVisitReservationAppointments.length === 0 ? (
+              <EmptyState title={ownerHomeCopy.visitActionEmpty} />
+            ) : (
+              <div className="space-y-2">
+                {selectedVisitReservationAppointments.map((appointment) => (
+                  <AppointmentRow
+                    key={appointment.id}
+                    appointment={appointment}
+                    pet={petMap[appointment.pet_id]}
+                    guardian={guardianMap[appointment.guardian_id]}
+                    service={serviceMap[appointment.service_id]}
+                    onClick={() => setModal({ type: "appointment", appointment })}
+                  />
+                ))}
+              </div>
+            )}
+          </Panel>
+        );
+      }
+
+      if (sectionKey === "completed") {
+        return (
+          <Panel
+            key="completed"
+            title={ownerHomeCopy.visitCompletedTitle}
+            titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]"
+            action={selectedVisitCompletedAppointments.length + selectedVisitRecords.length + ownerHomeCopy.countSuffix}
+          >
+            {selectedVisitCompletedAppointments.length === 0 && selectedVisitRecords.length === 0 ? (
+              <EmptyState title={ownerHomeCopy.visitCompletedEmpty} />
+            ) : (
+              <div className="space-y-2">
+                {selectedVisitCompletedAppointments.map((appointment) => (
+                  <AppointmentRow
+                    key={appointment.id}
+                    appointment={appointment}
+                    pet={petMap[appointment.pet_id]}
+                    guardian={guardianMap[appointment.guardian_id]}
+                    service={serviceMap[appointment.service_id]}
+                    onClick={() => setModal({ type: "appointment", appointment })}
+                  />
+                ))}
+                {selectedVisitRecords.map((record) => (
+                  <VisitRecordRow
+                    key={record.id}
+                    record={record}
+                    pet={petMap[record.pet_id]}
+                    guardian={guardianMap[record.guardian_id]}
+                    service={serviceMap[record.service_id]}
+                  />
+                ))}
+              </div>
+            )}
+          </Panel>
+        );
+      }
+
+      return (
+        <Panel
+          key="cancel_change"
+          title={ownerHomeCopy.visitCancelChangeTitle}
+          titleTextClassName="text-[17px] font-medium leading-6 tracking-[-0.02em]"
+          action={selectedVisitCancelledAppointments.length + ownerHomeCopy.countSuffix}
+        >
+          {selectedVisitCancelledAppointments.length === 0 ? (
+            <EmptyState title={ownerHomeCopy.visitCancelChangeEmpty} />
+          ) : (
+            <div className="space-y-2">
+              {selectedVisitCancelledAppointments.map((appointment) => (
+                <AppointmentRow
+                  key={appointment.id}
+                  appointment={appointment}
+                  pet={petMap[appointment.pet_id]}
+                  guardian={guardianMap[appointment.guardian_id]}
+                  service={serviceMap[appointment.service_id]}
+                  onClick={() => setModal({ type: "appointment", appointment })}
+                />
+              ))}
+            </div>
+          )}
+        </Panel>
+      );
+    })}
+  </section>
+)}
 
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
@@ -1865,18 +2121,10 @@ export default function OwnerApp({
 
                   {detailTab === "pets" ? (
                     <div className="space-y-3">
-                      <CustomerDetailFieldCard label="반려동물 관리">
-                        <div className="flex items-center justify-between gap-3">
+                      <CustomerDetailFieldCard label="반려동물 관리" className="rounded-[10px] px-2.5 pb-2 pt-0.5">
                         <div>
-                          <p className="text-[14px] font-medium text-[var(--text)]">반려동물 관리</p>
-                          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">수정하거나 작업 대상으로 지정한 뒤 예약 등록에 바로 연결할 수 있어요.</p>
-                        </div>
-                        <button
-                          className="shrink-0 whitespace-nowrap text-[13px] font-medium leading-5 text-[var(--accent)]"
-                          onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
-                        >
-                          + 아기 추가
-                        </button>
+                          <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">반려동물을 수정하고 예약 연결 상태를 바로 확인할 수 있어요.</p>
+                          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">현재 고객에게 등록된 반려동물만 카드 형태로 정리해서 보여드릴게요.</p>
                         </div>
                       </CustomerDetailFieldCard>
 
@@ -1893,6 +2141,14 @@ export default function OwnerApp({
                           onSendRevisit={() => sendRevisitNotice(pet)}
                         />
                       ))}
+                      <button
+                        type="button"
+                        className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7]"
+                        onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
+                      >
+                        <Plus className="h-4 w-4" strokeWidth={2.1} />
+                        아기 추가하기
+                      </button>
                     </div>
                   ) : null}
 
@@ -2816,10 +3072,81 @@ function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, 
   return <div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div>{showSwipeHint ? <div className="mb-2.5 rounded-[10px] border border-[#d7e8e0] bg-white/90 px-3 py-2 text-[12px] font-medium leading-5 text-[#4d6b62]">예약 카드를 왼쪽으로 밀면 취소 버튼이 나타나요.</div> : null}<div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, selectedDateKey, selectedDateLabel, slideDirection, guideStorageKey, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; selectedDateKey: string; selectedDateLabel: string; slideDirection: "prev" | "next"; guideStorageKey: string; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [contentSlideStyle, setContentSlideStyle] = useState<{ transform: string; opacity: number; transition: string }>({
+    transform: "translateX(0px)",
+    opacity: 1,
+    transition: "transform 220ms ease, opacity 220ms ease",
+  });
 
-  return <div className="space-y-3"><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div>;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(guideStorageKey) === "dismissed") {
+      setShowGuide(false);
+      return;
+    }
+    setShowGuide(true);
+  }, [guideStorageKey]);
+
+  useEffect(() => {
+    const offset = slideDirection === "next" ? 20 : -20;
+    setContentSlideStyle({
+      transform: `translateX(${offset}px)`,
+      opacity: 0.78,
+      transition: "none",
+    });
+    const runAnimation = () => {
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        setContentSlideStyle({
+          transform: "translateX(0px)",
+          opacity: 1,
+          transition: "transform 220ms ease, opacity 220ms ease",
+        });
+      });
+    };
+    if (typeof window !== "undefined") {
+      runAnimation();
+    }
+    return () => {
+      if (animationFrameRef.current !== null && typeof window !== "undefined") {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [selectedDateKey, slideDirection]);
+
+  const resetSwipeStart = () => {
+    swipeStartRef.current = null;
+  };
+
+  const handleDatePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    swipeStartRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleDatePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    resetSwipeStart();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!start) return;
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    if (deltaX < 0 && canMoveForward) {
+      onMoveForward();
+      return;
+    }
+    if (deltaX > 0 && canMoveBackward) {
+      onMoveBackward();
+    }
+  };
+
+  return <div className="space-y-3"><div className="select-none rounded-[12px] border border-[var(--border)] bg-[#fcfaf7] px-3 py-2.5" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart}><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{selectedDateLabel}</p>{showGuide ? <p className="mt-0.5 text-[11px] font-medium leading-5 text-[var(--muted)]">좌우로 넘기면 오늘부터 7일 뒤까지 예약 현황을 볼 수 있어요.</p> : null}</div><div className="flex items-center gap-1.5">{showGuide ? <button type="button" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--muted)] transition hover:bg-[#f6f1ec]" aria-label="안내 닫기" onClick={() => { if (typeof window !== "undefined") { window.localStorage.setItem(guideStorageKey, "dismissed"); } setShowGuide(false); }}><X className="h-3.5 w-3.5" strokeWidth={2} /></button> : null}<button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)] transition hover:bg-[#f6f1ec] disabled:cursor-not-allowed disabled:opacity-35" onClick={onMoveBackward} disabled={!canMoveBackward} aria-label="이전 날짜"><ChevronLeft className="h-4 w-4" strokeWidth={2.1} /></button><button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)] transition hover:bg-[#f6f1ec] disabled:cursor-not-allowed disabled:opacity-35" onClick={onMoveForward} disabled={!canMoveForward} aria-label="다음 날짜"><ChevronRight className="h-4 w-4" strokeWidth={2.1} /></button></div></div></div><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
 }
 
 
@@ -2988,14 +3315,21 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
   }, [pet.birthday, pet.breed, pet.name]);
 
   return (
-    <CustomerDetailFieldCard label="반려동물" className={isSelected ? "border-[var(--accent)] shadow-[0_8px_18px_rgba(31,107,91,0.08)]" : ""}>
+    <CustomerDetailFieldCard
+      label="반려동물"
+      className={`rounded-[10px] px-2.5 pb-2 pt-0.5 ${isSelected ? "border-[var(--accent)] shadow-[0_6px_14px_rgba(31,107,91,0.08)]" : ""}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <button className="text-left" onClick={onSelect}>
           <div className="flex items-center gap-2">
-            <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+            <p className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pet.name}</p>
             {isSelected ? <CustomerStatusPill label="작업 중" tone="accent" /> : null}
           </div>
-          <p className="mt-0.5 text-[13px] font-medium text-[var(--muted)]">{isBirthdayToday ? "오늘 생일" : birthday ? `생일 ${birthday}` : "생일 미등록"}</p>
+          {isBirthdayToday || birthday ? (
+            <p className="mt-0.5 text-[13px] font-medium text-[var(--muted)]">
+              {isBirthdayToday ? "오늘 생일" : `생일 ${birthday}`}
+            </p>
+          ) : null}
         </button>
         {!isSelected ? (
           <button type="button" className="text-[12px] font-medium text-[var(--accent)]" onClick={onSelect}>
@@ -3003,19 +3337,56 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
           </button>
         ) : null}
       </div>
-      <div className="mt-3 space-y-2">
-        <Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field>
-        <Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field>
-        <Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field>
+      <div className="mt-2.5 space-y-2">
+        <PetDetailInputField label="아기 이름">
+          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" value={name} onChange={(event) => setName(event.target.value)} />
+        </PetDetailInputField>
+        <PetDetailInputField label="견종">
+          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" value={breed} onChange={(event) => setBreed(event.target.value)} />
+        </PetDetailInputField>
+        <PetDetailInputField label="생일">
+          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} />
+        </PetDetailInputField>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <ActionButton variant="ghost" onClick={() => onSave(name.trim(), breed.trim(), birthday || null)} disabled={saving || !name.trim() || !breed.trim()}>정보 저장</ActionButton>
-        <ActionButton variant="secondary" onClick={onSendRevisit}>재방문 알림</ActionButton>
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onSave(name.trim(), breed.trim(), birthday || null)}
+          disabled={saving || !name.trim() || !breed.trim()}
+          className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-medium tracking-[-0.02em] text-[var(--text)] transition hover:bg-[#fcfaf7] disabled:opacity-45"
+        >
+          정보 저장
+        </button>
+        <button
+          type="button"
+          onClick={onSendRevisit}
+          disabled={saving}
+          className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[#d7e7e1] bg-[var(--accent-soft)] px-4 text-[14px] font-medium tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[#edf5f1] disabled:opacity-45"
+        >
+          재방문 알림
+        </button>
       </div>
-      <div className="mt-2">
-        {birthday ? <ActionButton onClick={onSendBirthday} disabled={saving}>생일 축하 문자 보내기</ActionButton> : <div className="rounded-[14px] bg-[#fcfaf7] px-4 py-2 text-center text-[12px] font-medium text-[var(--muted)]">생일 미등록</div>}
-      </div>
+      {birthday ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={onSendBirthday}
+            disabled={saving}
+            className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium tracking-[-0.02em] text-white shadow-[0_6px_14px_rgba(31,107,91,0.12)] transition hover:bg-[#276e5d] disabled:opacity-45"
+          >
+            생일 축하 문자 보내기
+          </button>
+        </div>
+      ) : null}
     </CustomerDetailFieldCard>
+  );
+}
+function PetDetailInputField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="min-w-0 rounded-[10px] border border-[var(--border)] bg-white px-2.5 pb-2 pt-0.5">
+      <legend className="ml-0.5 px-1.5 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</legend>
+      {children}
+    </fieldset>
   );
 }
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
@@ -3223,8 +3594,12 @@ function InfoItem({ label, value, className = "" }: { label: string; value: stri
 function NotificationHistoryRow({ notification, pet }: { notification: BootstrapPayload["notifications"][number]; pet: Pet | null }) {
   const typeLabel = (() => {
     switch (notification.type) {
+      case "booking_received":
+        return "예약 접수";
       case "booking_confirmed":
         return "예약 완료";
+      case "owner_booking_requested":
+        return "새 예약 접수";
       case "booking_rejected":
         return "예약 거절";
       case "booking_cancelled":

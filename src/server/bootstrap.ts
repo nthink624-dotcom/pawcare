@@ -38,6 +38,20 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
   return store;
 }
 
+function normalizeGuardianForBootstrap(guardian: Guardian) {
+  const hasNotificationSettings = Object.prototype.hasOwnProperty.call(guardian, "notification_settings");
+
+  return {
+    ...guardian,
+    // Legacy production databases may not have this column yet. In that case,
+    // keep guardian-level notifications enabled so booking/grooming messages
+    // continue to work until the migration is applied.
+    notification_settings: hasNotificationSettings
+      ? normalizeGuardianNotificationSettings(guardian.notification_settings)
+      : { enabled: true, revisit_enabled: true },
+  };
+}
+
 function splitActiveGuardians(guardians: Guardian[]) {
   const activeGuardians = guardians.filter((guardian) => !guardian.deleted_at);
   const now = Date.now();
@@ -86,10 +100,7 @@ export async function getBootstrap(shopId = "demo-shop"): Promise<BootstrapPaylo
     return buildMockBootstrap(shopId);
   }
 
-  const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map((guardian) => ({
-    ...guardian,
-    notification_settings: normalizeGuardianNotificationSettings(guardian.notification_settings),
-  }));
+  const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map(normalizeGuardianForBootstrap);
   const { activeGuardians, deletedGuardians, activeGuardianIds } = splitActiveGuardians(normalizedGuardians);
   const activePetIds = new Set(
     ((petsRes.data ?? []) as Pet[])

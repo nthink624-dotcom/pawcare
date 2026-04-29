@@ -7,7 +7,7 @@ import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
-import type { BootstrapPayload, Service } from "@/types/domain";
+import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
@@ -41,6 +41,29 @@ type ShopNotificationSettingsState = {
   groomingCompletedEnabled: boolean;
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
+const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
+
+function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
+  return Object.fromEntries(
+    Array.from({ length: 7 }, (_, day) => {
+      const current = hours[day];
+      return [
+        day,
+        {
+          open: current?.open ?? defaultBusinessHoursEntry.open,
+          close: current?.close ?? defaultBusinessHoursEntry.close,
+          enabled: current?.enabled ?? !regularClosedDays.includes(day),
+        },
+      ];
+    }),
+  ) as BusinessHours;
+}
+
+function formatBusinessHoursRange(entry?: { open: string; close: string }) {
+  if (!entry) return `${defaultBusinessHoursEntry.open} - ${defaultBusinessHoursEntry.close}`;
+  return `${entry.open} - ${entry.close}`;
+}
 
 function mapShopNotificationSettingsState(
   settings: BootstrapPayload["shop"]["notification_settings"],
@@ -123,6 +146,11 @@ export default function OwnerSettingsPanel({
   const [pendingClosedDate, setPendingClosedDate] = useState("");
   const [isClosedDatePickerOpen, setIsClosedDatePickerOpen] = useState(false);
   const [closedDateMonthCursor, setClosedDateMonthCursor] = useState(monthCursorFromDate(data.shop.temporary_closed_dates[0] ?? currentDateInTimeZone()));
+  const [businessHours, setBusinessHours] = useState<BusinessHours>(
+    createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
+  );
+  const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
+  const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close });
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
   const [holidayNotice, setHolidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
   const [parkingNotice, setParkingNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.parking_notice ?? ""));
@@ -167,6 +195,11 @@ export default function OwnerSettingsPanel({
   }, [data.shop.id]);
 
   useEffect(() => {
+    setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
+    setTimeEditorTarget(null);
+  }, [data.shop.id, data.shop.business_hours, data.shop.regular_closed_days]);
+
+  useEffect(() => {
     onActiveScreenChange?.(activeScreen);
   }, [activeScreen, onActiveScreenChange]);
 
@@ -180,13 +213,62 @@ export default function OwnerSettingsPanel({
     setIsNotificationSettingsDirty(true);
   }
 
-  const businessHours = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(data.shop.business_hours).map(([key, value]) => [key, value || { open: "10:00", close: "19:00", enabled: false }]),
-      ),
-    [data.shop.business_hours],
-  );
+  function getBusinessHour(day: number) {
+    return businessHours[day] ?? {
+      ...defaultBusinessHoursEntry,
+      enabled: !regularClosedDays.includes(day),
+    };
+  }
+
+  function toggleRegularClosedDay(day: number) {
+    const nextClosed = !regularClosedDays.includes(day);
+    setRegularClosedDays((prev) =>
+      nextClosed ? [...prev, day].sort((a, b) => a - b) : prev.filter((item) => item !== day),
+    );
+    setBusinessHours((prev) => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] ?? defaultBusinessHoursEntry),
+        enabled: !nextClosed,
+      },
+    }));
+  }
+
+  function openBusinessHoursEditor(target: number | "all") {
+    const base =
+      target === "all"
+        ? businessHoursWeekOrder.map((day) => getBusinessHour(day)).find((entry) => entry.enabled) ?? getBusinessHour(1)
+        : getBusinessHour(target);
+    setTimeDraft({ open: base.open, close: base.close });
+    setTimeEditorTarget(target);
+  }
+
+  function applyBusinessHoursEditor() {
+    setBusinessHours((prev) => {
+      const next = { ...prev };
+
+      if (timeEditorTarget === "all") {
+        businessHoursWeekOrder.forEach((day) => {
+          next[day] = {
+            ...(prev[day] ?? defaultBusinessHoursEntry),
+            open: timeDraft.open,
+            close: timeDraft.close,
+            enabled: !regularClosedDays.includes(day),
+          };
+        });
+      } else if (timeEditorTarget !== null) {
+        next[timeEditorTarget] = {
+          ...(prev[timeEditorTarget] ?? defaultBusinessHoursEntry),
+          open: timeDraft.open,
+          close: timeDraft.close,
+          enabled: !regularClosedDays.includes(timeEditorTarget),
+        };
+      }
+
+      return next;
+    });
+    setTimeEditorTarget(null);
+  }
 
   const closedDateMonthLabel = `${Number(closedDateMonthCursor.slice(0, 4))}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
   const subscriptionEndDate = useMemo(() => {
@@ -209,6 +291,14 @@ export default function OwnerSettingsPanel({
       return addDate(monthStart, dayOffset);
     });
   }, [closedDateMonthCursor]);
+
+  const businessHoursSummary = useMemo(() => {
+    const normalized = businessHoursWeekOrder.map((day) => getBusinessHour(day));
+    const first = normalized[0];
+    const allSame = normalized.every((entry) => entry.open === first.open && entry.close === first.close);
+
+    return allSame ? formatBusinessHoursRange(first) : "요일별로 다르게 설정 중";
+  }, [businessHours, regularClosedDays]);
 
   function updateNotice(index: number, value: string) {
     setNotices((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)));
@@ -291,11 +381,11 @@ export default function OwnerSettingsPanel({
       );
 
       setIsNotificationSettingsDirty(false);
-      setBasicInfoFeedback({ type: "success", message: "매장 기본 정보가 저장되었어요." });
+      setBasicInfoFeedback({ type: "success", message: "설정이 저장되었어요." });
     } catch (error) {
       setBasicInfoFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "매장 기본 정보를 저장하지 못했어요.",
+        message: error instanceof Error ? error.message : "설정을 저장하지 못했어요.",
       });
     } finally {
       setSavingBasicInfo(false);
@@ -652,6 +742,52 @@ export default function OwnerSettingsPanel({
 
   const closuresSection = (
     <SettingsCard>
+      <SettingsFieldCard label="운영 시간" className="px-0 pb-0 pt-2">
+        <div className="px-3.5 pb-1.5">
+          <button
+            type="button"
+            onClick={() => openBusinessHoursEditor("all")}
+            className="flex w-full items-center justify-between gap-3 py-2 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
+              <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                월요일부터 일요일까지 같은 시간으로 한 번에 적용해요.
+              </p>
+              <p className="mt-1 text-[13px] font-medium text-[var(--accent)]">{businessHoursSummary}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+          </button>
+        </div>
+        <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
+          {businessHoursWeekOrder.map((day) => {
+            const hours = getBusinessHour(day);
+            const isClosed = regularClosedDays.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => openBusinessHoursEditor(day)}
+                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+              >
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
+                  <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                    {isClosed ? "정기 휴무로 설정됨" : formatBusinessHoursRange(hours)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isClosed ? (
+                    <span className="rounded-full bg-[#f4f5f4] px-2 py-1 text-[11px] font-medium text-[#7f776c]">휴무</span>
+                  ) : null}
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsFieldCard>
+
       <Field label="정기 휴무" labelClassName="mb-2 block text-sm font-semibold text-[var(--text)]">
         <div className="grid grid-cols-4 gap-2">
           {weekdayLabels.map((label, index) => {
@@ -660,11 +796,7 @@ export default function OwnerSettingsPanel({
               <button
                 key={label}
                 type="button"
-                onClick={() =>
-                  setRegularClosedDays((prev) =>
-                    prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index].sort((a, b) => a - b),
-                  )
-                }
+                onClick={() => toggleRegularClosedDay(index)}
                 className={`rounded-[10px] border px-3 py-3 text-sm font-semibold ${
                   active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"
                 }`}
@@ -869,14 +1001,17 @@ export default function OwnerSettingsPanel({
 
   if (activeScreen) {
     const isShopScreen = activeScreen === "shop";
+    const isClosuresScreen = activeScreen === "closures";
+    const shouldShowSaveFooter = isShopScreen || isClosuresScreen;
+    const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : "매장정보 저장";
 
     return (
-      <section className={`space-y-3.5 p-4 ${isShopScreen ? "pb-[calc(env(safe-area-inset-bottom)+96px)]" : ""}`}>
+      <section className={`space-y-3.5 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+96px)]" : ""}`}>
         <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
           {screenMap[activeScreen].content}
         </div>
 
-        {isShopScreen ? (
+        {shouldShowSaveFooter ? (
           <div className="pointer-events-none fixed bottom-[68px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
             <div className="pointer-events-auto space-y-2 rounded-[10px] bg-[rgba(248,246,242,0.96)] px-1 pb-1 pt-2 backdrop-blur">
               {basicInfoFeedback.type !== "idle" ? (
@@ -891,10 +1026,25 @@ export default function OwnerSettingsPanel({
                 </div>
               ) : null}
               <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo}>
-                {savingBasicInfo ? "저장 중..." : "매장정보 저장"}
+                {savingBasicInfo ? "저장 중..." : saveButtonLabel}
               </SolidButton>
             </div>
           </div>
+        ) : null}
+
+        {timeEditorTarget !== null ? (
+          <BusinessHoursSheet
+            title={timeEditorTarget === "all" ? "전체 시간 설정" : `${weekdayLabels[timeEditorTarget]}요일 시간 설정`}
+            description={
+              timeEditorTarget === "all"
+                ? "월요일부터 일요일까지 같은 운영 시간을 한 번에 적용해요."
+                : `${weekdayLabels[timeEditorTarget]}요일 운영 시간을 선택해 주세요.`
+            }
+            draft={timeDraft}
+            onClose={() => setTimeEditorTarget(null)}
+            onChange={(nextDraft) => setTimeDraft(nextDraft)}
+            onApply={applyBusinessHoursEditor}
+          />
         ) : null}
 
         {isClosedDatePickerOpen ? (
@@ -979,6 +1129,64 @@ export default function OwnerSettingsPanel({
         />
       ) : null}
     </section>
+  );
+}
+
+function BusinessHoursSheet({
+  title,
+  description,
+  draft,
+  onClose,
+  onChange,
+  onApply,
+}: {
+  title: string;
+  description: string;
+  draft: { open: string; close: string };
+  onClose: () => void;
+  onChange: (draft: { open: string; close: string }) => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
+      <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{description}</p>
+          </div>
+          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+        </div>
+
+        <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="grid grid-cols-2 gap-2.5">
+            <SettingsFieldCard label="시작 시간">
+              <input
+                type="time"
+                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                value={draft.open}
+                onChange={(event) => onChange({ ...draft, open: event.target.value })}
+              />
+            </SettingsFieldCard>
+            <SettingsFieldCard label="마감 시간">
+              <input
+                type="time"
+                className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
+                value={draft.close}
+                onChange={(event) => onChange({ ...draft, close: event.target.value })}
+              />
+            </SettingsFieldCard>
+          </div>
+          <p className="text-[12px] leading-5 text-[var(--muted)]">시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요.</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <OutlineButton onClick={onClose}>취소</OutlineButton>
+          <SolidButton onClick={onApply}>적용</SolidButton>
+        </div>
+      </div>
+    </div>
   );
 }
 

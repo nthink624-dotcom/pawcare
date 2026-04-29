@@ -20,7 +20,7 @@ if ($existing) {
 
 Push-Location $projectRoot
 try {
-  $command = "cd /d `"$projectRoot`" && npm.cmd run dev:local > `"$logPath`" 2>&1"
+  $command = "cd /d `"$projectRoot`" && npm.cmd run dev -- --webpack --hostname 127.0.0.1 --port 3000 > `"$logPath`" 2>&1"
   Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden | Out-Null
 
   Start-Sleep -Seconds 3

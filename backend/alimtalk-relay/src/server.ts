@@ -46,6 +46,22 @@ const requestSchema = z.object({
     .nullable(),
 });
 
+const templateAliases = [
+  "booking_received",
+  "booking_confirmed",
+  "booking_rejected",
+  "booking_cancelled",
+  "booking_rescheduled_confirmed",
+  "appointment_reminder_10m",
+  "grooming_started",
+  "grooming_almost_done",
+  "grooming_completed",
+  "revisit_notice",
+  "birthday_greeting",
+] as const;
+
+type TemplateAlias = (typeof templateAliases)[number];
+
 function coerceJsonLikeBody(value: unknown) {
   if (typeof value !== "string") return value;
 
@@ -277,6 +293,57 @@ function resolveTemplateKey(alias: string | null | undefined) {
   }
 }
 
+function getTemplateDebugMap() {
+  const templates: Record<TemplateAlias, { configured: boolean; length: number }> = {
+    booking_received: {
+      configured: Boolean(env.templateBookingReceived),
+      length: env.templateBookingReceived.length,
+    },
+    booking_confirmed: {
+      configured: Boolean(env.templateBookingConfirmed),
+      length: env.templateBookingConfirmed.length,
+    },
+    booking_rejected: {
+      configured: Boolean(env.templateBookingRejected),
+      length: env.templateBookingRejected.length,
+    },
+    booking_cancelled: {
+      configured: Boolean(env.templateBookingCancelled),
+      length: env.templateBookingCancelled.length,
+    },
+    booking_rescheduled_confirmed: {
+      configured: Boolean(env.templateBookingRescheduledConfirmed),
+      length: env.templateBookingRescheduledConfirmed.length,
+    },
+    appointment_reminder_10m: {
+      configured: Boolean(env.templateAppointmentReminder10m),
+      length: env.templateAppointmentReminder10m.length,
+    },
+    grooming_started: {
+      configured: Boolean(env.templateGroomingStarted),
+      length: env.templateGroomingStarted.length,
+    },
+    grooming_almost_done: {
+      configured: Boolean(env.templateGroomingAlmostDone),
+      length: env.templateGroomingAlmostDone.length,
+    },
+    grooming_completed: {
+      configured: Boolean(env.templateGroomingCompleted),
+      length: env.templateGroomingCompleted.length,
+    },
+    revisit_notice: {
+      configured: Boolean(env.templateRevisitNotice),
+      length: env.templateRevisitNotice.length,
+    },
+    birthday_greeting: {
+      configured: Boolean(env.templateBirthdayGreeting),
+      length: env.templateBirthdayGreeting.length,
+    },
+  };
+
+  return templates;
+}
+
 function requireRelaySecret(secret: string | null) {
   if (!env.relaySecret || secret !== env.relaySecret) {
     const error = new Error("릴레이 서버 인증에 실패했습니다.");
@@ -309,6 +376,28 @@ app.get("/health", (_request, response) => {
       cwd: process.cwd(),
     },
   });
+});
+
+app.get("/debug/templates", (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    response.json({
+      ok: true,
+      provider: "ssodaa",
+      configured: Boolean(env.ssodaaApiKey && env.ssodaaTokenKey && env.ssodaaSenderKey),
+      endpoints: {
+        apiUrlHost: new URL(env.ssodaaApiUrl).host,
+        sentListUrlHost: new URL(env.ssodaaSentListUrl).host,
+      },
+      templates: getTemplateDebugMap(),
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay template debug failed.";
+    response.status(status).json({ ok: false, message });
+  }
 });
 
 app.post("/alimtalk/send", async (request, response) => {

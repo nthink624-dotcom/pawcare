@@ -46,22 +46,39 @@ const requestSchema = z.object({
     .nullable(),
 });
 
+function coerceJsonLikeBody(value: unknown) {
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 function extractProviderMessageId(responseBody: unknown) {
-  if (typeof responseBody !== "object" || responseBody === null) return null;
+  const parsedBody = coerceJsonLikeBody(responseBody);
+
+  if (typeof parsedBody !== "object" || parsedBody === null) return null;
 
   const directId =
-    (responseBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).messageId ||
-    (responseBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).requestId ||
-    (responseBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).cmid ||
-    (responseBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).id ||
+    (parsedBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).messageId ||
+    (parsedBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).requestId ||
+    (parsedBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).cmid ||
+    (parsedBody as { messageId?: string; requestId?: string; cmid?: string; id?: string }).id ||
     null;
 
   if (directId) return directId;
 
   const sentMessages =
-    (responseBody as { sent_messages?: Array<{ msg_id?: string | null }>; content?: { sent_messages?: Array<{ msg_id?: string | null }> } })
+    (parsedBody as { sent_messages?: Array<{ msg_id?: string | null }>; content?: { sent_messages?: Array<{ msg_id?: string | null }> } })
       .sent_messages ??
-    (responseBody as { sent_messages?: Array<{ msg_id?: string | null }>; content?: { sent_messages?: Array<{ msg_id?: string | null }> } })
+    (parsedBody as { sent_messages?: Array<{ msg_id?: string | null }>; content?: { sent_messages?: Array<{ msg_id?: string | null }> } })
       .content?.sent_messages;
 
   if (Array.isArray(sentMessages) && sentMessages[0]?.msg_id) {
@@ -69,8 +86,8 @@ function extractProviderMessageId(responseBody: unknown) {
   }
 
   const result =
-    (responseBody as { result?: Array<{ msg_id?: string | null }>; content?: { result?: Array<{ msg_id?: string | null }> } }).result ??
-    (responseBody as { result?: Array<{ msg_id?: string | null }>; content?: { result?: Array<{ msg_id?: string | null }> } }).content?.result;
+    (parsedBody as { result?: Array<{ msg_id?: string | null }>; content?: { result?: Array<{ msg_id?: string | null }> } }).result ??
+    (parsedBody as { result?: Array<{ msg_id?: string | null }>; content?: { result?: Array<{ msg_id?: string | null }> } }).content?.result;
 
   if (Array.isArray(result) && result[0]?.msg_id) {
     return result[0].msg_id;
@@ -131,7 +148,7 @@ async function fetchSentList(params: { destPhone: string; date: string }) {
   return {
     ok: providerResponse.ok,
     status: providerResponse.status,
-    body: responseBody,
+    body: coerceJsonLikeBody(responseBody),
   };
 }
 
@@ -155,9 +172,9 @@ async function pollFinalDeliveryStatus(params: {
 }) {
   const date = getDateStringInSeoul();
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
     if (attempt > 0) {
-      await sleep(1000);
+      await sleep(1500);
     }
 
     const sentListResponse = await fetchSentList({
@@ -333,9 +350,10 @@ app.post("/alimtalk/send", async (request, response) => {
     });
 
     const contentType = providerResponse.headers.get("content-type") ?? "";
-    const responseBody = contentType.includes("application/json")
+    const rawResponseBody = contentType.includes("application/json")
       ? await providerResponse.json()
       : await providerResponse.text();
+    const responseBody = coerceJsonLikeBody(rawResponseBody);
 
     if (!providerResponse.ok) {
       const errorMessage =

@@ -1,11 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-
-import { getSupabaseServerRuntimeStage } from "@/lib/server-env";
+import { redirect } from "next/navigation";
 
 export default function LegacyOwnerDemoPage() {
-  if (getSupabaseServerRuntimeStage() === "production") {
-    notFound();
-  }
-
   redirect("/demo/owner");
 }

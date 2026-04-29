@@ -3,9 +3,7 @@
 import { DoorOpen, LayoutDashboard, MonitorSmartphone, ShieldCheck, ShoppingBag, Store, UserRoundCog } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
 import { fetchApiJson } from "@/lib/api";
-import { getSupabaseRuntimeStage } from "@/lib/env";
 
 type AdminDashboardAccount = {
   id: string;
@@ -165,10 +163,6 @@ function DashboardLink({
   title: string;
   description: string;
 }) {
-  if (getSupabaseRuntimeStage() === "production" && href.startsWith("/demo/")) {
-    return null;
-  }
-
   return (
     <a href={href} className="flex min-h-[148px] flex-col items-start justify-between rounded-[24px] border border-[#e8dfd3] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(23,20,17,0.04)]">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">

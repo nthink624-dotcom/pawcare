@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 
 const payloadSchema = z.object({
   ownerName: z.string().trim().min(1),
@@ -137,6 +138,7 @@ export async function POST(request: NextRequest) {
       temporary_closed_dates: [],
       concurrent_capacity: 1,
       approval_mode: "manual",
+      notification_settings: defaultShopNotificationSettings,
       created_at: now,
       updated_at: now,
     });

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { nowIso } from "@/lib/utils";
 import { seedDemoDataForShop } from "@/server/demo-seed";
 
@@ -104,6 +105,7 @@ export async function POST() {
       temporary_closed_dates: [],
       concurrent_capacity: 1,
       approval_mode: "manual",
+      notification_settings: defaultShopNotificationSettings,
       created_at: now,
       updated_at: now,
     });

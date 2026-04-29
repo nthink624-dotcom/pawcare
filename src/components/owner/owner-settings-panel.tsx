@@ -42,6 +42,51 @@ type ShopNotificationSettingsState = {
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
+function mapShopNotificationSettingsState(
+  settings: BootstrapPayload["shop"]["notification_settings"],
+): ShopNotificationSettingsState {
+  return {
+    enabled: settings.enabled,
+    revisitEnabled: settings.revisit_enabled,
+    bookingConfirmedEnabled: settings.booking_confirmed_enabled,
+    bookingRejectedEnabled: settings.booking_rejected_enabled,
+    bookingCancelledEnabled: settings.booking_cancelled_enabled,
+    bookingRescheduledEnabled: settings.booking_rescheduled_enabled,
+    groomingAlmostDoneEnabled: settings.grooming_almost_done_enabled,
+    groomingCompletedEnabled: settings.grooming_completed_enabled,
+  };
+}
+
+function withPrimedShopNotificationSettings(
+  previous: ShopNotificationSettingsState,
+  next: ShopNotificationSettingsState,
+): ShopNotificationSettingsState {
+  const enablingNotificationsForTheFirstTime = !previous.enabled && next.enabled;
+  const hasAnyDetailedNotificationEnabled =
+    next.revisitEnabled ||
+    next.bookingConfirmedEnabled ||
+    next.bookingRejectedEnabled ||
+    next.bookingCancelledEnabled ||
+    next.bookingRescheduledEnabled ||
+    next.groomingAlmostDoneEnabled ||
+    next.groomingCompletedEnabled;
+
+  if (!enablingNotificationsForTheFirstTime || hasAnyDetailedNotificationEnabled) {
+    return next;
+  }
+
+  return {
+    ...next,
+    revisitEnabled: true,
+    bookingConfirmedEnabled: true,
+    bookingRejectedEnabled: true,
+    bookingCancelledEnabled: true,
+    bookingRescheduledEnabled: true,
+    groomingAlmostDoneEnabled: true,
+    groomingCompletedEnabled: true,
+  };
+}
+
 function monthCursorFromDate(date: string) {
   return date.slice(0, 7);
 }
@@ -107,37 +152,33 @@ export default function OwnerSettingsPanel({
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [activeScreen, setActiveScreen] = useState<SettingsScreen>(null);
-  const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>({
-    enabled: data.shop.notification_settings.enabled,
-    revisitEnabled: data.shop.notification_settings.revisit_enabled,
-    bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-    bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
-    bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
-    bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
-    groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
-    groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
-  });
+  const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
+    mapShopNotificationSettingsState(data.shop.notification_settings),
+  );
+  const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
 
   useEffect(() => {
     setActiveScreen(initialScreen ?? null);
   }, [initialScreen]);
 
   useEffect(() => {
+    setIsNotificationSettingsDirty(false);
+    setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+  }, [data.shop.id]);
+
+  useEffect(() => {
     onActiveScreenChange?.(activeScreen);
   }, [activeScreen, onActiveScreenChange]);
 
   useEffect(() => {
-    setNotificationSettings({
-      enabled: data.shop.notification_settings.enabled,
-      revisitEnabled: data.shop.notification_settings.revisit_enabled,
-      bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-      bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
-      bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
-      bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
-      groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
-      groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
-    });
-  }, [data.shop.notification_settings]);
+    if (isNotificationSettingsDirty) return;
+    setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+  }, [data.shop.notification_settings, isNotificationSettingsDirty]);
+
+  function updateNotificationSettings(updater: (previous: ShopNotificationSettingsState) => ShopNotificationSettingsState) {
+    setNotificationSettings((previous) => withPrimedShopNotificationSettings(previous, updater(previous)));
+    setIsNotificationSettingsDirty(true);
+  }
 
   const businessHours = useMemo(
     () =>
@@ -226,30 +267,30 @@ export default function OwnerSettingsPanel({
 
       const combinedAddress = detailAddress.trim() ? `${address} ${detailAddress.trim()}`.trim() : address;
 
-      await Promise.all([
-        Promise.resolve(
-          onSave({
-            shopId: data.shop.id,
-            name,
-            phone,
-            address: combinedAddress,
-            description,
-            concurrentCapacity: data.shop.concurrent_capacity,
-            approvalMode: data.shop.approval_mode,
-            regularClosedDays,
-            temporaryClosedDates,
-            businessHours,
-            notificationSettings,
-          }),
-        ),
-        Promise.resolve(
-          onSaveCustomerPageSettings({
-            shopId: data.shop.id,
-            customerPageSettings: nextCustomerPageSettings,
-          }),
-        ),
-      ]);
+      await Promise.resolve(
+        onSave({
+          shopId: data.shop.id,
+          name,
+          phone,
+          address: combinedAddress,
+          description,
+          concurrentCapacity: data.shop.concurrent_capacity,
+          approvalMode: data.shop.approval_mode,
+          regularClosedDays,
+          temporaryClosedDates,
+          businessHours,
+          notificationSettings,
+        }),
+      );
 
+      await Promise.resolve(
+        onSaveCustomerPageSettings({
+          shopId: data.shop.id,
+          customerPageSettings: nextCustomerPageSettings,
+        }),
+      );
+
+      setIsNotificationSettingsDirty(false);
       setBasicInfoFeedback({ type: "success", message: "매장 기본 정보가 저장되었어요." });
     } catch (error) {
       setBasicInfoFeedback({
@@ -554,7 +595,7 @@ export default function OwnerSettingsPanel({
             <ToggleRow
               label="알림톡 전체 사용"
               checked={notificationSettings.enabled}
-              onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             />
             <p className="text-[12px] leading-5 text-[var(--muted)]">
               예약 확정, 취소, 픽업 준비 같은 자동 알림을 여기서 켜고 끌 수 있어요.
@@ -563,43 +604,43 @@ export default function OwnerSettingsPanel({
               <ToggleRow
                 label="예약 확정 안내"
                 checked={notificationSettings.bookingConfirmedEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="예약 거절 안내"
                 checked={notificationSettings.bookingRejectedEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, bookingRejectedEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRejectedEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="예약 취소 안내"
                 checked={notificationSettings.bookingCancelledEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="예약 변경 안내"
                 checked={notificationSettings.bookingRescheduledEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="픽업 준비 안내"
                 checked={notificationSettings.groomingAlmostDoneEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="미용 완료 안내"
                 checked={notificationSettings.groomingCompletedEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
               <ToggleRow
                 label="재방문 안내 기본값"
                 checked={notificationSettings.revisitEnabled}
-                onChange={(checked) => setNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
+                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
                 disabled={!notificationSettings.enabled}
               />
             </div>

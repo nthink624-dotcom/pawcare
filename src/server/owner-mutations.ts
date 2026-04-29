@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { computeAvailableSlots } from "@/lib/availability";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { normalizeBootstrapNotifications } from "@/lib/notification-settings";
+import { coerceEnabledShopNotificationSettings, normalizeBootstrapNotifications } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
@@ -145,6 +145,7 @@ export async function updateShopSettings(input: unknown) {
     grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,
     grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
   };
+  const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -160,7 +161,7 @@ export async function updateShopSettings(input: unknown) {
       regular_closed_days: payload.regularClosedDays,
       temporary_closed_dates: payload.temporaryClosedDates,
       business_hours: Object.fromEntries(Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value])),
-      notification_settings: nextNotificationSettings,
+      notification_settings: normalizedNotificationSettings,
       updated_at: nowIso(),
     };
 
@@ -191,7 +192,7 @@ export async function updateShopSettings(input: unknown) {
       regular_closed_days: payload.regularClosedDays,
       temporary_closed_dates: payload.temporaryClosedDates,
       business_hours: payload.businessHours,
-      notification_settings: nextNotificationSettings,
+      notification_settings: normalizedNotificationSettings,
       updated_at: nowIso(),
     })
     .eq("id", payload.shopId)

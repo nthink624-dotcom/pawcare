@@ -15,6 +15,7 @@ import {
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { nowIso } from "@/lib/utils";
 import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
       temporary_closed_dates: [],
       concurrent_capacity: 1,
       approval_mode: "manual",
+      notification_settings: defaultShopNotificationSettings,
       created_at: now,
       updated_at: now,
     });

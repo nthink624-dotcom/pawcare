@@ -363,7 +363,6 @@ export default function OwnerApp({
   );
   const canMoveHomeReservationBackward = homeReservationDate > todayDate;
   const canMoveHomeReservationForward = homeReservationDate < maxHomeReservationDate;
-  const homeQuickReservationDates = useMemo(() => Array.from({ length: 8 }, (_, index) => addDate(todayDate, index)), [todayDate]);
 
   const moveHomeReservationDate = (direction: "prev" | "next") => {
     setHomeReservationSlideDirection(direction);
@@ -1486,13 +1485,11 @@ export default function OwnerApp({
                 saving={saving}
                 selectedDateKey={homeReservationDate}
                 selectedDateLabel={homeReservationDateLabel}
-                quickDates={homeQuickReservationDates}
                 slideDirection={homeReservationSlideDirection}
                 canMoveBackward={canMoveHomeReservationBackward}
                 canMoveForward={canMoveHomeReservationForward}
                 onMoveBackward={() => moveHomeReservationDate("prev")}
                 onMoveForward={() => moveHomeReservationDate("next")}
-                onSelectDate={setHomeReservationDate}
                 onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
                 onPendingUpdate={(appointmentId, payload) => updateAppointment(appointmentId, payload)}
                 onStatusChange={(appointmentId, status) => updateAppointment(appointmentId, { status })}

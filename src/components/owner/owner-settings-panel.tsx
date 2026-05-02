@@ -5,11 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import {
-  bookingSlotIntervalOptions,
-  normalizeBookingSlotOffsetMinutes,
-  slotOffsetOptionsForInterval,
-} from "@/lib/booking-slot-settings";
+import { normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
 import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
@@ -49,6 +45,11 @@ const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
 const concurrentCapacityOptions = [1, 2, 3, 4, 5] as const;
+const bookingSlotPresetOptions = [
+  { id: "30-0", interval: 30, offset: 0, label: "정각/30분", helper: "00분 · 30분" },
+  { id: "30-10", interval: 30, offset: 10, label: "10분/40분", helper: "10분 · 40분" },
+  { id: "30-15", interval: 30, offset: 15, label: "15분/45분", helper: "15분 · 45분" },
+] as const;
 
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
@@ -318,10 +319,7 @@ export default function OwnerSettingsPanel({
 
     return allSame ? formatBusinessHoursRange(first) : "요일별로 다르게 설정 중";
   }, [businessHours, regularClosedDays]);
-  const bookingSlotOffsetOptions = useMemo(
-    () => slotOffsetOptionsForInterval(bookingSlotIntervalMinutes),
-    [bookingSlotIntervalMinutes],
-  );
+  const activeBookingSlotPresetId = `${bookingSlotIntervalMinutes}-${bookingSlotOffsetMinutes}`;
   const bookingSlotPatternPreview = useMemo(() => {
     const samples: string[] = [];
     for (
@@ -779,7 +777,7 @@ export default function OwnerSettingsPanel({
   );
 
   const closuresSection = (
-    <SettingsCard>
+    <SettingsCard contentClassName="space-y-3">
       <SettingsFieldCard label="정기 휴무">
         <div className="grid grid-cols-4 gap-2">
           {weekdayLabels.map((label, index) => {
@@ -789,8 +787,10 @@ export default function OwnerSettingsPanel({
                 key={label}
                 type="button"
                 onClick={() => toggleRegularClosedDay(index)}
-                className={`rounded-[10px] border px-3 py-3 text-sm font-medium ${
-                  active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] bg-white text-[var(--muted)]"
+                className={`flex h-[46px] items-center justify-center rounded-[14px] border px-2 text-[14px] tracking-[-0.02em] ${
+                  active
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-white text-[var(--muted)]"
                 }`}
               >
                 {label}
@@ -802,7 +802,7 @@ export default function OwnerSettingsPanel({
 
       <SettingsFieldCard label="휴무 안내 멘트">
         <textarea
-          className="min-h-[88px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+          className="min-h-[92px] w-full resize-none rounded-[14px] border border-[var(--border)] bg-white px-3.5 pb-3 pt-2.5 text-[13px] leading-[16px] tracking-[-0.04em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
           value={holidayNotice}
           onChange={(event) => setHolidayNotice(event.target.value)}
           placeholder="매주 일요일은 휴무, 임시 휴무는 공지사항으로 안내드려요."
@@ -814,7 +814,7 @@ export default function OwnerSettingsPanel({
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex flex-1 items-center justify-between rounded-[10px] border border-[var(--border)] bg-white px-3 py-3 text-sm font-medium text-[var(--text)]"
+              className="flex h-[46px] flex-1 items-center justify-between rounded-[14px] border border-[var(--border)] bg-white px-3.5 text-[13px] tracking-[-0.02em] text-[var(--text)]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -822,7 +822,7 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-medium text-white disabled:opacity-50"
+              className="h-[46px] rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
                 if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) return;
@@ -839,37 +839,30 @@ export default function OwnerSettingsPanel({
                 <button
                   key={date}
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text)]"
+                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] text-[var(--text)]"
                   onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
                 >
                   {date} 삭제
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-[var(--muted)]">등록된 휴무일이 없어요.</p>
-          )}
+          ) : null}
         </div>
       </SettingsFieldCard>
 
-      <SettingsFieldCard label="운영 시간" className="px-0 pb-0 pt-2">
-        <div className="px-3.5 pb-1">
+      <SettingsFieldCard label="운영 시간 설정" className="px-0 pb-0 pt-1.5">
+        <div className="divide-y divide-[#d6cfc4]">
           <button
             type="button"
             onClick={() => openBusinessHoursEditor("all")}
-            className="flex w-full items-center justify-between gap-3 py-1.5 text-left"
+            className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
           >
             <div className="min-w-0">
-              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
-              <p className="mt-0.5 text-[11px] leading-4 text-[#938a80]">
-                월요일부터 일요일까지 같은 시간으로 한 번에 적용해요.
-              </p>
+              <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
               <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
           </button>
-        </div>
-        <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
             const isClosed = regularClosedDays.includes(day);
@@ -878,14 +871,14 @@ export default function OwnerSettingsPanel({
                 key={day}
                 type="button"
                 onClick={() => openBusinessHoursEditor(day)}
-                className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left"
+                className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <p className="shrink-0 text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
+                  <p className="shrink-0 text-[15px] tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
                   {isClosed ? (
-                    <span className="rounded-full bg-[#f4f5f4] px-2 py-0.5 text-[10px] text-[#7f776c]">휴무</span>
+                    <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
                   ) : (
-                    <p className="min-w-0 truncate text-[12px] leading-4 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
+                    <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
@@ -896,10 +889,10 @@ export default function OwnerSettingsPanel({
       </SettingsFieldCard>
 
       <SettingsFieldCard label="예약 시간 설정">
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div>
-            <p className="text-[12px] text-[var(--muted)]">동시 예약 가능 수</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동시 예약 가능 수</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {concurrentCapacityOptions.map((value) => {
                 const active = concurrentCapacity === value;
                 return (
@@ -907,7 +900,7 @@ export default function OwnerSettingsPanel({
                     key={value}
                     type="button"
                     onClick={() => setConcurrentCapacity(value)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    className={`flex h-[36px] min-w-[54px] items-center justify-center rounded-[12px] border px-3.5 text-[14px] font-medium ${
                       active
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                         : "border-[var(--border)] bg-white text-[var(--muted)]"
@@ -919,58 +912,39 @@ export default function OwnerSettingsPanel({
               })}
             </div>
           </div>
-          <div>
-            <p className="text-[12px] text-[var(--muted)]">예약 시작 간격</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {bookingSlotIntervalOptions.map((value) => {
-                const active = bookingSlotIntervalMinutes === value;
-                return (
+            <div>
+              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">예약 시간 패턴</p>
+              <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
+                고객이 시간을 고르기 쉽게, 예약이 열리는 리듬을 정해 주세요.
+              </p>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                {bookingSlotPresetOptions.map((option) => {
+                  const active = activeBookingSlotPresetId === option.id;
+                  return (
                   <button
-                    key={value}
+                    key={option.id}
                     type="button"
                     onClick={() => {
-                      setBookingSlotIntervalMinutes(value);
-                      setBookingSlotOffsetMinutes((previous) =>
-                        normalizeBookingSlotOffsetMinutes(previous, value),
+                      setBookingSlotIntervalMinutes(option.interval);
+                      setBookingSlotOffsetMinutes(
+                        normalizeBookingSlotOffsetMinutes(option.offset, option.interval),
                       );
                     }}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    className={`flex h-[46px] w-full flex-col items-center justify-center rounded-[12px] border px-2 text-[14px] ${
                       active
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                         : "border-[var(--border)] bg-white text-[var(--muted)]"
                     }`}
-                  >
-                    {value}분
-                  </button>
-                );
-              })}
+                    >
+                      <span className="text-[14px] font-medium tracking-[-0.02em]">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
+                예: {bookingSlotPatternPreview}부터 자연스럽게 열려요.
+              </p>
             </div>
-          </div>
-          <div>
-            <p className="text-[12px] text-[var(--muted)]">기준 분</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {bookingSlotOffsetOptions.map((value) => {
-                const active = bookingSlotOffsetMinutes === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setBookingSlotOffsetMinutes(value)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
-                    }`}
-                  >
-                    {String(value).padStart(2, "0")}분
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <p className="text-[11px] leading-4 text-[var(--muted)]">
-            예: {bookingSlotPatternPreview}부터 예약을 받을 수 있어요.
-          </p>
         </div>
       </SettingsFieldCard>
     </SettingsCard>
@@ -1127,17 +1101,17 @@ export default function OwnerSettingsPanel({
     const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : "매장정보 저장";
 
     return (
-      <section className={`space-y-3.5 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+96px)]" : ""}`}>
-        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+      <section className={`space-y-4 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+116px)]" : ""}`}>
+        <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
           {screenMap[activeScreen].content}
         </div>
 
         {shouldShowSaveFooter ? (
-          <div className="pointer-events-none fixed bottom-[68px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
-            <div className="pointer-events-auto space-y-2 rounded-[10px] bg-[rgba(248,246,242,0.96)] px-1 pb-1 pt-2 backdrop-blur">
+          <div className="pointer-events-none fixed bottom-[76px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
+            <div className="pointer-events-auto space-y-2 rounded-[18px] bg-[rgba(248,246,242,0.94)] px-2 pb-[calc(env(safe-area-inset-bottom)+4px)] pt-3 shadow-[0_10px_30px_rgba(21,22,19,0.08)] backdrop-blur">
               {basicInfoFeedback.type !== "idle" ? (
                 <div
-                  className={`rounded-[10px] px-4 py-2.5 text-[13px] font-medium ${
+                  className={`rounded-[14px] px-4 py-2.5 text-[13px] font-medium ${
                     basicInfoFeedback.type === "success"
                       ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                       : "border border-red-200 bg-red-50 text-red-700"
@@ -1146,7 +1120,7 @@ export default function OwnerSettingsPanel({
                   {basicInfoFeedback.message}
                 </div>
               ) : null}
-              <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo}>
+              <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo} className="h-[54px] rounded-[16px] text-[15px]">
                 {savingBasicInfo ? "저장 중..." : saveButtonLabel}
               </SolidButton>
             </div>
@@ -1380,15 +1354,25 @@ function ClosedDatePickerSheet({
   );
 }
 
-function SettingsCard({ title, children }: { title?: string; children: ReactNode }) {
+function SettingsCard({
+  title,
+  children,
+  className = "",
+  contentClassName = "",
+}: {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
   return (
-    <section className="px-4 py-3.5">
+    <section className={`px-4 py-4 ${className}`.trim()}>
       {title ? (
         <div className="mb-2">
           <h2 className="text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</h2>
         </div>
       ) : null}
-      <div className={`space-y-1 ${title ? "pt-2.5" : ""}`}>{children}</div>
+      <div className={`${contentClassName || "space-y-1"} ${title ? "pt-2.5" : ""}`.trim()}>{children}</div>
     </section>
   );
 }
@@ -1431,11 +1415,22 @@ function SettingsFieldCard({
   label,
   children,
   className = "",
+  variant = "floating",
 }: {
   label: string;
   children: ReactNode;
   className?: string;
+  variant?: "floating" | "inside-title";
 }) {
+  if (variant === "inside-title") {
+    return (
+      <div className={`rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`.trim()}>
+        <p className="mb-3 text-[13px] font-medium tracking-[-0.01em] text-[#6f675d]">{label}</p>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
       <legend className="ml-0.5 px-1.5 text-[15px] tracking-[-0.01em] text-[var(--muted)]">
@@ -1476,9 +1471,23 @@ function ToggleRow({
   );
 }
 
-function SolidButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void | Promise<void> }) {
+function SolidButton({
+  children,
+  disabled,
+  onClick,
+  className = "",
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick: () => void | Promise<void>;
+  className?: string;
+}) {
   return (
-    <button disabled={disabled} onClick={() => void onClick()} className="flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50">
+    <button
+      disabled={disabled}
+      onClick={() => void onClick()}
+      className={`flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50 ${className}`.trim()}
+    >
       {children}
     </button>
   );

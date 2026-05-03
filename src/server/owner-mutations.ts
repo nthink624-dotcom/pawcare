@@ -782,11 +782,9 @@ export async function createAppointment(input: unknown) {
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
     if (appointment.status === "confirmed") {
-      await dispatchNotification({
+      await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
-        appointmentId: appointment.id,
-        guardianId: appointment.guardian_id,
-        petId: appointment.pet_id,
+        appointment,
         type: "booking_confirmed",
       });
     }
@@ -817,11 +815,9 @@ export async function createAppointment(input: unknown) {
 
       if (fallbackError) throw new Error(fallbackError.message);
       if (appointment.status === "confirmed") {
-        await dispatchNotification({
+        await dispatchAppointmentNotificationWithLogs({
           shopId: appointment.shop_id,
-          appointmentId: appointment.id,
-          guardianId: appointment.guardian_id,
-          petId: appointment.pet_id,
+          appointment,
           type: "booking_confirmed",
         });
       }
@@ -831,11 +827,9 @@ export async function createAppointment(input: unknown) {
     throw new Error(error.message);
   }
   if (appointment.status === "confirmed") {
-    await dispatchNotification({
+    await dispatchAppointmentNotificationWithLogs({
       shopId: appointment.shop_id,
-      appointmentId: appointment.id,
-      guardianId: appointment.guardian_id,
-      petId: appointment.pet_id,
+      appointment,
       type: "booking_confirmed",
     });
   }

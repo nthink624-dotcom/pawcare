@@ -8,9 +8,26 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     await requireOwnerShop(request, body?.shopId);
+    console.log("[appointments-api] POST received", {
+      shopId: body?.shopId ?? null,
+      guardianId: body?.guardianId ?? null,
+      petId: body?.petId ?? null,
+      serviceId: body?.serviceId ?? null,
+      appointmentDate: body?.appointmentDate ?? null,
+      appointmentTime: body?.appointmentTime ?? null,
+      source: body?.source ?? null,
+    });
     const result = await createAppointment(body);
+    console.log("[appointments-api] POST created", {
+      appointmentId: result?.id ?? null,
+      status: result?.status ?? null,
+      source: result?.source ?? null,
+    });
     return NextResponse.json(result);
   } catch (error) {
+    console.log("[appointments-api] POST failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     if (error instanceof OwnerApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

@@ -167,7 +167,7 @@ function buildNotificationMessage(params: {
         `${params.petName} 보호자님, 예약이 확정되었어요. (방긋)`,
         "",
         `방문 일시: ${dateLabel}`,
-        `예약 서비스: ${params.serviceName ?? ""}`,
+        ` 예약 서비스: ${params.serviceName ?? ""}`,
         "",
         "방문 당일 편하게 와 주세요. 기다리고 있겠습니다.",
         "",

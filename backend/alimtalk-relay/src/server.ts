@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 import dotenv from "dotenv";
 
@@ -8,30 +9,162 @@ import { z } from "zod";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirPath = path.dirname(currentFilePath);
+const relayEnvFilePath = path.resolve(process.cwd(), ".env");
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(currentDirPath, "../.env"), override: false });
 
-const env = {
-  port: Number(process.env.PORT || 4010),
-  relaySecret: process.env.RELAY_SECRET || "",
-  ssodaaApiUrl: process.env.SSODAA_API_URL || "https://apis.ssodaa.com/kakao/send/alimtalk",
-  ssodaaSentListUrl: process.env.SSODAA_SENT_LIST_URL || "https://apis.ssodaa.com/kakao/alimtalk/sent/list",
-  ssodaaApiKey: process.env.SSODAA_API_KEY || "",
-  ssodaaTokenKey: process.env.SSODAA_TOKEN_KEY || "",
-  ssodaaSenderKey: process.env.SSODAA_SENDER_KEY || "",
-  templateBookingReceived: process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED || "",
-  templateBookingConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED || "",
-  templateBookingRejected: process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED || "",
-  templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
-  templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
-  templateAppointmentReminder10m: process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M || "",
-  templateGroomingStarted: process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED || "",
-  templateGroomingAlmostDone: process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE || "",
-  templateGroomingCompleted: process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED || "",
-  templateRevisitNotice: process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE || "",
-  templateBirthdayGreeting: process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING || "",
+type RelayConfig = {
+  port: number;
+  relaySecret: string;
+  ssodaaApiUrl: string;
+  ssodaaSentListUrl: string;
+  ssodaaApiKey: string;
+  ssodaaTokenKey: string;
+  ssodaaSenderKey: string;
+  templateBookingReceived: string;
+  templateBookingConfirmed: string;
+  templateBookingRejected: string;
+  templateBookingCancelled: string;
+  templateBookingRescheduledConfirmed: string;
+  templateAppointmentReminder10m: string;
+  templateGroomingStarted: string;
+  templateGroomingAlmostDone: string;
+  templateGroomingCompleted: string;
+  templateRevisitNotice: string;
+  templateBirthdayGreeting: string;
 };
+
+const relayEnvKeys = [
+  "PORT",
+  "RELAY_SECRET",
+  "SSODAA_API_URL",
+  "SSODAA_SENT_LIST_URL",
+  "SSODAA_API_KEY",
+  "SSODAA_TOKEN_KEY",
+  "SSODAA_SENDER_KEY",
+  "ALIMTALK_TEMPLATE_BOOKING_RECEIVED",
+  "ALIMTALK_TEMPLATE_BOOKING_CONFIRMED",
+  "ALIMTALK_TEMPLATE_BOOKING_REJECTED",
+  "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
+  "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
+  "ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M",
+  "ALIMTALK_TEMPLATE_GROOMING_STARTED",
+  "ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE",
+  "ALIMTALK_TEMPLATE_GROOMING_COMPLETED",
+  "ALIMTALK_TEMPLATE_REVISIT_NOTICE",
+  "ALIMTALK_TEMPLATE_BIRTHDAY_GREETING",
+] as const;
+
+type RelayEnvKey = (typeof relayEnvKeys)[number];
+
+function loadRelayConfig(): RelayConfig {
+  return {
+    port: Number(process.env.PORT || 4010),
+    relaySecret: process.env.RELAY_SECRET || "",
+    ssodaaApiUrl: process.env.SSODAA_API_URL || "https://apis.ssodaa.com/kakao/send/alimtalk",
+    ssodaaSentListUrl: process.env.SSODAA_SENT_LIST_URL || "https://apis.ssodaa.com/kakao/alimtalk/sent/list",
+    ssodaaApiKey: process.env.SSODAA_API_KEY || "",
+    ssodaaTokenKey: process.env.SSODAA_TOKEN_KEY || "",
+    ssodaaSenderKey: process.env.SSODAA_SENDER_KEY || "",
+    templateBookingReceived: process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED || "",
+    templateBookingConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED || "",
+    templateBookingRejected: process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED || "",
+    templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
+    templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
+    templateAppointmentReminder10m: process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M || "",
+    templateGroomingStarted: process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED || "",
+    templateGroomingAlmostDone: process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE || "",
+    templateGroomingCompleted: process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED || "",
+    templateRevisitNotice: process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE || "",
+    templateBirthdayGreeting: process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING || "",
+  };
+}
+
+let env = loadRelayConfig();
+
+function getRelayConfigPayload() {
+  return {
+    relaySecret: env.relaySecret,
+    ssodaaApiUrl: env.ssodaaApiUrl,
+    ssodaaSentListUrl: env.ssodaaSentListUrl,
+    ssodaaApiKey: env.ssodaaApiKey,
+    ssodaaTokenKey: env.ssodaaTokenKey,
+    ssodaaSenderKey: env.ssodaaSenderKey,
+    templateBookingReceived: env.templateBookingReceived,
+    templateBookingConfirmed: env.templateBookingConfirmed,
+    templateBookingRejected: env.templateBookingRejected,
+    templateBookingCancelled: env.templateBookingCancelled,
+    templateBookingRescheduledConfirmed: env.templateBookingRescheduledConfirmed,
+    templateAppointmentReminder10m: env.templateAppointmentReminder10m,
+    templateGroomingStarted: env.templateGroomingStarted,
+    templateGroomingAlmostDone: env.templateGroomingAlmostDone,
+    templateGroomingCompleted: env.templateGroomingCompleted,
+    templateRevisitNotice: env.templateRevisitNotice,
+    templateBirthdayGreeting: env.templateBirthdayGreeting,
+  };
+}
+
+function serializeEnvValue(value: string) {
+  return JSON.stringify((value ?? "").replace(/\r?\n/g, " ").trim());
+}
+
+function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Record<RelayEnvKey, string> {
+  return {
+    PORT: String(env.port),
+    RELAY_SECRET: config.relaySecret,
+    SSODAA_API_URL: config.ssodaaApiUrl,
+    SSODAA_SENT_LIST_URL: config.ssodaaSentListUrl,
+    SSODAA_API_KEY: config.ssodaaApiKey,
+    SSODAA_TOKEN_KEY: config.ssodaaTokenKey,
+    SSODAA_SENDER_KEY: config.ssodaaSenderKey,
+    ALIMTALK_TEMPLATE_BOOKING_RECEIVED: config.templateBookingReceived,
+    ALIMTALK_TEMPLATE_BOOKING_CONFIRMED: config.templateBookingConfirmed,
+    ALIMTALK_TEMPLATE_BOOKING_REJECTED: config.templateBookingRejected,
+    ALIMTALK_TEMPLATE_BOOKING_CANCELLED: config.templateBookingCancelled,
+    ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED: config.templateBookingRescheduledConfirmed,
+    ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M: config.templateAppointmentReminder10m,
+    ALIMTALK_TEMPLATE_GROOMING_STARTED: config.templateGroomingStarted,
+    ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE: config.templateGroomingAlmostDone,
+    ALIMTALK_TEMPLATE_GROOMING_COMPLETED: config.templateGroomingCompleted,
+    ALIMTALK_TEMPLATE_REVISIT_NOTICE: config.templateRevisitNotice,
+    ALIMTALK_TEMPLATE_BIRTHDAY_GREETING: config.templateBirthdayGreeting,
+  };
+}
+
+function persistRelayConfig(config: ReturnType<typeof getRelayConfigPayload>) {
+  const nextEntries = toRelayEnvEntries(config);
+  const existingLines = fs.existsSync(relayEnvFilePath)
+    ? fs.readFileSync(relayEnvFilePath, "utf8").split(/\r?\n/)
+    : [];
+  const applied = new Set<RelayEnvKey>();
+  const nextLines = existingLines.map((line) => {
+    const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (!match) return line;
+
+    const key = match[1] as RelayEnvKey;
+    if (!relayEnvKeys.includes(key)) return line;
+
+    applied.add(key);
+    return `${key}=${serializeEnvValue(nextEntries[key])}`;
+  });
+
+  for (const key of relayEnvKeys) {
+    if (!applied.has(key)) {
+      nextLines.push(`${key}=${serializeEnvValue(nextEntries[key])}`);
+    }
+  }
+
+  fs.writeFileSync(relayEnvFilePath, `${nextLines.filter((line) => line !== undefined).join("\n").trimEnd()}\n`, "utf8");
+}
+
+function applyRelayConfig(config: ReturnType<typeof getRelayConfigPayload>) {
+  const nextEntries = toRelayEnvEntries(config);
+  for (const [key, value] of Object.entries(nextEntries)) {
+    process.env[key] = value;
+  }
+  env = loadRelayConfig();
+}
 
 const requestSchema = z.object({
   to: z.string().min(8),
@@ -44,6 +177,26 @@ const requestSchema = z.object({
     .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .optional()
     .nullable(),
+});
+
+const adminConfigSchema = z.object({
+  relaySecret: z.string(),
+  ssodaaApiUrl: z.string().url(),
+  ssodaaSentListUrl: z.string().url(),
+  ssodaaApiKey: z.string(),
+  ssodaaTokenKey: z.string(),
+  ssodaaSenderKey: z.string(),
+  templateBookingReceived: z.string(),
+  templateBookingConfirmed: z.string(),
+  templateBookingRejected: z.string(),
+  templateBookingCancelled: z.string(),
+  templateBookingRescheduledConfirmed: z.string(),
+  templateAppointmentReminder10m: z.string(),
+  templateGroomingStarted: z.string(),
+  templateGroomingAlmostDone: z.string(),
+  templateGroomingCompleted: z.string(),
+  templateRevisitNotice: z.string(),
+  templateBirthdayGreeting: z.string(),
 });
 
 const templateAliases = [
@@ -61,6 +214,14 @@ const templateAliases = [
 ] as const;
 
 type TemplateAlias = (typeof templateAliases)[number];
+
+type SsodaaTemplateDetail = {
+  templateCode: string;
+  templateName: string | null;
+  templateContent: string | null;
+  inspectionStatus: string | null;
+  serviceStatus: string | null;
+};
 
 function coerceJsonLikeBody(value: unknown) {
   if (typeof value !== "string") return value;
@@ -166,6 +327,96 @@ async function fetchSentList(params: { destPhone: string; date: string }) {
     status: providerResponse.status,
     body: coerceJsonLikeBody(responseBody),
   };
+}
+
+async function fetchSsodaaTemplateDetail(templateCode: string) {
+  const templateDetailUrl = new URL("/kakao/template/detail", env.ssodaaApiUrl).toString();
+  const providerResponse = await fetch(templateDetailUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": env.ssodaaApiKey,
+    },
+    body: JSON.stringify({
+      token_key: env.ssodaaTokenKey,
+      senderKey: env.ssodaaSenderKey,
+      templateCode,
+    }),
+  });
+
+  const contentType = providerResponse.headers.get("content-type") ?? "";
+  const responseBody = contentType.includes("application/json")
+    ? await providerResponse.json()
+    : await providerResponse.text();
+
+  if (!providerResponse.ok) {
+    throw new Error("쏘다 템플릿 상세 조회에 실패했습니다.");
+  }
+
+  const providerCode =
+    typeof responseBody === "object" && responseBody !== null && "code" in responseBody
+      ? String((responseBody as { code?: string | number }).code ?? "")
+      : "";
+
+  if (providerCode && providerCode !== "200") {
+    const message =
+      typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof (responseBody as { error?: unknown }).error === "string"
+        ? ((responseBody as { error: string }).error || "쏘다 템플릿 상세 조회가 거절되었습니다.")
+        : "쏘다 템플릿 상세 조회가 거절되었습니다.";
+    throw new Error(message);
+  }
+
+  const content =
+    typeof responseBody === "object" && responseBody !== null && "content" in responseBody
+      ? ((responseBody as { content?: Record<string, unknown> }).content ?? {})
+      : {};
+
+  return {
+    templateCode: typeof content.templateCode === "string" ? content.templateCode : templateCode,
+    templateName: typeof content.templateName === "string" ? content.templateName : null,
+    templateContent: typeof content.templateContent === "string" ? content.templateContent : null,
+    inspectionStatus: typeof content.inspectionStatus === "string" ? content.inspectionStatus : null,
+    serviceStatus: typeof content.serviceStatus === "string" ? content.serviceStatus : null,
+  } satisfies SsodaaTemplateDetail;
+}
+
+async function buildSsodaaTemplateCatalog() {
+  const aliasEntries = templateAliases.map((alias) => ({
+    alias,
+    configuredCode: resolveTemplateKey(alias) ?? "",
+  }));
+
+  const detailEntries = await Promise.all(
+    aliasEntries.map(async ({ alias, configuredCode }) => {
+      if (!configuredCode) {
+        return {
+          alias,
+          configuredCode,
+          detail: null,
+          error: null,
+        };
+      }
+
+      try {
+        const detail = await fetchSsodaaTemplateDetail(configuredCode);
+        return {
+          alias,
+          configuredCode,
+          detail,
+          error: null,
+        };
+      } catch (error) {
+        return {
+          alias,
+          configuredCode,
+          detail: null,
+          error: error instanceof Error ? error.message : "쏘다 템플릿 상세를 불러오지 못했습니다.",
+        };
+      }
+    }),
+  );
+
+  return detailEntries;
 }
 
 function selectFinalStatusRow(rows: SsodaaSentListRow[], criteria: { msgId: string | null; destPhone: string; message: string }) {
@@ -378,6 +629,40 @@ app.get("/health", (_request, response) => {
   });
 });
 
+app.get("/admin/config", (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    response.json({
+      ok: true,
+      config: getRelayConfigPayload(),
+      templates: getTemplateDebugMap(),
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay admin config fetch failed.";
+    response.status(status).json({ ok: false, message });
+  }
+});
+
+app.put("/admin/config", (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    const nextConfig = adminConfigSchema.parse(request.body);
+    persistRelayConfig(nextConfig);
+    applyRelayConfig(nextConfig);
+
+    response.json({
+      ok: true,
+      config: getRelayConfigPayload(),
+      templates: getTemplateDebugMap(),
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay admin config update failed.";
+    response.status(status).json({ ok: false, message });
+  }
+});
+
 app.get("/debug/templates", (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
@@ -396,6 +681,24 @@ app.get("/debug/templates", (request, response) => {
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 500;
     const message = error instanceof Error ? error.message : "Relay template debug failed.";
+    response.status(status).json({ ok: false, message });
+  }
+});
+
+app.get("/admin/templates", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const items = await buildSsodaaTemplateCatalog();
+
+    response.json({
+      ok: true,
+      items,
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay template catalog fetch failed.";
     response.status(status).json({ ok: false, message });
   }
 });

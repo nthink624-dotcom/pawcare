@@ -1,8 +1,18 @@
 "use client";
 
-import { DoorOpen, LayoutDashboard, MonitorSmartphone, ShieldCheck, ShoppingBag, Store, UserRoundCog } from "lucide-react";
+import {
+  DoorOpen,
+  KeyRound,
+  LayoutDashboard,
+  MonitorSmartphone,
+  ShieldCheck,
+  ShoppingBag,
+  Store,
+  UserRoundCog,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import { fetchApiJson } from "@/lib/api";
 
 type AdminDashboardAccount = {
@@ -75,17 +85,16 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
                 <UserRoundCog className="h-7 w-7" />
               </div>
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
+                <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영 모드</p>
                 <h1 className="mt-2 text-[34px] font-bold tracking-[-0.04em] text-[#171411]">관리자 콘솔</h1>
                 <p className="mt-3 max-w-[760px] text-[15px] leading-7 text-[#6f665f]">
-                  오너 계정 상태, 플랜, 체험 플랜, 계정 정지와 복구까지 관리자 시점에서 빠르게 관리할 수 있는 화면입니다.
-                  운영용 화면이므로 모바일 프레임이 아니라 넓은 웹 레이아웃으로 구성했습니다.
+                  오너 계정 상태, 플랜, 체험 플랜, 결제 상태, 계정 복구까지 관리자 관점에서 빠르게 확인하고 조정할 수 있는 내부 화면입니다.
                 </p>
               </div>
             </div>
 
             <div className="rounded-[20px] border border-[#e5ddd2] bg-[#fcfbf8] px-5 py-4">
-              <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영자 계정</p>
+              <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영 계정</p>
               <p className="mt-2 text-[20px] font-bold text-[#171411]">{currentAccount.fullName}</p>
               <div className="mt-3 space-y-1.5 text-[13px] text-[#6f665f]">
                 <p>아이디 · {currentAccount.loginId}</p>
@@ -107,31 +116,37 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             href="/owner/admin"
             icon={LayoutDashboard}
             title="오너 계정 관리"
-            description="가입한 사장님 계정의 플랜, 체험 플랜 종료일, 결제 상태, 계정 정지와 복구를 직접 조정합니다."
+            description="가입한 매장별 계정, 플랜 종료일, 결제 상태, 계정 복구 상태를 직접 확인하고 조정합니다."
+          />
+          <DashboardLink
+            href="/admin/alimtalk"
+            icon={KeyRound}
+            title="알림톡 키 / 템플릿 관리"
+            description="Vercel 앱 서버가 읽는 raw 값과 relay 서버에 저장된 원본 키·템플릿 코드를 한 화면에서 확인하고 수정합니다."
           />
           <DashboardLink
             href="/owner"
             icon={Store}
             title="오너 페이지 보기"
-            description="현재 로그인된 실제 오너 페이지를 확인합니다. 미리보기 예약은 여기 섞이지 않습니다."
+            description="현재 로그인된 테스트 오너 화면을 바로 확인합니다."
           />
           <DashboardLink
             href="/demo/owner"
             icon={MonitorSmartphone}
-            title="오너 페이지 미리보기"
-            description="고객 예약 페이지 미리보기에서 만든 테스트 예약까지 같은 테스트 매장 기준으로 확인합니다."
+            title="오너 데모 보기"
+            description="데모 오너 화면과 기본 예약 플로우를 함께 확인합니다."
           />
           <DashboardLink
             href="/demo/book"
             icon={ShoppingBag}
-            title="고객 예약 페이지 미리보기"
-            description="첫 방문, 재방문, 예약 확인 흐름을 테스트하고 오너 페이지 미리보기에서 함께 확인합니다."
+            title="고객 예약 페이지 보기"
+            description="첫 방문·재방문 예약 흐름과 고객이 보는 화면을 바로 확인합니다."
           />
           <DashboardLink
             href="/"
             icon={ShieldCheck}
             title="서비스 메인 보기"
-            description="랜딩과 체험 플랜 진입 화면을 확인하고 전체 퍼널을 점검합니다."
+            description="랜딩과 체험 플랜 진입 화면을 함께 확인합니다."
           />
           <button
             type="button"

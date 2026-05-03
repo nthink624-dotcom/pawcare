@@ -132,6 +132,8 @@ function buildNotificationMessage(params: {
   shopName: string;
   appointment: Appointment | null;
   petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
   rejectionReason: string | null;
   bookingManageUrl: string | null;
 }) {
@@ -160,17 +162,113 @@ function buildNotificationMessage(params: {
     case "owner_booking_requested":
       return `새 예약이 접수되었어요.\n${params.petName}\n${dateLabel}`;
     case "booking_confirmed":
-      return `[${params.shopName}] ${params.petName} 예약이 확정되었어요.\n방문 일정: ${dateLabel}`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 예약이 확정되었어요. (방긋)`,
+        "",
+        `방문 일시: ${dateLabel}`,
+        `예약 서비스: ${params.serviceName ?? ""}`,
+        "",
+        "방문 당일 편하게 와 주세요. 기다리고 있겠습니다.",
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "booking_rejected":
-      return `[${params.shopName}] ${params.petName} 예약이 접수되지 않았어요.${params.rejectionReason ? `\n사유: ${params.rejectionReason}` : ""}`;
+      return [
+        `[${params.shopName}] 예약 거절 안내`,
+        "",
+        `${params.petName} 보호자님께서 신청하신 예약은 매장 사정으로 인해 확정이 어려운 점 양해 부탁드립니다.`,
+        "",
+        "불편을 드려 죄송합니다.",
+        "",
+        "해당 시간 외 다른 일정으로 예약이 가능하오니,  아래 링크에서 다시 확인 부탁드립니다.",
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "booking_cancelled":
-      return `[${params.shopName}] ${params.petName} 예약이 취소되었어요.`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 예약 취소가 처리되었어요.`,
+        "",
+        `취소된 예약: ${dateLabel}`,
+        "",
+        "아쉽지만 다음에 또 뵐 수 있길 바라요.",
+        "언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.",
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "booking_rescheduled_confirmed":
-      return `[${params.shopName}] ${params.petName} 예약 일정이 변경되었어요.\n변경 일정: ${dateLabel}`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 예약 변경이 확정되었어요`,
+        "",
+        "기존 예약은 취소되고, 아래 일정으로 새로 잡혔어요.",
+        "",
+        ` 새로운 일정: ${dateLabel}`,
+        ` 예약 서비스: ${params.serviceName ?? ""}`,
+        "",
+        "새 일정에 맞춰 뵐게요!",
+        "추가 변경이 필요하시면 아래 링크에서 편하게 해주세요.",
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "appointment_reminder_10m":
-      return `[${params.shopName}] ${params.petName} 예약이 곧 시작돼요.\n방문 일정: ${dateLabel}`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 이제 곧 만나요! (방긋)`,
+        "",
+        ` 방문 일시: ${dateLabel}`,
+        ` 예약 서비스: ${params.serviceName ?? ""}`,
+        "",
+        "준비 마치고 기다리고 있을게요.",
+        "오시는 길 조심히 오세요 ",
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "grooming_started":
-      return `[${params.shopName}] ${params.petName} 미용이 시작되었어요.`;
+      return [
+        `[${params.shopName}]`,
+        `${params.petName} 보호자님, 미용을 시작했어요 `,
+        "",
+        `${params.petName}은 저희가 잘 돌보고 있으니 안심하세요 `,
+        "예쁘게 단장해서 보내드릴게요!",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "grooming_almost_done":
       return [
         `[${params.shopName}]`,
@@ -190,7 +288,21 @@ function buildNotificationMessage(params: {
         })
         .join("\n");
     case "grooming_completed":
-      return `[${params.shopName}] ${params.petName} 미용이 완료되었어요.\n지금 픽업하실 수 있어요.`;
+      return [
+        `[${params.shopName}]`,
+        ` ${params.petName} 미용이 모두 완료되었어요.`,
+        "",
+        "오늘도 믿고 맡겨주셔서 감사해요.",
+        `${params.petName}이 기다리고 있으니 편하신 시간에 와주세요.`,
+        "",
+        params.bookingManageUrl ?? "",
+      ]
+        .filter((line, index, lines) => {
+          if (line) return true;
+          const previous = lines[index - 1];
+          return previous !== "";
+        })
+        .join("\n");
     case "revisit_notice":
       return `[${params.shopName}] ${params.petName} 재방문 시기가 가까워졌어요.`;
     case "birthday_greeting":
@@ -304,6 +416,8 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       shopName: bootstrap.shop.name,
       appointment,
       petName: pet?.name ?? "pet",
+      recipientName,
+      serviceName: service?.name ?? null,
       rejectionReason: appointment?.rejection_reason ?? null,
       bookingManageUrl,
     });

@@ -17,11 +17,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "비밀번호 재설정 정보를 다시 확인해 주세요." }, { status: 400 });
   }
 
-  if (parsed.data.setupKey !== requireServerSecret(serverEnv.adminSetupKey, "ADMIN_SETUP_KEY")) {
-    return NextResponse.json({ message: "운영자 등록 키를 다시 확인해 주세요." }, { status: 401 });
-  }
-
   try {
+    const adminSetupKey = requireServerSecret(serverEnv.adminSetupKey, "ADMIN_SETUP_KEY");
+    if (parsed.data.setupKey !== adminSetupKey) {
+      return NextResponse.json({ message: "운영자 등록 키를 다시 확인해 주세요." }, { status: 401 });
+    }
+
     const account = await resetAdminPassword({
       loginId: parsed.data.loginId,
       password: parsed.data.password,

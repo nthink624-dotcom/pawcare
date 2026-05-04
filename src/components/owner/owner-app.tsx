@@ -159,6 +159,7 @@ export default function OwnerApp({
   const [visitSelectionMode, setVisitSelectionMode] = useState<"single" | "range">("single");
   const [visitRange, setVisitRange] = useState<{ start: string; end: string } | null>(null);
   const [detailTab, setDetailTab] = useState<CustomerDetailTab>("records");
+  const [isCustomerNotificationSettingsOpen, setIsCustomerNotificationSettingsOpen] = useState(false);
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
   const [pendingVisitDate, setPendingVisitDate] = useState(currentDateInTimeZone());
@@ -192,6 +193,10 @@ export default function OwnerApp({
   const [petDraftName, setPetDraftName] = useState("");
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    setIsCustomerNotificationSettingsOpen(false);
+  }, [selectedGuardianId]);
 
   const resizeGuardianMemoTextarea = () => {
     const textarea = guardianMemoTextareaRef.current;
@@ -560,6 +565,11 @@ export default function OwnerApp({
   }, [data.notifications, selectedGuardian, selectedGuardianPets]);
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
+  const customerNotificationSummary = !guardianNotificationsEnabled
+    ? "알림 수신 꺼짐"
+    : guardianRevisitNotificationsEnabled
+      ? "알림 수신 · 재방문 안내 사용 중"
+      : "알림 수신 사용 중";
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
   const canSavePetProfile = Boolean(selectedCustomerPet && petDraftName.trim() && petDraftName.trim() !== selectedCustomerPet.name);
   const canSaveGuardianProfile = Boolean(
@@ -1994,115 +2004,119 @@ export default function OwnerApp({
                         onClick={() => openCustomerFieldEditor("pet")}
                       />
                     )}
-                  </div>
-                </CustomerDetailFieldCard>
-
-                <CustomerDetailFieldCard label="고객 메모" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
-                  {editingCustomerFields.memo ? (
-                    <div className="px-3 py-1.5">
-                      <div className="relative">
-                        <textarea
-                          ref={guardianMemoTextareaRef}
-                          className="field-textarea !min-h-[92px] !resize-none overflow-hidden px-3 py-2 !pb-12 leading-5"
-                          value={guardianDraft.memo}
-                          onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
-                          onInput={resizeGuardianMemoTextarea}
-                          placeholder="고객에게 기억해 둘 내용을 적어주세요"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          disabled={saving}
-                          className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
-                          onClick={() => void handleCustomerInlineSave()}
-                        >
-                          저장
-                        </button>
+                    {editingCustomerFields.memo ? (
+                      <div className="px-3 py-1.5">
+                        <div className="relative">
+                          <textarea
+                            ref={guardianMemoTextareaRef}
+                            className="field-textarea !min-h-[92px] !resize-none overflow-hidden px-3 py-2 !pb-12 leading-5"
+                            value={guardianDraft.memo}
+                            onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
+                            onInput={resizeGuardianMemoTextarea}
+                            placeholder="고객에게 기억해 둘 내용을 적어주세요"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            disabled={saving}
+                            className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
+                            onClick={() => void handleCustomerInlineSave()}
+                          >
+                            저장
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openCustomerFieldEditor("memo")}
-                      className="relative z-[1] w-full min-h-[56px] px-3.5 py-2 text-left transition hover:bg-[#fffdfa]"
-                    >
-                      <p className={`relative -top-0.5 text-[16px] leading-6 tracking-[-0.02em] ${selectedGuardian.memo ? "font-normal text-[var(--text)]" : "font-normal text-[var(--muted)]"}`}>
-                        {selectedGuardian.memo || "메모를 추가해 주세요"}
-                      </p>
-                    </button>
-                  )}
+                    ) : (
+                      <CustomerDetailInfoRow
+                        label="고객 메모"
+                        value={selectedGuardian.memo || "메모를 추가해 주세요"}
+                        onClick={() => openCustomerFieldEditor("memo")}
+                        muted={!selectedGuardian.memo}
+                        multiline
+                      />
+                    )}
+                  </div>
                 </CustomerDetailFieldCard>
 
-                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
-                  <div className="divide-y divide-[var(--border)]">
-                    <CustomerDetailToggleRow
-                      label="알림톡 수신"
-                      description="이 고객에게 예약 확정, 취소, 픽업 준비 알림을 보낼 수 있어요."
-                      checked={guardianNotificationsEnabled}
-                      disabled={saving}
-                      onChange={(checked) => {
-                        void updateGuardianNotifications(
-                          selectedGuardian.id,
-                          checked,
-                          checked ? guardianRevisitNotificationsEnabled : false,
-                        );
-                      }}
+                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerNotificationSettingsOpen((prev) => !prev)}
+                    className="flex min-h-[46px] w-full items-center justify-between gap-3 px-3.5 py-1.5 text-left transition hover:bg-[#fffdfa]"
+                  >
+                    <span className="text-[14px] font-normal tracking-[-0.02em] text-[var(--text)]">{customerNotificationSummary}</span>
+                    <ChevronRight
+                      className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${isCustomerNotificationSettingsOpen ? "rotate-90" : ""}`}
+                      strokeWidth={1.8}
                     />
-                    <CustomerDetailToggleRow
-                      label="재방문 안내"
-                      description="다음 방문 시점이 가까워졌을 때 재방문 알림을 보낼 수 있어요."
-                      checked={guardianRevisitNotificationsEnabled}
-                      disabled={saving || !guardianNotificationsEnabled}
-                      onChange={(checked) => {
-                        void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
-                      }}
-                    />
-                  </div>
+                  </button>
+                  {isCustomerNotificationSettingsOpen ? (
+                    <div className="border-t border-[var(--border)] divide-y divide-[var(--border)]">
+                      <CustomerDetailToggleRow
+                        label="알림톡 수신"
+                        description="이 고객에게 예약 확정, 취소, 픽업 준비 알림을 보낼 수 있어요."
+                        checked={guardianNotificationsEnabled}
+                        disabled={saving}
+                        onChange={(checked) => {
+                          void updateGuardianNotifications(
+                            selectedGuardian.id,
+                            checked,
+                            checked ? guardianRevisitNotificationsEnabled : false,
+                          );
+                        }}
+                      />
+                      <CustomerDetailToggleRow
+                        label="재방문 안내"
+                        description="다음 방문 시점이 가까워졌을 때 재방문 알림을 보낼 수 있어요."
+                        checked={guardianRevisitNotificationsEnabled}
+                        disabled={saving || !guardianNotificationsEnabled}
+                        onChange={(checked) => {
+                          void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </CustomerDetailFieldCard>
 
                 <div className="space-y-2">
-                  <div className="relative -top-px grid grid-cols-3 gap-1 rounded-[12px] border border-[var(--border)] bg-white p-1">
+                  <div className="grid grid-cols-3 gap-1 rounded-[10px] border border-[var(--border)] bg-[#f8f5f0] p-1">
                     {(["records", "pets", "notifications"] as const).map((item) => (
                       <button
                         key={item}
-                        className={`flex h-[52px] items-center justify-center rounded-[10px] border px-2 py-1.5 text-center text-[11px] font-medium leading-[1.25] transition ${
+                        className={`flex h-[36px] items-center justify-center rounded-[8px] px-2 py-1 text-center text-[14px] font-medium leading-[1.2] transition ${
                           detailTab === item
-                            ? "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)] shadow-[0_3px_8px_rgba(35,35,31,0.05)]"
-                            : "border-transparent text-[var(--muted)]"
+                            ? "bg-white text-[var(--text)] shadow-[0_2px_6px_rgba(35,35,31,0.05)]"
+                            : "text-[var(--muted)]"
                         }`}
                         onClick={() => setDetailTab(item)}
                       >
-                        {item === "records" ? "미용 기록" : item === "pets" ? "반려 동물" : <>알림톡<br />발송 내역</>}
+                        {item === "records" ? "미용 기록" : item === "pets" ? "반려동물" : "알림 내역"}
                       </button>
                     ))}
                   </div>
 
                   {detailTab === "records" ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {selectedRecords.length === 0 ? (
                         <AppEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
                       ) : (
-                        selectedRecords.map((record) => (
-                          <RecordCard
-                            key={record.id}
-                            record={record}
-                            pet={petMap[record.pet_id]}
-                            service={serviceMap[record.service_id]}
-                          />
-                        ))
+                        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+                          {selectedRecords.map((record) => (
+                            <RecordCard
+                              key={record.id}
+                              record={record}
+                              pet={petMap[record.pet_id]}
+                              service={serviceMap[record.service_id]}
+                              onEdit={() => setModal({ type: "edit-record", record })}
+                            />
+                          ))}
+                        </div>
                       )}
                     </div>
                   ) : null}
 
                   {detailTab === "pets" ? (
-                    <div className="space-y-3">
-                      <CustomerDetailFieldCard label="반려동물 관리" className="rounded-[10px] px-2.5 pb-2 pt-0.5">
-                        <div>
-                          <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">반려동물을 수정하고 예약 연결 상태를 바로 확인할 수 있어요.</p>
-                          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">현재 고객에게 등록된 반려동물만 카드 형태로 정리해서 보여드릴게요.</p>
-                        </div>
-                      </CustomerDetailFieldCard>
-
+                    <div className="space-y-2">
                       {selectedGuardianPets.map((pet) => (
                         <GuardianPetEditorCard
                           key={pet.id}
@@ -2118,7 +2132,7 @@ export default function OwnerApp({
                       ))}
                       <button
                         type="button"
-                        className="mt-1.5 flex h-[46px] w-full items-center justify-center gap-1.5 rounded-[12px] border border-[#cfded8] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[var(--accent)] shadow-[0_4px_12px_rgba(31,107,91,0.05)] transition hover:bg-[#fcfaf7]"
+                        className="mt-1 flex h-[42px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#cfded8] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[#fcfaf7]"
                         onClick={() => setModal({ type: "add-pet", guardianId: selectedGuardian.id })}
                       >
                         <Plus className="h-4 w-4" strokeWidth={2.1} />
@@ -2128,17 +2142,19 @@ export default function OwnerApp({
                   ) : null}
 
                   {detailTab === "notifications" ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {selectedNotifications.length === 0 ? (
                         <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
                       ) : (
-                        selectedNotifications.map((notification) => (
-                          <NotificationHistoryRow
-                            key={notification.id}
-                            notification={notification}
-                            pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
-                          />
-                        ))
+                        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+                          {selectedNotifications.map((notification) => (
+                            <NotificationHistoryRow
+                              key={notification.id}
+                              notification={notification}
+                              pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
+                            />
+                          ))}
+                        </div>
                       )}
                     </div>
                   ) : null}
@@ -3035,20 +3051,19 @@ function SettingsPanel({
   );
 }
 
-function RecordCard({ record, pet, service }: { record: GroomingRecord; pet: Pet; service?: Service }) {
+function RecordCard({ record, pet, service, onEdit }: { record: GroomingRecord; pet: Pet; service?: Service; onEdit: () => void }) {
   return (
-    <CustomerDetailFieldCard label="미용 기록" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
-      <div className="relative -top-0.5 px-2.5 py-1">
-        <div className="flex items-start justify-between gap-3">
-          <p className="min-w-0 text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
-          <div className="shrink-0 text-right">
-            <p className="text-[14px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{service?.name || "시술내역 없음"}</p>
-            <p className="mt-px text-[11px] leading-4 text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</p>
-          </div>
+    <button type="button" onClick={onEdit} className="flex w-full items-start justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-[#fffdfa]">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+          <span className="text-[14px] leading-5 text-[var(--muted)]">{record.groomed_at.slice(0, 10)}</span>
         </div>
-        <p className="mt-1.5 text-[13px] leading-5 text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p>
+        <p className="mt-1 text-[14px] leading-5 text-[var(--text)]">{service?.name || "시술내역 없음"}</p>
+        <p className="mt-1 truncate text-[14px] leading-5 text-[var(--muted)]">{record.memo || "상세 메모 없음"}</p>
       </div>
-    </CustomerDetailFieldCard>
+      <span className="shrink-0 text-[14px] font-medium text-[var(--accent)]">수정</span>
+    </button>
   );
 }
 function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <CurrentReservationsContent currentAppointments={currentAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
@@ -3347,86 +3362,119 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
   const [name, setName] = useState(pet.name);
   const [breed, setBreed] = useState(pet.breed);
   const [birthday, setBirthday] = useState(pet.birthday ?? "");
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setName(pet.name);
     setBreed(pet.breed);
     setBirthday(pet.birthday ?? "");
+    setIsEditing(false);
   }, [pet.birthday, pet.breed, pet.name]);
 
+  const summary = [breed, birthday ? `생일 ${birthday}` : null, isBirthdayToday ? "오늘 생일" : null].filter(Boolean).join(" · ");
+
   return (
-    <CustomerDetailFieldCard
-      label="반려동물"
-      className={`rounded-[10px] px-2.5 pb-2 pt-0.5 ${isSelected ? "border-[var(--accent)] shadow-[0_6px_14px_rgba(31,107,91,0.08)]" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <button className="text-left" onClick={onSelect}>
+    <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white">
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 bg-white px-3.5 py-3 text-left transition hover:bg-[#fffdfa]"
+        onClick={onSelect}
+        aria-pressed={isSelected}
+      >
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pet.name}</p>
-            {isSelected ? <CustomerStatusPill label="작업 중" tone="accent" /> : null}
+            <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
+            {isSelected ? <span className="text-[14px] leading-5 text-[var(--muted)]">열람 중</span> : null}
           </div>
-          {isBirthdayToday || birthday ? (
-            <p className="mt-0.5 text-[13px] font-medium text-[var(--muted)]">
-              {isBirthdayToday ? "오늘 생일" : `생일 ${birthday}`}
-            </p>
-          ) : null}
-        </button>
-        {!isSelected ? (
-          <button type="button" className="text-[12px] font-medium text-[var(--accent)]" onClick={onSelect}>
-            작업 대상으로 지정
-          </button>
-        ) : null}
-      </div>
-      <div className="mt-2.5 space-y-2">
-        <PetDetailInputField label="아기 이름">
-          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" value={name} onChange={(event) => setName(event.target.value)} />
-        </PetDetailInputField>
-        <PetDetailInputField label="견종">
-          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" value={breed} onChange={(event) => setBreed(event.target.value)} />
-        </PetDetailInputField>
-        <PetDetailInputField label="생일">
-          <input className="field !h-[48px] !rounded-[12px] !px-3.5 !py-2 text-[16px] font-medium tracking-[-0.02em]" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} />
-        </PetDetailInputField>
-      </div>
-      <div className="mt-2.5 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onSave(name.trim(), breed.trim(), birthday || null)}
-          disabled={saving || !name.trim() || !breed.trim()}
-          className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-medium tracking-[-0.02em] text-[var(--text)] transition hover:bg-[#fcfaf7] disabled:opacity-45"
-        >
-          정보 저장
-        </button>
-        <button
-          type="button"
-          onClick={onSendRevisit}
-          disabled={saving}
-          className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[#d7e7e1] bg-[var(--accent-soft)] px-4 text-[14px] font-medium tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[#edf5f1] disabled:opacity-45"
-        >
-          재방문 알림
-        </button>
-      </div>
-      {birthday ? (
-        <div className="mt-2">
+          {summary ? <p className="mt-0.5 text-[14px] leading-5 text-[var(--muted)]">{summary}</p> : null}
+        </div>
+        <div className="shrink-0">
           <button
             type="button"
-            onClick={onSendBirthday}
-            disabled={saving}
-            className="flex h-[40px] w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium tracking-[-0.02em] text-white shadow-[0_6px_14px_rgba(31,107,91,0.12)] transition hover:bg-[#276e5d] disabled:opacity-45"
+            className="text-[14px] font-medium leading-5 text-[var(--accent)]"
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsEditing((prev) => !prev);
+            }}
           >
-            생일 축하 문자 보내기
+            {isEditing ? "닫기" : "수정"}
           </button>
         </div>
-      ) : null}
-    </CustomerDetailFieldCard>
+      </button>
+
+      {isEditing ? (
+        <div className="border-t border-[var(--border)] px-3.5 py-3">
+          <div className="grid grid-cols-2 gap-2">
+            <PetDetailInputField label="아기 이름">
+              <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" value={name} onChange={(event) => setName(event.target.value)} />
+            </PetDetailInputField>
+            <PetDetailInputField label="견종">
+              <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" value={breed} onChange={(event) => setBreed(event.target.value)} />
+            </PetDetailInputField>
+            <div className="col-span-2">
+              <PetDetailInputField label="생일">
+                <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} />
+              </PetDetailInputField>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              disabled={saving}
+              className="text-[14px] font-medium text-[var(--muted)] disabled:opacity-45"
+              onClick={() => {
+                setName(pet.name);
+                setBreed(pet.breed);
+                setBirthday(pet.birthday ?? "");
+                setIsEditing(false);
+              }}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(name.trim(), breed.trim(), birthday || null);
+                setIsEditing(false);
+              }}
+              disabled={saving || !name.trim() || !breed.trim()}
+              className="text-[14px] font-medium text-[var(--accent)] disabled:opacity-45"
+            >
+              정보 저장
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border)] px-3.5 py-2">
+          <button
+            type="button"
+            onClick={onSendRevisit}
+            disabled={saving}
+            className="text-[14px] font-medium text-[var(--accent)] disabled:opacity-45"
+          >
+            재방문 알림
+          </button>
+          {birthday ? (
+            <button
+              type="button"
+              onClick={onSendBirthday}
+              disabled={saving}
+              className="text-[14px] font-medium text-[var(--muted)] disabled:opacity-45"
+            >
+              생일 축하 문자
+            </button>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 function PetDetailInputField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <fieldset className="min-w-0 rounded-[10px] border border-[var(--border)] bg-white px-2.5 pb-2 pt-0.5">
-      <legend className="ml-0.5 px-1.5 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</legend>
+    <label className="block min-w-0">
+      <span className="mb-1 block text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>
       {children}
-    </fieldset>
+    </label>
   );
 }
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
@@ -3496,7 +3544,7 @@ function CustomerDetailFieldCard({
 }) {
   const sharedClassName = `isolate min-w-0 overflow-visible rounded-[12px] border border-[var(--border)] bg-white px-3 pb-1 pt-0.5 text-left ${onClick ? "transition hover:border-[#d9d2c9] hover:bg-[#fffdfa]" : ""} ${className}`.trim();
   const labelNode = (
-    <legend className="ml-0.5 px-1.5 text-[15px] font-medium tracking-[-0.01em] text-[var(--muted)]">
+    <legend className="ml-0.5 px-1.5 text-[16px] font-medium tracking-[-0.01em] text-[var(--muted)]">
       {label}
     </legend>
   );
@@ -3541,7 +3589,7 @@ function CustomerDetailInfoRow({
     <>
       <div className="relative -top-0.5 min-w-0 flex-1">
         <p className={valueClassName}>{value}</p>
-        <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">{label}</p>
+        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{label}</p>
       </div>
       {onClick ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} /> : null}
     </>
@@ -3574,8 +3622,8 @@ function CustomerDetailToggleRow({
   return (
     <label className={`flex min-h-[56px] items-center justify-between gap-3 px-3.5 py-2 ${disabled ? "opacity-50" : ""}`}>
       <div className="relative -top-0.5 min-w-0 flex-1">
-        <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
-        <p className="mt-1 text-[11px] leading-[18px] text-[var(--muted)]">{description}</p>
+        <p className="text-[17px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
+        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{description}</p>
       </div>
       <button
         type="button"
@@ -3587,17 +3635,6 @@ function CustomerDetailToggleRow({
       </button>
     </label>
   );
-}
-
-function CustomerStatusPill({ label, tone }: { label: string; tone: "accent" | "warning" | "muted" }) {
-  const toneClass =
-    tone === "accent"
-      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-      : tone === "warning"
-        ? "bg-[#f6eee3] text-[#8c6e53]"
-        : "bg-[#f4f0ea] text-[var(--muted)]";
-
-  return <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${toneClass}`}>{label}</span>;
 }
 
 function CustomerMetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
@@ -3700,7 +3737,21 @@ function NotificationHistoryRow({ notification, pet }: { notification: Bootstrap
     ? timestamp
     : `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
 
-  return <CustomerDetailFieldCard label="알림톡 내역"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><p className="text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">{typeLabel}</p>{pet ? <span className="text-[12px] font-medium text-[var(--muted)]">{pet.name}</span> : null}</div><p className="mt-1 text-[12px] font-medium text-[var(--muted)]">{timeLabel}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone}`}>{statusLabel}</span></div><p className="mt-2 text-[14px] leading-6 text-[var(--text)]">{notification.message}</p></CustomerDetailFieldCard>;
+  return (
+    <div className="px-3.5 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-[16px] font-medium tracking-[-0.01em] text-[var(--text)]">{typeLabel}</p>
+            {pet ? <span className="text-[14px] font-medium text-[var(--muted)]">{pet.name}</span> : null}
+          </div>
+          <p className="mt-1 text-[14px] leading-5 text-[var(--muted)]">{timeLabel}</p>
+          <p className="mt-1.5 line-clamp-2 text-[14px] leading-5 text-[var(--text)]">{notification.message}</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-medium ${statusTone}`}>{statusLabel}</span>
+      </div>
+    </div>
+  );
 }
 
 

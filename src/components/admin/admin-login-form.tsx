@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -10,6 +10,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -58,13 +59,23 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
             placeholder="관리자 아이디"
             className="h-[50px] w-full rounded-[12px] border border-[#ddd4c8] bg-[#fcfbf8] px-4 text-[16px] font-medium text-[#171411] outline-none placeholder:text-[#a2978a]"
           />
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="관리자 비밀번호"
-            className="h-[50px] w-full rounded-[12px] border border-[#ddd4c8] bg-[#fcfbf8] px-4 text-[16px] font-medium text-[#171411] outline-none placeholder:text-[#a2978a]"
-          />
+          <div className="relative">
+            <input
+              type={passwordVisible ? "text" : "password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="관리자 비밀번호"
+              className="h-[50px] w-full rounded-[12px] border border-[#ddd4c8] bg-[#fcfbf8] px-4 pr-12 text-[16px] font-medium text-[#171411] outline-none placeholder:text-[#a2978a]"
+            />
+            <button
+              type="button"
+              onClick={() => setPasswordVisible((prev) => !prev)}
+              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#8a8075]"
+              aria-label={passwordVisible ? "비밀번호 숨기기" : "비밀번호 보기"}
+            >
+              {passwordVisible ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+            </button>
+          </div>
         </div>
 
         {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}

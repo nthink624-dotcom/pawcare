@@ -46,9 +46,8 @@ const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
 const concurrentCapacityOptions = [1, 2, 3, 4, 5] as const;
 const bookingSlotPresetOptions = [
-  { id: "30-0", interval: 30, offset: 0, label: "정각/30분", helper: "00분 · 30분" },
-  { id: "30-10", interval: 30, offset: 10, label: "10분/40분", helper: "10분 · 40분" },
-  { id: "30-15", interval: 30, offset: 15, label: "15분/45분", helper: "15분 · 45분" },
+  { id: "30-0", interval: 30, offset: 0, label: "정각", helper: "00분 · 30분" },
+  { id: "30-15", interval: 30, offset: 15, label: "15분", helper: "15분 · 45분" },
 ] as const;
 
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
@@ -160,9 +159,9 @@ export default function OwnerSettingsPanel({
   const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] = useState(data.shop.booking_slot_interval_minutes);
   const [bookingSlotOffsetMinutes, setBookingSlotOffsetMinutes] = useState(data.shop.booking_slot_offset_minutes);
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
-  const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close });
+  const [timeDraft, setTimeDraft] = useState({ open: defaultBusinessHoursEntry.open, close: defaultBusinessHoursEntry.close, closed: false });
   const [operatingHoursNote, setOperatingHoursNote] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.operating_hours_note ?? ""));
-  const [holidayNotice, setHolidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
+  const [holidayNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.holiday_notice ?? ""));
   const [parkingNotice, setParkingNotice] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.parking_notice ?? ""));
   const [heroImageUrl, setHeroImageUrl] = useState(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
   const profileImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -240,26 +239,16 @@ export default function OwnerSettingsPanel({
     };
   }
 
-  function toggleRegularClosedDay(day: number) {
-    const nextClosed = !regularClosedDays.includes(day);
-    setRegularClosedDays((prev) =>
-      nextClosed ? [...prev, day].sort((a, b) => a - b) : prev.filter((item) => item !== day),
-    );
-    setBusinessHours((prev) => ({
-      ...prev,
-      [day]: {
-        ...(prev[day] ?? defaultBusinessHoursEntry),
-        enabled: !nextClosed,
-      },
-    }));
-  }
-
   function openBusinessHoursEditor(target: number | "all") {
     const base =
       target === "all"
         ? businessHoursWeekOrder.map((day) => getBusinessHour(day)).find((entry) => entry.enabled) ?? getBusinessHour(1)
         : getBusinessHour(target);
-    setTimeDraft({ open: base.open, close: base.close });
+    setTimeDraft({
+      open: base.open,
+      close: base.close,
+      closed: target === "all" ? false : regularClosedDays.includes(target),
+    });
     setTimeEditorTarget(target);
   }
 
@@ -277,16 +266,26 @@ export default function OwnerSettingsPanel({
           };
         });
       } else if (timeEditorTarget !== null) {
+        const isClosed = timeDraft.closed;
         next[timeEditorTarget] = {
           ...(prev[timeEditorTarget] ?? defaultBusinessHoursEntry),
           open: timeDraft.open,
           close: timeDraft.close,
-          enabled: !regularClosedDays.includes(timeEditorTarget),
+          enabled: !isClosed,
         };
       }
 
       return next;
     });
+    if (timeEditorTarget !== null && timeEditorTarget !== "all") {
+      setRegularClosedDays((prev) => {
+        const hasDay = prev.includes(timeEditorTarget);
+        if (timeDraft.closed) {
+          return hasDay ? prev : [...prev, timeEditorTarget].sort((a, b) => a - b);
+        }
+        return hasDay ? prev.filter((item) => item !== timeEditorTarget) : prev;
+      });
+    }
     setTimeEditorTarget(null);
   }
 
@@ -575,8 +574,8 @@ export default function OwnerSettingsPanel({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
-              <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">
+              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
+              <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
                 저장하면 매장 전환 카드와 고객 예약 화면 대표 이미지에도 같이 반영돼요.
               </p>
             </div>
@@ -586,7 +585,7 @@ export default function OwnerSettingsPanel({
         <div className="grid gap-1.5 sm:grid-cols-2">
           <SettingsFieldCard label="매장명">
             <input
-              className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="매장명을 입력해 주세요"
@@ -594,7 +593,7 @@ export default function OwnerSettingsPanel({
           </SettingsFieldCard>
           <SettingsFieldCard label="업체 연락처">
             <input
-              className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="연락처를 입력해 주세요"
@@ -604,7 +603,7 @@ export default function OwnerSettingsPanel({
 
         <SettingsFieldCard label="한줄 소개">
           <textarea
-            className="min-h-[88px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="min-h-[88px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요."
@@ -622,7 +621,7 @@ export default function OwnerSettingsPanel({
                 <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className={`break-words text-[14px] leading-5 ${address ? "font-medium text-[var(--text)]" : "text-[var(--muted)]"}`}>
+                <p className={`break-words text-[15px] leading-5 ${address ? "font-normal text-[var(--text)]" : "text-[var(--muted)]"}`}>
                   {address
                     ? detailAddress.trim()
                       ? `${address}, ${detailAddress.trim()}`
@@ -630,11 +629,11 @@ export default function OwnerSettingsPanel({
                     : "주소를 검색해서 선택해 주세요"}
                 </p>
               </div>
-              <span className="shrink-0 pt-0.5 text-[13px] font-medium text-[var(--accent)]">주소 검색</span>
+              <span className="shrink-0 pt-0.5 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
             </button>
             <div className="border-t border-[var(--border)] pt-2">
               <input
-                className="w-full bg-transparent p-0 text-[14px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                className="w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={detailAddress}
                 onChange={(event) => setDetailAddress(event.target.value)}
                 placeholder="건물명, 층수, 호수 등 상세 주소를 입력해 주세요"
@@ -647,8 +646,8 @@ export default function OwnerSettingsPanel({
           <div className="px-3.5 pb-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
-                <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
+                <p className="mt-1 text-[13px] leading-5 text-[#938a80]">
                   {parkingNotice.trim() || "건물 뒤편 공용 주차장을 이용해 주세요."}
                 </p>
               </div>
@@ -663,7 +662,7 @@ export default function OwnerSettingsPanel({
           </div>
           <div className="border-t border-[var(--border)] px-3.5 py-3">
             <textarea
-              className="min-h-[58px] w-full resize-none bg-transparent p-0 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="min-h-[58px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={parkingNotice}
               onChange={(event) => setParkingNotice(event.target.value)}
               placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
@@ -675,9 +674,9 @@ export default function OwnerSettingsPanel({
           <div className="px-3.5 pb-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
+                <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
                 <p className="mt-1 text-[13px] leading-5 text-[#938a80]">고객에게 미리 보여주기</p>
-                <p className="mt-1 text-[12px] leading-5 text-[#938a80]">
+                <p className="mt-1 text-[13px] leading-5 text-[#938a80]">
                   {[notices[0], notices[1], notices[2]].find((item) => item.trim()) || "첫 방문은 상담 포함으로 여유 있게 예약해 주세요."}
                 </p>
               </div>
@@ -693,21 +692,21 @@ export default function OwnerSettingsPanel({
           <div className="border-t border-[var(--border)] px-3.5 py-2.5">
             <div className="space-y-0">
               <input
-                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={notices[0] || ""}
                 onChange={(event) => updateNotice(0, event.target.value)}
                 placeholder="예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요."
               />
               <div className="border-t border-[#eee7de]" />
               <input
-                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={notices[1] || ""}
                 onChange={(event) => updateNotice(1, event.target.value)}
                 placeholder="예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요."
               />
               <div className="border-t border-[#eee7de]" />
               <input
-                className="w-full bg-transparent py-2 text-[14px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={notices[2] || ""}
                 onChange={(event) => updateNotice(2, event.target.value)}
                 placeholder="예: 고객에게 미리 보여줄 안내를 간단히 적어주세요."
@@ -723,7 +722,7 @@ export default function OwnerSettingsPanel({
               checked={notificationSettings.enabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             />
-            <p className="text-[12px] leading-5 text-[var(--muted)]">
+            <p className="text-[13px] leading-5 text-[var(--muted)]">
               예약 확정, 취소, 픽업 준비 같은 자동 알림을 여기서 켜고 끌 수 있어요.
             </p>
             <div className="space-y-2">
@@ -778,35 +777,42 @@ export default function OwnerSettingsPanel({
 
   const closuresSection = (
     <SettingsCard contentClassName="space-y-3">
-      <SettingsFieldCard label="정기 휴무">
-        <div className="grid grid-cols-4 gap-2">
-          {weekdayLabels.map((label, index) => {
-            const active = regularClosedDays.includes(index);
+      <SettingsFieldCard label="운영 시간 설정" className="px-0 pb-0 pt-1.5">
+        <div className="divide-y divide-[#d6cfc4]">
+          <button
+            type="button"
+            onClick={() => openBusinessHoursEditor("all")}
+            className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
+              <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+          </button>
+          {businessHoursWeekOrder.map((day) => {
+            const hours = getBusinessHour(day);
+            const isClosed = regularClosedDays.includes(day);
             return (
               <button
-                key={label}
+                key={day}
                 type="button"
-                onClick={() => toggleRegularClosedDay(index)}
-                className={`flex h-[46px] items-center justify-center rounded-[14px] border px-2 text-[14px] tracking-[-0.02em] ${
-                  active
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-[var(--border)] bg-white text-[var(--muted)]"
-                }`}
+                onClick={() => openBusinessHoursEditor(day)}
+                className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
               >
-                {label}
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <p className="shrink-0 text-[15px] tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
+                  {isClosed ? (
+                    <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
+                  ) : (
+                    <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
+                  )}
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
               </button>
             );
           })}
         </div>
-      </SettingsFieldCard>
-
-      <SettingsFieldCard label="휴무 안내 멘트">
-        <textarea
-          className="min-h-[92px] w-full resize-none rounded-[14px] border border-[var(--border)] bg-white px-3.5 pb-3 pt-2.5 text-[13px] leading-[16px] tracking-[-0.04em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-          value={holidayNotice}
-          onChange={(event) => setHolidayNotice(event.target.value)}
-          placeholder="매주 일요일은 휴무, 임시 휴무는 공지사항으로 안내드려요."
-        />
       </SettingsFieldCard>
 
       <SettingsFieldCard label="특정 휴무일">
@@ -850,49 +856,11 @@ export default function OwnerSettingsPanel({
         </div>
       </SettingsFieldCard>
 
-      <SettingsFieldCard label="운영 시간 설정" className="px-0 pb-0 pt-1.5">
-        <div className="divide-y divide-[#d6cfc4]">
-          <button
-            type="button"
-            onClick={() => openBusinessHoursEditor("all")}
-            className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-          >
-            <div className="min-w-0">
-              <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
-              <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
-            </div>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-          </button>
-          {businessHoursWeekOrder.map((day) => {
-            const hours = getBusinessHour(day);
-            const isClosed = regularClosedDays.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => openBusinessHoursEditor(day)}
-                className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-              >
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <p className="shrink-0 text-[15px] tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
-                  {isClosed ? (
-                    <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
-                  ) : (
-                    <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
-                  )}
-                </div>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-              </button>
-            );
-          })}
-        </div>
-      </SettingsFieldCard>
-
       <SettingsFieldCard label="예약 시간 설정">
         <div className="space-y-2.5">
           <div>
             <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동시 예약 가능 수</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="mt-1.5 grid grid-cols-5 gap-1.5">
               {concurrentCapacityOptions.map((value) => {
                 const active = concurrentCapacity === value;
                 return (
@@ -900,7 +868,7 @@ export default function OwnerSettingsPanel({
                     key={value}
                     type="button"
                     onClick={() => setConcurrentCapacity(value)}
-                    className={`flex h-[36px] min-w-[54px] items-center justify-center rounded-[12px] border px-3.5 text-[14px] font-medium ${
+                    className={`flex h-[36px] w-full items-center justify-center rounded-[12px] border px-2 text-[14px] font-medium ${
                       active
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                         : "border-[var(--border)] bg-white text-[var(--muted)]"
@@ -917,7 +885,7 @@ export default function OwnerSettingsPanel({
               <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
                 고객이 시간을 고르기 쉽게, 예약이 열리는 리듬을 정해 주세요.
               </p>
-              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                 {bookingSlotPresetOptions.map((option) => {
                   const active = activeBookingSlotPresetId === option.id;
                   return (
@@ -1136,6 +1104,7 @@ export default function OwnerSettingsPanel({
                 : `${weekdayLabels[timeEditorTarget]}요일 운영 시간을 선택해 주세요.`
             }
             draft={timeDraft}
+            showClosedToggle={timeEditorTarget !== "all"}
             onClose={() => setTimeEditorTarget(null)}
             onChange={(nextDraft) => setTimeDraft(nextDraft)}
             onApply={applyBusinessHoursEditor}
@@ -1231,15 +1200,17 @@ function BusinessHoursSheet({
   title,
   description,
   draft,
+  showClosedToggle,
   onClose,
   onChange,
   onApply,
 }: {
   title: string;
   description: string;
-  draft: { open: string; close: string };
+  draft: { open: string; close: string; closed: boolean };
+  showClosedToggle: boolean;
   onClose: () => void;
-  onChange: (draft: { open: string; close: string }) => void;
+  onChange: (draft: { open: string; close: string; closed: boolean }) => void;
   onApply: () => void;
 }) {
   return (
@@ -1255,6 +1226,21 @@ function BusinessHoursSheet({
         </div>
 
         <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+          {showClosedToggle ? (
+            <button
+              type="button"
+              onClick={() => onChange({ ...draft, closed: !draft.closed })}
+              className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
+                <p className="mt-1 text-[12px] leading-4 text-[var(--muted)]">이 요일은 고객 예약 화면에서 선택되지 않아요.</p>
+              </div>
+              <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${draft.closed ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}>
+                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${draft.closed ? "left-6" : "left-1"}`} />
+              </span>
+            </button>
+          ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <SettingsFieldCard label="시작 시간">
               <input
@@ -1262,6 +1248,7 @@ function BusinessHoursSheet({
                 className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.open}
                 onChange={(event) => onChange({ ...draft, open: event.target.value })}
+                disabled={draft.closed}
               />
             </SettingsFieldCard>
             <SettingsFieldCard label="마감 시간">
@@ -1270,10 +1257,13 @@ function BusinessHoursSheet({
                 className="w-full bg-transparent p-0 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none"
                 value={draft.close}
                 onChange={(event) => onChange({ ...draft, close: event.target.value })}
+                disabled={draft.closed}
               />
             </SettingsFieldCard>
           </div>
-          <p className="text-[11px] leading-4 text-[var(--muted)]">시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요.</p>
+          <p className="text-[11px] leading-4 text-[var(--muted)]">
+            {draft.closed ? "휴무일로 적용하면 이 요일은 예약을 받지 않아요." : "시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요."}
+          </p>
         </div>
 
         <div className="mt-3.5 grid grid-cols-2 gap-2">
@@ -1403,7 +1393,7 @@ function SettingsNavRow({
           <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
         </div>
         <div className="min-w-0">
-          <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{title}</p>
+          <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
         </div>
       </div>
       <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
@@ -1425,7 +1415,7 @@ function SettingsFieldCard({
   if (variant === "inside-title") {
     return (
       <div className={`rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`.trim()}>
-        <p className="mb-3 text-[13px] font-medium tracking-[-0.01em] text-[#6f675d]">{label}</p>
+        <p className="mb-3 text-[14px] font-normal tracking-[-0.01em] text-[#6f675d]">{label}</p>
         {children}
       </div>
     );
@@ -1433,7 +1423,7 @@ function SettingsFieldCard({
 
   return (
     <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
-      <legend className="ml-0.5 px-1.5 text-[15px] tracking-[-0.01em] text-[var(--muted)]">
+      <legend className="ml-0.5 px-1.5 text-[16px] font-normal tracking-[-0.01em] text-[var(--muted)]">
         {label}
       </legend>
       {children}
@@ -1458,7 +1448,7 @@ function ToggleRow({
         disabled ? "opacity-55" : ""
       }`}
     >
-      <p className="text-sm font-medium text-[var(--text)]">{label}</p>
+      <p className="text-[15px] font-normal text-[var(--text)]">{label}</p>
       <button
         type="button"
         disabled={disabled}

@@ -106,7 +106,7 @@ function getRelayAdminUrl() {
     throw new Error("알림톡 relay 연결값이 아직 설정되지 않았습니다.");
   }
 
-  const parsed = new URL(serverEnv.alimtalkRelayUrl);
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
   parsed.pathname = "/admin/config";
   parsed.search = "";
   return parsed.toString();
@@ -131,7 +131,7 @@ function getRelayAdminTemplatesUrl() {
     throw new Error("알림톡 relay 연결값이 아직 설정되지 않았습니다.");
   }
 
-  const parsed = new URL(serverEnv.alimtalkRelayUrl);
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
   parsed.pathname = "/admin/templates";
   parsed.search = "";
   return parsed.toString();

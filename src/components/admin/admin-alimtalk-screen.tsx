@@ -106,7 +106,7 @@ function TextField({
         onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}
         rows={2}
-        className={`w-full rounded-[8px] border px-4 py-3 font-mono text-[12px] leading-5 outline-none ${
+        className={`w-full rounded-[6px] border px-4 py-3 font-mono text-[12px] leading-5 outline-none ${
           readOnly
             ? "border-[#e6e3dd] bg-white text-[#6f665f]"
             : "border-[#d8d4ce] bg-white text-[#171411] focus:border-[#1f6b5b]"
@@ -207,7 +207,7 @@ export default function AdminAlimtalkScreen({
   return (
     <main className="min-h-screen bg-white px-5 py-5 text-[#171411] md:px-8 md:py-7">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5">
-        <section className="rounded-[10px] border border-[#e6e3dd] bg-white px-6 py-6 shadow-[0_8px_20px_rgba(23,20,17,0.03)] md:px-8">
+        <section className="rounded-[8px] border border-[#e6e3dd] bg-white px-6 py-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)] md:px-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <Link href="/admin" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#7a7268]">
@@ -215,7 +215,7 @@ export default function AdminAlimtalkScreen({
                 관리자 홈으로
               </Link>
               <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[10px] border border-[#e6e3dd] bg-white text-[#1f6b5b]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[8px] border border-[#e6e3dd] bg-white text-[#1f6b5b]">
                   <ServerCog className="h-7 w-7" />
                 </div>
                 <div className="space-y-2">
@@ -229,7 +229,7 @@ export default function AdminAlimtalkScreen({
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-[#e6e3dd] bg-white px-5 py-4">
+            <div className="rounded-[6px] border border-[#e6e3dd] bg-white px-5 py-4">
               <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 관리자</p>
               <p className="mt-2 text-[18px] font-semibold text-[#171411]">{sessionLoginId}</p>
               <p className="mt-2 text-[13px] leading-6 text-[#6f665f]">relay raw 값 저장 시 바로 서버 메모리에 반영됩니다.</p>
@@ -237,19 +237,19 @@ export default function AdminAlimtalkScreen({
           </div>
 
           {message ? (
-            <p className="mt-5 rounded-[8px] border border-[#cfe3dc] bg-white px-4 py-3 text-[13px] leading-6 text-[#1f6b5b]">
+            <p className="mt-5 rounded-[6px] border border-[#cfe3dc] bg-white px-4 py-3 text-[13px] leading-6 text-[#1f6b5b]">
               {message}
             </p>
           ) : null}
           {error ? (
-            <p className="mt-5 rounded-[8px] border border-[#f0d1d1] bg-white px-4 py-3 text-[13px] leading-6 text-[#b54b4b]">
+            <p className="mt-5 rounded-[6px] border border-[#f0d1d1] bg-white px-4 py-3 text-[13px] leading-6 text-[#b54b4b]">
               {error}
             </p>
           ) : null}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <div className="rounded-[10px] border border-[#e6e3dd] bg-white p-6 shadow-[0_8px_20px_rgba(23,20,17,0.03)]">
+          <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">relay 서버</p>
@@ -260,7 +260,7 @@ export default function AdminAlimtalkScreen({
                   type="button"
                   onClick={() => void loadRelayConfig()}
                   disabled={loading || saving}
-                  className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
+                  className="inline-flex h-11 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   새로고침
@@ -269,7 +269,7 @@ export default function AdminAlimtalkScreen({
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={!hasRelayConfig || loading || saving}
-                  className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[13px] font-semibold text-white disabled:opacity-60"
+                  className="inline-flex h-11 items-center gap-2 rounded-[6px] bg-[#1f6b5b] px-4 text-[13px] font-semibold text-white disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
                   저장
@@ -283,13 +283,13 @@ export default function AdminAlimtalkScreen({
             </p>
 
             {loading ? (
-              <div className="mt-5 rounded-[8px] border border-[#e6e3dd] bg-white px-5 py-6 text-[14px] text-[#7a7268]">
+              <div className="mt-5 rounded-[6px] border border-[#e6e3dd] bg-white px-5 py-6 text-[14px] text-[#7a7268]">
                 relay 설정을 불러오는 중이에요.
               </div>
             ) : relayConfig ? (
               <div className="mt-5 space-y-5">
                 {relayFieldGroups.map((group) => (
-                  <section key={group.title} className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
+                  <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                     <div className="space-y-1">
                       <h3 className="text-[15px] font-semibold text-[#171411]">{group.title}</h3>
                       <p className="text-[12px] leading-5 text-[#7a7268]">{group.description}</p>
@@ -312,9 +312,9 @@ export default function AdminAlimtalkScreen({
             ) : null}
           </div>
 
-          <div className="rounded-[10px] border border-[#e6e3dd] bg-white p-6 shadow-[0_8px_20px_rgba(23,20,17,0.03)]">
+          <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
             <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[#e6e3dd] bg-white text-[#52667d]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] border border-[#e6e3dd] bg-white text-[#52667d]">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
@@ -329,7 +329,7 @@ export default function AdminAlimtalkScreen({
 
             <div className="mt-5 space-y-5">
               {appFieldGroups.map((group) => (
-                <section key={group.title} className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
+                <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                   <h3 className="text-[15px] font-semibold text-[#171411]">{group.title}</h3>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     {group.fields.map((field) => (
@@ -342,7 +342,7 @@ export default function AdminAlimtalkScreen({
           </div>
         </section>
 
-        <section className="rounded-[10px] border border-[#e6e3dd] bg-white p-6 shadow-[0_8px_20px_rgba(23,20,17,0.03)]">
+        <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">템플릿 비교</p>
@@ -355,7 +355,7 @@ export default function AdminAlimtalkScreen({
               type="button"
               onClick={() => void loadRelayTemplates()}
               disabled={loadingTemplates}
-              className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
+              className="inline-flex h-11 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
             >
               <RefreshCcw className="h-4 w-4" />
               새로고침
@@ -363,13 +363,13 @@ export default function AdminAlimtalkScreen({
           </div>
 
           {templateError ? (
-            <p className="mt-5 rounded-[8px] border border-[#f0d1d1] bg-white px-4 py-3 text-[13px] leading-6 text-[#b54b4b]">
+            <p className="mt-5 rounded-[6px] border border-[#f0d1d1] bg-white px-4 py-3 text-[13px] leading-6 text-[#b54b4b]">
               {templateError}
             </p>
           ) : null}
 
           {loadingTemplates ? (
-            <div className="mt-5 rounded-[8px] border border-[#e6e3dd] bg-white px-5 py-6 text-[14px] text-[#7a7268]">
+            <div className="mt-5 rounded-[6px] border border-[#e6e3dd] bg-white px-5 py-6 text-[14px] text-[#7a7268]">
               쏘다 템플릿 상세를 불러오는 중이에요.
             </div>
           ) : (
@@ -377,26 +377,26 @@ export default function AdminAlimtalkScreen({
               {appTemplateDrafts.map((draft) => {
                 const relayItem = relayTemplateItems.find((item) => item.alias === draft.alias) ?? null;
                 return (
-                  <article key={draft.alias} className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
+                  <article key={draft.alias} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">{draft.alias}</p>
                         <h3 className="mt-1 text-[18px] font-semibold tracking-[-0.02em] text-[#171411]">{draft.title}</h3>
                       </div>
-                      <div className="rounded-[8px] border border-[#e6e3dd] bg-white px-3 py-2 text-[12px] text-[#6f665f]">
+                      <div className="rounded-[6px] border border-[#e6e3dd] bg-white px-3 py-2 text-[12px] text-[#6f665f]">
                         <p>relay 코드: <span className="font-semibold text-[#171411]">{relayItem?.configuredCode || "-"}</span></p>
                         <p className="mt-1">쏘다 상태: <span className="font-semibold text-[#171411]">{relayItem?.detail?.inspectionStatus || relayItem?.detail?.serviceStatus || relayItem?.error || "-"}</span></p>
                       </div>
                     </div>
 
                     <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                      <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-4">
+                      <section className="rounded-[6px] border border-[#e6e3dd] bg-white p-4">
                         <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 앱 코드 본문</p>
-                        <pre className="mt-3 whitespace-pre-wrap break-words rounded-[8px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[13px] leading-6 text-[#171411]">
+                        <pre className="mt-3 whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[13px] leading-6 text-[#171411]">
                           {draft.body}
                         </pre>
                       </section>
-                      <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-4">
+                      <section className="rounded-[6px] border border-[#e6e3dd] bg-white p-4">
                         <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">쏘다 등록 템플릿</p>
                         <div className="mt-3 space-y-2 text-[13px] leading-6 text-[#6f665f]">
                           <p>템플릿 코드: <span className="font-semibold text-[#171411]">{relayItem?.detail?.templateCode || relayItem?.configuredCode || "-"}</span></p>
@@ -404,7 +404,7 @@ export default function AdminAlimtalkScreen({
                           <p>검수 상태: <span className="font-semibold text-[#171411]">{relayItem?.detail?.inspectionStatus || "-"}</span></p>
                           <p>서비스 상태: <span className="font-semibold text-[#171411]">{relayItem?.detail?.serviceStatus || "-"}</span></p>
                         </div>
-                        <pre className="mt-3 whitespace-pre-wrap break-words rounded-[8px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[13px] leading-6 text-[#171411]">
+                        <pre className="mt-3 whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[13px] leading-6 text-[#171411]">
                           {relayItem?.detail?.templateContent || relayItem?.error || "쏘다 등록 본문을 아직 불러오지 못했어요."}
                         </pre>
                       </section>

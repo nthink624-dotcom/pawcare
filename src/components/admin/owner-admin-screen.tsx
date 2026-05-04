@@ -570,7 +570,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             </div>
           </section>
 
-          <section className="sticky top-6 self-start rounded-[28px] border border-[#e8dfd3] bg-white shadow-[0_14px_36px_rgba(23,20,17,0.05)]">
+          <section className="sticky top-6 self-start overflow-hidden rounded-[28px] border border-[#e8dfd3] bg-white shadow-[0_14px_36px_rgba(23,20,17,0.05)] xl:max-h-[calc(100vh-48px)]">
             {selectedOwner && selectedDraft ? (
               <>
                 <div className="border-b border-[#eee7dc] px-5 py-5">
@@ -614,7 +614,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   </div>
                 </div>
 
-                <div className="space-y-4 px-5 py-5">
+                <div className="space-y-4 overflow-y-auto px-5 py-5 xl:max-h-[calc(100vh-160px)]">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <SelectField
                       label="현재 플랜"
@@ -866,7 +866,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     type="button"
                     onClick={() => void saveOwner(selectedOwner)}
                     disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white disabled:opacity-50"
+                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white disabled:opacity-50 xl:hidden"
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
@@ -900,6 +900,24 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                       )}
                     </div>
                   </div>
+                </div>
+
+                <div className="hidden border-t border-[#eee7dc] bg-white px-5 py-4 xl:block">
+                  <button
+                    type="button"
+                    onClick={() => void saveOwner(selectedOwner)}
+                    disabled={savingUserId === selectedOwner.userId}
+                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white disabled:opacity-50"
+                  >
+                    {savingUserId === selectedOwner.userId ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        ?€??欷?..
+                      </span>
+                    ) : (
+                      "氤€瓴届偓???€??"
+                    )}
+                  </button>
                 </div>
               </>
             ) : (

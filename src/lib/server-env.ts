@@ -43,6 +43,7 @@ export const serverEnv = {
   alimtalkProfileKey: process.env.ALIMTALK_PROFILE_KEY,
   alimtalkSenderKey: process.env.ALIMTALK_SENDER_KEY,
   alimtalkRelayUrl: process.env.ALIMTALK_RELAY_URL,
+  alimtalkRelayAdminUrl: process.env.ALIMTALK_RELAY_ADMIN_URL,
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   alimtalkTemplateBookingReceived: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED),
   alimtalkTemplateBookingConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED),

@@ -5,6 +5,7 @@ import { ArrowLeft, RefreshCcw, Save, ServerCog, ShieldCheck } from "lucide-reac
 import { useEffect, useMemo, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
+import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
 import { fetchApiJson } from "@/lib/api";
 import type {
   AdminNotificationActivity,
@@ -345,6 +346,8 @@ export default function AdminAlimtalkScreen({
             </div>
           </div>
         </section>
+
+        <AdminAlimtalkRuntimePanel appTemplateDrafts={appTemplateDrafts} />
 
         <AdminAlimtalkActivitySections notificationActivity={notificationActivity} />
 

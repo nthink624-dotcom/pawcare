@@ -6,6 +6,7 @@ import {
 } from "@/lib/notification-registry";
 import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { sendAlimtalkMessage } from "@/server/alimtalk-provider";
 import type { ChannelType, NotificationStatus, NotificationType } from "@/types/domain";
 
 export type RelayAdminConfig = {
@@ -83,6 +84,48 @@ export type AdminNotificationActivity = {
   recentEvents: AdminNotificationActivityItem[];
 };
 
+export type RelayEndpointDiagnostic = {
+  url: string | null;
+  status: number | null;
+  ok: boolean;
+  bodyPreview: string | null;
+  error: string | null;
+};
+
+export type RelayRuntimeDiagnostics = {
+  ok: true;
+  configured: boolean;
+  relayHost: string | null;
+  health: RelayEndpointDiagnostic;
+  templates: RelayEndpointDiagnostic & {
+    configuredTemplates: number;
+    totalTemplates: number;
+    templateMap: Partial<Record<AlimtalkTemplateAlias, { configured: boolean; length: number }>> | null;
+  };
+};
+
+export type AdminAlimtalkTestInput = {
+  alias: AlimtalkTemplateAlias;
+  phone: string;
+  recipientName?: string | null;
+  shopName?: string | null;
+  petName?: string | null;
+  serviceName?: string | null;
+  appointmentDateTime?: string | null;
+  bookingManageUrl?: string | null;
+};
+
+export type AdminAlimtalkTestResult = {
+  ok: true;
+  alias: AlimtalkTemplateAlias;
+  title: string;
+  recipientPhoneTail: string | null;
+  messagePreview: string;
+  provider: string;
+  providerMessageId: string | null;
+  responsePreview: string;
+};
+
 type NotificationRow = {
   id: string;
   shop_id: string;
@@ -120,6 +163,17 @@ function getRelayAdminTemplatesUrl() {
   return parsed.toString();
 }
 
+function getRelayEndpointUrl(pathname: string) {
+  if (!serverEnv.alimtalkRelayUrl) {
+    return null;
+  }
+
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
+  parsed.pathname = pathname;
+  parsed.search = "";
+  return parsed.toString();
+}
+
 async function parseRelayResponse(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
@@ -132,6 +186,28 @@ async function parseRelayResponse(response: Response) {
     }
   }
   return text;
+}
+
+function getBodyPreview(body: unknown, maxLength = 800) {
+  if (typeof body === "string") {
+    return body.slice(0, maxLength);
+  }
+
+  try {
+    return JSON.stringify(body).slice(0, maxLength);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function getRelayHost() {
+  if (!serverEnv.alimtalkRelayUrl) return null;
+
+  try {
+    return new URL(serverEnv.alimtalkRelayUrl).host;
+  } catch {
+    return null;
+  }
 }
 
 function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string> {
@@ -234,6 +310,141 @@ export function getAppTemplateDrafts(): AppTemplateDraft[] {
     title: item.title,
     body: item.draftBody,
   }));
+}
+
+async function fetchRelayDiagnostic(pathname: string, requiresSecret = false): Promise<{
+  url: string | null;
+  status: number | null;
+  ok: boolean;
+  bodyPreview: string | null;
+  body: unknown;
+  error: string | null;
+}> {
+  const url = getRelayEndpointUrl(pathname);
+  if (!url) {
+    return {
+      url: null,
+      status: null,
+      ok: false,
+      bodyPreview: null,
+      body: null,
+      error: "알림톡 relay URL이 설정되지 않았습니다.",
+    };
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: requiresSecret && serverEnv.alimtalkRelaySecret ? { "x-relay-secret": serverEnv.alimtalkRelaySecret } : undefined,
+    });
+    const body = await parseRelayResponse(response);
+
+    return {
+      url,
+      status: response.status,
+      ok: response.ok,
+      bodyPreview: getBodyPreview(body),
+      body,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      url,
+      status: null,
+      ok: false,
+      bodyPreview: null,
+      body: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnostics> {
+  const [healthResult, templatesResult] = await Promise.all([
+    fetchRelayDiagnostic("/health"),
+    fetchRelayDiagnostic("/debug/templates", true),
+  ]);
+
+  const templateMap =
+    templatesResult.body && typeof templatesResult.body === "object" && "templates" in templatesResult.body
+      ? ((templatesResult.body as { templates?: RelayRuntimeDiagnostics["templates"]["templateMap"] }).templates ?? null)
+      : null;
+  const configuredTemplates = templateMap
+    ? Object.values(templateMap).filter((item) => item?.configured).length
+    : 0;
+
+  return {
+    ok: true,
+    configured: Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret),
+    relayHost: getRelayHost(),
+    health: {
+      url: healthResult.url,
+      status: healthResult.status,
+      ok: healthResult.ok,
+      bodyPreview: healthResult.bodyPreview,
+      error: healthResult.error,
+    },
+    templates: {
+      url: templatesResult.url,
+      status: templatesResult.status,
+      ok: templatesResult.ok,
+      bodyPreview: templatesResult.bodyPreview,
+      error: templatesResult.error,
+      configuredTemplates,
+      totalTemplates: ALIMTALK_NOTIFICATION_REGISTRY.length,
+      templateMap,
+    },
+  };
+}
+
+function fillTemplateDraft(template: string, values: Record<string, string>) {
+  return Object.entries(values).reduce(
+    (message, [key, value]) => message.replaceAll(new RegExp(`#\\{${key}\\}`, "g"), value),
+    template,
+  );
+}
+
+export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Promise<AdminAlimtalkTestResult> {
+  const normalizedPhone = input.phone.replace(/\D/g, "");
+  if (normalizedPhone.length < 10) {
+    throw new Error("테스트 수신 번호를 정확히 입력해 주세요.");
+  }
+
+  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === input.alias);
+  if (!spec) {
+    throw new Error("테스트용 알림 타입을 찾지 못했습니다.");
+  }
+
+  const message = fillTemplateDraft(spec.draftBody, {
+    매장명: input.shopName?.trim() || "펫매니저 테스트 매장",
+    반려동물명: input.petName?.trim() || "우유",
+    예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
+    서비스명: input.serviceName?.trim() || "전체 미용",
+    예약관리링크: input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr",
+  });
+
+  const delivery = await sendAlimtalkMessage({
+    to: normalizedPhone,
+    message,
+    templateAlias: spec.templateAlias,
+    recipientName: input.recipientName?.trim() || "보호자",
+    metadata: {
+      source: "admin-alimtalk-test",
+      alias: spec.templateAlias,
+    },
+  });
+
+  return {
+    ok: true,
+    alias: spec.templateAlias,
+    title: spec.title,
+    recipientPhoneTail: phoneTail(normalizedPhone),
+    messagePreview: message.slice(0, 600),
+    provider: delivery.provider,
+    providerMessageId: delivery.providerMessageId,
+    responsePreview: getBodyPreview(delivery.responseBody, 1000),
+  };
 }
 
 function phoneTail(value: string | null | undefined) {

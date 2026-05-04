@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, MapPin, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, MapPin, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -28,7 +28,7 @@ type SaveFeedback = {
   message: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
 
 type PriceType = "fixed" | "starting";
 type ShopNotificationSettingsState = {
@@ -539,9 +539,9 @@ export default function OwnerSettingsPanel({
 
   const shopSection = (
     <SettingsCard>
-      <div className="space-y-1">
-        <SettingsFieldCard label="매장 대표 이미지">
-          <div className="relative -top-0.5 flex items-center gap-3">
+      <div className="space-y-0.5">
+        <SettingsFieldCard label="매장 대표 이미지" className="pb-1.5 pt-1.5">
+          <div className="relative -top-[6px] flex items-center gap-3">
             <div className="relative shrink-0">
               <button
                 type="button"
@@ -582,18 +582,18 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <SettingsFieldCard label="매장명">
+        <div className="grid gap-1 sm:grid-cols-2">
+          <SettingsFieldCard label="매장명" className="pb-1.5 pt-1.5">
             <input
-              className="relative -top-0.5 w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="relative -top-[6px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="매장명을 입력해 주세요"
             />
           </SettingsFieldCard>
-          <SettingsFieldCard label="업체 연락처">
+          <SettingsFieldCard label="업체 연락처" className="pb-1.5 pt-1.5">
             <input
-              className="relative -top-0.5 w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="relative -top-[6px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="연락처를 입력해 주세요"
@@ -601,26 +601,26 @@ export default function OwnerSettingsPanel({
           </SettingsFieldCard>
         </div>
 
-        <SettingsFieldCard label="한줄 소개">
+        <SettingsFieldCard label="한줄 소개" className="pb-1.5 pt-1.5">
           <textarea
-            className="relative -top-0.5 min-h-[88px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="relative -top-[6px] min-h-[78px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요."
           />
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주소">
-          <div className="relative -top-0.5 space-y-2">
+        <SettingsFieldCard label="주소" className="pb-1.5 pt-1.5">
+          <div className="relative -top-[6px] space-y-1.5">
             <button
               type="button"
               onClick={() => setIsAddressSearchOpen(true)}
-              className="flex w-full items-start gap-3 text-left"
+              className="flex w-full items-center gap-3 text-left"
             >
-              <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f5f4] text-[#7d847f]">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f5f4] text-[#7d847f]">
                 <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="relative -top-[1px] min-w-0 flex-1">
                 <p className={`break-words text-[15px] leading-5 ${address ? "font-normal text-[var(--text)]" : "text-[var(--muted)]"}`}>
                   {address
                     ? detailAddress.trim()
@@ -629,9 +629,9 @@ export default function OwnerSettingsPanel({
                     : "주소를 검색해서 선택해 주세요"}
                 </p>
               </div>
-              <span className="shrink-0 pt-0.5 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
+              <span className="relative -top-[1px] shrink-0 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
             </button>
-            <div className="border-t border-[var(--border)] pt-2">
+            <div className="border-t border-[var(--border)] pt-1.5">
               <input
                 className="w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={detailAddress}
@@ -642,11 +642,11 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주차 안내" className="px-0 pb-0 pt-2">
-          <div className="relative -top-0.5 px-3.5 pb-3">
+        <SettingsFieldCard label="주차 안내" className="px-0 pb-0 pt-1.5">
+          <div className="relative -top-[6px] px-3.5 pb-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
+                <p className="relative top-[2px] text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
               </div>
               <button
                 type="button"
@@ -657,9 +657,9 @@ export default function OwnerSettingsPanel({
               </button>
             </div>
           </div>
-          <div className="border-t border-[var(--border)] px-3.5 py-3">
+          <div className="border-t border-[var(--border)] px-3.5 py-2">
             <textarea
-              className="relative -top-0.5 min-h-[58px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="relative -top-[6px] min-h-[50px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={parkingNotice}
               onChange={(event) => setParkingNotice(event.target.value)}
               placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
@@ -667,11 +667,11 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="예약 전 안내" className="px-0 pb-0 pt-2">
-          <div className="relative -top-0.5 px-3.5 pb-3">
+        <SettingsFieldCard label="예약 전 안내" className="px-0 pb-0 pt-1.5">
+          <div className="relative -top-[6px] px-3.5 pb-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
+                <p className="relative top-[2px] text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
               </div>
               <button
                 type="button"
@@ -682,8 +682,8 @@ export default function OwnerSettingsPanel({
               </button>
             </div>
           </div>
-          <div className="border-t border-[var(--border)] px-3.5 py-2.5">
-            <div className="relative -top-0.5 space-y-0">
+          <div className="border-t border-[var(--border)] px-3.5 py-2">
+            <div className="relative -top-[6px] space-y-0">
               <input
                 className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={notices[0] || ""}
@@ -708,60 +708,6 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="알림톡 발송">
-          <div className="relative -top-0.5 space-y-2">
-            <ToggleRow
-              label="알림톡 전체 사용"
-              checked={notificationSettings.enabled}
-              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
-              emphasized
-            />
-            <div className="space-y-2">
-              <ToggleRow
-                label="예약 확정 안내"
-                checked={notificationSettings.bookingConfirmedEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="예약 거절 안내"
-                checked={notificationSettings.bookingRejectedEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRejectedEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="예약 취소 안내"
-                checked={notificationSettings.bookingCancelledEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="예약 변경 안내"
-                checked={notificationSettings.bookingRescheduledEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="픽업 준비 안내"
-                checked={notificationSettings.groomingAlmostDoneEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="미용 완료 안내"
-                checked={notificationSettings.groomingCompletedEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-              <ToggleRow
-                label="재방문 안내 기본값"
-                checked={notificationSettings.revisitEnabled}
-                onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
-                disabled={!notificationSettings.enabled}
-              />
-            </div>
-          </div>
-        </SettingsFieldCard>
       </div>
     </SettingsCard>
   );
@@ -792,9 +738,11 @@ export default function OwnerSettingsPanel({
                 className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <p className="shrink-0 text-[15px] tracking-[-0.02em] text-[var(--text)]">{weekdayLabels[day]}요일</p>
+                  <span className="inline-flex h-5 shrink-0 items-center text-[15px] leading-none tracking-[-0.02em] text-[var(--text)]">
+                    {weekdayLabels[day]}요일
+                  </span>
                   {isClosed ? (
-                    <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
+                    <span className="relative top-px inline-flex h-5 items-center justify-center self-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
                   ) : (
                     <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
                   )}
@@ -904,6 +852,65 @@ export default function OwnerSettingsPanel({
                 예: {bookingSlotPatternPreview}부터 자연스럽게 열려요.
               </p>
             </div>
+        </div>
+      </SettingsFieldCard>
+    </SettingsCard>
+  );
+
+  const notificationsSection = (
+    <SettingsCard contentClassName="space-y-3">
+      <SettingsFieldCard label="알림톡 발송">
+        <div className="relative -top-[6px] space-y-1.5">
+          <ToggleRow
+            label="알림톡 전체 사용"
+            checked={notificationSettings.enabled}
+            onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
+            emphasized
+          />
+          <div className="space-y-2">
+            <ToggleRow
+              label="예약 확정 안내"
+              checked={notificationSettings.bookingConfirmedEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingConfirmedEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="예약 거절 안내"
+              checked={notificationSettings.bookingRejectedEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRejectedEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="예약 취소 안내"
+              checked={notificationSettings.bookingCancelledEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingCancelledEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="예약 변경 안내"
+              checked={notificationSettings.bookingRescheduledEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, bookingRescheduledEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="픽업 준비 안내"
+              checked={notificationSettings.groomingAlmostDoneEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingAlmostDoneEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="미용 완료 안내"
+              checked={notificationSettings.groomingCompletedEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+            <ToggleRow
+              label="재방문 안내 기본값"
+              checked={notificationSettings.revisitEnabled}
+              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
+              disabled={!notificationSettings.enabled}
+            />
+          </div>
         </div>
       </SettingsFieldCard>
     </SettingsCard>
@@ -1049,6 +1056,7 @@ export default function OwnerSettingsPanel({
     subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "운영시간 안내", content: closuresSection },
+    notifications: { title: "알림톡 설정", content: notificationsSection },
     services: { title: "서비스 관리", content: servicesSection },
     account: { title: "계정", content: accountSection },
   };
@@ -1056,8 +1064,9 @@ export default function OwnerSettingsPanel({
   if (activeScreen) {
     const isShopScreen = activeScreen === "shop";
     const isClosuresScreen = activeScreen === "closures";
-    const shouldShowSaveFooter = isShopScreen || isClosuresScreen;
-    const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : "매장정보 저장";
+    const isNotificationsScreen = activeScreen === "notifications";
+    const shouldShowSaveFooter = isShopScreen || isClosuresScreen || isNotificationsScreen;
+    const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : isNotificationsScreen ? "알림톡 설정 저장" : "매장정보 저장";
 
     return (
       <section className={`space-y-4 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+116px)]" : ""}`}>
@@ -1144,6 +1153,11 @@ export default function OwnerSettingsPanel({
           icon={CalendarDays}
           title="운영시간 안내"
           onClick={() => setActiveScreen("closures")}
+        />
+        <SettingsNavRow
+          icon={Bell}
+          title="알림톡 설정"
+          onClick={() => setActiveScreen("notifications")}
         />
         <SettingsNavRow
           icon={Scissors}

@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, Search, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import CustomerDeleteSelectionPanel from "@/components/owner/customer-delete-selection-panel";
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -18,7 +19,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, 
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "services" | "account" | null;
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type OwnedShopSummary = {
   id: string;
@@ -88,6 +89,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   subscription: "현재 플랜",
   shop: "매장 기본 정보",
   closures: "운영시간 안내",
+  notifications: "알림톡 설정",
   services: "서비스 관리",
   account: "계정",
 };
@@ -1355,7 +1357,6 @@ export default function OwnerApp({
   const allFilteredGuardiansSelected =
     filteredGuardians.length > 0 && filteredGuardians.every((summary) => selectedGuardianIds.includes(summary.guardian.id));
   const selectedGuardianCount = selectedGuardianIds.length;
-  const customerListActionLabel = isCustomerListEditing ? "닫기" : "고객 삭제";
   const selectedGuardianPetNames = selectedGuardianPets.map((pet) => pet.name).join(", ");
   const customerInlineSaveButtonClass =
     "inline-flex items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45";
@@ -1684,220 +1685,102 @@ export default function OwnerApp({
         {activeTab === "customers" && !selectedGuardian && (
           <section className={`space-y-4 p-4 ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
             {isCustomerListEditing ? (
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[12px] font-semibold tracking-[0.02em] text-[var(--muted)]">삭제 선택 모드</p>
-                  <h2 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">삭제할 고객을 선택해 주세요</h2>
-                  <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">삭제할 고객만 고른 뒤 삭제를 눌러 주세요. 상세 보기는 잠시 숨겨집니다.</p>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-full border border-[var(--border)] bg-white px-3.5 py-2 text-[13px] font-semibold text-[var(--muted)] transition"
-                  onClick={() => {
-                    setIsCustomerListEditing((prev) => {
-                      if (prev) setSelectedGuardianIds([]);
-                      return !prev;
-                    });
-                  }}
-                >
-                  {customerListActionLabel}
-                </button>
-              </div>
-            ) : null}
-
-            <div className="flex items-center gap-2.5">
-              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-white px-4 py-3">
-                <Search className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
-                <input
-                  value={customerSearch}
-                  onChange={(event) => setCustomerSearch(event.target.value)}
-                  placeholder="보호자명, 연락처, 반려동물 이름 검색"
-                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-6 outline-none placeholder:text-[14px] placeholder:font-normal placeholder:text-[var(--muted)]"
-                />
-              </div>
-
-              {!isCustomerListEditing ? (
-                <button
-                  type="button"
-                  className="inline-flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] text-[var(--muted)] transition hover:border-[#d9d4cb] hover:text-[var(--text)]"
-                  onClick={() => {
-                    setIsCustomerListEditing((prev) => {
-                      if (prev) setSelectedGuardianIds([]);
-                      return !prev;
-                    });
-                  }}
-                  aria-label="고객 삭제 선택 모드 열기"
-                >
-                  <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.9} />
-                </button>
-              ) : null}
-            </div>
-
-            {filteredDeletedGuardians.length > 0 ? (
-              <button
-                type="button"
-                className={`group w-full rounded-[10px] border px-3 py-2 text-left transition ${
-                  isDeletedCustomersOpen
-                    ? "border-[#d8e7e0] bg-[#f8fbf9]"
-                    : "border-[var(--border)] bg-white hover:bg-[#fcfaf7]"
-                }`}
-                onClick={() => setIsDeletedCustomersOpen((prev) => !prev)}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">삭제 고객</p>
-                  </div>
-                  <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)] ${isDeletedCustomersOpen ? "rotate-90" : ""}`}>
-                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
-                  </span>
-                </div>
-                <div className="mt-1 border-t border-[#eee7de] pt-1.5">
-                  <p className="text-[12.5px] font-normal leading-5 text-[var(--muted)]">복구 가능한 고객 {filteredDeletedGuardians.length}명</p>
-                </div>
-              </button>
-            ) : null}
-
-            {isCustomerListEditing && filteredGuardians.length > 0 ? (
-              <div className="rounded-[18px] border border-[#e5ddd3] bg-[#fcfaf7] px-4 py-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text)]">
+              <CustomerDeleteSelectionPanel
+                customerSearch={customerSearch}
+                onCustomerSearchChange={setCustomerSearch}
+                filteredDeletedGuardians={filteredDeletedGuardians}
+                isDeletedCustomersOpen={isDeletedCustomersOpen}
+                onToggleDeletedCustomersOpen={() => setIsDeletedCustomersOpen((prev) => !prev)}
+                filteredGuardians={filteredGuardians}
+                selectedGuardianIds={selectedGuardianIds}
+                selectedGuardianCount={selectedGuardianCount}
+                allFilteredGuardiansSelected={allFilteredGuardiansSelected}
+                onToggleAllVisibleGuardians={toggleAllVisibleGuardians}
+                onToggleGuardianSelection={toggleGuardianSelection}
+                onClose={() => {
+                  setIsCustomerListEditing((prev) => {
+                    if (prev) setSelectedGuardianIds([]);
+                    return !prev;
+                  });
+                }}
+                onRestoreDeletedGuardians={restoreDeletedGuardians}
+                saving={saving}
+                emptyTitle={customerEmptyTitle}
+                emptyDescription={customerEmptyDescription}
+              />
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-white px-4 py-3">
                     <input
-                      type="checkbox"
-                      checked={allFilteredGuardiansSelected}
-                      onChange={toggleAllVisibleGuardians}
-                      className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      placeholder="보호자명, 연락처, 반려동물 이름 검색"
+                      className="relative -top-[1.5px] min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-6 outline-none placeholder:text-[14px] placeholder:font-normal placeholder:text-[var(--muted)]"
                     />
-                    전체선택
-                  </label>
-                  <span className="text-[13px] font-semibold text-[var(--muted)]">선택 {selectedGuardianCount}명</span>
-                </div>
-              </div>
-            ) : null}
-
-            {isDeletedCustomersOpen ? (
-              <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-white px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-semibold text-[var(--text)]">삭제 고객 보관함</p>
-                    <p className="mt-1 text-[13px] leading-5 whitespace-nowrap text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
                   </div>
-                  {filteredDeletedGuardians.length > 0 ? (
-                    <button
-                      type="button"
-                      className="shrink-0 whitespace-nowrap rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
-                      onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
-                      disabled={saving}
-                    >
-                      전체 복구
-                    </button>
-                  ) : null}
+
+                  <button
+                    type="button"
+                    className="inline-flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] text-[var(--muted)] transition hover:border-[#d9d4cb] hover:text-[var(--text)]"
+                    onClick={() => {
+                      setIsCustomerListEditing((prev) => {
+                        if (prev) setSelectedGuardianIds([]);
+                        return !prev;
+                      });
+                    }}
+                    aria-label="고객 삭제 선택 모드 열기"
+                  >
+                    <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.9} />
+                  </button>
                 </div>
-                {filteredDeletedGuardians.length === 0 ? (
-                  <CustomerEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
+
+                {filteredGuardians.length === 0 ? (
+                  <CustomerEmptyState
+                    title={customerEmptyTitle}
+                    description={customerEmptyDescription}
+                    action={
+                      null
+                    }
+                  />
                 ) : (
-                  <div className="space-y-2.5">
-                    {filteredDeletedGuardians.map((guardian) => (
-                      <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-white px-3.5 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[var(--text)]">{guardian.name}</p>
-                          <p className="mt-1 text-[13px] text-[var(--muted)]">{guardian.phone}</p>
-                        </div>
+                  <div className="space-y-1.5">
+                    {filteredGuardians.map((summary) => (
+                      <div
+                        key={summary.guardian.id}
+                        className="rounded-[10px] border border-[var(--border)] bg-white px-3 py-1 transition hover:bg-[#fcfaf7]"
+                      >
                         <button
                           type="button"
-                          className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
-                          onClick={() => restoreDeletedGuardians([guardian.id])}
-                          disabled={saving}
+                          className="group w-full text-left"
+                          onClick={() => {
+                            setSelectedGuardianId(summary.guardian.id);
+                            setSelectedCustomerPetId(summary.latestPet?.id ?? summary.pets[0]?.id ?? null);
+                            setDetailTab("records");
+                          }}
+                          aria-label={`${summary.guardian.name} 상세 보기`}
                         >
-                          복구
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                            </div>
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
+                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
+                            </span>
+                          </div>
+                          <div className="mt-0.5 border-t border-[#eee7de] pt-0.5">
+                            <p className="text-[12.5px] font-normal leading-[19px] text-[var(--muted)]">{summary.guardian.phone}</p>
+                            <p className="mt-0.5 truncate text-[12.5px] font-normal leading-[19px] text-[#5e5a56]">
+                              {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
+                            </p>
+                          </div>
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-            ) : null}
-
-            {filteredGuardians.length === 0 ? (
-              <CustomerEmptyState
-                title={customerEmptyTitle}
-                description={customerEmptyDescription}
-                action={
-                  filteredDeletedGuardians.length > 0 && !isDeletedCustomersOpen ? (
-                    <button
-                      type="button"
-                      className="mt-3 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1.5 text-[13px] font-semibold text-[var(--accent)]"
-                      onClick={() => setIsDeletedCustomersOpen(true)}
-                    >
-                      삭제 고객 보기
-                    </button>
-                  ) : null
-                }
-              />
-            ) : (
-              <div className="space-y-3">
-                {filteredGuardians.map((summary) => (
-                  <div
-                    key={summary.guardian.id}
-                    className={`rounded-[10px] border px-3 py-2 transition ${
-                      isCustomerListEditing && selectedGuardianIds.includes(summary.guardian.id)
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                        : "border-[var(--border)] bg-white hover:bg-[#fcfaf7]"
-                    }`}
-                  >
-                    {isCustomerListEditing ? (
-                      <label className="flex cursor-pointer items-start gap-3">
-                        <div className="mt-1 flex w-5 shrink-0 justify-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedGuardianIds.includes(summary.guardian.id)}
-                            onChange={() => toggleGuardianSelection(summary.guardian.id)}
-                            className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                          </div>
-                          <div className="mt-1 border-t border-[#eee7de] pt-1.5">
-                            <p className="text-[12.5px] font-normal leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
-                            <p className="mt-0.5 truncate text-[12.5px] font-normal leading-5 text-[#5e5a56]">
-                              {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
-                            </p>
-                          </div>
-                        </div>
-                      </label>
-                    ) : (
-                      <button
-                        type="button"
-                        className="group w-full text-left"
-                        onClick={() => {
-                          setSelectedGuardianId(summary.guardian.id);
-                          setSelectedCustomerPetId(summary.latestPet?.id ?? summary.pets[0]?.id ?? null);
-                          setDetailTab("records");
-                        }}
-                        aria-label={`${summary.guardian.name} 상세 보기`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
-                          </div>
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
-                            <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
-                          </span>
-                        </div>
-                        <div className="mt-1 border-t border-[#eee7de] pt-1.5">
-                          <p className="text-[12.5px] font-normal leading-5 text-[var(--muted)]">{summary.guardian.phone}</p>
-                          <p className="mt-0.5 truncate text-[12.5px] font-normal leading-5 text-[#5e5a56]">
-                            {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
-                          </p>
-                        </div>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+              </>
             )}
-
           </section>
         )}
         {activeTab === "customers" && !selectedGuardian && isCustomerListEditing && filteredGuardians.length > 0 ? (
@@ -3202,12 +3085,12 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
     }
   };
 
-  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
+  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} titleClassName="translate-y-px" /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} titleClassName="translate-y-px" /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
 }
 
 
 function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void; }) {
-  return <div className="overflow-hidden rounded-[10px] border border-[#e9ddd3] bg-[#fbf8f4] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#c9b39e]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
+  return <div className="overflow-hidden rounded-[10px] border border-[#e9ddd3] bg-[#fbf8f4] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#c9b39e]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} titleClassName="translate-y-px" /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
 }
 
 function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
@@ -3659,20 +3542,28 @@ function EmptyState({
   title,
   className = "",
   compact = false,
+  titleClassName = "",
 }: {
   title: string;
   className?: string;
   compact?: boolean;
+  titleClassName?: string;
 }) {
   if (compact) {
     return (
       <div className={`flex items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-center ${className}`.trim()}>
-        <p className="text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63]">{title}</p>
+        <p className={`text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63] ${titleClassName}`.trim()}>{title}</p>
       </div>
     );
   }
 
-  return <AppEmptyState title={title} className={`min-h-[68px] rounded-[10px] bg-white px-3.5 py-4 ${className}`.trim()} />;
+  return (
+    <AppEmptyState
+      title={title}
+      titleClassName={titleClassName}
+      className={`min-h-[68px] rounded-[10px] bg-white px-3.5 py-4 ${className}`.trim()}
+    />
+  );
 }
 function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
   if (imageUrl) {

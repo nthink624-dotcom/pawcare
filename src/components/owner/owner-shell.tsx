@@ -72,25 +72,25 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
 
   return (
     <div className="owner-font mx-auto w-full max-w-[430px] px-4 pt-4">
-      <div className="rounded-[10px] border border-[#cfe0da] bg-[#eef8f3] px-4 py-3.5">
+      <div className="rounded-[10px] border border-[#dde3de] bg-[#fafbf9] px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 pr-1">
-            <p className="text-[17px] font-semibold tracking-[-0.03em] text-[#173b33]">{title}</p>
-            <p className="mt-1.5 text-[13px] leading-6 text-[#46645c]">{body}</p>
-            <p className="mt-2 text-[12px] leading-5 text-[#6d746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
-          </div>
+          <p className="min-w-0 pr-2 text-[17px] font-semibold tracking-[-0.03em] text-[#1d2b27]">{title}</p>
           <button
             type="button"
             onClick={handleDismiss}
             aria-label="체험 플랜 안내 닫기"
-            className="shrink-0 rounded-[10px] border border-[#d2dfd9] bg-white p-2 text-[#587169] shadow-[0_1px_2px_rgba(23,59,51,0.06)]"
+            className="shrink-0 rounded-[10px] border border-[#dfe5e0] bg-white p-2 text-[#7a847f]"
           >
             <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
+        <div className="mt-2.5 space-y-2">
+          <p className="text-[14px] leading-6 tracking-[-0.02em] text-[#4f5753]">{body}</p>
+          <p className="text-[13px] leading-6 tracking-[-0.02em] text-[#6c746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
+        </div>
         <a
           href="/owner/billing"
-          className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[10px] bg-[#1f5b51] px-4 text-[15px] font-medium tracking-[-0.02em] text-white"
+          className="mt-4 flex h-[46px] w-full items-center justify-center rounded-[10px] border border-[#d8dfda] bg-white px-4 text-[15px] font-medium tracking-[-0.02em] text-[#2f5f55]"
         >
           업그레이드 플랜
         </a>

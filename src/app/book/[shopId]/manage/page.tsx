@@ -8,16 +8,17 @@ export default async function BookManagePage({
   searchParams,
 }: {
   params: Promise<{ shopId: string }>;
-  searchParams?: Promise<{ token?: string }>;
+  searchParams?: Promise<{ token?: string; t?: string }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
 
   if (shopId === "demo-shop") {
     const nextUrl = new URL("/demo/book/manage", "http://localhost");
 
-    if (resolvedSearchParams?.token) {
-      nextUrl.searchParams.set("token", resolvedSearchParams.token);
+    if (initialAccessToken) {
+      nextUrl.searchParams.set("t", initialAccessToken);
     }
 
     redirect(`${nextUrl.pathname}${nextUrl.search}` as never);
@@ -33,7 +34,7 @@ export default async function BookManagePage({
       initialAppointments={data.appointments}
       initialRecords={data.groomingRecords}
       initialMode="manage"
-      initialAccessToken={resolvedSearchParams?.token}
+      initialAccessToken={initialAccessToken}
       entryHref={`/entry/${shopId}`}
     />
   );

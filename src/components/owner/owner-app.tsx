@@ -1682,7 +1682,7 @@ export default function OwnerApp({
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
         {activeTab === "customers" && !selectedGuardian && (
-          <section className="space-y-4 p-4">
+          <section className={`space-y-4 p-4 ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
             {isCustomerListEditing ? (
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1736,18 +1736,24 @@ export default function OwnerApp({
             {filteredDeletedGuardians.length > 0 ? (
               <button
                 type="button"
-                className={`flex w-full items-center justify-between rounded-[16px] border px-4 py-3 text-left transition ${
+                className={`group w-full rounded-[10px] border px-3 py-2 text-left transition ${
                   isDeletedCustomersOpen
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                    : "border-[var(--border)] bg-[#fcfaf7]"
+                    ? "border-[#d8e7e0] bg-[#f8fbf9]"
+                    : "border-[var(--border)] bg-white hover:bg-[#fcfaf7]"
                 }`}
                 onClick={() => setIsDeletedCustomersOpen((prev) => !prev)}
               >
-                <div>
-                  <p className="text-[14px] font-semibold text-[var(--text)]">삭제 고객</p>
-                  <p className="mt-0.5 text-[13px] text-[var(--muted)]">복구 가능한 고객 {filteredDeletedGuardians.length}명</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[17px] font-medium tracking-[-0.02em] text-[var(--text)]">삭제 고객</p>
+                  </div>
+                  <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)] ${isDeletedCustomersOpen ? "rotate-90" : ""}`}>
+                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
+                  </span>
                 </div>
-                <span className="text-[13px] font-semibold text-[var(--accent)]">{isDeletedCustomersOpen ? "닫기" : "보기"}</span>
+                <div className="mt-1 border-t border-[#eee7de] pt-1.5">
+                  <p className="text-[12.5px] font-normal leading-5 text-[var(--muted)]">복구 가능한 고객 {filteredDeletedGuardians.length}명</p>
+                </div>
               </button>
             ) : null}
 
@@ -1765,6 +1771,49 @@ export default function OwnerApp({
                   </label>
                   <span className="text-[13px] font-semibold text-[var(--muted)]">선택 {selectedGuardianCount}명</span>
                 </div>
+              </div>
+            ) : null}
+
+            {isDeletedCustomersOpen ? (
+              <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-white px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-semibold text-[var(--text)]">삭제 고객 보관함</p>
+                    <p className="mt-1 text-[13px] leading-5 whitespace-nowrap text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
+                  </div>
+                  {filteredDeletedGuardians.length > 0 ? (
+                    <button
+                      type="button"
+                      className="shrink-0 whitespace-nowrap rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
+                      onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
+                      disabled={saving}
+                    >
+                      전체 복구
+                    </button>
+                  ) : null}
+                </div>
+                {filteredDeletedGuardians.length === 0 ? (
+                  <CustomerEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredDeletedGuardians.map((guardian) => (
+                      <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-white px-3.5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-semibold text-[var(--text)]">{guardian.name}</p>
+                          <p className="mt-1 text-[13px] text-[var(--muted)]">{guardian.phone}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-full bg-[#eef6f3] px-2.5 py-1 text-[11px] font-normal leading-none text-[var(--accent)]"
+                          onClick={() => restoreDeletedGuardians([guardian.id])}
+                          disabled={saving}
+                        >
+                          복구
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -1849,58 +1898,15 @@ export default function OwnerApp({
               </div>
             )}
 
-            {isDeletedCustomersOpen ? (
-              <div className="space-y-3 rounded-[20px] border border-dashed border-[var(--border)] bg-[#fcfaf7] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[15px] font-semibold text-[var(--text)]">삭제 고객 보관함</p>
-                    <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">삭제 후 3일 안에는 고객 정보를 다시 복구할 수 있어요.</p>
-                  </div>
-                  {filteredDeletedGuardians.length > 0 ? (
-                    <button
-                      type="button"
-                      className="text-[13px] font-semibold text-[var(--accent)]"
-                      onClick={() => restoreDeletedGuardians(filteredDeletedGuardians.map((guardian) => guardian.id))}
-                      disabled={saving}
-                    >
-                      전체 복구
-                    </button>
-                  ) : null}
-                </div>
-                {filteredDeletedGuardians.length === 0 ? (
-                  <CustomerEmptyState title="삭제 고객이 없어요" description="복구 가능한 고객이 생기면 이 영역에서 바로 관리할 수 있어요." />
-                ) : (
-                  <div className="space-y-2.5">
-                    {filteredDeletedGuardians.map((guardian) => (
-                      <div key={guardian.id} className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-white px-3.5 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[var(--text)]">{guardian.name}</p>
-                          <p className="mt-1 text-[13px] text-[var(--muted)]">{guardian.phone}</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded-full border border-[var(--border)] bg-[#fcfaf7] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]"
-                          onClick={() => restoreDeletedGuardians([guardian.id])}
-                          disabled={saving}
-                        >
-                          복구
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {isCustomerListEditing && filteredGuardians.length > 0 ? (
-              <div className="sticky bottom-[86px] z-10 border-t border-[var(--border)] bg-[rgba(248,246,242,0.96)] px-1 pb-1 pt-3 backdrop-blur">
-                <ActionButton disabled={selectedGuardianCount === 0 || saving} onClick={deleteSelectedGuardians}>
-                  선택한 고객 삭제
-                </ActionButton>
-              </div>
-            ) : null}
           </section>
         )}
+        {activeTab === "customers" && !selectedGuardian && isCustomerListEditing && filteredGuardians.length > 0 ? (
+          <div className="fixed bottom-[74px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-[rgba(248,246,242,0.96)] px-4 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3 backdrop-blur">
+            <ActionButton disabled={selectedGuardianCount === 0 || saving} onClick={deleteSelectedGuardians}>
+              선택한 고객 삭제
+            </ActionButton>
+          </div>
+        ) : null}
         {activeTab === "customers" && selectedGuardian && (
           <section className="space-y-4 p-4">
             <div className="relative flex min-h-8 items-center justify-center">
@@ -1920,7 +1926,7 @@ export default function OwnerApp({
             </div>
 
             <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-2">
-              <div className="space-y-1.5">
+              <div className="space-y-[7.5px]">
                 <CustomerDetailFieldCard label="기본 정보" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0.5">
                   <div className="divide-y divide-[var(--border)]">
                     {editingCustomerFields.name ? (
@@ -2042,16 +2048,16 @@ export default function OwnerApp({
                   <button
                     type="button"
                     onClick={() => setIsCustomerNotificationSettingsOpen((prev) => !prev)}
-                    className="flex min-h-[46px] w-full items-center justify-between gap-3 px-3.5 py-1.5 text-left transition hover:bg-[#fffdfa]"
+                    className="flex min-h-[42px] w-full items-center justify-between gap-3 px-3 py-1 text-left transition hover:bg-[#fffdfa]"
                   >
-                    <span className="text-[14px] font-normal tracking-[-0.02em] text-[var(--text)]">{customerNotificationSummary}</span>
+                    <span className="relative -top-[2px] text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{customerNotificationSummary}</span>
                     <ChevronRight
-                      className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${isCustomerNotificationSettingsOpen ? "rotate-90" : ""}`}
+                      className={`relative -top-[2px] h-4 w-4 shrink-0 text-[var(--muted)] transition ${isCustomerNotificationSettingsOpen ? "rotate-90" : ""}`}
                       strokeWidth={1.8}
                     />
                   </button>
                   {isCustomerNotificationSettingsOpen ? (
-                    <div className="border-t border-[var(--border)] divide-y divide-[var(--border)]">
+                    <div className="max-h-[132px] overflow-y-auto border-t border-[var(--border)] divide-y divide-[var(--border)]">
                       <CustomerDetailToggleRow
                         label="알림톡 수신"
                         description="이 고객에게 예약 확정, 취소, 픽업 준비 알림을 보낼 수 있어요."
@@ -2375,15 +2381,15 @@ function VisitTimelineSection({ date, appointments, records, petMap, guardianMap
 function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRecord; pet: Pet; guardian: Guardian; service?: Service }) {
   return (
     <div className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px]">
-      <div className="min-w-[42px] text-[13px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{record.groomed_at.slice(11, 16)}</div>
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{record.groomed_at.slice(11, 16)}</div>
       <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[14px] font-normal leading-[18px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[12px] font-normal leading-[16px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[11px] font-normal leading-[15px] text-[#b0aba3]">{service?.name || "서비스"}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service?.name || "서비스"}</p>
       </div>
       <AppointmentListTrailing status="record-completed" />
     </div>
@@ -2424,15 +2430,15 @@ function StatCard({ label, value, tone, onClick }: { label: string; value: strin
 function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[13px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[14px] font-normal leading-[18px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[12px] font-normal leading-[16px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[11px] font-normal leading-[15px] text-[#b0aba3]">{service.name}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name}</p>
       </div>
       <AppointmentListTrailing status={appointment.status} />
     </button>
@@ -3207,15 +3213,15 @@ function CompletedReservationsContent({ historyAppointments, petMap, guardianMap
 function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[13px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[14px] font-normal leading-[18px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[12px] font-normal leading-[16px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[11px] font-normal leading-[15px] text-[#b0aba3]">{service.name}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name}</p>
       </div>
       <AppointmentListTrailing status="completed" />
     </button>
@@ -3306,13 +3312,13 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
             }}
             className="flex w-full items-center gap-3 px-4 py-3 text-left"
           >
-            <div className="min-w-[64px] text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
+            <div className="min-w-[64px] text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-semibold text-[var(--text)]">{pet.name}</p>
-                <span className="truncate text-xs font-medium text-[var(--muted)]">{guardian.name}</span>
+                <p className="truncate text-[16px] font-semibold text-[var(--text)]">{pet.name}</p>
+                <span className="truncate text-[14px] font-medium text-[var(--muted)]">{guardian.name}</span>
               </div>
-              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+              <p className="mt-1 text-[14px] leading-5 text-[var(--muted)]">
                 {service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}
               </p>
             </div>
@@ -3384,7 +3390,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
-            {isSelected ? <span className="text-[14px] leading-5 text-[var(--muted)]">열람 중</span> : null}
           </div>
           {summary ? <p className="mt-0.5 text-[14px] leading-5 text-[var(--muted)]">{summary}</p> : null}
         </div>
@@ -3581,15 +3586,15 @@ function CustomerDetailInfoRow({
   muted?: boolean;
   multiline?: boolean;
 }) {
-  const rowClassName = `relative z-[1] flex min-h-[56px] w-full items-center justify-between gap-3 px-3.5 py-2 text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
+  const rowClassName = `relative z-[1] flex w-full justify-between gap-3 px-3.5 ${multiline ? "items-start py-2" : "min-h-[56px] items-center py-2"} text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
   const valueClassName = multiline
-    ? `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
+    ? `text-[15px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
     : `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`;
   const body = (
     <>
-      <div className="relative -top-0.5 min-w-0 flex-1">
+      <div className={`relative min-w-0 flex-1 ${multiline ? "-top-[2px]" : "-top-[2px]"}`}>
         <p className={valueClassName}>{value}</p>
-        <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{label}</p>
+        <p className={`${multiline ? "mt-0.5" : "mt-1"} text-[13px] leading-5 text-[var(--muted)]`}>{label}</p>
       </div>
       {onClick ? <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} /> : null}
     </>
@@ -3662,7 +3667,7 @@ function EmptyState({
   if (compact) {
     return (
       <div className={`flex items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-center ${className}`.trim()}>
-        <p className="relative top-[2px] text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63]">{title}</p>
+        <p className="text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63]">{title}</p>
       </div>
     );
   }
@@ -3746,10 +3751,10 @@ function NotificationHistoryRow({ notification, pet }: { notification: Bootstrap
             {pet ? <span className="text-[14px] font-medium text-[var(--muted)]">{pet.name}</span> : null}
           </div>
           <p className="mt-1 text-[14px] leading-5 text-[var(--muted)]">{timeLabel}</p>
-          <p className="mt-1.5 line-clamp-2 text-[14px] leading-5 text-[var(--text)]">{notification.message}</p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-medium ${statusTone}`}>{statusLabel}</span>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-normal ${statusTone}`}>{statusLabel}</span>
       </div>
+      <p className="mt-1.5 text-[14px] leading-5 text-[var(--text)] break-words">{notification.message}</p>
     </div>
   );
 }

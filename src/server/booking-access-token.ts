@@ -11,12 +11,10 @@ type BookingAccessPayload = {
   expiresAt: number;
 };
 
+export const BOOKING_ACCESS_QUERY_KEY = "t";
+
 function getBookingAccessSecret() {
   return requireServerSecret(serverEnv.bookingAccessSecret, "BOOKING_ACCESS_SECRET");
-}
-
-function base64UrlEncode(input: string) {
-  return Buffer.from(input, "utf8").toString("base64url");
 }
 
 function base64UrlDecode(input: string) {
@@ -25,6 +23,56 @@ function base64UrlDecode(input: string) {
 
 function sign(value: string) {
   return createHmac("sha256", getBookingAccessSecret()).update(value).digest("base64url");
+}
+
+function encodeCompactPayload(payload: BookingAccessPayload) {
+  return [
+    payload.shopId,
+    payload.guardianId,
+    payload.petId,
+    payload.issuedAt.toString(36),
+    payload.expiresAt.toString(36),
+  ].join("~");
+}
+
+function decodeCompactPayload(encodedPayload: string): BookingAccessPayload | null {
+  const [shopId, guardianId, petId, issuedAt, expiresAt] = encodedPayload.split("~");
+  if (!shopId || !guardianId || !petId || !issuedAt || !expiresAt) {
+    return null;
+  }
+
+  const issuedAtNumber = Number.parseInt(issuedAt, 36);
+  const expiresAtNumber = Number.parseInt(expiresAt, 36);
+  if (!Number.isFinite(issuedAtNumber) || !Number.isFinite(expiresAtNumber)) {
+    return null;
+  }
+
+  return {
+    shopId,
+    guardianId,
+    petId,
+    issuedAt: issuedAtNumber,
+    expiresAt: expiresAtNumber,
+  };
+}
+
+function decodePayload(encodedPayload: string): BookingAccessPayload {
+  const compactPayload = decodeCompactPayload(encodedPayload);
+  if (compactPayload) {
+    return compactPayload;
+  }
+
+  return JSON.parse(base64UrlDecode(encodedPayload)) as BookingAccessPayload;
+}
+
+function resolvePublicSiteUrl() {
+  const configured = (env.siteUrl || "").trim().replace(/\/$/, "");
+
+  if (process.env.VERCEL_ENV === "production" && configured.includes(".vercel.app")) {
+    return "https://www.petmanager.co.kr";
+  }
+
+  return configured || "http://localhost:3000";
 }
 
 export function createBookingAccessToken(input: {
@@ -43,13 +91,13 @@ export function createBookingAccessToken(input: {
     expiresAt,
   };
 
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const encodedPayload = encodeCompactPayload(payload);
   const signature = sign(encodedPayload);
   return `${encodedPayload}.${signature}`;
 }
 
 export function buildBookingManageUrl(shopId: string, token: string) {
-  return `${env.siteUrl.replace(/\/$/, "")}/book/${shopId}/manage?token=${encodeURIComponent(token)}`;
+  return `${resolvePublicSiteUrl()}/book/${shopId}/manage?${BOOKING_ACCESS_QUERY_KEY}=${encodeURIComponent(token)}`;
 }
 
 export function verifyBookingAccessToken(token: string) {
@@ -68,7 +116,7 @@ export function verifyBookingAccessToken(token: string) {
     throw new Error("Invalid booking access link.");
   }
 
-  const payload = JSON.parse(base64UrlDecode(encodedPayload)) as BookingAccessPayload;
+  const payload = decodePayload(encodedPayload);
   if (!payload.shopId || !payload.guardianId || !payload.petId) {
     throw new Error("Invalid booking access link.");
   }

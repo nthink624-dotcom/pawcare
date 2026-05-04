@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get("shopId") ?? "";
-    const token = searchParams.get("token") ?? "";
+    const token = searchParams.get("t") ?? searchParams.get("token") ?? "";
     const phone = searchParams.get("phone") ?? "";
     const guardianName = searchParams.get("guardianName") ?? "";
     const petName = searchParams.get("petName") ?? "";

@@ -8,12 +8,12 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ shopId: string }>;
-  searchParams?: Promise<{ mode?: string; token?: string }>;
+  searchParams?: Promise<{ mode?: string; token?: string; t?: string }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
-  const initialAccessToken = resolvedSearchParams?.token;
+  const initialAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
   const initialMode = requestedMode === "returning" || requestedMode === "manage" ? requestedMode : "first";
 
   if (shopId === "demo-shop") {
@@ -27,7 +27,7 @@ export default async function BookPage({
     }
 
     if (initialAccessToken) {
-      nextUrl.searchParams.set("token", initialAccessToken);
+      nextUrl.searchParams.set("t", initialAccessToken);
     }
 
     redirect(`${nextUrl.pathname}${nextUrl.search}` as never);

@@ -185,7 +185,7 @@ export default function CustomerBookingManagePanel({
 
       try {
         setLookupError(null);
-        const query = new URLSearchParams({ shopId, token: initialAccessToken });
+        const query = new URLSearchParams({ shopId, t: initialAccessToken });
         const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
         if (!active) return;
 

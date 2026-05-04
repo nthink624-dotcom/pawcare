@@ -52,11 +52,11 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   const title =
     summary.noticeLevel === "1day"
       ? "체험 플랜이 내일 종료됩니다"
-      : `체험 플랜이 ${summary.daysUntilTrialEnds}일 후 종료됩니다`;
+      : `펫매니저 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`;
   const body =
     summary.noticeLevel === "1day"
       ? "계속 사용하려면 종료 후 플랜을 확인하고 결제를 진행해 주세요. 자동결제는 되지 않습니다."
-      : "미리 플랜을 확인해 두면 체험 플랜 종료 후 바로 이어서 사용할 수 있어요.";
+      : "이용 기간이 끝나면 서비스 이용이 제한될 수 있습니다.";
 
   useEffect(() => {
     const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
@@ -73,8 +73,8 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   return (
     <div className="owner-font mx-auto w-full max-w-[430px] px-4 pt-4">
       <div className="rounded-[10px] border border-[#dde3de] bg-[#fafbf9] px-4 py-3.5">
-        <div className="flex items-start justify-between gap-3">
-          <p className="min-w-0 pr-2 text-[17px] font-semibold tracking-[-0.03em] text-[#1d2b27]">{title}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 pr-2 text-[17px] font-semibold leading-6 tracking-[-0.03em] text-[#1d2b27]">{title}</p>
           <button
             type="button"
             onClick={handleDismiss}
@@ -86,7 +86,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
         </div>
         <div className="mt-2.5 space-y-2">
           <p className="text-[14px] leading-6 tracking-[-0.02em] text-[#4f5753]">{body}</p>
-          <p className="text-[13px] leading-6 tracking-[-0.02em] text-[#6c746f]">체험 플랜이 끝나도 자동으로 결제되지 않으며, 결제 전까지는 사용이 제한될 수 있습니다.</p>
+          <p className="text-[14px] leading-6 tracking-[-0.02em] text-[#4f5753]">서비스를 계속 이용하시려면 플랜 연장이 필요합니다.</p>
         </div>
         <a
           href="/owner/billing"

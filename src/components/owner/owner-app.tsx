@@ -1314,11 +1314,7 @@ export default function OwnerApp({
           petId: pet.id,
           type: "appointment_reminder_10m",
           channel: "alimtalk",
-          status: "sent",
-          templateKey: "appointment_reminder_10m",
-          message: `${data.shop.name}입니다. ${pet.name} 예약이 ${appointment.appointment_date} ${formatClockTime(appointment.appointment_time)}에 예정되어 있어요. 방문 10분 전까지 편하게 방문해 주세요.`,
-          recipientPhone: guardian.phone,
-          recipientName: guardian.name,
+          force: true,
           metadata: {
             serviceName: service.name,
             appointmentDate: appointment.appointment_date,
@@ -2365,6 +2361,8 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
     time !== appointment.appointment_time ||
     memo !== appointment.memo;
   const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
+  const canSendReminder =
+    ["pending", "confirmed"].includes(appointment.status) && guardian.notification_settings.enabled;
 
   useEffect(() => {
     if (slots.length === 0) {
@@ -2377,7 +2375,50 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
     }
   }, [slots, time]);
 
-  return <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}><div className="space-y-4"><div className="rounded-2xl bg-[#fcfaf7] p-4 text-sm"><p className="font-bold">{pet.name} {ownerHomeCopy.separator} {guardian.name}</p><p className="mt-1 text-[var(--muted)]">{appointment.appointment_date} {formatClockTime(appointment.appointment_time)}</p><p className="mt-1 text-[var(--muted)]">{selectedService.name} {ownerHomeCopy.separator} {won(selectedService.price)}</p><p className="mt-1 text-[var(--muted)]">{ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}</p>{appointment.rejection_reason && <p className="mt-2 rounded-2xl bg-[#fff1f1] px-3 py-2 text-xs font-semibold text-red-700">미승인 사유: {appointment.rejection_reason}</p>}</div><div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">빠른 연락</p><QuickContactRow phone={guardian.phone} reminderSent={reminderSent} sending={saving} onSendReminder={async () => { await onSendReminder(); setReminderSent(true); }} /></div>{canEditSchedule && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">예약 일정 수정</p><button type="button" className="text-xs font-semibold text-[var(--accent)]" onClick={() => setIsEditingSchedule((prev) => !prev)}>{isEditingSchedule ? "닫기" : "수정"}</button></div>{isEditingSchedule ? <div className="space-y-3"><div className="grid grid-cols-2 gap-2">{selectableServices.map((item) => <button key={item.id} type="button" className={`rounded-2xl border px-3 py-3 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => setServiceId(item.id)}><p className="text-sm font-bold text-[var(--text)]">{item.name}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{won(item.price)}</p></button>)}</div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p><HorizontalDragScroll>{dateOptions.map((item, index) => <button key={item} type="button" className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setDate(item)}><span className="text-sm font-bold">{index === 0 && item === currentDateInTimeZone() ? "오늘" : shortDate(item)}</span></button>)}</HorizontalDragScroll></div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>{slots.length === 0 ? <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div> : <HorizontalDragScroll>{slots.map((slot) => <button key={slot} type="button" className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setTime(slot)}>{slot}</button>)}</HorizontalDragScroll>}</div><Field label="메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="변경 안내 메모를 남겨 주세요" /></Field><ActionButton disabled={!canSaveSchedule} onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}>예약 수정 저장</ActionButton></div> : <p className="text-xs leading-5 text-[var(--muted)]">서비스, 날짜, 시간, 메모를 한 번에 바꿔서 고객과 조정한 예약을 바로 반영할 수 있어요.</p>}</div>}{appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}<div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div></div></Sheet>;
+  return (
+    <Sheet title={ownerHomeCopy.appointmentDetailTitle} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5 text-sm">
+          <p className="text-[15px] font-medium text-[var(--text)]">
+            {pet.name} {ownerHomeCopy.separator} {guardian.name}
+          </p>
+          <p className="mt-1 text-[13px] text-[var(--muted)]">
+            {appointment.appointment_date} {formatClockTime(appointment.appointment_time)}
+          </p>
+          <p className="mt-1 text-[13px] text-[var(--muted)]">
+            {selectedService.name} {ownerHomeCopy.separator} {won(selectedService.price)}
+          </p>
+          <p className="mt-1 text-[13px] text-[var(--muted)]">
+            {ownerHomeCopy.memoLabel}: {appointment.memo || ownerHomeCopy.emptyMemo}
+          </p>
+          {appointment.rejection_reason && (
+            <p className="mt-2 rounded-[14px] bg-[#fff6f4] px-3 py-2 text-[12px] font-medium text-[#b25d52]">
+              미승인 사유: {appointment.rejection_reason}
+            </p>
+          )}
+        </div>
+        <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
+          <p className="text-[14px] font-medium text-[var(--text)]">빠른 연락</p>
+          <QuickContactRow
+            phone={guardian.phone}
+            reminderSent={reminderSent}
+            sending={saving}
+            onSendReminder={
+              canSendReminder
+                ? async () => {
+                    await onSendReminder();
+                    setReminderSent(true);
+                  }
+                : undefined
+            }
+          />
+        </div>
+        {canEditSchedule && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">예약 일정 수정</p><button type="button" className="text-xs font-semibold text-[var(--accent)]" onClick={() => setIsEditingSchedule((prev) => !prev)}>{isEditingSchedule ? "닫기" : "수정"}</button></div>{isEditingSchedule ? <div className="space-y-3"><div className="grid grid-cols-2 gap-2">{selectableServices.map((item) => <button key={item.id} type="button" className={`rounded-2xl border px-3 py-3 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => setServiceId(item.id)}><p className="text-sm font-bold text-[var(--text)]">{item.name}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{won(item.price)}</p></button>)}</div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p><HorizontalDragScroll>{dateOptions.map((item, index) => <button key={item} type="button" className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setDate(item)}><span className="text-sm font-bold">{index === 0 && item === currentDateInTimeZone() ? "오늘" : shortDate(item)}</span></button>)}</HorizontalDragScroll></div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>{slots.length === 0 ? <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div> : <HorizontalDragScroll>{slots.map((slot) => <button key={slot} type="button" className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-white text-[var(--text)]"}`} onClick={() => setTime(slot)}>{slot}</button>)}</HorizontalDragScroll>}</div><Field label="메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="변경 안내 메모를 남겨 주세요" /></Field><ActionButton disabled={!canSaveSchedule} onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}>예약 수정 저장</ActionButton></div> : <p className="text-xs leading-5 text-[var(--muted)]">서비스, 날짜, 시간, 메모를 한 번에 바꿔서 고객과 조정한 예약을 바로 반영할 수 있어요.</p>}</div>}
+        {appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}
+        <div className="grid grid-cols-2 gap-2">{appointment.status === "confirmed" && <ActionButton variant="highlight" onClick={() => onUpdate({ status: "in_progress" })} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}{appointment.status === "in_progress" && <ActionButton onClick={() => onUpdate({ status: "almost_done" })} variant="secondary" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}{appointment.status === "almost_done" && <ActionButton onClick={() => onUpdate({ status: "completed" })} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}{rollbackStatus && rollbackLabel && <ActionButton onClick={() => onUpdate({ status: rollbackStatus })} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}</div>
+      </div>
+    </Sheet>
+  );
 }
 
 function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) {
@@ -3368,9 +3409,28 @@ function PetDetailInputField({ label, children }: { label: string; children: Rea
 function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
   return (
     <div className="mt-2.5 grid grid-cols-2 gap-2">
-      <a href={buildTelHref(phone)} className="flex items-center justify-center rounded-2xl bg-[#f7f4ef] px-4 py-3 text-sm font-semibold text-[var(--text)]">전화하기</a>
-      <a href={buildSmsHref(phone)} className="flex items-center justify-center rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--muted)]">문자 보내기</a>
-      {onSendReminder ? <button type="button" onClick={() => void onSendReminder()} disabled={sending || reminderSent} className="col-span-2 flex items-center justify-center rounded-2xl border border-[#d8e7e0] bg-[#f4faf7] px-4 py-3 text-sm font-semibold text-[var(--accent)] disabled:opacity-60">{reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}</button> : null}
+      <a
+        href={buildTelHref(phone)}
+        className="flex items-center justify-center rounded-[14px] border border-[#e8e0d2] bg-[#faf8f4] px-4 py-3 text-[14px] font-medium text-[var(--text)]"
+      >
+        전화하기
+      </a>
+      <a
+        href={buildSmsHref(phone)}
+        className="flex items-center justify-center rounded-[14px] border border-[#e8e0d2] bg-white px-4 py-3 text-[14px] font-medium text-[var(--text)]"
+      >
+        문자 보내기
+      </a>
+      {onSendReminder ? (
+        <button
+          type="button"
+          onClick={() => void onSendReminder()}
+          disabled={sending || reminderSent}
+          className="col-span-2 flex items-center justify-center rounded-[14px] border border-[#dfe8e2] bg-[#f7fbf9] px-4 py-3 text-[14px] font-medium text-[#2f7266] disabled:opacity-60"
+        >
+          {reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}
+        </button>
+      ) : null}
     </div>
   );
 }

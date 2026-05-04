@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 
 import AdminAlimtalkScreen from "@/components/admin/admin-alimtalk-screen";
 import { getServerAdminSession } from "@/server/admin-session";
-import { getAppAlimtalkConfig, getAppTemplateDrafts } from "@/server/admin-alimtalk";
+import {
+  getAdminNotificationActivity,
+  getAppAlimtalkConfig,
+  getAppTemplateDrafts,
+} from "@/server/admin-alimtalk";
 
 export default async function AdminAlimtalkPage() {
   const session = await getServerAdminSession();
@@ -16,6 +20,7 @@ export default async function AdminAlimtalkPage() {
       sessionLoginId={session.loginId}
       appConfig={getAppAlimtalkConfig()}
       appTemplateDrafts={getAppTemplateDrafts()}
+      notificationActivity={await getAdminNotificationActivity()}
     />
   );
 }

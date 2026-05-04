@@ -1,3 +1,5 @@
+import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+
 export class ServerEnvError extends Error {
   constructor(
     message: string,
@@ -102,30 +104,24 @@ export function hasAlimtalkServerEnv() {
 export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
   if (!alias) return null;
 
-  switch (alias) {
-    case "booking_received":
-      return serverEnv.alimtalkTemplateBookingReceived ?? null;
-    case "booking_confirmed":
-      return serverEnv.alimtalkTemplateBookingConfirmed ?? null;
-    case "booking_rejected":
-      return serverEnv.alimtalkTemplateBookingRejected ?? null;
-    case "booking_cancelled":
-      return serverEnv.alimtalkTemplateBookingCancelled ?? null;
-    case "booking_rescheduled_confirmed":
-      return serverEnv.alimtalkTemplateBookingRescheduledConfirmed ?? null;
-    case "appointment_reminder_10m":
-      return serverEnv.alimtalkTemplateAppointmentReminder10m ?? null;
-    case "grooming_started":
-      return serverEnv.alimtalkTemplateGroomingStarted ?? null;
-    case "grooming_almost_done":
-      return serverEnv.alimtalkTemplateGroomingAlmostDone ?? null;
-    case "grooming_completed":
-      return serverEnv.alimtalkTemplateGroomingCompleted ?? null;
-    case "revisit_notice":
-      return serverEnv.alimtalkTemplateRevisitNotice ?? null;
-    case "birthday_greeting":
-      return serverEnv.alimtalkTemplateBirthdayGreeting ?? null;
-    default:
-      return alias;
+  const templateConfigValues = {
+    templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived ?? null,
+    templateBookingConfirmed: serverEnv.alimtalkTemplateBookingConfirmed ?? null,
+    templateBookingRejected: serverEnv.alimtalkTemplateBookingRejected ?? null,
+    templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled ?? null,
+    templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed ?? null,
+    templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m ?? null,
+    templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted ?? null,
+    templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone ?? null,
+    templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted ?? null,
+    templateRevisitNotice: serverEnv.alimtalkTemplateRevisitNotice ?? null,
+    templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting ?? null,
+  } as const;
+
+  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
+  if (!spec) {
+    return alias;
   }
+
+  return templateConfigValues[spec.templateConfigKey] ?? null;
 }

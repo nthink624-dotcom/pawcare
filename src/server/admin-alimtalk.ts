@@ -1,4 +1,12 @@
-import { serverEnv } from "@/lib/server-env";
+import {
+  ALIMTALK_NOTIFICATION_REGISTRY,
+  type AlimtalkTemplateAlias,
+  type AlimtalkTemplateConfigKey,
+  getNotificationTitle,
+} from "@/lib/notification-registry";
+import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import type { ChannelType, NotificationStatus, NotificationType } from "@/types/domain";
 
 export type RelayAdminConfig = {
   relaySecret: string;
@@ -7,46 +15,9 @@ export type RelayAdminConfig = {
   ssodaaApiKey: string;
   ssodaaTokenKey: string;
   ssodaaSenderKey: string;
-  templateBookingReceived: string;
-  templateBookingConfirmed: string;
-  templateBookingRejected: string;
-  templateBookingCancelled: string;
-  templateBookingRescheduledConfirmed: string;
-  templateAppointmentReminder10m: string;
-  templateGroomingStarted: string;
-  templateGroomingAlmostDone: string;
-  templateGroomingCompleted: string;
-  templateRevisitNotice: string;
-  templateBirthdayGreeting: string;
-};
+} & Record<AlimtalkTemplateConfigKey, string>;
 
-export type RelayTemplateDebugMap = Record<
-  | "booking_received"
-  | "booking_confirmed"
-  | "booking_rejected"
-  | "booking_cancelled"
-  | "booking_rescheduled_confirmed"
-  | "appointment_reminder_10m"
-  | "grooming_started"
-  | "grooming_almost_done"
-  | "grooming_completed"
-  | "revisit_notice"
-  | "birthday_greeting",
-  { configured: boolean; length: number }
->;
-
-export type TemplateAlias =
-  | "booking_received"
-  | "booking_confirmed"
-  | "booking_rejected"
-  | "booking_cancelled"
-  | "booking_rescheduled_confirmed"
-  | "appointment_reminder_10m"
-  | "grooming_started"
-  | "grooming_almost_done"
-  | "grooming_completed"
-  | "revisit_notice"
-  | "birthday_greeting";
+export type RelayTemplateDebugMap = Record<AlimtalkTemplateAlias, { configured: boolean; length: number }>;
 
 export type RelaySsodaaTemplateDetail = {
   templateCode: string;
@@ -57,7 +28,7 @@ export type RelaySsodaaTemplateDetail = {
 };
 
 export type RelaySsodaaTemplateItem = {
-  alias: TemplateAlias;
+  alias: AlimtalkTemplateAlias;
   configuredCode: string;
   detail: RelaySsodaaTemplateDetail | null;
   error: string | null;
@@ -82,32 +53,69 @@ export type AppAlimtalkConfig = {
   apiKey: string;
   tokenKey: string;
   senderKey: string;
-  templateBookingReceived: string;
-  templateBookingConfirmed: string;
-  templateBookingRejected: string;
-  templateBookingCancelled: string;
-  templateBookingRescheduledConfirmed: string;
-  templateAppointmentReminder10m: string;
-  templateGroomingStarted: string;
-  templateGroomingAlmostDone: string;
-  templateGroomingCompleted: string;
-  templateRevisitNotice: string;
-  templateBirthdayGreeting: string;
-};
+} & Record<AlimtalkTemplateConfigKey, string>;
 
 export type AppTemplateDraft = {
-  alias: TemplateAlias;
+  alias: AlimtalkTemplateAlias;
   title: string;
   body: string;
 };
 
+export type AdminNotificationActivityItem = {
+  id: string;
+  createdAt: string;
+  sentAt: string | null;
+  shopId: string;
+  shopName: string;
+  guardianName: string | null;
+  petName: string | null;
+  type: NotificationType;
+  title: string;
+  channel: ChannelType;
+  status: NotificationStatus;
+  failReason: string | null;
+  providerMessageId: string | null;
+  recipientPhoneTail: string | null;
+};
+
+export type AdminNotificationActivity = {
+  issues: AdminNotificationActivityItem[];
+  recentEvents: AdminNotificationActivityItem[];
+};
+
+type NotificationRow = {
+  id: string;
+  shop_id: string;
+  guardian_id: string | null;
+  pet_id: string | null;
+  type: NotificationType;
+  channel: ChannelType;
+  status: NotificationStatus;
+  provider_message_id: string | null;
+  recipient_phone: string | null;
+  fail_reason: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
 function getRelayAdminUrl() {
   if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) {
-    throw new Error("알림톡 relay 연결값이 아직 설정되지 않았습니다.");
+    throw new Error("알림톡 relay 연결값이 아직 설정되어 있지 않습니다.");
   }
 
   const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
   parsed.pathname = "/admin/config";
+  parsed.search = "";
+  return parsed.toString();
+}
+
+function getRelayAdminTemplatesUrl() {
+  if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) {
+    throw new Error("알림톡 relay 연결값이 아직 설정되어 있지 않습니다.");
+  }
+
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
+  parsed.pathname = "/admin/templates";
   parsed.search = "";
   return parsed.toString();
 }
@@ -126,15 +134,20 @@ async function parseRelayResponse(response: Response) {
   return text;
 }
 
-function getRelayAdminTemplatesUrl() {
-  if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) {
-    throw new Error("알림톡 relay 연결값이 아직 설정되지 않았습니다.");
-  }
-
-  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
-  parsed.pathname = "/admin/templates";
-  parsed.search = "";
-  return parsed.toString();
+function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string> {
+  return {
+    templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived || "",
+    templateBookingConfirmed: serverEnv.alimtalkTemplateBookingConfirmed || "",
+    templateBookingRejected: serverEnv.alimtalkTemplateBookingRejected || "",
+    templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled || "",
+    templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed || "",
+    templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m || "",
+    templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted || "",
+    templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone || "",
+    templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted || "",
+    templateRevisitNotice: serverEnv.alimtalkTemplateRevisitNotice || "",
+    templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting || "",
+  };
 }
 
 export async function getRelayAdminConfig() {
@@ -211,76 +224,92 @@ export function getAppAlimtalkConfig(): AppAlimtalkConfig {
     apiKey: serverEnv.alimtalkApiKey || "",
     tokenKey: serverEnv.alimtalkTokenKey || "",
     senderKey: serverEnv.alimtalkSenderKey || "",
-    templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived || "",
-    templateBookingConfirmed: serverEnv.alimtalkTemplateBookingConfirmed || "",
-    templateBookingRejected: serverEnv.alimtalkTemplateBookingRejected || "",
-    templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled || "",
-    templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed || "",
-    templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m || "",
-    templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted || "",
-    templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone || "",
-    templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted || "",
-    templateRevisitNotice: serverEnv.alimtalkTemplateRevisitNotice || "",
-    templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting || "",
+    ...getAppTemplateConfigValues(),
   };
 }
 
 export function getAppTemplateDrafts(): AppTemplateDraft[] {
-  return [
-    {
-      alias: "booking_received",
-      title: "예약 접수",
-      body: `[#{매장명}] #{반려동물명} 예약이 접수되었어요.\n방문 일정: #{예약일시}\n\n매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}`,
-    },
-    {
-      alias: "booking_confirmed",
-      title: "예약 확정",
-      body: `[#{매장명}]\n#{반려동물명} 보호자님, 예약이 확정되었어요. (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n방문 당일 편하게 와 주세요. 기다리고 있겠습니다.\n\n#{예약관리링크}`,
-    },
-    {
-      alias: "booking_rejected",
-      title: "예약 거절",
-      body: `[#{매장명}] 예약 거절 안내\n\n#{반려동물명} 보호자님께서 신청하신 예약은 매장 사정으로 인해 확정이 어려운 점 양해 부탁드립니다.\n\n불편을 드려 죄송합니다.\n\n해당 시간 외 다른 일정으로 예약이 가능하오니,  아래 링크에서 다시 확인 부탁드립니다.\n\n#{예약관리링크}`,
-    },
-    {
-      alias: "booking_cancelled",
-      title: "예약 취소",
-      body: `[#{매장명}]\n#{반려동물명} 보호자님, 예약 취소가 처리되었어요.\n\n취소된 예약: #{예약일시}\n\n아쉽지만 다음에 또 뵐 수 있길 바라요.\n언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.\n\n#{예약관리링크}`,
-    },
-    {
-      alias: "booking_rescheduled_confirmed",
-      title: "예약 변경 확정",
-      body: `[#{매장명}]\n#{반려동물명} 보호자님, 예약 변경이 확정되었어요\n\n기존 예약은 취소되고, 아래 일정으로 새로 잡혔어요.\n\n 새로운 일정: #{예약일시}\n 예약 서비스: #{서비스명}\n\n새 일정에 맞춰 뵐게요!\n추가 변경이 필요하시면 아래 링크에서 편하게 해주세요.\n\n#{예약관리링크}`,
-    },
-    {
-      alias: "appointment_reminder_10m",
-      title: "방문 10분 전",
-      body: `[#{매장명}]\n#{반려동물명} 보호자님, 이제 곧 만나요! (방긋)\n\n 방문 일시: #{예약일시}\n 예약 서비스: #{서비스명}\n\n준비 마치고 기다리고 있을게요.\n오시는 길 조심히 오세요 \n\n#{예약관리링크}`,
-    },
-    {
-      alias: "grooming_started",
-      title: "미용 시작",
-      body: `[#{매장명}]\n#{반려동물명} 보호자님, 미용을 시작했어요 \n\n#{반려동물명}은 저희가 잘 돌보고 있으니 안심하세요 \n예쁘게 단장해서 보내드릴게요!`,
-    },
-    {
-      alias: "grooming_almost_done",
-      title: "픽업 준비",
-      body: `[#{매장명}]\n#{반려동물명} 미용이 곧 끝나요\n\n마무리 단계라 곧 픽업 가능하세요.\n\n잠시 후 픽업하실 수 있어요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}`,
-    },
-    {
-      alias: "grooming_completed",
-      title: "미용 완료",
-      body: `[#{매장명}]\n #{반려동물명} 미용이 모두 완료되었어요.\n\n오늘도 믿고 맡겨주셔서 감사해요.\n#{반려동물명}이 기다리고 있으니 편하신 시간에 와주세요.\n\n#{예약관리링크}`,
-    },
-    {
-      alias: "revisit_notice",
-      title: "재방문 안내",
-      body: `[#{매장명}] #{반려동물명} 재방문 시기가 가까워졌어요.`,
-    },
-    {
-      alias: "birthday_greeting",
-      title: "생일 축하",
-      body: `[#{매장명}] #{반려동물명}의 생일을 축하드려요.`,
-    },
-  ];
+  return ALIMTALK_NOTIFICATION_REGISTRY.map((item) => ({
+    alias: item.templateAlias,
+    title: item.title,
+    body: item.draftBody,
+  }));
+}
+
+function phoneTail(value: string | null | undefined) {
+  if (!value) return null;
+  const normalized = value.replace(/[^0-9]/g, "");
+  return normalized ? normalized.slice(-4) : null;
+}
+
+export async function getAdminNotificationActivity(limit = 30): Promise<AdminNotificationActivity> {
+  if (!hasSupabaseServerEnv()) {
+    return { issues: [], recentEvents: [] };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return { issues: [], recentEvents: [] };
+  }
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select(
+      "id, shop_id, guardian_id, pet_id, type, channel, status, provider_message_id, recipient_phone, fail_reason, created_at, sent_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error("최근 알림 이력을 불러오지 못했습니다.");
+  }
+
+  const rows = (data ?? []) as NotificationRow[];
+  if (!rows.length) {
+    return { issues: [], recentEvents: [] };
+  }
+
+  const shopIds = [...new Set(rows.map((row) => row.shop_id))];
+  const guardianIds = [...new Set(rows.map((row) => row.guardian_id).filter(Boolean))] as string[];
+  const petIds = [...new Set(rows.map((row) => row.pet_id).filter(Boolean))] as string[];
+
+  const [shopsRes, guardiansRes, petsRes] = await Promise.all([
+    supabase.from("shops").select("id, name").in("id", shopIds),
+    guardianIds.length
+      ? supabase.from("guardians").select("id, name").in("id", guardianIds)
+      : Promise.resolve({ data: [], error: null }),
+    petIds.length
+      ? supabase.from("pets").select("id, name").in("id", petIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (shopsRes.error || guardiansRes.error || petsRes.error) {
+    throw new Error("알림 이력의 연결 데이터를 불러오지 못했습니다.");
+  }
+
+  const shopMap = new Map((shopsRes.data ?? []).map((item) => [item.id as string, item.name as string]));
+  const guardianMap = new Map((guardiansRes.data ?? []).map((item) => [item.id as string, item.name as string]));
+  const petMap = new Map((petsRes.data ?? []).map((item) => [item.id as string, item.name as string]));
+
+  const items = rows.map<AdminNotificationActivityItem>((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    sentAt: row.sent_at,
+    shopId: row.shop_id,
+    shopName: shopMap.get(row.shop_id) ?? row.shop_id,
+    guardianName: row.guardian_id ? guardianMap.get(row.guardian_id) ?? null : null,
+    petName: row.pet_id ? petMap.get(row.pet_id) ?? null : null,
+    type: row.type,
+    title: getNotificationTitle(row.type),
+    channel: row.channel,
+    status: row.status,
+    failReason: row.fail_reason ?? null,
+    providerMessageId: row.provider_message_id ?? null,
+    recipientPhoneTail: phoneTail(row.recipient_phone),
+  }));
+
+  return {
+    issues: items.filter((item) => item.status === "failed" || item.status === "skipped").slice(0, 12),
+    recentEvents: items.filter((item) => item.channel !== "mock").slice(0, 20),
+  };
 }

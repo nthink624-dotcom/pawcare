@@ -52,6 +52,26 @@ export async function POST(request: NextRequest) {
       skipIfExists: body?.skipIfExists === true,
     });
 
+    if (result.notification.status === "failed") {
+      return NextResponse.json(
+        {
+          message: result.notification.fail_reason || "알림톡 발송에 실패했습니다.",
+          notification: result.notification,
+        },
+        { status: 502 },
+      );
+    }
+
+    if (result.notification.status === "skipped") {
+      return NextResponse.json(
+        {
+          message: result.notification.fail_reason || "알림톡 발송이 조건에 의해 건너뛰어졌습니다.",
+          notification: result.notification,
+        },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json(result.notification);
   } catch (error) {
     if (error instanceof OwnerApiError) {

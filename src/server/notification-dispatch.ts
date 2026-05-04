@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 
+import {
+  getAlimtalkTemplateAlias,
+  shouldSendByGuardianSettings,
+  shouldSendByShopSettings,
+} from "@/lib/notification-registry";
 import { hasAlimtalkServerEnv, hasSupabaseServerEnv, resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
@@ -64,52 +69,11 @@ function logNotificationSkipped(params: {
 }
 
 function getTemplateKey(type: NotificationType) {
-  switch (type) {
-    case "booking_received":
-    case "booking_confirmed":
-    case "owner_booking_requested":
-    case "booking_rejected":
-    case "booking_cancelled":
-    case "booking_rescheduled_confirmed":
-    case "appointment_reminder_10m":
-    case "grooming_started":
-    case "grooming_almost_done":
-    case "grooming_completed":
-    case "revisit_notice":
-    case "birthday_greeting":
-      return type;
-    default:
-      return null;
-  }
+  return getAlimtalkTemplateAlias(type);
 }
 
 function shouldSendNotification(shop: BootstrapPayload["shop"], type: NotificationType) {
-  if (!shop.notification_settings.enabled) return false;
-
-  switch (type) {
-    case "booking_received":
-    case "owner_booking_requested":
-      return true;
-    case "booking_confirmed":
-      return shop.notification_settings.booking_confirmed_enabled;
-    case "booking_rejected":
-      return shop.notification_settings.booking_rejected_enabled;
-    case "booking_cancelled":
-      return shop.notification_settings.booking_cancelled_enabled;
-    case "booking_rescheduled_confirmed":
-      return shop.notification_settings.booking_rescheduled_enabled;
-    case "grooming_almost_done":
-      return shop.notification_settings.grooming_almost_done_enabled;
-    case "grooming_completed":
-      return shop.notification_settings.grooming_completed_enabled;
-    case "appointment_reminder_10m":
-    case "grooming_started":
-    case "revisit_notice":
-    case "birthday_greeting":
-      return true;
-    default:
-      return false;
-  }
+  return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
 }
 
 function shouldSendGuardianNotification(
@@ -117,14 +81,7 @@ function shouldSendGuardianNotification(
   type: NotificationType,
 ) {
   if (!guardian) return true;
-  if (!guardian.notification_settings.enabled) return false;
-
-  switch (type) {
-    case "revisit_notice":
-      return guardian.notification_settings.revisit_enabled;
-    default:
-      return true;
-  }
+  return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
 }
 
 function buildNotificationMessage(params: {

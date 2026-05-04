@@ -4,8 +4,10 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCcw, Save, ServerCog, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import { fetchApiJson } from "@/lib/api";
 import type {
+  AdminNotificationActivity,
   AppAlimtalkConfig,
   AppTemplateDraft,
   RelayAdminConfig,
@@ -120,10 +122,12 @@ export default function AdminAlimtalkScreen({
   sessionLoginId,
   appConfig,
   appTemplateDrafts,
+  notificationActivity,
 }: {
   sessionLoginId: string;
   appConfig: AppAlimtalkConfig;
   appTemplateDrafts: AppTemplateDraft[];
+  notificationActivity: AdminNotificationActivity;
 }) {
   const [relayConfig, setRelayConfig] = useState<RelayAdminConfig | null>(null);
   const [relayTemplateItems, setRelayTemplateItems] = useState<RelaySsodaaTemplateItem[]>([]);
@@ -341,6 +345,8 @@ export default function AdminAlimtalkScreen({
             </div>
           </div>
         </section>
+
+        <AdminAlimtalkActivitySections notificationActivity={notificationActivity} />
 
         <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
           <div className="flex items-center justify-between gap-3">

@@ -2668,7 +2668,99 @@ function AddPetForm({ shopId, guardianId, saving, onClose, onSave }: { shopId: s
   const [notes, setNotes] = useState("");
   return <Sheet title="반려견 추가" onClose={onClose}><div className="space-y-3"><Field label="아기 이름"><input className="field" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="견종"><input className="field" value={breed} onChange={(event) => setBreed(event.target.value)} /></Field><Field label="생일"><input className="field" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} /></Field><Field label="메모"><textarea className="field min-h-24" value={notes} onChange={(event) => setNotes(event.target.value)} /></Field><ActionButton disabled={saving || !name || !breed} onClick={() => onSave({ shopId, guardianId, name, breed, birthday: birthday || null, weight: null, age: null, notes, groomingCycleWeeks: 4 })}>반려견 저장</ActionButton></div></Sheet>;
 }
-function EditRecordForm({ services, record, saving, onClose, onSave }: { shopId: string; services: Service[]; record: GroomingRecord; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) { const [styleNotes, setStyleNotes] = useState(record.style_notes); const [memo, setMemo] = useState(record.memo); const [pricePaid, setPricePaid] = useState(String(record.price_paid)); const [serviceId, setServiceId] = useState(record.service_id); return <Sheet title="미용 기록 수정" onClose={onClose}><div className="space-y-3"><Field label="서비스"><select value={serviceId} onChange={(event) => setServiceId(event.target.value)} className="field">{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="스타일 메모"><input value={styleNotes} onChange={(event) => setStyleNotes(event.target.value)} className="field" /></Field><Field label="상세 메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" /></Field><Field label="결제 금액"><input value={pricePaid} onChange={(event) => setPricePaid(event.target.value)} className="field" /></Field><ActionButton disabled={saving} onClick={() => onSave({ recordId: record.id, styleNotes, memo, pricePaid: Number(pricePaid), serviceId })}>기록 저장</ActionButton></div></Sheet>; }
+function EditRecordForm({
+  services,
+  record,
+  saving,
+  onClose,
+  onSave,
+}: {
+  shopId: string;
+  services: Service[];
+  record: GroomingRecord;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: unknown) => void;
+}) {
+  const [styleNotes, setStyleNotes] = useState(record.style_notes);
+  const [memo, setMemo] = useState(record.memo);
+  const [pricePaid, setPricePaid] = useState(String(record.price_paid));
+  const [serviceId, setServiceId] = useState(record.service_id);
+
+  const fieldLabelClassName =
+    "mb-2 block text-[14px] font-medium leading-5 tracking-[-0.01em] text-[var(--muted)]";
+  const fieldInputClassName =
+    "h-12 rounded-[14px] border border-[var(--border)] bg-white px-4 text-[16px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none transition placeholder:text-[15px] placeholder:font-normal placeholder:text-[#a29c92] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgba(31,107,91,0.12)]";
+  const fieldTextareaClassName =
+    "min-h-[112px] rounded-[14px] border border-[var(--border)] bg-white px-4 py-3 text-[16px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)] outline-none transition placeholder:text-[15px] placeholder:font-normal placeholder:text-[#a29c92] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgba(31,107,91,0.12)]";
+
+  return (
+    <Sheet title="미용 기록 수정" onClose={onClose}>
+      <div className="space-y-4 pb-1">
+        <label className="block">
+          <span className={fieldLabelClassName}>서비스</span>
+          <select
+            value={serviceId}
+            onChange={(event) => setServiceId(event.target.value)}
+            className={`w-full ${fieldInputClassName}`}
+          >
+            {services.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className={fieldLabelClassName}>스타일 메모</span>
+          <input
+            value={styleNotes}
+            onChange={(event) => setStyleNotes(event.target.value)}
+            className={`w-full ${fieldInputClassName}`}
+            placeholder="스타일 메모를 입력해 주세요"
+          />
+        </label>
+
+        <label className="block">
+          <span className={fieldLabelClassName}>상세 메모</span>
+          <textarea
+            value={memo}
+            onChange={(event) => setMemo(event.target.value)}
+            className={`w-full resize-none ${fieldTextareaClassName}`}
+            placeholder="상세 메모를 입력해 주세요"
+          />
+        </label>
+
+        <label className="block">
+          <span className={fieldLabelClassName}>결제 금액</span>
+          <input
+            value={pricePaid}
+            onChange={(event) => setPricePaid(event.target.value)}
+            className={`w-full ${fieldInputClassName}`}
+            placeholder="결제 금액을 입력해 주세요"
+          />
+        </label>
+
+        <ActionButton
+          disabled={saving}
+          className="h-12 rounded-[16px] text-[15px] font-semibold tracking-[-0.02em]"
+          onClick={() =>
+            onSave({
+              recordId: record.id,
+              styleNotes,
+              memo,
+              pricePaid: Number(pricePaid),
+              serviceId,
+            })
+          }
+        >
+          기록 저장
+        </ActionButton>
+      </div>
+    </Sheet>
+  );
+}
 
 function splitShopAddressValue(value: string) {
   const trimmed = value.trim();
@@ -3510,8 +3602,8 @@ function Sheet({ title, children, onClose, footer }: { title: string; children: 
       >
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[15px] font-medium tracking-[-0.01em] text-[var(--text)]">{title}</h3>
-          <button className="text-[13px] font-medium text-[var(--muted)]" onClick={onClose}>닫기</button>
+          <h3 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{title}</h3>
+          <button className="text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {children}
@@ -3523,8 +3615,17 @@ function Sheet({ title, children, onClose, footer }: { title: string; children: 
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-[13px] text-[var(--text)]"><span className="mb-1.5 block text-[11px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>{children}</label>; }
-function ActionButton({ children, disabled, onClick, variant = "primary" }: { children: React.ReactNode; disabled?: boolean; onClick: () => void; variant?: "primary" | "secondary" | "ghost" | "highlight" | "warm" | "accentSoft" | "ready" | "complete" }) {
-  const className =
+type OwnerActionButtonVariant = "primary" | "secondary" | "ghost" | "highlight" | "warm" | "accentSoft" | "ready" | "complete";
+type OwnerActionButtonProps = {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+  variant?: OwnerActionButtonVariant;
+  className?: string;
+};
+
+function ActionButton({ children, disabled, onClick, variant = "primary", className = "" }: OwnerActionButtonProps) {
+  const variantClassName =
     variant === "primary"
       ? "border border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
       : variant === "secondary"
@@ -3540,7 +3641,7 @@ function ActionButton({ children, disabled, onClick, variant = "primary" }: { ch
                 : variant === "complete"
                   ? "border border-[#2a8a72] bg-[#2a8a72] text-white shadow-[0_10px_20px_rgba(42,138,114,0.18)]"
       : "border border-[var(--border)] bg-white text-[var(--muted)]";
-  return <button disabled={disabled} onClick={onClick} className={`flex h-[42px] w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-medium tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${className}`}>{children}</button>;
+  return <button disabled={disabled} onClick={onClick} className={`flex h-[42px] w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-medium tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}>{children}</button>;
 }
 
 function CustomerDetailFieldCard({

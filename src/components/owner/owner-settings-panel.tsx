@@ -172,6 +172,9 @@ export default function OwnerSettingsPanel({
   ]);
   const [showNotices, setShowNotices] = useState(data.shop.customer_page_settings?.show_notices ?? true);
   const [showParkingNotice, setShowParkingNotice] = useState(data.shop.customer_page_settings?.show_parking_notice ?? true);
+  const [noticeEditorTarget, setNoticeEditorTarget] = useState<"parking" | "notices" | null>(null);
+  const [parkingNoticeDraft, setParkingNoticeDraft] = useState("");
+  const [noticeDrafts, setNoticeDrafts] = useState<string[]>(["", "", ""]);
   const [newService, setNewService] = useState({
     name: "",
     price: "",
@@ -332,9 +335,44 @@ export default function OwnerSettingsPanel({
     }
     return samples.join(" · ");
   }, [bookingSlotIntervalMinutes, bookingSlotOffsetMinutes]);
+  const parkingNoticeSummary = useMemo(() => {
+    const trimmed = parkingNotice.trim();
+    return trimmed || "주차 안내 문구를 입력해 주세요.";
+  }, [parkingNotice]);
+  const noticeSummary = useMemo(() => {
+    const filledNotices = notices.map((item) => item.trim()).filter(Boolean);
+    if (filledNotices.length === 0) {
+      return "예약 전 안내 문구를 추가해 주세요.";
+    }
+    if (filledNotices.length === 1) {
+      return filledNotices[0];
+    }
+    return `${filledNotices[0]} 외 ${filledNotices.length - 1}개`;
+  }, [notices]);
 
-  function updateNotice(index: number, value: string) {
-    setNotices((prev) => prev.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  function openNoticeEditor(target: "parking" | "notices") {
+    if (target === "parking") {
+      setParkingNoticeDraft(parkingNotice);
+    } else {
+      setNoticeDrafts([
+        notices[0] ?? "",
+        notices[1] ?? "",
+        notices[2] ?? "",
+      ]);
+    }
+    setNoticeEditorTarget(target);
+  }
+
+  function applyNoticeEditor() {
+    if (noticeEditorTarget === "parking") {
+      setParkingNotice(parkingNoticeDraft);
+    }
+
+    if (noticeEditorTarget === "notices") {
+      setNotices(noticeDrafts);
+    }
+
+    setNoticeEditorTarget(null);
   }
 
   function handleProfileImageChange(file: File | null) {
@@ -642,68 +680,56 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주차 안내" className="px-0 pb-0 pt-1.5">
-          <div className="relative -top-[6px] px-3.5 pb-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="relative top-[2px] text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">주차 안내 설정</p>
+        <SettingsFieldCard label="안내 문구 설정" className="px-0 pb-0 pt-1.5">
+          <div className="divide-y divide-[#ebe5dc]">
+            <div className="px-3.5 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">주차 안내</p>
+                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-[var(--muted)]">{parkingNoticeSummary}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowParkingNotice(!showParkingNotice)}
+                  className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+                >
+                  <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-6" : "left-1"}`} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowParkingNotice(!showParkingNotice)}
-                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-              >
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-6" : "left-1"}`} />
-              </button>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => openNoticeEditor("parking")}
+                  className="text-[13px] font-medium tracking-[-0.02em] text-[var(--accent)]"
+                >
+                  수정
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="border-t border-[var(--border)] px-3.5 py-2">
-            <textarea
-              className="relative -top-[6px] min-h-[50px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-              value={parkingNotice}
-              onChange={(event) => setParkingNotice(event.target.value)}
-              placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
-            />
-          </div>
-        </SettingsFieldCard>
 
-        <SettingsFieldCard label="예약 전 안내" className="px-0 pb-0 pt-1.5">
-          <div className="relative -top-[6px] px-3.5 pb-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="relative top-[2px] text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">예약 전 안내 설정</p>
+            <div className="px-3.5 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">예약 전 안내</p>
+                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-[var(--muted)]">{noticeSummary}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowNotices(!showNotices)}
+                  className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+                >
+                  <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showNotices ? "left-6" : "left-1"}`} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowNotices(!showNotices)}
-                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-              >
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showNotices ? "left-6" : "left-1"}`} />
-              </button>
-            </div>
-          </div>
-          <div className="border-t border-[var(--border)] px-3.5 py-2">
-            <div className="relative -top-[6px] space-y-0">
-              <input
-                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                value={notices[0] || ""}
-                onChange={(event) => updateNotice(0, event.target.value)}
-                placeholder="예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요."
-              />
-              <div className="border-t border-[#eee7de]" />
-              <input
-                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                value={notices[1] || ""}
-                onChange={(event) => updateNotice(1, event.target.value)}
-                placeholder="예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요."
-              />
-              <div className="border-t border-[#eee7de]" />
-              <input
-                className="w-full bg-transparent py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                value={notices[2] || ""}
-                onChange={(event) => updateNotice(2, event.target.value)}
-                placeholder="예: 고객에게 미리 보여줄 안내를 간단히 적어주세요."
-              />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => openNoticeEditor("notices")}
+                  className="text-[13px] font-medium tracking-[-0.02em] text-[var(--accent)]"
+                >
+                  수정
+                </button>
+              </div>
             </div>
           </div>
         </SettingsFieldCard>
@@ -1095,6 +1121,51 @@ export default function OwnerSettingsPanel({
           </div>
         ) : null}
 
+        {noticeEditorTarget !== null ? (
+          <GuideMessagesSheet
+            title={noticeEditorTarget === "parking" ? "주차 안내 수정" : "예약 전 안내 수정"}
+            description={
+              noticeEditorTarget === "parking"
+                ? "고객 예약 화면에 보여줄 주차 안내 문구를 편집해 주세요."
+                : "고객 예약 전에 보여줄 안내 문구를 편집해 주세요."
+            }
+            onClose={() => setNoticeEditorTarget(null)}
+            onApply={applyNoticeEditor}
+          >
+            {noticeEditorTarget === "parking" ? (
+              <SettingsFieldCard label="주차 안내 문구" className="pt-1.5">
+                <textarea
+                  className="min-h-[104px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={parkingNoticeDraft}
+                  onChange={(event) => setParkingNoticeDraft(event.target.value)}
+                  placeholder="예: 건물 뒤편 공용 주차장을 이용해 주세요."
+                />
+              </SettingsFieldCard>
+            ) : (
+              <div className="space-y-2.5">
+                {noticeDrafts.map((notice, index) => (
+                  <SettingsFieldCard key={index} label={`안내 문구 ${index + 1}`} className="pt-1.5">
+                    <input
+                      className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                      value={notice}
+                      onChange={(event) =>
+                        setNoticeDrafts((prev) => prev.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                      }
+                      placeholder={
+                        index === 0
+                          ? "예: 첫 방문은 상담 포함으로 여유 있게 예약해 주세요."
+                          : index === 1
+                            ? "예: 휴무, 준비사항, 참고 안내를 편하게 남겨보세요."
+                            : "예: 고객에게 미리 보여줄 안내를 간단히 적어주세요."
+                      }
+                    />
+                  </SettingsFieldCard>
+                ))}
+              </div>
+            )}
+          </GuideMessagesSheet>
+        ) : null}
+
         {timeEditorTarget !== null ? (
           <BusinessHoursSheet
             title={timeEditorTarget === "all" ? "전체 시간 설정" : `${weekdayLabels[timeEditorTarget]}요일 시간 설정`}
@@ -1198,6 +1269,44 @@ export default function OwnerSettingsPanel({
         />
       ) : null}
     </section>
+  );
+}
+
+function GuideMessagesSheet({
+  title,
+  description,
+  children,
+  onClose,
+  onApply,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
+      <div className="w-full max-w-[430px] rounded-t-[28px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-stone-200" />
+        <div className="mb-3.5 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
+            <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
+          </div>
+          <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
+        </div>
+
+        <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
+          {children}
+        </div>
+
+        <div className="mt-3.5 grid grid-cols-2 gap-2">
+          <OutlineButton onClick={onClose}>취소</OutlineButton>
+          <SolidButton onClick={onApply}>적용</SolidButton>
+        </div>
+      </div>
+    </div>
   );
 }
 

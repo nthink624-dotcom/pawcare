@@ -17,6 +17,8 @@
 
 html {
   background: var(--background);
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 body {

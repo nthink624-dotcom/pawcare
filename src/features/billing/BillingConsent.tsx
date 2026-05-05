@@ -74,7 +74,7 @@ export function BillingConsent({
             ref={continueButtonRef}
             fullWidth
             disabled={loading || !agreed}
-            className="h-[48px] rounded-[12px] bg-[#8fb1a7] text-[15px] font-semibold tracking-[-0.03em] text-white disabled:bg-[#9ebbb2] disabled:text-white"
+            className="h-[48px] rounded-[12px] bg-[#8fb1a7] text-[15px] font-semibold tracking-[-0.03em] text-white disabled:bg-[#8fb1a7] disabled:text-white disabled:opacity-100"
             onClick={onContinue}
           >
             {continueLabel}

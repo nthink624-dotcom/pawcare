@@ -85,8 +85,8 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
           </button>
         </div>
         <div className="mt-2.5 space-y-2">
-          <p className="text-[14px] leading-6 tracking-[-0.02em] text-[#4f5753]">{body}</p>
-          <p className="text-[14px] leading-6 tracking-[-0.02em] text-[#4f5753]">서비스를 계속 이용하시려면 플랜 연장이 필요합니다.</p>
+          <p className="text-[14px] leading-5 tracking-[-0.05em] text-[#4f5753]">{body}</p>
+          <p className="text-[14px] leading-5 tracking-[-0.05em] text-[#4f5753]">서비스를 계속 이용하시려면 플랜 연장이 필요합니다.</p>
         </div>
         <a
           href="/owner/billing"

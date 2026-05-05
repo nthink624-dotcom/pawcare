@@ -156,12 +156,12 @@ export function OwnerBillingPlanPicker({
           </div>
         </div>
 
-        <div className="mt-8 grid gap-3">
+        <div className="mt-5 grid gap-2.5">
           <button
             type="button"
             onClick={onContinue}
             disabled={loading}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#1f5b51] px-4 text-[17px] font-semibold tracking-[-0.03em] text-white disabled:opacity-60"
+            className="flex h-[48px] w-full items-center justify-center rounded-[12px] bg-[#1f5b51] px-4 text-[15px] font-semibold tracking-[-0.03em] text-white disabled:opacity-60"
           >
             {loading ? "결제 진행 중..." : `${selectedPlanTerm} 플랜으로 시작하기`}
           </button>
@@ -169,7 +169,7 @@ export function OwnerBillingPlanPicker({
           <button
             type="button"
             onClick={onBack}
-            className="flex h-[40px] w-full items-center justify-center text-[14px] font-normal tracking-[-0.02em] text-[#8a8177]"
+            className="flex h-[36px] w-full items-center justify-center text-[14px] font-normal tracking-[-0.02em] text-[#8a8177]"
           >
             이전으로 돌아가기
           </button>

@@ -1,13 +1,11 @@
 ﻿"use client";
 
-import { CreditCard, Plus, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { CreditCard } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  OwnerBillingAgreementStep,
-} from "@/components/owner/owner-billing-flow-shared";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
+import { BillingConsent, PaymentMethodSheet, type PaymentMethodOption } from "@/features/billing";
 import {
   issueOwnerBillingKey,
   requestOwnerOneTimePayment,
@@ -69,46 +67,6 @@ function getCardNumberHint(label: string | null | undefined) {
   const match = label?.match(/(\d{3,4})/);
   if (!match) return null;
   return `앞자리 ${match[1]}`;
-}
-
-function PaymentOptionRow({
-  icon,
-  title,
-  description,
-  selected,
-  disabled = false,
-  onClick,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-start gap-3 py-4 text-left transition ${
-        disabled ? "cursor-not-allowed opacity-55" : "hover:bg-[#fbf8f3]"
-      }`}
-    >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[#171411]">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[16px] font-semibold tracking-[-0.03em] text-[#171411]">{title}</p>
-        <p className="mt-1 text-[12px] leading-[1.45] text-[#6a645d]">{description}</p>
-      </div>
-      <span
-        className={`mt-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border ${
-          selected ? "border-[#1f5b51]" : "border-[#d4ccc0]"
-        }`}
-      >
-        <span className={`h-2 w-2 rounded-full ${selected ? "bg-[#1f5b51]" : "bg-transparent"}`} />
-      </span>
-    </button>
-  );
 }
 
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
@@ -233,19 +191,19 @@ export default function OwnerBillingScreen({
   const [retryingPayment, setRetryingPayment] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
-  const [selectedPaymentOption, setSelectedPaymentOption] = useState<"existing" | "new">(
-    initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "existing" : "new",
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<"saved" | "new">(
+    initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "saved" : "new",
   );
   const [resumingRegisteredCardPayment, setResumingRegisteredCardPayment] = useState(false);
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
+  const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedPlan = useMemo(() => getOwnerPlanByCode(selectedPlanCode) ?? initialSummary.currentPlan, [initialSummary.currentPlan, selectedPlanCode]);
   const isFreePlan = selectedPlan.code === "free";
   const usesOneTimePayment = selectedPlan.billingType === "one_time";
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
   const projectedServiceEndDate = formatProjectedServiceEndDate(summary, selectedPlan);
-  const hasRegisteredPaymentMethod = summary.paymentMethodExists;
   const hasUsableRegisteredPaymentMethod = summary.paymentMethodExists && !summary.paymentMethodResetRequired;
   const registeredPaymentTitle =
     summary.paymentMethodLabel && summary.paymentMethodLabel.trim() && summary.paymentMethodLabel !== "등록된 카드"
@@ -258,8 +216,51 @@ export default function OwnerBillingScreen({
     : getCardNumberHint(summary.paymentMethodLabel)
       ? `${getCardNumberHint(summary.paymentMethodLabel)} 카드로 바로 결제를 진행합니다.`
       : "등록된 카드로 바로 결제를 진행합니다.";
-  const emptyRegisteredPaymentTitle = "등록된 카드 없음";
-  const emptyRegisteredPaymentDescription = "등록된 카드가 없어요. 아래 새 카드 등록으로 진행해 주세요.";
+  const billingCycleLabel = usesOneTimePayment ? "1회 결제" : "매월 자동 결제";
+  const nextBillingDateLabel = usesOneTimePayment ? "없음" : formatDate(addMonthsIso(new Date().toISOString(), 1));
+  const consentLines = usesOneTimePayment
+    ? [
+        "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
+        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
+        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+      ]
+    : [
+        "선택한 플랜은 등록된 카드로 매 결제일 자동 결제됩니다.",
+        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
+        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+      ];
+  const agreementContinueLabel = hasUsableRegisteredPaymentMethod
+    ? "동의하고 결제수단 선택"
+    : usesOneTimePayment
+      ? "동의하고 결제창 열기"
+      : "동의하고 카드 등록하기";
+  const paymentMethodOptions: PaymentMethodOption[] = hasUsableRegisteredPaymentMethod
+    ? [
+        {
+          id: "saved",
+          title: registeredPaymentTitle,
+          description: registeredPaymentDescription,
+        },
+        {
+          id: "new",
+          title: "새 카드 등록",
+          description: usesOneTimePayment
+            ? "등록 후 바로 결제를 진행합니다."
+            : "등록 후 바로 해당 플랜 결제로 이어집니다.",
+        },
+      ]
+    : [
+        {
+          id: "new",
+          title: "새 카드 등록",
+          description: usesOneTimePayment
+            ? "등록 후 바로 결제를 진행합니다."
+            : "등록 후 바로 해당 플랜 결제로 이어집니다.",
+        },
+      ];
+  const paymentSheetAmountLabel = usesOneTimePayment
+    ? `총 ${won(selectedPlan.totalPrice)}`
+    : `월 ${won(selectedPlan.monthlyPrice)}`;
 
   useEffect(() => {
     setSummary(initialSummary);
@@ -273,7 +274,7 @@ export default function OwnerBillingScreen({
   }, [featuredPlan.code, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode]);
 
   useEffect(() => {
-    setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "existing" : "new");
+    setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "saved" : "new");
   }, [summary.paymentMethodExists, summary.paymentMethodResetRequired]);
 
   useEffect(() => {
@@ -480,7 +481,7 @@ export default function OwnerBillingScreen({
     if (registeringCard || retryingPayment) return;
 
     try {
-      if (selectedPaymentOption === "existing" && hasUsableRegisteredPaymentMethod) {
+      if (selectedPaymentOption === "saved" && hasUsableRegisteredPaymentMethod) {
         await persistSelectedPlanIfNeeded();
         setPaymentSheetOpen(false);
         await handlePayNow();
@@ -498,10 +499,15 @@ export default function OwnerBillingScreen({
     if (selectionStep === "agreement") {
       return (
         <>
-          <OwnerBillingAgreementStep
-            selectedPlan={selectedPlan}
+          <BillingConsent
+            planLabel={selectedPlanLabel}
+            billingCycleLabel={billingCycleLabel}
+            nextBillingDateLabel={nextBillingDateLabel}
+            consentLines={consentLines}
             agreed={agreementAccepted}
             onAgreeChange={setAgreementAccepted}
+            continueLabel={agreementContinueLabel}
+            continueButtonRef={agreementContinueRef}
             onContinue={() => {
               if (!agreementAccepted) {
                 setMessage("정기결제 안내 동의가 필요합니다.");
@@ -521,129 +527,36 @@ export default function OwnerBillingScreen({
             message={message}
           />
 
-          {paymentSheetOpen ? (
-            <div
-              className="fixed inset-0 z-30 bg-[rgba(28,23,18,0.28)]"
-              onClick={() => setPaymentSheetOpen(false)}
-            >
-              <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-                <div
-                  className="w-full rounded-t-[30px] bg-white px-5 pb-5 pt-3 shadow-[0_-16px_40px_rgba(32,27,22,0.14)]"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="mx-auto h-1.5 w-11 rounded-full bg-[#dfd7cc]" />
-
-                  <div className="mt-4 flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold tracking-[0.08em] text-[#8c8378]">PAYMENT</p>
-                      <p className="mt-2 text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">결제수단 선택</p>
-                      <p className="mt-2.5 text-[13px] leading-[1.5] tracking-[-0.02em] text-[#6b655d]">
-                        {usesOneTimePayment
-                          ? "선택한 플랜을 바로 결제할 수 있는 수단을 선택해 주세요."
-                          : "이번 기간 연장에 사용할 카드를 선택해 주세요."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentSheetOpen(false)}
-                      aria-label="닫기"
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5ddd2] text-[#7d756c]"
-                    >
-                      <X className="h-4.5 w-4.5" />
-                    </button>
-                  </div>
-
-                  <div className="mt-6 border-t border-[#ece6dc] pt-5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5">
-                      <div className="min-w-0">
-                        <p className="text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">{selectedPlanLabel}</p>
-                        <p className="mt-2 text-[13px] leading-none text-[#7b7369]">{getPlanSelectionLine(selectedPlan)}</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[29px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">월 {won(selectedPlan.monthlyPrice)}</p>
-                        <p className="mt-2 text-[13px] leading-none text-[#7b7369]">{usesOneTimePayment ? "1회 결제" : "자동결제"}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-2.5 border-t border-[#ece6dc] pt-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[13px] font-medium text-[#7c746a]">총 금액</p>
-                        <p className="text-[13px] font-semibold text-[#171411]">{getPlanSelectionLine(selectedPlan)}</p>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[13px] font-medium text-[#7c746a]">서비스 종료일</p>
-                        <p className="text-[13px] font-semibold text-[#171411]">{projectedServiceEndDate}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                    <div className="mt-4 border-t border-[#ece6dc]">
-                      <div className="border-b border-[#ece6dc]">
-                        <PaymentOptionRow
-                          icon={<CreditCard className="h-[18px] w-[18px]" />}
-                          title={hasRegisteredPaymentMethod ? registeredPaymentTitle : emptyRegisteredPaymentTitle}
-                          description={
-                            hasRegisteredPaymentMethod
-                              ? registeredPaymentDescription
-                              : emptyRegisteredPaymentDescription
-                          }
-                          selected={selectedPaymentOption === "existing" && hasUsableRegisteredPaymentMethod}
-                          disabled={!hasUsableRegisteredPaymentMethod}
-                          onClick={() => {
-                            if (hasUsableRegisteredPaymentMethod) {
-                              setSelectedPaymentOption("existing");
-                            }
-                          }}
-                        />
-                      </div>
-
-                      <PaymentOptionRow
-                        icon={<Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />}
-                        title="새 카드 등록"
-                        description={
-                          usesOneTimePayment
-                            ? "새 카드를 등록하고 이번 결제를 바로 진행합니다."
-                            : "새 카드를 등록하고 결제를 이어갑니다."
-                        }
-                        selected={selectedPaymentOption === "new"}
-                        onClick={() => setSelectedPaymentOption("new")}
-                      />
-                    </div>
-
-                  {!usesOneTimePayment ? (
-                    <p className="mt-3 text-[11px] leading-[1.45] text-[#7a736b]">
-                      카드사 알림에는 ‘KG이니시스 정기과금’으로 표시될 수 있으며, 펫매니저 이용요금입니다.
-                    </p>
-                  ) : null}
-
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      onClick={() => void handlePaymentSheetSubmit()}
-                      disabled={registeringCard || retryingPayment}
-                      className="flex h-[54px] w-full items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[15px] font-semibold text-white shadow-[0_8px_18px_rgba(31,91,81,0.12)] disabled:opacity-60"
-                    >
-                      {registeringCard
-                        ? "카드 등록 중..."
-                        : retryingPayment
-                          ? "결제 진행 중..."
-                          : selectedPaymentOption === "existing" && hasRegisteredPaymentMethod
-                            ? "계속하기"
-                            : usesOneTimePayment
-                              ? "결제창 열기"
-                              : "선택한 수단으로 계속하기"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <PaymentMethodSheet
+            open={paymentSheetOpen}
+            planLabel={selectedPlanLabel}
+            amountLabel={paymentSheetAmountLabel}
+            nextBillingDateLabel={nextBillingDateLabel}
+            options={paymentMethodOptions}
+            selectedOption={selectedPaymentOption}
+            loading={registeringCard || retryingPayment}
+            continueLabel={
+              registeringCard
+                ? "카드 등록 중..."
+                : retryingPayment
+                  ? "결제 진행 중..."
+                  : selectedPaymentOption === "saved" && hasUsableRegisteredPaymentMethod
+                    ? "선택한 수단으로 계속하기"
+                    : usesOneTimePayment
+                      ? "결제창 열기"
+                      : "선택한 수단으로 계속하기"
+            }
+            returnFocusRef={agreementContinueRef}
+            onSelectOption={setSelectedPaymentOption}
+            onClose={() => setPaymentSheetOpen(false)}
+            onContinue={() => void handlePaymentSheetSubmit()}
+          />
         </>
       );
     }
 
-      return (
-        <>
+    return (
+      <>
         <OwnerBillingPlanPicker
           plans={billableOwnerPlans}
           selectedPlanCode={selectedPlanCode}

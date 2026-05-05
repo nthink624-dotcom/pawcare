@@ -120,6 +120,15 @@ const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "settings", label: "설정", icon: Settings },
 ];
 
+const CUSTOMER_DETAIL_HISTORY_MONTHS = 3;
+const CUSTOMER_DETAIL_PAGE_SIZE = 5;
+
+function subtractMonthsDate(date: string, months: number) {
+  const base = new Date(`${date}T00:00:00`);
+  base.setMonth(base.getMonth() - months);
+  return base.toISOString().slice(0, 10);
+}
+
 async function fetchJson<T>(input: string, init?: RequestInit) {
   return fetchApiJsonWithAuth<T>(input, init);
 }
@@ -161,6 +170,8 @@ export default function OwnerApp({
   const [visitSelectionMode, setVisitSelectionMode] = useState<"single" | "range">("single");
   const [visitRange, setVisitRange] = useState<{ start: string; end: string } | null>(null);
   const [detailTab, setDetailTab] = useState<CustomerDetailTab>("records");
+  const [recordPage, setRecordPage] = useState(1);
+  const [notificationPage, setNotificationPage] = useState(1);
   const [isCustomerNotificationSettingsOpen, setIsCustomerNotificationSettingsOpen] = useState(false);
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
@@ -545,14 +556,19 @@ export default function OwnerApp({
   const selectedCustomerPet = selectedCustomerPetId && selectedGuardianPets.some((pet) => pet.id === selectedCustomerPetId)
     ? petMap[selectedCustomerPetId]
     : selectedGuardianSummary?.latestPet ?? selectedGuardianPets[0] ?? null;
+  const customerDetailCutoffDate = useMemo(
+    () => subtractMonthsDate(todayDate, CUSTOMER_DETAIL_HISTORY_MONTHS),
+    [todayDate],
+  );
   const selectedRecords = useMemo(
     () =>
       selectedGuardian
         ? data.groomingRecords
             .filter((item) => item.guardian_id === selectedGuardian.id)
+            .filter((item) => item.groomed_at.slice(0, 10) >= customerDetailCutoffDate)
             .sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))
         : [],
-    [data.groomingRecords, selectedGuardian],
+    [customerDetailCutoffDate, data.groomingRecords, selectedGuardian],
   );
   const selectedNotifications = useMemo(() => {
     if (!selectedGuardian) return [];
@@ -563,8 +579,27 @@ export default function OwnerApp({
         const samePet = item.pet_id ? selectedPetIds.has(item.pet_id) : false;
         return sameGuardian || samePet;
       })
+      .filter((item) => (item.sent_at ?? item.created_at).slice(0, 10) >= customerDetailCutoffDate)
       .sort((a, b) => (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at));
-  }, [data.notifications, selectedGuardian, selectedGuardianPets]);
+  }, [customerDetailCutoffDate, data.notifications, selectedGuardian, selectedGuardianPets]);
+  const totalRecordPages = Math.max(1, Math.ceil(selectedRecords.length / CUSTOMER_DETAIL_PAGE_SIZE));
+  const totalNotificationPages = Math.max(1, Math.ceil(selectedNotifications.length / CUSTOMER_DETAIL_PAGE_SIZE));
+  const pagedSelectedRecords = useMemo(
+    () =>
+      selectedRecords.slice(
+        (recordPage - 1) * CUSTOMER_DETAIL_PAGE_SIZE,
+        recordPage * CUSTOMER_DETAIL_PAGE_SIZE,
+      ),
+    [recordPage, selectedRecords],
+  );
+  const pagedSelectedNotifications = useMemo(
+    () =>
+      selectedNotifications.slice(
+        (notificationPage - 1) * CUSTOMER_DETAIL_PAGE_SIZE,
+        notificationPage * CUSTOMER_DETAIL_PAGE_SIZE,
+      ),
+    [notificationPage, selectedNotifications],
+  );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
   const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
   const customerNotificationSummary = !guardianNotificationsEnabled
@@ -584,6 +619,23 @@ export default function OwnerApp({
         guardianDraft.memo.trim() !== (selectedGuardian.memo || "")
       ),
   );
+
+  useEffect(() => {
+    setRecordPage(1);
+    setNotificationPage(1);
+  }, [selectedGuardianId]);
+
+  useEffect(() => {
+    if (recordPage > totalRecordPages) {
+      setRecordPage(totalRecordPages);
+    }
+  }, [recordPage, totalRecordPages]);
+
+  useEffect(() => {
+    if (notificationPage > totalNotificationPages) {
+      setNotificationPage(totalNotificationPages);
+    }
+  }, [notificationPage, totalNotificationPages]);
 
   useEffect(() => {
     if (isOwnerDemo || typeof window === "undefined") return;
@@ -1985,17 +2037,20 @@ export default function OwnerApp({
                       {selectedRecords.length === 0 ? (
                         <AppEmptyState title="미용 기록이 없어요" description="첫 방문이 완료되면 이 고객의 미용 기록이 시간순으로 쌓입니다." />
                       ) : (
-                        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
-                          {selectedRecords.map((record) => (
-                            <RecordCard
-                              key={record.id}
-                              record={record}
-                              pet={petMap[record.pet_id]}
-                              service={serviceMap[record.service_id]}
-                              onEdit={() => setModal({ type: "edit-record", record })}
-                            />
-                          ))}
-                        </div>
+                        <>
+                          <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+                            {pagedSelectedRecords.map((record) => (
+                              <RecordCard
+                                key={record.id}
+                                record={record}
+                                pet={petMap[record.pet_id]}
+                                service={serviceMap[record.service_id]}
+                                onEdit={() => setModal({ type: "edit-record", record })}
+                              />
+                            ))}
+                          </div>
+                          <CustomerDetailHistoryPagination page={recordPage} totalPages={totalRecordPages} onChange={setRecordPage} />
+                        </>
                       )}
                     </div>
                   ) : null}
@@ -2031,15 +2086,22 @@ export default function OwnerApp({
                       {selectedNotifications.length === 0 ? (
                         <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
                       ) : (
-                        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
-                          {selectedNotifications.map((notification) => (
-                            <NotificationHistoryRow
-                              key={notification.id}
-                              notification={notification}
-                              pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
-                            />
-                          ))}
-                        </div>
+                        <>
+                          <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+                            {pagedSelectedNotifications.map((notification) => (
+                              <NotificationHistoryRow
+                                key={notification.id}
+                                notification={notification}
+                                pet={notification.pet_id ? petMap[notification.pet_id] ?? null : null}
+                              />
+                            ))}
+                          </div>
+                          <CustomerDetailHistoryPagination
+                            page={notificationPage}
+                            totalPages={totalNotificationPages}
+                            onChange={setNotificationPage}
+                          />
+                        </>
                       )}
                     </div>
                   ) : null}
@@ -3625,6 +3687,42 @@ function EmptyState({
     />
   );
 }
+
+function CustomerDetailHistoryPagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (nextPage: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 pt-1">
+      {Array.from({ length: totalPages }, (_, index) => {
+        const nextPage = index + 1;
+        const active = nextPage === page;
+        return (
+          <button
+            key={nextPage}
+            type="button"
+            onClick={() => onChange(nextPage)}
+            className={`inline-flex h-[28px] min-w-[58px] items-center justify-center rounded-[999px] border px-3 text-[12px] font-medium transition ${
+              active
+                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                : "border-[var(--border)] bg-white text-[var(--muted)]"
+            }`}
+          >
+            {nextPage}페이지
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
   if (imageUrl) {
     return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-11 w-11 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;

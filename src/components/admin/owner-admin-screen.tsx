@@ -293,6 +293,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [resettingPaymentMethodUserId, setResettingPaymentMethodUserId] = useState<string | null>(null);
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
+  const [adminSurface, setAdminSurface] = useState<"local" | "production" | "unknown">("unknown");
 
   useEffect(() => {
     let active = true;
@@ -316,6 +317,16 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hostname = window.location.hostname;
+    if (/localhost|127\.0\.0\.1/i.test(hostname) || hostname.endsWith(".local")) {
+      setAdminSurface("local");
+      return;
+    }
+    setAdminSurface("production");
   }, []);
 
   const filteredOwners = useMemo(() => {
@@ -342,6 +353,14 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
   const selectedOwner = filteredOwners.find((item) => item.userId === selectedUserId) ?? null;
   const selectedDraft = selectedOwner ? drafts[selectedOwner.userId] : null;
+  const adminSurfaceLabel =
+    adminSurface === "local" ? "로컬 관리자" : adminSurface === "production" ? "운영 관리자" : "관리자";
+  const adminSurfaceTone =
+    adminSurface === "local"
+      ? "border-[#d8e3f5] bg-[#f5f9ff] text-[#486996]"
+      : adminSurface === "production"
+        ? "border-[#d7e7e1] bg-[#f4faf7] text-[#1f6b5b]"
+        : "border-[#e6dfd4] bg-[#fcfbf8] text-[#6f665f]";
 
   async function logoutAdmin() {
     try {
@@ -474,7 +493,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             <div className="border-b border-[#eee7dc] px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[12px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[12px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${adminSurfaceTone}`}>
+                      {adminSurfaceLabel}
+                    </span>
+                  </div>
                   <h1 className="mt-2 text-[30px] font-bold tracking-[-0.04em] text-[#171411]">오너 계정 관리</h1>
                   <p className="mt-2 text-[14px] leading-6 text-[#6f665f]">
                     오너 이름, 상호명, 전화번호, 매장명으로 빠르게 찾고 플랜과 서비스 기간을 바로 조정하세요.
@@ -692,6 +716,24 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     >
                       서비스 30일 연장
                     </ActionButton>
+                  </div>
+
+                  <div className="sticky top-0 z-10 -mx-5 border-y border-[#eee7dc] bg-white/96 px-5 py-3 backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={() => void saveOwner(selectedOwner)}
+                      disabled={savingUserId === selectedOwner.userId}
+                      className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white disabled:opacity-50"
+                    >
+                      {savingUserId === selectedOwner.userId ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          저장 중...
+                        </span>
+                      ) : (
+                        "변경사항 저장"
+                      )}
+                    </button>
                   </div>
 
                   <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">

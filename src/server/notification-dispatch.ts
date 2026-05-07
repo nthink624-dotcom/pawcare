@@ -8,7 +8,11 @@ import {
 import { hasAlimtalkServerEnv, hasSupabaseServerEnv, resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
-import { buildBookingManageUrl, createBookingAccessToken } from "@/server/booking-access-token";
+import {
+  buildBookingEntryUrl,
+  buildBookingManageUrl,
+  createBookingAccessToken,
+} from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { sendAlimtalkMessage } from "@/server/alimtalk-provider";
@@ -84,6 +88,23 @@ function shouldSendGuardianNotification(
   return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
 }
 
+function buildBookingLinksBlock(params: {
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+}) {
+  const lines: string[] = [];
+
+  if (params.bookingEntryUrl) {
+    lines.push("예약 링크", params.bookingEntryUrl);
+  }
+
+  if (params.bookingManageUrl) {
+    lines.push("예약 확인 링크", params.bookingManageUrl);
+  }
+
+  return lines.join("\n");
+}
+
 function buildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
@@ -92,12 +113,17 @@ function buildNotificationMessage(params: {
   recipientName: string | null;
   serviceName: string | null;
   rejectionReason: string | null;
+  bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
 }) {
   const dateLabel =
     params.appointment
       ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
+  const bookingLinksBlock = buildBookingLinksBlock({
+    bookingEntryUrl: params.bookingEntryUrl,
+    bookingManageUrl: params.bookingManageUrl,
+  });
 
   switch (params.type) {
     case "booking_received":
@@ -108,7 +134,7 @@ function buildNotificationMessage(params: {
         "매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.",
         "",
         "예약 정보는 아래 링크에서 확인하실 수 있어요.",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -128,7 +154,7 @@ function buildNotificationMessage(params: {
         "",
         "방문 당일 편하게 와 주세요. 기다리고 있겠습니다.",
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -146,7 +172,7 @@ function buildNotificationMessage(params: {
         "",
         "해당 시간 외 다른 일정으로 예약이 가능하오니,  아래 링크에서 다시 확인 부탁드립니다.",
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -164,7 +190,7 @@ function buildNotificationMessage(params: {
         "아쉽지만 다음에 또 뵐 수 있길 바라요.",
         "언제든 다시 예약하고 싶으실 때 아래 링크를 이용해 주세요.",
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -185,7 +211,7 @@ function buildNotificationMessage(params: {
         "새 일정에 맞춰 뵐게요!",
         "추가 변경이 필요하시면 아래 링크에서 편하게 해주세요.",
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -204,7 +230,7 @@ function buildNotificationMessage(params: {
         "준비 마치고 기다리고 있을게요.",
         "오시는 길 조심히 오세요 ",
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -236,7 +262,7 @@ function buildNotificationMessage(params: {
         "잠시 후 픽업하실 수 있어요.",
         "",
         "예약 정보는 아래 링크에서 확인하실 수 있어요.",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -252,7 +278,7 @@ function buildNotificationMessage(params: {
         "오늘도 믿고 맡겨주셔서 감사해요.",
         `${params.petName}이 기다리고 있으니 편하신 시간에 와주세요.`,
         "",
-        params.bookingManageUrl ?? "",
+        bookingLinksBlock,
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -364,6 +390,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           petId: pet.id,
         })
       : null;
+  const bookingEntryUrl = buildBookingEntryUrl(input.shopId);
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const message =
@@ -376,6 +403,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       recipientName,
       serviceName: service?.name ?? null,
       rejectionReason: appointment?.rejection_reason ?? null,
+      bookingEntryUrl,
       bookingManageUrl,
     });
 
@@ -512,6 +540,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       ...(input.metadata ?? {}),
       recipientName,
       serviceName: service?.name ?? null,
+      bookingEntryUrl,
       bookingManageUrl,
     },
     sent_at: sentAt,

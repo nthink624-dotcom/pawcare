@@ -11,6 +11,18 @@ export type EmptyStateProps = {
 };
 
 export function EmptyState({ action, className, description, title, titleClassName }: EmptyStateProps) {
+  const titleOnly = !description && !action;
+
+  if (titleOnly) {
+    return (
+      <div className={cn("relative flex min-h-[68px] items-center justify-center rounded-2xl border border-[var(--border)] bg-white px-4 py-4 text-center", className)}>
+        <div className="relative inline-flex items-center justify-center px-4">
+          <h3 className={cn("text-[16px] font-normal leading-6 tracking-[-0.02em] text-[var(--text)]", titleClassName)}>{title}</h3>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("rounded-2xl border border-[var(--border)] bg-white px-4 py-6 text-center", className)}>
       <div className="space-y-1.5">

@@ -11,7 +11,7 @@ export default async function DemoBookPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
   const initialAccessToken = resolvedSearchParams?.token;
-  const initialMode = requestedMode === "returning" || requestedMode === "manage" ? requestedMode : "first";
+  const initialMode = requestedMode === "manage" ? "manage" : "first";
   const data = await getBootstrap("demo-shop");
 
   return (

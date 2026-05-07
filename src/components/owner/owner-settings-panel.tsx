@@ -128,6 +128,29 @@ function shiftMonth(cursor: string, amount: number) {
   return `${nextYear}-${nextMonth}`;
 }
 
+function parseShopAddressParts(rawAddress: string) {
+  const normalized = decodeUnicodeEscapes(rawAddress ?? "").trim();
+  if (!normalized) {
+    return {
+      baseAddress: "",
+      detailAddress: "",
+    };
+  }
+
+  const commaIndex = normalized.indexOf(",");
+  if (commaIndex === -1) {
+    return {
+      baseAddress: normalized,
+      detailAddress: "",
+    };
+  }
+
+  return {
+    baseAddress: normalized.slice(0, commaIndex).trim(),
+    detailAddress: normalized.slice(commaIndex + 1).trim(),
+  };
+}
+
 export default function OwnerSettingsPanel({
   data,
   onSave,
@@ -140,10 +163,11 @@ export default function OwnerSettingsPanel({
   initialScreen = null,
   onActiveScreenChange,
 }: SettingsPanelProps) {
+  const initialAddressParts = parseShopAddressParts(data.shop.address);
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
   const [phone, setPhone] = useState(data.shop.phone);
-  const [address, setAddress] = useState(decodeUnicodeEscapes(data.shop.address));
-  const [detailAddress, setDetailAddress] = useState("");
+  const [address, setAddress] = useState(initialAddressParts.baseAddress);
+  const [detailAddress, setDetailAddress] = useState(initialAddressParts.detailAddress);
   const [postalCode, setPostalCode] = useState("");
   const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
   const [description, setDescription] = useState(decodeUnicodeEscapes(data.shop.description));
@@ -191,15 +215,13 @@ export default function OwnerSettingsPanel({
   const [editingServiceIsActive, setEditingServiceIsActive] = useState(true);
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
-  const [activeScreen, setActiveScreen] = useState<SettingsScreen>(null);
+  const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
 
-  useEffect(() => {
-    setActiveScreen(initialScreen ?? null);
-  }, [initialScreen]);
+  const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
 
   useEffect(() => {
     setIsNotificationSettingsDirty(false);
@@ -222,13 +244,41 @@ export default function OwnerSettingsPanel({
   ]);
 
   useEffect(() => {
-    onActiveScreenChange?.(activeScreen);
-  }, [activeScreen, onActiveScreenChange]);
+    const nextAddressParts = parseShopAddressParts(data.shop.address);
+    setName(decodeUnicodeEscapes(data.shop.name));
+    setPhone(data.shop.phone);
+    setAddress(nextAddressParts.baseAddress);
+    setDetailAddress(nextAddressParts.detailAddress);
+    setDescription(decodeUnicodeEscapes(data.shop.description));
+  }, [data.shop.id, data.shop.name, data.shop.phone, data.shop.address, data.shop.description]);
+
+  useEffect(() => {
+    if (onActiveScreenChange) return;
+    setLocalActiveScreen(initialScreen ?? null);
+  }, [initialScreen, onActiveScreenChange]);
+
+  function updateActiveScreen(nextScreen: SettingsScreen) {
+    if (onActiveScreenChange) {
+      onActiveScreenChange(nextScreen);
+      return;
+    }
+    setLocalActiveScreen(nextScreen);
+  }
 
   useEffect(() => {
     if (isNotificationSettingsDirty) return;
     setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
   }, [data.shop.notification_settings, isNotificationSettingsDirty]);
+
+  useEffect(() => {
+    if (basicInfoFeedback.type !== "success") return;
+
+    const timeout = window.setTimeout(() => {
+      setBasicInfoFeedback({ type: "idle", message: "" });
+    }, 5000);
+
+    return () => window.clearTimeout(timeout);
+  }, [basicInfoFeedback]);
 
   function updateNotificationSettings(updater: (previous: ShopNotificationSettingsState) => ShopNotificationSettingsState) {
     setNotificationSettings((previous) => withPrimedShopNotificationSettings(previous, updater(previous)));
@@ -347,7 +397,10 @@ export default function OwnerSettingsPanel({
     if (filledNotices.length === 1) {
       return filledNotices[0];
     }
-    return `${filledNotices[0]} 외 ${filledNotices.length - 1}개`;
+    const firstNotice = filledNotices[0];
+    const compactFirstNotice =
+      firstNotice.length > 22 ? `${firstNotice.slice(0, 22).trimEnd()}…` : firstNotice;
+    return `${compactFirstNotice} 외 ${filledNotices.length - 1}개`;
   }, [notices]);
 
   function openNoticeEditor(target: "parking" | "notices") {
@@ -426,7 +479,7 @@ export default function OwnerSettingsPanel({
         description,
       );
 
-      const combinedAddress = detailAddress.trim() ? `${address} ${detailAddress.trim()}`.trim() : address;
+      const combinedAddress = detailAddress.trim() ? `${address}, ${detailAddress.trim()}`.trim() : address;
 
       await Promise.resolve(
         onSave({
@@ -577,9 +630,9 @@ export default function OwnerSettingsPanel({
 
   const shopSection = (
     <SettingsCard>
-      <div className="space-y-0.5">
-        <SettingsFieldCard label="매장 대표 이미지" className="pb-1.5 pt-1.5">
-          <div className="relative -top-[6px] flex items-center gap-3">
+      <div className="space-y-1.5">
+        <SettingsFieldCard label="매장 대표 이미지" className="pb-2 pt-2">
+          <div className="relative -top-[4px] flex items-center gap-3.5">
             <div className="relative shrink-0">
               <button
                 type="button"
@@ -620,18 +673,18 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <div className="grid gap-1 sm:grid-cols-2">
-          <SettingsFieldCard label="매장명" className="pb-1.5 pt-1.5">
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <SettingsFieldCard label="매장명" className="pb-2 pt-2">
             <input
-              className="relative -top-[6px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="relative -top-[4px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="매장명을 입력해 주세요"
             />
           </SettingsFieldCard>
-          <SettingsFieldCard label="업체 연락처" className="pb-1.5 pt-1.5">
+          <SettingsFieldCard label="업체 연락처" className="pb-2 pt-2">
             <input
-              className="relative -top-[6px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              className="relative -top-[4px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="연락처를 입력해 주세요"
@@ -639,17 +692,17 @@ export default function OwnerSettingsPanel({
           </SettingsFieldCard>
         </div>
 
-        <SettingsFieldCard label="한줄 소개" className="pb-1.5 pt-1.5">
+        <SettingsFieldCard label="한줄 소개" className="pb-2 pt-2">
           <textarea
-            className="relative -top-[6px] min-h-[78px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="relative -top-[4px] min-h-[72px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요."
           />
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주소" className="pb-1.5 pt-1.5">
-          <div className="relative -top-[6px] space-y-1.5">
+        <SettingsFieldCard label="주소" className="pb-2 pt-2">
+          <div className="relative -top-[4px] space-y-2">
             <button
               type="button"
               onClick={() => setIsAddressSearchOpen(true)}
@@ -669,7 +722,7 @@ export default function OwnerSettingsPanel({
               </div>
               <span className="relative -top-[1px] shrink-0 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
             </button>
-            <div className="border-t border-[var(--border)] pt-1.5">
+            <div className="border-t border-[var(--border)] pt-2">
               <input
                 className="w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                 value={detailAddress}
@@ -680,55 +733,59 @@ export default function OwnerSettingsPanel({
           </div>
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="안내 문구 설정" className="px-0 pb-0 pt-1.5">
-          <div className="divide-y divide-[#ebe5dc]">
-            <div className="px-3.5 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">주차 안내</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-[var(--muted)]">{parkingNoticeSummary}</p>
+        <SettingsFieldCard label="안내 문구 설정" className="mt-1.5 px-0 pb-0 pt-1">
+          <div className="relative -top-[2px] divide-y divide-[#ebe5dc]">
+            <div className="px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <p className="shrink-0 text-[16px] tracking-[-0.02em] text-[var(--text)]">주차 안내</p>
+                  <button
+                    type="button"
+                    onClick={() => openNoticeEditor("parking")}
+                    className="relative top-[1px] shrink-0 text-[11px] font-normal leading-none tracking-[-0.02em] text-[var(--accent)]"
+                  >
+                    수정
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowParkingNotice(!showParkingNotice)}
-                  className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                >
-                  <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-6" : "left-1"}`} />
-                </button>
+                <div className="flex shrink-0 items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowParkingNotice(!showParkingNotice)}
+                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+                  >
+                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-[14px]" : "left-[2px]"}`} />
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => openNoticeEditor("parking")}
-                  className="text-[13px] font-medium tracking-[-0.02em] text-[var(--accent)]"
-                >
-                  수정
-                </button>
+              <div className="mt-0.5 w-full">
+                <p className="truncate text-[12px] leading-[1.4] text-[var(--muted)]">{parkingNoticeSummary}</p>
               </div>
             </div>
 
-            <div className="px-3.5 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">예약 전 안내</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-[var(--muted)]">{noticeSummary}</p>
+            <div className="px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <p className="shrink-0 text-[16px] tracking-[-0.02em] text-[var(--text)]">예약 전 안내</p>
+                  <button
+                    type="button"
+                    onClick={() => openNoticeEditor("notices")}
+                    className="relative top-[1px] shrink-0 text-[11px] font-normal leading-none tracking-[-0.02em] text-[var(--accent)]"
+                  >
+                    수정
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowNotices(!showNotices)}
-                  className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                >
-                  <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${showNotices ? "left-6" : "left-1"}`} />
-                </button>
+                <div className="flex shrink-0 items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowNotices(!showNotices)}
+                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
+                  >
+                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showNotices ? "left-[14px]" : "left-[2px]"}`} />
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => openNoticeEditor("notices")}
-                  className="text-[13px] font-medium tracking-[-0.02em] text-[var(--accent)]"
-                >
-                  수정
-                </button>
+              <div className="mt-0.5 w-full">
+                <p className="truncate text-[12px] leading-[1.4] text-[var(--muted)]">{noticeSummary}</p>
               </div>
             </div>
           </div>
@@ -950,10 +1007,10 @@ export default function OwnerSettingsPanel({
           return (
             <div key={service.id}>
               {isEditing ? (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   <SettingsFieldCard label="서비스 이름">
                     <input
-                      className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                      className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                       value={editingServiceName}
                       onChange={(event) => setEditingServiceName(event.target.value)}
                       placeholder="서비스 이름 입력"
@@ -962,22 +1019,30 @@ export default function OwnerSettingsPanel({
                   <SettingsFieldCard label="가격">
                     <div className="flex items-center gap-2">
                       <input
-                        className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                        className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                         value={editingServicePrice}
                         onChange={(event) => setEditingServicePrice(event.target.value)}
                         placeholder="최소 가격 입력"
                       />
-                      <span className="shrink-0 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">원</span>
+                      <span className="shrink-0 text-[14px] font-normal tracking-[-0.01em] text-[var(--muted)]">원</span>
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      <input type="checkbox" checked={editingServicePriceType === "starting"} onChange={(event) => setEditingServicePriceType(event.target.checked ? "starting" : "fixed")} />
-                      <span>시작가로 표시하기</span>
+                    <label className="mt-2 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-2">
+                      <span className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">시작가로 표시</span>
+                      <input
+                        className="h-4 w-4 accent-[var(--accent)]"
+                        type="checkbox"
+                        checked={editingServicePriceType === "starting"}
+                        onChange={(event) => setEditingServicePriceType(event.target.checked ? "starting" : "fixed")}
+                      />
                     </label>
                   </SettingsFieldCard>
-                  <SettingsFieldCard label="노출 설정" className="pb-3 pt-2.5">
+                  <SettingsFieldCard label="노출 설정" className="pb-2.5 pt-2">
                     <label className="flex items-center justify-between gap-3">
-                      <span className="text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</span>
-                      <input type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</p>
+                        <p className="mt-0.5 text-[12px] leading-4 text-[var(--muted)]">고객 예약 화면에 바로 보여줘요.</p>
+                      </div>
+                      <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
                     </label>
                   </SettingsFieldCard>
                   <div className="grid grid-cols-2 gap-2">
@@ -1009,10 +1074,13 @@ export default function OwnerSettingsPanel({
         })}
 
         {isNewServiceFormOpen ? (
-          <div className="space-y-2.5">
+          <div className="space-y-2 rounded-[10px] border border-[#d9e6e0] bg-[#f8fcfa] px-2.5 py-2.5">
+              <div className="pb-0.5">
+                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">새 서비스 추가</p>
+              </div>
               <SettingsFieldCard label="서비스 이름">
                 <input
-                  className="w-full bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                   placeholder="서비스 이름 입력"
                   value={newService.name}
                   onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))}
@@ -1021,22 +1089,30 @@ export default function OwnerSettingsPanel({
               <SettingsFieldCard label="가격">
                 <div className="flex items-center gap-2">
                   <input
-                    className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
                     placeholder="최소 가격 입력"
                     value={newService.price}
                     onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))}
                   />
-                  <span className="shrink-0 text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">원</span>
+                  <span className="shrink-0 text-[14px] font-normal tracking-[-0.01em] text-[var(--muted)]">원</span>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                  <input type="checkbox" checked={newService.priceType === "starting"} onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))} />
-                  <span>시작가로 표시하기</span>
+                <label className="mt-2 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-2">
+                  <span className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">시작가로 표시</span>
+                  <input
+                    className="h-4 w-4 accent-[var(--accent)]"
+                    type="checkbox"
+                    checked={newService.priceType === "starting"}
+                    onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))}
+                  />
                 </label>
               </SettingsFieldCard>
-              <SettingsFieldCard label="노출 설정" className="pb-3 pt-2.5">
+              <SettingsFieldCard label="노출 설정" className="pb-2.5 pt-2">
                 <label className="flex items-center justify-between gap-3">
-                  <span className="text-[14px] font-medium tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</span>
-                  <input type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</p>
+                    <p className="mt-0.5 text-[12px] leading-4 text-[var(--muted)]">고객 예약 화면에 바로 보여줘요.</p>
+                  </div>
+                  <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
                 </label>
               </SettingsFieldCard>
               <div className="grid grid-cols-2 gap-2">
@@ -1055,6 +1131,7 @@ export default function OwnerSettingsPanel({
           </div>
         ) : null}
 
+        {!isNewServiceFormOpen ? (
         <div className="pt-1">
           <button
             type="button"
@@ -1064,6 +1141,7 @@ export default function OwnerSettingsPanel({
             서비스 추가
           </button>
         </div>
+        ) : null}
       </div>
     </SettingsCard>
   );
@@ -1218,28 +1296,28 @@ export default function OwnerSettingsPanel({
         <SettingsNavRow
           icon={Store}
           title="매장 기본 정보"
-          onClick={() => setActiveScreen("shop")}
+          onClick={() => updateActiveScreen("shop")}
         />
         <SettingsNavRow
           icon={CalendarDays}
           title="운영시간 안내"
-          onClick={() => setActiveScreen("closures")}
+          onClick={() => updateActiveScreen("closures")}
         />
         <SettingsNavRow
           icon={Bell}
           title="알림톡 설정"
-          onClick={() => setActiveScreen("notifications")}
+          onClick={() => updateActiveScreen("notifications")}
         />
         <SettingsNavRow
           icon={Scissors}
           title="서비스 관리"
-          onClick={() => setActiveScreen("services")}
+          onClick={() => updateActiveScreen("services")}
         />
         {onLogout ? (
           <SettingsNavRow
             icon={UserRound}
             title="계정"
-            onClick={() => setActiveScreen("account")}
+            onClick={() => updateActiveScreen("account")}
           />
         ) : null}
       </div>

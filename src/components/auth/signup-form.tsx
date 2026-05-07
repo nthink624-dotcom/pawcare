@@ -775,16 +775,23 @@ export default function SignupForm({
   };
 
   const startPhoneIdentity = async () => {
+    const phoneIdentityChannelKey = env.portoneIdentityPhoneChannelKey;
+    const usesLegacyDanalPhoneIdentityChannel =
+      Boolean(env.portoneIdentityDanalChannelKey) &&
+      phoneIdentityChannelKey === env.portoneIdentityDanalChannelKey;
+
     await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityDanalChannelKey,
+      channelKey: phoneIdentityChannelKey,
       successMessage: "휴대폰 본인 인증이 완료되었어요.",
-      missingEnvMessage: "다날 휴대폰 본인 인증 채널이 아직 연결되지 않았어요.",
-      bypass: {
-        danal: {
-          IsCarrier: phoneCarrier,
-          CPTITLE: "petmanager.co.kr",
-        },
-      },
+      missingEnvMessage: "휴대폰 본인 인증 채널이 아직 연결되지 않았어요.",
+      bypass: usesLegacyDanalPhoneIdentityChannel
+        ? {
+            danal: {
+              IsCarrier: phoneCarrier,
+              CPTITLE: "petmanager.co.kr",
+            },
+          }
+        : undefined,
     });
   };
 

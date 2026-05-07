@@ -15,6 +15,9 @@ export const env = {
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_UNIFIED_CHANNEL_KEY ||
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY ||
     process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
+  portoneIdentityPhoneChannelKey:
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_PHONE_CHANNEL_KEY ||
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_DANAL_CHANNEL_KEY,
   portoneIdentityDanalChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_DANAL_CHANNEL_KEY,
   portoneIdentityChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
@@ -30,7 +33,7 @@ export function hasSupabaseBrowserEnv() {
 }
 
 export function hasPortoneBrowserEnv() {
-  return Boolean(env.portoneStoreId && (env.portoneIdentityUnifiedChannelKey || env.portoneIdentityDanalChannelKey));
+  return Boolean(env.portoneStoreId && (env.portoneIdentityUnifiedChannelKey || env.portoneIdentityPhoneChannelKey));
 }
 
 export function hasPortonePaymentBrowserEnv() {

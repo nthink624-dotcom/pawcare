@@ -97,7 +97,14 @@ export function createBookingAccessToken(input: {
 }
 
 export function buildBookingManageUrl(shopId: string, token: string) {
-  return `${resolvePublicSiteUrl()}/book/${shopId}/manage?${BOOKING_ACCESS_QUERY_KEY}=${encodeURIComponent(token)}`;
+  const url = new URL("/m", resolvePublicSiteUrl());
+  url.searchParams.set("s", shopId);
+  return url.toString();
+}
+
+export function buildBookingEntryUrl(shopId: string) {
+  const url = new URL(`/entry/${shopId}`, resolvePublicSiteUrl());
+  return url.toString();
 }
 
 export function verifyBookingAccessToken(token: string) {

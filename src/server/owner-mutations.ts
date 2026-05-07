@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 
 import { computeAvailableSlots } from "@/lib/availability";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -43,8 +43,8 @@ function getRejectionReason(payload: {
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
 }) {
-  if (payload.rejectionReasonTemplate === "기타 직접 입력") {
-    return payload.rejectionReasonCustom?.trim() || "기타 사유";
+  if (payload.rejectionReasonTemplate === "湲고? 吏곸젒 ?낅젰") {
+    return payload.rejectionReasonCustom?.trim() || "湲고? ?ъ쑀";
   }
 
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
@@ -146,6 +146,21 @@ export async function updateShopSettings(input: unknown) {
     grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
   };
   const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
+  const fullUpdatePayload = {
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    description: payload.description,
+    concurrent_capacity: payload.concurrentCapacity,
+    booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
+    booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
+    approval_mode: payload.approvalMode,
+    regular_closed_days: payload.regularClosedDays,
+    temporary_closed_dates: payload.temporaryClosedDates,
+    business_hours: payload.businessHours,
+    notification_settings: normalizedNotificationSettings,
+    updated_at: nowIso(),
+  };
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -182,55 +197,61 @@ export async function updateShopSettings(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
-  const { data, error } = await supabase
-    .from("shops")
-    .update({
-      name: payload.name,
-      phone: payload.phone,
-      address: payload.address,
-      description: payload.description,
-      concurrent_capacity: payload.concurrentCapacity,
-      booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
-      booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
-      approval_mode: payload.approvalMode,
-      regular_closed_days: payload.regularClosedDays,
-      temporary_closed_dates: payload.temporaryClosedDates,
-      business_hours: payload.businessHours,
-      notification_settings: normalizedNotificationSettings,
-      updated_at: nowIso(),
-    })
-    .eq("id", payload.shopId)
-    .select("*")
-    .single();
+  const runShopUpdate = async ({
+    includeBookingSlotSettings,
+    includeNotificationSettings,
+  }: {
+    includeBookingSlotSettings: boolean;
+    includeNotificationSettings: boolean;
+  }) => {
+    const nextPayload: Record<string, unknown> = {
+      ...fullUpdatePayload,
+    };
 
-  if (error) {
-    if (
-      hasMissingColumnError(error, "booking_slot_interval_minutes") ||
-      hasMissingColumnError(error, "booking_slot_offset_minutes")
-    ) {
-      throw new Error("예약 시간 설정 컬럼이 아직 없습니다. 안내드린 SQL을 한 번만 실행해 주세요.");
+    if (!includeBookingSlotSettings) {
+      delete nextPayload.booking_slot_interval_minutes;
+      delete nextPayload.booking_slot_offset_minutes;
     }
 
-    if (hasMissingColumnError(error, "notification_settings")) {
-      const fallback = await supabase
-        .from("shops")
-        .update({
-          name: payload.name,
-          phone: payload.phone,
-          address: payload.address,
-          description: payload.description,
-          concurrent_capacity: payload.concurrentCapacity,
-          booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
-          booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
-          approval_mode: payload.approvalMode,
-          regular_closed_days: payload.regularClosedDays,
-          temporary_closed_dates: payload.temporaryClosedDates,
-          business_hours: payload.businessHours,
-          updated_at: nowIso(),
-        })
-        .eq("id", payload.shopId)
-        .select("*")
-        .single();
+    if (!includeNotificationSettings) {
+      delete nextPayload.notification_settings;
+    }
+
+    return supabase
+      .from("shops")
+      .update(nextPayload)
+      .eq("id", payload.shopId)
+      .select("*")
+      .single();
+  };
+
+  const { data, error } = await runShopUpdate({
+    includeBookingSlotSettings: true,
+    includeNotificationSettings: true,
+  });
+
+  if (error) {
+    const missingBookingSlotSettings =
+      hasMissingColumnError(error, "booking_slot_interval_minutes") ||
+      hasMissingColumnError(error, "booking_slot_offset_minutes");
+    const missingNotificationSettings = hasMissingColumnError(error, "notification_settings");
+
+    if (missingBookingSlotSettings || missingNotificationSettings) {
+      let fallback = await runShopUpdate({
+        includeBookingSlotSettings: !missingBookingSlotSettings,
+        includeNotificationSettings: !missingNotificationSettings,
+      });
+
+      if (
+        fallback.error &&
+        !missingNotificationSettings &&
+        hasMissingColumnError(fallback.error, "notification_settings")
+      ) {
+        fallback = await runShopUpdate({
+          includeBookingSlotSettings: !missingBookingSlotSettings,
+          includeNotificationSettings: false,
+        });
+      }
 
       if (fallback.error) {
         throw new Error(fallback.error.message);
@@ -296,7 +317,7 @@ export async function upsertService(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { error } = await supabase.from("services").upsert(service);
   if (error) {
@@ -338,7 +359,7 @@ export async function updateCustomerPageSettings(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { data, error } = await supabase
     .from("shops")
@@ -352,7 +373,7 @@ export async function updateCustomerPageSettings(input: unknown) {
 
   if (error) {
     if (hasMissingColumnError(error, "customer_page_settings")) {
-      throw new Error("고객 노출 정보 컬럼이 아직 없습니다. 안내드린 SQL을 한 번만 실행해 주세요.");
+      throw new Error("怨좉컼 ?몄텧 ?뺣낫 而щ읆???꾩쭅 ?놁뒿?덈떎. ?덈궡?쒕┛ SQL????踰덈쭔 ?ㅽ뻾??二쇱꽭??");
     }
     throw new Error(error.message);
   }
@@ -383,7 +404,7 @@ export async function createGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { data, error } = await supabase
     .from("guardians")
@@ -438,7 +459,7 @@ export async function updateGuardian(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const guardian = store.guardians.find((item) => item.id === payload.guardianId);
-    if (!guardian) throw new Error("고객 정보를 찾을 수 없어요.");
+    if (!guardian) throw new Error("怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뼱??");
 
     if (typeof payload.name === "string") guardian.name = payload.name;
     if (typeof payload.phone === "string") guardian.phone = payload.phone;
@@ -456,7 +477,7 @@ export async function updateGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const currentGuardian = await supabase.from("guardians").select("*").eq("id", payload.guardianId).single();
   if (currentGuardian.error) throw new Error(currentGuardian.error.message);
@@ -513,7 +534,7 @@ export async function deleteGuardian(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const guardian = store.guardians.find((item) => item.id === payload.guardianId);
-    if (!guardian) throw new Error("고객 정보를 찾을 수 없어요.");
+    if (!guardian) throw new Error("怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뼱??");
 
     const petIds = new Set(store.pets.filter((item) => item.guardian_id === payload.guardianId).map((item) => item.id));
 
@@ -530,7 +551,7 @@ export async function deleteGuardian(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const petQuery = await supabase.from("pets").select("id").eq("guardian_id", payload.guardianId);
   if (petQuery.error) throw new Error(petQuery.error.message);
@@ -564,7 +585,7 @@ export async function softDeleteGuardians(input: unknown) {
   const guardianIds = resolveGuardianIds(payload);
 
   if (guardianIds.length === 0) {
-    throw new Error("삭제할 고객을 선택해 주세요.");
+    throw new Error("??젣??怨좉컼???좏깮??二쇱꽭??");
   }
 
   const deletedAt = nowIso();
@@ -574,7 +595,7 @@ export async function softDeleteGuardians(input: unknown) {
     const store = getMutableStore();
     const existingIds = new Set(store.guardians.map((guardian) => guardian.id));
     const missingId = guardianIds.find((guardianId) => !existingIds.has(guardianId));
-    if (missingId) throw new Error("삭제할 고객 정보를 찾을 수 없습니다.");
+    if (missingId) throw new Error("??젣??怨좉컼 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
 
     store.guardians = store.guardians.map((guardian) =>
       guardianIds.includes(guardian.id)
@@ -592,7 +613,7 @@ export async function softDeleteGuardians(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { error } = await supabase
     .from("guardians")
@@ -613,7 +634,7 @@ export async function restoreGuardians(input: unknown) {
   const guardianIds = resolveGuardianIds(payload);
 
   if (guardianIds.length === 0) {
-    throw new Error("복구할 고객을 선택해 주세요.");
+    throw new Error("蹂듦뎄??怨좉컼???좏깮??二쇱꽭??");
   }
 
   if (!hasSupabaseServerEnv()) {
@@ -638,7 +659,7 @@ export async function restoreGuardians(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const guardiansQuery = await supabase
     .from("guardians")
@@ -653,7 +674,7 @@ export async function restoreGuardians(input: unknown) {
     .map((guardian) => guardian.id);
 
   if (restorableIds.length === 0) {
-    throw new Error("복구 가능한 고객이 없습니다.");
+    throw new Error("蹂듦뎄 媛?ν븳 怨좉컼???놁뒿?덈떎.");
   }
 
   const { error } = await supabase
@@ -696,7 +717,7 @@ export async function createPet(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
   if (error) throw new Error(error.message);
@@ -709,7 +730,7 @@ export async function updatePet(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const pet = store.pets.find((item) => item.id === payload.petId);
-    if (!pet) throw new Error("반려동물 정보를 찾을 수 없어요.");
+    if (!pet) throw new Error("諛섎젮?숇Ъ ?뺣낫瑜?李얠쓣 ???놁뼱??");
 
     pet.name = payload.name;
     pet.breed = payload.breed;
@@ -720,7 +741,7 @@ export async function updatePet(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { data, error } = await supabase
     .from("pets")
@@ -743,7 +764,7 @@ export async function createAppointment(input: unknown) {
   const data = await getBootstrap(payload.shopId);
   const service = data.services.find((item) => item.id === payload.serviceId);
 
-  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+  if (!service) throw new Error("?쒕퉬???뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
 
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
@@ -754,7 +775,7 @@ export async function createAppointment(input: unknown) {
   });
 
   if (!availableSlots.includes(payload.appointmentTime)) {
-    throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    throw new Error("?좏깮???쒓컙?먮뒗 ?덉빟?????놁뒿?덈떎.");
   }
 
   const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
@@ -792,7 +813,7 @@ export async function createAppointment(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
   const { error } = await supabase.from("appointments").insert(appointment);
   if (error) {
     if (hasMissingColumnError(error, "rejection_reason")) {
@@ -844,7 +865,7 @@ export async function updateAppointmentStatus(input: unknown) {
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
-    if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+    if (!appointment) throw new Error("?덉빟??李얠쓣 ???놁뒿?덈떎.");
 
     appointment.status = payload.status;
     appointment.rejection_reason = rejectionReason;
@@ -919,7 +940,7 @@ export async function updateAppointmentStatus(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+  if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
   const { data: updatedAppointment, error } = await supabase
     .from("appointments")
@@ -1028,13 +1049,13 @@ export async function updateAppointmentDetails(input: unknown) {
   const data = await getBootstrap(payload.shopId);
   const appointment = data.appointments.find((item) => item.id === payload.appointmentId);
 
-  if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+  if (!appointment) throw new Error("?덉빟 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
   if (!["pending", "confirmed", "cancelled"].includes(appointment.status)) {
-    throw new Error("이 예약 상태에서는 일정 수정이 어렵습니다.");
+    throw new Error("???덉빟 ?곹깭?먯꽌???쇱젙 ?섏젙???대졄?듬땲??");
   }
 
   const service = data.services.find((item) => item.id === payload.serviceId);
-  if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+  if (!service) throw new Error("?쒕퉬???뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
 
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
@@ -1046,7 +1067,7 @@ export async function updateAppointmentDetails(input: unknown) {
   });
 
   if (!availableSlots.includes(payload.appointmentTime)) {
-    throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    throw new Error("?좏깮???쒓컙?먮뒗 ?덉빟?????놁뒿?덈떎.");
   }
 
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
@@ -1065,7 +1086,7 @@ export async function updateAppointmentDetails(input: unknown) {
   if (data.mode !== "supabase" || !hasSupabaseServerEnv()) {
     const store = getMutableStore();
     const target = store.appointments.find((item) => item.id === payload.appointmentId);
-    if (!target) throw new Error("예약 정보를 찾을 수 없습니다.");
+    if (!target) throw new Error("?덉빟 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
 
     Object.assign(target, nextValues);
     setMockStore(store);
@@ -1082,7 +1103,7 @@ export async function updateAppointmentDetails(input: unknown) {
   }
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
+  if (!supabase) throw new Error("Supabase ?곌껐???뺤씤?????놁뒿?덈떎.");
 
   const { data: updatedAppointment, error } = await supabase
     .from("appointments")
@@ -1123,3 +1144,4 @@ export async function updateAppointmentDetails(input: unknown) {
 
   return resolvedAppointment;
 }
+

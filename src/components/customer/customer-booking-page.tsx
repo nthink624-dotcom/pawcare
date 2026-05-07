@@ -131,11 +131,21 @@ const initialReturningVisitState: ReturningVisitState = {
 
 const CUSTOM_SERVICE_ID = "__custom__";
 const FIRST_VISIT_DRAFT_STORAGE_KEY_PREFIX = "petmanager:first-visit-draft:";
+const BOOKING_PROFILE_STORAGE_KEY = "petmanager:booking-profile";
 
 type FirstVisitDraftPayload = {
   version: 1;
   step: FirstVisitStep;
   firstVisit: FirstVisitState;
+  savedAt: string;
+};
+
+type BookingProfilePayload = {
+  version: 1;
+  ownerName: string;
+  phone: string;
+  petName: string;
+  extraPets: Array<Pick<AdditionalPetDraft, "id" | "name">>;
   savedAt: string;
 };
 
@@ -170,6 +180,53 @@ function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId:
       .map((pet) => ({ ...pet, name: pet.name.trim(), breed: "" })),
     serviceId: defaultServiceId,
   };
+}
+
+function buildBookingProfile(source: FirstVisitState): BookingProfilePayload {
+  return {
+    version: 1,
+    ownerName: source.ownerName.trim(),
+    phone: formatBookingPhoneNumber(source.phone),
+    petName: source.petName.trim(),
+    extraPets: source.extraPets
+      .filter((pet) => pet.name.trim())
+      .map((pet) => ({
+        id: pet.id,
+        name: pet.name.trim(),
+      })),
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function hasBookingProfileContent(source: FirstVisitState) {
+  return Boolean(
+    source.ownerName.trim() ||
+      source.phone.trim() ||
+      source.petName.trim() ||
+      source.extraPets.some((pet) => pet.name.trim()),
+  );
+}
+
+function restoreBookingProfile(profile: Partial<BookingProfilePayload>, defaultServiceId: string): FirstVisitState {
+  return {
+    ...initialFirstVisitState,
+    ownerName: profile.ownerName ?? "",
+    phone: profile.phone ? formatBookingPhoneNumber(profile.phone) : "",
+    petName: profile.petName ?? "",
+    extraPets: Array.isArray(profile.extraPets)
+      ? profile.extraPets.map((pet, index) => ({
+          id: pet?.id || `profile-${index + 1}`,
+          name: pet?.name ?? "",
+          breed: "",
+        }))
+      : [],
+    serviceId: defaultServiceId,
+  };
+}
+
+function saveBookingProfile(source: FirstVisitState) {
+  if (typeof window === "undefined" || !hasBookingProfileContent(source)) return;
+  window.localStorage.setItem(BOOKING_PROFILE_STORAGE_KEY, JSON.stringify(buildBookingProfile(source)));
 }
 
 const statusLabelMap: Record<Appointment["status"], string> = {
@@ -317,8 +374,28 @@ export default function CustomerBookingPage({
   useEffect(() => {
     if (draftHydrated || typeof window === "undefined") return;
 
+    if (initialMode === "manage") {
+      setDraftHydrated(true);
+      return;
+    }
+
     const rawDraft = window.localStorage.getItem(getFirstVisitDraftStorageKey(shopId));
     if (!rawDraft) {
+      const rawProfile = window.localStorage.getItem(BOOKING_PROFILE_STORAGE_KEY);
+
+      if (rawProfile) {
+        try {
+          const parsedProfile = JSON.parse(rawProfile) as Partial<BookingProfilePayload>;
+          const defaultServiceId = services[0]?.id || "";
+          setFirstVisit((prev) => ({
+            ...prev,
+            ...restoreBookingProfile(parsedProfile, defaultServiceId),
+          }));
+        } catch {
+          window.localStorage.removeItem(BOOKING_PROFILE_STORAGE_KEY);
+        }
+      }
+
       setDraftHydrated(true);
       return;
     }
@@ -355,7 +432,12 @@ export default function CustomerBookingPage({
     } finally {
       setDraftHydrated(true);
     }
-  }, [draftHydrated, services, shopId]);
+  }, [draftHydrated, initialMode, services, shopId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
+    saveBookingProfile(firstVisit);
+  }, [activeMode, firstVisit.ownerName, firstVisit.phone, firstVisit.petName, firstVisit.extraPets]);
 
   useEffect(() => {
     let active = true;
@@ -449,10 +531,11 @@ export default function CustomerBookingPage({
     };
 
     window.localStorage.setItem(getFirstVisitDraftStorageKey(shopId), JSON.stringify(payload));
+    saveBookingProfile(firstVisit);
     setSubmitFeedback({
       type: "success",
       title: "임시저장했어요",
-      message: "같은 기기에서 다시 열면 예약자 정보와 선택 내용을 이어서 볼 수 있어요.",
+      message: "같은 기기라면 다른 예약 링크에서도 예약자 정보를 이어서 쓸 수 있어요.",
       action: "dismiss",
     });
   }
@@ -505,13 +588,15 @@ export default function CustomerBookingPage({
 
       if (typeof window !== "undefined") {
         const defaultServiceId = services[0]?.id || "";
+        const reusableFirstVisit = buildReusableFirstVisitDraft(firstVisit, defaultServiceId);
         const reusableDraft: FirstVisitDraftPayload = {
           version: 1,
           step: 1,
-          firstVisit: buildReusableFirstVisitDraft(firstVisit, defaultServiceId),
+          firstVisit: reusableFirstVisit,
           savedAt: new Date().toISOString(),
         };
         window.localStorage.setItem(getFirstVisitDraftStorageKey(shopId), JSON.stringify(reusableDraft));
+        saveBookingProfile(reusableFirstVisit);
       }
 
       const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);

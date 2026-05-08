@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "check:viewmodels": "node scripts/check-view-models.cjs"
+    "check:viewmodels": "node scripts/check-view-models.cjs",
+    "check:provider": "node scripts/check-provider.cjs"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.15.12",

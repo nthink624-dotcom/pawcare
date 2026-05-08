@@ -1,18 +1,13 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator, type BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator, type NativeStackScreenProps } from "@react-navigation/native-stack";
 
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { useAppSession } from "@/hooks/useAppSession";
-import type { OwnerSession } from "@/services/authService";
-import CustomerDetailScreen from "@/screens/CustomerDetailScreen";
-import CustomerListScreen from "@/screens/CustomerListScreen";
-import LoginScreen from "@/screens/LoginScreen";
-import ReservationDetailScreen from "@/screens/ReservationDetailScreen";
-import ReservationListScreen from "@/screens/ReservationListScreen";
-import SettingsScreen from "@/screens/SettingsScreen";
-import TodayHomeScreen from "@/screens/TodayHomeScreen";
+import { useOwnerDataProvider } from "@/hooks/useOwnerDataProvider";
 import {
   type AuthStackParamList,
   type CustomerStackParamList,
@@ -20,7 +15,15 @@ import {
   type ReservationStackParamList,
   TAB_LABELS,
 } from "@/navigation/routes";
-import { createMockOwnerDataProvider } from "@/services/mockOwnerDataProvider";
+import CustomerDetailScreen from "@/screens/CustomerDetailScreen";
+import CustomerListScreen from "@/screens/CustomerListScreen";
+import LoginScreen from "@/screens/LoginScreen";
+import ReservationDetailScreen from "@/screens/ReservationDetailScreen";
+import ReservationListScreen from "@/screens/ReservationListScreen";
+import SettingsScreen from "@/screens/SettingsScreen";
+import TodayHomeScreen from "@/screens/TodayHomeScreen";
+import type { OwnerSession } from "@/services/authService";
+import type { OwnerDataProvider } from "@/services/ownerDataProvider";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
@@ -38,31 +41,56 @@ type AuthStackNavigatorProps = {
 };
 
 type MainTabsNavigatorProps = {
+  ownerDataProvider: OwnerDataProvider;
   onSignOut: () => void;
+};
+
+type DataRouteProps = {
+  ownerDataProvider: OwnerDataProvider;
 };
 
 const MOCK_OWNER_SESSION: OwnerSession = {
   ownerId: "mock-owner",
   shopId: "mock-shop",
 };
-const ownerDataProvider = createMockOwnerDataProvider();
 
 export function AppNavigator() {
-  const { session: loadedSession, loading } = useAppSession();
+  const { session: loadedSession, loading: sessionLoading } = useAppSession();
+  const { state: ownerDataState, provider: ownerDataProvider, loading: ownerDataLoading, retry } = useOwnerDataProvider();
   const [session, setSession] = useState<OwnerSession | null>(null);
 
   useEffect(() => {
-    if (!loading) setSession(loadedSession);
-  }, [loadedSession, loading]);
+    if (!sessionLoading) setSession(loadedSession);
+  }, [loadedSession, sessionLoading]);
 
   const signInWithMockSession = () => setSession(MOCK_OWNER_SESSION);
   const signOutPlaceholder = () => setSession(null);
 
-  if (loading) {
+  if (sessionLoading || ownerDataLoading || ownerDataState.status === "idle") {
     return (
       <View style={styles.shell}>
         <View style={styles.loading}>
-          <Text style={styles.loadingText}>앱을 준비하고 있습니다</Text>
+          <LoadingState />
+        </View>
+      </View>
+    );
+  }
+
+  if (ownerDataState.status === "error") {
+    return (
+      <View style={styles.shell}>
+        <View style={styles.loading}>
+          <ErrorState onRetry={retry} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!ownerDataProvider) {
+    return (
+      <View style={styles.shell}>
+        <View style={styles.loading}>
+          <LoadingState />
         </View>
       </View>
     );
@@ -71,7 +99,11 @@ export function AppNavigator() {
   return (
     <View style={styles.shell}>
       <NavigationContainer>
-        {session ? <MainTabsNavigator onSignOut={signOutPlaceholder} /> : <AuthStackNavigator onSignedIn={signInWithMockSession} />}
+        {session ? (
+          <MainTabsNavigator ownerDataProvider={ownerDataProvider} onSignOut={signOutPlaceholder} />
+        ) : (
+          <AuthStackNavigator onSignedIn={signInWithMockSession} />
+        )}
       </NavigationContainer>
     </View>
   );
@@ -85,38 +117,52 @@ function AuthStackNavigator({ onSignedIn }: AuthStackNavigatorProps) {
   );
 }
 
-function MainTabsNavigator({ onSignOut }: MainTabsNavigatorProps) {
+function MainTabsNavigator({ ownerDataProvider, onSignOut }: MainTabsNavigatorProps) {
   return (
     <MainTabs.Navigator screenOptions={tabScreenOptions}>
-      <MainTabs.Screen name="Today" component={TodayRoute} options={{ title: TAB_LABELS.Today }} />
-      <MainTabs.Screen name="Reservations" component={ReservationStackNavigator} options={{ title: TAB_LABELS.Reservations }} />
-      <MainTabs.Screen name="Customers" component={CustomerStackNavigator} options={{ title: TAB_LABELS.Customers }} />
+      <MainTabs.Screen name="Today" options={{ title: TAB_LABELS.Today }}>
+        {(props) => <TodayRoute {...props} ownerDataProvider={ownerDataProvider} />}
+      </MainTabs.Screen>
+      <MainTabs.Screen name="Reservations" options={{ title: TAB_LABELS.Reservations }}>
+        {() => <ReservationStackNavigator ownerDataProvider={ownerDataProvider} />}
+      </MainTabs.Screen>
+      <MainTabs.Screen name="Customers" options={{ title: TAB_LABELS.Customers }}>
+        {() => <CustomerStackNavigator ownerDataProvider={ownerDataProvider} />}
+      </MainTabs.Screen>
       <MainTabs.Screen name="Settings" options={{ title: TAB_LABELS.Settings }}>
-        {() => <SettingsRoute onSignOut={onSignOut} />}
+        {() => <SettingsRoute ownerDataProvider={ownerDataProvider} onSignOut={onSignOut} />}
       </MainTabs.Screen>
     </MainTabs.Navigator>
   );
 }
 
-function ReservationStackNavigator() {
+function ReservationStackNavigator({ ownerDataProvider }: DataRouteProps) {
   return (
     <ReservationStack.Navigator screenOptions={stackScreenOptions}>
-      <ReservationStack.Screen name="ReservationList" component={ReservationListRoute} />
-      <ReservationStack.Screen name="ReservationDetail" component={ReservationDetailRoute} />
+      <ReservationStack.Screen name="ReservationList">
+        {(props) => <ReservationListRoute {...props} ownerDataProvider={ownerDataProvider} />}
+      </ReservationStack.Screen>
+      <ReservationStack.Screen name="ReservationDetail">
+        {(props) => <ReservationDetailRoute {...props} ownerDataProvider={ownerDataProvider} />}
+      </ReservationStack.Screen>
     </ReservationStack.Navigator>
   );
 }
 
-function CustomerStackNavigator() {
+function CustomerStackNavigator({ ownerDataProvider }: DataRouteProps) {
   return (
     <CustomerStack.Navigator screenOptions={stackScreenOptions}>
-      <CustomerStack.Screen name="CustomerList" component={CustomerListRoute} />
-      <CustomerStack.Screen name="CustomerDetail" component={CustomerDetailRoute} />
+      <CustomerStack.Screen name="CustomerList">
+        {(props) => <CustomerListRoute {...props} ownerDataProvider={ownerDataProvider} />}
+      </CustomerStack.Screen>
+      <CustomerStack.Screen name="CustomerDetail">
+        {(props) => <CustomerDetailRoute {...props} ownerDataProvider={ownerDataProvider} />}
+      </CustomerStack.Screen>
     </CustomerStack.Navigator>
   );
 }
 
-function TodayRoute({ navigation }: TodayRouteProps) {
+function TodayRoute({ navigation, ownerDataProvider }: TodayRouteProps & DataRouteProps) {
   return (
     <TodayHomeScreen
       viewModel={ownerDataProvider.getTodayHome()}
@@ -125,7 +171,7 @@ function TodayRoute({ navigation }: TodayRouteProps) {
   );
 }
 
-function ReservationListRoute({ navigation }: ReservationListRouteProps) {
+function ReservationListRoute({ navigation, ownerDataProvider }: ReservationListRouteProps & DataRouteProps) {
   return (
     <ReservationListScreen
       rows={ownerDataProvider.getAppointmentRows()}
@@ -134,13 +180,13 @@ function ReservationListRoute({ navigation }: ReservationListRouteProps) {
   );
 }
 
-function ReservationDetailRoute({ navigation, route }: ReservationDetailRouteProps) {
+function ReservationDetailRoute({ navigation, route, ownerDataProvider }: ReservationDetailRouteProps & DataRouteProps) {
   const reservation = ownerDataProvider.getAppointmentDetail(route.params.reservationId);
 
   return <ReservationDetailScreen reservation={reservation} onBack={() => navigation.goBack()} />;
 }
 
-function CustomerListRoute({ navigation }: CustomerListRouteProps) {
+function CustomerListRoute({ navigation, ownerDataProvider }: CustomerListRouteProps & DataRouteProps) {
   return (
     <CustomerListScreen
       customers={ownerDataProvider.getCustomerSummaries()}
@@ -149,13 +195,13 @@ function CustomerListRoute({ navigation }: CustomerListRouteProps) {
   );
 }
 
-function CustomerDetailRoute({ navigation, route }: CustomerDetailRouteProps) {
+function CustomerDetailRoute({ navigation, route, ownerDataProvider }: CustomerDetailRouteProps & DataRouteProps) {
   const customer = ownerDataProvider.getCustomerDetail(route.params.customerId);
 
   return <CustomerDetailScreen customer={customer} onBack={() => navigation.goBack()} />;
 }
 
-function SettingsRoute({ onSignOut }: { onSignOut: () => void }) {
+function SettingsRoute({ ownerDataProvider, onSignOut }: DataRouteProps & { onSignOut: () => void }) {
   return <SettingsScreen viewModel={ownerDataProvider.getSettingsSummary()} onSignOut={onSignOut} />;
 }
 
@@ -190,10 +236,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-  },
-  loadingText: {
-    color: "#686059",
-    fontSize: 15,
-    fontWeight: "700",
   },
 });

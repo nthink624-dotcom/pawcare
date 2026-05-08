@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "check:viewmodels": "node scripts/check-view-models.cjs",
-    "check:provider": "node scripts/check-provider.cjs"
+    "check:provider": "node scripts/check-provider.cjs",
+    "check:owner-data-state": "node scripts/check-owner-data-state.cjs"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.15.12",

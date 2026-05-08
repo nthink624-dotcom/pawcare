@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createMockOwnerDataProvider } from "@/services/mockOwnerDataProvider";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
+import { runOwnerDataProviderLoad } from "@/services/ownerDataLoader";
 import { initialOwnerDataState, type OwnerDataState } from "@/services/ownerDataState";
 
 export type UseOwnerDataProviderOptions = {
@@ -24,38 +25,10 @@ export function useOwnerDataProvider(options: UseOwnerDataProviderOptions = {}):
   const resolveProvider = useMemo(() => loadProvider ?? (() => createMockOwnerDataProvider()), [loadProvider]);
 
   const load = useCallback(() => {
-    let active = true;
-
-    setState({
-      status: "loading",
-      provider: null,
-      error: null,
+    return runOwnerDataProviderLoad({
+      loadProvider: resolveProvider,
+      onState: setState,
     });
-
-    Promise.resolve()
-      .then(resolveProvider)
-      .then((provider) => {
-        if (!active) return;
-
-        setState({
-          status: "ready",
-          provider,
-          error: null,
-        });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-
-        setState({
-          status: "error",
-          provider: null,
-          error: error instanceof Error ? error : new Error("데이터를 불러오지 못했습니다."),
-        });
-      });
-
-    return () => {
-      active = false;
-    };
   }, [resolveProvider]);
 
   useEffect(() => {

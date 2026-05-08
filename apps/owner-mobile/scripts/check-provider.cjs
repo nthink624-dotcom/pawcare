@@ -34,8 +34,10 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
 const { createStaticManualAccessTokenResolver } = require("../src/services/manualAccessToken");
+const { createMockOwnerDataProvider } = require("../src/services/mockOwnerDataProvider");
 const { loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvider");
 const { selectOwnerDataProvider } = require("../src/services/selectOwnerDataProvider");
+const { loadSettingsSummaryPreview } = require("../src/hooks/useSettingsSummaryPreview");
 
 const apiBaseUrl = "http://owner-api.local";
 const ownerEmail = "owner@pawcare.local";
@@ -370,10 +372,126 @@ function checkSettingsSummaryPreviewScope() {
   assert.doesNotMatch(source, /getAppointmentDetail/);
 }
 
+async function checkSettingsSummaryPreviewConditions() {
+  const mockProvider = createMockOwnerDataProvider();
+  const mockSummary = mockProvider.getSettingsSummary();
+
+  let resolverCalled = false;
+  let selectorCalled = false;
+  const noEnvPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "mock",
+      apiBaseUrl: "",
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    accessTokenResolver: () => {
+      resolverCalled = true;
+      return accessToken;
+    },
+    selectProvider: async () => {
+      selectorCalled = true;
+      throw new Error("mock mode must not call selector");
+    },
+  });
+  assert.equal(noEnvPreview.status, "mock");
+  assert.equal(noEnvPreview.source, "mock");
+  assert.equal(noEnvPreview.viewModel, mockSummary);
+  assert.equal(resolverCalled, false);
+  assert.equal(selectorCalled, false);
+
+  resolverCalled = false;
+  selectorCalled = false;
+  const mockEnvPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "mock",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    accessTokenResolver: () => {
+      resolverCalled = true;
+      return accessToken;
+    },
+    selectProvider: async () => {
+      selectorCalled = true;
+      throw new Error("mock mode must not call selector");
+    },
+  });
+  assert.equal(mockEnvPreview.status, "mock");
+  assert.equal(mockEnvPreview.source, "mock");
+  assert.equal(resolverCalled, false);
+  assert.equal(selectorCalled, false);
+
+  let calls = installMockFetch();
+  const missingTokenPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    ownerEmail,
+  });
+  assert.equal(missingTokenPreview.status, "error");
+  assert.equal(missingTokenPreview.source, "mock");
+  assert.match(missingTokenPreview.error?.message ?? "", /access token/i);
+  assert.equal(calls.length, 0);
+
+  calls = installMockFetch();
+  const missingBaseUrlPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl: "",
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    ownerEmail,
+    accessTokenResolver: createStaticManualAccessTokenResolver(accessToken),
+  });
+  assert.equal(missingBaseUrlPreview.status, "error");
+  assert.equal(missingBaseUrlPreview.source, "mock");
+  assert.match(missingBaseUrlPreview.error?.message ?? "", /base URL/i);
+  assert.equal(calls.length, 0);
+
+  const realSummary = {
+    ...mockSummary,
+    accountEmail: "real-owner@example.com",
+  };
+  const readyPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    ownerEmail,
+    accessTokenResolver: createStaticManualAccessTokenResolver(accessToken),
+    selectProvider: async () => ({
+      mode: "real",
+      selectedShopId: "shop-first",
+      ownedShops,
+      provider: {
+        ...mockProvider,
+        getSettingsSummary: () => realSummary,
+      },
+    }),
+  });
+  assert.equal(readyPreview.status, "ready");
+  assert.equal(readyPreview.source, "real");
+  assert.equal(readyPreview.viewModel.accountEmail, "real-owner@example.com");
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
   checkSettingsSummaryPreviewScope();
+  await checkSettingsSummaryPreviewConditions();
   await checkPreflightFailures();
   await checkProviderSelection();
   await checkSelectedDevShop();

@@ -27,10 +27,57 @@ export type UseSettingsSummaryPreviewOptions = {
   selectProvider?: (options: SelectOwnerDataProviderOptions) => Promise<SelectOwnerDataProviderResult>;
 };
 
+export type LoadSettingsSummaryPreviewOptions = Omit<UseSettingsSummaryPreviewOptions, "autoLoad"> & {
+  apiConfig: OwnerApiConfig;
+};
+
 export type UseSettingsSummaryPreviewResult = SettingsSummaryPreviewState & {
   loading: boolean;
   retry: () => void;
 };
+
+export async function loadSettingsSummaryPreview({
+  mockSummary,
+  accessTokenResolver = emptyManualAccessTokenResolver,
+  ownerEmail,
+  shopId,
+  today,
+  apiConfig,
+  selectProvider = selectOwnerDataProvider,
+}: LoadSettingsSummaryPreviewOptions): Promise<SettingsSummaryPreviewState> {
+  if (apiConfig.dataProvider !== "real") {
+    return {
+      status: "mock",
+      source: "mock",
+      viewModel: mockSummary,
+      error: null,
+    };
+  }
+
+  try {
+    const result = await selectProvider({
+      apiConfig,
+      accessTokenResolver,
+      ownerEmail,
+      shopId,
+      today,
+    });
+
+    return {
+      status: "ready",
+      source: "real",
+      viewModel: result.provider.getSettingsSummary(),
+      error: null,
+    };
+  } catch (error: unknown) {
+    return {
+      status: "error",
+      source: "mock",
+      viewModel: mockSummary,
+      error: error instanceof Error ? error : new Error("Failed to load settings summary preview."),
+    };
+  }
+}
 
 export function useSettingsSummaryPreview({
   mockSummary,
@@ -69,32 +116,19 @@ export function useSettingsSummaryPreview({
       error: null,
     });
 
-    selectProvider({
-      apiConfig,
+    loadSettingsSummaryPreview({
+      mockSummary,
       accessTokenResolver,
       ownerEmail,
       shopId,
       today,
+      apiConfig,
+      selectProvider,
     })
-      .then((result) => {
+      .then((nextState) => {
         if (!active) return;
 
-        setState({
-          status: "ready",
-          source: "real",
-          viewModel: result.provider.getSettingsSummary(),
-          error: null,
-        });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-
-        setState({
-          status: "error",
-          source: "mock",
-          viewModel: mockSummary,
-          error: error instanceof Error ? error : new Error("Failed to load settings summary preview."),
-        });
+        setState(nextState);
       });
 
     return () => {

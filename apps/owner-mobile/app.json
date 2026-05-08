@@ -1,0 +1,27 @@
+﻿{
+  "expo": {
+    "name": "펫매니저 오너",
+    "slug": "petmanager-owner",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f7f3ed"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kr.petmanager.owner"
+    },
+    "android": {
+      "package": "kr.petmanager.owner",
+      "adaptiveIcon": {
+        "backgroundColor": "#f7f3ed"
+      }
+    }
+  }
+}
+

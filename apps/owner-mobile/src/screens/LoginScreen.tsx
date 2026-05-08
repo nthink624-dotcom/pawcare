@@ -5,7 +5,7 @@ import { OwnerButton } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
 
 type LoginScreenProps = {
-  onSignedIn: () => void;
+  onSignedIn: () => void | Promise<void>;
 };
 
 export default function LoginScreen({ onSignedIn }: LoginScreenProps) {

@@ -32,6 +32,9 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
+const { createAuthSessionTokenResolver } = require("../src/services/authSessionProvider");
+const { createMockAuthSessionProvider } = require("../src/services/mockAuthSessionProvider");
+const { createRealAuthSessionProvider } = require("../src/services/realAuthSessionProvider");
 const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
 const { createStaticManualAccessTokenResolver } = require("../src/services/manualAccessToken");
 const { createMockOwnerDataProvider } = require("../src/services/mockOwnerDataProvider");
@@ -542,6 +545,43 @@ async function checkInjectedSettingsSummaryPreview() {
   );
 }
 
+async function checkAuthSessionProviders() {
+  const mockAuthProvider = createMockAuthSessionProvider();
+
+  assert.equal(await mockAuthProvider.restoreSession(), null);
+  assert.equal(await mockAuthProvider.getSession(), null);
+  assert.equal(await mockAuthProvider.getAccessToken(), null);
+
+  const signedInSession = await mockAuthProvider.signIn({
+    loginId: "mock-owner",
+    password: "mock-password",
+  });
+  assert.equal(signedInSession.isAuthenticated, true);
+  assert.equal(signedInSession.ownerId, "mock-owner");
+  assert.equal(signedInSession.accessToken, null);
+  assert.equal((await mockAuthProvider.getSession())?.ownerId, "mock-owner");
+
+  const sessionTokenResolver = createAuthSessionTokenResolver(mockAuthProvider);
+  assert.equal(await sessionTokenResolver(), null);
+
+  await mockAuthProvider.signOut();
+  assert.equal(await mockAuthProvider.restoreSession(), null);
+
+  const realAuthProvider = createRealAuthSessionProvider();
+  await assert.rejects(() => realAuthProvider.getSession(), /not implemented yet/i);
+  await assert.rejects(() => realAuthProvider.getAccessToken(), /not implemented yet/i);
+  await assert.rejects(
+    () =>
+      realAuthProvider.signIn({
+        loginId: "owner",
+        password: "password",
+      }),
+    /not implemented yet/i,
+  );
+  await assert.rejects(() => realAuthProvider.signOut(), /not implemented yet/i);
+  await assert.rejects(() => realAuthProvider.restoreSession(), /not implemented yet/i);
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
@@ -552,6 +592,7 @@ async function main() {
   await checkProviderSelection();
   await checkSelectedDevShop();
   await checkFirstShopFallback();
+  await checkAuthSessionProviders();
   console.log("Provider checks passed");
 }
 

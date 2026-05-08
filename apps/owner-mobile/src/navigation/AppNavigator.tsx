@@ -23,7 +23,7 @@ import ReservationDetailScreen from "@/screens/ReservationDetailScreen";
 import ReservationListScreen from "@/screens/ReservationListScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import TodayHomeScreen from "@/screens/TodayHomeScreen";
-import type { OwnerSession } from "@/services/authService";
+import { signInWithMockOwnerSession, signOutCurrentOwnerSession, type OwnerSession } from "@/services/authService";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
 import { createInjectedSettingsSummaryPreviewSelectProvider } from "@/services/settingsSummaryPreviewInjection";
 
@@ -51,11 +51,6 @@ type DataRouteProps = {
   ownerDataProvider: OwnerDataProvider;
 };
 
-const MOCK_OWNER_SESSION: OwnerSession = {
-  ownerId: "mock-owner",
-  shopId: "mock-shop",
-};
-
 export function AppNavigator() {
   const { session: loadedSession, loading: sessionLoading } = useAppSession();
   const { state: ownerDataState, provider: ownerDataProvider, loading: ownerDataLoading, retry } = useOwnerDataProvider();
@@ -65,8 +60,12 @@ export function AppNavigator() {
     if (!sessionLoading) setSession(loadedSession);
   }, [loadedSession, sessionLoading]);
 
-  const signInWithMockSession = () => setSession(MOCK_OWNER_SESSION);
-  const signOutPlaceholder = () => setSession(null);
+  const signInWithMockSession = () => {
+    void signInWithMockOwnerSession().then(setSession);
+  };
+  const signOutPlaceholder = () => {
+    void signOutCurrentOwnerSession().then(() => setSession(null));
+  };
 
   if (sessionLoading || ownerDataLoading || ownerDataState.status === "idle") {
     return (

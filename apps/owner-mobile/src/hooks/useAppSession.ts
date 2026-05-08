@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 
-import { getCurrentOwnerSession, type OwnerSession } from "@/services/authService";
+import { defaultAuthSessionProvider, type OwnerSession } from "@/services/authService";
+import type { AuthSessionProvider } from "@/services/authSessionProvider";
 
-export function useAppSession() {
+export function useAppSession(authSessionProvider: AuthSessionProvider = defaultAuthSessionProvider) {
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    getCurrentOwnerSession()
+    authSessionProvider
+      .restoreSession()
       .then((nextSession) => {
         if (mounted) setSession(nextSession);
       })
@@ -20,7 +22,7 @@ export function useAppSession() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authSessionProvider]);
 
   return { session, loading };
 }

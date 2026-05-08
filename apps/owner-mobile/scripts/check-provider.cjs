@@ -39,8 +39,10 @@ const { loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvide
 const { selectOwnerDataProvider } = require("../src/services/selectOwnerDataProvider");
 const {
   INJECTED_SETTINGS_ACCOUNT_EMAIL,
+  MOCK_FETCH_SETTINGS_ACCOUNT_EMAIL,
   SETTINGS_SUMMARY_PREVIEW_INJECTED_READY,
   SETTINGS_SUMMARY_PREVIEW_INJECTION_ENV,
+  SETTINGS_SUMMARY_PREVIEW_MOCK_FETCH_READY,
   createInjectedSettingsSummaryPreviewSelectProvider,
 } = require("../src/services/settingsSummaryPreviewInjection");
 const { loadSettingsSummaryPreview } = require("../src/hooks/useSettingsSummaryPreview");
@@ -517,6 +519,25 @@ async function checkInjectedSettingsSummaryPreview() {
       assert.throws(() => result.provider.getAppointmentRows(), /must not be used outside Settings/);
       assert.throws(() => result.provider.getTodayHome(), /must not be used outside Settings/);
       assert.throws(() => result.provider.getCustomerSummaries(), /must not be used outside Settings/);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      [SETTINGS_SUMMARY_PREVIEW_INJECTION_ENV]: SETTINGS_SUMMARY_PREVIEW_MOCK_FETCH_READY,
+    },
+    async () => {
+      const mockFetchSelectProvider = createInjectedSettingsSummaryPreviewSelectProvider(mockSummary);
+      assert.equal(typeof mockFetchSelectProvider, "function");
+
+      const result = await mockFetchSelectProvider({ today: "2026-05-08" });
+      const settingsSummary = result.provider.getSettingsSummary();
+      assert.equal(result.mode, "real");
+      assert.equal(result.selectedShopId, "mock-fetch-shop");
+      assert.equal(settingsSummary.accountEmail, MOCK_FETCH_SETTINGS_ACCOUNT_EMAIL);
+      assert.equal(settingsSummary.shop.name, "Mock Fetch Grooming");
+      assert.equal(settingsSummary.shop.address, "Mock Fetch Street 10");
+      assert.equal(result.provider.getAppointmentRows("2026-05-08").length > 0, true);
     },
   );
 }

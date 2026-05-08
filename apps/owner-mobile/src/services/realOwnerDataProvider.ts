@@ -18,6 +18,18 @@ export type OwnedShopSummaryDto = {
   heroImageUrl: string;
 };
 
+export type OwnerApiFetch = (
+  url: string,
+  init: {
+    method: "GET";
+    headers: Record<string, string>;
+  },
+) => Promise<{
+  ok: boolean;
+  status: number;
+  text: () => Promise<string>;
+}>;
+
 export type RealOwnerDataProviderConfig = {
   apiBaseUrl?: string;
   accessToken?: string;
@@ -25,6 +37,7 @@ export type RealOwnerDataProviderConfig = {
   ownerEmail?: string | null;
   today?: string;
   apiConfig?: OwnerApiConfig;
+  fetcher?: OwnerApiFetch;
 };
 
 export type LoadRealOwnerBootstrapResult = {
@@ -68,6 +81,7 @@ export async function loadRealOwnerBootstrap(config: RealOwnerDataProviderConfig
   const ownedShops = await getOwnedShops({
     apiBaseUrl: resolvedConfig.apiBaseUrl,
     accessToken: config.accessToken,
+    fetcher: config.fetcher,
   });
   const selectedShop = resolveSelectedShop(ownedShops, config.shopId || resolvedConfig.devShopId);
   const bootstrap = await getOwnerBootstrap({
@@ -75,6 +89,7 @@ export async function loadRealOwnerBootstrap(config: RealOwnerDataProviderConfig
     accessToken: config.accessToken,
     shopId: selectedShop.id,
     ownerEmail: config.ownerEmail,
+    fetcher: config.fetcher,
   });
 
   return {
@@ -84,7 +99,7 @@ export async function loadRealOwnerBootstrap(config: RealOwnerDataProviderConfig
   };
 }
 
-export async function getOwnedShops(input: { apiBaseUrl: string; accessToken: string }) {
+export async function getOwnedShops(input: { apiBaseUrl: string; accessToken: string; fetcher?: OwnerApiFetch }) {
   return getJson<OwnedShopSummaryDto[]>(input, "/api/owner/shops");
 }
 
@@ -93,6 +108,7 @@ export async function getOwnerBootstrap(input: {
   accessToken: string;
   shopId: string;
   ownerEmail?: string | null;
+  fetcher?: OwnerApiFetch;
 }) {
   const query = new URLSearchParams({ shopId: input.shopId });
   const payload = await getJson<OwnerBootstrapApiPayload>(input, `/api/bootstrap?${query.toString()}`);
@@ -114,12 +130,13 @@ function resolveSelectedShop(ownedShops: OwnedShopSummaryDto[], requestedShopId?
   return selectedShop;
 }
 
-async function getJson<T>(input: { apiBaseUrl: string; accessToken: string }, path: string): Promise<T> {
+async function getJson<T>(input: { apiBaseUrl: string; accessToken: string; fetcher?: OwnerApiFetch }, path: string): Promise<T> {
   if (!input.accessToken) {
     throw new Error("Owner access token is required before calling owner API.");
   }
 
-  const response = await fetch(`${input.apiBaseUrl}${path}`, {
+  const ownerFetch = input.fetcher ?? fetch;
+  const response = await ownerFetch(`${input.apiBaseUrl}${path}`, {
     method: "GET",
     headers: {
       Accept: "application/json",

@@ -20,15 +20,7 @@ import {
   type ReservationStackParamList,
   TAB_LABELS,
 } from "@/navigation/routes";
-import { ownerBootstrapMock } from "@/screens/ownerPlaceholderData";
-import {
-  buildAppointmentDetailViewModel,
-  buildAppointmentRows,
-  buildCustomerDetailViewModel,
-  buildCustomerSummaries,
-  buildSettingsSummaryViewModel,
-  buildTodayHomeViewModel,
-} from "@/viewModels/ownerViewModels";
+import { createMockOwnerDataProvider } from "@/services/mockOwnerDataProvider";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
@@ -53,7 +45,7 @@ const MOCK_OWNER_SESSION: OwnerSession = {
   ownerId: "mock-owner",
   shopId: "mock-shop",
 };
-const MOCK_TODAY = "2026-05-08";
+const ownerDataProvider = createMockOwnerDataProvider();
 
 export function AppNavigator() {
   const { session: loadedSession, loading } = useAppSession();
@@ -127,7 +119,7 @@ function CustomerStackNavigator() {
 function TodayRoute({ navigation }: TodayRouteProps) {
   return (
     <TodayHomeScreen
-      viewModel={buildTodayHomeViewModel(ownerBootstrapMock, MOCK_TODAY)}
+      viewModel={ownerDataProvider.getTodayHome()}
       onOpenReservations={() => navigation.navigate("Reservations", { screen: "ReservationList" })}
     />
   );
@@ -136,14 +128,14 @@ function TodayRoute({ navigation }: TodayRouteProps) {
 function ReservationListRoute({ navigation }: ReservationListRouteProps) {
   return (
     <ReservationListScreen
-      rows={buildAppointmentRows(ownerBootstrapMock, MOCK_TODAY)}
+      rows={ownerDataProvider.getAppointmentRows()}
       onOpenReservation={(reservationId) => navigation.navigate("ReservationDetail", { reservationId })}
     />
   );
 }
 
 function ReservationDetailRoute({ navigation, route }: ReservationDetailRouteProps) {
-  const reservation = buildAppointmentDetailViewModel(ownerBootstrapMock, route.params.reservationId);
+  const reservation = ownerDataProvider.getAppointmentDetail(route.params.reservationId);
 
   return <ReservationDetailScreen reservation={reservation} onBack={() => navigation.goBack()} />;
 }
@@ -151,20 +143,20 @@ function ReservationDetailRoute({ navigation, route }: ReservationDetailRoutePro
 function CustomerListRoute({ navigation }: CustomerListRouteProps) {
   return (
     <CustomerListScreen
-      customers={buildCustomerSummaries(ownerBootstrapMock)}
+      customers={ownerDataProvider.getCustomerSummaries()}
       onOpenCustomer={(customerId) => navigation.navigate("CustomerDetail", { customerId })}
     />
   );
 }
 
 function CustomerDetailRoute({ navigation, route }: CustomerDetailRouteProps) {
-  const customer = buildCustomerDetailViewModel(ownerBootstrapMock, route.params.customerId);
+  const customer = ownerDataProvider.getCustomerDetail(route.params.customerId);
 
   return <CustomerDetailScreen customer={customer} onBack={() => navigation.goBack()} />;
 }
 
 function SettingsRoute({ onSignOut }: { onSignOut: () => void }) {
-  return <SettingsScreen viewModel={buildSettingsSummaryViewModel(ownerBootstrapMock)} onSignOut={onSignOut} />;
+  return <SettingsScreen viewModel={ownerDataProvider.getSettingsSummary()} onSignOut={onSignOut} />;
 }
 
 const stackScreenOptions = {

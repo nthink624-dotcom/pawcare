@@ -57,6 +57,10 @@ export async function loadRealOwnerBootstrap(config: RealOwnerDataProviderConfig
 
   assertOwnerApiConfigIsSafe(resolvedConfig);
 
+  if (!resolvedConfig.apiBaseUrl.trim()) {
+    throw new Error("Owner API base URL is required before loading real owner data.");
+  }
+
   if (!config.accessToken) {
     throw new Error("Owner access token is required before loading real owner data.");
   }

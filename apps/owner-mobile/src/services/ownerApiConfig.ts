@@ -15,8 +15,6 @@ declare const process:
     }
   | undefined;
 
-const DEFAULT_OWNER_API_BASE_URL = "http://localhost:3000";
-
 function readEnv(name: string) {
   return typeof process !== "undefined" ? process.env?.[name]?.trim() : undefined;
 }
@@ -31,7 +29,7 @@ function normalizeStage(value: string | undefined): OwnerApiStage {
 }
 
 function normalizeBaseUrl(value: string | undefined) {
-  return (value || DEFAULT_OWNER_API_BASE_URL).replace(/\/+$/, "");
+  return (value || "").replace(/\/+$/, "");
 }
 
 export function getOwnerApiConfig(): OwnerApiConfig {

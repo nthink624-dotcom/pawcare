@@ -34,6 +34,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
 const { loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvider");
+const { selectOwnerDataProvider } = require("../src/services/selectOwnerDataProvider");
 
 const apiBaseUrl = "http://owner-api.local";
 const ownerEmail = "owner@pawcare.local";
@@ -41,6 +42,13 @@ const accessToken = "test-access-token";
 const ownedShops = [
   { id: "shop-first", name: "First Shop", address: "Seoul 1", heroImageUrl: "" },
   { id: "shop-second", name: "Second Shop", address: "Seoul 2", heroImageUrl: "" },
+];
+const envKeys = [
+  "EXPO_PUBLIC_OWNER_DATA_PROVIDER",
+  "EXPO_PUBLIC_OWNER_API_BASE_URL",
+  "EXPO_PUBLIC_OWNER_API_STAGE",
+  "EXPO_PUBLIC_ALLOW_PROD_API_IN_DEV",
+  "EXPO_PUBLIC_OWNER_DEV_SHOP_ID",
 ];
 
 function cloneBootstrapForShop(shopId) {
@@ -97,6 +105,35 @@ function assertOnlyGetCalls(calls) {
   for (const call of calls) {
     assert.equal(call.method, "GET");
     assert.equal(call.authorization, `Bearer ${accessToken}`);
+  }
+}
+
+async function withProviderEnv(values, callback) {
+  const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
+
+  for (const key of envKeys) {
+    delete process.env[key];
+  }
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    return await callback();
+  } finally {
+    for (const key of envKeys) {
+      const value = previous.get(key);
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   }
 }
 
@@ -190,9 +227,73 @@ async function checkPreflightFailures() {
   assert.equal(calls.length, 0);
 }
 
+async function checkProviderSelection() {
+  const noEnvSelection = await withProviderEnv({}, () => selectOwnerDataProvider());
+  assert.equal(noEnvSelection.mode, "mock");
+  assert.equal(noEnvSelection.provider.getBootstrap().mode, ownerBootstrapMock.mode);
+
+  const mockEnvSelection = await withProviderEnv({ EXPO_PUBLIC_OWNER_DATA_PROVIDER: "mock" }, () => selectOwnerDataProvider());
+  assert.equal(mockEnvSelection.mode, "mock");
+
+  let calls = installMockFetch();
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_DATA_PROVIDER: "real",
+      EXPO_PUBLIC_OWNER_API_BASE_URL: apiBaseUrl,
+    },
+    async () => {
+      await assert.rejects(() => selectOwnerDataProvider({ ownerEmail }), /access token/i);
+    },
+  );
+  assert.equal(calls.length, 0);
+
+  calls = installMockFetch();
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_DATA_PROVIDER: "real",
+    },
+    async () => {
+      await assert.rejects(() => selectOwnerDataProvider({ accessToken, ownerEmail }), /base URL/i);
+    },
+  );
+  assert.equal(calls.length, 0);
+
+  let loaderCalled = false;
+  const realSelection = await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_DATA_PROVIDER: "real",
+      EXPO_PUBLIC_OWNER_API_BASE_URL: apiBaseUrl,
+      EXPO_PUBLIC_OWNER_DEV_SHOP_ID: "shop-second",
+    },
+    () =>
+      selectOwnerDataProvider({
+        accessToken,
+        ownerEmail,
+        loadRealBootstrap: async (config) => {
+          loaderCalled = true;
+          assert.equal(config.apiBaseUrl, apiBaseUrl);
+          assert.equal(config.accessToken, accessToken);
+          assert.equal(config.apiConfig?.devShopId, "shop-second");
+
+          return {
+            bootstrap: toOwnerBootstrapDto(cloneBootstrapForShop("shop-second"), { ownerEmail }),
+            ownedShops,
+            selectedShopId: "shop-second",
+          };
+        },
+      }),
+  );
+
+  assert.equal(loaderCalled, true);
+  assert.equal(realSelection.mode, "real");
+  assert.equal(realSelection.selectedShopId, "shop-second");
+  assert.equal(realSelection.provider.getBootstrap().shop.id, "shop-second");
+}
+
 async function main() {
   checkAdapterValidation();
   await checkPreflightFailures();
+  await checkProviderSelection();
   await checkSelectedDevShop();
   await checkFirstShopFallback();
   console.log("Provider checks passed");

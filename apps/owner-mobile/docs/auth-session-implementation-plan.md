@@ -73,6 +73,8 @@ Required guards:
 - Do not log access tokens or refresh tokens.
 - Do not write session contents to docs, scripts, fixtures, snapshots, or git-tracked files.
 
+The first implementation checkpoint adds `src/services/authEnvConfig.ts` for this validation layer only. It reads Supabase auth env values, blocks secret-like public env keys, blocks production Supabase outside production unless explicitly allowed, and does not create a Supabase client.
+
 ## Session Storage Recommendation
 
 The app needs to keep users logged in after restart without exposing session secrets.

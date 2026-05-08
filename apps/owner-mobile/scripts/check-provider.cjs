@@ -32,6 +32,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
+const { assertAuthEnvConfigIsReady, getRequiredAuthEnvConfig } = require("../src/services/authEnvConfig");
 const { createAuthSessionTokenResolver } = require("../src/services/authSessionProvider");
 const { createMockAuthSessionProvider } = require("../src/services/mockAuthSessionProvider");
 const { createRealAuthSessionProvider } = require("../src/services/realAuthSessionProvider");
@@ -66,6 +67,13 @@ const envKeys = [
   "EXPO_PUBLIC_OWNER_ACCESS_TOKEN",
   "EXPO_PUBLIC_ACCESS_TOKEN",
   "EXPO_PUBLIC_OWNER_SETTINGS_SUMMARY_PREVIEW",
+  "EXPO_PUBLIC_SUPABASE_URL",
+  "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "EXPO_PUBLIC_SUPABASE_ENV_NAME",
+  "EXPO_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV",
+  "EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
+  "EXPO_PUBLIC_SUPABASE_ACCESS_TOKEN",
 ];
 
 function cloneBootstrapForShop(shopId) {
@@ -582,6 +590,70 @@ async function checkAuthSessionProviders() {
   await assert.rejects(() => realAuthProvider.restoreSession(), /not implemented yet/i);
 }
 
+async function checkAuthEnvConfig() {
+  await withProviderEnv({}, () => {
+    assert.throws(() => assertAuthEnvConfigIsReady(), /Supabase URL is required/);
+  });
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+    },
+    () => {
+      assert.throws(() => assertAuthEnvConfigIsReady(), /anon or publishable key/i);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_secret_service_role_key",
+    },
+    () => {
+      assert.throws(() => assertAuthEnvConfigIsReady(), /service role or secret key/i);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://prod-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+      EXPO_PUBLIC_SUPABASE_ENV_NAME: "production",
+      EXPO_PUBLIC_OWNER_API_STAGE: "development",
+    },
+    () => {
+      assert.throws(() => assertAuthEnvConfigIsReady(), /Production Supabase is blocked/);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://staging-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "public-publishable-key",
+      EXPO_PUBLIC_SUPABASE_ENV_NAME: "staging",
+      EXPO_PUBLIC_OWNER_API_STAGE: "staging",
+    },
+    () => {
+      const config = getRequiredAuthEnvConfig();
+      assert.equal(config.supabaseUrl, "https://staging-project.supabase.co");
+      assert.equal(config.supabasePublishableKey, "public-publishable-key");
+      assert.equal(config.supabaseEnvName, "staging");
+      assert.equal(config.appStage, "staging");
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+      EXPO_PUBLIC_SUPABASE_ACCESS_TOKEN: "must-not-be-public",
+    },
+    () => {
+      assert.throws(() => assertAuthEnvConfigIsReady(), /Forbidden secret-like public Expo environment variable/);
+    },
+  );
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
@@ -593,6 +665,7 @@ async function main() {
   await checkSelectedDevShop();
   await checkFirstShopFallback();
   await checkAuthSessionProviders();
+  await checkAuthEnvConfig();
   console.log("Provider checks passed");
 }
 

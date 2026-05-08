@@ -2,47 +2,43 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { EmptyState, OwnerButton, OwnerCard, OwnerScreen, StatusBadge } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
-import { reservationRows, shopSummary } from "@/screens/ownerPlaceholderData";
+import type { AppointmentRowViewModel, TodayHomeViewModel } from "@/viewModels/ownerViewModels";
 
 type TodayHomeScreenProps = {
+  viewModel: TodayHomeViewModel;
   onOpenReservations: () => void;
 };
 
-const pendingReservations = reservationRows.filter((item) => item.status === "승인 대기");
-const activeReservations = reservationRows.filter((item) => ["확정", "진행 중", "픽업 준비"].includes(item.status));
-const completedReservations = reservationRows.filter((item) => item.status === "완료");
-const cancelledReservations = reservationRows.filter((item) => item.status === "취소");
-
-export default function TodayHomeScreen({ onOpenReservations }: TodayHomeScreenProps) {
+export default function TodayHomeScreen({ viewModel, onOpenReservations }: TodayHomeScreenProps) {
   return (
     <OwnerScreen
-      title={shopSummary.name}
+      title={viewModel.shop.name}
       subtitle="홈"
       action={<OwnerButton label="예약 링크 복사" onPress={onOpenReservations} variant="ghost" />}
     >
       <View style={styles.statsGrid}>
-        <StatCard label="승인 대기" value={`${pendingReservations.length}건`} tone="warning" />
-        <StatCard label="예약 현황" value={`${activeReservations.length}건`} tone="accent" />
-        <StatCard label="완료 내역" value={`${completedReservations.length}건`} tone="complete" />
-        <StatCard label="취소·변경" value={`${cancelledReservations.length}건`} tone="danger" />
+        <StatCard label="승인 대기" value={`${viewModel.stats.pending}건`} tone="warning" />
+        <StatCard label="예약 현황" value={`${viewModel.stats.active}건`} tone="accent" />
+        <StatCard label="완료 내역" value={`${viewModel.stats.completed}건`} tone="complete" />
+        <StatCard label="취소·변경" value={`${viewModel.stats.cancelChange}건`} tone="danger" />
       </View>
 
       <OwnerCard title="예약관리" description="오늘 처리할 예약을 상태별로 빠르게 확인합니다." tone="accent">
-        <SectionHeader title="승인 대기" count={pendingReservations.length} />
-        {pendingReservations.length > 0 ? (
-          pendingReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
+        <SectionHeader title="승인 대기" count={viewModel.pendingReservations.length} />
+        {viewModel.pendingReservations.length > 0 ? (
+          viewModel.pendingReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
         ) : (
           <EmptyState title="승인 대기 예약이 없어요" />
         )}
 
-        <SectionHeader title="예약 현황" count={activeReservations.length} />
-        {activeReservations.map((reservation) => (
+        <SectionHeader title="예약 현황" count={viewModel.activeReservations.length} />
+        {viewModel.activeReservations.map((reservation) => (
           <HomeReservationRow key={reservation.id} reservation={reservation} />
         ))}
 
-        <SectionHeader title="완료 내역" count={completedReservations.length} />
-        {completedReservations.length > 0 ? (
-          completedReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
+        <SectionHeader title="완료 내역" count={viewModel.completedReservations.length} />
+        {viewModel.completedReservations.length > 0 ? (
+          viewModel.completedReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
         ) : (
           <EmptyState title="오늘 완료 내역이 없어요" />
         )}
@@ -73,19 +69,19 @@ function SectionHeader({ title, count }: { title: string; count: number }) {
   );
 }
 
-function HomeReservationRow({ reservation }: { reservation: (typeof reservationRows)[number] }) {
+function HomeReservationRow({ reservation }: { reservation: AppointmentRowViewModel }) {
   return (
     <View style={styles.reservationRow}>
       <Text style={styles.reservationTime}>{reservation.time}</Text>
       <View style={styles.reservationBody}>
         <Text style={styles.reservationTitle}>
-          {reservation.pet} <Text style={styles.reservationCustomer}>{reservation.customer}</Text>
+          {reservation.petName} <Text style={styles.reservationCustomer}>{reservation.customerName}</Text>
         </Text>
         <Text style={styles.reservationMeta}>
-          {reservation.service} · {reservation.staff}
+          {reservation.serviceName} · {reservation.serviceDurationMinutes}분
         </Text>
       </View>
-      <StatusBadge label={reservation.status} />
+      <StatusBadge label={reservation.statusLabel} />
     </View>
   );
 }

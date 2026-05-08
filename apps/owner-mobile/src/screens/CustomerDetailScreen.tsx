@@ -2,26 +2,32 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { InfoRow, OwnerButton, OwnerCard, OwnerScreen, TagList } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
-import { reservationRows, type OwnerCustomer } from "@/screens/ownerPlaceholderData";
+import type { CustomerDetailViewModel } from "@/viewModels/ownerViewModels";
 
 type CustomerDetailScreenProps = {
-  customer: OwnerCustomer;
+  customer: CustomerDetailViewModel | null;
   onBack: () => void;
 };
 
 export default function CustomerDetailScreen({ customer, onBack }: CustomerDetailScreenProps) {
-  const relatedReservations = reservationRows.filter((reservation) => reservation.customer === customer.name);
+  if (!customer) {
+    return (
+      <OwnerScreen title="고객 상세" subtitle="고객 정보를 찾을 수 없습니다." action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
+        <OwnerCard title="고객 없음" description="선택한 고객이 mock 데이터에 없습니다." />
+      </OwnerScreen>
+    );
+  }
 
   return (
-    <OwnerScreen title="고객 상세" subtitle={`${customer.phone} · ${customer.pets.join(", ")}`} action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
+    <OwnerScreen title="고객 상세" subtitle={`${customer.phone} · ${customer.petNames.join(", ")}`} action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
       <OwnerCard tone="accent">
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{customer.name.slice(0, 1)}</Text>
+            <Text style={styles.avatarText}>{customer.avatarSeed}</Text>
           </View>
           <View style={styles.profileBody}>
             <Text style={styles.name}>{customer.name}</Text>
-            <Text style={styles.meta}>{customer.alerts}</Text>
+            <Text style={styles.meta}>{customer.alertLabel}</Text>
           </View>
         </View>
         <TagList tags={customer.tags} />
@@ -29,25 +35,27 @@ export default function CustomerDetailScreen({ customer, onBack }: CustomerDetai
 
       <OwnerCard title="기본 정보">
         <InfoRow label="보호자" value={`${customer.name} / ${customer.phone}`} />
-        <InfoRow label="최근 방문" value={customer.recentVisit} />
-        <InfoRow label="다음 예약" value={customer.nextBooking} />
+        <InfoRow label="최근 방문" value={customer.latestVisitLabel} />
+        <InfoRow label="다음 예약" value={customer.nextBookingLabel} />
       </OwnerCard>
 
       <OwnerCard title="반려동물">
         {customer.pets.map((pet) => (
-          <View key={pet} style={styles.petRow}>
+          <View key={pet.id} style={styles.petRow}>
             <View style={styles.petAvatar}>
-              <Text style={styles.petAvatarText}>{pet.slice(0, 1)}</Text>
+              <Text style={styles.petAvatarText}>{pet.avatarSeed}</Text>
             </View>
             <View style={styles.profileBody}>
-              <Text style={styles.petName}>{pet}</Text>
-              <Text style={styles.meta}>미용 기록과 맞춤 메모가 이어질 자리입니다.</Text>
+              <Text style={styles.petName}>{pet.name}</Text>
+              <Text style={styles.meta}>
+                {pet.breed} · {pet.groomingCycleWeeks}주 주기
+              </Text>
             </View>
           </View>
         ))}
       </OwnerCard>
 
-      <OwnerCard title="고객 메모" description={customer.alerts}>
+      <OwnerCard title="고객 메모" description={customer.alertLabel}>
         <Text style={styles.memo}>{customer.memo}</Text>
       </OwnerCard>
 
@@ -60,13 +68,27 @@ export default function CustomerDetailScreen({ customer, onBack }: CustomerDetai
       </OwnerCard>
 
       <OwnerCard title="예약 내역">
-        {relatedReservations.map((reservation) => (
+        {customer.appointments.map((reservation) => (
           <View key={reservation.id} style={styles.historyRow}>
             <Text style={styles.historyTime}>{reservation.time}</Text>
             <View style={styles.profileBody}>
-              <Text style={styles.petName}>{reservation.pet}</Text>
+              <Text style={styles.petName}>{reservation.petName}</Text>
               <Text style={styles.meta}>
-                {reservation.service} · {reservation.status}
+                {reservation.serviceName} · {reservation.statusLabel}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </OwnerCard>
+
+      <OwnerCard title="미용 기록">
+        {customer.groomingRecords.map((record) => (
+          <View key={record.id} style={styles.historyRow}>
+            <Text style={styles.historyTime}>{record.groomedAt}</Text>
+            <View style={styles.profileBody}>
+              <Text style={styles.petName}>{record.petName}</Text>
+              <Text style={styles.meta}>
+                {record.serviceName} · {record.pricePaidLabel}
               </Text>
             </View>
           </View>

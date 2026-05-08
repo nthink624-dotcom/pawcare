@@ -2,13 +2,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Chip, OwnerButton, OwnerCard, OwnerScreen, SearchBox, TagList } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
-import { customerRows, type OwnerCustomer } from "@/screens/ownerPlaceholderData";
+import type { CustomerSummaryViewModel } from "@/viewModels/ownerViewModels";
 
 type CustomerListScreenProps = {
+  customers: CustomerSummaryViewModel[];
   onOpenCustomer: (customerId: string) => void;
 };
 
-export default function CustomerListScreen({ onOpenCustomer }: CustomerListScreenProps) {
+export default function CustomerListScreen({ customers, onOpenCustomer }: CustomerListScreenProps) {
   return (
     <OwnerScreen title="고객관리" subtitle="고객 검색, 태그 필터, 상세 화면을 모바일에서 빠르게 확인합니다." action={<OwnerButton label="고객추가" variant="secondary" />}>
       <OwnerCard>
@@ -25,35 +26,35 @@ export default function CustomerListScreen({ onOpenCustomer }: CustomerListScree
         </View>
       </OwnerCard>
 
-      {customerRows.map((customer) => (
+      {customers.map((customer) => (
         <CustomerCard key={customer.id} customer={customer} onPress={() => onOpenCustomer(customer.id)} />
       ))}
     </OwnerScreen>
   );
 }
 
-function CustomerCard({ customer, onPress }: { customer: OwnerCustomer; onPress: () => void }) {
+function CustomerCard({ customer, onPress }: { customer: CustomerSummaryViewModel; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
       <OwnerCard>
         <View style={styles.customerHeader}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{customer.pets[0]?.slice(0, 1) ?? customer.name.slice(0, 1)}</Text>
+            <Text style={styles.avatarText}>{customer.avatarSeed}</Text>
           </View>
           <View style={styles.customerBody}>
             <Text style={styles.customerName}>{customer.name}</Text>
             <Text style={styles.customerMeta}>
-              {customer.phone} · {customer.pets.join(", ")}
+              {customer.phone} · {customer.petNames.join(", ")}
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>
         </View>
         <TagList tags={customer.tags} />
         <View style={styles.summaryGrid}>
-          <Summary label="최근 방문" value={customer.recentVisit} />
-          <Summary label="다음 예약" value={customer.nextBooking} />
+          <Summary label="최근 방문" value={customer.latestVisitLabel} />
+          <Summary label="다음 예약" value={customer.nextBookingLabel} />
         </View>
-        <Text style={styles.alertText}>{customer.alerts}</Text>
+        <Text style={styles.alertText}>{customer.alertLabel}</Text>
       </OwnerCard>
     </Pressable>
   );

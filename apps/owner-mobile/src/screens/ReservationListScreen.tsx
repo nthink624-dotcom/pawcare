@@ -2,9 +2,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Chip, EmptyState, OwnerButton, OwnerCard, OwnerScreen, SearchBox, StatusBadge } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
-import { reservationRows, type OwnerReservation } from "@/screens/ownerPlaceholderData";
+import type { AppointmentRowViewModel } from "@/viewModels/ownerViewModels";
 
 type ReservationListScreenProps = {
+  rows: AppointmentRowViewModel[];
   onOpenReservation: (reservationId: string) => void;
 };
 
@@ -16,10 +17,10 @@ const quickDates = [
   { day: "화", date: "12" },
 ];
 
-export default function ReservationListScreen({ onOpenReservation }: ReservationListScreenProps) {
-  const activeReservations = reservationRows.filter((item) => ["승인 대기", "확정", "진행 중", "픽업 준비"].includes(item.status));
-  const completedReservations = reservationRows.filter((item) => item.status === "완료");
-  const cancelledReservations = reservationRows.filter((item) => item.status === "취소");
+export default function ReservationListScreen({ rows, onOpenReservation }: ReservationListScreenProps) {
+  const activeReservations = rows.filter((item) => item.section === "pending" || item.section === "active");
+  const completedReservations = rows.filter((item) => item.section === "completed");
+  const cancelledReservations = rows.filter((item) => item.section === "cancelChange");
 
   return (
     <OwnerScreen title="예약조회" subtitle="날짜별 예약을 확인하고 상세 화면으로 이동합니다." action={<OwnerButton label="예약추가" variant="secondary" />}>
@@ -70,20 +71,20 @@ export default function ReservationListScreen({ onOpenReservation }: Reservation
   );
 }
 
-function ReservationCard({ reservation, onPress, compact = false }: { reservation: OwnerReservation; onPress: () => void; compact?: boolean }) {
+function ReservationCard({ reservation, onPress, compact = false }: { reservation: AppointmentRowViewModel; onPress: () => void; compact?: boolean }) {
   return (
     <Pressable onPress={onPress} style={styles.cardRow}>
       <Text style={styles.time}>{reservation.time}</Text>
       <View style={styles.info}>
         <Text style={styles.petName}>
-          {reservation.pet} <Text style={styles.customerName}>{reservation.customer}</Text>
+          {reservation.petName} <Text style={styles.customerName}>{reservation.customerName}</Text>
         </Text>
         <Text style={styles.meta}>
-          {reservation.service} · {reservation.staff}
+          {reservation.serviceName} · {reservation.serviceDurationMinutes}분
         </Text>
-        {!compact ? <Text style={styles.note}>{reservation.note}</Text> : null}
+        {!compact ? <Text style={styles.note}>{reservation.memo || reservation.sourceLabel}</Text> : null}
       </View>
-      <StatusBadge label={reservation.status} />
+      <StatusBadge label={reservation.statusLabel} />
     </Pressable>
   );
 }

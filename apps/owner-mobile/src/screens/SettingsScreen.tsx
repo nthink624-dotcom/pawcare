@@ -2,23 +2,25 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { InfoRow, OwnerButton, OwnerCard, OwnerScreen } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
-import { settingsRows, shopSummary } from "@/screens/ownerPlaceholderData";
+import type { SettingsSummaryViewModel } from "@/viewModels/ownerViewModels";
 
 type SettingsScreenProps = {
+  viewModel: SettingsSummaryViewModel;
   onSignOut?: () => void;
 };
 
-export default function SettingsScreen({ onSignOut }: SettingsScreenProps) {
+export default function SettingsScreen({ viewModel, onSignOut }: SettingsScreenProps) {
   return (
     <OwnerScreen title="설정" subtitle="매장 운영 정책과 알림, 결제를 관리하는 화면입니다.">
       <OwnerCard title="매장 기본 정보" tone="accent">
-        <InfoRow label="매장명" value={shopSummary.name} />
-        <InfoRow label="주소" value={shopSummary.address} />
-        <Text style={styles.helper}>대표 이미지, 매장명, 연락처, 고객 예약 화면 안내 문구를 이후 단계에서 연결합니다.</Text>
+        <InfoRow label="매장명" value={viewModel.shop.name} />
+        <InfoRow label="주소" value={viewModel.shop.address} />
+        <InfoRow label="연락처" value={viewModel.shop.phone} />
+        <Text style={styles.helper}>{viewModel.customerPageSummary}</Text>
       </OwnerCard>
 
       <OwnerCard title="관리자 설정">
-        {settingsRows.map((row) => (
+        {viewModel.rows.map((row) => (
           <Pressable key={row.key} style={styles.settingsRow}>
             <View style={styles.rowText}>
               <Text style={styles.rowLabel}>{row.label}</Text>
@@ -30,7 +32,7 @@ export default function SettingsScreen({ onSignOut }: SettingsScreenProps) {
       </OwnerCard>
 
       <OwnerCard title="계정">
-        <InfoRow label="로그인 계정" value={shopSummary.ownerEmail} />
+        <InfoRow label="로그인 계정" value={viewModel.accountEmail} />
         <Pressable style={styles.settingsRow}>
           <View style={styles.rowText}>
             <Text style={styles.rowLabel}>비밀번호 재설정</Text>

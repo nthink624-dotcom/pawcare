@@ -20,7 +20,15 @@ import {
   type ReservationStackParamList,
   TAB_LABELS,
 } from "@/navigation/routes";
-import { customerRows, reservationRows } from "@/screens/ownerPlaceholderData";
+import { ownerBootstrapMock } from "@/screens/ownerPlaceholderData";
+import {
+  buildAppointmentDetailViewModel,
+  buildAppointmentRows,
+  buildCustomerDetailViewModel,
+  buildCustomerSummaries,
+  buildSettingsSummaryViewModel,
+  buildTodayHomeViewModel,
+} from "@/viewModels/ownerViewModels";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
@@ -45,6 +53,7 @@ const MOCK_OWNER_SESSION: OwnerSession = {
   ownerId: "mock-owner",
   shopId: "mock-shop",
 };
+const MOCK_TODAY = "2026-05-08";
 
 export function AppNavigator() {
   const { session: loadedSession, loading } = useAppSession();
@@ -91,7 +100,7 @@ function MainTabsNavigator({ onSignOut }: MainTabsNavigatorProps) {
       <MainTabs.Screen name="Reservations" component={ReservationStackNavigator} options={{ title: TAB_LABELS.Reservations }} />
       <MainTabs.Screen name="Customers" component={CustomerStackNavigator} options={{ title: TAB_LABELS.Customers }} />
       <MainTabs.Screen name="Settings" options={{ title: TAB_LABELS.Settings }}>
-        {() => <SettingsScreen onSignOut={onSignOut} />}
+        {() => <SettingsRoute onSignOut={onSignOut} />}
       </MainTabs.Screen>
     </MainTabs.Navigator>
   );
@@ -116,27 +125,46 @@ function CustomerStackNavigator() {
 }
 
 function TodayRoute({ navigation }: TodayRouteProps) {
-  return <TodayHomeScreen onOpenReservations={() => navigation.navigate("Reservations", { screen: "ReservationList" })} />;
+  return (
+    <TodayHomeScreen
+      viewModel={buildTodayHomeViewModel(ownerBootstrapMock, MOCK_TODAY)}
+      onOpenReservations={() => navigation.navigate("Reservations", { screen: "ReservationList" })}
+    />
+  );
 }
 
 function ReservationListRoute({ navigation }: ReservationListRouteProps) {
-  return <ReservationListScreen onOpenReservation={(reservationId) => navigation.navigate("ReservationDetail", { reservationId })} />;
+  return (
+    <ReservationListScreen
+      rows={buildAppointmentRows(ownerBootstrapMock, MOCK_TODAY)}
+      onOpenReservation={(reservationId) => navigation.navigate("ReservationDetail", { reservationId })}
+    />
+  );
 }
 
 function ReservationDetailRoute({ navigation, route }: ReservationDetailRouteProps) {
-  const reservation = reservationRows.find((item) => item.id === route.params.reservationId) ?? reservationRows[0];
+  const reservation = buildAppointmentDetailViewModel(ownerBootstrapMock, route.params.reservationId);
 
   return <ReservationDetailScreen reservation={reservation} onBack={() => navigation.goBack()} />;
 }
 
 function CustomerListRoute({ navigation }: CustomerListRouteProps) {
-  return <CustomerListScreen onOpenCustomer={(customerId) => navigation.navigate("CustomerDetail", { customerId })} />;
+  return (
+    <CustomerListScreen
+      customers={buildCustomerSummaries(ownerBootstrapMock)}
+      onOpenCustomer={(customerId) => navigation.navigate("CustomerDetail", { customerId })}
+    />
+  );
 }
 
 function CustomerDetailRoute({ navigation, route }: CustomerDetailRouteProps) {
-  const customer = customerRows.find((item) => item.id === route.params.customerId) ?? customerRows[0];
+  const customer = buildCustomerDetailViewModel(ownerBootstrapMock, route.params.customerId);
 
   return <CustomerDetailScreen customer={customer} onBack={() => navigation.goBack()} />;
+}
+
+function SettingsRoute({ onSignOut }: { onSignOut: () => void }) {
+  return <SettingsScreen viewModel={buildSettingsSummaryViewModel(ownerBootstrapMock)} onSignOut={onSignOut} />;
 }
 
 const stackScreenOptions = {

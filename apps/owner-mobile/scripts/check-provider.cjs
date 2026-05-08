@@ -37,6 +37,12 @@ const { createStaticManualAccessTokenResolver } = require("../src/services/manua
 const { createMockOwnerDataProvider } = require("../src/services/mockOwnerDataProvider");
 const { loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvider");
 const { selectOwnerDataProvider } = require("../src/services/selectOwnerDataProvider");
+const {
+  INJECTED_SETTINGS_ACCOUNT_EMAIL,
+  SETTINGS_SUMMARY_PREVIEW_INJECTED_READY,
+  SETTINGS_SUMMARY_PREVIEW_INJECTION_ENV,
+  createInjectedSettingsSummaryPreviewSelectProvider,
+} = require("../src/services/settingsSummaryPreviewInjection");
 const { loadSettingsSummaryPreview } = require("../src/hooks/useSettingsSummaryPreview");
 
 const apiBaseUrl = "http://owner-api.local";
@@ -54,6 +60,7 @@ const envKeys = [
   "EXPO_PUBLIC_OWNER_DEV_SHOP_ID",
   "EXPO_PUBLIC_OWNER_ACCESS_TOKEN",
   "EXPO_PUBLIC_ACCESS_TOKEN",
+  "EXPO_PUBLIC_OWNER_SETTINGS_SUMMARY_PREVIEW",
 ];
 
 function cloneBootstrapForShop(shopId) {
@@ -356,6 +363,7 @@ function checkAppNavigatorMockOnly() {
   const source = fs.readFileSync(path.join(srcRoot, "navigation", "AppNavigator.tsx"), "utf8");
   assert.match(source, /useOwnerDataProvider/);
   assert.match(source, /useSettingsSummaryPreview/);
+  assert.match(source, /createInjectedSettingsSummaryPreviewSelectProvider/);
   assert.doesNotMatch(source, /selectOwnerDataProvider/);
   assert.doesNotMatch(source, /createRealOwnerDataProvider/);
   assert.doesNotMatch(source, /loadRealOwnerBootstrap/);
@@ -487,11 +495,38 @@ async function checkSettingsSummaryPreviewConditions() {
   assert.equal(readyPreview.viewModel.accountEmail, "real-owner@example.com");
 }
 
+async function checkInjectedSettingsSummaryPreview() {
+  const mockProvider = createMockOwnerDataProvider();
+  const mockSummary = mockProvider.getSettingsSummary();
+
+  await withProviderEnv({}, async () => {
+    assert.equal(createInjectedSettingsSummaryPreviewSelectProvider(mockSummary), undefined);
+  });
+
+  await withProviderEnv(
+    {
+      [SETTINGS_SUMMARY_PREVIEW_INJECTION_ENV]: SETTINGS_SUMMARY_PREVIEW_INJECTED_READY,
+    },
+    async () => {
+      const injectedSelectProvider = createInjectedSettingsSummaryPreviewSelectProvider(mockSummary);
+      assert.equal(typeof injectedSelectProvider, "function");
+
+      const result = await injectedSelectProvider();
+      assert.equal(result.mode, "real");
+      assert.equal(result.provider.getSettingsSummary().accountEmail, INJECTED_SETTINGS_ACCOUNT_EMAIL);
+      assert.throws(() => result.provider.getAppointmentRows(), /must not be used outside Settings/);
+      assert.throws(() => result.provider.getTodayHome(), /must not be used outside Settings/);
+      assert.throws(() => result.provider.getCustomerSummaries(), /must not be used outside Settings/);
+    },
+  );
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
   checkSettingsSummaryPreviewScope();
   await checkSettingsSummaryPreviewConditions();
+  await checkInjectedSettingsSummaryPreview();
   await checkPreflightFailures();
   await checkProviderSelection();
   await checkSelectedDevShop();

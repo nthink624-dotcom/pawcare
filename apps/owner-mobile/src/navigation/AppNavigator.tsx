@@ -25,6 +25,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import TodayHomeScreen from "@/screens/TodayHomeScreen";
 import type { OwnerSession } from "@/services/authService";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
+import { createInjectedSettingsSummaryPreviewSelectProvider } from "@/services/settingsSummaryPreviewInjection";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
@@ -204,8 +205,13 @@ function CustomerDetailRoute({ navigation, route, ownerDataProvider }: CustomerD
 
 function SettingsRoute({ ownerDataProvider, onSignOut }: DataRouteProps & { onSignOut: () => void }) {
   const mockSettingsSummary = useMemo(() => ownerDataProvider.getSettingsSummary(), [ownerDataProvider]);
+  const settingsSummaryPreviewSelectProvider = useMemo(
+    () => createInjectedSettingsSummaryPreviewSelectProvider(mockSettingsSummary),
+    [mockSettingsSummary],
+  );
   const settingsSummaryPreview = useSettingsSummaryPreview({
     mockSummary: mockSettingsSummary,
+    selectProvider: settingsSummaryPreviewSelectProvider,
   });
 
   if (settingsSummaryPreview.loading) {

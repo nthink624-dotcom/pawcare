@@ -33,6 +33,8 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { createMockOwnerDataProvider } = require("../src/services/mockOwnerDataProvider");
+const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
+const { createRealOwnerDataProvider, loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvider");
 const {
   buildAppointmentDetailViewModel,
   buildAppointmentRows,
@@ -50,6 +52,20 @@ const {
 
 const today = "2026-05-08";
 const provider = createMockOwnerDataProvider(ownerBootstrapMock, today);
+const adaptedBootstrap = toOwnerBootstrapDto(
+  {
+    ...ownerBootstrapMock,
+    landingInterests: [{ id: "ignored-interest" }],
+    landingFeedback: [{ id: "ignored-feedback" }],
+  },
+  { ownerEmail: "owner@pawcare.local" },
+);
+const realProvider = createRealOwnerDataProvider(adaptedBootstrap, today);
+
+assert.equal(adaptedBootstrap.ownerProfile.email, "owner@pawcare.local");
+assert.equal("landingInterests" in adaptedBootstrap, false);
+assert.equal("landingFeedback" in adaptedBootstrap, false);
+assert.deepEqual(realProvider.getBootstrap(), adaptedBootstrap);
 
 const rows = buildAppointmentRows(ownerBootstrapMock, today);
 assert.equal(rows.length, 5, "today appointment rows should include five mock appointments");
@@ -147,4 +163,22 @@ assert.equal(rows.find((row) => row.id === "R-2403").sourceLabel, getAppointment
 assert.equal(rows.find((row) => row.id === "R-2401").sourceLabel, getAppointmentSourceLabel("customer"));
 assert.notEqual(getAppointmentSourceLabel("owner"), getAppointmentSourceLabel("customer"));
 
-console.log("ViewModel checks passed");
+async function runReadOnlyProviderChecks() {
+  await assert.rejects(
+    () =>
+      loadRealOwnerBootstrap({
+        apiBaseUrl: "http://localhost:3000",
+        ownerEmail: "owner@pawcare.local",
+      }),
+    /access token/i,
+  );
+}
+
+runReadOnlyProviderChecks()
+  .then(() => {
+    console.log("ViewModel checks passed");
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

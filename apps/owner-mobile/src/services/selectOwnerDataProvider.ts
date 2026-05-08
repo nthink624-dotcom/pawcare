@@ -1,4 +1,10 @@
 import { createMockOwnerDataProvider } from "@/services/mockOwnerDataProvider";
+import {
+  assertNoPublicAccessTokenEnv,
+  emptyManualAccessTokenResolver,
+  normalizeManualAccessToken,
+  type ManualAccessTokenResolver,
+} from "@/services/manualAccessToken";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
 import { getOwnerApiConfig, type OwnerApiConfig } from "@/services/ownerApiConfig";
 import {
@@ -13,6 +19,7 @@ import type { OwnerBootstrapDto } from "@/types/bootstrap";
 export type SelectOwnerDataProviderOptions = {
   apiConfig?: OwnerApiConfig;
   accessToken?: string;
+  accessTokenResolver?: ManualAccessTokenResolver;
   ownerEmail?: string | null;
   shopId?: string;
   today?: string;
@@ -43,14 +50,20 @@ export async function selectOwnerDataProvider(
     throw new Error("Owner API base URL is required when real owner data provider is enabled.");
   }
 
-  if (!options.accessToken) {
+  assertNoPublicAccessTokenEnv();
+
+  const accessToken =
+    normalizeManualAccessToken(options.accessToken) ??
+    normalizeManualAccessToken(await (options.accessTokenResolver ?? emptyManualAccessTokenResolver)());
+
+  if (!accessToken) {
     throw new Error("Owner access token is required when real owner data provider is enabled.");
   }
 
   const loadBootstrap = options.loadRealBootstrap ?? loadRealOwnerBootstrap;
   const result = await loadBootstrap({
     apiBaseUrl: apiConfig.apiBaseUrl,
-    accessToken: options.accessToken,
+    accessToken,
     shopId: options.shopId,
     ownerEmail: options.ownerEmail,
     today: options.today,

@@ -33,6 +33,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
+const { createStaticManualAccessTokenResolver } = require("../src/services/manualAccessToken");
 const { loadRealOwnerBootstrap } = require("../src/services/realOwnerDataProvider");
 const { selectOwnerDataProvider } = require("../src/services/selectOwnerDataProvider");
 
@@ -49,6 +50,8 @@ const envKeys = [
   "EXPO_PUBLIC_OWNER_API_STAGE",
   "EXPO_PUBLIC_ALLOW_PROD_API_IN_DEV",
   "EXPO_PUBLIC_OWNER_DEV_SHOP_ID",
+  "EXPO_PUBLIC_OWNER_ACCESS_TOKEN",
+  "EXPO_PUBLIC_ACCESS_TOKEN",
 ];
 
 function cloneBootstrapForShop(shopId) {
@@ -228,12 +231,30 @@ async function checkPreflightFailures() {
 }
 
 async function checkProviderSelection() {
-  const noEnvSelection = await withProviderEnv({}, () => selectOwnerDataProvider());
+  let resolverCalled = false;
+  const noEnvSelection = await withProviderEnv({}, () =>
+    selectOwnerDataProvider({
+      accessTokenResolver: () => {
+        resolverCalled = true;
+        return accessToken;
+      },
+    }),
+  );
   assert.equal(noEnvSelection.mode, "mock");
   assert.equal(noEnvSelection.provider.getBootstrap().mode, ownerBootstrapMock.mode);
+  assert.equal(resolverCalled, false);
 
-  const mockEnvSelection = await withProviderEnv({ EXPO_PUBLIC_OWNER_DATA_PROVIDER: "mock" }, () => selectOwnerDataProvider());
+  resolverCalled = false;
+  const mockEnvSelection = await withProviderEnv({ EXPO_PUBLIC_OWNER_DATA_PROVIDER: "mock" }, () =>
+    selectOwnerDataProvider({
+      accessTokenResolver: () => {
+        resolverCalled = true;
+        return accessToken;
+      },
+    }),
+  );
   assert.equal(mockEnvSelection.mode, "mock");
+  assert.equal(resolverCalled, false);
 
   let calls = installMockFetch();
   await withProviderEnv(
@@ -243,6 +264,45 @@ async function checkProviderSelection() {
     },
     async () => {
       await assert.rejects(() => selectOwnerDataProvider({ ownerEmail }), /access token/i);
+    },
+  );
+  assert.equal(calls.length, 0);
+
+  calls = installMockFetch();
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_DATA_PROVIDER: "real",
+      EXPO_PUBLIC_OWNER_API_BASE_URL: apiBaseUrl,
+    },
+    async () => {
+      await assert.rejects(
+        () =>
+          selectOwnerDataProvider({
+            ownerEmail,
+            accessTokenResolver: createStaticManualAccessTokenResolver(null),
+          }),
+        /access token/i,
+      );
+    },
+  );
+  assert.equal(calls.length, 0);
+
+  calls = installMockFetch();
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_DATA_PROVIDER: "real",
+      EXPO_PUBLIC_OWNER_API_BASE_URL: apiBaseUrl,
+      EXPO_PUBLIC_OWNER_ACCESS_TOKEN: "do-not-commit-this",
+    },
+    async () => {
+      await assert.rejects(
+        () =>
+          selectOwnerDataProvider({
+            ownerEmail,
+            accessTokenResolver: createStaticManualAccessTokenResolver(accessToken),
+          }),
+        /public Expo environment variable/i,
+      );
     },
   );
   assert.equal(calls.length, 0);
@@ -267,7 +327,7 @@ async function checkProviderSelection() {
     },
     () =>
       selectOwnerDataProvider({
-        accessToken,
+        accessTokenResolver: createStaticManualAccessTokenResolver(accessToken),
         ownerEmail,
         loadRealBootstrap: async (config) => {
           loaderCalled = true;
@@ -290,8 +350,17 @@ async function checkProviderSelection() {
   assert.equal(realSelection.provider.getBootstrap().shop.id, "shop-second");
 }
 
+function checkAppNavigatorMockOnly() {
+  const source = fs.readFileSync(path.join(srcRoot, "navigation", "AppNavigator.tsx"), "utf8");
+  assert.match(source, /useOwnerDataProvider/);
+  assert.doesNotMatch(source, /selectOwnerDataProvider/);
+  assert.doesNotMatch(source, /createRealOwnerDataProvider/);
+  assert.doesNotMatch(source, /loadRealOwnerBootstrap/);
+}
+
 async function main() {
   checkAdapterValidation();
+  checkAppNavigatorMockOnly();
   await checkPreflightFailures();
   await checkProviderSelection();
   await checkSelectedDevShop();

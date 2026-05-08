@@ -35,6 +35,8 @@ selectOwnerDataProvider({
 
 단, 이 호출을 AppNavigator 기본 경로에 바로 연결하지 않고 dev-only loader나 제한된 화면 연결 단계에서만 사용합니다.
 
+최소 구현 단계에서는 `src/services/manualAccessToken.ts`에 token resolver 타입과 public env guard만 둡니다. 실제 token을 읽거나 저장하지 않으며, `selectOwnerDataProvider()`에는 `accessTokenResolver` 옵션으로만 주입할 수 있게 준비합니다. `options.accessToken` 직접 전달은 기존 테스트 호환용으로 유지하되, 새 개발 경로의 기본값은 resolver 주입입니다.
+
 ## 필요한 환경변수
 
 앱 개발 모드 real provider 시범 연결에 필요한 환경변수:

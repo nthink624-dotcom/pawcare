@@ -353,14 +353,27 @@ async function checkProviderSelection() {
 function checkAppNavigatorMockOnly() {
   const source = fs.readFileSync(path.join(srcRoot, "navigation", "AppNavigator.tsx"), "utf8");
   assert.match(source, /useOwnerDataProvider/);
+  assert.match(source, /useSettingsSummaryPreview/);
   assert.doesNotMatch(source, /selectOwnerDataProvider/);
   assert.doesNotMatch(source, /createRealOwnerDataProvider/);
   assert.doesNotMatch(source, /loadRealOwnerBootstrap/);
 }
 
+function checkSettingsSummaryPreviewScope() {
+  const source = fs.readFileSync(path.join(srcRoot, "hooks", "useSettingsSummaryPreview.ts"), "utf8");
+  assert.match(source, /selectOwnerDataProvider/);
+  assert.match(source, /getSettingsSummary/);
+  assert.doesNotMatch(source, /getAppointmentRows/);
+  assert.doesNotMatch(source, /getTodayHome/);
+  assert.doesNotMatch(source, /getCustomerSummaries/);
+  assert.doesNotMatch(source, /getCustomerDetail/);
+  assert.doesNotMatch(source, /getAppointmentDetail/);
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
+  checkSettingsSummaryPreviewScope();
   await checkPreflightFailures();
   await checkProviderSelection();
   await checkSelectedDevShop();

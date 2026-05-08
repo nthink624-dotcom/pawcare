@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator, type BottomTabScreenProps } from "@react-navigation/bottom-tabs";
@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
 import { useAppSession } from "@/hooks/useAppSession";
 import { useOwnerDataProvider } from "@/hooks/useOwnerDataProvider";
+import { useSettingsSummaryPreview } from "@/hooks/useSettingsSummaryPreview";
 import {
   type AuthStackParamList,
   type CustomerStackParamList,
@@ -202,7 +203,28 @@ function CustomerDetailRoute({ navigation, route, ownerDataProvider }: CustomerD
 }
 
 function SettingsRoute({ ownerDataProvider, onSignOut }: DataRouteProps & { onSignOut: () => void }) {
-  return <SettingsScreen viewModel={ownerDataProvider.getSettingsSummary()} onSignOut={onSignOut} />;
+  const mockSettingsSummary = useMemo(() => ownerDataProvider.getSettingsSummary(), [ownerDataProvider]);
+  const settingsSummaryPreview = useSettingsSummaryPreview({
+    mockSummary: mockSettingsSummary,
+  });
+
+  if (settingsSummaryPreview.loading) {
+    return (
+      <View style={styles.routeState}>
+        <LoadingState />
+      </View>
+    );
+  }
+
+  if (settingsSummaryPreview.status === "error") {
+    return (
+      <View style={styles.routeState}>
+        <ErrorState onRetry={settingsSummaryPreview.retry} />
+      </View>
+    );
+  }
+
+  return <SettingsScreen viewModel={settingsSummaryPreview.viewModel} onSignOut={onSignOut} />;
 }
 
 const stackScreenOptions = {
@@ -235,6 +257,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    padding: 24,
+  },
+  routeState: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: "#fbfaf7",
     padding: 24,
   },
 });

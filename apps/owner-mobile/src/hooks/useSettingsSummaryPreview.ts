@@ -1,0 +1,116 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { emptyManualAccessTokenResolver, type ManualAccessTokenResolver } from "@/services/manualAccessToken";
+import { getOwnerApiConfig, type OwnerApiConfig } from "@/services/ownerApiConfig";
+import { selectOwnerDataProvider, type SelectOwnerDataProviderOptions, type SelectOwnerDataProviderResult } from "@/services/selectOwnerDataProvider";
+import type { SettingsSummaryViewModel } from "@/viewModels/ownerViewModels";
+
+export type SettingsSummaryPreviewStatus = "mock" | "loading" | "ready" | "error";
+
+export type SettingsSummaryPreviewSource = "mock" | "real";
+
+export type SettingsSummaryPreviewState = {
+  status: SettingsSummaryPreviewStatus;
+  source: SettingsSummaryPreviewSource;
+  viewModel: SettingsSummaryViewModel;
+  error: Error | null;
+};
+
+export type UseSettingsSummaryPreviewOptions = {
+  mockSummary: SettingsSummaryViewModel;
+  autoLoad?: boolean;
+  accessTokenResolver?: ManualAccessTokenResolver;
+  ownerEmail?: string | null;
+  shopId?: string;
+  today?: string;
+  apiConfig?: OwnerApiConfig;
+  selectProvider?: (options: SelectOwnerDataProviderOptions) => Promise<SelectOwnerDataProviderResult>;
+};
+
+export type UseSettingsSummaryPreviewResult = SettingsSummaryPreviewState & {
+  loading: boolean;
+  retry: () => void;
+};
+
+export function useSettingsSummaryPreview({
+  mockSummary,
+  autoLoad = true,
+  accessTokenResolver = emptyManualAccessTokenResolver,
+  ownerEmail,
+  shopId,
+  today,
+  apiConfig: providedApiConfig,
+  selectProvider = selectOwnerDataProvider,
+}: UseSettingsSummaryPreviewOptions): UseSettingsSummaryPreviewResult {
+  const apiConfig = useMemo(() => providedApiConfig ?? getOwnerApiConfig(), [providedApiConfig]);
+  const [state, setState] = useState<SettingsSummaryPreviewState>(() => ({
+    status: apiConfig.dataProvider === "real" ? "loading" : "mock",
+    source: "mock",
+    viewModel: mockSummary,
+    error: null,
+  }));
+
+  const load = useCallback(() => {
+    if (apiConfig.dataProvider !== "real") {
+      setState({
+        status: "mock",
+        source: "mock",
+        viewModel: mockSummary,
+        error: null,
+      });
+      return;
+    }
+
+    let active = true;
+    setState({
+      status: "loading",
+      source: "mock",
+      viewModel: mockSummary,
+      error: null,
+    });
+
+    selectProvider({
+      apiConfig,
+      accessTokenResolver,
+      ownerEmail,
+      shopId,
+      today,
+    })
+      .then((result) => {
+        if (!active) return;
+
+        setState({
+          status: "ready",
+          source: "real",
+          viewModel: result.provider.getSettingsSummary(),
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+
+        setState({
+          status: "error",
+          source: "mock",
+          viewModel: mockSummary,
+          error: error instanceof Error ? error : new Error("Failed to load settings summary preview."),
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessTokenResolver, apiConfig, mockSummary, ownerEmail, selectProvider, shopId, today]);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    return load();
+  }, [autoLoad, load]);
+
+  return {
+    ...state,
+    loading: state.status === "loading",
+    retry: load,
+  };
+}

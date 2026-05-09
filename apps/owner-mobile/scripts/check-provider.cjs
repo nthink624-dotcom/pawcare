@@ -741,6 +741,224 @@ async function checkAuthSessionProviders() {
   assert.equal(JSON.stringify(loggerEvents).includes("restored-access-token"), false);
   assert.equal(JSON.stringify(loggerEvents).includes("resolver-access-token"), false);
 
+  let signInCredentials = null;
+  const signInCapableProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn(credentials) {
+        signInCredentials = credentials;
+        return activeSessionLike;
+      },
+    },
+    now: restoreNow,
+  });
+  assert.equal(await signInCapableProvider.getSession(), null);
+  assert.equal(await signInCapableProvider.getAccessToken(), null);
+
+  const realSignedInSession = await signInCapableProvider.signIn({
+    loginId: "restored-owner@example.test",
+    password: "valid-input",
+  });
+  assert.deepEqual(signInCredentials, {
+    loginId: "restored-owner@example.test",
+    password: "valid-input",
+  });
+  assert.equal(realSignedInSession.userId, "restored-user");
+  assert.equal(realSignedInSession.accessToken, "restored-access-token");
+  assert.equal((await signInCapableProvider.getSession())?.email, "restored-owner@example.test");
+  assert.equal(await signInCapableProvider.getAccessToken(), "restored-access-token");
+
+  const signInFailureEvents = [];
+  const invalidCredentialsProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn(credentials) {
+        if (credentials.password !== "valid-input") {
+          throw new Error("Invalid owner credentials.");
+        }
+
+        return activeSessionLike;
+      },
+    },
+    now: restoreNow,
+    logger: {
+      warn(message, metadata) {
+        signInFailureEvents.push({ level: "warn", message, metadata });
+      },
+      error(message, metadata) {
+        signInFailureEvents.push({ level: "error", message, metadata });
+      },
+    },
+  });
+  await assert.rejects(
+    () =>
+      invalidCredentialsProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "invalid-input",
+      }),
+    /Invalid owner credentials/,
+  );
+  assert.equal(await invalidCredentialsProvider.getSession(), null);
+  assert.equal(await invalidCredentialsProvider.getAccessToken(), null);
+  assert.equal(JSON.stringify(signInFailureEvents).includes("invalid-input"), false);
+  assert.equal(JSON.stringify(signInFailureEvents).includes("restored-access-token"), false);
+
+  const nullSignInSessionProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        return null;
+      },
+    },
+    now: restoreNow,
+  });
+  await assert.rejects(
+    () =>
+      nullSignInSessionProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "valid-input",
+      }),
+    /valid session/,
+  );
+  assert.equal(await nullSignInSessionProvider.getSession(), null);
+  assert.equal(await nullSignInSessionProvider.getAccessToken(), null);
+
+  const missingTokenSignInProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        return { ...activeSessionLike, access_token: null };
+      },
+    },
+    now: restoreNow,
+  });
+  await assert.rejects(
+    () =>
+      missingTokenSignInProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "valid-input",
+      }),
+    /valid session/,
+  );
+  assert.equal(await missingTokenSignInProvider.getSession(), null);
+  assert.equal(await missingTokenSignInProvider.getAccessToken(), null);
+
+  const expiredSignInProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        return { ...activeSessionLike, expires_at: 1_699_999_999 };
+      },
+    },
+    now: restoreNow,
+  });
+  await assert.rejects(
+    () =>
+      expiredSignInProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "valid-input",
+      }),
+    /valid session/,
+  );
+  assert.equal(await expiredSignInProvider.getSession(), null);
+  assert.equal(await expiredSignInProvider.getAccessToken(), null);
+
+  const sourceErrorEvents = [];
+  const sourceErrorSignInProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        throw new Error("sign in source failure");
+      },
+    },
+    now: restoreNow,
+    logger: {
+      warn(message, metadata) {
+        sourceErrorEvents.push({ level: "warn", message, metadata });
+      },
+      error(message, metadata) {
+        sourceErrorEvents.push({ level: "error", message, metadata });
+      },
+    },
+  });
+  await assert.rejects(
+    () =>
+      sourceErrorSignInProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "valid-input",
+      }),
+    /source failure/,
+  );
+  assert.equal(await sourceErrorSignInProvider.getSession(), null);
+  assert.equal(await sourceErrorSignInProvider.getAccessToken(), null);
+  assert.equal(JSON.stringify(sourceErrorEvents).includes("valid-input"), false);
+  assert.equal(JSON.stringify(sourceErrorEvents).includes("restored-access-token"), false);
+
+  let signOutCount = 0;
+  const signOutCapableProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        return activeSessionLike;
+      },
+    },
+    signOutSource: {
+      async signOut() {
+        signOutCount += 1;
+      },
+    },
+    now: restoreNow,
+  });
+  await signOutCapableProvider.signIn({
+    loginId: "restored-owner@example.test",
+    password: "valid-input",
+  });
+  assert.equal(await signOutCapableProvider.getAccessToken(), "restored-access-token");
+  await signOutCapableProvider.signOut();
+  assert.equal(signOutCount, 1);
+  assert.equal(await signOutCapableProvider.getSession(), null);
+  assert.equal(await signOutCapableProvider.getAccessToken(), null);
+
+  const emptySignOutProvider = createRealAuthSessionProvider({
+    signOutSource: {
+      async signOut() {
+        signOutCount += 1;
+      },
+    },
+    now: restoreNow,
+  });
+  assert.equal(await emptySignOutProvider.getSession(), null);
+  assert.equal(await emptySignOutProvider.getAccessToken(), null);
+  await emptySignOutProvider.signOut();
+  assert.equal(await emptySignOutProvider.getSession(), null);
+  assert.equal(await emptySignOutProvider.getAccessToken(), null);
+
+  const signOutFailureEvents = [];
+  const failingSignOutProvider = createRealAuthSessionProvider({
+    signInSource: {
+      async signIn() {
+        return activeSessionLike;
+      },
+    },
+    signOutSource: {
+      async signOut() {
+        throw new Error("sign out source failure");
+      },
+    },
+    now: restoreNow,
+    logger: {
+      warn(message, metadata) {
+        signOutFailureEvents.push({ level: "warn", message, metadata });
+      },
+      error(message, metadata) {
+        signOutFailureEvents.push({ level: "error", message, metadata });
+      },
+    },
+  });
+  await failingSignOutProvider.signIn({
+    loginId: "restored-owner@example.test",
+    password: "valid-input",
+  });
+  assert.equal(await failingSignOutProvider.getAccessToken(), "restored-access-token");
+  await assert.rejects(() => failingSignOutProvider.signOut(), /source failure/);
+  assert.equal(await failingSignOutProvider.getSession(), null);
+  assert.equal(await failingSignOutProvider.getAccessToken(), null);
+  assert.equal(JSON.stringify(signOutFailureEvents).includes("valid-input"), false);
+  assert.equal(JSON.stringify(signOutFailureEvents).includes("restored-access-token"), false);
+
   const tokenBackedProvider = {
     async getSession() {
       return {

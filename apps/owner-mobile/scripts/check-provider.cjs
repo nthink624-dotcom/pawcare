@@ -33,6 +33,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { assertAuthEnvConfigIsReady, getRequiredAuthEnvConfig } = require("../src/services/authEnvConfig");
+const { mapSupabaseSessionToAuthSession } = require("../src/services/authSessionMapper");
 const { createAuthSessionTokenResolver } = require("../src/services/authSessionProvider");
 const {
   createMemoryAuthSessionStorage,
@@ -632,6 +633,91 @@ async function checkAuthSessionProviders() {
   assert.equal(supabaseFactoryCalled, false);
   assert.equal(storageTouched, false);
   assert.equal(loggerTouched, false);
+
+  const restoreNow = () => 1_700_000_000_000;
+  const activeSessionLike = {
+    access_token: "restored-access-token",
+    expires_at: 1_700_000_600,
+    user: {
+      id: "restored-user",
+      email: "restored-owner@example.test",
+    },
+  };
+  assert.deepEqual(mapSupabaseSessionToAuthSession(activeSessionLike, { now: restoreNow }), {
+    userId: "restored-user",
+    ownerId: "restored-user",
+    email: "restored-owner@example.test",
+    accessToken: "restored-access-token",
+    expiresAt: 1_700_000_600,
+    isAuthenticated: true,
+  });
+  assert.equal(mapSupabaseSessionToAuthSession(null, { now: restoreNow }), null);
+  assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, access_token: "" }, { now: restoreNow }), null);
+  assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, user: { id: "restored-user" } }, { now: restoreNow })?.email, null);
+  assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, expires_at: 1_699_999_999 }, { now: restoreNow }), null);
+
+  let sessionReadCount = 0;
+  const restoreCapableProvider = createRealAuthSessionProvider({
+    sessionSource: {
+      async readSession() {
+        sessionReadCount += 1;
+        return activeSessionLike;
+      },
+    },
+    now: restoreNow,
+  });
+  const restoredSession = await restoreCapableProvider.restoreSession();
+  assert.equal(sessionReadCount, 1);
+  assert.equal(restoredSession?.accessToken, "restored-access-token");
+  assert.equal((await restoreCapableProvider.getSession())?.userId, "restored-user");
+  assert.equal(await restoreCapableProvider.getAccessToken(), "restored-access-token");
+
+  const missingSessionProvider = createRealAuthSessionProvider({
+    sessionSource: {
+      async readSession() {
+        return null;
+      },
+    },
+    now: restoreNow,
+  });
+  assert.equal(await missingSessionProvider.restoreSession(), null);
+
+  const missingTokenProvider = createRealAuthSessionProvider({
+    sessionSource: {
+      async readSession() {
+        return { ...activeSessionLike, access_token: null };
+      },
+    },
+    now: restoreNow,
+  });
+  assert.equal(await missingTokenProvider.restoreSession(), null);
+
+  const loggerEvents = [];
+  const failingRestoreProvider = createRealAuthSessionProvider({
+    sessionSource: {
+      async readSession() {
+        throw new Error("storage failure");
+      },
+    },
+    now: restoreNow,
+    logger: {
+      warn(message, metadata) {
+        loggerEvents.push({ level: "warn", message, metadata });
+      },
+      error(message, metadata) {
+        loggerEvents.push({ level: "error", message, metadata });
+      },
+    },
+  });
+  assert.equal(await failingRestoreProvider.restoreSession(), null);
+  assert.deepEqual(loggerEvents, [
+    {
+      level: "error",
+      message: "Failed to restore owner auth session.",
+      metadata: undefined,
+    },
+  ]);
+  assert.equal(JSON.stringify(loggerEvents).includes("restored-access-token"), false);
 
   const tokenBackedProvider = {
     async getSession() {

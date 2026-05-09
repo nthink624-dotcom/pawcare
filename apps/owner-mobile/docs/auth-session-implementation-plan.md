@@ -79,6 +79,8 @@ The next checkpoint adds `src/services/supabaseAuthClient.ts` as a guarded clien
 
 Session storage preparation adds `src/services/authSessionStorage.ts`. It provides a SecureStore-backed adapter shape and a memory adapter for tests, but it is not connected to Supabase Auth until the approved session implementation step.
 
+Restore flow preparation keeps real Supabase Auth calls disabled and verifies `realAuthSessionProvider.restoreSession()` with an injected session source test double. It maps Supabase session-like data into `AuthSession`, returns `null` for missing, invalid, expired, or failed restore cases, and leaves refresh for a later approved step.
+
 ## Session Storage Recommendation
 
 The app needs to keep users logged in after restart without exposing session secrets.

@@ -597,6 +597,68 @@ async function checkAuthSessionProviders() {
   );
   await assert.rejects(() => realAuthProvider.signOut(), /not implemented yet/i);
   await assert.rejects(() => realAuthProvider.restoreSession(), /not implemented yet/i);
+
+  let supabaseFactoryCalled = false;
+  let storageTouched = false;
+  let loggerTouched = false;
+  const injectedRealAuthProvider = createRealAuthSessionProvider({
+    supabaseClientFactory: () => {
+      supabaseFactoryCalled = true;
+      throw new Error("factory must not be called before real auth implementation");
+    },
+    sessionStorage: {
+      async getItem() {
+        storageTouched = true;
+        return null;
+      },
+      async setItem() {
+        storageTouched = true;
+      },
+      async removeItem() {
+        storageTouched = true;
+      },
+    },
+    now: () => 1234567890,
+    logger: {
+      warn() {
+        loggerTouched = true;
+      },
+      error() {
+        loggerTouched = true;
+      },
+    },
+  });
+  await assert.rejects(() => injectedRealAuthProvider.restoreSession(), /not implemented yet/i);
+  assert.equal(supabaseFactoryCalled, false);
+  assert.equal(storageTouched, false);
+  assert.equal(loggerTouched, false);
+
+  const tokenBackedProvider = {
+    async getSession() {
+      return {
+        userId: "session-user",
+        ownerId: "session-owner",
+        email: "session-owner@example.test",
+        accessToken: "resolver-access-token",
+        expiresAt: 1234567890,
+        isAuthenticated: true,
+      };
+    },
+    async getAccessToken() {
+      return "resolver-access-token";
+    },
+    async signIn() {
+      throw new Error("not needed");
+    },
+    async signOut() {},
+    async restoreSession() {
+      return null;
+    },
+  };
+  assert.deepEqual(await createAuthSessionTokenResolver(tokenBackedProvider)(), {
+    accessToken: "resolver-access-token",
+    ownerEmail: "session-owner@example.test",
+  });
 }
 
 async function checkAuthEnvConfig() {

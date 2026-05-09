@@ -666,6 +666,9 @@ async function checkAuthSessionProviders() {
     },
     now: restoreNow,
   });
+  assert.equal(await restoreCapableProvider.getSession(), null);
+  assert.equal(await restoreCapableProvider.getAccessToken(), null);
+
   const restoredSession = await restoreCapableProvider.restoreSession();
   assert.equal(sessionReadCount, 1);
   assert.equal(restoredSession?.accessToken, "restored-access-token");
@@ -681,6 +684,8 @@ async function checkAuthSessionProviders() {
     now: restoreNow,
   });
   assert.equal(await missingSessionProvider.restoreSession(), null);
+  assert.equal(await missingSessionProvider.getSession(), null);
+  assert.equal(await missingSessionProvider.getAccessToken(), null);
 
   const missingTokenProvider = createRealAuthSessionProvider({
     sessionSource: {
@@ -691,6 +696,20 @@ async function checkAuthSessionProviders() {
     now: restoreNow,
   });
   assert.equal(await missingTokenProvider.restoreSession(), null);
+  assert.equal(await missingTokenProvider.getSession(), null);
+  assert.equal(await missingTokenProvider.getAccessToken(), null);
+
+  const expiredSessionProvider = createRealAuthSessionProvider({
+    sessionSource: {
+      async readSession() {
+        return { ...activeSessionLike, expires_at: 1_699_999_999 };
+      },
+    },
+    now: restoreNow,
+  });
+  assert.equal(await expiredSessionProvider.restoreSession(), null);
+  assert.equal(await expiredSessionProvider.getSession(), null);
+  assert.equal(await expiredSessionProvider.getAccessToken(), null);
 
   const loggerEvents = [];
   const failingRestoreProvider = createRealAuthSessionProvider({
@@ -710,6 +729,8 @@ async function checkAuthSessionProviders() {
     },
   });
   assert.equal(await failingRestoreProvider.restoreSession(), null);
+  assert.equal(await failingRestoreProvider.getSession(), null);
+  assert.equal(await failingRestoreProvider.getAccessToken(), null);
   assert.deepEqual(loggerEvents, [
     {
       level: "error",
@@ -718,6 +739,7 @@ async function checkAuthSessionProviders() {
     },
   ]);
   assert.equal(JSON.stringify(loggerEvents).includes("restored-access-token"), false);
+  assert.equal(JSON.stringify(loggerEvents).includes("resolver-access-token"), false);
 
   const tokenBackedProvider = {
     async getSession() {

@@ -34,8 +34,17 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 const { ownerBootstrapMock } = require("../src/screens/ownerPlaceholderData");
 const { assertAuthEnvConfigIsReady, getRequiredAuthEnvConfig } = require("../src/services/authEnvConfig");
 const { createAuthSessionTokenResolver } = require("../src/services/authSessionProvider");
+const {
+  createMemoryAuthSessionStorage,
+  createSecureStoreAuthSessionStorage,
+} = require("../src/services/authSessionStorage");
 const { createMockAuthSessionProvider } = require("../src/services/mockAuthSessionProvider");
 const { createRealAuthSessionProvider } = require("../src/services/realAuthSessionProvider");
+const {
+  createOwnerSupabaseAuthClient,
+  getOwnerSupabaseAuthClient,
+  resetOwnerSupabaseAuthClientForTests,
+} = require("../src/services/supabaseAuthClient");
 const { toOwnerBootstrapDto } = require("../src/services/ownerBootstrapAdapter");
 const { createStaticManualAccessTokenResolver } = require("../src/services/manualAccessToken");
 const { createMockOwnerDataProvider } = require("../src/services/mockOwnerDataProvider");
@@ -654,6 +663,100 @@ async function checkAuthEnvConfig() {
   );
 }
 
+async function checkSupabaseAuthClientFactory() {
+  await withProviderEnv({}, () => {
+    assert.throws(() => createOwnerSupabaseAuthClient(), /Supabase URL is required/);
+  });
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_secret_service_role_key",
+    },
+    () => {
+      assert.throws(() => createOwnerSupabaseAuthClient(), /service role or secret key/i);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+      EXPO_PUBLIC_SUPABASE_ACCESS_TOKEN: "must-not-be-public",
+    },
+    () => {
+      assert.throws(() => createOwnerSupabaseAuthClient(), /Forbidden secret-like public Expo environment variable/);
+    },
+  );
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: "https://staging-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "public-publishable-key",
+      EXPO_PUBLIC_SUPABASE_ENV_NAME: "staging",
+      EXPO_PUBLIC_OWNER_API_STAGE: "staging",
+    },
+    () => {
+      resetOwnerSupabaseAuthClientForTests();
+      const client = createOwnerSupabaseAuthClient();
+      assert.equal(typeof client, "object");
+
+      const cachedClient = getOwnerSupabaseAuthClient();
+      assert.equal(typeof cachedClient, "object");
+      assert.equal(getOwnerSupabaseAuthClient(), cachedClient);
+    },
+  );
+}
+
+async function checkAuthSessionStorageAdapters() {
+  const memoryStorage = createMemoryAuthSessionStorage();
+  assert.equal(await memoryStorage.getItem("owner-session"), null);
+  assert.equal(memoryStorage.hasItem("owner-session"), false);
+
+  await memoryStorage.setItem("owner-session", "session-value");
+  assert.equal(await memoryStorage.getItem("owner-session"), "session-value");
+  assert.equal(memoryStorage.hasItem("owner-session"), true);
+
+  await memoryStorage.removeItem("owner-session");
+  assert.equal(await memoryStorage.getItem("owner-session"), null);
+
+  await memoryStorage.setItem("owner-session", "another-session-value");
+  memoryStorage.clear();
+  assert.equal(await memoryStorage.getItem("owner-session"), null);
+
+  const secureStoreCalls = [];
+  const secureStoreValues = new Map();
+  const fakeSecureStore = {
+    async getItemAsync(key) {
+      secureStoreCalls.push(["get", key]);
+      return secureStoreValues.get(key) ?? null;
+    },
+    async setItemAsync(key, value) {
+      secureStoreCalls.push(["set", key, typeof value]);
+      secureStoreValues.set(key, value);
+    },
+    async deleteItemAsync(key) {
+      secureStoreCalls.push(["remove", key]);
+      secureStoreValues.delete(key);
+    },
+  };
+  const secureStorage = createSecureStoreAuthSessionStorage({ secureStore: fakeSecureStore });
+
+  assert.equal(typeof secureStorage.getItem, "function");
+  assert.equal(typeof secureStorage.setItem, "function");
+  assert.equal(typeof secureStorage.removeItem, "function");
+  await secureStorage.setItem("owner-session", "secure-session-value");
+  assert.equal(await secureStorage.getItem("owner-session"), "secure-session-value");
+  await secureStorage.removeItem("owner-session");
+  assert.equal(await secureStorage.getItem("owner-session"), null);
+  assert.deepEqual(secureStoreCalls, [
+    ["set", "owner-session", "string"],
+    ["get", "owner-session"],
+    ["remove", "owner-session"],
+    ["get", "owner-session"],
+  ]);
+}
+
 async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
@@ -666,6 +769,8 @@ async function main() {
   await checkFirstShopFallback();
   await checkAuthSessionProviders();
   await checkAuthEnvConfig();
+  await checkSupabaseAuthClientFactory();
+  await checkAuthSessionStorageAdapters();
   console.log("Provider checks passed");
 }
 

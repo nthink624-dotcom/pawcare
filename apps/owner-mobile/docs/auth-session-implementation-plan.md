@@ -75,6 +75,10 @@ Required guards:
 
 The first implementation checkpoint adds `src/services/authEnvConfig.ts` for this validation layer only. It reads Supabase auth env values, blocks secret-like public env keys, blocks production Supabase outside production unless explicitly allowed, and does not create a Supabase client.
 
+The next checkpoint adds `src/services/supabaseAuthClient.ts` as a guarded client factory. It uses `authEnvConfig` before creating a client, keeps session persistence disabled until storage is implemented, and does not call any login or session APIs.
+
+Session storage preparation adds `src/services/authSessionStorage.ts`. It provides a SecureStore-backed adapter shape and a memory adapter for tests, but it is not connected to Supabase Auth until the approved session implementation step.
+
 ## Session Storage Recommendation
 
 The app needs to keep users logged in after restart without exposing session secrets.

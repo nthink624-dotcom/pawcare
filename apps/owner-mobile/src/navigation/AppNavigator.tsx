@@ -27,6 +27,7 @@ import { defaultAuthSessionProvider, type OwnerSession } from "@/services/authSe
 import { selectAuthSessionProvider } from "@/services/selectAuthSessionProvider";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
 import { createInjectedSettingsSummaryPreviewSelectProvider } from "@/services/settingsSummaryPreviewInjection";
+import { createAuthSessionTokenResolver, type AuthSessionProvider } from "@/services/authSessionProvider";
 import type { AuthSignInCredentials } from "@/types/auth";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -49,6 +50,7 @@ type AuthStackNavigatorProps = {
 
 type MainTabsNavigatorProps = {
   ownerDataProvider: OwnerDataProvider;
+  authSessionProvider: AuthSessionProvider;
   onSignOut: () => void;
 };
 
@@ -147,7 +149,11 @@ export function AppNavigator() {
     <View style={styles.shell}>
       <NavigationContainer>
         {session ? (
-          <MainTabsNavigator ownerDataProvider={ownerDataProvider} onSignOut={signOutSelectedProvider} />
+          <MainTabsNavigator
+            ownerDataProvider={ownerDataProvider}
+            authSessionProvider={authSessionProvider}
+            onSignOut={signOutSelectedProvider}
+          />
         ) : (
           <AuthStackNavigator
             authMode={authSelection.mode}
@@ -178,7 +184,7 @@ function AuthStackNavigator({ authMode, errorMessage, isSigningIn, onSignedIn }:
   );
 }
 
-function MainTabsNavigator({ ownerDataProvider, onSignOut }: MainTabsNavigatorProps) {
+function MainTabsNavigator({ ownerDataProvider, authSessionProvider, onSignOut }: MainTabsNavigatorProps) {
   return (
     <MainTabs.Navigator screenOptions={tabScreenOptions}>
       <MainTabs.Screen name="Today" options={{ title: TAB_LABELS.Today }}>
@@ -191,7 +197,13 @@ function MainTabsNavigator({ ownerDataProvider, onSignOut }: MainTabsNavigatorPr
         {() => <CustomerStackNavigator ownerDataProvider={ownerDataProvider} />}
       </MainTabs.Screen>
       <MainTabs.Screen name="Settings" options={{ title: TAB_LABELS.Settings }}>
-        {() => <SettingsRoute ownerDataProvider={ownerDataProvider} onSignOut={onSignOut} />}
+        {() => (
+          <SettingsRoute
+            ownerDataProvider={ownerDataProvider}
+            authSessionProvider={authSessionProvider}
+            onSignOut={onSignOut}
+          />
+        )}
       </MainTabs.Screen>
     </MainTabs.Navigator>
   );
@@ -262,14 +274,20 @@ function CustomerDetailRoute({ navigation, route, ownerDataProvider }: CustomerD
   return <CustomerDetailScreen customer={customer} onBack={() => navigation.goBack()} />;
 }
 
-function SettingsRoute({ ownerDataProvider, onSignOut }: DataRouteProps & { onSignOut: () => void }) {
+function SettingsRoute({
+  ownerDataProvider,
+  authSessionProvider,
+  onSignOut,
+}: DataRouteProps & { authSessionProvider: AuthSessionProvider; onSignOut: () => void }) {
   const mockSettingsSummary = useMemo(() => ownerDataProvider.getSettingsSummary(), [ownerDataProvider]);
+  const sessionTokenResolver = useMemo(() => createAuthSessionTokenResolver(authSessionProvider), [authSessionProvider]);
   const settingsSummaryPreviewSelectProvider = useMemo(
     () => createInjectedSettingsSummaryPreviewSelectProvider(mockSettingsSummary),
     [mockSettingsSummary],
   );
   const settingsSummaryPreview = useSettingsSummaryPreview({
     mockSummary: mockSettingsSummary,
+    sessionTokenResolver,
     selectProvider: settingsSummaryPreviewSelectProvider,
   });
 

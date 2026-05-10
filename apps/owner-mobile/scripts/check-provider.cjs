@@ -525,6 +525,47 @@ async function checkSettingsSummaryPreviewConditions() {
   assert.equal(readyPreview.status, "ready");
   assert.equal(readyPreview.source, "real");
   assert.equal(readyPreview.viewModel.accountEmail, "real-owner@example.com");
+
+  let sessionResolverCalled = false;
+  let manualResolverCalled = false;
+  const sessionBackedPreview = await loadSettingsSummaryPreview({
+    mockSummary,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    accessTokenResolver: () => {
+      manualResolverCalled = true;
+      return "manual-token-must-not-be-used";
+    },
+    sessionTokenResolver: async () => {
+      sessionResolverCalled = true;
+      return {
+        accessToken,
+        ownerEmail,
+      };
+    },
+    selectProvider: async (options) => {
+      assert.equal(await options.accessTokenResolver(), accessToken);
+      assert.equal(options.ownerEmail, ownerEmail);
+
+      return {
+        mode: "real",
+        selectedShopId: "shop-first",
+        ownedShops,
+        provider: {
+          ...mockProvider,
+          getSettingsSummary: () => realSummary,
+        },
+      };
+    },
+  });
+  assert.equal(sessionBackedPreview.status, "ready");
+  assert.equal(sessionBackedPreview.source, "real");
+  assert.equal(sessionResolverCalled, true);
+  assert.equal(manualResolverCalled, false);
 }
 
 async function checkInjectedSettingsSummaryPreview() {

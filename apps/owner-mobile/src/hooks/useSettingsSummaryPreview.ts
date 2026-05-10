@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import type { OwnerSessionTokenResolver } from "@/services/authSessionProvider";
 import { emptyManualAccessTokenResolver, type ManualAccessTokenResolver } from "@/services/manualAccessToken";
 import { getOwnerApiConfig, type OwnerApiConfig } from "@/services/ownerApiConfig";
 import { selectOwnerDataProvider, type SelectOwnerDataProviderOptions, type SelectOwnerDataProviderResult } from "@/services/selectOwnerDataProvider";
@@ -20,6 +21,7 @@ export type UseSettingsSummaryPreviewOptions = {
   mockSummary: SettingsSummaryViewModel;
   autoLoad?: boolean;
   accessTokenResolver?: ManualAccessTokenResolver;
+  sessionTokenResolver?: OwnerSessionTokenResolver;
   ownerEmail?: string | null;
   shopId?: string;
   today?: string;
@@ -39,6 +41,7 @@ export type UseSettingsSummaryPreviewResult = SettingsSummaryPreviewState & {
 export async function loadSettingsSummaryPreview({
   mockSummary,
   accessTokenResolver = emptyManualAccessTokenResolver,
+  sessionTokenResolver,
   ownerEmail,
   shopId,
   today,
@@ -55,10 +58,16 @@ export async function loadSettingsSummaryPreview({
   }
 
   try {
+    const sessionToken = sessionTokenResolver ? await sessionTokenResolver() : null;
+    const resolvedAccessTokenResolver: ManualAccessTokenResolver = sessionTokenResolver
+      ? () => sessionToken?.accessToken
+      : accessTokenResolver;
+    const resolvedOwnerEmail = ownerEmail ?? sessionToken?.ownerEmail ?? null;
+
     const result = await selectProvider({
       apiConfig,
-      accessTokenResolver,
-      ownerEmail,
+      accessTokenResolver: resolvedAccessTokenResolver,
+      ownerEmail: resolvedOwnerEmail,
       shopId,
       today,
     });
@@ -83,6 +92,7 @@ export function useSettingsSummaryPreview({
   mockSummary,
   autoLoad = true,
   accessTokenResolver = emptyManualAccessTokenResolver,
+  sessionTokenResolver,
   ownerEmail,
   shopId,
   today,
@@ -119,6 +129,7 @@ export function useSettingsSummaryPreview({
     loadSettingsSummaryPreview({
       mockSummary,
       accessTokenResolver,
+      sessionTokenResolver,
       ownerEmail,
       shopId,
       today,
@@ -134,7 +145,7 @@ export function useSettingsSummaryPreview({
     return () => {
       active = false;
     };
-  }, [accessTokenResolver, apiConfig, mockSummary, ownerEmail, selectProvider, shopId, today]);
+  }, [accessTokenResolver, apiConfig, mockSummary, ownerEmail, selectProvider, sessionTokenResolver, shopId, today]);
 
   useEffect(() => {
     if (!autoLoad) return;

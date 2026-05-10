@@ -298,15 +298,28 @@ const stackScreenOptions = {
 
 const tabScreenOptions = {
   headerShown: false,
+  tabBarShowIcon: false,
   tabBarActiveTintColor: "#1f6b5b",
   tabBarInactiveTintColor: "#746b62",
+  tabBarItemStyle: {
+    height: 58,
+    justifyContent: "center" as const,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
   tabBarLabelStyle: {
     fontSize: 13,
     fontWeight: "700" as const,
+    lineHeight: 18,
+    marginTop: 0,
+    marginBottom: 0,
   },
   tabBarStyle: {
+    height: 58,
     borderTopColor: "#ded6ca",
     backgroundColor: "#fffaf3",
+    paddingTop: 0,
+    paddingBottom: 0,
   },
 };
 

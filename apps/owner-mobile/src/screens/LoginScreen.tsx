@@ -24,7 +24,7 @@ export default function LoginScreen({
   const [rememberLoginId, setRememberLoginId] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const isRealMode = authMode === "real";
-  const canSubmit = !isSigningIn && (!isRealMode || (loginId.trim().length > 0 && password.length > 0));
+  const canSubmit = !isSigningIn;
   const visibleMessage = errorMessage ?? localMessage;
 
   const submitLogin = () => {

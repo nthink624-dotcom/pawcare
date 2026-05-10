@@ -47,6 +47,7 @@ const {
   normalizeOwnerLoginId,
 } = require("../src/services/ownerAuthCredentials");
 const { createRealAuthSessionProvider } = require("../src/services/realAuthSessionProvider");
+const { selectAuthSessionProvider } = require("../src/services/selectAuthSessionProvider");
 const {
   createOwnerSupabaseAuthClient,
   getOwnerSupabaseAuthClient,
@@ -83,6 +84,7 @@ const envKeys = [
   "EXPO_PUBLIC_OWNER_ACCESS_TOKEN",
   "EXPO_PUBLIC_ACCESS_TOKEN",
   "EXPO_PUBLIC_OWNER_SETTINGS_SUMMARY_PREVIEW",
+  "EXPO_PUBLIC_OWNER_AUTH_PROVIDER",
   "EXPO_PUBLIC_SUPABASE_URL",
   "EXPO_PUBLIC_SUPABASE_ANON_KEY",
   "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
@@ -391,6 +393,7 @@ async function checkProviderSelection() {
 function checkAppNavigatorMockOnly() {
   const source = fs.readFileSync(path.join(srcRoot, "navigation", "AppNavigator.tsx"), "utf8");
   assert.match(source, /useOwnerDataProvider/);
+  assert.match(source, /selectAuthSessionProvider/);
   assert.match(source, /useSettingsSummaryPreview/);
   assert.match(source, /createInjectedSettingsSummaryPreviewSelectProvider/);
   assert.doesNotMatch(source, /selectOwnerDataProvider/);
@@ -1155,6 +1158,66 @@ async function checkAuthSessionProviders() {
   });
 }
 
+async function checkAuthProviderSelection() {
+  const fakeMockProvider = createMockAuthSessionProvider();
+
+  await withProviderEnv({}, async () => {
+    const selection = selectAuthSessionProvider({
+      mockProvider: fakeMockProvider,
+      realProviderFactory: () => {
+        throw new Error("real provider must not be created in default mock mode");
+      },
+    });
+    assert.equal(selection.mode, "mock");
+    assert.equal(selection.provider, fakeMockProvider);
+  });
+
+  await withProviderEnv({ EXPO_PUBLIC_OWNER_AUTH_PROVIDER: "mock" }, async () => {
+    const selection = selectAuthSessionProvider({
+      mockProvider: fakeMockProvider,
+      realProviderFactory: () => {
+        throw new Error("real provider must not be created in explicit mock mode");
+      },
+    });
+    assert.equal(selection.mode, "mock");
+    assert.equal(selection.provider, fakeMockProvider);
+  });
+
+  await withProviderEnv({ EXPO_PUBLIC_OWNER_AUTH_PROVIDER: "real" }, async () => {
+    const selection = selectAuthSessionProvider({
+      realProviderFactory: () => {
+        throw new Error("real provider must not be created when env is invalid");
+      },
+    });
+    assert.equal(selection.mode, "real");
+    assert.equal(selection.provider, undefined);
+    assert.match(selection.error?.message ?? "", /Supabase URL is required/);
+  });
+
+  await withProviderEnv(
+    {
+      EXPO_PUBLIC_OWNER_AUTH_PROVIDER: "real",
+      EXPO_PUBLIC_SUPABASE_URL: "https://dev-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "public-publishable-key",
+      EXPO_PUBLIC_SUPABASE_ENV_NAME: "development",
+      EXPO_PUBLIC_OWNER_API_STAGE: "development",
+    },
+    async () => {
+      let realProviderCreated = false;
+      const fakeRealProvider = createMockAuthSessionProvider();
+      const selection = selectAuthSessionProvider({
+        realProviderFactory: () => {
+          realProviderCreated = true;
+          return fakeRealProvider;
+        },
+      });
+      assert.equal(selection.mode, "real");
+      assert.equal(selection.provider, fakeRealProvider);
+      assert.equal(realProviderCreated, true);
+    },
+  );
+}
+
 async function checkAuthEnvConfig() {
   await withProviderEnv({}, () => {
     assert.throws(() => assertAuthEnvConfigIsReady(), /Supabase URL is required/);
@@ -1324,6 +1387,7 @@ async function main() {
   await checkSelectedDevShop();
   await checkFirstShopFallback();
   await checkAuthSessionProviders();
+  await checkAuthProviderSelection();
   await checkAuthEnvConfig();
   await checkSupabaseAuthClientFactory();
   await checkAuthSessionStorageAdapters();

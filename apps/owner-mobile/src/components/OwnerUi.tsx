@@ -21,6 +21,7 @@ type OwnerButtonProps = {
   label: string;
   onPress?: () => void;
   variant?: "primary" | "secondary" | "kakao" | "naver" | "ghost" | "danger";
+  disabled?: boolean;
 };
 
 type StatusBadgeProps = {
@@ -58,10 +59,16 @@ export function OwnerCard({ title, description, tone = "default", children }: Ow
   );
 }
 
-export function OwnerButton({ label, onPress, variant = "primary" }: OwnerButtonProps) {
+export function OwnerButton({ label, onPress, variant = "primary", disabled = false }: OwnerButtonProps) {
   return (
-    <Pressable onPress={onPress} style={[styles.button, buttonStyleByVariant[variant]]}>
-      <Text style={[styles.buttonLabel, buttonLabelStyleByVariant[variant]]}>{label}</Text>
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      style={[styles.button, buttonStyleByVariant[variant], disabled && styles.buttonDisabled]}
+    >
+      <Text style={[styles.buttonLabel, buttonLabelStyleByVariant[variant], disabled && styles.buttonLabelDisabled]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -262,9 +269,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
   buttonLabel: {
     fontSize: 14,
     fontWeight: "800",
+  },
+  buttonLabelDisabled: {
+    opacity: 0.85,
   },
   searchBox: {
     minHeight: 46,

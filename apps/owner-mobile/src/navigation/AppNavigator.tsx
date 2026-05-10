@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator, type BottomTabScreenProps } from "@react-navigation/bottom-tabs";
@@ -23,9 +23,11 @@ import ReservationDetailScreen from "@/screens/ReservationDetailScreen";
 import ReservationListScreen from "@/screens/ReservationListScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import TodayHomeScreen from "@/screens/TodayHomeScreen";
-import { signInWithMockOwnerSession, signOutCurrentOwnerSession, type OwnerSession } from "@/services/authService";
+import { defaultAuthSessionProvider, type OwnerSession } from "@/services/authService";
+import { selectAuthSessionProvider } from "@/services/selectAuthSessionProvider";
 import type { OwnerDataProvider } from "@/services/ownerDataProvider";
 import { createInjectedSettingsSummaryPreviewSelectProvider } from "@/services/settingsSummaryPreviewInjection";
+import type { AuthSignInCredentials } from "@/types/auth";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
@@ -39,7 +41,10 @@ type CustomerListRouteProps = NativeStackScreenProps<CustomerStackParamList, "Cu
 type CustomerDetailRouteProps = NativeStackScreenProps<CustomerStackParamList, "CustomerDetail">;
 
 type AuthStackNavigatorProps = {
-  onSignedIn: () => void;
+  authMode: "mock" | "real";
+  errorMessage?: string | null;
+  isSigningIn?: boolean;
+  onSignedIn: (credentials?: AuthSignInCredentials) => void;
 };
 
 type MainTabsNavigatorProps = {
@@ -52,20 +57,48 @@ type DataRouteProps = {
 };
 
 export function AppNavigator() {
-  const { session: loadedSession, loading: sessionLoading } = useAppSession();
+  const authSelection = useMemo(() => selectAuthSessionProvider(), []);
+  const authSessionProvider = authSelection.provider ?? defaultAuthSessionProvider;
+  const { session: loadedSession, loading: sessionLoading } = useAppSession(authSessionProvider);
   const { state: ownerDataState, provider: ownerDataProvider, loading: ownerDataLoading, retry } = useOwnerDataProvider();
   const [session, setSession] = useState<OwnerSession | null>(null);
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
 
   useEffect(() => {
     if (!sessionLoading) setSession(loadedSession);
   }, [loadedSession, sessionLoading]);
 
-  const signInWithMockSession = () => {
-    void signInWithMockOwnerSession().then(setSession);
-  };
-  const signOutPlaceholder = () => {
-    void signOutCurrentOwnerSession().then(() => setSession(null));
-  };
+  const signInWithSelectedProvider = useCallback(
+    (credentials?: AuthSignInCredentials) => {
+      if (authSelection.error) {
+        setAuthErrorMessage("로그인 환경을 확인하지 못했습니다. 설정을 확인해 주세요.");
+        return;
+      }
+
+      setAuthBusy(true);
+      setAuthErrorMessage(null);
+      void authSessionProvider
+        .signIn({
+          loginId: credentials?.loginId ?? "mock-owner",
+          password: credentials?.password ?? "mock-password",
+        })
+        .then(setSession)
+        .catch(() => {
+          setSession(null);
+          setAuthErrorMessage("로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.");
+        })
+        .finally(() => setAuthBusy(false));
+    },
+    [authSelection.error, authSessionProvider],
+  );
+  const signOutSelectedProvider = useCallback(() => {
+    setAuthErrorMessage(null);
+    void authSessionProvider
+      .signOut()
+      .catch(() => undefined)
+      .finally(() => setSession(null));
+  }, [authSessionProvider]);
 
   if (sessionLoading || ownerDataLoading || ownerDataState.status === "idle") {
     return (
@@ -87,6 +120,19 @@ export function AppNavigator() {
     );
   }
 
+  if (authSelection.error) {
+    return (
+      <View style={styles.shell}>
+        <View style={styles.loading}>
+          <ErrorState
+            title="로그인 설정을 확인하지 못했습니다."
+            description="real auth mode를 사용하려면 Supabase 공개 설정이 필요합니다."
+          />
+        </View>
+      </View>
+    );
+  }
+
   if (!ownerDataProvider) {
     return (
       <View style={styles.shell}>
@@ -101,19 +147,33 @@ export function AppNavigator() {
     <View style={styles.shell}>
       <NavigationContainer>
         {session ? (
-          <MainTabsNavigator ownerDataProvider={ownerDataProvider} onSignOut={signOutPlaceholder} />
+          <MainTabsNavigator ownerDataProvider={ownerDataProvider} onSignOut={signOutSelectedProvider} />
         ) : (
-          <AuthStackNavigator onSignedIn={signInWithMockSession} />
+          <AuthStackNavigator
+            authMode={authSelection.mode}
+            errorMessage={authErrorMessage}
+            isSigningIn={authBusy}
+            onSignedIn={signInWithSelectedProvider}
+          />
         )}
       </NavigationContainer>
     </View>
   );
 }
 
-function AuthStackNavigator({ onSignedIn }: AuthStackNavigatorProps) {
+function AuthStackNavigator({ authMode, errorMessage, isSigningIn, onSignedIn }: AuthStackNavigatorProps) {
   return (
     <AuthStack.Navigator screenOptions={stackScreenOptions}>
-      <AuthStack.Screen name="Login">{() => <LoginScreen onSignedIn={onSignedIn} />}</AuthStack.Screen>
+      <AuthStack.Screen name="Login">
+        {() => (
+          <LoginScreen
+            authMode={authMode}
+            errorMessage={errorMessage}
+            isSigningIn={isSigningIn}
+            onSignedIn={onSignedIn}
+          />
+        )}
+      </AuthStack.Screen>
     </AuthStack.Navigator>
   );
 }

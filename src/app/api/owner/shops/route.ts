@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { OwnerApiError } from "@/server/owner-api-auth";
+import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
@@ -11,7 +12,7 @@ function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefine
 export async function GET(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
-      return NextResponse.json([
+      return ownerMobileCorsJson(request, [
         {
           id: "demo-shop",
           name: "데모 매장",
@@ -66,7 +67,8 @@ export async function GET(request: NextRequest) {
           throw new OwnerApiError(fallbackResult.error.message, 500);
         }
 
-        return NextResponse.json(
+        return ownerMobileCorsJson(
+          request,
           (fallbackResult.data ?? []).map((shop) => ({
             id: shop.id,
             name: shop.name,
@@ -79,7 +81,8 @@ export async function GET(request: NextRequest) {
       throw new OwnerApiError(shopsResult.error.message, 500);
     }
 
-    return NextResponse.json(
+    return ownerMobileCorsJson(
+      request,
       (shopsResult.data ?? []).map((shop) => ({
         id: shop.id,
         name: shop.name,
@@ -95,10 +98,14 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof OwnerApiError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });
     }
 
     const message = error instanceof Error ? error.message : "매장 목록을 불러오지 못했습니다.";
-    return NextResponse.json({ message }, { status: 500 });
+    return ownerMobileCorsJson(request, { message }, { status: 500 });
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return ownerMobileCorsPreflight(request);
 }

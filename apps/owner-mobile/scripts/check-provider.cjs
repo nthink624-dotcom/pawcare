@@ -585,19 +585,21 @@ async function checkAuthSessionProviders() {
   await mockAuthProvider.signOut();
   assert.equal(await mockAuthProvider.restoreSession(), null);
 
-  const realAuthProvider = createRealAuthSessionProvider();
-  await assert.rejects(() => realAuthProvider.getSession(), /not implemented yet/i);
-  await assert.rejects(() => realAuthProvider.getAccessToken(), /not implemented yet/i);
-  await assert.rejects(
-    () =>
-      realAuthProvider.signIn({
-        loginId: "owner",
-        password: "password",
-      }),
-    /not implemented yet/i,
-  );
-  await assert.rejects(() => realAuthProvider.signOut(), /not implemented yet/i);
-  await assert.rejects(() => realAuthProvider.restoreSession(), /not implemented yet/i);
+  await withProviderEnv({}, async () => {
+    const realAuthProvider = createRealAuthSessionProvider();
+    assert.equal(await realAuthProvider.getSession(), null);
+    assert.equal(await realAuthProvider.getAccessToken(), null);
+    await assert.rejects(
+      () =>
+        realAuthProvider.signIn({
+          loginId: "owner",
+          password: "password",
+        }),
+      /Supabase URL is required/i,
+    );
+    await assert.rejects(() => realAuthProvider.signOut(), /Supabase URL is required/i);
+    assert.equal(await realAuthProvider.restoreSession(), null);
+  });
 
   let supabaseFactoryCalled = false;
   let storageTouched = false;
@@ -629,7 +631,8 @@ async function checkAuthSessionProviders() {
       },
     },
   });
-  await assert.rejects(() => injectedRealAuthProvider.restoreSession(), /not implemented yet/i);
+  assert.equal(await injectedRealAuthProvider.getSession(), null);
+  assert.equal(await injectedRealAuthProvider.getAccessToken(), null);
   assert.equal(supabaseFactoryCalled, false);
   assert.equal(storageTouched, false);
   assert.equal(loggerTouched, false);
@@ -655,6 +658,108 @@ async function checkAuthSessionProviders() {
   assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, access_token: "" }, { now: restoreNow }), null);
   assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, user: { id: "restored-user" } }, { now: restoreNow })?.email, null);
   assert.equal(mapSupabaseSessionToAuthSession({ ...activeSessionLike, expires_at: 1_699_999_999 }, { now: restoreNow }), null);
+
+  const supabaseAuthCalls = [];
+  const fakeSupabaseAuthClient = {
+    auth: {
+      async signInWithPassword(credentials) {
+        supabaseAuthCalls.push(["signInWithPassword", credentials.email, typeof credentials.password]);
+        return {
+          data: {
+            session: activeSessionLike,
+          },
+          error: null,
+        };
+      },
+      async getSession() {
+        supabaseAuthCalls.push(["getSession"]);
+        return {
+          data: {
+            session: activeSessionLike,
+          },
+          error: null,
+        };
+      },
+      async signOut() {
+        supabaseAuthCalls.push(["signOut"]);
+        return {
+          error: null,
+        };
+      },
+    },
+  };
+  const supabaseBackedProvider = createRealAuthSessionProvider({
+    supabaseClient: fakeSupabaseAuthClient,
+    now: restoreNow,
+  });
+  const supabaseSignedInSession = await supabaseBackedProvider.signIn({
+    loginId: "restored-owner@example.test",
+    password: "valid-input",
+  });
+  assert.equal(supabaseSignedInSession.userId, "restored-user");
+  assert.equal(await supabaseBackedProvider.getAccessToken(), "restored-access-token");
+  assert.deepEqual(supabaseAuthCalls[0], ["signInWithPassword", "restored-owner@example.test", "string"]);
+
+  const restoredSupabaseSession = await supabaseBackedProvider.restoreSession();
+  assert.equal(restoredSupabaseSession?.email, "restored-owner@example.test");
+  assert.deepEqual(supabaseAuthCalls[1], ["getSession"]);
+
+  await supabaseBackedProvider.signOut();
+  assert.deepEqual(supabaseAuthCalls[2], ["signOut"]);
+  assert.equal(await supabaseBackedProvider.getSession(), null);
+  assert.equal(await supabaseBackedProvider.getAccessToken(), null);
+
+  const supabaseFailureEvents = [];
+  const failingSupabaseAuthProvider = createRealAuthSessionProvider({
+    supabaseClient: {
+      auth: {
+        async signInWithPassword() {
+          return {
+            data: {
+              session: null,
+            },
+            error: new Error("Invalid login"),
+          };
+        },
+        async getSession() {
+          return {
+            data: {
+              session: null,
+            },
+            error: new Error("Restore failed"),
+          };
+        },
+        async signOut() {
+          return {
+            error: new Error("Sign out failed"),
+          };
+        },
+      },
+    },
+    now: restoreNow,
+    logger: {
+      warn(message, metadata) {
+        supabaseFailureEvents.push({ level: "warn", message, metadata });
+      },
+      error(message, metadata) {
+        supabaseFailureEvents.push({ level: "error", message, metadata });
+      },
+    },
+  });
+  await assert.rejects(
+    () =>
+      failingSupabaseAuthProvider.signIn({
+        loginId: "restored-owner@example.test",
+        password: "invalid-input",
+      }),
+    /Invalid login/,
+  );
+  assert.equal(await failingSupabaseAuthProvider.getSession(), null);
+  assert.equal(await failingSupabaseAuthProvider.getAccessToken(), null);
+  assert.equal(await failingSupabaseAuthProvider.restoreSession(), null);
+  await assert.rejects(() => failingSupabaseAuthProvider.signOut(), /Sign out failed/);
+  assert.equal(JSON.stringify(supabaseFailureEvents).includes("invalid-input"), false);
+  assert.equal(JSON.stringify(supabaseFailureEvents).includes("restored-access-token"), false);
 
   let sessionReadCount = 0;
   const restoreCapableProvider = createRealAuthSessionProvider({

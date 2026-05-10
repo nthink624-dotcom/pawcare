@@ -4,11 +4,8 @@ import {
   mapSupabaseSessionToAuthSession,
   type SupabaseSessionLike,
 } from "@/services/authSessionMapper";
-import type { OwnerSupabaseAuthClient } from "@/services/supabaseAuthClient";
+import { getOwnerSupabaseAuthClient, type OwnerSupabaseAuthClient } from "@/services/supabaseAuthClient";
 import type { AuthSession, AuthSignInCredentials } from "@/types/auth";
-
-const notImplementedMessage =
-  "Real Supabase Auth session provider is not implemented yet. Use the mock auth provider until the approved auth step.";
 
 export type RealAuthSessionLogger = {
   warn(message: string, metadata?: Record<string, unknown>): void;
@@ -37,6 +34,24 @@ const noopLogger: RealAuthSessionLogger = {
   error() {},
 };
 
+function getSupabaseClient(dependencies: RealAuthSessionProviderDependencies) {
+  if (dependencies.supabaseClient) return dependencies.supabaseClient;
+  if (dependencies.supabaseClientFactory) return dependencies.supabaseClientFactory();
+
+  return getOwnerSupabaseAuthClient(undefined, {
+    authStorage: dependencies.sessionStorage,
+  });
+}
+
+function mapRequiredSession(sessionLike: SupabaseSessionLike | null, now: () => number) {
+  const authSession = mapSupabaseSessionToAuthSession(sessionLike, { now });
+  if (!authSession) {
+    throw new Error("Owner auth did not return a valid session.");
+  }
+
+  return authSession;
+}
+
 export function createRealAuthSessionProvider(
   dependencies: RealAuthSessionProviderDependencies = {},
 ): AuthSessionProvider {
@@ -46,39 +61,20 @@ export function createRealAuthSessionProvider(
     ...dependencies,
   };
   let currentSession: AuthSession | null = null;
-  const canUseInjectedAuth = Boolean(
-    resolvedDependencies.sessionSource || resolvedDependencies.signInSource || resolvedDependencies.signOutSource,
-  );
 
   return {
     async getSession() {
-      if (canUseInjectedAuth) {
-        return currentSession;
-      }
-
-      throw new Error(notImplementedMessage);
+      return currentSession;
     },
     async getAccessToken() {
-      if (canUseInjectedAuth) {
-        return currentSession?.accessToken ?? null;
-      }
-
-      throw new Error(notImplementedMessage);
+      return currentSession?.accessToken ?? null;
     },
     async signIn(credentials) {
-      if (!resolvedDependencies.signInSource) {
-        throw new Error(notImplementedMessage);
-      }
-
       try {
-        const sessionLike = await resolvedDependencies.signInSource.signIn(credentials);
-        currentSession = mapSupabaseSessionToAuthSession(sessionLike, {
-          now: resolvedDependencies.now,
-        });
-
-        if (!currentSession) {
-          throw new Error("Owner sign in did not return a valid session.");
-        }
+        const sessionLike = resolvedDependencies.signInSource
+          ? await resolvedDependencies.signInSource.signIn(credentials)
+          : await signInWithSupabasePassword(getSupabaseClient(resolvedDependencies), credentials);
+        currentSession = mapRequiredSession(sessionLike, resolvedDependencies.now);
 
         return currentSession;
       } catch (error) {
@@ -88,12 +84,12 @@ export function createRealAuthSessionProvider(
       }
     },
     async signOut() {
-      if (!resolvedDependencies.signOutSource) {
-        throw new Error(notImplementedMessage);
-      }
-
       try {
-        await resolvedDependencies.signOutSource.signOut();
+        if (resolvedDependencies.signOutSource) {
+          await resolvedDependencies.signOutSource.signOut();
+        } else {
+          await signOutWithSupabase(getSupabaseClient(resolvedDependencies));
+        }
         currentSession = null;
       } catch (error) {
         currentSession = null;
@@ -102,12 +98,10 @@ export function createRealAuthSessionProvider(
       }
     },
     async restoreSession() {
-      if (!resolvedDependencies.sessionSource) {
-        throw new Error(notImplementedMessage);
-      }
-
       try {
-        const sessionLike = await resolvedDependencies.sessionSource.readSession();
+        const sessionLike = resolvedDependencies.sessionSource
+          ? await resolvedDependencies.sessionSource.readSession()
+          : await restoreSupabaseSession(getSupabaseClient(resolvedDependencies));
         currentSession = mapSupabaseSessionToAuthSession(sessionLike, {
           now: resolvedDependencies.now,
         });
@@ -120,4 +114,35 @@ export function createRealAuthSessionProvider(
       }
     },
   };
+}
+
+async function signInWithSupabasePassword(client: OwnerSupabaseAuthClient, credentials: AuthSignInCredentials) {
+  const { data, error } = await client.auth.signInWithPassword({
+    email: credentials.loginId,
+    password: credentials.password,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data.session;
+}
+
+async function restoreSupabaseSession(client: OwnerSupabaseAuthClient) {
+  const { data, error } = await client.auth.getSession();
+
+  if (error) {
+    throw error;
+  }
+
+  return data.session;
+}
+
+async function signOutWithSupabase(client: OwnerSupabaseAuthClient) {
+  const { error } = await client.auth.signOut();
+
+  if (error) {
+    throw error;
+  }
 }

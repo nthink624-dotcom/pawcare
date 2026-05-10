@@ -4,6 +4,7 @@ import {
   mapSupabaseSessionToAuthSession,
   type SupabaseSessionLike,
 } from "@/services/authSessionMapper";
+import { buildOwnerAuthEmailCandidates } from "@/services/ownerAuthCredentials";
 import { getOwnerSupabaseAuthClient, type OwnerSupabaseAuthClient } from "@/services/supabaseAuthClient";
 import type { AuthSession, AuthSignInCredentials } from "@/types/auth";
 
@@ -117,16 +118,22 @@ export function createRealAuthSessionProvider(
 }
 
 async function signInWithSupabasePassword(client: OwnerSupabaseAuthClient, credentials: AuthSignInCredentials) {
-  const { data, error } = await client.auth.signInWithPassword({
-    email: credentials.loginId,
-    password: credentials.password,
-  });
+  let lastError: unknown = null;
 
-  if (error) {
-    throw error;
+  for (const email of buildOwnerAuthEmailCandidates(credentials.loginId)) {
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password: credentials.password,
+    });
+
+    if (!error) {
+      return data.session;
+    }
+
+    lastError = error;
   }
 
-  return data.session;
+  throw lastError ?? new Error("Owner auth sign-in failed.");
 }
 
 async function restoreSupabaseSession(client: OwnerSupabaseAuthClient) {

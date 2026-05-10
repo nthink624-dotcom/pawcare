@@ -40,6 +40,12 @@ const {
   createSecureStoreAuthSessionStorage,
 } = require("../src/services/authSessionStorage");
 const { createMockAuthSessionProvider } = require("../src/services/mockAuthSessionProvider");
+const {
+  buildLegacyOwnerAuthEmail,
+  buildOwnerAuthEmail,
+  buildOwnerAuthEmailCandidates,
+  normalizeOwnerLoginId,
+} = require("../src/services/ownerAuthCredentials");
 const { createRealAuthSessionProvider } = require("../src/services/realAuthSessionProvider");
 const {
   createOwnerSupabaseAuthClient,
@@ -638,6 +644,14 @@ async function checkAuthSessionProviders() {
   assert.equal(loggerTouched, false);
 
   const restoreNow = () => 1_700_000_000_000;
+  assert.equal(normalizeOwnerLoginId(" Restored-Owner "), "restored-owner");
+  assert.equal(buildOwnerAuthEmail(" Restored-Owner "), "restored-owner@owner.petmanager.local");
+  assert.equal(buildLegacyOwnerAuthEmail(" Restored-Owner "), "restored-owner@owner.pawcare.local");
+  assert.deepEqual(buildOwnerAuthEmailCandidates(" Restored-Owner "), [
+    "restored-owner@owner.petmanager.local",
+    "restored-owner@owner.pawcare.local",
+  ]);
+
   const activeSessionLike = {
     access_token: "restored-access-token",
     expires_at: 1_700_000_600,
@@ -693,12 +707,12 @@ async function checkAuthSessionProviders() {
     now: restoreNow,
   });
   const supabaseSignedInSession = await supabaseBackedProvider.signIn({
-    loginId: "restored-owner@example.test",
+    loginId: "Restored-Owner",
     password: "valid-input",
   });
   assert.equal(supabaseSignedInSession.userId, "restored-user");
   assert.equal(await supabaseBackedProvider.getAccessToken(), "restored-access-token");
-  assert.deepEqual(supabaseAuthCalls[0], ["signInWithPassword", "restored-owner@example.test", "string"]);
+  assert.deepEqual(supabaseAuthCalls[0], ["signInWithPassword", "restored-owner@owner.petmanager.local", "string"]);
 
   const restoredSupabaseSession = await supabaseBackedProvider.restoreSession();
   assert.equal(restoredSupabaseSession?.email, "restored-owner@example.test");
@@ -708,6 +722,55 @@ async function checkAuthSessionProviders() {
   assert.deepEqual(supabaseAuthCalls[2], ["signOut"]);
   assert.equal(await supabaseBackedProvider.getSession(), null);
   assert.equal(await supabaseBackedProvider.getAccessToken(), null);
+
+  const fallbackSupabaseAuthCalls = [];
+  const fallbackSupabaseAuthProvider = createRealAuthSessionProvider({
+    supabaseClient: {
+      auth: {
+        async signInWithPassword(credentials) {
+          fallbackSupabaseAuthCalls.push(["signInWithPassword", credentials.email, typeof credentials.password]);
+          if (credentials.email.endsWith("@owner.petmanager.local")) {
+            return {
+              data: {
+                session: null,
+              },
+              error: new Error("Invalid login"),
+            };
+          }
+
+          return {
+            data: {
+              session: activeSessionLike,
+            },
+            error: null,
+          };
+        },
+        async getSession() {
+          return {
+            data: {
+              session: null,
+            },
+            error: null,
+          };
+        },
+        async signOut() {
+          return {
+            error: null,
+          };
+        },
+      },
+    },
+    now: restoreNow,
+  });
+  const fallbackSignedInSession = await fallbackSupabaseAuthProvider.signIn({
+    loginId: "Restored-Owner",
+    password: "valid-input",
+  });
+  assert.equal(fallbackSignedInSession.userId, "restored-user");
+  assert.deepEqual(fallbackSupabaseAuthCalls, [
+    ["signInWithPassword", "restored-owner@owner.petmanager.local", "string"],
+    ["signInWithPassword", "restored-owner@owner.pawcare.local", "string"],
+  ]);
 
   const supabaseFailureEvents = [];
   const failingSupabaseAuthProvider = createRealAuthSessionProvider({

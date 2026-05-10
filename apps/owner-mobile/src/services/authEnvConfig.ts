@@ -40,7 +40,7 @@ export function getAuthEnvConfig(): AuthEnvConfig {
   return {
     supabaseUrl: normalizeUrl(readEnv("EXPO_PUBLIC_SUPABASE_URL")),
     supabasePublishableKey: normalizePublicKey(
-      readEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY") ?? readEnv("EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+      readEnv("EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY") ?? readEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY"),
     ),
     supabaseEnvName: normalizeStage(readEnv("EXPO_PUBLIC_SUPABASE_ENV_NAME")),
     appStage: normalizeStage(readEnv("EXPO_PUBLIC_OWNER_API_STAGE")),

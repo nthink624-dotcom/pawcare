@@ -10,7 +10,7 @@ import {
   buildTodayHomeViewModel,
 } from "@/viewModels/ownerViewModels";
 
-export const DEFAULT_OWNER_PROVIDER_TODAY = "2026-05-08";
+export const DEFAULT_OWNER_PROVIDER_TODAY = "2026-05-11";
 
 export function createMockOwnerDataProvider(
   bootstrap: OwnerBootstrapDto = ownerBootstrapMock,

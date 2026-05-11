@@ -4,6 +4,7 @@ import { toOwnerBootstrapDto, type OwnerBootstrapApiPayload } from "@/services/o
 import type { OwnerBootstrapDto } from "@/types/bootstrap";
 import {
   buildAppointmentDetailViewModel,
+  buildAppointmentOverviewHomeViewModel,
   buildAppointmentRows,
   buildCustomerDetailViewModel,
   buildCustomerSummaries,
@@ -46,14 +47,15 @@ export type LoadRealOwnerBootstrapResult = {
   selectedShopId: string;
 };
 
-const DEFAULT_REAL_PROVIDER_TODAY = "2026-05-08";
+const DEFAULT_REAL_PROVIDER_TODAY = "2026-05-11";
 
 export function createRealOwnerDataProvider(bootstrap: OwnerBootstrapDto, today = DEFAULT_REAL_PROVIDER_TODAY): OwnerDataProvider {
   return {
     getBootstrap: () => bootstrap,
     getShopSummary: () => buildSettingsSummaryViewModel(bootstrap).shop,
-    getAppointmentRows: (date = today) => buildAppointmentRows(bootstrap, date),
-    getTodayHome: (targetToday = today) => buildTodayHomeViewModel(bootstrap, targetToday),
+    getAppointmentRows: (date) => buildAppointmentRows(bootstrap, date),
+    getTodayHome: (targetToday) =>
+      targetToday ? buildTodayHomeViewModel(bootstrap, targetToday) : buildAppointmentOverviewHomeViewModel(bootstrap),
     getAppointmentDetail: (appointmentId) => buildAppointmentDetailViewModel(bootstrap, appointmentId),
     getCustomerSummaries: () => buildCustomerSummaries(bootstrap),
     getCustomerDetail: (guardianId) => buildCustomerDetailViewModel(bootstrap, guardianId),

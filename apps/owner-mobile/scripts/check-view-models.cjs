@@ -50,7 +50,7 @@ const {
   isActiveAppointmentStatus,
 } = require("../src/viewModels/status");
 
-const today = "2026-05-08";
+const today = "2026-05-11";
 const provider = createMockOwnerDataProvider(ownerBootstrapMock, today);
 const adaptedBootstrap = toOwnerBootstrapDto(
   {

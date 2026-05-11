@@ -7,6 +7,7 @@ import { createNativeStackNavigator, type NativeStackScreenProps } from "@react-
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
 import { useAppSession } from "@/hooks/useAppSession";
+import { useOwnerDataPreviewProvider } from "@/hooks/useOwnerDataPreviewProvider";
 import { useOwnerDataProvider } from "@/hooks/useOwnerDataProvider";
 import { useSettingsSummaryPreview } from "@/hooks/useSettingsSummaryPreview";
 import {
@@ -51,11 +52,17 @@ type AuthStackNavigatorProps = {
 type MainTabsNavigatorProps = {
   ownerDataProvider: OwnerDataProvider;
   authSessionProvider: AuthSessionProvider;
+  session: OwnerSession;
   onSignOut: () => void;
 };
 
 type DataRouteProps = {
   ownerDataProvider: OwnerDataProvider;
+};
+
+type PreviewDataRouteProps = DataRouteProps & {
+  previewDataProvider: OwnerDataProvider;
+  previewDataSource: "mock" | "real";
 };
 
 export function AppNavigator() {
@@ -152,6 +159,7 @@ export function AppNavigator() {
           <MainTabsNavigator
             ownerDataProvider={ownerDataProvider}
             authSessionProvider={authSessionProvider}
+            session={session}
             onSignOut={signOutSelectedProvider}
           />
         ) : (
@@ -184,14 +192,50 @@ function AuthStackNavigator({ authMode, errorMessage, isSigningIn, onSignedIn }:
   );
 }
 
-function MainTabsNavigator({ ownerDataProvider, authSessionProvider, onSignOut }: MainTabsNavigatorProps) {
+function MainTabsNavigator({ ownerDataProvider, authSessionProvider, session, onSignOut }: MainTabsNavigatorProps) {
+  const accessTokenResolver = useCallback(() => session.accessToken, [session.accessToken]);
+  const ownerDataPreview = useOwnerDataPreviewProvider({
+    mockProvider: ownerDataProvider,
+    accessTokenResolver,
+    ownerEmail: session.email,
+  });
+
+  if (ownerDataPreview.loading) {
+    return (
+      <View style={styles.routeState}>
+        <LoadingState />
+      </View>
+    );
+  }
+
+  if (ownerDataPreview.status === "error") {
+    return (
+      <View style={styles.routeState}>
+        <ErrorState description={formatOwnerDataError(ownerDataPreview.error)} onRetry={ownerDataPreview.retry} />
+      </View>
+    );
+  }
+
   return (
     <MainTabs.Navigator screenOptions={tabScreenOptions}>
       <MainTabs.Screen name="Today" options={{ title: TAB_LABELS.Today }}>
-        {(props) => <TodayRoute {...props} ownerDataProvider={ownerDataProvider} />}
+        {(props) => (
+          <TodayRoute
+            {...props}
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={ownerDataPreview.provider}
+            previewDataSource={ownerDataPreview.source}
+          />
+        )}
       </MainTabs.Screen>
       <MainTabs.Screen name="Reservations" options={{ title: TAB_LABELS.Reservations }}>
-        {() => <ReservationStackNavigator ownerDataProvider={ownerDataProvider} />}
+        {() => (
+          <ReservationStackNavigator
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={ownerDataPreview.provider}
+            previewDataSource={ownerDataPreview.source}
+          />
+        )}
       </MainTabs.Screen>
       <MainTabs.Screen name="Customers" options={{ title: TAB_LABELS.Customers }}>
         {() => <CustomerStackNavigator ownerDataProvider={ownerDataProvider} />}
@@ -209,11 +253,18 @@ function MainTabsNavigator({ ownerDataProvider, authSessionProvider, onSignOut }
   );
 }
 
-function ReservationStackNavigator({ ownerDataProvider }: DataRouteProps) {
+function ReservationStackNavigator({ ownerDataProvider, previewDataProvider, previewDataSource }: PreviewDataRouteProps) {
   return (
     <ReservationStack.Navigator screenOptions={stackScreenOptions}>
       <ReservationStack.Screen name="ReservationList">
-        {(props) => <ReservationListRoute {...props} ownerDataProvider={ownerDataProvider} />}
+        {(props) => (
+          <ReservationListRoute
+            {...props}
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={previewDataProvider}
+            previewDataSource={previewDataSource}
+          />
+        )}
       </ReservationStack.Screen>
       <ReservationStack.Screen name="ReservationDetail">
         {(props) => <ReservationDetailRoute {...props} ownerDataProvider={ownerDataProvider} />}
@@ -235,20 +286,28 @@ function CustomerStackNavigator({ ownerDataProvider }: DataRouteProps) {
   );
 }
 
-function TodayRoute({ navigation, ownerDataProvider }: TodayRouteProps & DataRouteProps) {
+function TodayRoute({ navigation, previewDataProvider }: TodayRouteProps & PreviewDataRouteProps) {
   return (
     <TodayHomeScreen
-      viewModel={ownerDataProvider.getTodayHome()}
+      viewModel={previewDataProvider.getTodayHome()}
       onOpenReservations={() => navigation.navigate("Reservations", { screen: "ReservationList" })}
     />
   );
 }
 
-function ReservationListRoute({ navigation, ownerDataProvider }: ReservationListRouteProps & DataRouteProps) {
+function ReservationListRoute({
+  navigation,
+  previewDataProvider,
+  previewDataSource,
+}: ReservationListRouteProps & PreviewDataRouteProps) {
   return (
     <ReservationListScreen
-      rows={ownerDataProvider.getAppointmentRows()}
-      onOpenReservation={(reservationId) => navigation.navigate("ReservationDetail", { reservationId })}
+      rows={previewDataProvider.getAppointmentRows()}
+      onOpenReservation={(reservationId) => {
+        if (previewDataSource === "real") return;
+
+        navigation.navigate("ReservationDetail", { reservationId });
+      }}
     />
   );
 }
@@ -313,6 +372,32 @@ function SettingsRoute({
 const stackScreenOptions = {
   headerShown: false,
 };
+
+function formatOwnerDataError(error: Error | null) {
+  const message = error?.message ?? "";
+
+  if (/access token|로그인이 필요/i.test(message)) {
+    return "로그인 정보가 확인되지 않았습니다. 다시 로그인해 주세요.";
+  }
+
+  if (/base URL/i.test(message)) {
+    return "API 주소 설정을 확인해 주세요.";
+  }
+
+  if (/No owned shops|매장/i.test(message)) {
+    return "이 계정에 연결된 매장을 찾지 못했습니다.";
+  }
+
+  if (/Invalid bootstrap payload|bootstrap/i.test(message)) {
+    return "예약 데이터 형식이 앱과 맞지 않습니다.";
+  }
+
+  if (/Production owner API/i.test(message)) {
+    return "개발 모드에서 운영 API 연결이 차단되었습니다.";
+  }
+
+  return "기존 서버에서 예약 데이터를 불러오지 못했습니다.";
+}
 
 const tabScreenOptions = {
   headerShown: false,

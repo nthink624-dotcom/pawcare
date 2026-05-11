@@ -32,9 +32,11 @@ export default function TodayHomeScreen({ viewModel, onOpenReservations }: Today
         )}
 
         <SectionHeader title="예약 현황" count={viewModel.activeReservations.length} />
-        {viewModel.activeReservations.map((reservation) => (
-          <HomeReservationRow key={reservation.id} reservation={reservation} />
-        ))}
+        {viewModel.activeReservations.length > 0 ? (
+          viewModel.activeReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
+        ) : (
+          <EmptyState title="진행 중인 예약이 없어요" />
+        )}
 
         <SectionHeader title="완료 내역" count={viewModel.completedReservations.length} />
         {viewModel.completedReservations.length > 0 ? (
@@ -72,7 +74,10 @@ function SectionHeader({ title, count }: { title: string; count: number }) {
 function HomeReservationRow({ reservation }: { reservation: AppointmentRowViewModel }) {
   return (
     <View style={styles.reservationRow}>
-      <Text style={styles.reservationTime}>{reservation.time}</Text>
+      <View style={styles.reservationSchedule}>
+        <Text style={styles.reservationDate}>{formatReservationDate(reservation.date)}</Text>
+        <Text style={styles.reservationTime}>{reservation.time}</Text>
+      </View>
       <View style={styles.reservationBody}>
         <Text style={styles.reservationTitle}>
           {reservation.petName} <Text style={styles.reservationCustomer}>{reservation.customerName}</Text>
@@ -84,6 +89,11 @@ function HomeReservationRow({ reservation }: { reservation: AppointmentRowViewMo
       <StatusBadge label={reservation.statusLabel} />
     </View>
   );
+}
+
+function formatReservationDate(date: string) {
+  const [, month, day] = date.split("-");
+  return `${Number(month)}월 ${Number(day)}일`;
 }
 
 const styles = StyleSheet.create({
@@ -152,8 +162,16 @@ const styles = StyleSheet.create({
     backgroundColor: ownerColors.surface,
     padding: 12,
   },
+  reservationSchedule: {
+    minWidth: 62,
+    gap: 3,
+  },
+  reservationDate: {
+    color: ownerColors.faint,
+    fontSize: 11,
+    fontWeight: "700",
+  },
   reservationTime: {
-    minWidth: 48,
     color: ownerColors.text,
     fontSize: 17,
     fontWeight: "800",

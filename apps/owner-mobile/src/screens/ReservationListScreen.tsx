@@ -10,11 +10,11 @@ type ReservationListScreenProps = {
 };
 
 const quickDates = [
-  { day: "오늘", date: "8" },
-  { day: "토", date: "9" },
-  { day: "일", date: "10" },
-  { day: "월", date: "11" },
+  { day: "오늘", date: "11" },
   { day: "화", date: "12" },
+  { day: "수", date: "13" },
+  { day: "목", date: "14" },
+  { day: "금", date: "15" },
 ];
 
 export default function ReservationListScreen({ rows, onOpenReservation }: ReservationListScreenProps) {
@@ -43,9 +43,13 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
       </View>
 
       <OwnerCard title="예약" description="선택한 날짜에 처리할 예약입니다." tone="accent">
-        {activeReservations.map((reservation) => (
-          <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} />
-        ))}
+        {activeReservations.length > 0 ? (
+          activeReservations.map((reservation) => (
+            <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} />
+          ))
+        ) : (
+          <EmptyState title="표시할 예약이 없어요" />
+        )}
       </OwnerCard>
 
       <OwnerCard title="완료 내역" description="완료된 예약과 미용 기록을 시간순으로 확인합니다." tone="complete">

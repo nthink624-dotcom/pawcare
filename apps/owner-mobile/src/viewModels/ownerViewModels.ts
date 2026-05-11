@@ -129,8 +129,14 @@ export function buildAppointmentRows(dto: OwnerBootstrapDto, date?: string): App
 }
 
 export function buildTodayHomeViewModel(dto: OwnerBootstrapDto, today: string): TodayHomeViewModel {
-  const rows = buildAppointmentRows(dto, today);
+  return buildHomeViewModelFromRows(dto, buildAppointmentRows(dto, today));
+}
 
+export function buildAppointmentOverviewHomeViewModel(dto: OwnerBootstrapDto): TodayHomeViewModel {
+  return buildHomeViewModelFromRows(dto, buildAppointmentRows(dto));
+}
+
+function buildHomeViewModelFromRows(dto: OwnerBootstrapDto, rows: AppointmentRowViewModel[]): TodayHomeViewModel {
   return {
     shop: buildShopSummaryViewModel(dto.shop, dto.ownerProfile.email),
     stats: {
@@ -338,7 +344,7 @@ function formatClockTime(value: string) {
 }
 
 function formatRelativeDate(date: string) {
-  return date === "2026-05-08" ? "오늘" : formatShortDate(date);
+  return date === "2026-05-11" ? "오늘" : formatShortDate(date);
 }
 
 function formatShortDate(date: string) {

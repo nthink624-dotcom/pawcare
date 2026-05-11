@@ -66,6 +66,7 @@ const {
   SETTINGS_SUMMARY_PREVIEW_MOCK_FETCH_READY,
   createInjectedSettingsSummaryPreviewSelectProvider,
 } = require("../src/services/settingsSummaryPreviewInjection");
+const { loadOwnerDataPreviewProvider } = require("../src/hooks/useOwnerDataPreviewProvider");
 const { loadSettingsSummaryPreview } = require("../src/hooks/useSettingsSummaryPreview");
 
 const apiBaseUrl = "http://owner-api.local";
@@ -393,6 +394,7 @@ async function checkProviderSelection() {
 function checkAppNavigatorMockOnly() {
   const source = fs.readFileSync(path.join(srcRoot, "navigation", "AppNavigator.tsx"), "utf8");
   assert.match(source, /useOwnerDataProvider/);
+  assert.match(source, /useOwnerDataPreviewProvider/);
   assert.match(source, /selectAuthSessionProvider/);
   assert.match(source, /useSettingsSummaryPreview/);
   assert.match(source, /createInjectedSettingsSummaryPreviewSelectProvider/);
@@ -405,6 +407,17 @@ function checkSettingsSummaryPreviewScope() {
   const source = fs.readFileSync(path.join(srcRoot, "hooks", "useSettingsSummaryPreview.ts"), "utf8");
   assert.match(source, /selectOwnerDataProvider/);
   assert.match(source, /getSettingsSummary/);
+  assert.doesNotMatch(source, /getAppointmentRows/);
+  assert.doesNotMatch(source, /getTodayHome/);
+  assert.doesNotMatch(source, /getCustomerSummaries/);
+  assert.doesNotMatch(source, /getCustomerDetail/);
+  assert.doesNotMatch(source, /getAppointmentDetail/);
+}
+
+function checkOwnerDataPreviewProviderScope() {
+  const source = fs.readFileSync(path.join(srcRoot, "hooks", "useOwnerDataPreviewProvider.ts"), "utf8");
+  assert.match(source, /selectOwnerDataProvider/);
+  assert.doesNotMatch(source, /getSettingsSummary/);
   assert.doesNotMatch(source, /getAppointmentRows/);
   assert.doesNotMatch(source, /getTodayHome/);
   assert.doesNotMatch(source, /getCustomerSummaries/);
@@ -568,6 +581,114 @@ async function checkSettingsSummaryPreviewConditions() {
   assert.equal(manualResolverCalled, false);
 }
 
+async function checkOwnerDataPreviewProviderConditions() {
+  const mockProvider = createMockOwnerDataProvider();
+
+  let resolverCalled = false;
+  let selectorCalled = false;
+  const mockPreview = await loadOwnerDataPreviewProvider({
+    mockProvider,
+    apiConfig: {
+      dataProvider: "mock",
+      apiBaseUrl: "",
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    accessTokenResolver: () => {
+      resolverCalled = true;
+      return accessToken;
+    },
+    selectProvider: async () => {
+      selectorCalled = true;
+      throw new Error("mock mode must not call selector");
+    },
+  });
+  assert.equal(mockPreview.status, "mock");
+  assert.equal(mockPreview.source, "mock");
+  assert.equal(mockPreview.provider, mockProvider);
+  assert.equal(resolverCalled, false);
+  assert.equal(selectorCalled, false);
+
+  let calls = installMockFetch();
+  const missingTokenPreview = await loadOwnerDataPreviewProvider({
+    mockProvider,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    ownerEmail,
+  });
+  assert.equal(missingTokenPreview.status, "error");
+  assert.equal(missingTokenPreview.source, "mock");
+  assert.match(missingTokenPreview.error?.message ?? "", /access token/i);
+  assert.equal(calls.length, 0);
+
+  const realProvider = createMockOwnerDataProvider(cloneBootstrapForShop("real-preview-shop"));
+  let sessionResolverCalled = false;
+  let manualResolverCalled = false;
+  const readyPreview = await loadOwnerDataPreviewProvider({
+    mockProvider,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    accessTokenResolver: () => {
+      manualResolverCalled = true;
+      return "manual-token-must-not-be-used";
+    },
+    sessionTokenResolver: async () => {
+      sessionResolverCalled = true;
+      return {
+        accessToken,
+        ownerEmail,
+      };
+    },
+    selectProvider: async (options) => {
+      assert.equal(await options.accessTokenResolver(), accessToken);
+      assert.equal(options.ownerEmail, ownerEmail);
+
+      return {
+        mode: "real",
+        selectedShopId: "shop-first",
+        ownedShops,
+        provider: realProvider,
+      };
+    },
+  });
+  assert.equal(readyPreview.status, "ready");
+  assert.equal(readyPreview.source, "real");
+  assert.equal(readyPreview.provider, realProvider);
+  assert.equal(readyPreview.provider.getTodayHome().shop.id, "real-preview-shop");
+  assert.equal(readyPreview.provider.getAppointmentRows().length > 0, true);
+  assert.equal(sessionResolverCalled, true);
+  assert.equal(manualResolverCalled, false);
+
+  calls = installMockFetch();
+  const mockFetchPreview = await loadOwnerDataPreviewProvider({
+    mockProvider,
+    apiConfig: {
+      dataProvider: "real",
+      apiBaseUrl,
+      apiStage: "development",
+      allowProdApiInDev: false,
+    },
+    ownerEmail,
+    accessTokenResolver: createStaticManualAccessTokenResolver(accessToken),
+  });
+  assert.equal(mockFetchPreview.status, "ready");
+  assert.equal(mockFetchPreview.source, "real");
+  assert.equal(mockFetchPreview.provider.getBootstrap().shop.id, "shop-first");
+  assert.equal(mockFetchPreview.provider.getTodayHome().shop.id, "shop-first");
+  assert.equal(mockFetchPreview.provider.getAppointmentRows().length > 0, true);
+  assert.equal(calls[0].url, `${apiBaseUrl}/api/owner/shops`);
+  assert.equal(calls[1].url, `${apiBaseUrl}/api/bootstrap?shopId=shop-first`);
+  assertOnlyGetCalls(calls);
+}
+
 async function checkInjectedSettingsSummaryPreview() {
   const mockProvider = createMockOwnerDataProvider();
   const mockSummary = mockProvider.getSettingsSummary();
@@ -601,14 +722,14 @@ async function checkInjectedSettingsSummaryPreview() {
       const mockFetchSelectProvider = createInjectedSettingsSummaryPreviewSelectProvider(mockSummary);
       assert.equal(typeof mockFetchSelectProvider, "function");
 
-      const result = await mockFetchSelectProvider({ today: "2026-05-08" });
+      const result = await mockFetchSelectProvider({ today: "2026-05-11" });
       const settingsSummary = result.provider.getSettingsSummary();
       assert.equal(result.mode, "real");
       assert.equal(result.selectedShopId, "mock-fetch-shop");
       assert.equal(settingsSummary.accountEmail, MOCK_FETCH_SETTINGS_ACCOUNT_EMAIL);
       assert.equal(settingsSummary.shop.name, "Mock Fetch Grooming");
       assert.equal(settingsSummary.shop.address, "Mock Fetch Street 10");
-      assert.equal(result.provider.getAppointmentRows("2026-05-08").length > 0, true);
+      assert.equal(result.provider.getAppointmentRows("2026-05-11").length > 0, true);
     },
   );
 }
@@ -1421,7 +1542,9 @@ async function main() {
   checkAdapterValidation();
   checkAppNavigatorMockOnly();
   checkSettingsSummaryPreviewScope();
+  checkOwnerDataPreviewProviderScope();
   await checkSettingsSummaryPreviewConditions();
+  await checkOwnerDataPreviewProviderConditions();
   await checkInjectedSettingsSummaryPreview();
   await checkPreflightFailures();
   await checkProviderSelection();

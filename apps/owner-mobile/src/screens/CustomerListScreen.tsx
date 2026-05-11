@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Chip, OwnerButton, OwnerCard, OwnerScreen, SearchBox, TagList } from "@/components/OwnerUi";
+import { OwnerButton, OwnerScreen, SearchBox } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
 import type { CustomerSummaryViewModel } from "@/viewModels/ownerViewModels";
 
@@ -11,20 +11,15 @@ type CustomerListScreenProps = {
 
 export default function CustomerListScreen({ customers, onOpenCustomer }: CustomerListScreenProps) {
   return (
-    <OwnerScreen title="고객관리" subtitle="고객 검색, 태그 필터, 상세 화면을 모바일에서 빠르게 확인합니다." action={<OwnerButton label="고객추가" variant="secondary" />}>
-      <OwnerCard>
-        <SearchBox placeholder="보호자명, 연락처, 반려동물 이름 검색" />
-        <View style={styles.toolbar}>
-          <Chip label="전체" active />
-          <Chip label="정기 고객" tone="soft" />
-          <Chip label="재방문 임박" tone="soft" />
-          <Chip label="상담 필요" tone="soft" />
+    <OwnerScreen title="고객관리" action={<OwnerButton label="고객추가" variant="secondary" />}>
+      <View style={styles.searchRow}>
+        <View style={styles.searchBoxWrap}>
+          <SearchBox placeholder="보호자명, 연락처, 반려동물 이름 검색" />
         </View>
-        <View style={styles.toolbar}>
-          <OwnerButton label="고객 삭제" variant="ghost" />
-          <OwnerButton label="최신 방문순" variant="ghost" />
-        </View>
-      </OwnerCard>
+        <Pressable style={styles.deleteModeButton} accessibilityLabel="고객 삭제 선택 모드 열기">
+          <Text style={styles.deleteModeIcon}>×</Text>
+        </Pressable>
+      </View>
 
       {customers.map((customer) => (
         <CustomerCard key={customer.id} customer={customer} onPress={() => onOpenCustomer(customer.id)} />
@@ -36,107 +31,100 @@ export default function CustomerListScreen({ customers, onOpenCustomer }: Custom
 function CustomerCard({ customer, onPress }: { customer: CustomerSummaryViewModel; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
-      <OwnerCard>
+      <View style={styles.customerCard}>
         <View style={styles.customerHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{customer.avatarSeed}</Text>
-          </View>
           <View style={styles.customerBody}>
             <Text style={styles.customerName}>{customer.name}</Text>
-            <Text style={styles.customerMeta}>
-              {customer.phone} · {customer.petNames.join(", ")}
-            </Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <View style={styles.chevronCircle}>
+            <Text style={styles.chevron}>›</Text>
+          </View>
         </View>
-        <TagList tags={customer.tags} />
-        <View style={styles.summaryGrid}>
-          <Summary label="최근 방문" value={customer.latestVisitLabel} />
-          <Summary label="다음 예약" value={customer.nextBookingLabel} />
+        <View style={styles.customerMetaBlock}>
+          <Text style={styles.customerMeta}>{customer.phone}</Text>
+          <Text style={styles.petNames}>{customer.petNames.join(", ") || "등록된 반려동물 없음"}</Text>
         </View>
-        <Text style={styles.alertText}>{customer.alertLabel}</Text>
-      </OwnerCard>
+      </View>
     </Pressable>
   );
 }
 
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.summaryBox}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summaryValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  toolbar: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  customerHeader: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
-  avatar: {
-    width: 44,
-    height: 44,
+  searchBoxWrap: {
+    flex: 1,
+  },
+  deleteModeButton: {
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#dfeae5",
-    backgroundColor: "#f6fbf9",
-  },
-  avatarText: {
-    color: ownerColors.accent,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  customerBody: {
-    flex: 1,
-    gap: 3,
-  },
-  customerName: {
-    color: ownerColors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  customerMeta: {
-    color: ownerColors.muted,
-    fontSize: 13,
-  },
-  chevron: {
-    color: ownerColors.faint,
-    fontSize: 26,
-  },
-  summaryGrid: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  summaryBox: {
-    flex: 1,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: ownerColors.border,
     backgroundColor: ownerColors.surfaceSoft,
-    padding: 10,
-    gap: 4,
   },
-  summaryLabel: {
+  deleteModeIcon: {
     color: ownerColors.muted,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "300",
+    transform: [{ rotate: "45deg" }],
   },
-  summaryValue: {
+  customerCard: {
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ownerColors.border,
+    backgroundColor: ownerColors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  customerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  customerBody: {
+    flex: 1,
+  },
+  customerName: {
     color: ownerColors.text,
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 15,
+    fontWeight: "500",
   },
-  alertText: {
+  customerMetaBlock: {
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#eee7de",
+    paddingTop: 4,
+  },
+  customerMeta: {
     color: ownerColors.muted,
-    fontSize: 13,
+    fontSize: 12.5,
+    lineHeight: 19,
+  },
+  petNames: {
+    color: "#5e5a56",
+    fontSize: 12.5,
+    lineHeight: 19,
+  },
+  chevronCircle: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#ebe3da",
+    backgroundColor: ownerColors.surfaceSoft,
+  },
+  chevron: {
+    color: ownerColors.muted,
+    fontSize: 20,
+    lineHeight: 22,
   },
 });

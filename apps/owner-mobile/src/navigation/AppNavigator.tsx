@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator, type BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator, type NativeStackScreenProps } from "@react-navigation/native-stack";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ErrorState } from "@/components/ErrorState";
 import { LoadingState } from "@/components/LoadingState";
@@ -430,32 +431,42 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-const tabScreenOptions = {
+const tabScreenOptions = ({ route }: { route: { name: keyof MainTabsParamList } }) => ({
   headerShown: false,
-  tabBarShowIcon: false,
+  tabBarShowIcon: true,
   tabBarActiveTintColor: "#1f6b5b",
   tabBarInactiveTintColor: "#746b62",
+  tabBarIcon: ({ color, focused }: { color: string; focused: boolean; size: number }) => {
+    const iconNameByRoute: Record<keyof MainTabsParamList, keyof typeof Ionicons.glyphMap> = {
+      Today: focused ? "home" : "home-outline",
+      Reservations: focused ? "calendar" : "calendar-outline",
+      Customers: focused ? "paw" : "paw-outline",
+      Settings: focused ? "settings" : "settings-outline",
+    };
+
+    return <Ionicons name={iconNameByRoute[route.name]} size={22} color={color} />;
+  },
   tabBarItemStyle: {
-    height: 58,
+    height: 56,
     justifyContent: "center" as const,
     paddingTop: 0,
     paddingBottom: 0,
   },
   tabBarLabelStyle: {
-    fontSize: 13,
-    fontWeight: "700" as const,
+    fontSize: 11,
+    fontWeight: "600" as const,
     lineHeight: 18,
-    marginTop: 0,
+    marginTop: 1,
     marginBottom: 0,
   },
   tabBarStyle: {
-    height: 58,
+    height: 62,
     borderTopColor: "#ded6ca",
-    backgroundColor: "#fffaf3",
-    paddingTop: 0,
-    paddingBottom: 0,
+    backgroundColor: "rgba(255,255,255,0.98)",
+    paddingTop: 6,
+    paddingBottom: 6,
   },
-};
+});
 
 const styles = StyleSheet.create({
   shell: {

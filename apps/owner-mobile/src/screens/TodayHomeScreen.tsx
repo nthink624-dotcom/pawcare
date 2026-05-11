@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { EmptyState, OwnerButton, OwnerCard, OwnerScreen, StatusBadge } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
@@ -10,10 +10,14 @@ type TodayHomeScreenProps = {
 };
 
 export default function TodayHomeScreen({ viewModel, onOpenReservations }: TodayHomeScreenProps) {
+  const reservationCount =
+    viewModel.pendingReservations.length +
+    viewModel.activeReservations.length +
+    viewModel.completedReservations.length;
+
   return (
     <OwnerScreen
       title={viewModel.shop.name}
-      subtitle="홈"
       action={<OwnerButton label="예약 링크 복사" onPress={onOpenReservations} variant="ghost" />}
     >
       <View style={styles.statsGrid}>
@@ -23,7 +27,11 @@ export default function TodayHomeScreen({ viewModel, onOpenReservations }: Today
         <StatCard label="취소·변경" value={`${viewModel.stats.cancelChange}건`} tone="danger" />
       </View>
 
-      <OwnerCard title="예약관리" description="불러온 예약을 상태별로 빠르게 확인합니다." tone="accent">
+      <OwnerCard title="예약관리" tone="accent">
+        <View style={styles.panelCountRow}>
+          <Text style={styles.panelCountText}>{reservationCount}건</Text>
+        </View>
+
         <SectionHeader title="승인 대기" count={viewModel.pendingReservations.length} />
         {viewModel.pendingReservations.length > 0 ? (
           viewModel.pendingReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
@@ -35,20 +43,16 @@ export default function TodayHomeScreen({ viewModel, onOpenReservations }: Today
         {viewModel.activeReservations.length > 0 ? (
           viewModel.activeReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
         ) : (
-          <EmptyState title="진행 중인 예약이 없어요" />
+          <EmptyState title="지금 바로 처리할 예약이 없어요" />
         )}
 
         <SectionHeader title="완료 내역" count={viewModel.completedReservations.length} />
         {viewModel.completedReservations.length > 0 ? (
           viewModel.completedReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
         ) : (
-          <EmptyState title="완료 내역이 없어요" />
+          <EmptyState title="오늘 완료 내역이 없어요" />
         )}
       </OwnerCard>
-
-      <Pressable onPress={onOpenReservations}>
-        <OwnerCard title="예약조회로 이동" description="날짜선택, 완료 내역, 취소·변경 내역은 예약조회 탭에서 이어서 확인합니다." />
-      </Pressable>
     </OwnerScreen>
   );
 }
@@ -135,6 +139,15 @@ const styles = StyleSheet.create({
     color: ownerColors.text,
     fontSize: 22,
     fontWeight: "900",
+  },
+  panelCountRow: {
+    alignItems: "flex-end",
+    marginTop: -4,
+  },
+  panelCountText: {
+    color: "#8d867e",
+    fontSize: 12,
+    fontWeight: "500",
   },
   sectionHeader: {
     flexDirection: "row",

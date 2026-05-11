@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Chip, EmptyState, OwnerButton, OwnerCard, OwnerScreen, SearchBox, StatusBadge } from "@/components/OwnerUi";
+import { EmptyState, OwnerButton, OwnerCard, OwnerScreen, StatusBadge } from "@/components/OwnerUi";
 import { ownerColors } from "@/components/ownerTheme";
 import type { AppointmentRowViewModel } from "@/viewModels/ownerViewModels";
 
@@ -16,7 +16,7 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
   const cancelledReservations = rows.filter((item) => item.section === "cancelChange");
 
   return (
-    <OwnerScreen title="예약조회" subtitle="날짜별 예약을 확인하고 상세 화면으로 이동합니다." action={<OwnerButton label="예약추가" variant="secondary" />}>
+    <OwnerScreen title="예약조회" action={<OwnerButton label="예약추가" variant="secondary" />}>
       <OwnerCard title="날짜선택">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
           {quickDates.length > 0 ? (
@@ -32,42 +32,35 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
             </View>
           )}
         </ScrollView>
-        <SearchBox placeholder="보호자명, 반려동물명, 연락처 검색" />
       </OwnerCard>
 
-      <View style={styles.filterRow}>
-        {["전체", "승인 대기", "확정", "진행 중", "완료"].map((status, index) => (
-          <Chip key={status} label={status} active={index === 0} tone={status === "취소" ? "danger" : "default"} />
-        ))}
-      </View>
-
-      <OwnerCard title="예약" description="불러온 예약 중 처리할 예약입니다." tone="accent">
+      <OwnerCard title="예약" tone="accent">
         {activeReservations.length > 0 ? (
           activeReservations.map((reservation) => (
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} />
           ))
         ) : (
-          <EmptyState title="표시할 예약이 없어요" />
+          <EmptyState title="선택한 날짜에 처리할 예약이 없어요" />
         )}
       </OwnerCard>
 
-      <OwnerCard title="완료 내역" description="완료된 예약과 미용 기록을 시간순으로 확인합니다." tone="complete">
+      <OwnerCard title="완료 내역" tone="complete">
         {completedReservations.length > 0 ? (
           completedReservations.map((reservation) => (
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} compact />
           ))
         ) : (
-          <EmptyState title="완료 내역이 없어요" />
+          <EmptyState title="선택한 날짜에 완료 내역이 없어요" />
         )}
       </OwnerCard>
 
-      <OwnerCard title="취소·변경 내역" description="취소 또는 변경된 예약은 이 영역에 모입니다." tone="danger">
+      <OwnerCard title="취소·변경 내역" tone="danger">
         {cancelledReservations.length > 0 ? (
           cancelledReservations.map((reservation) => (
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} compact />
           ))
         ) : (
-          <EmptyState title="취소·변경 내역이 없어요" />
+          <EmptyState title="선택한 날짜에 취소·변경 내역이 없어요" />
         )}
       </OwnerCard>
     </OwnerScreen>
@@ -155,11 +148,6 @@ const styles = StyleSheet.create({
   },
   dateActiveText: {
     color: "#ffffff",
-  },
-  filterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
   },
   cardRow: {
     flexDirection: "row",

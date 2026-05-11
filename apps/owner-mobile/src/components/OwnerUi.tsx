@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { ownerColors, ownerShadow } from "@/components/ownerTheme";
+import { ownerColors } from "@/components/ownerTheme";
 
 type OwnerScreenProps = {
   title: string;
@@ -196,9 +196,9 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 28,
-    gap: 14,
+    paddingTop: 14,
+    paddingBottom: 24,
+    gap: 12,
   },
   header: {
     minHeight: 48,
@@ -213,8 +213,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: ownerColors.text,
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "500",
   },
   subtitle: {
     color: ownerColors.muted,
@@ -226,9 +226,9 @@ const styles = StyleSheet.create({
     borderColor: ownerColors.border,
     borderRadius: 10,
     backgroundColor: ownerColors.surface,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 10,
-    ...ownerShadow,
   },
   accentCard: {
     borderColor: "#d8e7e0",
@@ -252,8 +252,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: ownerColors.text,
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 15,
+    fontWeight: "500",
   },
   cardDescription: {
     color: ownerColors.muted,
@@ -261,26 +261,26 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   button: {
-    minHeight: 44,
+    minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 10,
   },
   buttonDisabled: {
     opacity: 0.55,
   },
   buttonLabel: {
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "500",
   },
   buttonLabelDisabled: {
     opacity: 0.85,
   },
   searchBox: {
-    minHeight: 46,
+    minHeight: 48,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: ownerColors.border,
     borderRadius: 10,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   statusText: {
     color: ownerColors.text,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   statusWarning: {
     backgroundColor: ownerColors.warningSoft,
@@ -356,17 +356,17 @@ const styles = StyleSheet.create({
     backgroundColor: ownerColors.surface,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 4,
+    gap: 5,
   },
   infoLabel: {
     color: ownerColors.muted,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "400",
   },
   infoValue: {
     color: ownerColors.text,
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "500",
   },
   tagList: {
     flexDirection: "row",
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: ownerColors.muted,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "400",
   },
 });

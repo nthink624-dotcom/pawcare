@@ -2,6 +2,7 @@
 
 import { ChevronRight, Search } from "lucide-react";
 
+import { InfoTip } from "@/components/owner/owner-app-ui";
 import type { Guardian, Pet } from "@/types/domain";
 
 type CustomerDeleteSummary = {
@@ -50,7 +51,12 @@ export default function CustomerDeleteSelectionPanel({
     <div className="rounded-[14px] border border-[var(--border)] bg-white px-4 py-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[19px] font-semibold tracking-[-0.03em] text-[var(--text)]">고객 삭제</h2>
+          <div className="flex min-w-0 items-center gap-1">
+            <h2 className="text-[19px] font-semibold tracking-[-0.03em] text-[var(--text)]">고객 삭제</h2>
+            <InfoTip ariaLabel="고객 삭제 안내" popoverClassName="w-[238px]">
+              삭제한 고객은 삭제 고객 보기에서 다시 확인하거나 복구할 수 있어요.
+            </InfoTip>
+          </div>
           {filteredDeletedGuardians.length > 0 ? (
             <button
               type="button"

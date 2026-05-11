@@ -14,6 +14,15 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
 export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {
   enabled: true,
   revisit_enabled: true,
+  booking_confirmed_enabled: true,
+  booking_rejected_enabled: true,
+  booking_cancelled_enabled: true,
+  booking_rescheduled_enabled: true,
+  appointment_reminder_10m_enabled: true,
+  grooming_started_enabled: true,
+  grooming_almost_done_enabled: true,
+  grooming_completed_enabled: true,
+  birthday_greeting_enabled: true,
 };
 
 export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {
@@ -52,15 +61,9 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
 }
 
 export function normalizeGuardianNotificationSettings(settings: Partial<GuardianNotificationSettings> | null | undefined): GuardianNotificationSettings {
-  const normalized = {
+  return {
     ...defaultGuardianNotificationSettings,
     ...(settings ?? {}),
-  };
-
-  return {
-    ...normalized,
-    enabled: true,
-    revisit_enabled: true,
   };
 }
 

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 import { env } from "@/lib/env";
+import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function getServerSessionUser() {
@@ -11,6 +12,7 @@ export async function getServerSessionUser() {
 
   const cookieStore = await cookies();
   const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
+    cookieOptions: getSupabaseCookieOptions(),
     cookies: {
       getAll() {
         return cookieStore.getAll();

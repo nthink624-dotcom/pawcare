@@ -19,7 +19,7 @@ type KakaoPostcodeSheetProps = {
 
 export default function KakaoPostcodeSheet({
   title = "주소 검색",
-  description = "도로명이나 건물명으로 검색한 뒤 주소를 선택해 주세요.",
+  description = "도로명이나 건물명으로 검색한 뒤 기본 주소를 선택해 주세요.",
   initialQuery = "",
   onClose,
   onSelect,
@@ -81,11 +81,7 @@ export default function KakaoPostcodeSheet({
         setLoading(false);
       } catch (mountError) {
         if (!active) return;
-        setError(
-          mountError instanceof Error
-            ? mountError.message
-            : "주소 검색 화면을 불러오지 못했어요.",
-        );
+        setError(mountError instanceof Error ? mountError.message : "주소 검색 화면을 불러오지 못했어요.");
         setLoading(false);
       }
     }
@@ -151,7 +147,7 @@ export default function KakaoPostcodeSheet({
           </div>
 
           <p className="mt-3 text-[12px] leading-5 text-[var(--muted)]">
-            주소를 선택하면 시트가 닫히고, 상세 주소는 아래 입력칸에 이어서 적을 수 있어요.
+            주소를 선택하면 이 창이 닫히고, 매장 기본 정보에서 상세주소를 이어서 입력할 수 있어요.
           </p>
         </div>
       </div>

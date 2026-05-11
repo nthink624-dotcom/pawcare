@@ -464,6 +464,24 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_confirmed":
+      return settings.booking_confirmed_enabled;
+    case "booking_rejected":
+      return settings.booking_rejected_enabled;
+    case "booking_cancelled":
+      return settings.booking_cancelled_enabled;
+    case "booking_rescheduled_confirmed":
+      return settings.booking_rescheduled_enabled;
+    case "appointment_reminder_10m":
+      return settings.appointment_reminder_10m_enabled;
+    case "grooming_started":
+      return settings.grooming_started_enabled;
+    case "grooming_almost_done":
+      return settings.grooming_almost_done_enabled;
+    case "grooming_completed":
+      return settings.grooming_completed_enabled;
+    case "birthday_greeting":
+      return settings.birthday_greeting_enabled;
     case "revisit_notice":
       return settings.revisit_enabled;
     case "landing_feedback":

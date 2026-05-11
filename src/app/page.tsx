@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import LandingPage from "@/components/landing/landing-page";
 import { env } from "@/lib/env";
+import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export default async function Home() {
   if (env.supabaseUrl && env.supabasePublishableKey) {
     const cookieStore = await cookies();
     const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
+      cookieOptions: getSupabaseCookieOptions(),
       cookies: {
         getAll() {
           return cookieStore.getAll();

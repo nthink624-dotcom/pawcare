@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { env } from "@/lib/env";
 import { PENDING_SOCIAL_PROVIDER_COOKIE, resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const cookieProvider = cookieStore.get(PENDING_SOCIAL_PROVIDER_COOKIE)?.value;
   const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
+    cookieOptions: getSupabaseCookieOptions({ secure: requestUrl.protocol === "https:" }),
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 import { env, isUnsafeProdSupabaseBrowserEnv } from "@/lib/env";
+import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 export function getSupabaseBrowserClient() {
   if (isUnsafeProdSupabaseBrowserEnv()) {
@@ -13,5 +14,7 @@ export function getSupabaseBrowserClient() {
     return null;
   }
 
-  return createBrowserClient(env.supabaseUrl, env.supabasePublishableKey);
+  return createBrowserClient(env.supabaseUrl, env.supabasePublishableKey, {
+    cookieOptions: getSupabaseCookieOptions(),
+  });
 }

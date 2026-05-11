@@ -3,6 +3,7 @@
 import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
@@ -182,6 +183,7 @@ export default function OwnerSettingsPanel({
   const [detailAddress, setDetailAddress] = useState(initialAddressParts.detailAddress);
   const [postalCode, setPostalCode] = useState("");
   const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
+  const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
   const [description, setDescription] = useState(decodeUnicodeEscapes(data.shop.description));
   const [regularClosedDays, setRegularClosedDays] = useState<number[]>(data.shop.regular_closed_days);
   const [temporaryClosedDates, setTemporaryClosedDates] = useState<string[]>(data.shop.temporary_closed_dates);
@@ -427,6 +429,14 @@ export default function OwnerSettingsPanel({
       ]);
     }
     setNoticeEditorTarget(target);
+  }
+
+  function handleAddressSelect(nextAddress: { address: string; zonecode: string }) {
+    setAddress(nextAddress.address);
+    setPostalCode(nextAddress.zonecode);
+    setDetailAddress("");
+    setIsAddressSearchOpen(false);
+    window.setTimeout(() => detailAddressInputRef.current?.focus(), 80);
   }
 
   function applyNoticeEditor() {
@@ -714,35 +724,37 @@ export default function OwnerSettingsPanel({
           />
         </SettingsFieldCard>
 
-        <SettingsFieldCard label="주소" className="pb-2 pt-2">
-          <div className="relative -top-[4px] space-y-2">
+        <SettingsFieldCard label="주소" className="pb-3 pt-2">
+          <div className="relative -top-[4px] space-y-2.5">
             <button
               type="button"
               onClick={() => setIsAddressSearchOpen(true)}
-              className="flex w-full items-center gap-3 text-left"
+              className="group min-h-[66px] w-full rounded-[14px] border border-[#e7dfd6] bg-white px-3.5 py-3 text-left transition hover:border-[#d9d0c5] hover:bg-[#fffdf9]"
             >
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f5f4] text-[#7d847f]">
-                <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
-              </span>
-              <div className="relative -top-[1px] min-w-0 flex-1">
-                <p className={`break-words text-[15px] leading-5 ${address ? "font-normal text-[var(--text)]" : "text-[var(--muted)]"}`}>
-                  {address
-                    ? detailAddress.trim()
-                      ? `${address}, ${detailAddress.trim()}`
-                      : address
-                    : "주소를 검색해서 선택해 주세요"}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[13px] font-medium leading-5 text-[#8f877d]">기본 주소</p>
+                  <span className="shrink-0 text-[13px] font-medium leading-5 text-[var(--accent)]">
+                    {address ? "변경" : "검색"}
+                  </span>
+                </div>
+                <p className={`mt-1.5 break-words text-[15px] leading-[21px] ${address ? "font-normal text-[var(--text)]" : "text-[var(--muted)]"}`}>
+                  {address || "도로명이나 건물명으로 주소를 찾아주세요"}
                 </p>
               </div>
-              <span className="relative -top-[1px] shrink-0 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
             </button>
-            <div className="border-t border-[var(--border)] pt-2">
-              <input
-                className="w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                value={detailAddress}
-                onChange={(event) => setDetailAddress(event.target.value)}
-                placeholder="건물명, 층수, 호수 등 상세 주소를 입력해 주세요"
-              />
-            </div>
+            {address ? (
+              <label className="block rounded-[14px] border border-[#ece5dd] bg-white px-3.5 py-3 shadow-[0_1px_4px_rgba(21,22,19,0.03)]">
+                <span className="text-[13px] font-medium leading-5 text-[#8f877d]">상세주소</span>
+                <input
+                  ref={detailAddressInputRef}
+                  className="mt-1.5 w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[#b4aca2]"
+                  value={detailAddress}
+                  onChange={(event) => setDetailAddress(event.target.value)}
+                  placeholder="예: 2층, 101호, 미용실 입구"
+                />
+              </label>
+            ) : null}
           </div>
         </SettingsFieldCard>
 
@@ -760,14 +772,22 @@ export default function OwnerSettingsPanel({
                     수정
                   </button>
                 </div>
-                <div className="flex shrink-0 items-center">
+                <div className="flex shrink-0 items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setShowParkingNotice(!showParkingNotice)}
                     className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
                   >
-                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-[14px]" : "left-[2px]"}`} />
+                    <span className={`absolute top-[2.5px] size-4 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-[14px]" : "left-[2px]"}`} />
                   </button>
+                  <InfoTip
+                    ariaLabel="주차 안내 노출 설정"
+                    size="small"
+                    className="relative top-px"
+                    popoverClassName="-left-[214px] w-[210px] rounded-[11px] text-[11px] leading-[18px]"
+                  >
+                    켜면 고객 예약 페이지에 주차 안내가 보여요. 끄면 문구는 저장되지만 고객에게 보이지 않아요.
+                  </InfoTip>
                 </div>
               </div>
               <div className="mt-0.5 w-full">
@@ -787,14 +807,22 @@ export default function OwnerSettingsPanel({
                     수정
                   </button>
                 </div>
-                <div className="flex shrink-0 items-center">
+                <div className="flex shrink-0 items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setShowNotices(!showNotices)}
                     className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
                   >
-                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showNotices ? "left-[14px]" : "left-[2px]"}`} />
+                    <span className={`absolute top-[2.5px] size-4 rounded-full bg-white shadow-sm transition ${showNotices ? "left-[14px]" : "left-[2px]"}`} />
                   </button>
+                  <InfoTip
+                    ariaLabel="예약 전 안내 노출 설정"
+                    size="small"
+                    className="relative top-px"
+                    popoverClassName="-left-[214px] w-[210px] rounded-[11px] text-[11px] leading-[18px]"
+                  >
+                    켜면 고객이 예약하기 전에 안내 문구를 확인해요. 끄면 문구는 저장되지만 예약 화면에는 숨겨져요.
+                  </InfoTip>
                 </div>
               </div>
               <div className="mt-0.5 w-full">
@@ -955,7 +983,14 @@ export default function OwnerSettingsPanel({
 
   const notificationsSection = (
     <SettingsCard contentClassName="space-y-3">
-      <SettingsFieldCard label="알림톡 발송">
+      <SettingsFieldCard
+        label="알림톡 발송"
+        labelAccessory={
+          <InfoTip ariaLabel="알림톡 설정 안내" popoverClassName="w-[248px]">
+            매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 자동 안내가 발송돼요.
+          </InfoTip>
+        }
+      >
         <div className="relative -top-[6px] space-y-1.5">
           <ToggleRow
             label="알림톡 전체 사용"
@@ -1171,7 +1206,15 @@ export default function OwnerSettingsPanel({
 
   const addonsSection = (
     <SettingsCard>
-      <SettingsFieldCard label="업장 추가" className="pb-3 pt-2.5">
+      <SettingsFieldCard
+        label="업장 추가"
+        className="pb-3 pt-2.5"
+        labelAccessory={
+          <InfoTip ariaLabel="부가기능 안내" popoverClassName="w-[248px]">
+            부가기능을 켜면 현재 계정에서 업장 추가나 자동화 기능을 확장해서 사용할 수 있어요.
+          </InfoTip>
+        }
+      >
         <div className="space-y-3 px-0.5 pt-1">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1225,7 +1268,7 @@ export default function OwnerSettingsPanel({
 
     return (
       <section className={`space-y-4 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+116px)]" : ""}`}>
-        <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
+        <div className={`${isShopScreen ? "overflow-visible" : "overflow-hidden"} border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
           {screenMap[activeScreen].content}
         </div>
 
@@ -1328,11 +1371,7 @@ export default function OwnerSettingsPanel({
           <KakaoPostcodeSheet
             onClose={() => setIsAddressSearchOpen(false)}
             initialQuery={address}
-            onSelect={(nextAddress) => {
-              setAddress(nextAddress.address);
-              setPostalCode(nextAddress.zonecode);
-              setIsAddressSearchOpen(false);
-            }}
+            onSelect={handleAddressSelect}
           />
         ) : null}
       </section>
@@ -1395,11 +1434,7 @@ export default function OwnerSettingsPanel({
         <KakaoPostcodeSheet
           onClose={() => setIsAddressSearchOpen(false)}
           initialQuery={address}
-          onSelect={(nextAddress) => {
-            setAddress(nextAddress.address);
-            setPostalCode(nextAddress.zonecode);
-            setIsAddressSearchOpen(false);
-          }}
+          onSelect={handleAddressSelect}
         />
       ) : null}
     </section>
@@ -1651,11 +1686,13 @@ function SettingsNavRow({
 
 function SettingsFieldCard({
   label,
+  labelAccessory,
   children,
   className = "",
   variant = "floating",
 }: {
   label: string;
+  labelAccessory?: ReactNode;
   children: ReactNode;
   className?: string;
   variant?: "floating" | "inside-title";
@@ -1663,7 +1700,10 @@ function SettingsFieldCard({
   if (variant === "inside-title") {
     return (
       <div className={`rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`.trim()}>
-        <p className="mb-3 text-[14px] font-normal tracking-[-0.01em] text-[#6f675d]">{label}</p>
+        <div className="mb-3 flex items-center gap-1">
+          <p className="text-[14px] font-normal tracking-[-0.01em] text-[#6f675d]">{label}</p>
+          {labelAccessory}
+        </div>
         {children}
       </div>
     );
@@ -1672,7 +1712,10 @@ function SettingsFieldCard({
   return (
     <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
       <legend className="ml-0.5 px-1.5 text-[16px] font-normal tracking-[-0.01em] text-[var(--muted)]">
-        {label}
+        <span className="inline-flex items-center gap-1 align-middle">
+          <span>{label}</span>
+          {labelAccessory}
+        </span>
       </legend>
       {children}
     </fieldset>

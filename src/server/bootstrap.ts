@@ -39,7 +39,7 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
   return store;
 }
 
-function normalizeGuardianForBootstrap(guardian: Guardian) {
+function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
   const hasNotificationSettings = Object.prototype.hasOwnProperty.call(guardian, "notification_settings");
 
   return {
@@ -49,7 +49,7 @@ function normalizeGuardianForBootstrap(guardian: Guardian) {
     // continue to work until the migration is applied.
     notification_settings: hasNotificationSettings
       ? normalizeGuardianNotificationSettings(guardian.notification_settings)
-      : { enabled: true, revisit_enabled: true },
+      : normalizeGuardianNotificationSettings(null),
   };
 }
 

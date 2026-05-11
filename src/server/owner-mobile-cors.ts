@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
-const OWNER_MOBILE_DEV_ORIGIN = "http://localhost:8096";
+const OWNER_MOBILE_DEV_ORIGIN = "http://localhost:8086";
 const READ_ONLY_METHODS = "GET, OPTIONS";
 const READ_ONLY_HEADERS = "Authorization, Content-Type, Accept";
 

@@ -2,7 +2,12 @@
 
 import { computeAvailableSlots } from "@/lib/availability";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { coerceEnabledShopNotificationSettings, normalizeBootstrapNotifications } from "@/lib/notification-settings";
+import {
+  coerceEnabledShopNotificationSettings,
+  defaultGuardianNotificationSettings,
+  normalizeBootstrapNotifications,
+  normalizeGuardianNotificationSettings,
+} from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
@@ -388,10 +393,7 @@ export async function createGuardian(input: unknown) {
     name: payload.name,
     phone: payload.phone,
     memo: payload.memo ?? "",
-    notification_settings: {
-      enabled: true,
-      revisit_enabled: true,
-    },
+    notification_settings: defaultGuardianNotificationSettings,
     created_at: nowIso(),
     updated_at: nowIso(),
   };
@@ -455,6 +457,12 @@ export async function createGuardian(input: unknown) {
 
 export async function updateGuardian(input: unknown) {
   const payload = guardianUpdateSchema.parse(input);
+  const notificationSettingsPatch = {
+    ...(payload.notificationSettings ?? {}),
+    ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+    ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
+  };
+  const hasNotificationSettingsPatch = Object.keys(notificationSettingsPatch).length > 0;
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -464,12 +472,11 @@ export async function updateGuardian(input: unknown) {
     if (typeof payload.name === "string") guardian.name = payload.name;
     if (typeof payload.phone === "string") guardian.phone = payload.phone;
     if (typeof payload.memo === "string") guardian.memo = payload.memo;
-    if (typeof payload.enabled === "boolean" || typeof payload.revisitEnabled === "boolean") {
-      guardian.notification_settings = {
+    if (hasNotificationSettingsPatch) {
+      guardian.notification_settings = normalizeGuardianNotificationSettings({
         ...guardian.notification_settings,
-        ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
-        ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
-      };
+        ...notificationSettingsPatch,
+      });
     }
     guardian.updated_at = nowIso();
     setMockStore(store);
@@ -482,19 +489,16 @@ export async function updateGuardian(input: unknown) {
   const currentGuardian = await supabase.from("guardians").select("*").eq("id", payload.guardianId).single();
   if (currentGuardian.error) throw new Error(currentGuardian.error.message);
 
-  const nextNotificationSettings = {
-    ...((currentGuardian.data?.notification_settings as { enabled?: boolean; revisit_enabled?: boolean } | null) ?? {}),
-    ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
-    ...(typeof payload.revisitEnabled === "boolean" ? { revisit_enabled: payload.revisitEnabled } : {}),
-  };
+  const nextNotificationSettings = normalizeGuardianNotificationSettings({
+    ...((currentGuardian.data?.notification_settings as Partial<Guardian["notification_settings"]> | null) ?? {}),
+    ...notificationSettingsPatch,
+  });
 
   const nextValues = {
     ...(typeof payload.name === "string" ? { name: payload.name } : {}),
     ...(typeof payload.phone === "string" ? { phone: payload.phone } : {}),
     ...(typeof payload.memo === "string" ? { memo: payload.memo } : {}),
-    ...((typeof payload.enabled === "boolean" || typeof payload.revisitEnabled === "boolean")
-      ? { notification_settings: nextNotificationSettings }
-      : {}),
+    ...(hasNotificationSettingsPatch ? { notification_settings: nextNotificationSettings } : {}),
     updated_at: nowIso(),
   };
 

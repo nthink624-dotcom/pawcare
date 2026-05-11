@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import OwnerDesktopApp from "@/components/owner/owner-desktop-app";
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
@@ -22,6 +23,23 @@ type OwnedShopSummary = {
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
+type OwnerSurface = "mobile" | "desktop";
+
+function resolveOwnerSurface(): OwnerSurface {
+  if (typeof window === "undefined") return "mobile";
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const surfaceOverride = searchParams.get("surface");
+  if (surfaceOverride === "desktop" || surfaceOverride === "pc") return "desktop";
+  if (surfaceOverride === "mobile" || surfaceOverride === "m") return "mobile";
+
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === "m.petmanager.co.kr" || hostname === "www.m.petmanager.co.kr" || hostname.startsWith("m.")) {
+    return "mobile";
+  }
+  if (hostname === "localhost" || hostname === "127.0.0.1") return "mobile";
+  return "desktop";
+}
 
 export default function OwnerPage() {
   const router = useRouter();
@@ -32,6 +50,7 @@ export default function OwnerPage() {
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
+  const [surface, setSurface] = useState<OwnerSurface>("mobile");
 
   async function getSessionWithRecovery() {
     if (!supabase) return null;
@@ -59,6 +78,7 @@ export default function OwnerPage() {
 
   useEffect(() => {
     let active = true;
+    setSurface(resolveOwnerSurface());
     const pendingProvider =
       typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
 
@@ -164,7 +184,7 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerShell initialData={data} ownedShops={ownedShops} selectedShopId={selectedShopId} subscriptionSummary={subscriptionSummary} userEmail={userEmail} onSwitchShop={async (shopId) => {
+  const handleSwitchShop = async (shopId: string) => {
     if (!shopId || shopId === selectedShopId) return;
     setMessage("매장을 바꾸는 중입니다.");
     setData(null);
@@ -174,5 +194,29 @@ export default function OwnerPage() {
     }
     setSelectedShopId(shopId);
     setData(nextBootstrap);
-  }} />;
+  };
+
+  if (surface === "desktop") {
+    return (
+      <OwnerDesktopApp
+        initialData={data}
+        ownedShops={ownedShops}
+        selectedShopId={selectedShopId}
+        subscriptionSummary={subscriptionSummary}
+        userEmail={userEmail}
+        onSwitchShop={handleSwitchShop}
+      />
+    );
+  }
+
+  return (
+    <OwnerShell
+      initialData={data}
+      ownedShops={ownedShops}
+      selectedShopId={selectedShopId}
+      subscriptionSummary={subscriptionSummary}
+      userEmail={userEmail}
+      onSwitchShop={handleSwitchShop}
+    />
+  );
 }

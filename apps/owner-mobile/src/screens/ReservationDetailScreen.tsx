@@ -6,14 +6,15 @@ import type { AppointmentDetailViewModel } from "@/viewModels/ownerViewModels";
 
 type ReservationDetailScreenProps = {
   reservation: AppointmentDetailViewModel | null;
+  isReadOnly?: boolean;
   onBack: () => void;
 };
 
-export default function ReservationDetailScreen({ reservation, onBack }: ReservationDetailScreenProps) {
+export default function ReservationDetailScreen({ reservation, isReadOnly = false, onBack }: ReservationDetailScreenProps) {
   if (!reservation) {
     return (
       <OwnerScreen title="예약 상세" subtitle="예약 정보를 찾을 수 없습니다." action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
-        <OwnerCard title="예약 없음" description="선택한 예약이 mock 데이터에 없습니다." />
+        <OwnerCard title="예약 없음" description="선택한 예약을 찾을 수 없습니다." />
       </OwnerScreen>
     );
   }
@@ -60,12 +61,12 @@ export default function ReservationDetailScreen({ reservation, onBack }: Reserva
         <InfoRow label="주의 메모" value={reservation.petNotes} />
       </OwnerCard>
 
-      <OwnerCard title="빠른 상태 변경">
+      <OwnerCard title="빠른 상태 변경" description={isReadOnly ? "현재 단계에서는 실제 예약 정보를 읽기 전용으로만 확인합니다." : undefined}>
         <View style={styles.actionGrid}>
-          <OwnerButton label="시작" variant="secondary" />
-          <OwnerButton label="픽업 준비" variant="ghost" />
-          <OwnerButton label="미용 완료" variant="secondary" />
-          <OwnerButton label="예약 취소" variant="danger" />
+          <OwnerButton label="시작" variant="secondary" disabled={isReadOnly} />
+          <OwnerButton label="픽업 준비" variant="ghost" disabled={isReadOnly} />
+          <OwnerButton label="미용 완료" variant="secondary" disabled={isReadOnly} />
+          <OwnerButton label="예약 취소" variant="danger" disabled={isReadOnly} />
         </View>
       </OwnerCard>
     </OwnerScreen>

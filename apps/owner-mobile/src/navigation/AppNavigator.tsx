@@ -267,7 +267,14 @@ function ReservationStackNavigator({ ownerDataProvider, previewDataProvider, pre
         )}
       </ReservationStack.Screen>
       <ReservationStack.Screen name="ReservationDetail">
-        {(props) => <ReservationDetailRoute {...props} ownerDataProvider={ownerDataProvider} />}
+        {(props) => (
+          <ReservationDetailRoute
+            {...props}
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={previewDataProvider}
+            previewDataSource={previewDataSource}
+          />
+        )}
       </ReservationStack.Screen>
     </ReservationStack.Navigator>
   );
@@ -304,18 +311,21 @@ function ReservationListRoute({
     <ReservationListScreen
       rows={previewDataProvider.getAppointmentRows()}
       onOpenReservation={(reservationId) => {
-        if (previewDataSource === "real") return;
-
         navigation.navigate("ReservationDetail", { reservationId });
       }}
     />
   );
 }
 
-function ReservationDetailRoute({ navigation, route, ownerDataProvider }: ReservationDetailRouteProps & DataRouteProps) {
-  const reservation = ownerDataProvider.getAppointmentDetail(route.params.reservationId);
+function ReservationDetailRoute({
+  navigation,
+  route,
+  previewDataProvider,
+  previewDataSource,
+}: ReservationDetailRouteProps & PreviewDataRouteProps) {
+  const reservation = previewDataProvider.getAppointmentDetail(route.params.reservationId);
 
-  return <ReservationDetailScreen reservation={reservation} onBack={() => navigation.goBack()} />;
+  return <ReservationDetailScreen reservation={reservation} isReadOnly={previewDataSource === "real"} onBack={() => navigation.goBack()} />;
 }
 
 function CustomerListRoute({ navigation, ownerDataProvider }: CustomerListRouteProps & DataRouteProps) {

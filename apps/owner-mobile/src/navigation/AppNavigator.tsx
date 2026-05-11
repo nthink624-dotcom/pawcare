@@ -238,7 +238,13 @@ function MainTabsNavigator({ ownerDataProvider, authSessionProvider, session, on
         )}
       </MainTabs.Screen>
       <MainTabs.Screen name="Customers" options={{ title: TAB_LABELS.Customers }}>
-        {() => <CustomerStackNavigator ownerDataProvider={ownerDataProvider} />}
+        {() => (
+          <CustomerStackNavigator
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={ownerDataPreview.provider}
+            previewDataSource={ownerDataPreview.source}
+          />
+        )}
       </MainTabs.Screen>
       <MainTabs.Screen name="Settings" options={{ title: TAB_LABELS.Settings }}>
         {() => (
@@ -280,11 +286,18 @@ function ReservationStackNavigator({ ownerDataProvider, previewDataProvider, pre
   );
 }
 
-function CustomerStackNavigator({ ownerDataProvider }: DataRouteProps) {
+function CustomerStackNavigator({ ownerDataProvider, previewDataProvider, previewDataSource }: PreviewDataRouteProps) {
   return (
     <CustomerStack.Navigator screenOptions={stackScreenOptions}>
       <CustomerStack.Screen name="CustomerList">
-        {(props) => <CustomerListRoute {...props} ownerDataProvider={ownerDataProvider} />}
+        {(props) => (
+          <CustomerListRoute
+            {...props}
+            ownerDataProvider={ownerDataProvider}
+            previewDataProvider={previewDataProvider}
+            previewDataSource={previewDataSource}
+          />
+        )}
       </CustomerStack.Screen>
       <CustomerStack.Screen name="CustomerDetail">
         {(props) => <CustomerDetailRoute {...props} ownerDataProvider={ownerDataProvider} />}
@@ -296,7 +309,7 @@ function CustomerStackNavigator({ ownerDataProvider }: DataRouteProps) {
 function TodayRoute({ navigation, previewDataProvider }: TodayRouteProps & PreviewDataRouteProps) {
   return (
     <TodayHomeScreen
-      viewModel={previewDataProvider.getTodayHome()}
+      viewModel={previewDataProvider.getTodayHome(getLocalDateKey())}
       onOpenReservations={() => navigation.navigate("Reservations", { screen: "ReservationList" })}
     />
   );
@@ -328,10 +341,10 @@ function ReservationDetailRoute({
   return <ReservationDetailScreen reservation={reservation} isReadOnly={previewDataSource === "real"} onBack={() => navigation.goBack()} />;
 }
 
-function CustomerListRoute({ navigation, ownerDataProvider }: CustomerListRouteProps & DataRouteProps) {
+function CustomerListRoute({ navigation, previewDataProvider }: CustomerListRouteProps & PreviewDataRouteProps) {
   return (
     <CustomerListScreen
-      customers={ownerDataProvider.getCustomerSummaries()}
+      customers={previewDataProvider.getCustomerSummaries()}
       onOpenCustomer={(customerId) => navigation.navigate("CustomerDetail", { customerId })}
     />
   );
@@ -407,6 +420,14 @@ function formatOwnerDataError(error: Error | null) {
   }
 
   return "기존 서버에서 예약 데이터를 불러오지 못했습니다.";
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 const tabScreenOptions = {

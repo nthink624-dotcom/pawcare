@@ -9,15 +9,8 @@ type ReservationListScreenProps = {
   onOpenReservation: (reservationId: string) => void;
 };
 
-const quickDates = [
-  { day: "오늘", date: "11" },
-  { day: "화", date: "12" },
-  { day: "수", date: "13" },
-  { day: "목", date: "14" },
-  { day: "금", date: "15" },
-];
-
 export default function ReservationListScreen({ rows, onOpenReservation }: ReservationListScreenProps) {
+  const quickDates = buildQuickDates(rows);
   const activeReservations = rows.filter((item) => item.section === "pending" || item.section === "active");
   const completedReservations = rows.filter((item) => item.section === "completed");
   const cancelledReservations = rows.filter((item) => item.section === "cancelChange");
@@ -26,12 +19,18 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
     <OwnerScreen title="예약조회" subtitle="날짜별 예약을 확인하고 상세 화면으로 이동합니다." action={<OwnerButton label="예약추가" variant="secondary" />}>
       <OwnerCard title="날짜선택">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
-          {quickDates.map((item, index) => (
-            <View key={`${item.day}-${item.date}`} style={[styles.datePill, index === 0 && styles.datePillActive]}>
-              <Text style={[styles.dateDay, index === 0 && styles.dateActiveText]}>{item.day}</Text>
-              <Text style={[styles.dateNumber, index === 0 && styles.dateActiveText]}>{item.date}</Text>
+          {quickDates.length > 0 ? (
+            quickDates.map((item, index) => (
+              <View key={item.key} style={[styles.datePill, index === 0 && styles.datePillActive]}>
+                <Text style={[styles.dateDay, index === 0 && styles.dateActiveText]}>{item.day}</Text>
+                <Text style={[styles.dateNumber, index === 0 && styles.dateActiveText]}>{item.date}</Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyDatePill}>
+              <Text style={styles.dateDay}>예약 날짜 없음</Text>
             </View>
-          ))}
+          )}
         </ScrollView>
         <SearchBox placeholder="보호자명, 반려동물명, 연락처 검색" />
       </OwnerCard>
@@ -42,7 +41,7 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
         ))}
       </View>
 
-      <OwnerCard title="예약" description="선택한 날짜에 처리할 예약입니다." tone="accent">
+      <OwnerCard title="예약" description="불러온 예약 중 처리할 예약입니다." tone="accent">
         {activeReservations.length > 0 ? (
           activeReservations.map((reservation) => (
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} />
@@ -58,7 +57,7 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} compact />
           ))
         ) : (
-          <EmptyState title="선택한 날짜에 완료 내역이 없어요" />
+          <EmptyState title="완료 내역이 없어요" />
         )}
       </OwnerCard>
 
@@ -68,7 +67,7 @@ export default function ReservationListScreen({ rows, onOpenReservation }: Reser
             <ReservationCard key={reservation.id} reservation={reservation} onPress={() => onOpenReservation(reservation.id)} compact />
           ))
         ) : (
-          <EmptyState title="선택한 날짜에 취소·변경 내역이 없어요" />
+          <EmptyState title="취소·변경 내역이 없어요" />
         )}
       </OwnerCard>
     </OwnerScreen>
@@ -93,6 +92,28 @@ function ReservationCard({ reservation, onPress, compact = false }: { reservatio
   );
 }
 
+function buildQuickDates(rows: AppointmentRowViewModel[]) {
+  const uniqueDates = Array.from(new Set(rows.map((row) => row.date).filter(Boolean))).sort();
+
+  return uniqueDates.slice(0, 7).map((date) => ({
+    key: date,
+    day: formatWeekday(date),
+    date: formatShortDate(date),
+  }));
+}
+
+function formatWeekday(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "-";
+
+  return ["일", "월", "화", "수", "목", "금", "토"][parsed.getDay()];
+}
+
+function formatShortDate(date: string) {
+  const [, month, day] = date.split("-");
+  return month && day ? `${Number(month)}/${Number(day)}` : date;
+}
+
 const styles = StyleSheet.create({
   dateRow: {
     gap: 8,
@@ -110,6 +131,16 @@ const styles = StyleSheet.create({
   datePillActive: {
     borderColor: ownerColors.accent,
     backgroundColor: ownerColors.accent,
+  },
+  emptyDatePill: {
+    minWidth: 112,
+    alignItems: "center",
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ownerColors.border,
+    backgroundColor: ownerColors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   dateDay: {
     color: ownerColors.faint,

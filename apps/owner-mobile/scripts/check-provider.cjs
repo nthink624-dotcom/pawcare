@@ -398,6 +398,12 @@ function checkAppNavigatorMockOnly() {
   assert.match(source, /selectAuthSessionProvider/);
   assert.match(source, /useSettingsSummaryPreview/);
   assert.match(source, /createInjectedSettingsSummaryPreviewSelectProvider/);
+  assert.match(source, /previewDataProvider\.getTodayHome\(getLocalDateKey\(\)\)/);
+  assert.match(source, /rows=\{previewDataProvider\.getAppointmentRows\(\)\}/);
+  assert.match(source, /function CustomerListRoute\(\{ navigation, previewDataProvider \}/);
+  assert.match(source, /customers=\{previewDataProvider\.getCustomerSummaries\(\)\}/);
+  assert.match(source, /function CustomerDetailRoute\(\{ navigation, route, ownerDataProvider \}/);
+  assert.match(source, /ownerDataProvider\.getCustomerDetail/);
   assert.doesNotMatch(source, /selectOwnerDataProvider/);
   assert.doesNotMatch(source, /createRealOwnerDataProvider/);
   assert.doesNotMatch(source, /loadRealOwnerBootstrap/);
@@ -423,6 +429,19 @@ function checkOwnerDataPreviewProviderScope() {
   assert.doesNotMatch(source, /getCustomerSummaries/);
   assert.doesNotMatch(source, /getCustomerDetail/);
   assert.doesNotMatch(source, /getAppointmentDetail/);
+}
+
+function checkHomeAndReservationScreensUseInjectedData() {
+  const reservationSource = fs.readFileSync(path.join(srcRoot, "screens", "ReservationListScreen.tsx"), "utf8");
+  assert.match(reservationSource, /buildQuickDates\(rows\)/);
+  assert.match(reservationSource, /new Set\(rows\.map\(\(row\) => row\.date\)/);
+  assert.doesNotMatch(reservationSource, /const quickDates = \[/);
+
+  const homeSource = fs.readFileSync(path.join(srcRoot, "screens", "TodayHomeScreen.tsx"), "utf8");
+  assert.match(homeSource, /viewModel\.pendingReservations/);
+  assert.match(homeSource, /viewModel\.activeReservations/);
+  assert.match(homeSource, /viewModel\.completedReservations/);
+  assert.doesNotMatch(homeSource, /ownerBootstrapMock/);
 }
 
 async function checkSettingsSummaryPreviewConditions() {
@@ -1543,6 +1562,7 @@ async function main() {
   checkAppNavigatorMockOnly();
   checkSettingsSummaryPreviewScope();
   checkOwnerDataPreviewProviderScope();
+  checkHomeAndReservationScreensUseInjectedData();
   await checkSettingsSummaryPreviewConditions();
   await checkOwnerDataPreviewProviderConditions();
   await checkInjectedSettingsSummaryPreview();

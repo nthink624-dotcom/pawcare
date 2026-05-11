@@ -23,7 +23,7 @@ export default function TodayHomeScreen({ viewModel, onOpenReservations }: Today
         <StatCard label="취소·변경" value={`${viewModel.stats.cancelChange}건`} tone="danger" />
       </View>
 
-      <OwnerCard title="예약관리" description="오늘 처리할 예약을 상태별로 빠르게 확인합니다." tone="accent">
+      <OwnerCard title="예약관리" description="불러온 예약을 상태별로 빠르게 확인합니다." tone="accent">
         <SectionHeader title="승인 대기" count={viewModel.pendingReservations.length} />
         {viewModel.pendingReservations.length > 0 ? (
           viewModel.pendingReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
@@ -42,7 +42,7 @@ export default function TodayHomeScreen({ viewModel, onOpenReservations }: Today
         {viewModel.completedReservations.length > 0 ? (
           viewModel.completedReservations.map((reservation) => <HomeReservationRow key={reservation.id} reservation={reservation} />)
         ) : (
-          <EmptyState title="오늘 완료 내역이 없어요" />
+          <EmptyState title="완료 내역이 없어요" />
         )}
       </OwnerCard>
 

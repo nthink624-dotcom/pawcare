@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+dist/
+android/.gradle/
+android/local.properties
+ios/App/App/public/
+ios/App/Pods/

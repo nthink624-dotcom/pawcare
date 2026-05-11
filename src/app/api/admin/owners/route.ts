@@ -182,7 +182,7 @@ function extractLoginMethods(user: {
 }, loginId: string | null): AdminLoginMethod[] {
   const methods = new Set<AdminLoginMethod>();
 
-  if (loginId || user.email?.endsWith("@owner.pawcare.local")) {
+  if (loginId || user.email?.endsWith("@owner.petmanager.local")) {
     methods.add("id");
   }
 

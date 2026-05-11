@@ -11,6 +11,14 @@ import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerFindLoginIdSchema, type OwnerFindLoginIdInput } from "@/lib/auth/owner-find-login-id";
 
+type ApiMessage = {
+  message?: string;
+  verificationRequestId?: string | null;
+  devVerificationCode?: string | null;
+  verificationToken?: string | null;
+  loginId?: string | null;
+};
+
 function FieldShell({
   label,
   children,
@@ -30,18 +38,16 @@ function normalizePhoneNumber(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
 
-type ApiMessage = {
-  message?: string;
-  verificationRequestId?: string | null;
-  devVerificationCode?: string | null;
-  verificationToken?: string | null;
-  loginId?: string | null;
-};
-
 export default function FindLoginIdForm() {
   const router = useRouter();
-  const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
-  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
+  const isDevelopmentFlow = useMemo(
+    () => env.supabaseEnvName === "development" || getSupabaseRuntimeStage() !== "production",
+    [],
+  );
+  const canShowDevVerificationCode = useMemo(
+    () => env.supabaseEnvName === "development" || getSupabaseRuntimeStage() === "development",
+    [],
+  );
   const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
 
   const [message, setMessage] = useState<string | null>(null);
@@ -99,6 +105,7 @@ export default function FindLoginIdForm() {
 
       setVerificationRequestId(result.verificationRequestId ?? null);
       setDevCode(result.devVerificationCode ?? null);
+      setVerificationCode("");
       syncVerificationToken(null);
       setFoundLoginId(null);
       setMessage(result.message ?? "인증번호를 보냈어요. 문자 메시지를 확인해 주세요.");
@@ -191,7 +198,7 @@ export default function FindLoginIdForm() {
       });
 
       if (!result?.identityVerificationId) {
-        setMessage("PASS 본인인증을 완료하지 못했어요.");
+        setMessage("PASS 본인인증이 완료되지 않았어요.");
         return;
       }
 
@@ -248,11 +255,16 @@ export default function FindLoginIdForm() {
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-10 pt-6 text-[#111111]">
       <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
 
-      <div className="mt-8 flex h-[56px] w-[56px] items-center justify-center rounded-[18px] bg-[#eef6f1] text-[#1f6b5b]">
+      <div className="mt-8 flex items-start justify-between gap-5">
+        <h1 className="min-w-0 flex-1 text-[34px] font-semibold leading-[1.05] tracking-[-0.05em] text-[#111111]">
+          아이디 찾기
+        </h1>
+        <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-[18px] bg-[#eef6f1] text-[#1f6b5b]">
         <Search className="h-7 w-7" strokeWidth={1.9} />
+        </div>
       </div>
 
-      <div className="mt-7">
+      <div className="mt-5 [&>h1]:hidden [&>p:first-child]:hidden">
         <p className="text-[14px] font-semibold text-[#1f6b5b]">아이디 찾기</p>
         <h1 className="mt-3 text-[34px] font-semibold leading-[1.05] tracking-[-0.05em] text-[#111111]">
           가입한 아이디를
@@ -298,24 +310,26 @@ export default function FindLoginIdForm() {
           />
         </FieldShell>
 
-        {isDevelopmentFlow ? <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={requestCode}
-            disabled={loading}
-            className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#ddd6cc] bg-white text-[15px] font-semibold text-[#111111] disabled:opacity-60"
-          >
-            {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
-          </button>
-          <button
-            type="button"
-            onClick={verifyPass}
-            disabled={loading}
-            className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-[#f4fbf8] text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
-          >
-            PASS 본인인증
-          </button>
-        </div> : (
+        {isDevelopmentFlow ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={requestCode}
+              disabled={loading}
+              className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#ddd6cc] bg-white text-[15px] font-semibold text-[#111111] disabled:opacity-60"
+            >
+              {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
+            </button>
+            <button
+              type="button"
+              onClick={verifyPass}
+              disabled={loading}
+              className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-[#f4fbf8] text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
+            >
+              PASS 본인인증
+            </button>
+          </div>
+        ) : (
           <button
             type="button"
             onClick={verifyPass}

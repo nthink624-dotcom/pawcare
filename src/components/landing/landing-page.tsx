@@ -8,7 +8,7 @@ import { getSupabaseRuntimeStage } from "@/lib/env";
 import type { Service, Shop } from "@/types/domain";
 import { CalendarDays, ChevronRight, Search, Settings2, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const SURFACE =
   "rounded-[28px] border border-[#ddd6ca] bg-white shadow-[0_12px_30px_rgba(24,33,31,0.05)]";
@@ -33,7 +33,11 @@ function formatWon(value: number) {
 
 export default function LandingPage({ shop }: { shop: Shop; services: Service[] }) {
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const canShowDemoLinks = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
+  const [canShowDemoLinks, setCanShowDemoLinks] = useState(false);
+
+  useEffect(() => {
+    setCanShowDemoLinks(getSupabaseRuntimeStage() !== "production");
+  }, []);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f4efe7] text-[#18211f]">

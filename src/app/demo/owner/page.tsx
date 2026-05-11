@@ -21,7 +21,6 @@ export default async function DemoOwnerPage() {
         ]}
         selectedShopId={data.shop.id}
         userEmail="demo@meongmanager.kr"
-        onSwitchShop={async () => {}}
       />
     </div>
   );

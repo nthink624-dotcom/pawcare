@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
+  renderNotificationTemplateBody,
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
@@ -88,7 +89,7 @@ function shouldSendGuardianNotification(
   return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
 }
 
-function buildBookingLinksBlock(params: {
+function legacyBuildBookingLinksBlock(params: {
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
 }) {
@@ -105,7 +106,7 @@ function buildBookingLinksBlock(params: {
   return lines.join("\n");
 }
 
-function buildNotificationMessage(params: {
+function legacyBuildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
   appointment: Appointment | null;
@@ -120,7 +121,7 @@ function buildNotificationMessage(params: {
     params.appointment
       ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
-  const bookingLinksBlock = buildBookingLinksBlock({
+  const bookingLinksBlock = legacyBuildBookingLinksBlock({
     bookingEntryUrl: params.bookingEntryUrl,
     bookingManageUrl: params.bookingManageUrl,
   });
@@ -293,6 +294,81 @@ function buildNotificationMessage(params: {
     default:
       return `[${params.shopName}] 알림을 확인해 주세요.`;
   }
+}
+
+function buildOwnerBookingRequestedMessage(params: {
+  petName: string;
+  appointment: Appointment | null;
+}) {
+  const dateLabel =
+    params.appointment
+      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      : "";
+
+  return ["새 예약이 접수되었어요.", params.petName, dateLabel].filter(Boolean).join("\n");
+}
+
+function buildNotificationTemplateValues(params: {
+  appointment: Appointment | null;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+  petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
+  shopName: string;
+}) {
+  const appointmentDateTime =
+    params.appointment
+      ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
+      : "";
+
+  return {
+    매장명: params.shopName,
+    반려동물명: params.petName,
+    보호자명: params.recipientName?.trim() || "",
+    예약일시: appointmentDateTime,
+    서비스명: params.serviceName?.trim() || "",
+    "예약 링크": params.bookingEntryUrl ?? "",
+    "예약 확인 링크": params.bookingManageUrl ?? "",
+  };
+}
+
+function buildNotificationMessage(params: {
+  type: NotificationType;
+  shopName: string;
+  appointment: Appointment | null;
+  petName: string;
+  recipientName: string | null;
+  serviceName: string | null;
+  rejectionReason: string | null;
+  bookingEntryUrl: string | null;
+  bookingManageUrl: string | null;
+}) {
+  const rendered = renderNotificationTemplateBody(
+    params.type,
+    buildNotificationTemplateValues({
+      appointment: params.appointment,
+      bookingEntryUrl: params.bookingEntryUrl,
+      bookingManageUrl: params.bookingManageUrl,
+      petName: params.petName,
+      recipientName: params.recipientName,
+      serviceName: params.serviceName,
+      shopName: params.shopName,
+    }),
+  );
+
+  if (rendered) {
+    return rendered;
+  }
+
+  if (params.type === "owner_booking_requested") {
+    return buildOwnerBookingRequestedMessage({
+      petName: params.petName,
+      appointment: params.appointment,
+    });
+  }
+
+  return params.serviceName ? `${params.petName} / ${params.serviceName}` : params.petName;
 }
 
 function hasExistingNotification(

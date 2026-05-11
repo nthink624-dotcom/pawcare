@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title>PetManager Owner Icon Placeholder</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f6b5b" />
+      <stop offset="100%" stop-color="#163f36" />
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="240" fill="url(#bg)" />
+  <circle cx="512" cy="390" r="132" fill="#f8f5ef" />
+  <path
+    d="M278 668c0-96 78-174 174-174h120c96 0 174 78 174 174v78H278z"
+    fill="#f8f5ef"
+  />
+  <text x="512" y="852" font-family="Arial, sans-serif" font-size="88" font-weight="700" text-anchor="middle" fill="#f8f5ef">
+    OWNER
+  </text>
+</svg>

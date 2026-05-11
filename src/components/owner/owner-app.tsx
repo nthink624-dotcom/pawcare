@@ -19,7 +19,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, 
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "addons" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type OwnedShopSummary = {
   id: string;
@@ -91,6 +91,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   closures: "운영시간 안내",
   notifications: "알림톡 설정",
   services: "서비스 관리",
+  addons: "부가기능",
   account: "계정",
 };
 
@@ -172,7 +173,6 @@ export default function OwnerApp({
   const [detailTab, setDetailTab] = useState<CustomerDetailTab>("records");
   const [recordPage, setRecordPage] = useState(1);
   const [notificationPage, setNotificationPage] = useState(1);
-  const [isCustomerNotificationSettingsOpen, setIsCustomerNotificationSettingsOpen] = useState(false);
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
   const [pendingVisitDate, setPendingVisitDate] = useState(currentDateInTimeZone());
@@ -206,10 +206,6 @@ export default function OwnerApp({
   const [petDraftName, setPetDraftName] = useState("");
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    setIsCustomerNotificationSettingsOpen(false);
-  }, [selectedGuardianId]);
 
   const resizeGuardianMemoTextarea = () => {
     const textarea = guardianMemoTextareaRef.current;
@@ -386,6 +382,8 @@ export default function OwnerApp({
       .replace("요일", "");
   }, [homeReservationDate, todayDate]);
   const homeReservationPanelTitle = "예약관리";
+  const homeReservationPanelCount =
+    homePendingAppointments.length + homeActionAppointments.length + homeCompletedHistoryAppointments.length;
   const canMoveHomeReservationBackward = homeReservationDate > todayDate;
   const canMoveHomeReservationForward = homeReservationDate < maxHomeReservationDate;
 
@@ -609,12 +607,44 @@ export default function OwnerApp({
     [notificationPage, selectedNotifications],
   );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
-  const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
-  const customerNotificationSummary = !guardianNotificationsEnabled
-    ? "알림 수신 꺼짐"
-    : guardianRevisitNotificationsEnabled
-      ? "알림 수신 · 재방문 안내 사용 중"
-      : "알림 수신 사용 중";
+  const customerNotificationItems = [
+    {
+      label: "예약 확정",
+      description: "예약이 최종 확정되었을 때 보내는 알림이에요.",
+    },
+    {
+      label: "예약 거절",
+      description: "예약을 받을 수 없을 때 고객에게 사유를 안내해요.",
+    },
+    {
+      label: "예약 취소",
+      description: "확정된 예약이 취소되면 바로 알려드려요.",
+    },
+    {
+      label: "예약 변경 확정",
+      description: "변경된 일정이 확정되면 새 방문 시간을 알려드려요.",
+    },
+    {
+      label: "방문 10분 전",
+      description: "예약 시간이 가까워졌을 때 미리 안내해요.",
+    },
+    {
+      label: "미용 시작",
+      description: "매장에서 미용을 시작했을 때 바로 알려드려요.",
+    },
+    {
+      label: "픽업 준비",
+      description: "미용이 거의 끝나 픽업 준비가 되었을 때 안내해요.",
+    },
+    {
+      label: "미용 완료",
+      description: "미용이 끝나 고객이 데리러 오실 수 있을 때 보내요.",
+    },
+    {
+      label: "생일 축하",
+      description: "반려동물 생일에 맞춰 축하 메시지를 보낼 수 있어요.",
+    },
+  ];
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
   const canSavePetProfile = Boolean(selectedCustomerPet && petDraftName.trim() && petDraftName.trim() !== selectedCustomerPet.name);
   const canSaveGuardianProfile = Boolean(
@@ -1523,11 +1553,14 @@ export default function OwnerApp({
             ) : null}
             <div className="grid grid-cols-2 gap-2.5">
               <StatCard label={ownerHomeCopy.statPending} value={String(pendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
-              <StatCard label={ownerHomeCopy.statUpcoming} value={String(pendingAppointments.length + todayActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
+              <StatCard label={ownerHomeCopy.statUpcoming} value={String(todayActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
               <StatCard label={ownerHomeCopy.statCompleted} value={String(completedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
               <StatCard label={ownerHomeCopy.statCancelChange} value={String(cancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
             </div>
-            <Panel title={homeReservationPanelTitle} action={String(homePendingAppointments.length + homeActionAppointments.length + homeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix}>
+            <Panel
+              title={homeReservationPanelTitle}
+              action={String(homeReservationPanelCount) + ownerHomeCopy.countSuffix}
+            >
               <TodayConfirmedContent
                 pendingAppointments={homePendingAppointments}
                 currentAppointments={homeActionAppointments}
@@ -1974,48 +2007,28 @@ export default function OwnerApp({
                   </div>
                 </CustomerDetailFieldCard>
 
-                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomerNotificationSettingsOpen((prev) => !prev)}
-                    className="relative -top-[2px] flex min-h-[42px] w-full items-center justify-between gap-3 px-3 py-1 text-left transition hover:bg-[#fffdfa]"
-                  >
-                    <span className="flex h-5 items-center text-[16px] font-normal leading-none tracking-[-0.02em] text-[var(--text)]">
-                      {customerNotificationSummary}
-                    </span>
-                    <span className="flex h-5 items-center justify-center self-center">
-                      <ChevronRight
-                        className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${isCustomerNotificationSettingsOpen ? "rotate-90" : ""}`}
-                        strokeWidth={1.8}
+                <CustomerDetailFieldCard label="개인 알림톡" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
+                  <div className="border-b border-[var(--border)] bg-[#fffdfa]">
+                    <CustomerDetailToggleRow
+                      label="알림톡 전체 수신"
+                      description="이 고객에게 가는 예약·미용 알림을 한 번에 켜거나 끌 수 있어요."
+                      checked={guardianNotificationsEnabled}
+                      disabled={saving}
+                      onChange={(checked) => {
+                        void updateGuardianNotifications(selectedGuardian.id, checked, false);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2.5 px-4 pb-4 pt-3.5">
+                    {customerNotificationItems.map((item) => (
+                      <CustomerDetailNotificationItemRow
+                        key={item.label}
+                        label={item.label}
+                        description={item.description}
+                        active={guardianNotificationsEnabled}
                       />
-                    </span>
-                  </button>
-                  {isCustomerNotificationSettingsOpen ? (
-                    <div className="max-h-[132px] overflow-y-auto border-t border-[var(--border)] divide-y divide-[var(--border)]">
-                      <CustomerDetailToggleRow
-                        label="알림톡 수신"
-                        description="이 고객에게 예약 확정, 취소, 픽업 준비 알림을 보낼 수 있어요."
-                        checked={guardianNotificationsEnabled}
-                        disabled={saving}
-                        onChange={(checked) => {
-                          void updateGuardianNotifications(
-                            selectedGuardian.id,
-                            checked,
-                            checked ? guardianRevisitNotificationsEnabled : false,
-                          );
-                        }}
-                      />
-                      <CustomerDetailToggleRow
-                        label="재방문 안내"
-                        description="다음 방문 시점이 가까워졌을 때 재방문 알림을 보낼 수 있어요."
-                        checked={guardianRevisitNotificationsEnabled}
-                        disabled={saving || !guardianNotificationsEnabled}
-                        onChange={(checked) => {
-                          void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
-                        }}
-                      />
-                    </div>
-                  ) : null}
+                    ))}
+                  </div>
                 </CustomerDetailFieldCard>
 
                 <div className="space-y-2.5">
@@ -2177,7 +2190,7 @@ export default function OwnerApp({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })} onClose={() => setModal(null)} /></Overlay> : null}</div>}
       {isShopPickerOpen ? (
         <Overlay>
           <ShopPickerSheet
@@ -2435,6 +2448,7 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
   const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
   const canSendReminder =
     ["pending", "confirmed"].includes(appointment.status) && guardian.notification_settings.enabled;
+  const canCancelAppointment = ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status);
 
   useEffect(() => {
     if (slots.length === 0) {
@@ -2580,6 +2594,24 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
             }
           />
         </div>
+        {canCancelAppointment ? (
+          <div className="rounded-[18px] border border-[#eadbd2] bg-[#fffaf7] px-4 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] font-medium text-[var(--text)]">예약 취소</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">취소 후에는 취소·변경 내역에서 확인할 수 있어요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdate({ status: "cancelled" })}
+                disabled={saving}
+                className="shrink-0 rounded-[10px] border border-[#d8c8bd] bg-white px-3 py-2 text-[13px] font-medium text-[#9a5f4f] disabled:opacity-50"
+              >
+                예약 취소
+              </button>
+            </div>
+          </div>
+        ) : null}
         {appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}
       </div>
     </Sheet>
@@ -3315,7 +3347,89 @@ function RecordCard({ record, pet, service, onEdit }: { record: GroomingRecord; 
     </div>
   );
 }
-function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <CurrentReservationsContent currentAppointments={currentAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
+function StatDetail({
+  kind,
+  todayAppointments,
+  pendingAppointments,
+  overdueRows,
+  estimatedRevenue,
+  petMap,
+  guardianMap,
+  serviceMap,
+  saving,
+  onUpdate,
+  onOpenAppointment,
+  onClose,
+}: {
+  kind: "today" | "pending" | "completed" | "cancel_change";
+  todayAppointments: Appointment[];
+  pendingAppointments: Appointment[];
+  overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>;
+  estimatedRevenue: number;
+  petMap: Record<string, Pet>;
+  guardianMap: Record<string, Guardian>;
+  serviceMap: Record<string, Service>;
+  saving: boolean;
+  onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void;
+  onOpenAppointment: (appointment: Appointment) => void;
+  onClose: () => void;
+}) {
+  const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
+  const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status));
+  const completedAppointments = todayAppointments.filter((item) => item.status === "completed");
+  const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled");
+
+  return (
+    <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}>
+      <div className="space-y-3">
+        {kind === "today" && (
+          <CurrentReservationsContent
+            currentAppointments={currentAppointments}
+            petMap={petMap}
+            guardianMap={guardianMap}
+            serviceMap={serviceMap}
+            saving={saving}
+            onOpenAppointment={onOpenAppointment}
+            onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })}
+          />
+        )}
+        {kind === "pending" &&
+          pendingAppointments.map((appointment) => (
+            <PendingApprovalCard
+              key={appointment.id}
+              appointment={appointment}
+              pet={petMap[appointment.pet_id]}
+              guardian={guardianMap[appointment.guardian_id]}
+              service={serviceMap[appointment.service_id]}
+              saving={saving}
+              onOpen={() => onOpenAppointment(appointment)}
+              onStatusChange={(payload) => {
+                setOpenRejectAppointmentId(null);
+                onUpdate(appointment.id, payload);
+              }}
+              isRejectOpen={openRejectAppointmentId === appointment.id}
+              onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)}
+              onRejectClose={() => setOpenRejectAppointmentId(null)}
+            />
+          ))}
+        {kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} />}
+        {kind === "cancel_change" &&
+          cancelChangeOnly.map((appointment) => (
+            <HomeConfirmedCard
+              key={appointment.id}
+              appointment={appointment}
+              pet={petMap[appointment.pet_id]}
+              guardian={guardianMap[appointment.guardian_id]}
+              service={serviceMap[appointment.service_id]}
+              saving={saving}
+              onOpen={() => onOpenAppointment(appointment)}
+              onStatusChange={(status) => onUpdate(appointment.id, { status })}
+            />
+          ))}
+      </div>
+    </Sheet>
+  );
+}
 
 function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void }) {
   const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>("");
@@ -3366,19 +3480,7 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
 
 
 function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, serviceMap, saving, onOpenAppointment, onStatusChange }: { currentAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
-  const [showSwipeHint, setShowSwipeHint] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || currentAppointments.length === 0) return;
-    const hintKey = "owner-home-swipe-cancel-hint-seen";
-    if (window.localStorage.getItem(hintKey)) return;
-    window.localStorage.setItem(hintKey, "true");
-    setShowSwipeHint(true);
-    const timeout = window.setTimeout(() => setShowSwipeHint(false), 4500);
-    return () => window.clearTimeout(timeout);
-  }, [currentAppointments.length]);
-
-  return <div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div>{showSwipeHint ? <div className="mb-2.5 rounded-[10px] border border-[#d7e8e0] bg-white/90 px-3 py-2 text-[12px] font-medium leading-5 text-[#4d6b62]">예약 카드를 왼쪽으로 밀면 취소 버튼이 나타나요.</div> : null}<div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
+  return <div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
 }
 
 function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
@@ -3445,7 +3547,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
     }
   };
 
-  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
+  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="shrink-0 text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
 }
 
 
@@ -3470,6 +3572,7 @@ function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick 
     </button>
   );
 }
+
 function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, allowSwipeCancel = false }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (status: AppointmentStatus) => void; allowSwipeCancel?: boolean; }) {
   const actionWidth = 96;
   const snapThreshold = 48;
@@ -3477,11 +3580,16 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
   const [dragStartX, setDragStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const translateXRef = useRef(0);
   const isDragging = startX !== null;
   const actionVisible = allowSwipeCancel && (isDragging || translateX !== 0);
   const rollbackStatus = appointment.status === "cancelled" ? "confirmed" : null;
   const rollbackLabel = appointment.status === "cancelled" ? "\uCDE8\uC18C/\uBCC0\uACBD \uCCA0\uD68C" : null;
-  const closeSwipe = () => setTranslateX(0);
+  const updateTranslateX = (next: number) => {
+    translateXRef.current = next;
+    setTranslateX(next);
+  };
+  const closeSwipe = () => updateTranslateX(0);
 
   const requestCancel = () => {
     if (saving) return;
@@ -3496,20 +3604,24 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel || saving) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     setStartX(event.clientX);
-    setDragStartX(translateX);
+    setDragStartX(translateXRef.current);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel || startX === null || saving) return;
     const diff = event.clientX - startX;
     const next = Math.min(0, Math.max(-actionWidth, dragStartX + diff));
-    setTranslateX(next);
+    updateTranslateX(next);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel) return;
-    setTranslateX(translateX <= -snapThreshold ? -actionWidth : 0);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    updateTranslateX(translateXRef.current <= -snapThreshold ? -actionWidth : 0);
     setStartX(null);
   };
 
@@ -3932,6 +4044,40 @@ function CustomerDetailToggleRow({
   );
 }
 
+function CustomerDetailNotificationItemRow({
+  label,
+  description,
+  active,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-h-[66px] items-center justify-between gap-3 rounded-[12px] border px-3.5 py-3 transition ${
+        active
+          ? "border-[#dfe8e3] bg-[#fbfdfc]"
+          : "border-[var(--border)] bg-[#fcfaf7]"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
+        <p className="mt-1 text-[12px] leading-[17px] tracking-[-0.01em] text-[#9b968f]">{description}</p>
+      </div>
+      <span
+        className={`inline-flex h-8 min-w-[52px] items-center justify-center rounded-full border px-3 text-[12px] font-medium leading-none tracking-[-0.01em] ${
+          active
+            ? "border-[#cfe0d8] bg-[#eef7f3] text-[var(--accent)]"
+            : "border-[#e7e1d8] bg-white text-[#b0aba3]"
+        }`}
+      >
+        {active ? "ON" : "OFF"}
+      </span>
+    </div>
+  );
+}
+
 function CustomerMetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className={`rounded-[16px] border border-[var(--border)] bg-white px-3.5 ${compact ? "py-3" : "py-3.5"}`}>
@@ -4025,6 +4171,43 @@ function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "un
 
 function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2 ${className}`.trim()}><p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1 flex min-h-[20px] items-center text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
 
+function stripNotificationLinks(message: string) {
+  return message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^https?:\/\//i.test(line))
+    .filter((line) => !/^예약 링크\b/i.test(line))
+    .filter((line) => !/^예약 확인 링크\b/i.test(line))
+    .filter((line) => !/^취소.?변경 내역 조회 링크\b/i.test(line))
+    .join("\n");
+}
+
+function extractNotificationManageUrl(notification: BootstrapPayload["notifications"][number]) {
+  const fromMetadata = typeof notification.metadata?.bookingManageUrl === "string" ? notification.metadata.bookingManageUrl : null;
+  if (fromMetadata) return fromMetadata;
+
+  const matches = notification.message.match(/https?:\/\/[^\s]+/gi) ?? [];
+  return matches.find((item) => /\/manage(?:[/?]|$)/i.test(item)) ?? null;
+}
+
+function getNotificationActionLabel(type: BootstrapPayload["notifications"][number]["type"]) {
+  switch (type) {
+    case "booking_cancelled":
+    case "booking_rejected":
+    case "booking_rescheduled_confirmed":
+      return "취소·변경 내역 조회";
+    case "booking_received":
+    case "booking_confirmed":
+    case "appointment_reminder_10m":
+    case "grooming_almost_done":
+    case "grooming_completed":
+      return "예약 확인";
+    default:
+      return null;
+  }
+}
+
 function NotificationHistoryRow({ notification, pet }: { notification: BootstrapPayload["notifications"][number]; pet: Pet | null }) {
   const typeLabel = (() => {
     switch (notification.type) {
@@ -4075,6 +4258,9 @@ function NotificationHistoryRow({ notification, pet }: { notification: Bootstrap
   const timeLabel = Number.isNaN(parsed.getTime())
     ? timestamp
     : `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+  const displayMessage = stripNotificationLinks(notification.message);
+  const actionLabel = getNotificationActionLabel(notification.type);
+  const actionUrl = extractNotificationManageUrl(notification);
 
   return (
     <div className="px-3.5 py-3">
@@ -4088,7 +4274,21 @@ function NotificationHistoryRow({ notification, pet }: { notification: Bootstrap
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-normal ${statusTone}`}>{statusLabel}</span>
       </div>
-      <p className="mt-1.5 text-[14px] leading-5 text-[var(--text)] break-words">{notification.message}</p>
+      {displayMessage ? (
+        <p className="mt-1.5 whitespace-pre-line text-[14px] leading-5 text-[var(--text)] break-words">{displayMessage}</p>
+      ) : null}
+      {actionLabel && actionUrl ? (
+        <div className="mt-2.5">
+          <a
+            href={actionUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-[34px] items-center justify-center rounded-[10px] border border-[var(--border)] bg-white px-3 text-[13px] font-medium text-[var(--text)] transition hover:bg-[#fcfaf7]"
+          >
+            {actionLabel}
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }

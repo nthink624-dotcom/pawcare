@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PetManager Owner</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <p class="eyebrow">PETMANAGER OWNER</p>
+        <h1>오너 앱 셸 준비가 완료되었습니다.</h1>
+        <p class="body">
+          이 앱은 기존 오너 관리자 웹을 네이티브 앱 안에 띄우는 전용 셸입니다. 아직
+          <code>OWNER_WEB_URL</code>이 설정되지 않았기 때문에 로컬 안내 화면이 표시되고 있습니다.
+        </p>
+        <ol class="steps">
+          <li><code>apps/owner-mobile/.env</code> 파일을 만들고 <code>OWNER_WEB_URL</code> 값을 넣습니다.</li>
+          <li><code>npm install</code> 후 <code>npm run sync</code>를 실행합니다.</li>
+          <li>Android Studio 또는 Xcode에서 네이티브 프로젝트를 엽니다.</li>
+        </ol>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

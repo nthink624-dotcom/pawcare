@@ -5,7 +5,7 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-const STORAGE_KEY = "pawcare-landing";
+const STORAGE_KEY = "petmanager-landing";
 
 export default function LandingPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -221,7 +221,7 @@ export default function LandingPage() {
         <section className="sec" data-section="prob" className={`sec ${vis("prob")}`} data-section="prob">
           <div className="sec-tag">PROBLEM</div>
           <h2>사장님, 이런 적 <em>없으세요?</em></h2>
-          <div className="sub">혹시 하나라도 해당되시면, PawCare가 도와드릴 수 있어요.</div>
+          <div className="sub">혹시 하나라도 해당되시면, PetManager가 도와드릴 수 있어요.</div>
 
           {[
             { emoji: "📱", title: "카톡 예약 지옥", desc: "전화, 문자, 카톡, 네이버, 인스타 DM... 채널이 너무 많아서 예약이 꼬이고, 미용 중에도 계속 답장해야 해요." },
@@ -240,7 +240,7 @@ export default function LandingPage() {
         {/* ═══ SOLUTION ═══ */}
         <section data-section="sol" className={`sec ${vis("sol")}`} style={{ background: "var(--t)", color: "white", borderRadius: "24px", margin: "0 12px", padding: "28px 18px" }}>
           <div className="sec-tag" style={{ color: "#E8A08E" }}>SOLUTION</div>
-          <h2 style={{ color: "white" }}>PawCare <em>하나</em>면 됩니다</h2>
+          <h2 style={{ color: "white" }}>PetManager <em>하나</em>면 됩니다</h2>
           <div className="sub" style={{ color: "#B0A89F" }}>복잡한 거 없어요. 폰 하나로 전부 관리.</div>
 
           <div className="sol-grid">
@@ -265,7 +265,7 @@ export default function LandingPage() {
         <section data-section="flow" className={`sec ${vis("flow")}`}>
           <div className="sec-tag">자동화</div>
           <h2>사장님은 <em>2번만</em> 누르세요</h2>
-          <div className="sub">나머지는 PawCare가 알아서 합니다.</div>
+          <div className="sub">나머지는 PetManager가 알아서 합니다.</div>
 
           <div className="flow">
             {[
@@ -440,9 +440,9 @@ export default function LandingPage() {
 
         {/* ═══ FOOTER ═══ */}
         <div className="footer">
-          PawCare — 애견미용샵 통합 관리 서비스<br />
-          문의: contact@pawcare.kr<br />
-          © 2026 PawCare. All rights reserved.
+          PetManager — 애견미용샵 통합 관리 서비스<br />
+          문의: contact@petmanager.kr<br />
+          © 2026 PetManager. All rights reserved.
         </div>
       </div>
 

@@ -28,7 +28,7 @@
 - Safe to split now: No
 - Recommended next action: 먼저 화면 블록 단위 책임을 분석하고, presentational component부터 분리 후보를 정의한다
 
-- File path: `pawcare-v3.jsx`
+- File path: `petmanager-v3.jsx`
 - Approx line count: 1299
 - Current role: 제품 UX/IA 기준이 되는 로컬 프로토타입
 - Why risky: 파일은 크지만 실제 운영 로직보다 참조용 markup 비중이 높고, 현재 제품 구조의 레퍼런스 역할을 한다

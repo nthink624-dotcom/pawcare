@@ -1,10 +1,10 @@
 # Job Status Tracking
 
-PawCare 로컬 작업 상태를 JSON으로 남기는 최소 구조입니다.
+PetManager 로컬 작업 상태를 JSON으로 남기는 최소 구조입니다.
 
 저장 위치:
-- `.pawcare-status/last-job.json`
-- `.pawcare-status/jobs/*.json`
+- `.petmanager-status/last-job.json`
+- `.petmanager-status/jobs/*.json`
 
 추가된 명령어:
 - `npm run status:start -- --title "작업 제목"`

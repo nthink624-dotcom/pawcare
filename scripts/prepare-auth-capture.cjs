@@ -28,7 +28,7 @@ function nowIso() {
 }
 
 function buildOwnerAuthEmail(loginId) {
-  return `${loginId.trim().toLowerCase()}@owner.pawcare.local`;
+  return `${loginId.trim().toLowerCase()}@owner.petmanager.local`;
 }
 
 async function main() {

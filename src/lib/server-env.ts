@@ -123,5 +123,5 @@ export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
     return alias;
   }
 
-  return templateConfigValues[spec.templateConfigKey] ?? null;
+  return templateConfigValues[spec.templateConfigKey] ?? alias;
 }

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, MapPin, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -28,7 +28,7 @@ type SaveFeedback = {
   message: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "addons" | "account" | null;
 
 type PriceType = "fixed" | "starting";
 type ShopNotificationSettingsState = {
@@ -151,6 +151,18 @@ function parseShopAddressParts(rawAddress: string) {
   };
 }
 
+function resolveLoginIdFromOwnerAuthEmail(email?: string | null) {
+  const trimmed = email?.trim();
+  if (!trimmed) return null;
+
+  const lowerEmail = trimmed.toLowerCase();
+  const ownerAuthEmailSuffixes = ["@owner.petmanager.local", "@owner.pawcare.local"];
+  const matchedSuffix = ownerAuthEmailSuffixes.find((suffix) => lowerEmail.endsWith(suffix));
+
+  if (!matchedSuffix) return null;
+  return trimmed.slice(0, -matchedSuffix.length);
+}
+
 export default function OwnerSettingsPanel({
   data,
   onSave,
@@ -222,6 +234,7 @@ export default function OwnerSettingsPanel({
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
 
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
+  const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
 
   useEffect(() => {
     setIsNotificationSettingsDirty(false);
@@ -589,33 +602,33 @@ export default function OwnerSettingsPanel({
         const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
 
         return (
-      <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_6px_16px_rgba(21,22,19,0.04)]">
+      <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
         <div className="px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-[0.08em] text-[#8a8277]">현재 플랜</p>
-              <p className="mt-2 text-[25px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">
+              <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">현재 플랜</p>
+              <p className="mt-2 text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">
                 {currentPlanTitle}
               </p>
-              <p className="mt-2 text-[12px] font-medium leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
+              <p className="mt-2 text-[14px] font-normal leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[24px] font-extrabold leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
-              <p className="mt-2 text-[11px] font-medium text-[#8a8277]">
+            <div className="shrink-0 pt-0.5 text-right">
+              <p className="text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
+              <p className="mt-2 text-[12px] font-normal text-[#8a8277]">
                 {currentPlanSubLabel}
               </p>
             </div>
           </div>
 
           <div className="mt-4 border-t border-[#ebe5dc] pt-3.5">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex items-end justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-[0.06em] text-[#8a8277]">{endDateLabel}</p>
-                <p className="mt-1 text-[18px] font-bold tracking-[-0.03em] text-[#171411]">{subscriptionEndDate}</p>
+                <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">{endDateLabel}</p>
+                <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
               <a
                 href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
-                className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white transition hover:bg-[#195748]"
+                className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"
               >
                 {planCtaLabel}
               </a>
@@ -1149,12 +1162,49 @@ export default function OwnerSettingsPanel({
   const accountSection = onLogout ? (
     <SettingsCard>
       <div className="divide-y divide-[var(--border)]">
-        {userEmail ? <AccountRow icon={Mail} label="로그인 이메일" value={userEmail} /> : null}
+        {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>
     </SettingsCard>
   ) : null;
+
+  const addonsSection = (
+    <SettingsCard>
+      <SettingsFieldCard label="업장 추가" className="pb-3 pt-2.5">
+        <div className="space-y-3 px-0.5 pt-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">추가 업장을 같은 계정으로 관리</p>
+              <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
+                같은 명의의 업장만 추가할 수 있고, 한 계정에서 함께 운영할 수 있어요.
+              </p>
+            </div>
+            <div className="shrink-0 rounded-[10px] border border-[#dfe8e2] bg-[#f8fcfa] px-3 py-2 text-right">
+              <p className="text-[12px] font-medium text-[#7a736b]">추가 요금</p>
+              <p className="mt-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">월 3,000원</p>
+            </div>
+          </div>
+          <div className="rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-3">
+            <div className="space-y-1.5 text-[13px] leading-5 text-[var(--muted)]">
+              <p>• 업장 1곳 추가당 월 3,000원이 부과돼요.</p>
+              <p>• 추가 업장은 현재 계정과 동일 명의에서만 등록할 수 있어요.</p>
+            </div>
+          </div>
+          {data.shop.customer_page_settings?.kakao_inquiry_url ? (
+            <a
+              href={data.shop.customer_page_settings.kakao_inquiry_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-[40px] items-center justify-center rounded-[10px] border border-[var(--border)] bg-white px-4 text-[14px] font-normal text-[var(--text)]"
+            >
+              업장 추가 문의하기
+            </a>
+          ) : null}
+        </div>
+      </SettingsFieldCard>
+    </SettingsCard>
+  );
 
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     subscription: { title: "현재 플랜", content: subscriptionSection },
@@ -1162,6 +1212,7 @@ export default function OwnerSettingsPanel({
     closures: { title: "운영시간 안내", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
     services: { title: "서비스 관리", content: servicesSection },
+    addons: { title: "부가기능", content: addonsSection },
     account: { title: "계정", content: accountSection },
   };
 
@@ -1312,6 +1363,11 @@ export default function OwnerSettingsPanel({
           icon={Scissors}
           title="서비스 관리"
           onClick={() => updateActiveScreen("services")}
+        />
+        <SettingsNavRow
+          icon={Plus}
+          title="부가기능"
+          onClick={() => updateActiveScreen("addons")}
         />
         {onLogout ? (
           <SettingsNavRow

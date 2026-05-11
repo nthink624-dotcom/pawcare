@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 /* ═══════════════════════════════════════
    STORAGE & UTILS
    ═══════════════════════════════════════ */
-const SK = "pawcare-v3";
+const SK = "petmanager-v3";
 const uid = () => Math.random().toString(36).slice(2, 9);
 const TODAY = "2026-03-15";
 const NOW_MINUTES = 10 * 60 + 15; // 10:15 simulation

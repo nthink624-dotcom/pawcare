@@ -1,4 +1,4 @@
-# PawCare 프론트/백엔드 분리 메모
+# PetManager 프론트/백엔드 분리 메모
 
 ## 실행 명령
 - 프론트: 루트에서 `npm run dev:frontend`
@@ -7,8 +7,8 @@
 - 백엔드 기본 주소: `http://localhost:4000`
 
 ## 환경 변수 파일
-- 프론트: `D:\pawcare\.env.local`
-- 백엔드: `D:\pawcare\backend\.env`
+- 프론트: `D:\petmanager\.env.local`
+- 백엔드: `D:\petmanager\backend\.env`
 
 ## 프론트 env
 - `NEXT_PUBLIC_APP_NAME`
@@ -36,7 +36,7 @@
 
 ## 현재 인증/권한 흐름
 1. 회원가입 화면은 백엔드 `POST /api/auth/signup`으로 아이디 중복 확인과 owner 계정 생성을 요청합니다.
-2. 백엔드는 `owner_profiles`와 `shops`를 생성하고, virtual email(`{loginId}@owner.pawcare.local`) 기반 Supabase Auth 유저를 service role로 만듭니다.
+2. 백엔드는 `owner_profiles`와 `shops`를 생성하고, virtual email(`{loginId}@owner.petmanager.local`) 기반 Supabase Auth 유저를 service role로 만듭니다.
 3. 로그인 화면은 브라우저 Supabase client로 `signInWithPassword`를 수행하고 세션을 브라우저에 유지합니다.
 4. owner 화면과 owner CRUD는 브라우저 세션의 access token을 `Authorization: Bearer`로 백엔드에 전달합니다.
 5. 백엔드는 토큰으로 사용자를 검증한 뒤 `owner_profiles.shop_id`, `shops.owner_user_id`를 기준으로 owner scope를 판별하고 service role로 DB 작업을 수행합니다.

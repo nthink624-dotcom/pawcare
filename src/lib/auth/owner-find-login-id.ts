@@ -16,7 +16,7 @@ export const ownerFindLoginIdSchema = z.object({
     .trim()
     .transform((value) => normalizePhoneNumber(value))
     .refine((value) => /^01\d{8,9}$/.test(value), {
-      message: "휴대폰 번호를 올바르게 입력해 주세요.",
+      message: "휴대폰번호를 올바르게 입력해 주세요.",
     }),
   identityVerificationToken: z.string().trim().min(1, "본인인증을 먼저 완료해 주세요."),
 });

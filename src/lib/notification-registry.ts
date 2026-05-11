@@ -61,21 +61,32 @@ export type NotificationRegistryItem = {
   draftBody: string | null;
 };
 
+export type NotificationTemplateVariables = Record<string, string | null | undefined>;
+
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   {
     type: "booking_received",
     title: "예약 접수",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "고객이 예약을 접수하면 즉시 발송",
+    trigger: "고객이 예약을 신청하면 즉시 발송",
     dispatchSource: "src/server/customer-bookings.ts",
     templateAlias: "booking_received",
     templateConfigKey: "templateBookingReceived",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "수동 승인 매장에서도 예약 접수 완료 안내용으로 사용",
-    draftBody:
-      "[#{매장명}] #{반려동물명} 예약이 접수되었어요.\n방문 일정: #{예약일시}\n\n매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}",
+    notes: "자동 승인 매장에서도 접수 안내용으로 사용",
+    draftBody: [
+      "[#{매장명}] #{반려동물명} 예약이 접수되었어요.",
+      "방문 일정: #{예약일시}",
+      "",
+      "매장에서 예약을 확인한 뒤 승인 알림을 보내드릴게요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "booking_confirmed",
@@ -89,21 +100,33 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "booking_confirmed_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약이 확정되었어요. (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n방문 당일 편하게 와 주세요. 기다리고 있겠습니다.\n\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 보호자님, 예약이 확정되었어요.",
+      "",
+      "방문 일정: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "방문 당일 편하게 와 주세요. 기다리고 있을게요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "owner_booking_requested",
-    title: "새 예약 접수",
+    title: "오너 예약 접수",
     target: "owner",
     channel: "in_app",
-    trigger: "고객 예약 접수 시 오너 인앱 알림 생성",
+    trigger: "고객 예약 접수 시 오너 앱 알림 생성",
     dispatchSource: "src/server/customer-bookings.ts",
     templateAlias: null,
     templateConfigKey: null,
     shopSettingKey: "enabled",
     guardianSettingKey: null,
-    notes: "알림톡이 아니라 오너용 인앱 알림",
+    notes: "알림톡이 아니라 오너 인앱 알림",
     draftBody: null,
   },
   {
@@ -118,8 +141,19 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "booking_rejected_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}] 예약 거절 안내\n\n#{반려동물명} 보호자님께서 요청하신 예약은 매장 사정으로 인해 확정이 어렵게 되어 양해 부탁드립니다.\n\n불편을 드려 죄송합니다.\n\n해당 구간 외 다른 일정으로 예약이 가능하니, 아래 링크에서 다시 확인 부탁드립니다.\n\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}] 예약 거절 안내",
+      "",
+      "#{반려동물명} 보호자님께서 요청하신 예약은 매장 일정상 확정이 어려워 안내드려요.",
+      "",
+      "불편을 드려 죄송합니다.",
+      "다른 일정으로 다시 예약하실 수 있도록 아래 링크를 함께 보내드려요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "booking_cancelled",
@@ -133,38 +167,73 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "booking_cancelled_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약 취소가 처리되었어요.\n\n취소된 예약: #{예약일시}\n\n아쉽지만 다음에 또 뵙길 바랄게요.\n언제든지 다시 예약하고 싶으시면 아래 링크를 이용해 주세요.\n\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 보호자님, 예약 취소가 처리되었어요.",
+      "",
+      "취소된 예약: #{예약일시}",
+      "",
+      "다음에 다시 만나길 바랄게요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "booking_rescheduled_confirmed",
     title: "예약 변경 확정",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "예약 변경 완료 시 발송",
+    trigger: "예약 일정 변경이 완료되면 발송",
     dispatchSource: "src/server/owner-mutations.ts",
     templateAlias: "booking_rescheduled_confirmed",
     templateConfigKey: "templateBookingRescheduledConfirmed",
     shopSettingKey: "booking_rescheduled_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 예약 변경이 확정되었어요.\n\n기존 예약은 취소되고, 아래 일정으로 새로 확정되었어요.\n\n새로운 일정: #{예약일시}\n예약 서비스: #{서비스명}\n\n변경된 일정에 맞춰 뵙겠습니다.\n추가 변경이 필요하시면 아래 링크에서 예약 정보를 확인해 주세요.\n\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 보호자님, 예약 변경이 확정되었어요.",
+      "",
+      "새로운 일정: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "변경된 일정에 맞춰 뵐게요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "appointment_reminder_10m",
     title: "방문 10분 전",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "방문 10분 전 스케줄러 또는 수동 발송에서 발송",
+    trigger: "방문 10분 전 자동/수동 발송",
     dispatchSource: "src/server/notification-dispatch.ts / src/components/owner/owner-app.tsx",
     templateAlias: "appointment_reminder_10m",
     templateConfigKey: "templateAppointmentReminder10m",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "수동 버튼은 force 전송, 자동 발송은 예약 10분 전 조건 사용",
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 이제 곧 만나요! (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n준비 마치고 기다리고 있을게요.\n오시는 길 조심히 오세요.\n\n#{예약관리링크}",
+    notes: "자동 발송 또는 오너 수동 발송 지원",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 보호자님, 예약 시간 10분 전이에요.",
+      "",
+      "방문 일정: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "준비하시고 편하게 방문해 주세요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "grooming_started",
@@ -177,9 +246,13 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateConfigKey: "templateGroomingStarted",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "현재는 전체 알림 ON이면 발송",
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 보호자님, 미용이 시작되었어요.\n\n#{반려동물명}은 예쁘게 변신 중이니 안심해 주세요.\n예쁘게 마무리해서 보내드릴게요!",
+    notes: "전체 알림이 켜져 있으면 발송",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 미용이 시작되었어요.",
+      "",
+      "예쁘게 변신 중이니 안심해 주세요.",
+    ].join("\n"),
   },
   {
     type: "grooming_almost_done",
@@ -193,8 +266,17 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "grooming_almost_done_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 미용이 곧 끝나요.\n\n마무리 단계라 곧 픽업 가능하세요.\n\n잠시 후 픽업하실 수 있어요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 미용이 거의 끝났어요.",
+      "",
+      "마무리 단계라 곧 픽업하실 수 있어요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "grooming_completed",
@@ -208,21 +290,31 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     shopSettingKey: "grooming_completed_enabled",
     guardianSettingKey: "enabled",
     notes: null,
-    draftBody:
-      "[#{매장명}]\n#{반려동물명} 미용이 모두 완료되었어요.\n\n오늘도 믿고 맡겨주셔서 감사해요.\n#{반려동물명}이 기다리고 있으니 편하신 시간에 와주세요.\n\n#{예약관리링크}",
+    draftBody: [
+      "[#{매장명}]",
+      "#{반려동물명} 미용이 모두 완료되었어요.",
+      "",
+      "오늘도 믿고 맡겨주셔서 감사합니다.",
+      "편한 시간에 방문해 주세요.",
+      "",
+      "예약 링크",
+      "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
   },
   {
     type: "revisit_notice",
     title: "재방문 안내",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "재방문 대상 스케줄러 또는 자동화에서 발송",
+    trigger: "재방문 시점 자동 안내",
     dispatchSource: "future automation / dispatchNotification",
     templateAlias: "revisit_notice",
     templateConfigKey: "templateRevisitNotice",
     shopSettingKey: "revisit_enabled",
     guardianSettingKey: "revisit_enabled",
-    notes: "매장과 고객 양쪽 revisit 설정이 모두 켜져야 함",
+    notes: "매장과 고객 모두 재방문 알림이 켜져 있을 때 발송",
     draftBody: "[#{매장명}] #{반려동물명} 재방문 시기가 가까워졌어요.",
   },
   {
@@ -230,13 +322,13 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "생일 축하",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "생일 대상 스케줄러 또는 자동화에서 발송",
+    trigger: "생일 일정 자동 안내",
     dispatchSource: "future automation / dispatchNotification",
     templateAlias: "birthday_greeting",
     templateConfigKey: "templateBirthdayGreeting",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "현재는 전체 알림 ON이면 발송",
+    notes: "전체 알림이 켜져 있으면 발송",
     draftBody: "[#{매장명}] #{반려동물명} 생일을 축하드려요.",
   },
   {
@@ -244,13 +336,13 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "랜딩 피드백",
     target: "system",
     channel: "data_only",
-    trigger: "랜딩 피드백 저장",
+    trigger: "랜딩 피드백 제출 시 저장",
     dispatchSource: "src/server/bootstrap.ts / landing_feedback table",
     templateAlias: null,
     templateConfigKey: null,
     shopSettingKey: null,
     guardianSettingKey: null,
-    notes: "알림톡 발송 타입이 아니라 데이터 기록용",
+    notes: "알림 발송이 아니라 데이터 기록",
     draftBody: null,
   },
   {
@@ -258,13 +350,13 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "랜딩 대기수요",
     target: "system",
     channel: "data_only",
-    trigger: "랜딩 대기수요 저장",
+    trigger: "랜딩 대기수요 제출 시 저장",
     dispatchSource: "src/server/bootstrap.ts / landing_interests table",
     templateAlias: null,
     templateConfigKey: null,
     shopSettingKey: null,
     guardianSettingKey: null,
-    notes: "알림톡 발송 타입이 아니라 데이터 기록용",
+    notes: "알림 발송이 아니라 데이터 기록",
     draftBody: null,
   },
 ] as const;
@@ -282,12 +374,29 @@ export const ALIMTALK_NOTIFICATION_REGISTRY = NOTIFICATION_REGISTRY.filter(
     typeof item.draftBody === "string",
 );
 
+export function fillNotificationTemplate(template: string, values: NotificationTemplateVariables) {
+  return Object.entries(values).reduce((message, [key, value]) => {
+    const resolvedValue = value ?? "";
+    return message.replaceAll(`#{${key}}`, resolvedValue);
+  }, template);
+}
+
 export function getNotificationRegistryItem(type: NotificationType) {
   return NOTIFICATION_REGISTRY.find((item) => item.type === type) ?? null;
 }
 
 export function getNotificationTitle(type: NotificationType) {
   return getNotificationRegistryItem(type)?.title ?? type;
+}
+
+export function getNotificationDraftBody(type: NotificationType) {
+  return getNotificationRegistryItem(type)?.draftBody ?? null;
+}
+
+export function renderNotificationTemplateBody(type: NotificationType, values: NotificationTemplateVariables) {
+  const template = getNotificationDraftBody(type);
+  if (!template) return null;
+  return fillNotificationTemplate(template, values);
 }
 
 export function getAlimtalkTemplateAlias(type: NotificationType) {

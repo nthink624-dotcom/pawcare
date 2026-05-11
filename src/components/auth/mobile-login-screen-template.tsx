@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 
 import type { SocialProvider } from "@/lib/auth/social-auth";
 
@@ -85,6 +87,7 @@ export default function MobileLoginScreenTemplate({
   onLogin,
   onSocialLogin,
 }: Props) {
+  const [showPassword, setShowPassword] = useState(false);
   const resolvedSocialLabels = {
     kakao: {
       idle: "카카오 1초 로그인/회원가입",
@@ -154,13 +157,23 @@ export default function MobileLoginScreenTemplate({
           className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
         />
 
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => onPasswordChange(event.target.value)}
-          placeholder={passwordPlaceholder}
-          className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => onPasswordChange(event.target.value)}
+            placeholder={passwordPlaceholder}
+            className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 pr-12 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#6f665d] transition hover:bg-white/70 active:scale-[0.96]"
+            aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+          >
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}

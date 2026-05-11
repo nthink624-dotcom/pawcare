@@ -1,5 +1,5 @@
 @echo off
-cd /d D:\pawcare
+cd /d D:\petmanager
 
 git add .
 if errorlevel 1 goto fail

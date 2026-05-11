@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { CalendarDays, ChevronDown, Search } from "lucide-react";
+import type { KeyboardEvent } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -183,11 +184,22 @@ export function TableRow({
   active?: boolean;
   onClick?: () => void;
 }) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!onClick) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  }
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       className={cn(
+        "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7866]/35",
         "grid w-full border-b border-[#f3ece6] px-5 py-4 text-left transition last:border-b-0",
         active ? "bg-[#f4faf7]" : "bg-white hover:bg-[#fcfaf8]",
       )}
@@ -198,7 +210,7 @@ export function TableRow({
           {column}
         </div>
       ))}
-    </button>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
   "owner": {
     "loginId": "captureowner",
     "password": "CaptureOwner!2026",
-    "email": "captureowner@owner.pawcare.local"
+    "email": "captureowner@owner.petmanager.local"
   },
   "admin": {
     "loginId": "capture-admin",

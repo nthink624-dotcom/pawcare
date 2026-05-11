@@ -17,7 +17,7 @@ type JobRecord = {
 type ParsedArgs = Record<string, string[]>;
 
 const ROOT_DIR = path.resolve(__dirname, "..");
-const STATUS_DIR = path.join(ROOT_DIR, ".pawcare-status");
+const STATUS_DIR = path.join(ROOT_DIR, ".petmanager-status");
 const JOBS_DIR = path.join(STATUS_DIR, "jobs");
 const LAST_JOB_FILE = path.join(STATUS_DIR, "last-job.json");
 

@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       devVerificationCode: "devVerificationCode" in result ? result.devVerificationCode ?? null : null,
       message:
         payload.method === "portone"
-          ? "본인확인 요청을 준비했습니다."
+          ? "본인확인 요청을 준비했어요."
           : "인증번호를 전송했어요. 문자 메시지를 확인해 주세요.",
     });
   } catch (error) {

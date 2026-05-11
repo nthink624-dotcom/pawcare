@@ -1,5 +1,5 @@
 {
-  "name": "pawcare-alimtalk-relay",
+  "name": "petmanager-alimtalk-relay",
   "private": true,
   "type": "module",
   "scripts": {

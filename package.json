@@ -1,5 +1,5 @@
 {
-  "name": "pawcare",
+  "name": "petmanager",
   "private": true,
   "scripts": {
     "dev": "next dev",

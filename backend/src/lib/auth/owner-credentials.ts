@@ -9,7 +9,7 @@ export function isValidOwnerLoginId(value: string) {
 }
 
 export function buildOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@owner.pawcare.local`;
+  return `${normalizeOwnerLoginId(loginId)}@owner.petmanager.local`;
 }
 
 export function isValidBirthDate8(value: string) {

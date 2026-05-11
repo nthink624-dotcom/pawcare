@@ -13,7 +13,7 @@ function splitOrigins(value: string | undefined) {
 }
 
 export const env = {
-  appName: process.env.APP_NAME || "PawCare Backend",
+  appName: process.env.APP_NAME || "PetManager Backend",
   siteUrl: process.env.SITE_URL || "http://localhost:3000",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
   port: Number(process.env.PORT || 4000),

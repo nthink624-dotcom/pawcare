@@ -629,7 +629,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                       label="로그인 계정"
                       value={
                         selectedOwner.loginId ??
-                        (selectedOwner.ownerEmail?.endsWith("@owner.pawcare.local") ? "-" : selectedOwner.ownerEmail ?? "-")
+                        (selectedOwner.ownerEmail?.endsWith("@owner.petmanager.local") ? "-" : selectedOwner.ownerEmail ?? "-")
                       }
                     />
                     <DetailRow label="연동 이메일" value={selectedOwner.ownerEmail ?? "-"} />

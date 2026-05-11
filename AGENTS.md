@@ -1,8 +1,8 @@
-# PawCare Product Notes
+# PetManager Product Notes
 
 ## Product intent
 - Build a production-ready mobile-first grooming shop SaaS MVP from the local prototypes.
-- Treat `pawcare-v3.jsx` and `pawcare-landing.jsx` as the source of truth for IA, flow, and UX tone.
+- Treat `petmanager-v3.jsx` and `petmanager-landing.jsx` as the source of truth for IA, flow, and UX tone.
 
 ## Working rules
 - Prioritize end-to-end completion over placeholder scaffolding.

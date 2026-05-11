@@ -1,6 +1,6 @@
 # UI/UX Standards
 
-이 문서는 `pawcare` 프로젝트의 화면 기준을 정리한 공통 규칙 문서다.
+이 문서는 `petmanager` 프로젝트의 화면 기준을 정리한 공통 규칙 문서다.
 현재 프로젝트에 바로 적용할 수 있어야 하고, 이후 다른 모바일 중심 SaaS 프로젝트에도 재사용할 수 있도록 작성한다.
 
 ## 1. 문서 목적
@@ -316,7 +316,7 @@
 
 ### 인증 기준 화면
 
-- 기준 화면: [D:\pawcare\src\components\auth\login-form.tsx](D:/pawcare/src/components/auth/login-form.tsx)
+- 기준 화면: [D:\petmanager\src\components\auth\login-form.tsx](D:/petmanager/src/components/auth/login-form.tsx)
 - 이유:
   - 정보 위계가 명확함
   - CTA 우선순위가 뚜렷함

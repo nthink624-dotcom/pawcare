@@ -9,56 +9,107 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") || "/owner";
+  const callbackError = requestUrl.searchParams.get("error");
+  const callbackErrorDescription = requestUrl.searchParams.get("error_description");
+  const rawNext = requestUrl.searchParams.get("next") || "/owner";
+  const next = rawNext.startsWith("/") ? rawNext : "/owner";
   const requestedProvider = requestUrl.searchParams.get("provider");
+  const authCookies: Array<{
+    name: string;
+    value: string;
+    options?: Parameters<NextResponse["cookies"]["set"]>[2];
+  }> = [];
 
-  if (code && env.supabaseUrl && env.supabasePublishableKey) {
-    const cookieStore = await cookies();
-    const cookieProvider = cookieStore.get(PENDING_SOCIAL_PROVIDER_COOKIE)?.value;
-    const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
-          });
-        },
-      },
+  function redirectWithAuthCookies(path: string, clearPendingProvider = false) {
+    const response = NextResponse.redirect(new URL(path, requestUrl.origin));
+    authCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
     });
 
-    const exchanged = await supabase.auth.exchangeCodeForSession(code);
-    if (!exchanged.error) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (clearPendingProvider) {
+      response.cookies.set(PENDING_SOCIAL_PROVIDER_COOKIE, "", { path: "/", maxAge: 0 });
+    }
 
-      if (user) {
-        const admin = getSupabaseAdmin();
-        if (admin) {
-          const shopResult = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
+    return response;
+  }
 
-          if (!shopResult.error && !shopResult.data?.id) {
-            const provider =
-              requestedProvider === "google" || requestedProvider === "kakao" || requestedProvider === "naver"
-                ? requestedProvider
-                : cookieProvider === "google" || cookieProvider === "kakao" || cookieProvider === "naver"
-                  ? cookieProvider
-                : resolveSocialProviderFromAuthUser(user);
-            const response = NextResponse.redirect(
-              new URL(
-                `/signup/social?next=${encodeURIComponent(next)}&provider=${encodeURIComponent(provider)}`,
-                requestUrl.origin,
-              ),
-            );
-            response.cookies.set(PENDING_SOCIAL_PROVIDER_COOKIE, "", { path: "/", maxAge: 0 });
-            return response;
-          }
-        }
-      }
+  function redirectToLogin(error: string, detail?: string | null) {
+    const params = new URLSearchParams({
+      error,
+      next,
+    });
+    if (detail) {
+      params.set("detail", detail.slice(0, 180));
+    }
+
+    return redirectWithAuthCookies(
+      `/login?${params.toString()}`,
+      true,
+    );
+  }
+
+  if (callbackError) {
+    return redirectToLogin(
+      callbackError === "access_denied" ? "social-access-denied" : "social-oauth",
+      callbackErrorDescription || callbackError,
+    );
+  }
+
+  if (!code) {
+    return redirectToLogin("social-callback");
+  }
+
+  if (!env.supabaseUrl || !env.supabasePublishableKey) {
+    return redirectToLogin("supabase");
+  }
+
+  const cookieStore = await cookies();
+  const cookieProvider = cookieStore.get(PENDING_SOCIAL_PROVIDER_COOKIE)?.value;
+  const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set({ name, value, ...options });
+          authCookies.push({ name, value, options });
+        });
+      },
+    },
+  });
+
+  const exchanged = await supabase.auth.exchangeCodeForSession(code);
+  if (exchanged.error) {
+    return redirectToLogin("social-callback", exchanged.error.message);
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirectToLogin("social-session");
+  }
+
+  const admin = getSupabaseAdmin();
+  if (admin) {
+    const shopResult = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
+
+    if (!shopResult.error && !shopResult.data?.id) {
+      const provider =
+        requestedProvider === "google" || requestedProvider === "kakao" || requestedProvider === "naver"
+          ? requestedProvider
+          : cookieProvider === "google" || cookieProvider === "kakao" || cookieProvider === "naver"
+            ? cookieProvider
+            : resolveSocialProviderFromAuthUser(user);
+
+      return redirectWithAuthCookies(
+        `/signup/social?next=${encodeURIComponent(next)}&provider=${encodeURIComponent(provider)}`,
+        true,
+      );
     }
   }
 
-  return NextResponse.redirect(new URL(next, requestUrl.origin));
+  return redirectWithAuthCookies(next, true);
 }

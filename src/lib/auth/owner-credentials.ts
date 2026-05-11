@@ -9,7 +9,21 @@ export function isValidOwnerLoginId(value: string) {
 }
 
 export function buildOwnerAuthEmail(loginId: string) {
+  return `${normalizeOwnerLoginId(loginId)}@owner.petmanager.local`;
+}
+
+export function buildLegacyOwnerAuthEmail(loginId: string) {
   return `${normalizeOwnerLoginId(loginId)}@owner.pawcare.local`;
+}
+
+export function buildOwnerAuthEmailCandidates(loginId: string, existingEmail?: string | null) {
+  return Array.from(
+    new Set(
+      [existingEmail, buildOwnerAuthEmail(loginId), buildLegacyOwnerAuthEmail(loginId)].filter(
+        (value): value is string => Boolean(value),
+      ),
+    ),
+  );
 }
 
 export function isValidBirthDate8(value: string) {

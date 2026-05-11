@@ -15,11 +15,25 @@ type OwnerProfileLookup = {
   di_hash: string | null;
 };
 
+function isMissingIdentityHashColumnError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "42703" ||
+    message.includes("owner_profiles.ci_hash") ||
+    message.includes("owner_profiles.di_hash") ||
+    message.includes("ci_hash does not exist") ||
+    message.includes("di_hash does not exist")
+  );
+}
+
 function normalizePhoneNumber(value: string | null | undefined) {
   return (value ?? "").replace(/\D/g, "").slice(0, 11);
 }
 
-function pickProfileByIdentity(profiles: OwnerProfileLookup[], verifiedIdentity: Awaited<ReturnType<typeof getVerifiedIdentityForToken>>) {
+function pickProfileByIdentity(
+  profiles: OwnerProfileLookup[],
+  verifiedIdentity: Awaited<ReturnType<typeof getVerifiedIdentityForToken>>,
+) {
   if (!verifiedIdentity) {
     return { profile: null, message: "본인인증이 만료되었어요. 다시 인증해 주세요.", shouldBackfill: false };
   }
@@ -95,6 +109,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
     }
 
+    let canUseIdentityHashColumns = true;
+    let profiles: OwnerProfileLookup[] = [];
+    let lookupError: string | null = null;
     const result = await supabase
       .from("owner_profiles")
       .select("user_id, login_id, phone_number, ci_hash, di_hash")
@@ -102,14 +119,37 @@ export async function POST(request: NextRequest) {
       .eq("birth_date", verifiedIdentity.birth_date)
       .returns<OwnerProfileLookup[]>();
 
-    if (result.error) {
-      return NextResponse.json({ message: result.error.message || "계정을 찾지 못했어요." }, { status: 400 });
+    if (result.error && isMissingIdentityHashColumnError(result.error)) {
+      canUseIdentityHashColumns = false;
+      const fallbackResult = await supabase
+        .from("owner_profiles")
+        .select("user_id, login_id, phone_number")
+        .eq("name", verifiedIdentity.name)
+        .eq("birth_date", verifiedIdentity.birth_date)
+        .returns<Array<Omit<OwnerProfileLookup, "ci_hash" | "di_hash">>>();
+
+      if (fallbackResult.error) {
+        lookupError = fallbackResult.error.message || "계정을 찾지 못했어요.";
+      } else {
+        profiles = fallbackResult.data?.map((profile) => ({ ...profile, ci_hash: null, di_hash: null })) ?? [];
+      }
+    } else if (result.error) {
+      lookupError = result.error.message || "계정을 찾지 못했어요.";
+    } else {
+      profiles = result.data ?? [];
     }
 
-    const picked = pickProfileByIdentity(result.data ?? [], verifiedIdentity);
+    if (lookupError) {
+      return NextResponse.json({ message: lookupError }, { status: 400 });
+    }
+
+    const picked = pickProfileByIdentity(profiles, verifiedIdentity);
     if (!picked.profile) {
       const status = picked.message?.includes("여러 개") ? 409 : 404;
-      return NextResponse.json({ message: picked.message || "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status });
+      return NextResponse.json(
+        { message: picked.message || "입력한 정보와 일치하는 계정을 찾지 못했어요." },
+        { status },
+      );
     }
 
     const consumed = await consumeVerifiedIdentity({
@@ -122,7 +162,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
     }
 
-    if (picked.shouldBackfill) {
+    if (picked.shouldBackfill && canUseIdentityHashColumns) {
       await supabase
         .from("owner_profiles")
         .update({
@@ -136,7 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       loginId: picked.profile.login_id,
-      message: `가입하신 아이디는 ${picked.profile.login_id} 입니다.`,
+      message: `가입한 아이디는 ${picked.profile.login_id} 입니다.`,
     });
   } catch (error) {
     if (error instanceof ZodError) {

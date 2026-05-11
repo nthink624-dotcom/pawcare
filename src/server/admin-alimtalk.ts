@@ -3,6 +3,7 @@ import {
   type AlimtalkTemplateAlias,
   type AlimtalkTemplateConfigKey,
   getNotificationTitle,
+  renderNotificationTemplateBody,
 } from "@/lib/notification-registry";
 import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -112,6 +113,7 @@ export type AdminAlimtalkTestInput = {
   petName?: string | null;
   serviceName?: string | null;
   appointmentDateTime?: string | null;
+  bookingEntryUrl?: string | null;
   bookingManageUrl?: string | null;
 };
 
@@ -398,6 +400,19 @@ export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnost
   };
 }
 
+function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
+  return {
+    매장명: input.shopName?.trim() || "펫매니저 테스트 매장",
+    반려동물명: input.petName?.trim() || "보리",
+    보호자명: input.recipientName?.trim() || "보호자님",
+    예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
+    서비스명: input.serviceName?.trim() || "전체 미용",
+    "예약 링크": input.bookingEntryUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop",
+    "예약 확인 링크":
+      input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo",
+  };
+}
+
 function fillTemplateDraft(template: string, values: Record<string, string>) {
   return Object.entries(values).reduce(
     (message, [key, value]) => message.replaceAll(new RegExp(`#\\{${key}\\}`, "g"), value),
@@ -416,13 +431,15 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     throw new Error("테스트용 알림 타입을 찾지 못했습니다.");
   }
 
-  const message = fillTemplateDraft(spec.draftBody, {
+  const fallbackMessage = fillTemplateDraft(spec.draftBody, {
     매장명: input.shopName?.trim() || "펫매니저 테스트 매장",
     반려동물명: input.petName?.trim() || "우유",
     예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
     서비스명: input.serviceName?.trim() || "전체 미용",
     예약관리링크: input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr",
   });
+
+  const message = renderNotificationTemplateBody(spec.type, buildAdminTestTemplateValues(input)) ?? fallbackMessage;
 
   const delivery = await sendAlimtalkMessage({
     to: normalizedPhone,

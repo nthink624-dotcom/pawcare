@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
+import { buildOwnerAuthEmailCandidates } from "@/lib/auth/owner-credentials";
 import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
   getSocialOAuthProvider,
@@ -40,7 +40,7 @@ function toKoreanAuthError(message: string) {
   return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-const SAVED_LOGIN_ID_KEY = "pawcare.savedLoginId";
+const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 
 export default function LoginForm({
   supabaseReady,
@@ -53,7 +53,7 @@ export default function LoginForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const showDevOwnerHelper = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
+  const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,6 +63,8 @@ export default function LoginForm({
   const [rememberLoginId, setRememberLoginId] = useState(false);
 
   useEffect(() => {
+    setShowDevOwnerHelper(getSupabaseRuntimeStage() !== "production");
+
     const savedLoginId = window.localStorage.getItem(SAVED_LOGIN_ID_KEY);
     if (savedLoginId) {
       setLoginId(savedLoginId);
@@ -80,13 +82,23 @@ export default function LoginForm({
     setMessage(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: buildOwnerAuthEmail(loginId),
-        password,
-      });
+      let authError: { message: string } | null = null;
+      for (const email of buildOwnerAuthEmailCandidates(loginId)) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      if (error) {
-        setMessage(toKoreanAuthError(error.message));
+        if (!error) {
+          authError = null;
+          break;
+        }
+
+        authError = error;
+      }
+
+      if (authError) {
+        setMessage(toKoreanAuthError(authError.message));
         return;
       }
 

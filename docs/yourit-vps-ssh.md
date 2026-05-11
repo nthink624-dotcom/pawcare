@@ -2,8 +2,8 @@
 
 ## 빠른 접속
 
-- 더블클릭용 스크립트: `D:\pawcare\scripts\ssh-yourit-vps.cmd`
-- PowerShell 직접 실행: `D:\pawcare\scripts\ssh-yourit-vps.ps1`
+- 더블클릭용 스크립트: `D:\petmanager\scripts\ssh-yourit-vps.cmd`
+- PowerShell 직접 실행: `D:\petmanager\scripts\ssh-yourit-vps.ps1`
 
 현재 상태에서는 위 스크립트를 실행하면 아래 규칙으로 접속한다.
 
@@ -12,7 +12,7 @@ ssh root@103.124.101.54 -p 22
 ```
 
 - `C:\Users\happy\.ssh\id_ed25519` 키 파일이 있으면 그 키로 먼저 접속
-- 위 키가 없고 `D:\pawcare\.local-secrets\yourit_vps_ed25519`가 있으면 그 키로 접속
+- 위 키가 없고 `D:\petmanager\.local-secrets\yourit_vps_ed25519`가 있으면 그 키로 접속
 - 둘 다 없으면 비밀번호 로그인
 
 ```powershell

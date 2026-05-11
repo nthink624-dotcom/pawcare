@@ -831,5 +831,5 @@ app.post("/alimtalk/send", async (request, response) => {
 });
 
 app.listen(env.port, "0.0.0.0", () => {
-  console.log(`PawCare Alimtalk Relay listening on port ${env.port}`);
+  console.log(`PetManager Alimtalk Relay listening on port ${env.port}`);
 });

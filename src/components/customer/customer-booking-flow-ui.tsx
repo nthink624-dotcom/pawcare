@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, CheckCircle2, Plus } from "lucide-react";
+import { useEffect } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 import { formatServicePrice } from "@/lib/utils";
@@ -87,10 +88,31 @@ export function BookingBottomSheet({
 }: {
   children: ReactNode;
 }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[430px] rounded-t-[28px] border border-b-0 border-[#e6dfd5] bg-[var(--background)] px-4 pt-3 shadow-[0_-10px_30px_rgba(25,28,24,0.08)]">
       <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#d8d0c5]" />
-      <div className="max-h-[calc(100vh-28px)] overflow-y-auto pb-28">{children}</div>
+      <div className="max-h-[calc(100vh-28px)] overflow-y-auto overscroll-contain pb-28">{children}</div>
     </div>
   );
 }

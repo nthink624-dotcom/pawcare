@@ -1,13 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronRight, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, Trash2, X } from "lucide-react";
 
 import { customerRows } from "@/components/owner-web/owner-web-data";
 import {
   Chip,
-  DetailBlock,
-  DetailPanel,
   GhostButton,
   PrimaryButton,
   SearchField,
@@ -18,45 +16,171 @@ import {
   WebSectionTitle,
 } from "@/components/owner-web/owner-web-ui";
 
+const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
+type CustomerRow = (typeof customerRows)[number];
+const initialStaffComments: Record<string, string> = {
+  "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
+  "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
+};
+
 export default function CustomerManagementScreen() {
+  const [customers, setCustomers] = useState(customerRows);
   const [selectedCustomerId, setSelectedCustomerId] = useState(customerRows[0]?.id ?? "");
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
+  const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const [tagFilterActive, setTagFilterActive] = useState(false);
+  const [recentFirst, setRecentFirst] = useState(true);
+  const [chipFilter, setChipFilter] = useState("전체");
 
   const selectedCustomer = useMemo(
-    () => customerRows.find((row) => row.id === selectedCustomerId) ?? customerRows[0],
-    [selectedCustomerId],
+    () => customers.find((row) => row.id === selectedCustomerId) ?? customers[0],
+    [customers, selectedCustomerId],
   );
+  const displayedCustomers = useMemo(() => {
+    const tagged = tagFilterActive ? customers.filter((row) => row.tags.length > 0) : customers;
+    const filtered =
+      chipFilter === "전체"
+        ? tagged
+        : tagged.filter((row) => row.tags.some((tag) => tag.includes(chipFilter.replace(" 고객", ""))));
+    return [...filtered].sort((first, second) => (recentFirst ? first.recentVisit.localeCompare(second.recentVisit) : first.name.localeCompare(second.name)));
+  }, [chipFilter, customers, recentFirst, tagFilterActive]);
+  const selectedPetName = selectedCustomer?.pets[0] ?? "";
+  const selectedCommentKey = selectedCustomer ? `${selectedPetName}|${selectedCustomer.name}` : "";
+  const selectedStaffComment = staffComments[selectedCommentKey] ?? "";
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(staffCommentStorageKey);
+      if (stored) {
+        setStaffComments({ ...initialStaffComments, ...(JSON.parse(stored) as Record<string, string>) });
+      }
+    } catch {
+      window.localStorage.removeItem(staffCommentStorageKey);
+    }
+  }, []);
+
+  function updateStaffComment(value: string) {
+    if (!selectedCommentKey) return;
+
+    setStaffComments((current) => {
+      const next = { ...current, [selectedCommentKey]: value };
+      window.localStorage.setItem(staffCommentStorageKey, JSON.stringify(next));
+      return next;
+    });
+  }
 
   function toggleDelete(id: string) {
     setSelectedDeleteIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function addCustomer() {
+    const nextCustomer = {
+      id: `G-${Date.now()}`,
+      name: "신규 보호자",
+      phone: "010-0000-0000",
+      tags: ["상담 필요"],
+      pets: ["반려동물"],
+      recentVisit: "신규",
+      nextBooking: "예약 없음",
+      memo: "고객 메모를 입력해 주세요.",
+      alerts: "알림 수신 중",
+    };
+
+    setCustomers((current) => [nextCustomer, ...current]);
+    setSelectedCustomerId(nextCustomer.id);
+    setDetailSheetOpen(true);
+  }
+
+  function selectAllDisplayedCustomers() {
+    setSelectedDeleteIds(displayedCustomers.map((row) => row.id));
+  }
+
+  function deleteSelectedCustomers() {
+    if (selectedDeleteIds.length === 0) {
+      return;
+    }
+
+    setCustomers((current) => {
+      const next = current.filter((row) => !selectedDeleteIds.includes(row.id));
+      if (!next.some((row) => row.id === selectedCustomerId)) {
+        setSelectedCustomerId(next[0]?.id ?? "");
+      }
+      return next;
+    });
+    setSelectedDeleteIds([]);
+  }
+
+  function addQuickReservation() {
+    if (!selectedCustomer) return;
+
+    setCustomers((current) =>
+      current.map((row) => (row.id === selectedCustomer.id ? { ...row, nextBooking: "오늘 빠른 예약" } : row)),
+    );
+  }
+
+  function toggleAlertStatus() {
+    if (!selectedCustomer) return;
+
+    const nextAlert = selectedCustomer.alerts.includes("수신") ? "알림 일시 중지" : "알림 수신 중";
+    setCustomers((current) =>
+      current.map((row) => (row.id === selectedCustomer.id ? { ...row, alerts: nextAlert } : row)),
+    );
   }
 
   return (
     <div className="space-y-6">
       <WebSectionTitle
         title="고객 관리"
-        description="고객 검색, 태그 필터, 삭제 모드, 상세 패널을 한 화면에서 다루는 CRM형 화면입니다."
-        action={<PrimaryButton label="고객 추가" />}
+        description="고객 목록은 넓게 보고, 상세 정보는 오른쪽 시트에서 빠르게 확인합니다."
+        action={<PrimaryButton label="고객 추가" onClick={addCustomer} />}
       />
 
       <ToolbarRow>
         <SearchField placeholder="보호자명, 연락처, 반려동물 이름 검색" />
-        <SelectLike label="고객 필터" />
-        <SelectLike label="최신 방문순" />
+        <SelectLike
+          label={tagFilterActive ? "태그 고객만" : "고객 필터"}
+          onClick={() => {
+            setTagFilterActive((current) => !current);
+          }}
+        />
+        <SelectLike
+          label={recentFirst ? "최신 방문순" : "이름순"}
+          onClick={() => {
+            setRecentFirst((current) => !current);
+          }}
+        />
         <GhostButton label={deleteMode ? "삭제 모드 닫기" : "고객 삭제"} onClick={() => setDeleteMode((current) => !current)} />
       </ToolbarRow>
 
       <ToolbarRow className="justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip label="전체" active />
-          <Chip label="정기 고객" tone="soft" />
-          <Chip label="재방문 임박" tone="soft" />
-          <Chip label="상담 필요" tone="soft" />
+          {["전체", "정기 고객", "재방문 임박", "상담 필요"].map((label) => (
+            <Chip
+              key={label}
+              label={label}
+              active={chipFilter === label}
+              tone={label === "전체" ? "default" : "soft"}
+              onClick={() => {
+                setChipFilter(label);
+              }}
+            />
+          ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <GhostButton label="태그 필터" />
-          <GhostButton label="정렬" />
+          <GhostButton
+            label={tagFilterActive ? "태그 필터 해제" : "태그 필터"}
+            onClick={() => {
+              setTagFilterActive((current) => !current);
+            }}
+          />
+          <GhostButton
+            label={recentFirst ? "이름순 정렬" : "최신순 정렬"}
+            onClick={() => {
+              setRecentFirst((current) => !current);
+            }}
+          />
         </div>
       </ToolbarRow>
 
@@ -64,19 +188,22 @@ export default function CustomerManagementScreen() {
         <ToolbarRow className="justify-between rounded-[18px] border border-[#ead9cf] bg-[#fffaf6] px-4 py-3">
           <span className="text-[14px] font-medium text-[#5e5248]">{selectedDeleteIds.length}명 선택됨</span>
           <div className="flex items-center gap-2">
-            <GhostButton label="전체 선택" />
-            <GhostButton label="선택 삭제" />
+            <GhostButton label="전체 선택" onClick={selectAllDisplayedCustomers} />
+            <GhostButton label="선택 삭제" onClick={deleteSelectedCustomers} />
           </div>
         </ToolbarRow>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div>
         <TableShell columns={["고객", "연락처", "반려동물", "태그", "최근 방문"]}>
-          {customerRows.map((row) => (
+          {displayedCustomers.map((row) => (
             <TableRow
               key={row.id}
               active={row.id === selectedCustomerId}
-              onClick={() => setSelectedCustomerId(row.id)}
+              onClick={() => {
+                setSelectedCustomerId(row.id);
+                setDetailSheetOpen(true);
+              }}
               columns={[
                 <div key="name" className="flex items-start gap-3">
                   {deleteMode ? (
@@ -111,26 +238,117 @@ export default function CustomerManagementScreen() {
             />
           ))}
         </TableShell>
-
-        <DetailPanel title={selectedCustomer.name} subtitle={`${selectedCustomer.phone} · ${selectedCustomer.pets.join(", ")}`}>
-          <DetailBlock label="기본 정보" value={`${selectedCustomer.name} / ${selectedCustomer.phone}`} description={`최근 방문 ${selectedCustomer.recentVisit} · 다음 예약 ${selectedCustomer.nextBooking}`} />
-          <DetailBlock label="반려동물" value={selectedCustomer.pets.join(", ")} description="반려동물별 맞춤 메모와 스타일 기록을 우측 패널 안에서 이어서 볼 수 있습니다." />
-          <DetailBlock label="고객 메모" value={selectedCustomer.memo} description={selectedCustomer.alerts} />
-          <DetailBlock label="빠른 예약" value="예약 추가" description="전화 응대 중에도 이 고객 기준으로 바로 예약을 붙일 수 있는 액션" />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <PrimaryButton label="빠른 예약 추가" />
-            <GhostButton label="알림 상태 수정" />
-          </div>
-          <button
-            type="button"
-            onClick={() => setDeleteMode((current) => !current)}
-            className="inline-flex items-center gap-2 text-[13px] font-medium text-[#94624f]"
-          >
-            <Trash2 className="h-4 w-4" />
-            고객 선택 삭제 모드
-          </button>
-        </DetailPanel>
       </div>
+
+      {selectedCustomer && detailSheetOpen ? (
+        <CustomerDetailSheet
+          customer={selectedCustomer}
+          staffComment={selectedStaffComment}
+          onClose={() => setDetailSheetOpen(false)}
+          onChangeStaffComment={updateStaffComment}
+          onAddQuickReservation={addQuickReservation}
+          onToggleAlertStatus={toggleAlertStatus}
+          onToggleDeleteMode={() => setDeleteMode((current) => !current)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerDetailSheet({
+  customer,
+  staffComment,
+  onClose,
+  onChangeStaffComment,
+  onAddQuickReservation,
+  onToggleAlertStatus,
+  onToggleDeleteMode,
+}: {
+  customer: CustomerRow;
+  staffComment: string;
+  onClose: () => void;
+  onChangeStaffComment: (value: string) => void;
+  onAddQuickReservation: () => void;
+  onToggleAlertStatus: () => void;
+  onToggleDeleteMode: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
+      <aside
+        className="ml-auto flex h-full w-full max-w-[430px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f7] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">고객 상세</p>
+            <h3 className="mt-2 truncate text-[24px] font-semibold text-[#111827]">{customer.name}</h3>
+            <p className="mt-1 text-[14px] text-[#64748b]">{customer.phone}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-2 gap-2">
+            <CustomerInfoTile label="반려동물" value={customer.pets.join(", ")} />
+            <CustomerInfoTile label="최근 방문" value={customer.recentVisit} />
+            <CustomerInfoTile label="다음 예약" value={customer.nextBooking} />
+            <CustomerInfoTile label="알림" value={customer.alerts} />
+          </div>
+
+          <section className="mt-5 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-4">
+            <p className="text-[12px] font-semibold text-[#64748b]">고객 메모</p>
+            <p className="mt-2 text-[15px] leading-6 text-[#111827]">{customer.memo}</p>
+          </section>
+
+          <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[12px] font-semibold text-[#1f6b5b]">스태프 코멘트</p>
+              <span className="text-[11px] font-medium text-[#94a3b8]">스케줄 공유</span>
+            </div>
+            <textarea
+              value={staffComment}
+              onChange={(event) => onChangeStaffComment(event.target.value)}
+              placeholder="스케줄에서 남긴 작업 특징이 여기에 함께 보입니다."
+              className="mt-2 h-[110px] w-full resize-none bg-transparent text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8]"
+            />
+          </section>
+
+          <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+            <p className="text-[12px] font-semibold text-[#64748b]">태그</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {customer.tags.map((tag) => (
+                <span key={tag} className="rounded-full bg-[#f4f0eb] px-3 py-1.5 text-[13px] text-[#6d655c]">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <div className="mt-5 grid gap-2">
+            <PrimaryButton label="빠른 예약 추가" onClick={onAddQuickReservation} />
+            <GhostButton label="알림 상태 수정" onClick={onToggleAlertStatus} />
+            <button
+              type="button"
+              onClick={onToggleDeleteMode}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#ead9cf] bg-white text-[13px] font-medium text-[#94624f] hover:bg-[#fffaf6]"
+            >
+              <Trash2 className="h-4 w-4" />
+              고객 선택 삭제 모드
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function CustomerInfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-3">
+      <p className="text-[12px] text-[#94a3b8]">{label}</p>
+      <p className="mt-1 truncate text-[15px] font-semibold text-[#111827]">{value}</p>
     </div>
   );
 }

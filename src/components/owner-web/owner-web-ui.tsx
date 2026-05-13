@@ -12,7 +12,7 @@ export function WebSurface({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-[24px] border border-[#e6ddd6] bg-white shadow-[0_16px_36px_rgba(34,30,24,0.06)]", className)}>
+    <section className={cn("rounded-[8px] border border-[#e2e6ea] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]", className)}>
       {children}
     </section>
   );
@@ -30,8 +30,8 @@ export function WebSectionTitle({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#17211f]">{title}</h2>
-        {description ? <p className="mt-2 text-[14px] leading-6 text-[#7a7269]">{description}</p> : null}
+        <h2 className="text-[24px] font-semibold text-[#111827]">{title}</h2>
+        {description ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -44,10 +44,10 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex min-w-[240px] flex-1 items-center gap-3 rounded-[16px] border border-[#e4ddd6] bg-[#fbfaf8] px-4 py-3 text-[#746f68]">
-      <Search className="h-4 w-4 text-[#8f877d]" />
+    <label className="flex min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-[#64748b]">
+      <Search className="h-4 w-4 text-[#94a3b8]" />
       <input
-        className="w-full bg-transparent text-[14px] text-[#17211f] outline-none placeholder:text-[#958d84]"
+        className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
         placeholder={placeholder}
       />
     </label>
@@ -59,10 +59,10 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[46px] items-center gap-2 rounded-[16px] border border-[#e4ddd6] bg-white px-4 text-[14px] font-medium text-[#263430]"
+      className="inline-flex h-[42px] items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#1f2937]"
     >
       <span>{label}</span>
-      <Icon className="h-4 w-4 text-[#7f796f]" />
+      <Icon className="h-4 w-4 text-[#64748b]" />
     </button>
   );
 }
@@ -72,7 +72,7 @@ export function PrimaryButton({ label, onClick }: { label: string; onClick?: () 
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[46px] items-center justify-center rounded-[16px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white shadow-[0_10px_18px_rgba(47,120,102,0.16)]"
+      className="inline-flex h-[42px] items-center justify-center rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
     >
       {label}
     </button>
@@ -84,7 +84,7 @@ export function GhostButton({ label, onClick }: { label: string; onClick?: () =>
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center justify-center rounded-[14px] border border-[#e4ddd6] bg-white px-4 text-[14px] font-medium text-[#3f4f4a]"
+      className="inline-flex h-[40px] items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#334155]"
     >
       {label}
     </button>
@@ -107,11 +107,11 @@ export function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-[34px] items-center justify-center rounded-full border px-3.5 text-[13px] font-medium transition",
-        active && tone === "default" && "border-[#2f7866] bg-[#2f7866] text-white",
-        active && tone === "soft" && "border-[#d7e8e0] bg-[#eef7f3] text-[#2f7866]",
-        active && tone === "danger" && "border-[#e7c8be] bg-[#fbefea] text-[#9a5b4a]",
-        !active && "border-[#e5ddd6] bg-white text-[#6f675e]",
+        "inline-flex h-[34px] items-center justify-center rounded-[8px] border px-3.5 text-[13px] font-medium transition",
+        active && tone === "default" && "border-[#cfded8] bg-white text-[#1f6b5b]",
+        active && tone === "soft" && "border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1]",
+        active && tone === "danger" && "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]",
+        !active && "border-[#dbe2ea] bg-white text-[#475569]",
       )}
     >
       {label}
@@ -130,9 +130,9 @@ export function DetailPanel({
 }) {
   return (
     <WebSurface className="sticky top-6 p-5">
-      <p className="text-[12px] font-semibold tracking-[0.12em] text-[#8a8178]">DETAIL</p>
-      <h3 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#17211f]">{title}</h3>
-      {subtitle ? <p className="mt-2 text-[14px] leading-6 text-[#7a7269]">{subtitle}</p> : null}
+      <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">DETAIL</p>
+      <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">{title}</h3>
+      {subtitle ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{subtitle}</p> : null}
       <div className="mt-6 space-y-5">{children}</div>
     </WebSurface>
   );
@@ -148,10 +148,10 @@ export function DetailBlock({
   description?: string;
 }) {
   return (
-    <div className="border-b border-[#f0e8e1] pb-4 last:border-b-0 last:pb-0">
-      <p className="text-[12px] font-medium text-[#8f877d]">{label}</p>
-      <p className="mt-2 text-[16px] font-semibold tracking-[-0.02em] text-[#17211f]">{value}</p>
-      {description ? <p className="mt-2 text-[13px] leading-6 text-[#7a7269]">{description}</p> : null}
+    <div className="border-b border-[#edf2f7] pb-4 last:border-b-0 last:pb-0">
+      <p className="text-[12px] font-medium text-[#94a3b8]">{label}</p>
+      <p className="mt-2 text-[16px] font-semibold text-[#111827]">{value}</p>
+      {description ? <p className="mt-2 text-[13px] leading-6 text-[#64748b]">{description}</p> : null}
     </div>
   );
 }
@@ -165,7 +165,7 @@ export function TableShell({
 }) {
   return (
     <WebSurface className="overflow-hidden">
-      <div className="grid border-b border-[#efe8e2] bg-[#fbfaf8] px-5 py-3 text-[12px] font-semibold tracking-[0.08em] text-[#8f877d]" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+      <div className="grid border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-3 text-[12px] font-semibold tracking-[0.08em] text-[#64748b]" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
         {columns.map((column) => (
           <span key={column}>{column}</span>
         ))}
@@ -200,8 +200,8 @@ export function TableRow({
       onKeyDown={handleKeyDown}
       className={cn(
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7866]/35",
-        "grid w-full border-b border-[#f3ece6] px-5 py-4 text-left transition last:border-b-0",
-        active ? "bg-[#f4faf7]" : "bg-white hover:bg-[#fcfaf8]",
+        "grid w-full border-b border-[#edf2f7] px-5 py-4 text-left transition last:border-b-0",
+        active ? "bg-[#f8fafc]" : "bg-white hover:bg-[#f8fafc]",
       )}
       style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
     >

@@ -1,5 +1,7 @@
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
+import { getBootstrap } from "@/server/bootstrap";
 
-export default function DemoOwnerWebPage() {
-  return <OwnerWebPreview />;
+export default async function DemoOwnerWebPage() {
+  const data = await getBootstrap("demo-shop");
+  return <OwnerWebPreview initialData={data} />;
 }

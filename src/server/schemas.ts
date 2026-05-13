@@ -105,7 +105,7 @@ export const shopSettingsSchema = z.object({
   phone: z.string().min(1),
   address: z.string().min(1),
   description: z.string().default(""),
-  concurrentCapacity: z.coerce.number().min(1).max(5),
+  concurrentCapacity: z.coerce.number().min(1).max(2),
   bookingSlotIntervalMinutes: z.coerce.number().refine(
     (value) => bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number]),
     { message: "지원하지 않는 예약 시간 간격입니다." },

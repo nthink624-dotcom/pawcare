@@ -1,103 +1,332 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart3, CalendarDays, LayoutGrid, PawPrint, Settings, Users } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  ChevronDown,
+  CircleHelp,
+  CreditCard,
+  LockKeyhole,
+  Phone,
+  Scissors,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  Store,
+  Users,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { ownerWebScreenLabels, type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
-import ReservationManagementScreen from "@/components/owner-web/reservation-management-screen";
+import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
+import { ownerWebScreenLabels, settingsTabs, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
+import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import StatsManagementScreen from "@/components/owner-web/stats-management-screen";
 import { cn } from "@/lib/utils";
+import type { BootstrapPayload } from "@/types/domain";
 
-const screenIcons: Record<OwnerWebScreenKey, typeof LayoutGrid> = {
-  reservations: LayoutGrid,
+const screenIcons: Record<OwnerWebScreenKey, typeof CalendarDays> = {
+  schedule: CalendarDays,
   customers: Users,
-  calendar: CalendarDays,
-  stats: BarChart3,
+  grooming: Stethoscope,
+  revenue: CreditCard,
+  services: Scissors,
+  staff: Users,
   settings: Settings,
 };
 
-function renderScreen(screen: OwnerWebScreenKey) {
+const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
+
+function renderScreen(
+  screen: OwnerWebScreenKey,
+  settingsTab: SettingsTabKey,
+  onSettingsTabChange: (tab: SettingsTabKey) => void,
+  manualApprovalEnabled: boolean,
+  onManualApprovalChange: (enabled: boolean) => void,
+  initialData?: BootstrapPayload,
+) {
   switch (screen) {
-    case "reservations":
-      return <ReservationManagementScreen />;
+    case "schedule":
+      return (
+        <CalendarManagementScreen
+          initialData={initialData}
+          manualApprovalEnabled={manualApprovalEnabled}
+          onManualApprovalChange={onManualApprovalChange}
+        />
+      );
     case "customers":
       return <CustomerManagementScreen />;
-    case "calendar":
-      return <CalendarManagementScreen />;
-    case "stats":
+    case "grooming":
+      return <GroomingManagementScreen />;
+    case "revenue":
       return <StatsManagementScreen />;
+    case "services":
+      return <ServiceManagementScreen />;
+    case "staff":
+      return <StaffManagementScreen />;
     case "settings":
-      return <SettingsManagementScreen />;
+      return (
+        <SettingsManagementScreen
+          activeTab={settingsTab}
+          onActiveTabChange={onSettingsTabChange}
+          showTabNavigation={false}
+          manualApprovalEnabled={manualApprovalEnabled}
+          onManualApprovalChange={onManualApprovalChange}
+        />
+      );
     default:
       return null;
   }
 }
 
-export default function OwnerWebPreview() {
-  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("reservations");
+export default function OwnerWebPreview({ initialData }: { initialData?: BootstrapPayload }) {
+  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
+  const [revenueUnlocked, setRevenueUnlocked] = useState(false);
+  const [revenueGateOpen, setRevenueGateOpen] = useState(false);
+  const [revenuePasswordEnabled, setRevenuePasswordEnabled] = useState(true);
+  const [revenuePassword, setRevenuePassword] = useState("");
+  const [revenueGateError, setRevenueGateError] = useState("");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>("policy");
+  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(true);
+  const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const currentUserName = "정우진";
+  const revenueAllowedUsers = ["정우진", "우유 미용실"];
+  const canCurrentUserOpenRevenue = revenueAllowedUsers.includes(currentUserName);
+
+  useEffect(() => {
+    try {
+      const storedApprovalMode = window.localStorage.getItem(approvalModeStorageKey);
+      if (storedApprovalMode === "instant") {
+        setManualApprovalEnabled(false);
+      }
+      if (storedApprovalMode === "manual") {
+        setManualApprovalEnabled(true);
+      }
+    } catch {
+      window.localStorage.removeItem(approvalModeStorageKey);
+    }
+  }, []);
+
+  function handleManualApprovalChange(enabled: boolean) {
+    setManualApprovalEnabled(enabled);
+    try {
+      window.localStorage.setItem(approvalModeStorageKey, enabled ? "manual" : "instant");
+    } catch {
+      // Keep the mode active for the current session even if local storage is blocked.
+    }
+  }
+
+  function handleScreenSelect(screen: OwnerWebScreenKey) {
+    if (screen !== "revenue") {
+      setActiveScreen(screen);
+      return;
+    }
+
+    if (revenueUnlocked) {
+      setActiveScreen("revenue");
+      return;
+    }
+
+    setRevenueGateOpen(true);
+    setRevenueGateError("");
+  }
+
+  function unlockRevenue() {
+    if (!canCurrentUserOpenRevenue) {
+      setRevenueGateError("매출 화면을 볼 수 있는 사용자로 지정되어 있지 않습니다.");
+      return;
+    }
+
+    if (revenuePasswordEnabled && revenuePassword !== "1234") {
+      setRevenueGateError("비밀번호를 다시 확인해 주세요. 데모 비밀번호는 1234입니다.");
+      return;
+    }
+
+    setRevenueUnlocked(true);
+    setRevenueGateOpen(false);
+    setRevenuePassword("");
+    setRevenueGateError("");
+    setActiveScreen("revenue");
+  }
+
+  function openSettingsTab(tab: SettingsTabKey) {
+    setActiveSettingsTab(tab);
+    setActiveScreen("settings");
+    setStoreMenuOpen(false);
+  }
 
   return (
-    <div className="min-h-screen bg-[#f5f1eb]">
-      <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-6 py-6">
-        <aside className="hidden w-[280px] shrink-0 xl:flex">
-          <div className="sticky top-6 flex w-full flex-col rounded-[28px] border border-[#e7ddd4] bg-[#1f6b5b] p-5 text-white shadow-[0_18px_40px_rgba(31,107,91,0.18)]">
-            <div className="rounded-[22px] bg-white/10 p-4">
-              <p className="text-[12px] font-semibold tracking-[0.14em] text-white/70">PETMANAGER WEB</p>
-              <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">우유 미용실</h1>
-              <p className="mt-3 text-[14px] leading-6 text-white/78">모바일 오너 페이지를 기반으로, 예약·고객·캘린더·통계·설정을 웹 운영 화면으로 확장한 프리뷰입니다.</p>
-            </div>
+    <div className="min-h-screen bg-white text-[#111827]">
+      <header className="sticky top-0 z-40 flex h-[52px] items-center gap-3 border-b border-[#dbe2ea] bg-white px-4 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="flex min-w-[250px] items-center gap-3">
+          <img src="/images/brand/ododok-petmanager-logo.png" alt="펫매니저" className="h-10 w-10 shrink-0 object-contain" />
+          <span className="font-['SUIT_Variable','Pretendard_Variable','Pretendard',sans-serif] text-[24px] font-extrabold tracking-[-0.02em] text-[#146757]">
+            펫매니저
+          </span>
+        </div>
 
-            <div className="mt-6 space-y-2">
-              {ownerWebScreenLabels.map((screen) => {
-                const Icon = screenIcons[screen.key];
-                const active = activeScreen === screen.key;
-                return (
-                  <button
-                    key={screen.key}
-                    type="button"
-                    onClick={() => setActiveScreen(screen.key)}
-                    className={cn(
-                      "flex w-full items-start gap-3 rounded-[20px] px-4 py-4 text-left transition",
-                      active ? "bg-white text-[#1f6b5b]" : "bg-transparent text-white/85 hover:bg-white/10",
-                    )}
-                  >
-                    <span className={cn("mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-[14px]", active ? "bg-[#e9f5f1]" : "bg-white/10")}>
-                      <Icon className={cn("h-4.5 w-4.5", active ? "text-[#1f6b5b]" : "text-white")} />
-                    </span>
-                    <span>
-                      <span className="block text-[15px] font-semibold tracking-[-0.02em]">{screen.label}</span>
-                      <span className={cn("mt-1 block text-[12px] leading-5", active ? "text-[#6d7f79]" : "text-white/66")}>{screen.description}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="ml-auto hidden items-center gap-1 lg:flex">
+          <a href="/owner/billing?compare=1" className="inline-flex h-9 items-center gap-2 rounded-[8px] px-3 text-[14px] font-semibold text-[#1f6b5b] hover:bg-[#f6fbf9]">
+            요금제
+          </a>
+          <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
+          <button
+            type="button"
+            onClick={() => {
+              setStoreMenuOpen(false);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef7f4] text-[#1f6b5b] hover:bg-[#e6f3ef]"
+            aria-label="전화 상담"
+          >
+            <Phone className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openSettingsTab("shop")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="매장 정보"
+          >
+            <Store className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStoreMenuOpen(false);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="도움말"
+          >
+            <CircleHelp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openSettingsTab("policy")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="설정"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openSettingsTab("alerts")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="알림"
+          >
+            <Bell className="h-4 w-4" />
+          </button>
+          <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
+          <button
+            type="button"
+            onClick={() => {
+              setStoreMenuOpen(false);
+            }}
+            className="inline-flex h-9 items-center gap-2 rounded-[8px] px-3 text-[14px] font-semibold text-[#334155] hover:bg-[#f8fafc]"
+          >
+            <Sparkles className="h-4 w-4" />
+            도우미
+          </button>
+          <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setStoreMenuOpen((current) => !current);
+              }}
+              className="inline-flex h-9 items-center gap-2 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+              aria-expanded={storeMenuOpen}
+            >
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">WJ</span>
+              우유 미용실
+              <ChevronDown className="h-4 w-4 text-[#64748b]" />
+            </button>
+            {storeMenuOpen ? (
+              <div className="absolute right-0 top-11 w-[190px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+                <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                  매장 프로필
+                </button>
+                <button type="button" onClick={() => openSettingsTab("users")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                  사용자 관리
+                </button>
+                <button type="button" onClick={() => openSettingsTab("billing")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                  결제 설정
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
 
-            <div className="mt-auto rounded-[22px] border border-white/14 bg-white/8 p-4">
-              <p className="text-[13px] font-medium text-white/84">웹 화면 메모</p>
-              <p className="mt-2 text-[12px] leading-6 text-white/64">테이블, 우측 상세 패널, 다중 선택, 필터 도구를 한 화면에 올리는 방향으로 구성했습니다.</p>
-            </div>
+      <div className="flex min-h-[calc(100vh-52px)]">
+        <aside className="hidden w-[232px] shrink-0 border-r border-[#dbe2ea] bg-white lg:block">
+          <div className="flex h-full flex-col">
+            <nav className="flex-1 overflow-y-auto px-3 py-4">
+              <div className="space-y-0.5">
+                {ownerWebScreenLabels.map((screen) => {
+                  const Icon = screenIcons[screen.key];
+                  const active = activeScreen === screen.key;
+                  return (
+                    <div key={screen.key}>
+                      <button
+                        type="button"
+                        onClick={() => handleScreenSelect(screen.key)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left transition",
+                          active ? "bg-[#f8fafc] text-[#111827]" : "text-[#475569] hover:bg-[#f8fafc]",
+                        )}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+                          <Icon className={cn("h-[21px] w-[21px]", active ? "text-[#1f6b5b]" : "text-[#64748b]")} strokeWidth={1.75} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[14px] font-semibold">{screen.label}</span>
+                          <span className={cn("mt-0.5 block truncate text-[11px]", active ? "text-[#456b61]" : "text-[#94a3b8]")}>
+                            {screen.description}
+                          </span>
+                        </span>
+                      </button>
+                      {screen.key === "settings" && active ? (
+                        <div className="ml-[40px] mt-1 space-y-1 border-l border-[#e2e8f0] pl-2.5">
+                          {settingsTabs.map((tab) => {
+                            const tabActive = activeSettingsTab === tab.key;
+                            return (
+                              <button
+                                key={tab.key}
+                                type="button"
+                                onClick={() => {
+                                  setActiveSettingsTab(tab.key);
+                                  handleScreenSelect("settings");
+                                }}
+                                className={cn(
+                                  "flex h-9 w-full items-center justify-between rounded-[8px] px-3 text-left text-[13px] font-medium transition",
+                                  tabActive ? "bg-[#eef7f4] text-[#1f6b5b]" : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#111827]",
+                                )}
+                              >
+                                <span>{tab.label}</span>
+                                {tabActive ? <span className="text-[11px] text-[#2f7866]">선택됨</span> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </nav>
+
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <div className="mb-5 flex items-center justify-between gap-4 rounded-[24px] border border-[#e9e0d8] bg-white px-5 py-4 shadow-[0_12px_30px_rgba(34,30,24,0.05)] xl:hidden">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#e9f5f1]">
-                <PawPrint className="h-5 w-5 text-[#1f6b5b]" />
-              </span>
-              <div>
-                <p className="text-[12px] font-medium text-[#8a8178]">PETMANAGER WEB</p>
-                <p className="text-[20px] font-semibold tracking-[-0.04em] text-[#17211f]">우유 미용실</p>
-              </div>
-            </div>
+          <div className="border-b border-[#dbe2ea] bg-white px-5 py-3 lg:hidden">
             <select
               value={activeScreen}
-              onChange={(event) => setActiveScreen(event.target.value as OwnerWebScreenKey)}
-              className="h-[42px] rounded-[14px] border border-[#e6ddd6] bg-[#fbfaf8] px-4 text-[14px] font-medium text-[#263430]"
+              onChange={(event) => handleScreenSelect(event.target.value as OwnerWebScreenKey)}
+              className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#1f2937]"
             >
               {ownerWebScreenLabels.map((screen) => (
                 <option key={screen.key} value={screen.key}>
@@ -106,10 +335,87 @@ export default function OwnerWebPreview() {
               ))}
             </select>
           </div>
-
-          {renderScreen(activeScreen)}
+          <div className="p-5">
+            {renderScreen(
+              activeScreen,
+              activeSettingsTab,
+              setActiveSettingsTab,
+              manualApprovalEnabled,
+              handleManualApprovalChange,
+              initialData,
+            )}
+          </div>
         </main>
       </div>
+      {revenueGateOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/28 px-4" onClick={() => setRevenueGateOpen(false)}>
+          <div className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[#1f6b5b]">
+                <LockKeyhole className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-[18px] font-semibold text-[#111827]">매출 권한 확인</h2>
+                <p className="mt-1 text-[13px] leading-5 text-[#64748b]">매출은 지정 사용자만 볼 수 있습니다.</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-3">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-[#334155]">
+                <ShieldCheck className="h-4 w-4 text-[#1f6b5b]" />
+                허용 사용자
+              </div>
+              <p className="mt-2 text-[13px] text-[#64748b]">{revenueAllowedUsers.join(", ")}</p>
+            </div>
+
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-[8px] border border-[#e2e8f0] bg-white px-3 py-2.5">
+              <span>
+                <span className="block text-[13px] font-semibold text-[#111827]">비밀번호 확인 사용</span>
+                <span className="mt-0.5 block text-[12px] text-[#94a3b8]">오너가 켜고 끌 수 있는 설정입니다.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={revenuePasswordEnabled}
+                onChange={(event) => {
+                  setRevenuePasswordEnabled(event.target.checked);
+                  setRevenueGateError("");
+                }}
+                className="h-4 w-4 accent-[#1f6b5b]"
+              />
+            </label>
+
+            {revenuePasswordEnabled ? (
+              <label className="mt-3 block">
+                <span className="text-[13px] font-semibold text-[#334155]">비밀번호</span>
+                <input
+                  type="password"
+                  value={revenuePassword}
+                  onChange={(event) => {
+                    setRevenuePassword(event.target.value);
+                    setRevenueGateError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") unlockRevenue();
+                  }}
+                  className="mt-2 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[15px] outline-none focus:border-[#cfded8] focus:bg-white"
+                  placeholder="데모 비밀번호 1234"
+                />
+              </label>
+            ) : null}
+
+            {revenueGateError ? <p className="mt-3 text-[13px] font-medium text-[#b91c1c]">{revenueGateError}</p> : null}
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setRevenueGateOpen(false)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
+                취소
+              </button>
+              <button type="button" onClick={unlockRevenue} className="h-10 rounded-[8px] bg-[#1f6b5b] text-[14px] font-semibold text-white">
+                매출 열기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

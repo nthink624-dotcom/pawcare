@@ -3,14 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import OwnerDesktopApp from "@/components/owner/owner-desktop-app";
-import OwnerShell from "@/components/owner/owner-shell";
+import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
 } from "@/lib/auth/social-auth";
-import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -23,34 +21,13 @@ type OwnedShopSummary = {
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
-type OwnerSurface = "mobile" | "desktop";
-
-function resolveOwnerSurface(): OwnerSurface {
-  if (typeof window === "undefined") return "mobile";
-
-  const searchParams = new URLSearchParams(window.location.search);
-  const surfaceOverride = searchParams.get("surface");
-  if (surfaceOverride === "desktop" || surfaceOverride === "pc") return "desktop";
-  if (surfaceOverride === "mobile" || surfaceOverride === "m") return "mobile";
-
-  const hostname = window.location.hostname.toLowerCase();
-  if (hostname === "m.petmanager.co.kr" || hostname === "www.m.petmanager.co.kr" || hostname.startsWith("m.")) {
-    return "mobile";
-  }
-  if (hostname === "localhost" || hostname === "127.0.0.1") return "mobile";
-  return "desktop";
-}
 
 export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
-  const [ownedShops, setOwnedShops] = useState<OwnedShopSummary[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
-  const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
-  const [surface, setSurface] = useState<OwnerSurface>("mobile");
 
   async function getSessionWithRecovery() {
     if (!supabase) return null;
@@ -78,7 +55,6 @@ export default function OwnerPage() {
 
   useEffect(() => {
     let active = true;
-    setSurface(resolveOwnerSurface());
     const pendingProvider =
       typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
 
@@ -98,7 +74,6 @@ export default function OwnerPage() {
         return;
       }
 
-      setUserEmail(session.user.email ?? null);
       if (session.user.user_metadata?.account_suspended === true) {
         if (active) {
           setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
@@ -126,16 +101,13 @@ export default function OwnerPage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const [bootstrap, subscription] = await Promise.all([
-          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-        ]);
+        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+        );
 
         if (!active) return;
-        setOwnedShops(shops);
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
-        setSubscriptionSummary(subscription);
       } catch (error) {
         if (!active) return;
 
@@ -174,6 +146,39 @@ export default function OwnerPage() {
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    if (!selectedShopId || typeof window === "undefined") return;
+
+    let active = true;
+
+    const refreshDesktopData = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      try {
+        const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+          `/api/bootstrap?shopId=${encodeURIComponent(selectedShopId)}`,
+          { cache: "no-store" },
+        );
+        if (active) {
+          setData(nextBootstrap);
+        }
+      } catch {
+        // Keep the current dashboard stable when a background sync misses.
+      }
+    };
+
+    const intervalId = window.setInterval(refreshDesktopData, 15000);
+    window.addEventListener("focus", refreshDesktopData);
+    document.addEventListener("visibilitychange", refreshDesktopData);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshDesktopData);
+      document.removeEventListener("visibilitychange", refreshDesktopData);
+    };
+  }, [selectedShopId]);
+
   if (!data) {
     return (
       <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#faf7f2] px-4 py-6">
@@ -184,39 +189,5 @@ export default function OwnerPage() {
     );
   }
 
-  const handleSwitchShop = async (shopId: string) => {
-    if (!shopId || shopId === selectedShopId) return;
-    setMessage("매장을 바꾸는 중입니다.");
-    setData(null);
-    const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(shopId)}`);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, shopId);
-    }
-    setSelectedShopId(shopId);
-    setData(nextBootstrap);
-  };
-
-  if (surface === "desktop") {
-    return (
-      <OwnerDesktopApp
-        initialData={data}
-        ownedShops={ownedShops}
-        selectedShopId={selectedShopId}
-        subscriptionSummary={subscriptionSummary}
-        userEmail={userEmail}
-        onSwitchShop={handleSwitchShop}
-      />
-    );
-  }
-
-  return (
-    <OwnerShell
-      initialData={data}
-      ownedShops={ownedShops}
-      selectedShopId={selectedShopId}
-      subscriptionSummary={subscriptionSummary}
-      userEmail={userEmail}
-      onSwitchShop={handleSwitchShop}
-    />
-  );
+  return <OwnerWebPreview initialData={data} />;
 }

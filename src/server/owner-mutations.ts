@@ -1,6 +1,7 @@
 ﻿import { randomUUID } from "node:crypto";
 
-import { computeAvailableSlots } from "@/lib/availability";
+import { computeAvailableSlots, isSlotAvailable } from "@/lib/availability";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import {
   coerceEnabledShopNotificationSettings,
@@ -28,7 +29,7 @@ import {
   serviceInputSchema,
   shopSettingsSchema,
 } from "@/server/schemas";
-import type { Appointment, Guardian, Pet, Service } from "@/types/domain";
+import type { Appointment, Guardian, Pet, Service, Shop } from "@/types/domain";
 
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
   const endMinute = minutesFromTime(time) + durationMinutes;
@@ -53,6 +54,34 @@ function getRejectionReason(payload: {
   }
 
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
+}
+
+function ensureAppointmentCanBeConfirmed(params: {
+  appointment: Appointment;
+  shop: Shop;
+  services: Service[];
+  appointments: Appointment[];
+}) {
+  const { appointment, shop, services, appointments } = params;
+  const service = services.find((item) => item.id === appointment.service_id);
+
+  if (!service) {
+    throw new Error("서비스 정보를 찾을 수 없어 승인할 수 없습니다.");
+  }
+
+  const available = isSlotAvailable({
+    date: appointment.appointment_date,
+    startMinute: minutesFromTime(appointment.appointment_time),
+    durationMinutes: service.duration_minutes,
+    approvalMode: shop.approval_mode,
+    services,
+    appointments,
+    excludeAppointmentId: appointment.id,
+  });
+
+  if (!available) {
+    throw new Error("같은 시간에 이미 확정된 예약이 있어 승인할 수 없습니다.");
+  }
 }
 
 function hasMissingColumnError(
@@ -151,12 +180,13 @@ export async function updateShopSettings(input: unknown) {
     grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
   };
   const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
+  const concurrentCapacity = concurrentCapacityForApprovalMode(payload.approvalMode);
   const fullUpdatePayload = {
     name: payload.name,
     phone: payload.phone,
     address: payload.address,
     description: payload.description,
-    concurrent_capacity: payload.concurrentCapacity,
+    concurrent_capacity: concurrentCapacity,
     booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
     booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
     approval_mode: payload.approvalMode,
@@ -176,7 +206,7 @@ export async function updateShopSettings(input: unknown) {
       phone: payload.phone,
       address: payload.address,
       description: payload.description,
-      concurrent_capacity: payload.concurrentCapacity,
+      concurrent_capacity: concurrentCapacity,
       booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
       booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
       approval_mode: payload.approvalMode,
@@ -186,14 +216,6 @@ export async function updateShopSettings(input: unknown) {
       notification_settings: normalizedNotificationSettings,
       updated_at: nowIso(),
     };
-
-    if (payload.approvalMode === "auto") {
-      store.appointments = store.appointments.map((appointment) =>
-        appointment.shop_id === payload.shopId && appointment.status === "pending"
-          ? { ...appointment, status: "confirmed", updated_at: nowIso() }
-          : appointment,
-      );
-    }
 
     setMockStore(store);
     return store.shop;
@@ -262,34 +284,10 @@ export async function updateShopSettings(input: unknown) {
         throw new Error(fallback.error.message);
       }
 
-      if (payload.approvalMode === "auto") {
-        const pendingPromotion = await supabase
-          .from("appointments")
-          .update({ status: "confirmed", updated_at: nowIso() })
-          .eq("shop_id", payload.shopId)
-          .eq("status", "pending");
-
-        if (pendingPromotion.error && !hasMissingColumnError(pendingPromotion.error, "rejection_reason")) {
-          throw new Error(pendingPromotion.error.message);
-        }
-      }
-
       return fallback.data;
     }
 
     throw new Error(error.message);
-  }
-
-  if (payload.approvalMode === "auto") {
-    const pendingPromotion = await supabase
-      .from("appointments")
-      .update({ status: "confirmed", updated_at: nowIso() })
-      .eq("shop_id", payload.shopId)
-      .eq("status", "pending");
-
-    if (pendingPromotion.error && !hasMissingColumnError(pendingPromotion.error, "rejection_reason")) {
-      throw new Error(pendingPromotion.error.message);
-    }
   }
 
   return data;
@@ -871,6 +869,15 @@ export async function updateAppointmentStatus(input: unknown) {
     const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
     if (!appointment) throw new Error("?덉빟??李얠쓣 ???놁뒿?덈떎.");
 
+    if (payload.status === "confirmed") {
+      ensureAppointmentCanBeConfirmed({
+        appointment,
+        shop: store.shop,
+        services: store.services,
+        appointments: store.appointments,
+      });
+    }
+
     appointment.status = payload.status;
     appointment.rejection_reason = rejectionReason;
     appointment.updated_at = nowIso();
@@ -945,6 +952,24 @@ export async function updateAppointmentStatus(input: unknown) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  if (payload.status === "confirmed") {
+    const { data: appointmentToConfirm, error: appointmentError } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("id", payload.appointmentId)
+      .single();
+
+    if (appointmentError) throw new Error(appointmentError.message);
+
+    const bootstrap = await getBootstrap(appointmentToConfirm.shop_id);
+    ensureAppointmentCanBeConfirmed({
+      appointment: appointmentToConfirm,
+      shop: bootstrap.shop,
+      services: bootstrap.services,
+      appointments: bootstrap.appointments,
+    });
+  }
 
   const { data: updatedAppointment, error } = await supabase
     .from("appointments")

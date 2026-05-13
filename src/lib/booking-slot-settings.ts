@@ -3,11 +3,17 @@ import type { Shop } from "@/types/domain";
 export const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 export const defaultBookingSlotIntervalMinutes = 30;
 export const defaultBookingSlotOffsetMinutes = 0;
-export const defaultConcurrentCapacity = 2;
+export const confirmedSlotCapacity = 1;
+export const manualPendingHoldCapacity = 2;
+export const defaultConcurrentCapacity = confirmedSlotCapacity;
+
+export function concurrentCapacityForApprovalMode(approvalMode: "manual" | "auto" | null | undefined) {
+  return approvalMode === "manual" ? manualPendingHoldCapacity : confirmedSlotCapacity;
+}
 
 export function normalizeConcurrentCapacity(value: number | null | undefined) {
   const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : defaultConcurrentCapacity;
-  return Math.min(5, Math.max(1, numeric));
+  return Math.min(manualPendingHoldCapacity, Math.max(confirmedSlotCapacity, numeric));
 }
 
 export function normalizeBookingSlotIntervalMinutes(value: number | null | undefined) {

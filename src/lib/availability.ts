@@ -2,6 +2,8 @@
 
 import type { Appointment, Pet, Service, Shop } from "@/types/domain";
 import {
+  confirmedSlotCapacity,
+  manualPendingHoldCapacity,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
 } from "@/lib/booking-slot-settings";
@@ -64,7 +66,7 @@ export function computeAvailableSlots(params: {
         durationMinutes,
         appointments,
         services,
-        concurrentCapacity: shop.concurrent_capacity,
+        approvalMode: shop.approval_mode,
         excludeAppointmentId,
       })
     ) {
@@ -80,10 +82,10 @@ export function isSlotAvailable(params: {
   durationMinutes: number;
   appointments: Appointment[];
   services: Service[];
-  concurrentCapacity: number;
+  approvalMode: Shop["approval_mode"];
   excludeAppointmentId?: string;
 }) {
-  const { date, startMinute, durationMinutes, appointments, services, concurrentCapacity, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, appointments, services, approvalMode, excludeAppointmentId } = params;
   const endMinute = startMinute + durationMinutes;
   const activeAppointments = appointments.filter(
     (appointment) =>
@@ -105,7 +107,7 @@ export function isSlotAvailable(params: {
     overlapBoundaries.add(Math.max(startMinute, appointmentStart));
     overlapBoundaries.add(Math.min(endMinute, appointmentEnd));
 
-    return [{ appointmentStart, appointmentEnd }];
+    return [{ appointmentStart, appointmentEnd, status: appointment.status }];
   });
 
   const sortedBoundaries = Array.from(overlapBoundaries).sort((a, b) => a - b);
@@ -121,7 +123,13 @@ export function isSlotAvailable(params: {
         appointmentStart <= probeMinute && probeMinute < appointmentEnd,
     );
 
-    if (overlaps.length >= concurrentCapacity) {
+    const confirmedLikeOverlaps = overlaps.filter(({ status }) => status !== "pending");
+    if (confirmedLikeOverlaps.length >= confirmedSlotCapacity) {
+      return false;
+    }
+
+    const allowedHolds = approvalMode === "manual" ? manualPendingHoldCapacity : confirmedSlotCapacity;
+    if (overlaps.length >= allowedHolds) {
       return false;
     }
   }

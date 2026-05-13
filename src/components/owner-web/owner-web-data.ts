@@ -1,11 +1,13 @@
-export type OwnerWebScreenKey = "reservations" | "customers" | "calendar" | "stats" | "settings";
+export type OwnerWebScreenKey = "schedule" | "customers" | "grooming" | "revenue" | "services" | "staff" | "settings";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string; description: string }> = [
-  { key: "reservations", label: "예약 관리", description: "오늘과 이번 주 예약을 빠르게 조정하는 화면" },
-  { key: "customers", label: "고객 관리", description: "고객 정보와 재방문 흐름을 정리하는 화면" },
-  { key: "calendar", label: "캘린더", description: "시간표 위에서 예약 블록을 관리하는 화면" },
-  { key: "stats", label: "통계", description: "예약, 매출, 재방문율을 한 번에 보는 화면" },
-  { key: "settings", label: "설정", description: "매장 운영 정책과 알림, 결제를 관리하는 화면" },
+  { key: "schedule", label: "스케줄", description: "오늘 일정 확인" },
+  { key: "customers", label: "고객", description: "보호자와 반려동물 관리" },
+  { key: "grooming", label: "미용 기록", description: "시술 메모와 주의사항" },
+  { key: "revenue", label: "매출", description: "결제와 미수금 확인" },
+  { key: "services", label: "서비스", description: "가격표와 예약 기준" },
+  { key: "staff", label: "스태프", description: "근무, 휴무, 연차 관리" },
+  { key: "settings", label: "설정", description: "매장 운영 정책" },
 ];
 
 export type ReservationStatus = "승인 대기" | "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";
@@ -121,11 +123,35 @@ export const customerRows = [
 ];
 
 export const calendarBookings = [
-  { id: "C-01", day: "월", start: 10, duration: 1.5, lane: 0, customer: "정유진", pet: "우유", service: "전체 미용", staff: "원장" },
-  { id: "C-02", day: "월", start: 13, duration: 1, lane: 1, customer: "김민지", pet: "몽이", service: "목욕", staff: "서브" },
-  { id: "C-03", day: "화", start: 11, duration: 2, lane: 0, customer: "박서준", pet: "코코", service: "목욕 + 부분정리", staff: "원장" },
-  { id: "C-04", day: "수", start: 14, duration: 1.5, lane: 0, customer: "이수현", pet: "보리", service: "위생 미용", staff: "서브" },
-  { id: "C-05", day: "목", start: 16, duration: 1.5, lane: 1, customer: "한예지", pet: "하루", service: "전체 미용", staff: "원장" },
+  { id: "C-01", day: "월", start: 10, duration: 1.5, lane: 0, customer: "정유진", pet: "우유", service: "전체 미용", staff: "원장", status: "승인 대기" },
+  { id: "C-02", day: "월", start: 13, duration: 1, lane: 1, customer: "김민지", pet: "몽이", service: "목욕", staff: "서브", status: "확정" },
+  { id: "C-03", day: "화", start: 11, duration: 2, lane: 0, customer: "박서준", pet: "코코", service: "목욕 + 부분정리", staff: "원장", status: "진행 중" },
+  { id: "C-04", day: "수", start: 14, duration: 1.5, lane: 0, customer: "이수현", pet: "보리", service: "위생 미용", staff: "서브", status: "픽업 준비" },
+  { id: "C-05", day: "목", start: 16, duration: 1.5, lane: 1, customer: "한예지", pet: "하루", service: "전체 미용", staff: "원장", status: "완료" },
+];
+
+export const waitlistRows = [
+  { id: "W-01", pet: "미니", customer: "최아린", service: "전체 미용", preference: "오늘 오후", memo: "푸들 / 2시간 가능" },
+  { id: "W-02", pet: "라떼", customer: "윤하나", service: "목욕", preference: "이번 주 토요일", memo: "첫 방문 상담 필요" },
+  { id: "W-03", pet: "콩이", customer: "서지우", service: "위생 미용", preference: "빈 시간 아무 때나", memo: "노령견, 원장 담당 선호" },
+];
+
+export const groomingRecords = [
+  { id: "GR-01", pet: "우유", customer: "정유진", date: "2026.05.12", service: "전체 미용", memo: "피부 민감. 배 쪽은 저자극 샴푸 사용.", next: "3주 뒤 재방문 권장" },
+  { id: "GR-02", pet: "몽이", customer: "김민지", date: "2026.05.10", service: "목욕 + 부분정리", memo: "드라이 소리에 예민함. 귀 주변 천천히 진행.", next: "발바닥 털 2주 후 확인" },
+  { id: "GR-03", pet: "보리", customer: "이수현", date: "2026.05.08", service: "위생 미용", memo: "발톱 길이 사진 공유 요청.", next: "다음 방문 시 털 엉킴 체크" },
+];
+
+export const serviceRows = [
+  { name: "전체 미용", duration: "120분", price: "80,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+  { name: "목욕 + 부분정리", duration: "90분", price: "55,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+  { name: "목욕", duration: "60분", price: "35,000원", capacity: "동일 시간 1건", staff: "서브" },
+  { name: "위생 미용", duration: "45분", price: "25,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+];
+
+export const staffRows = [
+  { name: "정우진 원장", role: "전체 미용 / 상담", hours: "10:00 - 19:00", today: "예약 4건" },
+  { name: "서하늘", role: "목욕 / 위생 미용", hours: "11:00 - 18:00", today: "예약 3건" },
 ];
 
 export const revenueTrend = [

@@ -359,7 +359,10 @@ export default function StaffManagementScreen() {
               <div>
                 {boardTab === "list" ? (
                   <>
-                    <h3 className="text-[18px] font-semibold text-[#111827]">스태프 목록</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[18px] font-semibold text-[#111827]">스태프 목록</h3>
+                      <span className="rounded-full bg-[#eef7f4] px-3 py-1 text-[12px] font-semibold text-[#1f6b5b]">{staff.length}명</span>
+                    </div>
                     <p className="mt-1 text-[13px] text-[#64748b]">예약 배정 전 오늘 근무 가능 여부를 확인합니다.</p>
                   </>
                 ) : (
@@ -379,9 +382,7 @@ export default function StaffManagementScreen() {
               </div>
               {boardTab === "list" ? (
                 <div className="flex flex-wrap items-center justify-end gap-2 [&>button]:h-10 [&>button]:w-[132px] [&>button]:shrink-0">
-                  <span className="rounded-full bg-[#eef7f4] px-3 py-1 text-[12px] font-semibold text-[#1f6b5b]">{staff.length}명</span>
                   <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
-                  <GhostButton label="휴무/연차 등록" onClick={() => setLeaveDialogOpen(true)} />
                 </div>
               ) : null}
             </div>

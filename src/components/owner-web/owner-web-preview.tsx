@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleHelp,
   CreditCard,
+  LogOut,
   LockKeyhole,
   Phone,
   Scissors,
@@ -26,6 +27,7 @@ import ServiceManagementScreen from "@/components/owner-web/service-management-s
 import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import StatsManagementScreen from "@/components/owner-web/stats-management-screen";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -93,6 +95,7 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>("policy");
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(true);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const currentUserName = "정우진";
   const revenueAllowedUsers = ["정우진", "우유 미용실"];
   const canCurrentUserOpenRevenue = revenueAllowedUsers.includes(currentUserName);
@@ -157,6 +160,20 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
     setActiveSettingsTab(tab);
     setActiveScreen("settings");
     setStoreMenuOpen(false);
+  }
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   return (
@@ -230,29 +247,39 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
             도우미
           </button>
           <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
-          <div className="relative">
+          <div className="relative w-[218px]">
             <button
               type="button"
               onClick={() => {
                 setStoreMenuOpen((current) => !current);
               }}
-              className="inline-flex h-9 items-center gap-2 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+              className="inline-flex h-9 w-full items-center gap-2 rounded-full px-1.5 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
               aria-expanded={storeMenuOpen}
             >
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">WJ</span>
-              우유 미용실
-              <ChevronDown className="h-4 w-4 text-[#64748b]" />
+              <span className="min-w-0 flex-1 truncate text-left">우유 미용실</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
             </button>
             {storeMenuOpen ? (
-              <div className="absolute right-0 top-11 w-[190px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
-                <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+              <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+                <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   매장 프로필
                 </button>
-                <button type="button" onClick={() => openSettingsTab("users")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                <button type="button" onClick={() => openSettingsTab("users")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   사용자 관리
                 </button>
-                <button type="button" onClick={() => openSettingsTab("billing")} className="block w-full px-3 py-2 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                <button type="button" onClick={() => openSettingsTab("billing")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   결제 설정
+                </button>
+                <div className="my-1 border-t border-[#edf2f7]" />
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#b45309] hover:bg-[#fffaf0] disabled:opacity-60"
+                >
+                  <LogOut className="h-4 w-4" />
+                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
                 </button>
               </div>
             ) : null}

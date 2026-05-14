@@ -356,13 +356,13 @@ export default function StaffManagementScreen() {
           <WebSurface className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
               <div>
-                <h3 className="text-[18px] font-semibold text-[#111827]">
-                  {boardTab === "list" ? "스태프 목록" : "스태프별 주간 근무표"}
-                </h3>
                 {boardTab === "list" ? (
-                  <p className="mt-1 text-[13px] text-[#64748b]">예약 배정 전 오늘 근무 가능 여부를 확인합니다.</p>
+                  <>
+                    <h3 className="text-[18px] font-semibold text-[#111827]">스태프 목록</h3>
+                    <p className="mt-1 text-[13px] text-[#64748b]">예약 배정 전 오늘 근무 가능 여부를 확인합니다.</p>
+                  </>
                 ) : (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => setWeekStart(addDays(weekStart, -7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="이전 주">
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -373,21 +373,16 @@ export default function StaffManagementScreen() {
                     <button type="button" onClick={() => setWeekStart(addDays(weekStart, 7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="다음 주">
                       <ChevronRight className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                      오늘
-                    </button>
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2 [&>button]:h-10 [&>button]:w-[132px] [&>button]:shrink-0">
-                <span className="rounded-full bg-[#eef7f4] px-3 py-1 text-[12px] font-semibold text-[#1f6b5b]">{staff.length}명</span>
-                {boardTab === "list" ? (
-                  <>
-                    <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
-                    <GhostButton label="휴무/연차 등록" onClick={() => setLeaveDialogOpen(true)} />
-                  </>
-                ) : null}
-              </div>
+              {boardTab === "list" ? (
+                <div className="flex flex-wrap items-center justify-end gap-2 [&>button]:h-10 [&>button]:w-[132px] [&>button]:shrink-0">
+                  <span className="rounded-full bg-[#eef7f4] px-3 py-1 text-[12px] font-semibold text-[#1f6b5b]">{staff.length}명</span>
+                  <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
+                  <GhostButton label="휴무/연차 등록" onClick={() => setLeaveDialogOpen(true)} />
+                </div>
+              ) : null}
             </div>
             {boardTab === "list" ? (
               <div className="max-h-[444px] overflow-y-auto">

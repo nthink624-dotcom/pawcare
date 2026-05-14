@@ -171,6 +171,18 @@ function getScheduledLeaveCount(staff: StaffMember, requests: LeaveRequest[]) {
   return requests.filter((request) => request.staffId === staff.id && request.status !== "거절").length;
 }
 
+function getAnnualLeaveUsage(staff: StaffMember, requests: LeaveRequest[]) {
+  const used = requests
+    .filter((request) => request.staffId === staff.id && request.status === "승인")
+    .reduce((sum, request) => {
+      if (request.type === "연차") return sum + 1;
+      if (request.type === "반차") return sum + 0.5;
+      return sum;
+    }, 0);
+  const granted = Number(staff.annualRemain) || 0;
+  return { granted, used, remaining: Math.max(granted - used, 0) };
+}
+
 function getCellTone(status: StaffStatus) {
   if (status === "work") return "border-[#d8e7e1] bg-[#f8fcfb] text-[#1f6b5b]";
   if (status === "annual") return "border-[#ead9cf] bg-[#fff8f1] text-[#9a5a24]";
@@ -490,34 +502,74 @@ export default function StaffManagementScreen() {
           ) : null}
 
           {selectedStaff ? (
-            <WebSurface className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">스태프 상세</p>
-                  <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">{selectedStaff.name}</h3>
-                  <p className="mt-1 text-[13px] text-[#64748b]">오늘 예약 {selectedStaff.todayBookings}건 · 이번 주 {selectedStaff.weekBookings}건</p>
+            <WebSurface className="p-4">
+              <div className="rounded-[8px] border border-[#e2e8f0] bg-white p-4">
+                <div className="min-w-0">
+                  <div className="min-w-0">
+                    <input
+                      value={draft.name}
+                      onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                      aria-label="스태프명"
+                      className="h-10 w-full rounded-[6px] border border-transparent bg-transparent px-1 text-[26px] font-semibold leading-none text-[#0f172a] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
+                    />
+                    <input
+                      value={draft.phone}
+                      onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))}
+                      aria-label="연락처"
+                      className="mt-1 h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1 text-[16px] font-medium text-[#334155] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
+                    />
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-[#64748b]">
+                      <input
+                        value={draft.role}
+                        onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}
+                        aria-label="담당 역할"
+                        className="w-full rounded-[6px] border border-transparent bg-transparent px-1 text-[#64748b] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <span className="rounded-full bg-[#e6f3ef] px-2.5 py-1 text-[12px] font-semibold text-[#1f6b5b]">{getStaffAvailability(selectedStaff, requests)}</span>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-[8px] bg-[#f8fafc] px-3 py-2">
+                    <p className="text-[11px] font-medium text-[#94a3b8]">휴무/연차</p>
+                    <p className="mt-1 text-[17px] font-semibold text-[#111827]">{getScheduledLeaveCount(selectedStaff, requests)}건</p>
+                  </div>
+                  <div className="rounded-[8px] bg-[#f8fafc] px-3 py-2">
+                    <p className="text-[11px] font-medium text-[#94a3b8]">연차 잔여</p>
+                    <p className="mt-1 text-[17px] font-semibold text-[#1f6b5b]">{getAnnualLeaveUsage(selectedStaff, requests).remaining}일</p>
+                    <p className="mt-0.5 text-[11px] text-[#94a3b8]">부여 {getAnnualLeaveUsage(selectedStaff, requests).granted}일 · 사용 {getAnnualLeaveUsage(selectedStaff, requests).used}일</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-5 space-y-3">
-                <Field label="스태프명"><TextInput value={draft.name} onChange={(name) => setDraft((current) => ({ ...current, name }))} /></Field>
-                <Field label="연락처"><TextInput value={draft.phone} onChange={(phone) => setDraft((current) => ({ ...current, phone }))} /></Field>
-                <Field label="역할"><TextInput value={draft.role} onChange={(role) => setDraft((current) => ({ ...current, role }))} /></Field>
-                <Field label="기본 근무 요일"><TextInput value={draft.defaultDaysText} onChange={(defaultDaysText) => setDraft((current) => ({ ...current, defaultDaysText }))} placeholder="월, 화, 수, 목, 금" /></Field>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="기본 출근 시간"><TextInput type="time" value={draft.startTime} onChange={(startTime) => setDraft((current) => ({ ...current, startTime }))} /></Field>
-                  <Field label="기본 퇴근 시간"><TextInput type="time" value={draft.endTime} onChange={(endTime) => setDraft((current) => ({ ...current, endTime }))} /></Field>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="정기 휴무"><TextInput value={draft.regularOff} onChange={(regularOff) => setDraft((current) => ({ ...current, regularOff }))} /></Field>
-                  <Field label="연차 잔여일"><TextInput type="number" value={draft.annualRemain} onChange={(annualRemain) => setDraft((current) => ({ ...current, annualRemain }))} /></Field>
-                </div>
-                <div className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
-                  <p className="text-[13px] font-semibold text-[#334155]">예정 휴무/연차</p>
-                  <p className="mt-1 text-[13px] text-[#64748b]">{getScheduledLeaveCount(selectedStaff, requests)}건 예정</p>
+
+              <div className="mt-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfcfd] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#334155]">부여 연차</p>
+                    <p className="mt-0.5 text-[12px] text-[#94a3b8]">승인된 연차와 반차는 잔여일에서 자동 차감됩니다.</p>
+                  </div>
+                  <div className="w-[112px]">
+                    <TextInput type="number" value={draft.annualRemain} onChange={(annualRemain) => setDraft((current) => ({ ...current, annualRemain }))} />
+                  </div>
                 </div>
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-2">
+
+              <div className="mt-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfcfd] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#334155]">기본 출퇴근 시간</p>
+                    <p className="mt-0.5 text-[12px] text-[#94a3b8]">스케줄 배정 기본값입니다.</p>
+                  </div>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-[#64748b]">{draft.defaultDaysText}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <TextInput type="time" value={draft.startTime} onChange={(startTime) => setDraft((current) => ({ ...current, startTime }))} />
+                  <span className="text-[14px] text-[#94a3b8]">-</span>
+                  <TextInput type="time" value={draft.endTime} onChange={(endTime) => setDraft((current) => ({ ...current, endTime }))} />
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <GhostButton label="취소" onClick={() => setDraft(buildDraft(selectedStaff))} />
                 <PrimaryButton label="저장" onClick={saveStaff} />
               </div>

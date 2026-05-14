@@ -1,7 +1,5 @@
-import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
-import { getBootstrap } from "@/server/bootstrap";
+import { redirect } from "next/navigation";
 
-export default async function OwnerWebPreviewPage() {
-  const data = await getBootstrap("demo-shop");
-  return <OwnerWebPreview initialData={data} />;
+export default function OwnerWebPreviewPage() {
+  redirect("/owner");
 }

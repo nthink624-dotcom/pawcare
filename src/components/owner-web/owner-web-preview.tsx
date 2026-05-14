@@ -47,7 +47,7 @@ function renderScreen(
   onSettingsTabChange: (tab: SettingsTabKey) => void,
   manualApprovalEnabled: boolean,
   onManualApprovalChange: (enabled: boolean) => void,
-  initialData?: BootstrapPayload,
+  initialData: BootstrapPayload,
 ) {
   switch (screen) {
     case "schedule":
@@ -83,7 +83,7 @@ function renderScreen(
   }
 }
 
-export default function OwnerWebPreview({ initialData }: { initialData?: BootstrapPayload }) {
+export default function OwnerWebPreview({ initialData }: { initialData: BootstrapPayload }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
   const [revenueUnlocked, setRevenueUnlocked] = useState(false);
   const [revenueGateOpen, setRevenueGateOpen] = useState(false);

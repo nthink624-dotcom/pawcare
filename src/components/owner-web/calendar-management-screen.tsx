@@ -10,7 +10,6 @@ import {
 } from "@/components/owner-web/owner-web-ui";
 import { computeAvailableSlots } from "@/lib/availability";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
-import { buildDemoBootstrap } from "@/lib/mock-data";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
@@ -2368,11 +2367,11 @@ export default function CalendarManagementScreen({
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
 }: {
-  initialData?: BootstrapPayload;
+  initialData: BootstrapPayload;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
-  const initialBootstrapData = useMemo(() => initialData ?? buildDemoBootstrap(), [initialData]);
+  const initialBootstrapData = useMemo(() => initialData, [initialData]);
   const [bootstrapData, setBootstrapData] = useState(() => initialBootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());

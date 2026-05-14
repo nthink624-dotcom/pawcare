@@ -59,7 +59,7 @@ function renderScreen(
         />
       );
     case "customers":
-      return <CustomerManagementScreen />;
+      return <CustomerManagementScreen initialData={initialData} />;
     case "grooming":
       return <GroomingManagementScreen />;
     case "revenue":

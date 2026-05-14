@@ -15,6 +15,8 @@ import {
   ToolbarRow,
   WebSectionTitle,
 } from "@/components/owner-web/owner-web-ui";
+import { currentDateInTimeZone } from "@/lib/utils";
+import type { BootstrapPayload } from "@/types/domain";
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 type CustomerRow = (typeof customerRows)[number];
@@ -23,9 +25,66 @@ const initialStaffComments: Record<string, string> = {
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
 };
 
-export default function CustomerManagementScreen() {
-  const [customers, setCustomers] = useState(customerRows);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(customerRows[0]?.id ?? "");
+function formatMonthDay(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
+}
+
+function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerRow[] {
+  const today = currentDateInTimeZone();
+  const petsByGuardian = new Map<string, typeof data.pets>();
+  for (const pet of data.pets) {
+    petsByGuardian.set(pet.guardian_id, [...(petsByGuardian.get(pet.guardian_id) ?? []), pet]);
+  }
+
+  return data.guardians.map((guardian) => {
+    const pets = petsByGuardian.get(guardian.id) ?? [];
+    const petIds = new Set(pets.map((pet) => pet.id));
+    const guardianAppointments = data.appointments
+      .filter((appointment) => appointment.guardian_id === guardian.id || petIds.has(appointment.pet_id))
+      .sort((first, second) => `${first.appointment_date} ${first.appointment_time}`.localeCompare(`${second.appointment_date} ${second.appointment_time}`));
+    const upcomingAppointment = guardianAppointments.find(
+      (appointment) =>
+        appointment.appointment_date >= today &&
+        !["cancelled", "rejected", "noshow"].includes(appointment.status),
+    );
+    const recentRecord = data.groomingRecords
+      .filter((record) => record.guardian_id === guardian.id || petIds.has(record.pet_id))
+      .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at))[0];
+    const recentCompletedAppointment = [...guardianAppointments]
+      .reverse()
+      .find((appointment) => appointment.appointment_date < today || appointment.status === "completed");
+    const tags = [
+      guardian.memo?.trim() ? "상담 필요" : "",
+      upcomingAppointment ? "예약 있음" : "",
+      recentRecord ? "미용 기록" : "",
+    ].filter(Boolean);
+
+    return {
+      id: guardian.id,
+      name: guardian.name,
+      phone: guardian.phone,
+      tags: tags.length > 0 ? tags : ["일반"],
+      pets: pets.length > 0 ? pets.map((pet) => pet.name) : ["반려동물 없음"],
+      recentVisit: recentRecord
+        ? formatMonthDay(recentRecord.groomed_at.slice(0, 10))
+        : recentCompletedAppointment
+          ? formatMonthDay(recentCompletedAppointment.appointment_date)
+          : "방문 전",
+      nextBooking: upcomingAppointment
+        ? `${formatMonthDay(upcomingAppointment.appointment_date)} ${upcomingAppointment.appointment_time}`
+        : "예약 없음",
+      memo: guardian.memo?.trim() || pets.map((pet) => pet.notes).filter(Boolean).join(" / ") || "고객 메모가 없습니다.",
+      alerts: guardian.notification_settings?.enabled === false ? "알림 일시 중지" : "알림 수신 중",
+    };
+  });
+}
+
+export default function CustomerManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
+  const initialCustomers = useMemo(() => buildCustomerRowsFromBootstrap(initialData), [initialData]);
+  const [customers, setCustomers] = useState<CustomerRow[]>(() => initialCustomers);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomers[0]?.id ?? "");
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
@@ -49,6 +108,13 @@ export default function CustomerManagementScreen() {
   const selectedPetName = selectedCustomer?.pets[0] ?? "";
   const selectedCommentKey = selectedCustomer ? `${selectedPetName}|${selectedCustomer.name}` : "";
   const selectedStaffComment = staffComments[selectedCommentKey] ?? "";
+
+  useEffect(() => {
+    setCustomers(initialCustomers);
+    setSelectedCustomerId((current) =>
+      initialCustomers.some((customer) => customer.id === current) ? current : initialCustomers[0]?.id ?? "",
+    );
+  }, [initialCustomers]);
 
   useEffect(() => {
     try {

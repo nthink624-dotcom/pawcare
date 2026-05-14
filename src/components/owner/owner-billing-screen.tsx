@@ -226,14 +226,15 @@ export default function OwnerBillingScreen({
       ]
     : [
         "선택한 플랜은 등록된 카드로 매 결제일 자동 결제됩니다.",
-        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
+        "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
         "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
       ];
-  const agreementContinueLabel = hasUsableRegisteredPaymentMethod
-    ? "동의하고 결제수단 선택"
-    : usesOneTimePayment
-      ? "동의하고 결제창 열기"
-      : "동의하고 카드 등록하기";
+  const agreementContinueLabel =
+    registeringCard || retryingPayment || resumingRegisteredCardPayment
+      ? "결제 진행 중..."
+      : hasUsableRegisteredPaymentMethod || usesOneTimePayment
+        ? "동의하고 결제하기"
+        : "동의하고 카드 등록 후 결제하기";
   const paymentMethodOptions: PaymentMethodOption[] = hasUsableRegisteredPaymentMethod
     ? [
         {
@@ -289,11 +290,10 @@ export default function OwnerBillingScreen({
       clearPendingBillingRegistration();
       return;
     }
-    if (usesOneTimePayment || resumingRegisteredCardPayment || retryingPayment || !summary.paymentMethodExists) {
+    if (usesOneTimePayment || resumingRegisteredCardPayment || retryingPayment) {
       return;
     }
-    if (summary.status !== "expired" && summary.status !== "past_due") {
-      clearPendingBillingRegistration();
+    if (!summary.paymentMethodExists) {
       return;
     }
 
@@ -393,6 +393,7 @@ export default function OwnerBillingScreen({
     setRetryingPayment(true);
     setMessage(null);
     try {
+      await persistSelectedPlanIfNeeded();
       const nextSummary = await retryOwnerSubscriptionPayment();
       setSummary(nextSummary);
       setSelectedPlanCode(nextSummary.currentPlanCode);
@@ -515,12 +516,7 @@ export default function OwnerBillingScreen({
               }
               setMessage(null);
 
-              if (hasUsableRegisteredPaymentMethod) {
-                setPaymentSheetOpen(true);
-                return;
-              }
-
-              void (usesOneTimePayment ? handleOneTimePayment() : handleRegisterCard());
+              void (usesOneTimePayment ? handleOneTimePayment() : hasUsableRegisteredPaymentMethod ? handlePayNow() : handleRegisterCard());
             }}
             onBack={() => setSelectionStep("plan")}
             loading={registeringCard || retryingPayment}

@@ -4,6 +4,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 
 import { env } from "@/lib/env";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { createPortoneId } from "@/lib/billing/portone-ids";
 import {
   addMonthsIso,
   normalizeOwnerSubscriptionMetadata,
@@ -966,7 +967,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
   const timeToPay = record.subscription_status === "active" && record.current_period_ends_at ? record.current_period_ends_at : record.trial_ends_at;
   if (!timeToPay) return record;
 
-  const paymentId = `sub_${identity.id}_${Date.now()}`;
+  const paymentId = createPortoneId("sub");
   const scheduleResponse = await portoneFetch<Record<string, unknown>>(`/payments/${encodeURIComponent(paymentId)}/schedule`, {
     method: "POST",
     body: JSON.stringify({
@@ -1409,7 +1410,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   }
   const chargeAmount = getChargeAmountForPlan(plan);
 
-  const paymentId = `sub_retry_${identity.id}_${Date.now()}`;
+  const paymentId = createPortoneId("retry");
   const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}/billing-key`, {
     method: "POST",
     body: JSON.stringify({

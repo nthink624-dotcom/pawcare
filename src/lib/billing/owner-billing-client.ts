@@ -3,7 +3,9 @@ import { requestIssueBillingKey, requestPayment } from "@portone/browser-sdk/v2"
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { env } from "@/lib/env";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import { createPortoneId } from "@/lib/billing/portone-ids";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { kpnApprovedCardCompanies } from "@/lib/portone/cards";
 
 type BillingKeyIssueResponse = {
   code?: string;
@@ -124,7 +126,7 @@ export async function requestOwnerOneTimePayment(params: {
     throw new Error("PortOne 일반결제 설정을 먼저 확인해 주세요.");
   }
 
-  const paymentId = `owner_payment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const paymentId = createPortoneId("opay");
   const result = await requestPayment({
     storeId: env.portoneStoreId,
     channelKey: env.portonePaymentChannelKey,
@@ -133,6 +135,9 @@ export async function requestOwnerOneTimePayment(params: {
     totalAmount: params.amount,
     currency: "KRW",
     payMethod: "CARD",
+    card: {
+      availableCards: kpnApprovedCardCompanies,
+    },
     customer: {
       customerId: params.customerId,
       fullName: params.customerName,
@@ -175,7 +180,7 @@ export async function issueOwnerBillingKey(params: {
     throw new Error("PortOne 정기결제 설정을 먼저 확인해 주세요.");
   }
 
-  const issueId = `owner_billing_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const issueId = createPortoneId("obill");
   const result = await requestIssueBillingKey({
     storeId: env.portoneStoreId,
     channelKey: env.portoneBillingChannelKey,

@@ -74,7 +74,11 @@ export function BillingConsent({
             ref={continueButtonRef}
             fullWidth
             disabled={loading || !agreed}
-            className="h-[48px] rounded-[12px] bg-[#8fb1a7] text-[15px] font-semibold tracking-[-0.03em] text-white disabled:bg-[#8fb1a7] disabled:text-white disabled:opacity-100"
+            className={`h-[48px] rounded-[12px] text-[15px] font-semibold tracking-[-0.03em] text-white disabled:text-white disabled:opacity-100 ${
+              agreed
+                ? "bg-[#1f5b51] hover:bg-[#194a42] disabled:bg-[#1f5b51]"
+                : "bg-[#8fb1a7] disabled:bg-[#8fb1a7]"
+            }`}
             onClick={onContinue}
           >
             {continueLabel}

@@ -349,23 +349,6 @@ export default function StaffManagementScreen() {
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-0 z-20 bg-white/95 pb-1 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setWeekStart(addDays(weekStart, -7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="이전 주">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#111827]">
-              <CalendarDays className="h-4 w-4 text-[#64748b]" />
-              {formatWeekLabel(weekStart)}
-            </div>
-            <button type="button" onClick={() => setWeekStart(addDays(weekStart, 7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="다음 주">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
       <StaffBoardTabs activeTab={boardTab} onChange={setBoardTab} />
 
       <div className={cn("grid gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
@@ -376,14 +359,34 @@ export default function StaffManagementScreen() {
                 <h3 className="text-[18px] font-semibold text-[#111827]">
                   {boardTab === "list" ? "스태프 목록" : "스태프별 주간 근무표"}
                 </h3>
-                <p className="mt-1 text-[13px] text-[#64748b]">
-                  {boardTab === "list" ? "예약 배정 전 오늘 근무 가능 여부를 확인합니다." : "근무 가능, 휴무, 연차, 반차, 승인대기를 한 줄에서 확인합니다."}
-                </p>
+                {boardTab === "list" ? (
+                  <p className="mt-1 text-[13px] text-[#64748b]">예약 배정 전 오늘 근무 가능 여부를 확인합니다.</p>
+                ) : (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setWeekStart(addDays(weekStart, -7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="이전 주">
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#111827]">
+                      <CalendarDays className="h-4 w-4 text-[#64748b]" />
+                      {formatWeekLabel(weekStart)}
+                    </div>
+                    <button type="button" onClick={() => setWeekStart(addDays(weekStart, 7))} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="다음 주">
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                      오늘
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2 [&>button]:h-10 [&>button]:w-[132px] [&>button]:shrink-0">
                 <span className="rounded-full bg-[#eef7f4] px-3 py-1 text-[12px] font-semibold text-[#1f6b5b]">{staff.length}명</span>
-                <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
-                <GhostButton label="휴무/연차 등록" onClick={() => setLeaveDialogOpen(true)} />
+                {boardTab === "list" ? (
+                  <>
+                    <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
+                    <GhostButton label="휴무/연차 등록" onClick={() => setLeaveDialogOpen(true)} />
+                  </>
+                ) : null}
               </div>
             </div>
             {boardTab === "list" ? (

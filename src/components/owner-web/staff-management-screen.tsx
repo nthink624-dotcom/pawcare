@@ -71,6 +71,7 @@ const defaultStaff: StaffMember[] = [
   { id: "staff-4", name: "강리오", phone: "010-5555-9081", role: "목욕 / 부분 미용", defaultDays: ["mon", "tue", "wed", "fri", "sat"], startTime: "10:00", endTime: "17:00", regularOff: "목, 일", annualRemain: 4, todayBookings: 3, weekBookings: 13 },
   { id: "staff-5", name: "오다은", phone: "010-7777-1102", role: "파트타임 / 목욕", defaultDays: ["wed", "thu", "fri", "sat"], startTime: "13:00", endTime: "19:00", regularOff: "월, 화, 일", annualRemain: 3, todayBookings: 1, weekBookings: 7 },
   { id: "staff-6", name: "한지우", phone: "010-9090-1024", role: "파트타임 / 보조", defaultDays: ["mon", "tue", "sat"], startTime: "12:00", endTime: "18:00", regularOff: "수, 목, 금, 일", annualRemain: 2, todayBookings: 0, weekBookings: 4 },
+  { id: "staff-7", name: "윤하나", phone: "010-2323-1188", role: "미용 보조 / 목욕", defaultDays: ["mon", "wed", "thu", "sat"], startTime: "11:00", endTime: "18:00", regularOff: "화, 금, 일", annualRemain: 2, todayBookings: 1, weekBookings: 5 },
 ];
 
 const initialRequests: LeaveRequest[] = [
@@ -385,7 +386,7 @@ export default function StaffManagementScreen() {
               ) : null}
             </div>
             {boardTab === "list" ? (
-              <div className="max-h-[444px] overflow-y-auto">
+              <div className="max-h-[532px] overflow-y-auto">
                 {staff.map((staffMember) => {
                   const availability = getStaffAvailability(staffMember, requests);
                   const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests);
@@ -424,7 +425,7 @@ export default function StaffManagementScreen() {
                       <span key={day.date} className="text-center">{day.label}</span>
                     ))}
                   </div>
-                  <div className="max-h-[444px] overflow-y-auto">
+                  <div className="max-h-[532px] overflow-y-auto">
                     {staff.map((staffMember) => (
                       <div key={staffMember.id} className="grid grid-cols-[150px_repeat(7,minmax(100px,1fr))] gap-2 border-b border-[#edf2f7] px-4 py-3 last:border-b-0">
                         <button type="button" onClick={() => selectStaff(staffMember)} className="min-w-0 text-left">

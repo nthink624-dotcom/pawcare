@@ -44,7 +44,7 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-[#64748b]">
+    <label className="flex h-12 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 text-[#64748b]">
       <Search className="h-4 w-4 text-[#94a3b8]" />
       <input
         className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
@@ -72,7 +72,7 @@ export function PrimaryButton({ label, onClick }: { label: string; onClick?: () 
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center justify-center rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
+      className="inline-flex h-12 items-center justify-center rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
     >
       {label}
     </button>

@@ -15,7 +15,6 @@ import type { Appointment, AppointmentStatus, BootstrapPayload } from "@/types/d
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "pending" | "confirmed";
-type ScheduleView = "day" | "week" | "month";
 type BookingPhase = "now" | "upcoming" | "past";
 type BookingCardTone = "confirmed" | "active" | "pending" | "completed";
 type ScheduleMetric = { key: SummaryMetricKey; label: string; value?: string };
@@ -63,11 +62,6 @@ const bookingCardHorizontalInset = "2.5%";
 const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => `${scheduleStartHour + index}:00`);
 const todayScheduleDate = currentDateInTimeZone();
 const todayScheduleDateLabel = formatScheduleDateLabel(todayScheduleDate);
-const scheduleViewOptions: Array<{ key: ScheduleView; label: string }> = [
-  { key: "day", label: "일간" },
-  { key: "week", label: "주간" },
-  { key: "month", label: "월간" },
-];
 const weekdayShortLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
@@ -1232,33 +1226,16 @@ function ApprovalModeSettingsPanel({
   );
 }
 
-function ScheduleViewSwitch({
-  value,
-  onChange,
+function ScheduleBoardActionRow({
   action,
 }: {
-  value: ScheduleView;
-  onChange: (view: ScheduleView) => void;
   action?: ReactNode;
 }) {
+  if (!action) return null;
+
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[#e2e8f0] bg-white px-4 py-2">
-      <div className="inline-flex rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-1">
-        {scheduleViewOptions.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => onChange(option.key)}
-            className={cn(
-              "h-8 rounded-[6px] px-3 text-[13px] transition",
-              value === option.key ? "bg-white text-[#1f6b5b] shadow-[0_1px_4px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#111827]",
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <div className="min-w-0 flex-1">{action}</div>
+    <div className="flex items-center justify-end border-b border-[#e2e8f0] bg-white px-4 py-2">
+      <div className="min-w-0">{action}</div>
     </div>
   );
 }
@@ -2383,7 +2360,6 @@ export default function CalendarManagementScreen({
   const [demoStaffCount, setDemoStaffCount] = useState(defaultVisibleStaffCount);
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
-  const [scheduleView, setScheduleView] = useState<ScheduleView>("day");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
   const [selectedBookingId, setSelectedBookingId] = useState(() => getPriorityBookingId(selectedDateBookings, getCurrentDayHour()));
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
@@ -2619,7 +2595,6 @@ export default function CalendarManagementScreen({
       setSelectedBookingId(appointment.id);
       setActiveMetric("today");
       setReservationStatusFilter("all");
-      setScheduleView("day");
       setScheduleDialogOpen(false);
     };
 
@@ -2679,9 +2654,7 @@ export default function CalendarManagementScreen({
 
       <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
         <WebSurface className="min-w-0 overflow-hidden">
-          <ScheduleViewSwitch
-            value={scheduleView}
-            onChange={setScheduleView}
+          <ScheduleBoardActionRow
             action={
               activeMetric === "today" && manualApprovalEnabled ? (
                 <ReservationFilterStrip
@@ -2701,31 +2674,16 @@ export default function CalendarManagementScreen({
             onStaffChange={setStaff}
             onDemoStaffCountChange={handleDemoStaffCountChange}
           />
-          {scheduleView === "day" ? (
-            <DailyScheduleGrid
-              bookings={filteredBookings}
-              staff={staff}
-              visibleStaff={visibleStaff}
-              activeMetric={activeMetric}
-              manualApprovalEnabled={manualApprovalEnabled}
-              selectedBookingId={selectedBooking?.id ?? ""}
-              onSelectBooking={setSelectedBookingId}
-              onMoveBooking={handleMoveBooking}
-            />
-          ) : scheduleView === "week" ? (
-            <WeeklyScheduleOverview
-              bookings={filteredBookings}
-              selectedDate={selectedDate}
-              selectedBookingId={selectedBooking?.id ?? ""}
-              onSelectBooking={setSelectedBookingId}
-            />
-          ) : (
-            <MonthlyScheduleOverview
-              bookings={filteredBookings}
-              selectedDate={selectedDate}
-              onSelectBooking={setSelectedBookingId}
-            />
-          )}
+          <DailyScheduleGrid
+            bookings={filteredBookings}
+            staff={staff}
+            visibleStaff={visibleStaff}
+            activeMetric={activeMetric}
+            manualApprovalEnabled={manualApprovalEnabled}
+            selectedBookingId={selectedBooking?.id ?? ""}
+            onSelectBooking={setSelectedBookingId}
+            onMoveBooking={handleMoveBooking}
+          />
         </WebSurface>
 
         <BookingSidePanel

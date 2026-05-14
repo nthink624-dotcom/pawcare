@@ -5,7 +5,6 @@ import { Check, ChevronDown, ChevronRight, Trash2, X } from "lucide-react";
 
 import { customerRows } from "@/components/owner-web/owner-web-data";
 import {
-  Chip,
   GhostButton,
   PrimaryButton,
   SearchField,
@@ -13,15 +12,14 @@ import {
   TableRow,
   TableShell,
   ToolbarRow,
-  WebSectionTitle,
 } from "@/components/owner-web/owner-web-ui";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 type CustomerRow = (typeof customerRows)[number];
-type CustomerFilter = "전체" | "예약 있음" | "예약 없음" | "미용 기록 있음" | "메모 있음" | "알림 수신" | "알림 중지" | "반려동물 미등록";
-const customerFilterOptions: CustomerFilter[] = ["예약 있음", "예약 없음", "미용 기록 있음", "메모 있음", "알림 수신", "알림 중지", "반려동물 미등록"];
+type CustomerFilter = "전체" | "알림 수신" | "알림 중지";
+const customerFilterOptions: CustomerFilter[] = ["전체", "알림 수신", "알림 중지"];
 const initialStaffComments: Record<string, string> = {
   "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
@@ -85,13 +83,8 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerRow[] {
 
 function matchesCustomerFilter(row: CustomerRow, filter: CustomerFilter) {
   if (filter === "전체") return true;
-  if (filter === "예약 있음") return row.nextBooking !== "예약 없음";
-  if (filter === "예약 없음") return row.nextBooking === "예약 없음";
-  if (filter === "미용 기록 있음") return row.tags.includes("미용 기록");
-  if (filter === "메모 있음") return row.memo !== "고객 메모가 없습니다.";
   if (filter === "알림 수신") return row.alerts.includes("수신");
   if (filter === "알림 중지") return row.alerts.includes("중지");
-  if (filter === "반려동물 미등록") return row.pets.includes("반려동물 없음");
   return true;
 }
 
@@ -205,29 +198,19 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   }
 
   return (
-    <div className="space-y-6">
-      <WebSectionTitle
-        title="고객 관리"
-        description="고객 목록은 넓게 보고, 상세 정보는 오른쪽 시트에서 빠르게 확인합니다."
-        action={<PrimaryButton label="고객 추가" onClick={addCustomer} />}
-      />
-
-      <ToolbarRow>
-        <SearchField placeholder="보호자명, 연락처, 반려동물 이름 검색" />
+    <div className="space-y-4">
+      <ToolbarRow className="gap-3">
+        <div className="min-w-[320px] flex-1">
+          <SearchField placeholder="보호자명, 연락처, 반려동물 이름 검색" />
+        </div>
+        <PrimaryButton label="고객 추가" onClick={addCustomer} />
       </ToolbarRow>
 
       <ToolbarRow className="justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip
-            label="전체"
-            active={customerFilter === "전체"}
-            onClick={() => {
-              setCustomerFilter("전체");
-            }}
-          />
+        <div className="flex flex-wrap items-center gap-2 [&>div>button]:h-10 [&>div>button]:w-[104px] [&>div>button]:shrink-0">
           <CustomerFilterDropdown value={customerFilter} onChange={setCustomerFilter} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 [&>button]:h-10 [&>button]:w-[104px] [&>button]:shrink-0">
           <SelectLike
             label={recentFirst ? "최신 방문순" : "이름순"}
             onClick={() => {
@@ -339,7 +322,7 @@ function CustomerFilterDropdown({
             : "border-[#cfded8] bg-[#f6fbf9] text-[#1f6b5b]"
         }`}
       >
-        <span>{value === "전체" ? "고객 필터" : value}</span>
+        <span>{value}</span>
         <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
       </button>
 

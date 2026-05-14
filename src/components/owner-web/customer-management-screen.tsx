@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Trash2, X } from "lucide-react";
 
 import { customerRows } from "@/components/owner-web/owner-web-data";
 import {
@@ -20,6 +20,8 @@ import type { BootstrapPayload } from "@/types/domain";
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 type CustomerRow = (typeof customerRows)[number];
+type CustomerFilter = "전체" | "예약 있음" | "예약 없음" | "미용 기록 있음" | "메모 있음" | "알림 수신" | "알림 중지" | "반려동물 미등록";
+const customerFilterOptions: CustomerFilter[] = ["예약 있음", "예약 없음", "미용 기록 있음", "메모 있음", "알림 수신", "알림 중지", "반려동물 미등록"];
 const initialStaffComments: Record<string, string> = {
   "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
@@ -81,6 +83,18 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerRow[] {
   });
 }
 
+function matchesCustomerFilter(row: CustomerRow, filter: CustomerFilter) {
+  if (filter === "전체") return true;
+  if (filter === "예약 있음") return row.nextBooking !== "예약 없음";
+  if (filter === "예약 없음") return row.nextBooking === "예약 없음";
+  if (filter === "미용 기록 있음") return row.tags.includes("미용 기록");
+  if (filter === "메모 있음") return row.memo !== "고객 메모가 없습니다.";
+  if (filter === "알림 수신") return row.alerts.includes("수신");
+  if (filter === "알림 중지") return row.alerts.includes("중지");
+  if (filter === "반려동물 미등록") return row.pets.includes("반려동물 없음");
+  return true;
+}
+
 export default function CustomerManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
   const initialCustomers = useMemo(() => buildCustomerRowsFromBootstrap(initialData), [initialData]);
   const [customers, setCustomers] = useState<CustomerRow[]>(() => initialCustomers);
@@ -89,22 +103,17 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
-  const [tagFilterActive, setTagFilterActive] = useState(false);
   const [recentFirst, setRecentFirst] = useState(true);
-  const [chipFilter, setChipFilter] = useState("전체");
+  const [customerFilter, setCustomerFilter] = useState<CustomerFilter>("전체");
 
   const selectedCustomer = useMemo(
     () => customers.find((row) => row.id === selectedCustomerId) ?? customers[0],
     [customers, selectedCustomerId],
   );
   const displayedCustomers = useMemo(() => {
-    const tagged = tagFilterActive ? customers.filter((row) => row.tags.length > 0) : customers;
-    const filtered =
-      chipFilter === "전체"
-        ? tagged
-        : tagged.filter((row) => row.tags.some((tag) => tag.includes(chipFilter.replace(" 고객", ""))));
+    const filtered = customers.filter((row) => matchesCustomerFilter(row, customerFilter));
     return [...filtered].sort((first, second) => (recentFirst ? first.recentVisit.localeCompare(second.recentVisit) : first.name.localeCompare(second.name)));
-  }, [chipFilter, customers, recentFirst, tagFilterActive]);
+  }, [customerFilter, customers, recentFirst]);
   const selectedPetName = selectedCustomer?.pets[0] ?? "";
   const selectedCommentKey = selectedCustomer ? `${selectedPetName}|${selectedCustomer.name}` : "";
   const selectedStaffComment = staffComments[selectedCommentKey] ?? "";
@@ -205,48 +214,27 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
 
       <ToolbarRow>
         <SearchField placeholder="보호자명, 연락처, 반려동물 이름 검색" />
-        <SelectLike
-          label={tagFilterActive ? "태그 고객만" : "고객 필터"}
-          onClick={() => {
-            setTagFilterActive((current) => !current);
-          }}
-        />
-        <SelectLike
-          label={recentFirst ? "최신 방문순" : "이름순"}
-          onClick={() => {
-            setRecentFirst((current) => !current);
-          }}
-        />
-        <GhostButton label={deleteMode ? "삭제 모드 닫기" : "고객 삭제"} onClick={() => setDeleteMode((current) => !current)} />
       </ToolbarRow>
 
       <ToolbarRow className="justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          {["전체", "정기 고객", "재방문 임박", "상담 필요"].map((label) => (
-            <Chip
-              key={label}
-              label={label}
-              active={chipFilter === label}
-              tone={label === "전체" ? "default" : "soft"}
-              onClick={() => {
-                setChipFilter(label);
-              }}
-            />
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <GhostButton
-            label={tagFilterActive ? "태그 필터 해제" : "태그 필터"}
+          <Chip
+            label="전체"
+            active={customerFilter === "전체"}
             onClick={() => {
-              setTagFilterActive((current) => !current);
+              setCustomerFilter("전체");
             }}
           />
-          <GhostButton
-            label={recentFirst ? "이름순 정렬" : "최신순 정렬"}
+          <CustomerFilterDropdown value={customerFilter} onChange={setCustomerFilter} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SelectLike
+            label={recentFirst ? "최신 방문순" : "이름순"}
             onClick={() => {
               setRecentFirst((current) => !current);
             }}
           />
+          <GhostButton label={deleteMode ? "삭제 모드 닫기" : "고객 삭제"} onClick={() => setDeleteMode((current) => !current)} />
         </div>
       </ToolbarRow>
 
@@ -316,6 +304,72 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           onToggleAlertStatus={toggleAlertStatus}
           onToggleDeleteMode={() => setDeleteMode((current) => !current)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: CustomerFilter;
+  onChange: (value: CustomerFilter) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        const nextFocus = event.relatedTarget as Node | null;
+        if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={`inline-flex h-[34px] items-center justify-center gap-2 rounded-[8px] border px-3.5 text-[13px] font-medium transition ${
+          value === "전체"
+            ? "border-[#dbe2ea] bg-white text-[#475569]"
+            : "border-[#cfded8] bg-[#f6fbf9] text-[#1f6b5b]"
+        }`}
+      >
+        <span>{value === "전체" ? "고객 필터" : value}</span>
+        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div
+          role="listbox"
+          className="absolute left-0 top-[calc(100%+8px)] z-30 w-[180px] overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.14)]"
+        >
+          {customerFilterOptions.map((option) => {
+            const selected = value === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={`flex h-9 w-full items-center justify-between gap-2 rounded-[8px] px-3 text-left text-[13px] transition ${
+                  selected ? "bg-[#edf7f3] font-semibold text-[#1f6b5b]" : "text-[#334155] hover:bg-[#f8fafc]"
+                }`}
+              >
+                <span>{option}</span>
+                {selected ? <Check className="h-4 w-4" /> : null}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
     </div>
   );

@@ -12,9 +12,9 @@ import {
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
   method: z.enum(["local", "portone"]).default("local"),
-  name: z.string().trim().min(1),
-  birthDate: z.string().min(8).max(8),
-  phoneNumber: z.string().min(10).max(11),
+  name: z.string().trim().optional().default(""),
+  birthDate: z.string().optional().default(""),
+  phoneNumber: z.string().optional().default(""),
 });
 
 function normalizePhoneNumber(value: string) {
@@ -37,6 +37,17 @@ export async function POST(request: NextRequest) {
       phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
     });
 
+    if (payload.method === "portone") {
+      const result = await createProviderIdentityVerificationRequest(payload);
+
+      return NextResponse.json({
+        success: true,
+        verificationRequestId: result.verificationRequestId,
+        devVerificationCode: null,
+        message: "본인확인 요청을 준비했어요.",
+      });
+    }
+
     if (!isValidBirthDate8(payload.birthDate)) {
       return NextResponse.json({ message: "생년월일은 숫자 8자리로 입력해 주세요." }, { status: 400 });
     }
@@ -52,17 +63,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result =
-      payload.method === "portone"
-        ? await createProviderIdentityVerificationRequest(payload)
-        : await createLocalIdentityVerificationRequest(payload);
+    const result = await createLocalIdentityVerificationRequest(payload);
 
     return NextResponse.json({
       success: true,
       verificationRequestId: result.verificationRequestId,
       devVerificationCode: "devVerificationCode" in result ? result.devVerificationCode ?? null : null,
       message:
-        payload.method === "portone"
+        false
           ? "본인확인 요청을 준비했어요."
           : "인증번호를 전송했어요. 문자 메시지를 확인해 주세요.",
     });

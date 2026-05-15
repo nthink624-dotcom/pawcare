@@ -54,6 +54,11 @@ type VerificationApiResponse = {
   verificationRequestId?: string | null;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
+  identity?: {
+    name?: string | null;
+    birthDate?: string | null;
+    phoneNumber?: string | null;
+  } | null;
 };
 
 const initialAgreements: AgreementState = {
@@ -626,17 +631,17 @@ export default function SignupForm({
       return;
     }
 
-    if (!fields.name.trim()) {
+    if (bypass && !fields.name.trim()) {
       setMessage("이름을 입력해 주세요.");
       return;
     }
 
-    if (!isValidBirthDate8(fields.birthDate)) {
+    if (bypass && !isValidBirthDate8(fields.birthDate)) {
       setMessage("생년월일 8자리를 입력해 주세요.");
       return;
     }
 
-    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) {
+    if (bypass && !/^01\d{8,9}$/.test(fields.phoneNumber)) {
       setMessage("휴대폰번호를 올바르게 입력해 주세요.");
       return;
     }
@@ -665,19 +670,25 @@ export default function SignupForm({
 
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const hasPrefilledIdentity =
+        fields.name.trim() && isValidBirthDate8(fields.birthDate) && /^01\d{8,9}$/.test(fields.phoneNumber);
 
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: fields.name.trim(),
-          phoneNumber: fields.phoneNumber,
-          birthYear: fields.birthDate.slice(0, 4),
-          birthMonth: fields.birthDate.slice(4, 6),
-          birthDay: fields.birthDate.slice(6, 8),
-        },
+        ...(hasPrefilledIdentity
+          ? {
+              customer: {
+                fullName: fields.name.trim(),
+                phoneNumber: fields.phoneNumber,
+                birthYear: fields.birthDate.slice(0, 4),
+                birthMonth: fields.birthDate.slice(4, 6),
+                birthDay: fields.birthDate.slice(6, 8),
+              },
+            }
+          : {}),
         ...(bypass ? { bypass } : {}),
       });
 
@@ -703,6 +714,15 @@ export default function SignupForm({
       }
 
       setVerificationToken(verifyResult.verificationToken);
+      if (verifyResult.identity) {
+        setFields((prev) => ({
+          ...prev,
+          name: verifyResult.identity?.name ?? prev.name,
+          birthDate: verifyResult.identity?.birthDate ?? prev.birthDate,
+          phoneNumber: verifyResult.identity?.phoneNumber ?? prev.phoneNumber,
+          verificationCode: "",
+        }));
+      }
       setMessage(successMessage);
     } finally {
       setLoading(false);
@@ -1075,29 +1095,29 @@ export default function SignupForm({
 
       {verificationSheetOpen ? (
         <div
-          className="fixed inset-0 z-50 bg-black/35"
+          className="fixed inset-0 z-50 bg-black/30"
           onClick={(event) => {
             if (event.target === event.currentTarget) setVerificationSheetOpen(false);
           }}
         >
           <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="shrink-0 border-b border-[#f0e9df] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
-                <div className="mt-4 flex items-start justify-between gap-4">
-                  <div className="space-y-2.5">
+            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[18px] border border-b-0 border-[#e5e7eb] bg-white">
+              <div className="shrink-0 border-b border-[#e5e7eb] px-5 pb-4 pt-4">
+                <div className="mx-auto h-1 w-11 rounded-full bg-[#d1d5db]" />
+                <div className="mt-5 flex items-start justify-between gap-4">
+                  <div className="space-y-3">
                     <div>
-                      <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#111827]">본인 확인</h2>
-                      <p className="mt-2 text-[13px] leading-[1.55] text-[#6f6b64]">
+                      <h2 className="text-[24px] font-semibold text-[#111827]">본인 확인</h2>
+                      <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
                         입력은 거의 끝났어요.
                         <br />
                         운영자 확인만 마치면 바로 시작할 수 있어요.
                       </p>
                     </div>
 
-                    <div className="rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-2.5">
-                      <p className="text-[12px] font-semibold text-[#5f665f]">왜 필요한가요?</p>
-                      <p className="mt-1 text-[12px] leading-[1.5] text-[#8b847b]">
+                    <div className="rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3">
+                      <p className="text-[12px] font-semibold text-[#475569]">왜 필요한가요?</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[#64748b]">
                         예약·고객 정보 보호와 계정 확인을 위해 필요해요.
                       </p>
                     </div>
@@ -1106,7 +1126,7 @@ export default function SignupForm({
                   <button
                     type="button"
                     onClick={() => setVerificationSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[24px] leading-none text-[#64748b]"
                     aria-label="본인 확인 닫기"
                   >
                     ×
@@ -1116,7 +1136,7 @@ export default function SignupForm({
 
               <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
                 <div>
-                  <p className="text-[14px] font-semibold text-[#2f2a25]">편한 방법으로 확인해 주세요</p>
+                  <p className="text-[14px] font-semibold text-[#111827]">확인 방법</p>
                   <div className="mt-3 space-y-2">
                     {verificationMethods.map((method) => (
                       <button
@@ -1135,25 +1155,25 @@ export default function SignupForm({
                           setVerificationDetailSheetOpen(true);
                         }}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-[16px] border px-4 py-3.5 text-left transition",
+                          "flex w-full items-center gap-3 rounded-[10px] border bg-white px-4 py-3.5 text-left transition",
                           selectedVerificationMethod === method.id
-                            ? "border-[#cfe2dc] bg-[#f3faf6]"
-                            : "border-[#e8e1d6] bg-white",
+                            ? "border-[#2f7866]"
+                            : "border-[#d1d5db] hover:border-[#94a3b8]",
                         )}
                       >
-                        <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
                           <VerificationMethodLogo method={method.id} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[14px] font-semibold text-[#171411]">{method.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-5 text-[#8b847b]">{method.description}</p>
+                          <p className="text-[14px] font-semibold text-[#111827]">{method.title}</p>
+                          <p className="mt-0.5 text-[12px] leading-5 text-[#64748b]">{method.description}</p>
                         </div>
                         <span
                           className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition",
                             selectedVerificationMethod === method.id
                               ? "border-[#1f6b5b] bg-[#1f6b5b] text-white"
-                              : "border-[#d8d1c6] bg-white text-transparent",
+                              : "border-[#d1d5db] bg-white text-transparent",
                           )}
                         >
                           <Check className="h-3.5 w-3.5" />
@@ -1164,22 +1184,22 @@ export default function SignupForm({
                 </div>
 
                 {selectedVerificationMeta ? (
-                  <div className="mt-5 rounded-[16px] border border-[#ece4da] bg-[#fcfaf7] px-4 py-3.5">
+                  <div className="mt-5 rounded-[10px] border border-[#d1d5db] bg-white px-4 py-3.5">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
                         <VerificationMethodLogo method={selectedVerificationMeta.id} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-semibold text-[#171411]">{selectedVerificationMeta.title}</p>
-                        <p className="mt-0.5 text-[12px] leading-5 text-[#8b847b]">{selectedVerificationMeta.description}</p>
+                        <p className="text-[14px] font-semibold text-[#111827]">{selectedVerificationMeta.title}</p>
+                        <p className="mt-0.5 text-[12px] leading-5 text-[#64748b]">{selectedVerificationMeta.description}</p>
                       </div>
                     </div>
                   </div>
                 ) : null}
 
                 {selectedVerificationMethod === "phone" ? (
-                  <div className="mt-5 space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">휴대폰 본인인증 정보 입력</p>
+                  <div className="mt-5 space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
+                    <p className="text-[13px] font-semibold text-[#475569]">휴대폰 본인인증 정보 입력</p>
                     <div className="space-y-3">
                       <AuthField label="이름">
                         <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
@@ -1203,7 +1223,7 @@ export default function SignupForm({
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#7b746b]">통신사 선택</p>
+                      <p className="text-[12px] font-medium text-[#64748b]">통신사 선택</p>
                       <div className="grid grid-cols-4 gap-2">
                         {phoneCarrierOptions.map((carrier) => (
                           <button
@@ -1211,10 +1231,10 @@ export default function SignupForm({
                             type="button"
                             onClick={() => setPhoneCarrier(carrier.value)}
                             className={cn(
-                              "h-[42px] rounded-[12px] border text-[13px] font-semibold transition",
+                              "h-[40px] rounded-[8px] border bg-white text-[13px] font-semibold transition",
                               phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] bg-[#eff8f6] text-[#1f6b5b]"
-                                : "border-[#e4ddd2] bg-white text-[#5f5a54]",
+                                ? "border-[#1f6b5b] text-[#1f6b5b]"
+                                : "border-[#d1d5db] text-[#475569] hover:border-[#94a3b8]",
                             )}
                           >
                             {carrier.label}
@@ -1228,7 +1248,7 @@ export default function SignupForm({
                     </button>
 
                     {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[14px] border border-[#ebe2d6] bg-white p-3">
+                      <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-3">
                         <AuthField label="인증번호">
                           <AuthInput
                             value={fields.verificationCode}
@@ -1251,8 +1271,8 @@ export default function SignupForm({
                 ) : null}
 
                 {selectedVerificationMethod === "pass" ? (
-                  <div className="mt-5 space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">PASS 인증 정보 입력</p>
+                  <div className="mt-5 space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
+                    <p className="text-[13px] font-semibold text-[#475569]">PASS 인증 정보 입력</p>
                     <div className="space-y-3">
                       <AuthField label="이름">
                         <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
@@ -1287,9 +1307,9 @@ export default function SignupForm({
                 ) : null}
 
                 {selectedVerificationMethod && selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="mt-5 rounded-[16px] border border-dashed border-[#d9d3ca] bg-[#fcfaf7] px-4 py-5 text-center">
-                    <p className="text-[14px] font-semibold text-[#2f2a25]">준비 중인 인증 수단입니다</p>
-                    <p className="mt-2 text-[12px] leading-5 text-[#8b847b]">
+                  <div className="mt-5 rounded-[10px] border border-dashed border-[#d1d5db] bg-white px-4 py-5 text-center">
+                    <p className="text-[14px] font-semibold text-[#111827]">준비 중인 인증 수단입니다</p>
+                    <p className="mt-2 text-[12px] leading-5 text-[#64748b]">
                       실제 인증 연동 전까지는 사용할 수 없어요.
                       <br />
                       서버에서 인증사 결과를 조회해 확인하도록 연결이 필요합니다.
@@ -1310,7 +1330,7 @@ export default function SignupForm({
               </div>
 
               {verificationToken ? (
-                <div className="shrink-0 border-t border-[#f0e9df] bg-white px-5 pb-5 pt-4">
+                <div className="shrink-0 border-t border-[#e5e7eb] bg-white px-5 pb-5 pt-4">
                   <button
                     type="button"
                     onClick={submitSignup}
@@ -1328,15 +1348,15 @@ export default function SignupForm({
 
       {verificationDetailSheetOpen && selectedVerificationMeta ? (
         <div
-          className="fixed inset-0 z-50 bg-black/35"
+          className="fixed inset-0 z-50 bg-black/30"
           onClick={(event) => {
             if (event.target === event.currentTarget) setVerificationDetailSheetOpen(false);
           }}
         >
           <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="shrink-0 border-b border-[#f0e9df] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
+            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[18px] border border-b-0 border-[#e5e7eb] bg-white">
+              <div className="shrink-0 border-b border-[#e5e7eb] px-5 pb-4 pt-4">
+                <div className="mx-auto h-1 w-11 rounded-full bg-[#d1d5db]" />
                 <div className="mt-4 flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <button
@@ -1347,14 +1367,14 @@ export default function SignupForm({
                         setVerificationSheetOpen(true);
                         setMessage(null);
                       }}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]"
                       aria-label="인증 수단 다시 선택하기"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </button>
                     <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-[#7b746b]">본인 확인</p>
-                      <h2 className="mt-1 truncate text-[20px] font-extrabold tracking-[-0.04em] text-[#111827]">
+                      <p className="text-[12px] font-semibold text-[#64748b]">본인 확인</p>
+                      <h2 className="mt-1 truncate text-[20px] font-semibold text-[#111827]">
                         {selectedVerificationMeta.title}
                       </h2>
                     </div>
@@ -1363,7 +1383,7 @@ export default function SignupForm({
                   <button
                     type="button"
                     onClick={() => setVerificationDetailSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e4ddd2] bg-[#fffdfa] text-[#615d57]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[24px] leading-none text-[#64748b]"
                     aria-label="본인 확인 닫기"
                   >
                     ×
@@ -1373,8 +1393,8 @@ export default function SignupForm({
 
               <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
                 {selectedVerificationMethod === "phone" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">휴대폰 본인인증 정보 입력</p>
+                  <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
+                    <p className="text-[13px] font-semibold text-[#475569]">휴대폰 본인인증 정보 입력</p>
                     <div className="space-y-3">
                       <AuthField label="이름">
                         <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
@@ -1398,7 +1418,7 @@ export default function SignupForm({
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#7b746b]">통신사 선택</p>
+                      <p className="text-[12px] font-medium text-[#64748b]">통신사 선택</p>
                       <div className="grid grid-cols-4 gap-2">
                         {phoneCarrierOptions.map((carrier) => (
                           <button
@@ -1406,10 +1426,10 @@ export default function SignupForm({
                             type="button"
                             onClick={() => setPhoneCarrier(carrier.value)}
                             className={cn(
-                              "h-[42px] rounded-[12px] border text-[13px] font-semibold transition",
+                              "h-[40px] rounded-[8px] border bg-white text-[13px] font-semibold transition",
                               phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] bg-[#eff8f6] text-[#1f6b5b]"
-                                : "border-[#e4ddd2] bg-white text-[#5f5a54]",
+                                ? "border-[#1f6b5b] text-[#1f6b5b]"
+                                : "border-[#d1d5db] text-[#475569] hover:border-[#94a3b8]",
                             )}
                           >
                             {carrier.label}
@@ -1423,7 +1443,7 @@ export default function SignupForm({
                     </button>
 
                     {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[14px] border border-[#ebe2d6] bg-white p-3">
+                      <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-3">
                         <AuthField label="인증번호">
                           <AuthInput
                             value={fields.verificationCode}
@@ -1458,7 +1478,7 @@ export default function SignupForm({
               </div>
 
               {verificationToken ? (
-                <div className="shrink-0 border-t border-[#f0e9df] bg-white px-5 pb-5 pt-4">
+                <div className="shrink-0 border-t border-[#e5e7eb] bg-white px-5 pb-5 pt-4">
                   <button
                     type="button"
                     onClick={submitSignup}

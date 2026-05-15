@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verificationToken: completed.verificationToken,
+      identity: completed.identity,
       message: "본인 확인이 완료되었습니다.",
     });
   } catch (error) {

@@ -170,9 +170,23 @@ function createMemoryRow(input: {
 }
 
 function mapProviderCustomer(raw: Record<string, unknown>): ProviderCustomer {
+  const name =
+    typeof raw.name === "string"
+      ? raw.name.trim()
+      : typeof raw.fullName === "string"
+        ? raw.fullName.trim()
+        : undefined;
+  const phoneNumber =
+    typeof raw.phoneNumber === "string"
+      ? normalizePhoneNumber(raw.phoneNumber)
+      : typeof raw.phone_number === "string"
+        ? normalizePhoneNumber(raw.phone_number)
+        : undefined;
   const birthDate =
     typeof raw.birthDate === "string"
       ? normalizeBirthDate(raw.birthDate)
+      : typeof raw.birth_date === "string"
+        ? normalizeBirthDate(raw.birth_date)
       : typeof raw.birthYear === "string" &&
           typeof raw.birthMonth === "string" &&
           typeof raw.birthDay === "string"
@@ -181,8 +195,8 @@ function mapProviderCustomer(raw: Record<string, unknown>): ProviderCustomer {
 
   return {
     id: typeof raw.id === "string" ? raw.id : undefined,
-    name: typeof raw.name === "string" ? raw.name.trim() : undefined,
-    phoneNumber: typeof raw.phoneNumber === "string" ? normalizePhoneNumber(raw.phoneNumber) : undefined,
+    name,
+    phoneNumber,
     birthDate,
     ci: typeof raw.ci === "string" ? raw.ci : undefined,
     di: typeof raw.di === "string" ? raw.di : undefined,
@@ -472,30 +486,36 @@ export async function completePortoneIdentityVerification(input: {
     };
   }
 
-  if (providerCustomer.name !== row.name) {
+  if (row.name && providerCustomer.name !== row.name) {
     return { ok: false as const, message: "본인확인 결과의 이름 정보가 일치하지 않습니다." };
   }
 
-  if (providerCustomer.phoneNumber !== row.phone_number) {
+  if (row.phone_number && providerCustomer.phoneNumber !== row.phone_number) {
     return { ok: false as const, message: "본인확인 결과의 휴대폰번호가 일치하지 않습니다." };
   }
 
-  if (providerCustomer.birthDate !== row.birth_date) {
+  if (row.birth_date && providerCustomer.birthDate !== row.birth_date) {
     return { ok: false as const, message: "본인확인 결과의 생년월일이 일치하지 않습니다." };
   }
 
   const verificationTokenId = randomUUID();
   const verifiedAt = nowIso();
   const verifiedExpiresAt = addMs(VERIFIED_EXPIRES_IN_MS);
+  const verifiedName = row.name || providerCustomer.name;
+  const verifiedPhoneNumber = row.phone_number || providerCustomer.phoneNumber;
+  const verifiedBirthDate = row.birth_date || providerCustomer.birthDate;
   const verifiedRow = {
     ...row,
     status: "verified" as const,
+    name: verifiedName,
+    phone_number: verifiedPhoneNumber,
+    birth_date: verifiedBirthDate,
     provider_identity_verification_id: input.identityVerificationId,
     provider_status: providerStatus,
     provider_customer_id: providerCustomer.id ?? null,
-    provider_customer_name: providerCustomer.name,
-    provider_customer_phone_number: providerCustomer.phoneNumber,
-    provider_customer_birth_date: providerCustomer.birthDate,
+    provider_customer_name: verifiedName,
+    provider_customer_phone_number: verifiedPhoneNumber,
+    provider_customer_birth_date: verifiedBirthDate,
     ci: providerCustomer.ci ?? null,
     di: providerCustomer.di ?? null,
     verified_at: verifiedAt,
@@ -510,6 +530,9 @@ export async function completePortoneIdentityVerification(input: {
       .from(OWNER_IDENTITY_TABLE)
       .update({
         status: verifiedRow.status,
+        name: verifiedRow.name,
+        birth_date: verifiedRow.birth_date,
+        phone_number: verifiedRow.phone_number,
         provider_identity_verification_id: verifiedRow.provider_identity_verification_id,
         provider_status: verifiedRow.provider_status,
         provider_customer_id: verifiedRow.provider_customer_id,
@@ -541,6 +564,11 @@ export async function completePortoneIdentityVerification(input: {
       source: "portone",
       expiresInMs: VERIFIED_EXPIRES_IN_MS,
     }),
+    identity: {
+      name: verifiedRow.name,
+      birthDate: verifiedRow.birth_date,
+      phoneNumber: verifiedRow.phone_number,
+    },
   };
 }
 

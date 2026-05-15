@@ -22,7 +22,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, Pet } 
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "pending" | "confirmed";
-type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "cancelled";
+type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "changed" | "cancelled";
 type ScheduleMetric = { key: SummaryMetricKey; label: string; value?: string };
 type StaffKey = string;
 type StaffFilter = "전체 스태프" | StaffKey;
@@ -141,8 +141,12 @@ function canMarkGroomingComplete(status: string) {
   return status === "진행 중";
 }
 
+function isRescheduledBookingStatus(status: string) {
+  return status === "변경";
+}
+
 function isChangeBookingStatus(status: string) {
-  return status === "취소" || status === "거절" || status === "노쇼";
+  return isRescheduledBookingStatus(status) || status === "취소" || status === "거절" || status === "노쇼";
 }
 
 function isBookableStatus(status: string) {
@@ -150,13 +154,14 @@ function isBookableStatus(status: string) {
 }
 
 function getTimedBookingStatus(
-  booking: { status: string; start: number; duration: number },
+  booking: { status: string; start: number; duration: number; changeAcknowledged?: boolean },
   selectedDate: string,
   currentHour: number,
 ) {
   if (isPendingBookingStatus(booking.status) || isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
     return booking.status;
   }
+  if (booking.changeAcknowledged && isConfirmedBookingStatus(booking.status)) return booking.status;
 
   const today = currentDateInTimeZone();
   if (selectedDate < today) return "완료";
@@ -275,6 +280,7 @@ function getPhaseLabel(phase: "now" | "upcoming" | "past") {
 
 function getBookingCardTone(status: string): BookingCardTone {
   if (status === "완료") return "completed";
+  if (isRescheduledBookingStatus(status)) return "changed";
   if (isChangeBookingStatus(status)) return "cancelled";
   if (isPendingBookingStatus(status)) return "pending";
   if (isActiveBookingStatus(status)) return "active";
@@ -303,6 +309,13 @@ function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
     );
   }
 
+  if (tone === "changed") {
+    return cn(
+      "border-[#f2d4b7] bg-white text-[#17211f] shadow-none",
+      selected && "border-[#db8a3a] ring-1 ring-[#f0a35a]/20",
+    );
+  }
+
   if (tone === "cancelled") {
     return cn(
       "border-[#ead6dc] bg-white text-[#17211f] shadow-none",
@@ -319,6 +332,7 @@ function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
 function getBookingIndicatorClass(tone: BookingCardTone) {
   if (tone === "pending") return "bg-[#edbd3f]";
   if (tone === "completed") return "bg-[#d5dde6]";
+  if (tone === "changed") return "bg-[#e68a2e]";
   if (tone === "cancelled") return "bg-[#8f2438]";
   return "bg-[#4f9b88]";
 }
@@ -327,6 +341,7 @@ function getBookingResizeHandleClass(tone: BookingCardTone) {
   if (tone === "active") return "bg-[#4f9a89]/70";
   if (tone === "completed") return "bg-[#94a3b8]/70";
   if (tone === "pending") return "bg-[#edbd3f]/80";
+  if (tone === "changed") return "bg-[#e68a2e]/75";
   if (tone === "cancelled") return "bg-[#8f2438]/70";
   return "bg-[#3f8d7d]/70";
 }
@@ -334,6 +349,7 @@ function getBookingResizeHandleClass(tone: BookingCardTone) {
 function getBookingTimeTextClass(tone: BookingCardTone) {
   if (tone === "pending") return "text-[#9f6f00]";
   if (tone === "completed") return "text-[#64748b]";
+  if (tone === "changed") return "text-[#a75f12]";
   if (tone === "cancelled") return "text-[#8f2438]";
   return "text-[#1f6b5b]";
 }
@@ -510,6 +526,28 @@ const baseDailyBookings = calendarBookings.map((booking) => ({
   staffKey: booking.staff === "원장" ? "staff-1" : "staff-2",
   staffName: booking.staff === "원장" ? "정우진" : "서하늘",
 }));
+
+type DailyBooking = {
+  id: string;
+  day: string;
+  start: number;
+  duration: number;
+  lane: number;
+  customer: string;
+  pet: string;
+  service: string;
+  staff: string;
+  status: string;
+  sourceStatus?: string;
+  date: string;
+  staffKey: StaffKey;
+  staffName: string;
+  memo?: string;
+  source?: "owner" | "customer";
+  previousStart?: number;
+  previousDuration?: number;
+  changeAcknowledged?: boolean;
+};
 
 const extraDailyBookings = [
   {
@@ -722,27 +760,41 @@ const extraDailyBookings = [
     staffKey: "staff-2",
     staffName: "서하늘",
   },
-] satisfies Array<(typeof baseDailyBookings)[number]>;
+  {
+    id: "C-20",
+    day: "월",
+    start: 13.25,
+    duration: 0.75,
+    lane: 0,
+    customer: "이도윤",
+    pet: "라떼",
+    service: "저자극 케어",
+    staff: "디자이너",
+    status: "변경",
+    date: todayScheduleDateLabel,
+    staffKey: "staff-3",
+    staffName: "민서윤",
+    previousStart: 10,
+    previousDuration: 0.75,
+  },
+  {
+    id: "C-21",
+    day: "월",
+    start: 13,
+    duration: 0.5,
+    lane: 0,
+    customer: "윤하나",
+    pet: "라떼",
+    service: "목욕",
+    staff: "파트타임",
+    status: "취소",
+    date: todayScheduleDateLabel,
+    staffKey: "staff-5",
+    staffName: "오다은",
+  },
+] satisfies DailyBooking[];
 
 const dailyBookings = [...baseDailyBookings, ...extraDailyBookings];
-type DailyBooking = {
-  id: string;
-  day: string;
-  start: number;
-  duration: number;
-  lane: number;
-  customer: string;
-  pet: string;
-  service: string;
-  staff: string;
-  status: string;
-  sourceStatus?: string;
-  date: string;
-  staffKey: StaffKey;
-  staffName: string;
-  memo?: string;
-  source?: "owner" | "customer";
-};
 
 function getPreviewBookingsForBucket(bookings: DailyBooking[], bucketIndex: number, bucketCount: number) {
   return bookings
@@ -934,12 +986,19 @@ function BookingSidePanel({
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}-${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
+  const previousTimeRange =
+    selectedBooking?.previousStart !== undefined
+      ? `${formatHourLabel(selectedBooking.previousStart)}-${formatHourLabel(
+          selectedBooking.previousStart + (selectedBooking.previousDuration ?? selectedBooking.duration),
+        )}`
+      : "";
   const commentKey = selectedBooking ? getCustomerCommentKey(selectedBooking) : "";
   const staffComment = commentKey ? staffComments[commentKey] ?? "" : "";
   const customerRequest = selectedBooking ? getCustomerRequest(selectedBooking.id) || "요청이 없습니다." : "";
   const sourceStatus = selectedBooking?.sourceStatus ?? selectedBooking?.status ?? "";
   const displayStatus = selectedBooking?.status ?? "";
   const changeEventSelected = selectedBooking ? isChangeBookingStatus(selectedBooking.status) : false;
+  const rescheduledEventSelected = selectedBooking ? isRescheduledBookingStatus(selectedBooking.status) : false;
   const startEnabled = selectedBooking ? canStartGrooming(sourceStatus) && displayStatus === "확정" : false;
   const completeEnabled = selectedBooking ? canSendCompletionNotice(sourceStatus, displayStatus) : false;
   const startLabel = startEnabled ? "미용 시작" : displayStatus === "진행 중" ? "자동 진행 중" : displayStatus === "완료" ? "완료됨" : "확정 후 시작";
@@ -1000,15 +1059,35 @@ function BookingSidePanel({
 
                 {changeEventSelected ? (
                   <div className="mt-4 space-y-3">
-                    <div className="rounded-[8px] border border-[#ead6dc] bg-[#fffafa] px-3 py-3">
-                      <p className="text-[12px] text-[#9f6b78]">변경 · 취소 확인</p>
-                      <p className="mt-1 text-[15px] font-medium text-[#8f2438]">{selectedBooking.status}된 예약입니다.</p>
-                      <p className="mt-1 text-[13px] leading-5 text-[#64748b]">확인하면 스케줄 보드와 변경 · 취소 관리에서 더 이상 보이지 않습니다.</p>
+                    <div
+                      className={cn(
+                        "rounded-[8px] border px-3 py-3",
+                        rescheduledEventSelected ? "border-[#f2d4b7] bg-[#fffaf4]" : "border-[#ead6dc] bg-[#fffafa]",
+                      )}
+                    >
+                      <p className={cn("text-[12px]", rescheduledEventSelected ? "text-[#a75f12]" : "text-[#9f6b78]")}>변경 · 취소 확인</p>
+                      <p className={cn("mt-1 text-[15px] font-medium", rescheduledEventSelected ? "text-[#a75f12]" : "text-[#8f2438]")}>
+                        {rescheduledEventSelected ? "예약 시간이 변경되었습니다." : `${selectedBooking.status}된 예약입니다.`}
+                      </p>
+                      {rescheduledEventSelected && previousTimeRange ? (
+                        <div className="mt-3 rounded-[8px] border border-[#f4dfc8] bg-white px-3 py-2">
+                          <p className="text-[12px] text-[#94a3b8]">변경 전 예약시간</p>
+                          <p className="mt-1 text-[17px] font-medium tabular-nums text-[#111827]">{previousTimeRange}</p>
+                        </div>
+                      ) : null}
+                      <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
+                        {rescheduledEventSelected
+                          ? "확인하면 변경된 시간으로 확정되어 초록 카드로 표시됩니다."
+                          : "확인하면 스케줄 보드와 변경 · 취소 관리에서 더 이상 보이지 않습니다."}
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => onAcknowledgeChange(selectedBooking.id)}
-                      className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#8f2438] px-3 text-[14px] font-medium text-white transition hover:bg-[#782033]"
+                      className={cn(
+                        "inline-flex h-11 w-full items-center justify-center rounded-[8px] px-3 text-[14px] font-medium text-white transition",
+                        rescheduledEventSelected ? "bg-[#c87424] hover:bg-[#a75f12]" : "bg-[#8f2438] hover:bg-[#782033]",
+                      )}
                     >
                       확인
                     </button>
@@ -2937,6 +3016,23 @@ export default function CalendarManagementScreen({
   }
 
   function handleAcknowledgeChangeBooking(bookingId: string) {
+    const booking = bookings.find((item) => item.id === bookingId);
+    if (booking && isRescheduledBookingStatus(booking.status)) {
+      setBookings((current) =>
+        current.map((item) =>
+          item.id === bookingId
+            ? {
+                ...item,
+                status: "확정",
+                changeAcknowledged: true,
+              }
+            : item,
+        ),
+      );
+      setSelectedBookingId(bookingId);
+      return;
+    }
+
     setAcknowledgedChangeBookingIds((current) => new Set(current).add(bookingId));
     setSelectedBookingId((current) => (current === bookingId ? "" : current));
   }

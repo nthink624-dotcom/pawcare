@@ -16,6 +16,47 @@ type PortoneVerificationResponse = {
   message?: string;
 };
 
+async function readPortoneJson(response: Response): Promise<PortoneVerificationResponse> {
+  try {
+    return (await response.json()) as PortoneVerificationResponse;
+  } catch {
+    return {};
+  }
+}
+
+async function fetchPortoneIdentityVerification(identityVerificationId: string) {
+  const endpoint = `https://api.portone.io/identity-verifications/${encodeURIComponent(identityVerificationId)}`;
+  const headers = {
+    Authorization: `PortOne ${serverEnv.portoneApiSecret}`,
+    "Content-Type": "application/json",
+  };
+
+  const confirmResponse = await fetch(`${endpoint}/confirm`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(serverEnv.portoneStoreId ? { storeId: serverEnv.portoneStoreId } : {}),
+    cache: "no-store",
+  });
+  const confirmResult = await readPortoneJson(confirmResponse);
+  if (confirmResponse.ok && confirmResult.identityVerification) {
+    return { response: confirmResponse, result: confirmResult };
+  }
+
+  const getResponse = await fetch(endpoint, {
+    headers,
+    cache: "no-store",
+  });
+  const getResult = await readPortoneJson(getResponse);
+  if (getResponse.ok && getResult.identityVerification) {
+    return { response: getResponse, result: getResult };
+  }
+
+  return {
+    response: getResponse.ok ? confirmResponse : getResponse,
+    result: getResult.message ? getResult : confirmResult,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
@@ -29,18 +70,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = schema.parse(body);
 
-    const verificationResponse = await fetch(
-      `https://api.portone.io/identity-verifications/${encodeURIComponent(payload.identityVerificationId)}`,
-      {
-        headers: {
-          Authorization: `PortOne ${serverEnv.portoneApiSecret}`,
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      },
-    );
-
-    const result = (await verificationResponse.json()) as PortoneVerificationResponse;
+    const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
       return NextResponse.json(
         { message: result.message ?? "본인확인 결과를 조회하지 못했습니다." },

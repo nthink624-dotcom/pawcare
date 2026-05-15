@@ -669,7 +669,7 @@ export default function SignupForm({
       }
 
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const identityVerificationId = `pm${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
       const hasPrefilledIdentity =
         fields.name.trim() && isValidBirthDate8(fields.birthDate) && /^01\d{8,9}$/.test(fields.phoneNumber);
 

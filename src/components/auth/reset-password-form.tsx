@@ -209,7 +209,7 @@ export default function ResetPasswordForm({
       }
 
       const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `reset_pw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const identityVerificationId = `resetpw${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,

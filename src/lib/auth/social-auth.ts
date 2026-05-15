@@ -4,6 +4,43 @@ export type SocialProvider = "google" | "kakao" | "naver";
 export const PENDING_SOCIAL_PROVIDER_COOKIE = "petmanager.socialProvider";
 export const PENDING_SOCIAL_PROVIDER_STORAGE = "petmanager.socialProvider";
 
+export function isLocalAuthOrigin(origin: string) {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+export function getConfiguredSiteOrigin() {
+  try {
+    return new URL(env.siteUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function getOAuthRedirectOrigin() {
+  if (typeof window === "undefined") {
+    return getConfiguredSiteOrigin() ?? env.siteUrl;
+  }
+
+  const currentOrigin = window.location.origin;
+  const configuredOrigin = getConfiguredSiteOrigin();
+
+  if (
+    configuredOrigin &&
+    env.supabaseEnvName === "production" &&
+    isLocalAuthOrigin(currentOrigin) &&
+    !isLocalAuthOrigin(configuredOrigin)
+  ) {
+    return configuredOrigin;
+  }
+
+  return currentOrigin;
+}
+
 export function getSocialOAuthProvider(provider: SocialProvider) {
   if (provider === "naver") {
     return env.naverOAuthProvider;

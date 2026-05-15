@@ -24,6 +24,7 @@ import {
 } from "@/lib/auth/owner-credentials";
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
 import {
+  getOAuthRedirectOrigin,
   getSocialOAuthProvider,
   PENDING_SOCIAL_PROVIDER_COOKIE,
   PENDING_SOCIAL_PROVIDER_STORAGE,
@@ -458,7 +459,7 @@ export default function SignupForm({
     try {
       document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
       window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
+      const redirectTo = `${getOAuthRedirectOrigin()}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",

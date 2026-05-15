@@ -3,12 +3,26 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
 import { env } from "@/lib/env";
-import { PENDING_SOCIAL_PROVIDER_COOKIE, resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
+import {
+  PENDING_SOCIAL_PROVIDER_COOKIE,
+  getConfiguredSiteOrigin,
+  isLocalAuthOrigin,
+  resolveSocialProviderFromAuthUser,
+} from "@/lib/auth/social-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
+  const configuredSiteOrigin = getConfiguredSiteOrigin();
+  if (
+    configuredSiteOrigin &&
+    isLocalAuthOrigin(requestUrl.origin) &&
+    !isLocalAuthOrigin(configuredSiteOrigin)
+  ) {
+    return NextResponse.redirect(new URL(`${requestUrl.pathname}${requestUrl.search}`, configuredSiteOrigin));
+  }
+
   const code = requestUrl.searchParams.get("code");
   const callbackError = requestUrl.searchParams.get("error");
   const callbackErrorDescription = requestUrl.searchParams.get("error_description");
@@ -83,6 +97,10 @@ export async function GET(request: NextRequest) {
 
   const exchanged = await supabase.auth.exchangeCodeForSession(code);
   if (exchanged.error) {
+    if (/code verifier|verifier not found|pkce/i.test(exchanged.error.message)) {
+      return redirectWithAuthCookies(`/auth/client-callback?${requestUrl.searchParams.toString()}`);
+    }
+
     return redirectToLogin("social-callback", exchanged.error.message);
   }
 

@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarDays, ChevronDown, Search } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Search } from "lucide-react";
 import type { KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -59,11 +60,116 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#1f2937]"
+      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#1f2937]"
     >
       <span>{label}</span>
       <Icon className="h-4 w-4 text-[#64748b]" />
     </button>
+  );
+}
+
+export type SoftSelectOption<T extends string = string> = {
+  value: T;
+  label: string;
+  disabled?: boolean;
+};
+
+export function SoftSelect<T extends string = string>({
+  value,
+  options,
+  onChange,
+  label,
+  className,
+  buttonClassName,
+  menuClassName,
+  align = "right",
+  direction = "down",
+  disabled = false,
+}: {
+  value: T;
+  options: Array<SoftSelectOption<T>>;
+  onChange: (value: T) => void;
+  label?: string;
+  className?: string;
+  buttonClassName?: string;
+  menuClassName?: string;
+  align?: "left" | "right";
+  direction?: "down" | "up";
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={cn("relative", className)}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-left transition",
+          "hover:border-[#b9ccc5] hover:bg-[#fbfdfc] focus:outline-none focus:ring-[3px] focus:ring-[#1f6b5b]/10 disabled:cursor-not-allowed disabled:opacity-60",
+          open && "border-[#1f6b5b] bg-[#fbfdfc]",
+          buttonClassName,
+        )}
+      >
+        {label ? <span className="text-[12px] text-[#64748b]">{label}</span> : <span />}
+        <span className="truncate text-right text-[14px] font-medium text-[#111827]">{selectedOption?.label ?? ""}</span>
+        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          className={cn(
+            "absolute z-50 mt-2 min-w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1 shadow-[0_18px_42px_rgba(15,23,42,0.16)]",
+            align === "right" ? "right-0" : "left-0",
+            direction === "up" && "bottom-full mb-2 mt-0",
+            menuClassName,
+          )}
+        >
+          {options.map((option) => {
+            const selected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                disabled={option.disabled}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex h-9 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
+                  selected ? "bg-[#e9f6f1] font-semibold text-[#0f6b5a]" : "text-[#1f2937] hover:bg-[#f8fafc]",
+                  option.disabled && "cursor-not-allowed opacity-45",
+                )}
+              >
+                <span className="truncate">{option.label}</span>
+                {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -72,7 +178,7 @@ export function PrimaryButton({ label, onClick }: { label: string; onClick?: () 
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-12 items-center justify-center rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
+      className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
     >
       {label}
     </button>
@@ -159,15 +265,25 @@ export function DetailBlock({
 export function TableShell({
   children,
   columns,
+  align = "left",
 }: {
   children: React.ReactNode;
   columns: string[];
+  align?: "left" | "center";
 }) {
   return (
     <WebSurface className="overflow-hidden">
-      <div className="grid border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-3 text-[12px] font-semibold tracking-[0.08em] text-[#64748b]" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+      <div
+        className={cn(
+          "grid border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-3 text-[15px] font-semibold tracking-[0.08em] text-[#64748b]",
+          align === "center" && "text-center",
+        )}
+        style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
+      >
         {columns.map((column) => (
-          <span key={column}>{column}</span>
+          <span key={column} className={cn("min-w-0", align === "center" && "justify-self-center")}>
+            {column}
+          </span>
         ))}
       </div>
       <div>{children}</div>
@@ -179,10 +295,14 @@ export function TableRow({
   columns,
   active = false,
   onClick,
+  className,
+  align = "left",
 }: {
   columns: React.ReactNode[];
   active?: boolean;
   onClick?: () => void;
+  className?: string;
+  align?: "left" | "center";
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!onClick) return;
@@ -200,13 +320,15 @@ export function TableRow({
       onKeyDown={handleKeyDown}
       className={cn(
         "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7866]/35",
-        "grid w-full border-b border-[#edf2f7] px-5 py-4 text-left transition last:border-b-0",
+        "grid w-full border-b border-[#edf2f7] px-5 py-4 transition last:border-b-0",
+        align === "center" ? "items-center text-center" : "text-left",
         active ? "bg-[#f8fafc]" : "bg-white hover:bg-[#f8fafc]",
+        className,
       )}
       style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
     >
       {columns.map((column, index) => (
-        <div key={index} className="min-w-0">
+        <div key={index} className={cn("min-w-0", align === "center" && "flex justify-center")}>
           {column}
         </div>
       ))}

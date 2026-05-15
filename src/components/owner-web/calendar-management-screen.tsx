@@ -1,26 +1,38 @@
 "use client";
 
-import { CalendarPlus, ChevronLeft, ChevronRight, CircleHelp, MessageCircle } from "lucide-react";
-import type { DragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, MessageCircle } from "lucide-react";
+import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
+  defaultOwnerWebStaff,
+  toOwnerWebStaffColumn,
+  type OwnerWebStaffColumn,
+  type OwnerWebStaffMember,
+} from "@/components/owner-web/owner-web-staff-data";
+import {
+  SoftSelect,
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
 import { computeAvailableSlots } from "@/lib/availability";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
-import type { Appointment, AppointmentStatus, BootstrapPayload } from "@/types/domain";
+import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, Pet } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "pending" | "confirmed";
-type BookingPhase = "now" | "upcoming" | "past";
-type BookingCardTone = "confirmed" | "active" | "pending" | "completed";
+type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "cancelled";
 type ScheduleMetric = { key: SummaryMetricKey; label: string; value?: string };
+type StaffKey = string;
+type StaffFilter = "전체 스태프" | StaffKey;
 type StaffAssignments = Record<string, StaffKey>;
 type ScheduleCreateFormState = {
+  customerMode: "new" | "existing";
   petId: string;
+  customerName: string;
+  petName: string;
+  customerPhone: string;
   serviceId: string;
   staffKey: StaffKey;
   date: string;
@@ -33,18 +45,15 @@ type BoardPanState = {
   scrollLeft: number;
   moved: boolean;
 };
+type BookingResizeState = {
+  bookingId: string;
+  pointerId: number;
+  startY: number;
+  initialDuration: number;
+  nextDuration: number;
+};
 
-const demoStaffColumns = [
-  { key: "staff-1", name: "정우진", role: "원장" },
-  { key: "staff-2", name: "서하늘", role: "서브" },
-  { key: "staff-3", name: "민서윤", role: "디자이너" },
-  { key: "staff-4", name: "강리오", role: "목욕" },
-  { key: "staff-5", name: "오다은", role: "파트타임" },
-  { key: "staff-6", name: "한지우", role: "파트타임" },
-] as const;
-const defaultVisibleStaffCount = 6;
-type StaffKey = (typeof demoStaffColumns)[number]["key"];
-type StaffFilter = "전체 스태프" | StaffKey;
+const fallbackStaffColumns = defaultOwnerWebStaff.map(toOwnerWebStaffColumn);
 const scheduleStartHour = 10;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
@@ -53,9 +62,6 @@ const scheduleGridHeight = (scheduleEndHour - scheduleStartHour) * pixelsPerHour
 const scheduleBodyHeight = scheduleGridHeight + scheduleBodyInsetY * 2;
 const quarterSlotHeight = pixelsPerHour / 4;
 const scheduleSnapSegmentsPerHour = 4;
-const scheduleAnchorInset = 16;
-const currentWorkCatchThreshold = 240;
-const currentWorkCatchResetDistance = 420;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
 const bookingCardHorizontalInset = "2.5%";
@@ -143,23 +149,45 @@ function isBookableStatus(status: string) {
   return !isChangeBookingStatus(status) && !isCompletedBookingStatus(status);
 }
 
+function getTimedBookingStatus(
+  booking: { status: string; start: number; duration: number },
+  selectedDate: string,
+  currentHour: number,
+) {
+  if (isPendingBookingStatus(booking.status) || isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
+    return booking.status;
+  }
+
+  const today = currentDateInTimeZone();
+  if (selectedDate < today) return "완료";
+  if (selectedDate > today) return isActiveBookingStatus(booking.status) ? "확정" : booking.status;
+
+  const endHour = booking.start + booking.duration;
+  if (currentHour >= endHour) return "완료";
+  if (booking.status === "픽업 준비") return "픽업 준비";
+  if (booking.status === "진행 중" || currentHour >= booking.start) return "진행 중";
+  return "확정";
+}
+
+function canSendCompletionNotice(sourceStatus: string, displayStatus: string) {
+  if (isPendingBookingStatus(sourceStatus) || isChangeBookingStatus(sourceStatus)) return false;
+  if (isCompletedBookingStatus(sourceStatus) || sourceStatus === "픽업 준비") return false;
+  return displayStatus === "진행 중" || displayStatus === "픽업 준비" || displayStatus === "완료";
+}
+
 function normalizeBookingForApprovalMode(booking: DailyBooking, manualApprovalEnabled: boolean): DailyBooking {
   if (manualApprovalEnabled || !isPendingBookingStatus(booking.status)) return booking;
   return { ...booking, status: "확정" };
-}
-
-function isScheduleAnchorCandidateStatus(status?: string) {
-  if (!status) return true;
-  return !isPendingBookingStatus(status) && !isCompletedBookingStatus(status) && !isChangeBookingStatus(status);
 }
 
 function buildScheduleMetrics(bookings: DailyBooking[]): ScheduleMetric[] {
   const bookableCount = bookings.filter((booking) => isBookableStatus(booking.status)).length;
   const completedCount = bookings.filter((booking) => isCompletedBookingStatus(booking.status)).length;
   const changesCount = bookings.filter((booking) => isChangeBookingStatus(booking.status)).length;
+  const visibleTodayCount = bookableCount + changesCount;
 
   return [
-    { key: "today", label: "예약 현황", value: `${bookableCount}건` },
+    { key: "today", label: "예약 현황", value: `${visibleTodayCount}건` },
     { key: "changes", label: "변경 · 취소 관리", value: `${changesCount}건` },
     { key: "completed", label: "완료 내역", value: `${completedCount}건` },
   ];
@@ -167,8 +195,9 @@ function buildScheduleMetrics(bookings: DailyBooking[]): ScheduleMetric[] {
 
 function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEnabled: boolean) {
   const bookableBookings = bookings.filter((booking) => isBookableStatus(booking.status));
+  const changeBookings = bookings.filter((booking) => isChangeBookingStatus(booking.status));
   const options: Array<{ key: ReservationStatusFilter; label: string; count: number }> = [
-    { key: "all", label: "전체", count: bookableBookings.length },
+    { key: "all", label: "전체", count: bookableBookings.length + changeBookings.length },
   ];
 
   if (manualApprovalEnabled) {
@@ -183,6 +212,7 @@ function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEna
 }
 
 function matchesReservationFilter(booking: DailyBooking, filter: ReservationStatusFilter) {
+  if (filter === "all" && isChangeBookingStatus(booking.status)) return true;
   if (!isBookableStatus(booking.status)) return false;
   if (filter === "pending") return isPendingBookingStatus(booking.status);
   if (filter === "confirmed") return isConfirmedBookingStatus(booking.status);
@@ -237,20 +267,15 @@ function getScheduleMonthLabel(referenceDate = todayScheduleDate) {
   return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
 }
 
-function getBookingPhase(booking: { start: number; duration: number }, currentHour: number): BookingPhase {
-  if (currentHour >= booking.start && currentHour < booking.start + booking.duration) return "now";
-  if (currentHour < booking.start) return "upcoming";
-  return "past";
-}
-
-function getPhaseLabel(phase: BookingPhase) {
+function getPhaseLabel(phase: "now" | "upcoming" | "past") {
   if (phase === "now") return "진행 중";
   if (phase === "upcoming") return "예정";
   return "지난 일정";
 }
 
-function getBookingCardTone(status: string, _phase: BookingPhase): BookingCardTone {
+function getBookingCardTone(status: string): BookingCardTone {
   if (status === "완료") return "completed";
+  if (isChangeBookingStatus(status)) return "cancelled";
   if (isPendingBookingStatus(status)) return "pending";
   if (isActiveBookingStatus(status)) return "active";
   return "confirmed";
@@ -259,41 +284,57 @@ function getBookingCardTone(status: string, _phase: BookingPhase): BookingCardTo
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
   if (tone === "active") {
     return cn(
-      "border-2 border-[#1f6b5b] bg-[#f2fbf7] text-[#0f172a] shadow-none ring-1 ring-[#1f6b5b]/20",
-      selected && "ring-2 ring-[#1f6b5b]/30",
+      "border-[#dce7e3] bg-white text-[#0f172a] shadow-none",
+      selected && "border-[#b9d1ca] ring-1 ring-[#8ab9ab]/20",
     );
   }
 
   if (tone === "pending") {
     return cn(
-      "border-[#f1e3bf] bg-[#fffdf6] text-[#17211f] shadow-none",
-      selected && "border-[#e3c476] ring-1 ring-[#e3c476]/18",
+      "border-[#eee2c4] bg-white text-[#17211f] shadow-none",
+      selected && "border-[#e5cc72] ring-1 ring-[#f2c94c]/18",
     );
   }
 
   if (tone === "completed") {
     return cn(
       "border-[#e5e7eb] bg-white text-[#6b7280] shadow-none",
-      selected && "ring-1 ring-[#94a3b8]/30",
+      selected && "border-[#cbd5e1] ring-1 ring-[#94a3b8]/18",
+    );
+  }
+
+  if (tone === "cancelled") {
+    return cn(
+      "border-[#ead6dc] bg-white text-[#17211f] shadow-none",
+      selected && "border-[#b45a6a] ring-1 ring-[#8f2438]/18",
     );
   }
 
   return cn(
-    "border-[#d7e7e1] bg-[#f9fdfb] text-[#111827] shadow-none",
-    selected && "border-[#a8d0c4] ring-1 ring-[#a8d0c4]/30",
+    "border-[#dce7e3] bg-white text-[#111827] shadow-none",
+    selected && "border-[#b9d1ca] ring-1 ring-[#8ab9ab]/18",
   );
 }
 
-function getBookingDotClass(tone: BookingCardTone) {
-  if (tone === "active") return "bg-[#4f9a89]";
-  if (tone === "completed") return "bg-[#94a3b8]";
-  if (tone === "pending") return "bg-[#d6a33a]";
-  return "bg-[#3f8d7d]";
+function getBookingIndicatorClass(tone: BookingCardTone) {
+  if (tone === "pending") return "bg-[#edbd3f]";
+  if (tone === "completed") return "bg-[#d5dde6]";
+  if (tone === "cancelled") return "bg-[#8f2438]";
+  return "bg-[#4f9b88]";
+}
+
+function getBookingResizeHandleClass(tone: BookingCardTone) {
+  if (tone === "active") return "bg-[#4f9a89]/70";
+  if (tone === "completed") return "bg-[#94a3b8]/70";
+  if (tone === "pending") return "bg-[#edbd3f]/80";
+  if (tone === "cancelled") return "bg-[#8f2438]/70";
+  return "bg-[#3f8d7d]/70";
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#9a6a12]";
+  if (tone === "pending") return "text-[#9f6f00]";
   if (tone === "completed") return "text-[#64748b]";
+  if (tone === "cancelled") return "text-[#8f2438]";
   return "text-[#1f6b5b]";
 }
 
@@ -369,6 +410,11 @@ function getSnappedBookingStart(pointerY: number, columnTop: number, duration: n
   return Math.min(scheduleEndHour - duration, Math.max(scheduleStartHour, snappedStart));
 }
 
+function getSnappedBookingDuration(start: number, duration: number) {
+  const snappedDuration = Math.round(duration * scheduleSnapSegmentsPerHour) / scheduleSnapSegmentsPerHour;
+  return Math.min(scheduleEndHour - start, Math.max(1 / scheduleSnapSegmentsPerHour, snappedDuration));
+}
+
 function bookingTimesOverlap(first: { start: number; duration: number }, second: { start: number; duration: number }) {
   return first.start < second.start + second.duration && second.start < first.start + first.duration;
 }
@@ -398,18 +444,42 @@ function findNextAvailableBookingStart(
   return null;
 }
 
+function findPreviewBookingStart(
+  bookings: Array<{ id: string; staffKey: string; start: number; duration: number; status?: string }>,
+  staffKey: StaffKey,
+  duration: number,
+  preferredStart: number,
+) {
+  const firstStart = Math.min(scheduleEndHour - duration, Math.max(scheduleStartHour, Math.round(preferredStart * 4) / 4));
+
+  for (let start = firstStart; start <= scheduleEndHour - duration; start += 0.25) {
+    if (!hasStaffBookingConflict(bookings, "__preview-booking__", { staffKey, start, duration })) {
+      return start;
+    }
+  }
+
+  for (let start = scheduleStartHour; start < firstStart; start += 0.25) {
+    if (!hasStaffBookingConflict(bookings, "__preview-booking__", { staffKey, start, duration })) {
+      return start;
+    }
+  }
+
+  return null;
+}
+
 function appointmentToDailyBooking(
   appointment: Appointment,
   data: BootstrapPayload,
   selectedDate: string,
   staffAssignments: StaffAssignments,
-  fallbackStaff: (typeof demoStaffColumns)[number],
+  fallbackStaff: OwnerWebStaffColumn,
+  staffColumns: OwnerWebStaffColumn[],
 ): DailyBooking {
   const guardian = data.guardians.find((item) => item.id === appointment.guardian_id);
   const pet = data.pets.find((item) => item.id === appointment.pet_id);
   const service = data.services.find((item) => item.id === appointment.service_id);
   const assignedStaff = staffAssignments[appointment.id]
-    ? demoStaffColumns.find((item) => item.key === staffAssignments[appointment.id])
+    ? staffColumns.find((item) => item.key === staffAssignments[appointment.id])
     : null;
   const staffColumn = assignedStaff ?? fallbackStaff;
   const durationMinutes = minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
@@ -430,65 +500,6 @@ function appointmentToDailyBooking(
     staffName: staffColumn.name,
     memo: appointment.memo,
     source: appointment.source,
-  };
-}
-
-function getPriorityBookingId(bookings: Array<{ id: string; start: number; duration: number; status?: string }>, currentHour: number) {
-  const currentBooking = getCurrentWorkBookings(bookings, currentHour)[0];
-  if (currentBooking) return currentBooking.id;
-
-  const nextBooking = [...bookings]
-    .filter((booking) => isScheduleAnchorCandidateStatus(booking.status) && getBookingPhase(booking, currentHour) === "upcoming")
-    .sort((a, b) => a.start - b.start)[0];
-  return nextBooking?.id ?? bookings[0]?.id ?? "";
-}
-
-function getCurrentWorkBookings<T extends { id: string; start: number; duration: number; status?: string }>(bookings: T[], currentHour: number) {
-  const timeMatchedBookings = bookings
-    .filter((booking) => isScheduleAnchorCandidateStatus(booking.status) && getBookingPhase(booking, currentHour) === "now")
-    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
-
-  if (timeMatchedBookings.length > 0) return timeMatchedBookings;
-
-  return bookings
-    .filter((booking) => booking.status && isActiveBookingStatus(booking.status))
-    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
-}
-
-function getNextScheduleBooking<T extends { id: string; start: number; duration: number; status?: string }>(bookings: T[], currentHour: number) {
-  return [...bookings]
-    .filter((booking) => isScheduleAnchorCandidateStatus(booking.status) && getBookingPhase(booking, currentHour) === "upcoming")
-    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))[0];
-}
-
-function getScheduleBoardAnchor(bookings: Array<{ id: string; start: number; duration: number; status?: string }>, currentHour: number) {
-  const currentWorkBooking = getCurrentWorkBookings(bookings, currentHour)[0];
-  if (currentWorkBooking) {
-    return {
-      kind: "current-work" as const,
-      booking: currentWorkBooking,
-      hour: currentWorkBooking.start,
-      key: `current-work-${currentWorkBooking.id}-${currentWorkBooking.start}-${currentWorkBooking.duration}`,
-    };
-  }
-
-  const nextBooking = getNextScheduleBooking(bookings, currentHour);
-  if (nextBooking) {
-    return {
-      kind: "next-booking" as const,
-      booking: nextBooking,
-      hour: nextBooking.start,
-      key: `next-booking-${nextBooking.id}-${nextBooking.start}-${nextBooking.duration}`,
-    };
-  }
-
-  const clampedCurrentHour =
-    currentHour >= scheduleStartHour && currentHour <= scheduleEndHour ? currentHour : scheduleStartHour;
-  return {
-    kind: "current-time" as const,
-    booking: null,
-    hour: clampedCurrentHour,
-    key: `current-time-${Math.floor(clampedCurrentHour * 4) / 4}`,
   };
 }
 
@@ -696,6 +707,21 @@ const extraDailyBookings = [
     staffKey: "staff-3",
     staffName: "민서윤",
   },
+  {
+    id: "C-19",
+    day: "월",
+    start: 10.75,
+    duration: 0.5,
+    lane: 0,
+    customer: "최나영",
+    pet: "두부",
+    service: "목욕",
+    staff: "서브",
+    status: "취소",
+    date: todayScheduleDateLabel,
+    staffKey: "staff-2",
+    staffName: "서하늘",
+  },
 ] satisfies Array<(typeof baseDailyBookings)[number]>;
 
 const dailyBookings = [...baseDailyBookings, ...extraDailyBookings];
@@ -710,6 +736,7 @@ type DailyBooking = {
   service: string;
   staff: string;
   status: string;
+  sourceStatus?: string;
   date: string;
   staffKey: StaffKey;
   staffName: string;
@@ -732,19 +759,70 @@ function getBookingCounts(bookings: DailyBooking[]) {
   };
 }
 
-function staffColumnForIndex(index: number) {
-  return demoStaffColumns[index % demoStaffColumns.length];
+function staffColumnForIndex(index: number, staffColumns: OwnerWebStaffColumn[]) {
+  return staffColumns[index % staffColumns.length] ?? fallbackStaffColumns[0];
 }
 
-function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}): DailyBooking[] {
+function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}, staffColumns = fallbackStaffColumns): DailyBooking[] {
   const selectedDateAppointments = data.appointments
     .filter((appointment) => appointment.appointment_date === selectedDate)
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
 
+  if (selectedDate === todayScheduleDate && selectedDateAppointments.length === 0) {
+    return buildLocalPreviewDailyBookings(selectedDate, staffColumns);
+  }
+
   return selectedDateAppointments.map((appointment, index) => {
-    const staffColumn = staffColumnForIndex(index);
-    return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn);
+    const staffColumn = staffColumnForIndex(index, staffColumns);
+    return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
   });
+}
+
+function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
+  const columns = staffColumns.length > 0 ? staffColumns : fallbackStaffColumns;
+  const previewSourceBookings = [
+    ...dailyBookings,
+    ...dailyBookings.map((booking, index) => {
+      const offset = [0.5, 1, 1.5, 2][index % 4];
+
+      return {
+        ...booking,
+        id: `${booking.id}-extra-${index + 1}`,
+        start: Math.min(scheduleEndHour - booking.duration, booking.start + offset),
+        status: index % 5 === 0 ? "승인 대기" : booking.status,
+      };
+    }),
+  ];
+  const scheduledBookings: DailyBooking[] = [];
+
+  for (const [index, booking] of previewSourceBookings.entries()) {
+    const fallbackStaffIndex = fallbackStaffColumns.findIndex((staffColumn) => staffColumn.key === booking.staffKey);
+    const preferredColumnIndex = (fallbackStaffIndex >= 0 ? fallbackStaffIndex : index) % columns.length;
+    const candidateColumns = [
+      ...columns.slice(preferredColumnIndex),
+      ...columns.slice(0, preferredColumnIndex),
+    ];
+    const placement = candidateColumns
+      .map((staffColumn) => ({
+        staffColumn,
+        start: findPreviewBookingStart(scheduledBookings, staffColumn.key, booking.duration, booking.start),
+      }))
+      .find((candidate): candidate is { staffColumn: OwnerWebStaffColumn; start: number } => candidate.start !== null);
+
+    if (!placement) continue;
+
+    scheduledBookings.push({
+      ...booking,
+      id: `local-preview-${selectedDate}-${booking.id}`,
+      start: placement.start,
+      date: formatScheduleDateLabel(selectedDate),
+      staff: placement.staffColumn.role,
+      staffKey: placement.staffColumn.key,
+      staffName: placement.staffColumn.name,
+    });
+  }
+
+  return scheduledBookings;
 }
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
@@ -776,15 +854,17 @@ function SummaryStrip({
   onSelectMetric: (metric: SummaryMetricKey) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-3">
       {metrics.map((metric) => (
         <button
           key={metric.key}
           type="button"
           onClick={() => onSelectMetric(metric.key as SummaryMetricKey)}
           className={cn(
-            "inline-flex h-10 items-center gap-2 rounded-[8px] px-3 text-left text-[13px] transition",
-            activeMetric === metric.key ? "bg-[#e9f5f1] text-[#1f6b5b]" : "text-[#475569] hover:bg-[#f8fafc]",
+            "inline-flex h-[36px] items-center gap-2 rounded-[8px] border px-3 text-left text-[15px] font-normal transition",
+            activeMetric === metric.key
+              ? "border-[#dbe2ea] bg-white text-[#111827] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+              : "border-transparent text-[#475569] hover:border-[#e2e8f0] hover:bg-white",
           )}
         >
           <span>{metric.label}</span>
@@ -805,14 +885,14 @@ function ReservationFilterStrip({
   onSelectFilter: (filter: ReservationStatusFilter) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-3">
       {options.map((option) => (
         <button
           key={option.key}
           type="button"
           onClick={() => onSelectFilter(option.key)}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-medium transition",
+            "inline-flex h-[38px] items-center gap-2 rounded-[8px] border px-3.5 text-[15px] font-normal transition",
             activeFilter === option.key
               ? "border-[#2f7866] bg-[#eef7f4] text-[#1f6b5b]"
               : "border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]",
@@ -835,6 +915,7 @@ function BookingSidePanel({
   onManualApprovalChange,
   onChangeStatus,
   onSelectBooking,
+  onAcknowledgeChange,
   staffComments,
   onChangeStaffComment,
 }: {
@@ -846,6 +927,7 @@ function BookingSidePanel({
   onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onSelectBooking: (id: string) => void;
+  onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
   onChangeStaffComment: (commentKey: string, value: string) => void;
 }) {
@@ -855,8 +937,14 @@ function BookingSidePanel({
   const commentKey = selectedBooking ? getCustomerCommentKey(selectedBooking) : "";
   const staffComment = commentKey ? staffComments[commentKey] ?? "" : "";
   const customerRequest = selectedBooking ? getCustomerRequest(selectedBooking.id) || "요청이 없습니다." : "";
-  const startEnabled = selectedBooking ? canStartGrooming(selectedBooking.status) : false;
-  const completeEnabled = selectedBooking ? canMarkGroomingComplete(selectedBooking.status) : false;
+  const sourceStatus = selectedBooking?.sourceStatus ?? selectedBooking?.status ?? "";
+  const displayStatus = selectedBooking?.status ?? "";
+  const changeEventSelected = selectedBooking ? isChangeBookingStatus(selectedBooking.status) : false;
+  const startEnabled = selectedBooking ? canStartGrooming(sourceStatus) && displayStatus === "확정" : false;
+  const completeEnabled = selectedBooking ? canSendCompletionNotice(sourceStatus, displayStatus) : false;
+  const startLabel = startEnabled ? "미용 시작" : displayStatus === "진행 중" ? "자동 진행 중" : displayStatus === "완료" ? "완료됨" : "확정 후 시작";
+  const completeLabel =
+    completeEnabled ? "미용 완료" : sourceStatus === "픽업 준비" ? "알림 완료" : displayStatus === "완료" ? "완료됨" : "진행 후 완료";
   const [activePanelTab, setActivePanelTab] = useState<"details" | "comments">("details");
 
   useEffect(() => {
@@ -906,11 +994,26 @@ function BookingSidePanel({
                   <p className="mt-1 text-[26px] font-medium tracking-[-0.04em] text-[#111827]">{timeRange}</p>
                   <div className="mt-3">
                     <p className="text-[12px] text-[#94a3b8]">작업</p>
-                    <p className="mt-1 text-[20px] font-medium tracking-[-0.03em] text-[#1f6b5b]">{selectedBooking.service}</p>
+                    <p className="mt-1 text-[20px] font-medium tracking-[-0.03em] text-[#111827]">{selectedBooking.service}</p>
                   </div>
                 </div>
 
-                {isPendingBookingStatus(selectedBooking.status) ? (
+                {changeEventSelected ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-[8px] border border-[#ead6dc] bg-[#fffafa] px-3 py-3">
+                      <p className="text-[12px] text-[#9f6b78]">변경 · 취소 확인</p>
+                      <p className="mt-1 text-[15px] font-medium text-[#8f2438]">{selectedBooking.status}된 예약입니다.</p>
+                      <p className="mt-1 text-[13px] leading-5 text-[#64748b]">확인하면 스케줄 보드와 변경 · 취소 관리에서 더 이상 보이지 않습니다.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onAcknowledgeChange(selectedBooking.id)}
+                      className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#8f2438] px-3 text-[14px] font-medium text-white transition hover:bg-[#782033]"
+                    >
+                      확인
+                    </button>
+                  </div>
+                ) : isPendingBookingStatus(selectedBooking.status) ? (
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -942,7 +1045,7 @@ function BookingSidePanel({
                           : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] cursor-not-allowed",
                       )}
                     >
-                      {startEnabled ? "미용 시작" : "확정 후 시작"}
+                      {startLabel}
                     </button>
                     <button
                       type="button"
@@ -956,7 +1059,7 @@ function BookingSidePanel({
                       )}
                     >
                       <MessageCircle className="h-4 w-4" />
-                      {completeEnabled ? "미용 완료" : "시작 후 완료"}
+                      {completeLabel}
                     </button>
                   </div>
                 )}
@@ -970,7 +1073,7 @@ function BookingSidePanel({
               <div id="staff-comment" className="mt-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[12px] text-[#94a3b8]">스태프 코멘트</p>
-                  <span className="text-[11px] text-[#94a3b8]">고객관리 공유</span>
+                  <span className="text-[11px] text-[#94a3b8]">고객 관리 공유</span>
                 </div>
                 <textarea
                   value={staffComment}
@@ -1071,7 +1174,7 @@ function PendingApprovalPanel({
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[13px] text-[#111827]">{listTitle}</p>
-                  <span className="rounded-full bg-[#fff1b8] px-2 py-1 text-[11px] text-[#8a5a00]">{sortedApprovalModeBookings.length}건</span>
+                  <span className="rounded-full bg-[#fff5c7] px-2 py-1 text-[11px] text-[#9f6f00]">{sortedApprovalModeBookings.length}건</span>
                 </div>
 
                 <div className="mt-2 max-h-[280px] overflow-y-auto rounded-[8px] border border-[#edf2f7] bg-white">
@@ -1090,11 +1193,11 @@ function PendingApprovalPanel({
                             selected && "bg-[#fff8dc]",
                           )}
                         >
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#e4b44c] transition" aria-hidden="true" />
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#edbd3f] transition" aria-hidden="true" />
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <p className="min-w-0 truncate text-[14px] font-medium text-[#111827]">{booking.pet} · {booking.customer}</p>
-                              <span className="shrink-0 text-[11px] tabular-nums text-[#8a5a00]">{timeRange}</span>
+                              <span className="shrink-0 text-[11px] tabular-nums text-[#9f6f00]">{timeRange}</span>
                             </div>
                             <p className="mt-0.5 truncate text-[12px] text-[#64748b]">{booking.service}</p>
                           </div>
@@ -1226,36 +1329,20 @@ function ApprovalModeSettingsPanel({
   );
 }
 
-function ScheduleBoardActionRow({
-  action,
-}: {
-  action?: ReactNode;
-}) {
-  if (!action) return null;
-
-  return (
-    <div className="flex items-center justify-end border-b border-[#e2e8f0] bg-white px-4 py-2">
-      <div className="min-w-0">{action}</div>
-    </div>
-  );
-}
-
 function CalendarToolbar({
   selectedDate,
   staff,
   visibleStaff,
-  demoStaffCount,
   onDateChange,
   onStaffChange,
-  onDemoStaffCountChange,
+  onAddSchedule,
 }: {
   selectedDate: string;
   staff: StaffFilter;
-  visibleStaff: Array<(typeof demoStaffColumns)[number]>;
-  demoStaffCount: number;
+  visibleStaff: OwnerWebStaffColumn[];
   onDateChange: (date: string) => void;
   onStaffChange: (staff: StaffFilter) => void;
-  onDemoStaffCountChange: (count: number) => void;
+  onAddSchedule: () => void;
 }) {
   const staffLabel = staff === "전체 스태프" ? "전체 스태프" : visibleStaff.find((item) => item.key === staff)?.name ?? "전체 스태프";
 
@@ -1284,45 +1371,28 @@ function CalendarToolbar({
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => onDateChange(currentDateInTimeZone())}
-            className="ml-1 inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] text-[#334155]"
-          >
-            오늘
-          </button>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <label className="grid h-9 min-w-[172px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3">
-            <span className="text-[12px] text-[#64748b]">데모</span>
-            <select
-              value={demoStaffCount}
-              onChange={(event) => onDemoStaffCountChange(Number(event.target.value))}
-              className="min-w-0 justify-self-end bg-transparent pr-1 text-right text-[14px] text-[#111827] outline-none"
-            >
-              {[1, 2, 3, 4, 5, 6].map((count) => (
-                <option key={count} value={count}>
-                  스태프 {count}명
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid h-9 min-w-[188px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3">
-            <span className="text-[12px] text-[#64748b]">담당</span>
-            <select
-              value={staff}
-              onChange={(event) => onStaffChange(event.target.value as StaffFilter)}
-              className="min-w-0 justify-self-end bg-transparent pr-1 text-right text-[14px] text-[#111827] outline-none"
-            >
-              <option value="전체 스태프">전체 스태프</option>
-              {visibleStaff.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SoftSelect<StaffFilter>
+            label="담당"
+            value={staff}
+            onChange={onStaffChange}
+            options={[
+              { value: "전체 스태프", label: "전체 스태프" },
+              ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
+            ]}
+            className="min-w-[188px]"
+            buttonClassName="h-9"
+          />
+          <button
+            type="button"
+            onClick={onAddSchedule}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[14px] font-medium text-white transition hover:bg-[#185848]"
+          >
+            <CalendarPlus className="h-4 w-4" />
+            스케줄 추가
+          </button>
         </div>
       </div>
     </div>
@@ -1336,70 +1406,52 @@ function DailyScheduleGrid({
   activeMetric,
   manualApprovalEnabled,
   selectedBookingId,
+  conflictBookings,
   onSelectBooking,
   onMoveBooking,
+  onResizeBooking,
 }: {
   bookings: DailyBooking[];
   staff: StaffFilter;
-  visibleStaff: Array<(typeof demoStaffColumns)[number]>;
+  visibleStaff: OwnerWebStaffColumn[];
   activeMetric: SummaryMetricKey;
   manualApprovalEnabled: boolean;
   selectedBookingId: string;
+  conflictBookings: DailyBooking[];
   onSelectBooking: (id: string) => void;
   onMoveBooking: (bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) => void;
+  onResizeBooking: (bookingId: string, duration: number) => void;
 }) {
-  const lastAutoSelectedRef = useRef<string | null>(null);
   const timelineViewportRef = useRef<HTMLDivElement | null>(null);
   const headerScrollerRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollerRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef(false);
-  const positionedTimelineRef = useRef<string | null>(null);
-  const currentWorkCatchRef = useRef<{ bookingId: string | null; caught: boolean }>({ bookingId: null, caught: false });
-  const currentWorkCatchTimerRef = useRef<number | null>(null);
-  const programmaticTimelineScrollRef = useRef(false);
   const boardPanRef = useRef<BoardPanState | null>(null);
-  const [currentHour, setCurrentHour] = useState(() => getCurrentDayHour());
   const [scheduleTrackWidth, setScheduleTrackWidth] = useState<number | null>(null);
   const [verticalScrollbarWidth, setVerticalScrollbarWidth] = useState(0);
   const [draggingBookingId, setDraggingBookingId] = useState<string | null>(null);
+  const [resizingBooking, setResizingBooking] = useState<BookingResizeState | null>(null);
   const [boardPanning, setBoardPanning] = useState(false);
-  const [caughtBookingId, setCaughtBookingId] = useState<string | null>(null);
   const [expandedMicroBookingId, setExpandedMicroBookingId] = useState<string | null>(null);
   const scheduleStaff = staff === "전체 스태프" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
   const staffScopedBookings = bookings.filter((booking) => scheduleStaff.some((item) => item.key === booking.staffKey));
   const metricFilteredBookings = staffScopedBookings.filter((booking) => {
     if (activeMetric === "completed") return isCompletedBookingStatus(booking.status);
     if (activeMetric === "changes") return isChangeBookingStatus(booking.status);
-    if (activeMetric === "today") return isBookableStatus(booking.status);
+    if (activeMetric === "today") return isBookableStatus(booking.status) || isChangeBookingStatus(booking.status);
     return true;
   });
-  // 현재 작업 중인 예약은 스케줄보드의 핵심 anchor라 필터와 관계없이 항상 표시한다.
-  const currentWorkBookings = getCurrentWorkBookings(staffScopedBookings, currentHour);
-  const currentWorkBookingIds = new Set(currentWorkBookings.map((booking) => booking.id));
-  const visibleBookings =
-    currentWorkBookings.length > 0
-      ? [...currentWorkBookings, ...metricFilteredBookings.filter((booking) => !currentWorkBookingIds.has(booking.id))]
-      : metricFilteredBookings;
+  const visibleBookings = metricFilteredBookings;
   const columnCount = scheduleStaff.length;
   const scrollable = columnCount > 4;
   const compactCards = columnCount >= 3;
   const columnFlexBasis = scrollable ? "0 0 calc((100% - 24px) / 4)" : `0 0 calc((100% - ${(columnCount - 1) * 8}px) / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
-  const scheduleAnchor = getScheduleBoardAnchor(staffScopedBookings, currentHour);
-  const currentBookingId = scheduleAnchor.booking?.id;
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setCurrentHour(getCurrentDayHour()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (currentWorkCatchTimerRef.current) {
-        window.clearTimeout(currentWorkCatchTimerRef.current);
-      }
-    };
-  }, []);
+  const displayedVisibleBookings = resizingBooking
+    ? visibleBookings.map((booking) =>
+        booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
+      )
+    : visibleBookings;
 
   useEffect(() => {
     if (!expandedMicroBookingId) return;
@@ -1413,72 +1465,6 @@ function DailyScheduleGrid({
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [expandedMicroBookingId]);
-
-  useEffect(() => {
-    if (!currentBookingId || lastAutoSelectedRef.current === currentBookingId) return;
-    lastAutoSelectedRef.current = currentBookingId;
-    onSelectBooking(currentBookingId);
-  }, [activeMetric, currentBookingId, onSelectBooking]);
-
-  useEffect(() => {
-    if (!selectedBookingId) return;
-    const viewport = timelineViewportRef.current;
-    const target = viewport?.querySelector<HTMLElement>(`[data-booking-id="${selectedBookingId}"]`);
-    if (!viewport || !target) return;
-
-    const viewportRect = viewport.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    const nextScrollTop =
-      selectedBookingId === currentBookingId
-        ? Math.max(0, viewport.scrollTop + targetRect.top - viewportRect.top - scheduleAnchorInset)
-        : Math.max(0, viewport.scrollTop + targetRect.top - viewportRect.top - (viewport.clientHeight - targetRect.height) / 2);
-
-    programmaticTimelineScrollRef.current = true;
-    viewport.scrollTo({ top: nextScrollTop, behavior: "smooth" });
-
-    const bodyScroller = bodyScrollerRef.current;
-    if (bodyScroller) {
-      const bodyRect = bodyScroller.getBoundingClientRect();
-      const nextScrollLeft = Math.max(
-        0,
-        bodyScroller.scrollLeft + targetRect.left - bodyRect.left - (bodyScroller.clientWidth - targetRect.width) / 2,
-      );
-      bodyScroller.scrollTo({ left: nextScrollLeft, behavior: "smooth" });
-    }
-
-    setCaughtBookingId(selectedBookingId);
-
-    if (currentWorkCatchTimerRef.current) {
-      window.clearTimeout(currentWorkCatchTimerRef.current);
-    }
-    currentWorkCatchTimerRef.current = window.setTimeout(() => {
-      setCaughtBookingId(null);
-      currentWorkCatchTimerRef.current = null;
-      programmaticTimelineScrollRef.current = false;
-    }, 850);
-  }, [currentBookingId, selectedBookingId]);
-
-  useLayoutEffect(() => {
-    if (!timelineViewportRef.current) return;
-    const anchorHour = scheduleAnchor.hour;
-    const anchorKey = scheduleAnchor.key;
-    if (positionedTimelineRef.current === anchorKey) return;
-    const nextScrollTop = Math.max(0, getBookingTop(anchorHour) - scheduleAnchorInset);
-    programmaticTimelineScrollRef.current = true;
-    timelineViewportRef.current.scrollTop = nextScrollTop;
-    window.requestAnimationFrame(() => {
-      if (timelineViewportRef.current) {
-        timelineViewportRef.current.scrollTop = nextScrollTop;
-      }
-    });
-    window.setTimeout(() => {
-      programmaticTimelineScrollRef.current = false;
-    }, 360);
-    positionedTimelineRef.current = anchorKey;
-    if (scheduleAnchor.booking) {
-      currentWorkCatchRef.current = { bookingId: scheduleAnchor.booking.id, caught: false };
-    }
-  }, [scheduleAnchor.hour, scheduleAnchor.key]);
 
   useLayoutEffect(() => {
     const scroller = bodyScrollerRef.current;
@@ -1505,48 +1491,6 @@ function DailyScheduleGrid({
     return () => resizeObserver.disconnect();
   }, [columnCount]);
 
-  useEffect(() => {
-    const viewport = timelineViewportRef.current;
-    const currentWorkBooking = scheduleAnchor.booking;
-    if (!viewport || scheduleAnchor.kind !== "current-work" || !currentWorkBooking) return;
-    const timelineElement = viewport;
-    const anchorBooking = currentWorkBooking;
-
-    function handleWheel(event: globalThis.WheelEvent) {
-      if (programmaticTimelineScrollRef.current || event.deltaY === 0) return;
-
-      if (currentWorkCatchRef.current.bookingId !== anchorBooking.id) {
-        currentWorkCatchRef.current = { bookingId: anchorBooking.id, caught: false };
-      }
-
-      const targetScrollTop = Math.max(0, getBookingTop(anchorBooking.start) - scheduleAnchorInset);
-      const distance = Math.abs(timelineElement.scrollTop - targetScrollTop);
-
-      if (distance > currentWorkCatchResetDistance) {
-        currentWorkCatchRef.current.caught = false;
-        return;
-      }
-
-      if (distance > currentWorkCatchThreshold || currentWorkCatchRef.current.caught) return;
-
-      event.preventDefault();
-      currentWorkCatchRef.current.caught = true;
-      setCaughtBookingId(anchorBooking.id);
-      timelineElement.scrollTo({ top: targetScrollTop, behavior: "smooth" });
-
-      if (currentWorkCatchTimerRef.current) {
-        window.clearTimeout(currentWorkCatchTimerRef.current);
-      }
-      currentWorkCatchTimerRef.current = window.setTimeout(() => {
-        setCaughtBookingId(null);
-        currentWorkCatchTimerRef.current = null;
-      }, 650);
-    }
-
-    timelineElement.addEventListener("wheel", handleWheel, { passive: false });
-    return () => timelineElement.removeEventListener("wheel", handleWheel);
-  }, [scheduleAnchor.booking, scheduleAnchor.kind]);
-
   function syncHorizontalScroll(source: "header" | "body") {
     if (syncingScrollRef.current) return;
     const from = source === "header" ? headerScrollerRef.current : bodyScrollerRef.current;
@@ -1557,42 +1501,6 @@ function DailyScheduleGrid({
     window.requestAnimationFrame(() => {
       syncingScrollRef.current = false;
     });
-  }
-
-  function handleTimelineScroll() {
-    const viewport = timelineViewportRef.current;
-    const currentWorkBooking = scheduleAnchor.booking;
-    if (programmaticTimelineScrollRef.current) return;
-    if (scheduleAnchor.kind !== "current-work") return;
-    if (!viewport || !currentWorkBooking) return;
-
-    if (currentWorkCatchRef.current.bookingId !== currentWorkBooking.id) {
-      currentWorkCatchRef.current = { bookingId: currentWorkBooking.id, caught: false };
-    }
-
-    const targetScrollTop = Math.max(0, getBookingTop(currentWorkBooking.start) - scheduleAnchorInset);
-    const distance = Math.abs(viewport.scrollTop - targetScrollTop);
-
-    if (distance > currentWorkCatchResetDistance) {
-      currentWorkCatchRef.current.caught = false;
-      return;
-    }
-
-    if (distance > currentWorkCatchThreshold || currentWorkCatchRef.current.caught) {
-      return;
-    }
-
-    currentWorkCatchRef.current.caught = true;
-    setCaughtBookingId(currentWorkBooking.id);
-    viewport.scrollTo({ top: targetScrollTop, behavior: "smooth" });
-
-    if (currentWorkCatchTimerRef.current) {
-      window.clearTimeout(currentWorkCatchTimerRef.current);
-    }
-    currentWorkCatchTimerRef.current = window.setTimeout(() => {
-      setCaughtBookingId(null);
-      currentWorkCatchTimerRef.current = null;
-    }, 650);
   }
 
   function shouldSkipBoardPan(target: EventTarget | null) {
@@ -1649,6 +1557,10 @@ function DailyScheduleGrid({
   }
 
   function handleBookingDragStart(event: DragEvent<HTMLButtonElement>, bookingId: string) {
+    if (resizingBooking) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", bookingId);
     setDraggingBookingId(bookingId);
@@ -1660,7 +1572,7 @@ function DailyScheduleGrid({
     event.dataTransfer.dropEffect = "move";
   }
 
-  function handleColumnDrop(event: DragEvent<HTMLElement>, staffMember: (typeof demoStaffColumns)[number]) {
+  function handleColumnDrop(event: DragEvent<HTMLElement>, staffMember: OwnerWebStaffColumn) {
     event.preventDefault();
     const bookingId = event.dataTransfer.getData("text/plain");
     const booking = bookings.find((item) => item.id === bookingId);
@@ -1672,7 +1584,7 @@ function DailyScheduleGrid({
     const columnRect = event.currentTarget.getBoundingClientRect();
     const nextStart = getSnappedBookingStart(event.clientY, columnRect.top, booking.duration);
     if (
-      hasStaffBookingConflict(bookings, bookingId, {
+      hasStaffBookingConflict(conflictBookings, bookingId, {
         staffKey: staffMember.key,
         start: nextStart,
         duration: booking.duration,
@@ -1693,6 +1605,59 @@ function DailyScheduleGrid({
     setDraggingBookingId(null);
   }
 
+  function handleResizePointerDown(event: ReactPointerEvent<HTMLDivElement>, booking: DailyBooking) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    onSelectBooking(booking.id);
+    setExpandedMicroBookingId(null);
+    setResizingBooking({
+      bookingId: booking.id,
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      initialDuration: booking.duration,
+      nextDuration: booking.duration,
+    });
+  }
+
+  function handleResizePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    setResizingBooking((current) => {
+      if (!current || current.pointerId !== event.pointerId) return current;
+      const booking = bookings.find((item) => item.id === current.bookingId);
+      if (!booking) return current;
+      const deltaSlots = Math.round((event.clientY - current.startY) / quarterSlotHeight);
+      const nextDuration = getSnappedBookingDuration(
+        booking.start,
+        current.initialDuration + deltaSlots / scheduleSnapSegmentsPerHour,
+      );
+      return { ...current, nextDuration };
+    });
+  }
+
+  function finishResizeBooking(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = resizingBooking;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const booking = bookings.find((item) => item.id === current.bookingId);
+    if (booking) {
+      const nextDuration = getSnappedBookingDuration(booking.start, current.nextDuration);
+      const blocked = hasStaffBookingConflict(conflictBookings, booking.id, {
+        staffKey: booking.staffKey,
+        start: booking.start,
+        duration: nextDuration,
+      });
+      if (!blocked) {
+        onResizeBooking(booking.id, nextDuration);
+      }
+      onSelectBooking(booking.id);
+    }
+    setResizingBooking(null);
+  }
+
   return (
     <div className="bg-white">
       <div className="flex bg-white">
@@ -1708,7 +1673,7 @@ function DailyScheduleGrid({
         >
           <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-4" style={scheduleTrackStyle}>
             {scheduleStaff.map((staffMember) => {
-              const staffBookings = visibleBookings.filter((booking) => booking.staffKey === staffMember.key);
+              const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
               const activeStatusCount = staffBookings.filter((booking) => isActiveBookingStatus(booking.status)).length;
 
               return (
@@ -1745,17 +1710,14 @@ function DailyScheduleGrid({
 
       <div
         ref={timelineViewportRef}
-        data-schedule-timeline="true"
-        onScroll={handleTimelineScroll}
         onPointerDown={handleBoardPanPointerDown}
         onPointerMove={handleBoardPanPointerMove}
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "max-h-[504px] scroll-pt-4 overflow-y-auto scroll-smooth select-none",
+          "max-h-[504px] overflow-y-auto select-none",
           boardPanning && "cursor-grabbing snap-none",
-          !boardPanning && scrollable && "cursor-grab snap-y snap-proximity",
-          !boardPanning && !scrollable && "snap-y snap-proximity",
+          !boardPanning && scrollable && "cursor-grab",
         )}
       >
         <div className="flex">
@@ -1793,9 +1755,8 @@ function DailyScheduleGrid({
           >
             <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4" style={scheduleTrackStyle}>
               {scheduleStaff.map((staffMember) => {
-                const staffBookings = visibleBookings
+                const staffBookings = displayedVisibleBookings
                   .filter((booking) => booking.staffKey === staffMember.key)
-                  .map((booking) => ({ ...booking, phase: getBookingPhase(booking, currentHour) }))
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(staffBookings);
                 return (
@@ -1828,8 +1789,8 @@ function DailyScheduleGrid({
                         staffBookings.map((booking) => {
                           const selected = selectedBookingId === booking.id;
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
-                          const activeStatus = isActiveBookingStatus(booking.status);
-                          const cardTone = getBookingCardTone(booking.status, booking.phase);
+                          const changeStatus = isChangeBookingStatus(booking.status);
+                          const cardTone = getBookingCardTone(booking.status);
                           const density = getBookingCardDensity(booking.duration);
                           const microCard = density === "micro";
                           const expandedMicro = density === "micro" && expandedMicroBookingId === booking.id;
@@ -1841,10 +1802,9 @@ function DailyScheduleGrid({
                             <button
                               key={booking.id}
                               type="button"
-                              draggable
+                              draggable={!resizingBooking && !changeStatus}
                               data-booking-id={booking.id}
                               data-booking-duration={booking.duration}
-                              data-current-booking={activeStatus ? "true" : undefined}
                               onDragStart={(event) => handleBookingDragStart(event, booking.id)}
                               onDragEnd={() => setDraggingBookingId(null)}
                               onClick={(event) => {
@@ -1854,21 +1814,16 @@ function DailyScheduleGrid({
                               }}
                               className={cn(
                                 "absolute z-20 box-border cursor-grab overflow-hidden rounded-[8px] border p-0 text-left transition-all active:cursor-grabbing",
-                                cardTone !== "pending" && "hover:-translate-y-0.5",
-                                booking.id === currentBookingId && "snap-start snap-always",
-                                draggingBookingId === booking.id && "opacity-70 ring-2 ring-[#2f7866]/25",
-                                caughtBookingId === booking.id &&
-                                  (cardTone === "pending"
-                                    ? "ring-1 ring-[#e3c476]/30"
-                                    : cardTone === "active"
-                                      ? "shadow-none ring-1 ring-[#9fc9bd]/35"
-                                      : "shadow-none ring-2 ring-[#2f7866]/25"),
+                                changeStatus && "cursor-default active:cursor-default",
+                                resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
+                                cardTone !== "pending" && !changeStatus && "hover:-translate-y-0.5",
+                                draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#8ab9ab]/24",
                                 expandedMicro &&
                                   (cardTone === "pending"
-                                    ? "z-50 ring-1 ring-[#e3c476]/30"
+                                    ? "z-50 ring-1 ring-[#f2c94c]/18"
                                     : cardTone === "active"
-                                      ? "z-50 shadow-none ring-1 ring-[#9fc9bd]/35"
-                                      : "z-50 shadow-[0_20px_38px_rgba(15,23,42,0.18)] ring-2 ring-[#2f7866]/35"),
+                                      ? "z-50 shadow-none ring-1 ring-[#8ab9ab]/22"
+                                      : "z-50 shadow-[0_16px_28px_rgba(15,23,42,0.12)] ring-1 ring-[#8ab9ab]/22"),
                                 getBookingCardToneClass(cardTone, selected),
                               )}
                               style={{
@@ -1877,15 +1832,15 @@ function DailyScheduleGrid({
                                 height: bookingHeight,
                               }}
                             >
-                              <div className={cn("absolute inset-0 flex min-h-0 min-w-0 items-center overflow-hidden text-left", microCard ? "px-2" : "px-3")}>
+                              <span className={cn("absolute bottom-0 left-0 top-0 w-1 rounded-l-[8px]", getBookingIndicatorClass(cardTone))} aria-hidden="true" />
+                              <div className="absolute inset-0 flex min-h-0 min-w-0 items-center overflow-hidden pl-4 pr-3 text-left">
                                 <div
                                   className={cn(
                                     "grid w-full min-w-0 items-center gap-x-2",
-                                    microCard ? "grid-cols-[8px_minmax(0,1fr)_max-content]" : "grid-cols-[8px_minmax(0,1fr)_auto]",
+                                    microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
                                     microCard ? "grid-rows-[16px]" : "grid-rows-[16px_16px] gap-y-[2.5px]",
                                   )}
                                 >
-                                  <span className={cn("h-2 w-2 shrink-0 rounded-full text-[13px]", getBookingDotClass(cardTone))} aria-hidden="true" />
                                   <p
                                     className={cn(
                                       "min-w-0 truncate text-[13px] font-medium leading-[16px]",
@@ -1905,12 +1860,26 @@ function DailyScheduleGrid({
                                     {microCard ? booking.service : timeLabel}
                                   </span>
                                   {!microCard ? (
-                                    <p className="col-start-2 col-span-2 min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
+                                    <p className="col-span-2 min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
                                       {booking.service}
                                     </p>
                                   ) : null}
                                 </div>
                               </div>
+                              {selected && !changeStatus ? (
+                                <div
+                                  role="separator"
+                                  aria-label="예약 종료 시간 조정"
+                                  aria-orientation="horizontal"
+                                  onPointerDown={(event) => handleResizePointerDown(event, booking)}
+                                  onPointerMove={handleResizePointerMove}
+                                  onPointerUp={finishResizeBooking}
+                                  onPointerCancel={finishResizeBooking}
+                                  className="absolute inset-x-3 bottom-0 z-30 flex h-3 cursor-ns-resize touch-none items-end justify-center pb-1"
+                                >
+                                  <span className={cn("h-1 w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
+                                </div>
+                              ) : null}
                             </button>
                           );
                         })
@@ -1927,6 +1896,81 @@ function DailyScheduleGrid({
   );
 }
 
+type ScheduleDaySummary = {
+  date: string;
+  bookings: DailyBooking[];
+  counts: ReturnType<typeof getBookingCounts>;
+};
+
+function getLoadLabel(total: number) {
+  if (total >= 7) return "많음";
+  if (total >= 4) return "보통";
+  if (total >= 1) return "여유";
+  return "비어 있음";
+}
+
+function getLoadTone(total: number) {
+  if (total >= 7) return "bg-[#1f6b5b]";
+  if (total >= 4) return "bg-[#6fb09f]";
+  if (total >= 1) return "bg-[#b9d8cf]";
+  return "bg-[#e2e8f0]";
+}
+
+function getDaySummaries(bookings: DailyBooking[], dates: string[]) {
+  return dates.map((date, index) => {
+    const dayBookings = getPreviewBookingsForBucket(bookings, index, dates.length);
+    return {
+      date,
+      bookings: dayBookings,
+      counts: getBookingCounts(dayBookings),
+    };
+  });
+}
+
+function sumDayCounts(days: ScheduleDaySummary[]) {
+  return days.reduce(
+    (total, day) => ({
+      total: total.total + day.counts.total,
+      pending: total.pending + day.counts.pending,
+      changes: total.changes + day.counts.changes,
+      completed: total.completed + day.counts.completed,
+    }),
+    { total: 0, pending: 0, changes: 0, completed: 0 },
+  );
+}
+
+function getBusiestDays(days: ScheduleDaySummary[], limit: number) {
+  return [...days]
+    .filter((day) => day.counts.total > 0)
+    .sort((first, second) => second.counts.total - first.counts.total || first.date.localeCompare(second.date))
+    .slice(0, limit);
+}
+
+function WeeklySummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-3 py-2">
+      <p className="text-[11px] text-[#64748b]">{label}</p>
+      <p className="mt-1 text-[16px] font-semibold text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function SmallCount({ label, value, tone }: { label: string; value: number; tone: "pending" | "change" | "done" }) {
+  const toneClass =
+    tone === "pending"
+      ? "bg-[#fff7d6] text-[#9f6f00]"
+      : tone === "change"
+        ? "bg-[#fff1f1] text-[#b42318]"
+        : "bg-[#e6f3ef] text-[#1f6b5b]";
+
+  return (
+    <div className={cn("rounded-[8px] px-2 py-1.5", toneClass)}>
+      <p className="text-[11px]">{label}</p>
+      <p className="text-[13px] font-semibold">{value}건</p>
+    </div>
+  );
+}
+
 function WeeklyScheduleOverview({
   bookings,
   selectedDate,
@@ -1939,62 +1983,115 @@ function WeeklyScheduleOverview({
   onSelectBooking: (id: string) => void;
 }) {
   const weekDates = getWeekScheduleDates(selectedDate);
+  const daySummaries = getDaySummaries(bookings, weekDates);
+  const weekCounts = sumDayCounts(daySummaries);
+  const busiestDays = getBusiestDays(daySummaries, 2);
 
   return (
     <div className="bg-white p-4">
+      <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[18px] font-semibold text-[#111827]">이번 주 예약 흐름</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">요일별 예약 밀도와 승인 대기, 변경/취소만 빠르게 확인합니다.</p>
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <WeeklySummaryMetric label="예약" value={`${weekCounts.total}건`} />
+              <WeeklySummaryMetric label="대기" value={`${weekCounts.pending}건`} />
+              <WeeklySummaryMetric label="변경/취소" value={`${weekCounts.changes}건`} />
+              <WeeklySummaryMetric label="완료" value={`${weekCounts.completed}건`} />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-white p-4">
+          <p className="text-[13px] font-semibold text-[#111827]">이번 주 체크할 날짜</p>
+          <div className="mt-3 space-y-2">
+            {busiestDays.length > 0 ? (
+              busiestDays.map((day) => (
+                <div key={day.date} className="flex items-center justify-between rounded-[8px] bg-[#f8fafc] px-3 py-2">
+                  <div>
+                    <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                  </div>
+                  <span className={cn("h-2.5 w-2.5 rounded-full", getLoadTone(day.counts.total))} />
+                </div>
+              ))
+            ) : (
+              <p className="rounded-[8px] bg-[#f8fafc] px-3 py-3 text-[13px] text-[#94a3b8]">이번 주 예약이 없습니다.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
       <div className="grid gap-2 xl:grid-cols-7">
-        {weekDates.map((date, index) => {
-          const dayBookings = getPreviewBookingsForBucket(bookings, index, 7);
-          const counts = getBookingCounts(dayBookings);
+        {daySummaries.map(({ date, bookings: dayBookings, counts }) => {
           const isToday = date === todayScheduleDate;
+          const visibleBookings = dayBookings.slice(0, 3);
 
           return (
             <section
               key={date}
               className={cn(
-                "min-h-[430px] rounded-[8px] border bg-[#f8fafc] p-3",
+                "min-h-[260px] rounded-[8px] border bg-[#f8fafc] p-3",
                 isToday ? "border-[#2f7866] ring-1 ring-[#2f7866]/15" : "border-[#e2e8f0]",
               )}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-[15px] font-medium text-[#111827]">{formatScheduleShortDate(date)}</p>
-                  <p className="mt-1 text-[12px] text-[#64748b]">예약 {counts.total}건 · 대기 {counts.pending}건</p>
+                  <p className="mt-1 text-[12px] text-[#64748b]">{getLoadLabel(counts.total)} · 예약 {counts.total}건</p>
                 </div>
                 {isToday ? <span className="rounded-full bg-[#e6f3ef] px-2 py-1 text-[11px] text-[#1f6b5b]">오늘</span> : null}
               </div>
 
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div className={cn("h-full rounded-full", getLoadTone(counts.total))} style={{ width: `${Math.min(100, counts.total * 12)}%` }} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-1 text-center">
+                <SmallCount label="대기" value={counts.pending} tone="pending" />
+                <SmallCount label="변경" value={counts.changes} tone="change" />
+                <SmallCount label="완료" value={counts.completed} tone="done" />
+              </div>
+
               <div className="mt-3 space-y-2">
-                {dayBookings.slice(0, 5).map((booking) => (
+                {visibleBookings.map((booking) => (
                   <button
                     key={`${date}-${booking.id}`}
                     type="button"
                     onClick={() => onSelectBooking(booking.id)}
                     className={cn(
-                      "w-full rounded-[8px] border px-3 py-2 text-left transition",
-                      getBookingCardToneClass(getBookingCardTone(booking.status, "upcoming"), selectedBookingId === booking.id),
+                      "relative w-full overflow-hidden rounded-[8px] border py-2 pl-4 pr-3 text-left transition",
+                      getBookingCardToneClass(getBookingCardTone(booking.status), selectedBookingId === booking.id),
                     )}
                   >
-                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2">
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
                       {(() => {
-                        const tone = getBookingCardTone(booking.status, "upcoming");
+                        const tone = getBookingCardTone(booking.status);
                         return (
                           <>
-                            <span className={cn("h-2 w-2 shrink-0 rounded-full", getBookingDotClass(tone))} aria-hidden="true" />
+                            <span className={cn("absolute bottom-0 left-0 top-0 w-1 rounded-l-[8px]", getBookingIndicatorClass(tone))} aria-hidden="true" />
                             <p className="min-w-0 truncate text-[13px] font-medium text-[#111827]">{booking.pet} · {booking.customer}</p>
                             <span className={cn("shrink-0 tabular-nums text-[11px]", getBookingTimeTextClass(tone))}>
                               {formatHourLabel(booking.start)}-{formatHourLabel(booking.start + booking.duration)}
                             </span>
-                            <p className="col-start-2 mt-0.5 truncate text-[12px] text-[#64748b]">{booking.service}</p>
+                            <p className="col-span-2 mt-0.5 truncate text-[12px] text-[#64748b]">{booking.service}</p>
                           </>
                         );
                       })()}
                     </div>
                   </button>
                 ))}
-                {dayBookings.length > 5 ? (
+                {dayBookings.length > visibleBookings.length ? (
                   <div className="rounded-[8px] border border-dashed border-[#cfd8e3] bg-white/70 px-3 py-2 text-center text-[12px] text-[#64748b]">
-                    +{dayBookings.length - 5}건 더 보기
+                    +{dayBookings.length - visibleBookings.length}건 더 보기
+                  </div>
+                ) : null}
+                {dayBookings.length === 0 ? (
+                  <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-white/70 px-3 py-6 text-center text-[12px] text-[#94a3b8]">
+                    예약 없음
                   </div>
                 ) : null}
               </div>
@@ -2017,19 +2114,55 @@ function MonthlyScheduleOverview({
 }) {
   const monthDates = getMonthScheduleDates(selectedDate);
   const realDates = monthDates.filter(Boolean) as string[];
+  const daySummaries = getDaySummaries(bookings, realDates);
+  const monthCounts = sumDayCounts(daySummaries);
+  const activeDayCount = daySummaries.filter((day) => day.counts.total > 0).length;
+  const busiestDays = getBusiestDays(daySummaries, 3);
 
   return (
     <div className="bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <p className="text-[18px] font-medium text-[#111827]">{getScheduleMonthLabel(selectedDate)}</p>
-          <p className="mt-1 text-[12px] text-[#64748b]">날짜별 예약 밀도, 승인 대기, 변경 취소를 한눈에 봅니다.</p>
+          <p className="mt-1 text-[13px] text-[#64748b]">한 달 예약 밀도와 승인 대기, 변경/취소가 있는 날짜를 확인합니다.</p>
+          <div className="mt-3 grid max-w-[520px] grid-cols-4 gap-2">
+            <WeeklySummaryMetric label="예약" value={`${monthCounts.total}건`} />
+            <WeeklySummaryMetric label="예약일" value={`${activeDayCount}일`} />
+            <WeeklySummaryMetric label="대기" value={`${monthCounts.pending}건`} />
+            <WeeklySummaryMetric label="변경" value={`${monthCounts.changes}건`} />
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-[12px] text-[#64748b]">
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#1f6b5b]" />많음</span>
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" />대기</span>
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" />변경/취소</span>
-        </div>
+
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
+          <p className="text-[13px] font-semibold text-[#111827]">예약이 많은 날짜</p>
+          <div className="mt-3 space-y-2">
+            {busiestDays.length > 0 ? (
+              busiestDays.map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => day.bookings[0] && onSelectBooking(day.bookings[0].id)}
+                  className="flex w-full items-center justify-between rounded-[8px] bg-white px-3 py-2 text-left transition hover:bg-[#eef7f4]"
+                >
+                  <div>
+                    <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                  </div>
+                  <span className="text-[12px] font-semibold text-[#1f6b5b]">{getLoadLabel(day.counts.total)}</span>
+                </button>
+              ))
+            ) : (
+              <p className="rounded-[8px] bg-white px-3 py-3 text-[13px] text-[#94a3b8]">이번 달 예약이 없습니다.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] text-[#64748b]">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#1f6b5b]" />예약 많음</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#b9d8cf]" />예약 있음</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" />승인 대기</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" />변경/취소</span>
       </div>
 
       <div className="grid grid-cols-7 overflow-hidden rounded-[8px] border border-[#e2e8f0]">
@@ -2040,15 +2173,15 @@ function MonthlyScheduleOverview({
         ))}
         {monthDates.map((date, index) => {
           if (!date) {
-            return <div key={`empty-${index}`} className="min-h-[108px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
+            return <div key={`empty-${index}`} className="min-h-[112px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
           }
 
           const dateIndex = realDates.indexOf(date);
-          const dayBookings = getPreviewBookingsForBucket(bookings, dateIndex, realDates.length);
-          const counts = getBookingCounts(dayBookings);
-          const firstBooking = dayBookings[0];
+          const day = daySummaries[dateIndex];
+          const counts = day.counts;
+          const firstBooking = day.bookings[0];
           const isToday = date === todayScheduleDate;
-          const densityClass = counts.total >= 3 ? "bg-[#dff0eb]" : counts.total >= 1 ? "bg-[#f1f8f5]" : "bg-white";
+          const densityClass = counts.total >= 7 ? "bg-[#dff0eb]" : counts.total >= 1 ? "bg-[#f5fbf8]" : "bg-white";
 
           return (
             <button
@@ -2056,21 +2189,25 @@ function MonthlyScheduleOverview({
               type="button"
               onClick={() => firstBooking && onSelectBooking(firstBooking.id)}
               className={cn(
-                "min-h-[108px] border-b border-r border-[#eef2f7] p-2 text-left transition hover:bg-[#eef7f4]",
+                "min-h-[112px] border-b border-r border-[#eef2f7] p-2 text-left transition hover:bg-[#eef7f4]",
                 densityClass,
                 isToday && "ring-2 ring-inset ring-[#2f7866]",
               )}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-[#111827]">{Number(date.slice(-2))}</span>
-                {counts.total > 0 ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#1f6b5b]">{counts.total}</span> : null}
+                {counts.total > 0 ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#1f6b5b]">{counts.total}건</span> : null}
               </div>
-              {firstBooking ? (
-                <div className="mt-3 space-y-1">
-                  <p className="truncate text-[12px] font-medium text-[#111827]">{firstBooking.pet} · {firstBooking.customer}</p>
-                  <p className="truncate text-[11px] text-[#64748b]">{formatHourLabel(firstBooking.start)} · {firstBooking.service}</p>
-                </div>
-              ) : null}
+
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white">
+                <div className={cn("h-full rounded-full", getLoadTone(counts.total))} style={{ width: `${Math.min(100, counts.total * 12)}%` }} />
+              </div>
+
+              <div className="mt-3 space-y-1">
+                {counts.total > 0 ? <p className="truncate text-[12px] font-medium text-[#111827]">{getLoadLabel(counts.total)}</p> : null}
+                {counts.pending > 0 ? <p className="truncate text-[11px] text-[#9f6f00]">승인 대기 {counts.pending}건</p> : null}
+                {counts.changes > 0 ? <p className="truncate text-[11px] text-[#b42318]">변경/취소 {counts.changes}건</p> : null}
+              </div>
               <div className="mt-3 flex gap-1">
                 {counts.pending > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#f59e0b]" /> : null}
                 {counts.changes > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" /> : null}
@@ -2084,10 +2221,14 @@ function MonthlyScheduleOverview({
   );
 }
 
-function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: Array<(typeof demoStaffColumns)[number]>, selectedDate: string, staff: StaffFilter): ScheduleCreateFormState {
+function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWebStaffColumn[], selectedDate: string, staff: StaffFilter): ScheduleCreateFormState {
   const initialStaff = staff === "전체 스태프" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
   return {
+    customerMode: "new",
     petId: data.pets[0]?.id ?? "",
+    customerName: "",
+    petName: "",
+    customerPhone: "",
     serviceId: data.services.find((service) => service.is_active)?.id ?? data.services[0]?.id ?? "",
     staffKey: initialStaff?.key ?? "staff-1",
     date: selectedDate,
@@ -2117,6 +2258,91 @@ async function postOwnerAppointment(payload: unknown) {
     }
     throw error;
   }
+}
+
+async function postOwnerGuardian(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Guardian>("/api/guardians", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase ?곌껐") || message.includes("濡쒓렇?몄씠 ?꾩슂")) {
+      return fetchApiJson<Guardian>("/api/guardians", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
+async function postOwnerPet(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Pet>("/api/pets", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase ?곌껐") || message.includes("濡쒓렇?몄씠 ?꾩슂")) {
+      return fetchApiJson<Pet>("/api/pets", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
+function normalizeSchedulePhone(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function buildLocalGuardian(params: { shopId: string; name: string; phone: string; memo?: string }): Guardian {
+  const now = new Date().toISOString();
+  return {
+    id: `local-guardian-${crypto.randomUUID()}`,
+    shop_id: params.shopId,
+    name: params.name,
+    phone: params.phone,
+    memo: params.memo ?? "",
+    notification_settings: {
+      enabled: true,
+      revisit_enabled: true,
+      booking_confirmed_enabled: true,
+      booking_rejected_enabled: true,
+      booking_cancelled_enabled: true,
+      booking_rescheduled_enabled: true,
+      appointment_reminder_10m_enabled: true,
+      grooming_started_enabled: true,
+      grooming_almost_done_enabled: true,
+      grooming_completed_enabled: true,
+      birthday_greeting_enabled: true,
+    },
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function buildLocalPet(params: { shopId: string; guardianId: string; name: string }): Pet {
+  const now = new Date().toISOString();
+  return {
+    id: `local-pet-${crypto.randomUUID()}`,
+    shop_id: params.shopId,
+    guardian_id: params.guardianId,
+    name: params.name,
+    breed: "미입력",
+    weight: null,
+    age: null,
+    notes: "",
+    birthday: null,
+    grooming_cycle_weeks: 4,
+    avatar_seed: params.name.trim().slice(0, 1) || "P",
+    created_at: now,
+    updated_at: now,
+  };
 }
 
 function buildLocalOwnerAppointment(params: {
@@ -2153,6 +2379,78 @@ function buildLocalOwnerAppointment(params: {
   };
 }
 
+type ScheduleDropdownOption = {
+  value: string;
+  label: string;
+  meta?: string;
+};
+
+function ScheduleDropdown({
+  label,
+  value,
+  options,
+  placeholder = "선택",
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ScheduleDropdownOption[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <div className="relative space-y-1.5">
+      <span className="text-[12px] text-[#64748b]">{label}</span>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 text-left text-[14px] outline-none transition",
+          open ? "border-[#1f6b5b] ring-[3px] ring-[#1f6b5b]/10" : "border-[#dbe2ea] hover:border-[#b8c8d8]",
+        )}
+      >
+        <span className="min-w-0">
+          <span className={cn("block truncate", selected ? "text-[#111827]" : "text-[#94a3b8]")}>
+            {selected?.label ?? placeholder}
+          </span>
+          {selected?.meta ? <span className="mt-0.5 block truncate text-[11px] text-[#64748b]">{selected.meta}</span> : null}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180")} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-[68px] z-[70] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
+          <div className="max-h-[220px] overflow-y-auto p-1">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 rounded-[7px] px-3 py-2.5 text-left transition",
+                  option.value === value ? "bg-[#e8f4f0] text-[#1f6b5b]" : "text-[#111827] hover:bg-[#f8fafc]",
+                )}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[14px]">{option.label}</span>
+                  {option.meta ? <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{option.meta}</span> : null}
+                </span>
+                {option.value === value ? <span className="h-2 w-2 shrink-0 rounded-full bg-[#1f6b5b]" /> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ScheduleCreateDialog({
   data,
   bookings,
@@ -2170,7 +2468,7 @@ function ScheduleCreateDialog({
   bookings: DailyBooking[];
   form: ScheduleCreateFormState;
   selectedDate: string;
-  visibleStaff: Array<(typeof demoStaffColumns)[number]>;
+  visibleStaff: OwnerWebStaffColumn[];
   staffAssignments: StaffAssignments;
   saving: boolean;
   error: string;
@@ -2183,6 +2481,25 @@ function ScheduleCreateDialog({
     guardian: data.guardians.find((guardian) => guardian.id === pet.guardian_id),
   }));
   const activeServices = data.services.filter((service) => service.is_active);
+  const customerModeOptions: ScheduleDropdownOption[] = [
+    { value: "new", label: "신규 고객 입력", meta: "고객명, 연락처, 반려동물명을 직접 입력" },
+    { value: "existing", label: "기존 고객 선택", meta: "등록된 고객과 반려동물에서 선택" },
+  ];
+  const petOptions = petRows.map(({ pet, guardian }) => ({
+    value: pet.id,
+    label: `${pet.name} · ${guardian?.name ?? "보호자 미등록"}`,
+    meta: guardian?.phone ?? undefined,
+  }));
+  const serviceOptions = activeServices.map((service) => ({
+    value: service.id,
+    label: service.name,
+    meta: `${service.duration_minutes}분 · ${service.price.toLocaleString()}원`,
+  }));
+  const staffOptions = visibleStaff.map((staffMember) => ({
+    value: staffMember.key,
+    label: staffMember.name,
+    meta: staffMember.role,
+  }));
   const selectedService = data.services.find((service) => service.id === form.serviceId);
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
   const dateBookings =
@@ -2200,7 +2517,11 @@ function ScheduleCreateDialog({
     : [];
   const selectedPet = data.pets.find((pet) => pet.id === form.petId);
   const selectedGuardian = selectedPet ? data.guardians.find((guardian) => guardian.id === selectedPet.guardian_id) : null;
-  const canSubmit = Boolean(form.petId && form.serviceId && form.staffKey && form.date && form.time && !saving);
+  const hasCustomerInfo =
+    form.customerMode === "existing"
+      ? Boolean(form.petId)
+      : Boolean(form.customerName.trim() && form.petName.trim() && normalizeSchedulePhone(form.customerPhone).length >= 10);
+  const canSubmit = Boolean(hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && !saving);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={onClose}>
@@ -2218,7 +2539,84 @@ function ScheduleCreateDialog({
           </button>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="mt-5 space-y-4">
+          <ScheduleDropdown
+            label="고객 등록 방식"
+            value={form.customerMode}
+            options={customerModeOptions}
+            onChange={(value) => onChange({ ...form, customerMode: value as "new" | "existing", time: "" })}
+          />
+
+          {form.customerMode === "existing" ? (
+            <ScheduleDropdown
+              label="고객 / 반려동물"
+              value={form.petId}
+              options={petOptions}
+              placeholder="기존 고객을 선택해 주세요"
+              onChange={(value) => onChange({ ...form, petId: value })}
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="space-y-1.5">
+                <span className="text-[12px] text-[#64748b]">고객명</span>
+                <input
+                  type="text"
+                  value={form.customerName}
+                  onChange={(event) => onChange({ ...form, customerName: event.target.value })}
+                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  placeholder="예: 김민지"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[12px] text-[#64748b]">반려동물 이름</span>
+                <input
+                  type="text"
+                  value={form.petName}
+                  onChange={(event) => onChange({ ...form, petName: event.target.value })}
+                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  placeholder="예: 몽이"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[12px] text-[#64748b]">고객 연락처</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={form.customerPhone}
+                  onChange={(event) => onChange({ ...form, customerPhone: normalizeSchedulePhone(event.target.value) })}
+                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  placeholder="01012345678"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <ScheduleDropdown
+              label="서비스"
+              value={form.serviceId}
+              options={serviceOptions}
+              onChange={(value) => onChange({ ...form, serviceId: value, time: "" })}
+            />
+            <ScheduleDropdown
+              label="담당"
+              value={form.staffKey}
+              options={staffOptions}
+              onChange={(value) => onChange({ ...form, staffKey: value as StaffKey, time: "" })}
+            />
+            <label className="space-y-1.5">
+              <span className="text-[12px] text-[#64748b]">날짜</span>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(event) => onChange({ ...form, date: event.target.value, time: "" })}
+                className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="hidden">
           <label className="space-y-1.5">
             <span className="text-[12px] text-[#64748b]">고객 / 반려동물</span>
             <select
@@ -2278,7 +2676,11 @@ function ScheduleCreateDialog({
         <div className="mt-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[12px] text-[#64748b]">가능 시간</p>
-            {selectedPet && selectedGuardian ? (
+            {form.customerMode === "new" && form.petName.trim() && form.customerName.trim() ? (
+              <p className="truncate text-[12px] text-[#64748b]">
+                {form.petName.trim()} · {form.customerName.trim()}
+              </p>
+            ) : selectedPet && selectedGuardian ? (
               <p className="truncate text-[12px] text-[#64748b]">
                 {selectedPet.name} · {selectedGuardian.name}
               </p>
@@ -2341,38 +2743,44 @@ function ScheduleCreateDialog({
 
 export default function CalendarManagementScreen({
   initialData,
+  staffMembers = defaultOwnerWebStaff,
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
 }: {
   initialData: BootstrapPayload;
+  staffMembers?: OwnerWebStaffMember[];
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
   const initialBootstrapData = useMemo(() => initialData, [initialData]);
+  const visibleStaff = useMemo(() => {
+    const columns = staffMembers.map(toOwnerWebStaffColumn);
+    return columns.length > 0 ? columns : fallbackStaffColumns;
+  }, [staffMembers]);
   const [bootstrapData, setBootstrapData] = useState(() => initialBootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const selectedDateBookings = useMemo(
-    () => buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments),
-    [bootstrapData, selectedDate, staffAssignments],
+    () => buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff),
+    [bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
   const [staff, setStaff] = useState<StaffFilter>("전체 스태프");
-  const [demoStaffCount, setDemoStaffCount] = useState(defaultVisibleStaffCount);
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
-  const [selectedBookingId, setSelectedBookingId] = useState(() => getPriorityBookingId(selectedDateBookings, getCurrentDayHour()));
+  const [selectedBookingId, setSelectedBookingId] = useState("");
+  const [scheduleStatusHour, setScheduleStatusHour] = useState(() => getCurrentDayHour());
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
+  const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
   const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
-    buildDefaultScheduleForm(initialBootstrapData, demoStaffColumns.slice(0, defaultVisibleStaffCount), currentDateInTimeZone(), "전체 스태프"),
+    buildDefaultScheduleForm(initialBootstrapData, fallbackStaffColumns, currentDateInTimeZone(), "전체 스태프"),
   );
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
   const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
-  const visibleStaff = useMemo(() => demoStaffColumns.slice(0, demoStaffCount), [demoStaffCount]);
   const staffScopedBookings = useMemo(
     () =>
       (staff === "전체 스태프" ? bookings : bookings.filter((item) => item.staffKey === staff)).filter((booking) =>
@@ -2381,8 +2789,18 @@ export default function CalendarManagementScreen({
     [bookings, staff, visibleStaff],
   );
   const displayScopedBookings = useMemo(
-    () => staffScopedBookings.map((booking) => normalizeBookingForApprovalMode(booking, manualApprovalEnabled)),
-    [manualApprovalEnabled, staffScopedBookings],
+    () =>
+      staffScopedBookings
+        .filter((booking) => !(isChangeBookingStatus(booking.status) && acknowledgedChangeBookingIds.has(booking.id)))
+        .map((booking) => {
+          const normalizedBooking = normalizeBookingForApprovalMode(booking, manualApprovalEnabled);
+          return {
+            ...normalizedBooking,
+            sourceStatus: normalizedBooking.status,
+            status: getTimedBookingStatus(normalizedBooking, selectedDate, scheduleStatusHour),
+          };
+        }),
+    [acknowledgedChangeBookingIds, manualApprovalEnabled, scheduleStatusHour, selectedDate, staffScopedBookings],
   );
   const summaryMetrics = useMemo(() => buildScheduleMetrics(displayScopedBookings), [displayScopedBookings]);
   const reservationFilterOptions = useMemo(
@@ -2393,14 +2811,26 @@ export default function CalendarManagementScreen({
   useEffect(() => {
     setBootstrapData(initialBootstrapData);
     setScheduleForm(buildDefaultScheduleForm(initialBootstrapData, visibleStaff, selectedDate, staff));
-  }, [initialBootstrapData]);
+  }, [initialBootstrapData, staff, selectedDate, visibleStaff]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setScheduleStatusHour(getCurrentDayHour()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (staff !== "전체 스태프" && !visibleStaff.some((item) => item.key === staff)) {
+      setStaff("전체 스태프");
+    }
+  }, [staff, visibleStaff]);
 
   useEffect(() => {
     const nextBookings = manualApprovalEnabled
       ? selectedDateBookings
       : selectedDateBookings.map((booking) => normalizeBookingForApprovalMode(booking, false));
     setBookings(nextBookings);
-    setSelectedBookingId(nextBookings.length > 0 ? getPriorityBookingId(nextBookings, getCurrentDayHour()) : "");
+    setScheduleStatusHour(getCurrentDayHour());
+    setSelectedBookingId((current) => (current && nextBookings.some((booking) => booking.id === current) ? current : ""));
   }, [manualApprovalEnabled, selectedDateBookings]);
 
   useEffect(() => {
@@ -2433,48 +2863,20 @@ export default function CalendarManagementScreen({
     [activeMetric, displayScopedBookings, reservationStatusFilter],
   );
 
-  const selectedBooking =
-    filteredBookings.find((item) => item.id === selectedBookingId) ??
-    filteredBookings[0];
+  const selectedBooking = displayScopedBookings.find((item) => item.id === selectedBookingId);
 
   function handleMetricSelect(metric: SummaryMetricKey) {
     setActiveMetric(metric);
     const nextReservationFilter: ReservationStatusFilter = "all";
     setReservationStatusFilter(nextReservationFilter);
 
-    const nextBookings = displayScopedBookings.filter((booking) => {
-        if (metric === "completed") return isCompletedBookingStatus(booking.status);
-        if (metric === "changes") return isChangeBookingStatus(booking.status);
-        if (metric === "today") return matchesReservationFilter(booking, nextReservationFilter);
-        return true;
-      });
-
-    if (nextBookings[0]) {
-      setSelectedBookingId(getPriorityBookingId(nextBookings, getCurrentDayHour()));
-    } else {
-      setSelectedBookingId("");
-    }
+    setSelectedBookingId("");
   }
 
   function handleReservationStatusFilterChange(filter: ReservationStatusFilter) {
     setActiveMetric("today");
     setReservationStatusFilter(filter);
-    const nextBookings = displayScopedBookings.filter((booking) => matchesReservationFilter(booking, filter));
-    setSelectedBookingId(nextBookings[0] ? getPriorityBookingId(nextBookings, getCurrentDayHour()) : "");
-  }
-
-  function handleDemoStaffCountChange(count: number) {
-    const nextVisibleStaff = demoStaffColumns.slice(0, count);
-    setDemoStaffCount(count);
-    if (staff !== "전체 스태프" && !nextVisibleStaff.some((item) => item.key === staff)) {
-      setStaff("전체 스태프");
-    }
-    const nextBookings = bookings.filter((booking) => nextVisibleStaff.some((item) => item.key === booking.staffKey));
-    if (nextBookings.length > 0) {
-      setSelectedBookingId(getPriorityBookingId(nextBookings, getCurrentDayHour()));
-    } else {
-      setSelectedBookingId("");
-    }
+    setSelectedBookingId("");
   }
 
   function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
@@ -2484,6 +2886,19 @@ export default function CalendarManagementScreen({
           ? {
               ...booking,
               ...next,
+            }
+          : booking,
+      ),
+    );
+  }
+
+  function handleResizeBooking(bookingId: string, duration: number) {
+    setBookings((current) =>
+      current.map((booking) =>
+        booking.id === bookingId
+          ? {
+              ...booking,
+              duration,
             }
           : booking,
       ),
@@ -2500,11 +2915,15 @@ export default function CalendarManagementScreen({
     setBookings((current) =>
       current.map((booking) => {
         if (booking.id !== bookingId) return booking;
+        const displayStatus = getTimedBookingStatus(booking, selectedDate, getCurrentDayHour());
         if (nextStatus === "진행 중" && !canStartGrooming(booking.status)) return booking;
-        if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(booking.status)) return booking;
+        if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(booking.status) && !canSendCompletionNotice(booking.status, displayStatus)) {
+          return booking;
+        }
         return { ...booking, status: nextStatus };
       }),
     );
+    setScheduleStatusHour(getCurrentDayHour());
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
@@ -2515,6 +2934,11 @@ export default function CalendarManagementScreen({
     }
 
     applyBookingStatusChange(bookingId, nextStatus);
+  }
+
+  function handleAcknowledgeChangeBooking(bookingId: string) {
+    setAcknowledgedChangeBookingIds((current) => new Set(current).add(bookingId));
+    setSelectedBookingId((current) => (current === bookingId ? "" : current));
   }
 
   function handleManualApprovalChange(enabled: boolean) {
@@ -2545,17 +2969,31 @@ export default function CalendarManagementScreen({
   }
 
   async function handleCreateSchedule() {
-    const selectedPet = bootstrapData.pets.find((pet) => pet.id === scheduleForm.petId);
+    let selectedPet = bootstrapData.pets.find((pet) => pet.id === scheduleForm.petId) ?? null;
+    let selectedGuardian = selectedPet ? bootstrapData.guardians.find((guardian) => guardian.id === selectedPet?.guardian_id) ?? null : null;
     const selectedService = bootstrapData.services.find((service) => service.id === scheduleForm.serviceId);
     const targetStaff = visibleStaff.find((item) => item.key === scheduleForm.staffKey);
+    const newCustomerName = scheduleForm.customerName.trim();
+    const newPetName = scheduleForm.petName.trim();
+    const newCustomerPhone = normalizeSchedulePhone(scheduleForm.customerPhone);
 
-    if (!selectedPet || !selectedService || !targetStaff || !scheduleForm.date || !scheduleForm.time) {
+    if (scheduleForm.customerMode === "new") {
+      if (!newCustomerName || !newPetName || newCustomerPhone.length < 10) {
+        setScheduleError("고객명, 반려동물 이름, 고객 연락처를 모두 입력해 주세요.");
+        return;
+      }
+    } else if (!selectedPet || !selectedGuardian) {
+      setScheduleError("기존 고객과 반려동물을 선택해 주세요.");
+      return;
+    }
+
+    if (!selectedService || !targetStaff || !scheduleForm.date || !scheduleForm.time) {
       setScheduleError("고객, 서비스, 담당자, 날짜와 시간을 모두 선택해 주세요.");
       return;
     }
 
     const duration = selectedService.duration_minutes / 60;
-    const dateBookings = scheduleForm.date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, scheduleForm.date, staffAssignments);
+    const dateBookings = scheduleForm.date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, scheduleForm.date, staffAssignments, visibleStaff);
     if (
       hasStaffBookingConflict(dateBookings, "__new-booking__", {
         staffKey: targetStaff.key,
@@ -2569,9 +3007,69 @@ export default function CalendarManagementScreen({
 
     setScheduleSaving(true);
     setScheduleError("");
+    let createdGuardian: Guardian | null = null;
+    let createdPet: Pet | null = null;
+
+    if (scheduleForm.customerMode === "new") {
+      try {
+        selectedGuardian = await postOwnerGuardian({
+          shopId: bootstrapData.shop.id,
+          name: newCustomerName,
+          phone: newCustomerPhone,
+          memo: "",
+        });
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (message.includes("濡쒓렇?몄씠 ?꾩슂")) {
+          selectedGuardian = buildLocalGuardian({
+            shopId: bootstrapData.shop.id,
+            name: newCustomerName,
+            phone: newCustomerPhone,
+          });
+        } else {
+          setScheduleError(getApiErrorMessage(error, "고객 저장 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      createdGuardian = selectedGuardian;
+
+      try {
+        selectedPet = await postOwnerPet({
+          shopId: bootstrapData.shop.id,
+          guardianId: selectedGuardian.id,
+          name: newPetName,
+          breed: "미입력",
+          groomingCycleWeeks: 4,
+        });
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (message.includes("濡쒓렇?몄씠 ?꾩슂")) {
+          selectedPet = buildLocalPet({
+            shopId: bootstrapData.shop.id,
+            guardianId: selectedGuardian.id,
+            name: newPetName,
+          });
+        } else {
+          setScheduleError(getApiErrorMessage(error, "반려동물 저장 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      createdPet = selectedPet;
+    }
+
+    if (!selectedPet || !selectedGuardian) {
+      setScheduleError("고객과 반려동물 정보를 확인해 주세요.");
+      setScheduleSaving(false);
+      return;
+    }
+
     const payload = {
       shopId: bootstrapData.shop.id,
-      guardianId: selectedPet.guardian_id,
+      guardianId: selectedGuardian.id,
       petId: selectedPet.id,
       serviceId: selectedService.id,
       appointmentDate: scheduleForm.date,
@@ -2584,6 +3082,10 @@ export default function CalendarManagementScreen({
       const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
       const nextBootstrapData = {
         ...bootstrapData,
+        guardians: createdGuardian
+          ? [...bootstrapData.guardians.filter((item) => item.id !== createdGuardian.id), createdGuardian]
+          : bootstrapData.guardians,
+        pets: createdPet ? [...bootstrapData.pets.filter((item) => item.id !== createdPet.id), createdPet] : bootstrapData.pets,
         appointments: [...bootstrapData.appointments.filter((item) => item.id !== appointment.id), appointment],
       };
       const nextBookings = buildDailyBookingsFromBootstrap(nextBootstrapData, scheduleForm.date, nextAssignments);
@@ -2620,16 +3122,15 @@ export default function CalendarManagementScreen({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dbe2ea] pb-2">
         <SummaryStrip activeMetric={activeMetric} metrics={summaryMetrics} onSelectMetric={handleMetricSelect} />
-        <button
-          type="button"
-          onClick={handleAddSchedule}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[14px] font-medium text-white transition hover:bg-[#185848]"
-        >
-          <CalendarPlus className="h-4 w-4" />
-          스케줄 추가
-        </button>
+        {activeMetric === "today" && manualApprovalEnabled ? (
+          <ReservationFilterStrip
+            activeFilter={reservationStatusFilter}
+            options={reservationFilterOptions}
+            onSelectFilter={handleReservationStatusFilterChange}
+          />
+        ) : null}
       </div>
       {scheduleDialogOpen ? (
         <ScheduleCreateDialog
@@ -2654,25 +3155,13 @@ export default function CalendarManagementScreen({
 
       <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
         <WebSurface className="min-w-0 overflow-hidden">
-          <ScheduleBoardActionRow
-            action={
-              activeMetric === "today" && manualApprovalEnabled ? (
-                <ReservationFilterStrip
-                  activeFilter={reservationStatusFilter}
-                  options={reservationFilterOptions}
-                  onSelectFilter={handleReservationStatusFilterChange}
-                />
-              ) : null
-            }
-          />
           <CalendarToolbar
             selectedDate={selectedDate}
             staff={staff}
             visibleStaff={visibleStaff}
-            demoStaffCount={demoStaffCount}
             onDateChange={setSelectedDate}
             onStaffChange={setStaff}
-            onDemoStaffCountChange={handleDemoStaffCountChange}
+            onAddSchedule={handleAddSchedule}
           />
           <DailyScheduleGrid
             bookings={filteredBookings}
@@ -2680,9 +3169,11 @@ export default function CalendarManagementScreen({
             visibleStaff={visibleStaff}
             activeMetric={activeMetric}
             manualApprovalEnabled={manualApprovalEnabled}
-            selectedBookingId={selectedBooking?.id ?? ""}
+            selectedBookingId={selectedBookingId}
+            conflictBookings={displayScopedBookings}
             onSelectBooking={setSelectedBookingId}
             onMoveBooking={handleMoveBooking}
+            onResizeBooking={handleResizeBooking}
           />
         </WebSurface>
 
@@ -2694,6 +3185,7 @@ export default function CalendarManagementScreen({
           approvalModeBookings={[]}
           onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
+          onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
           onChangeStaffComment={handleStaffCommentChange}

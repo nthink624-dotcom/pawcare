@@ -40,6 +40,7 @@ import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
 import { addDate, currentDateInTimeZone, formatClockTime, phoneNormalize, shortDate, won } from "@/lib/utils";
@@ -665,60 +666,78 @@ export default function OwnerApp({
     [notificationPage, selectedNotifications],
   );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
-  const customerNotificationItems: Array<{
+  const customerNotificationGroups: Array<{
+    title: string;
+    items: Array<{
     label: string;
     description: string;
     settingKey: GuardianNotificationSettingKey;
+    }>;
   }> = [
     {
-      label: "예약 확정",
-      description: "예약이 최종 확정되었을 때 보내는 알림이에요.",
-      settingKey: "booking_confirmed_enabled",
+      title: "예약 안내",
+      items: [
+        {
+          label: "예약 확정",
+          description: "예약이 최종 확정되었을 때 보내는 알림이에요.",
+          settingKey: "booking_confirmed_enabled",
+        },
+        {
+          label: "예약 거절",
+          description: "예약을 받을 수 없을 때 고객에게 사유를 안내해요.",
+          settingKey: "booking_rejected_enabled",
+        },
+        {
+          label: "예약 취소",
+          description: "확정된 예약이 취소되면 바로 알려드려요.",
+          settingKey: "booking_cancelled_enabled",
+        },
+        {
+          label: "예약 변경 확정",
+          description: "변경된 일정이 확정되면 새 방문 시간을 알려드려요.",
+          settingKey: "booking_rescheduled_enabled",
+        },
+        {
+          label: "방문 10분 전",
+          description: "예약 시간이 가까워졌을 때 미리 안내해요.",
+          settingKey: "appointment_reminder_10m_enabled",
+        },
+      ],
     },
     {
-      label: "예약 거절",
-      description: "예약을 받을 수 없을 때 고객에게 사유를 안내해요.",
-      settingKey: "booking_rejected_enabled",
+      title: "미용 진행 안내",
+      items: [
+        {
+          label: "미용 시작",
+          description: "매장에서 미용을 시작했을 때 바로 알려드려요.",
+          settingKey: "grooming_started_enabled",
+        },
+        {
+          label: "픽업 준비",
+          description: "미용이 거의 끝나 픽업 준비가 되었을 때 안내해요.",
+          settingKey: "grooming_almost_done_enabled",
+        },
+        {
+          label: "미용 완료",
+          description: "미용이 끝나 고객이 데리러 오실 수 있을 때 보내요.",
+          settingKey: "grooming_completed_enabled",
+        },
+      ],
     },
     {
-      label: "예약 취소",
-      description: "확정된 예약이 취소되면 바로 알려드려요.",
-      settingKey: "booking_cancelled_enabled",
-    },
-    {
-      label: "예약 변경 확정",
-      description: "변경된 일정이 확정되면 새 방문 시간을 알려드려요.",
-      settingKey: "booking_rescheduled_enabled",
-    },
-    {
-      label: "방문 10분 전",
-      description: "예약 시간이 가까워졌을 때 미리 안내해요.",
-      settingKey: "appointment_reminder_10m_enabled",
-    },
-    {
-      label: "미용 시작",
-      description: "매장에서 미용을 시작했을 때 바로 알려드려요.",
-      settingKey: "grooming_started_enabled",
-    },
-    {
-      label: "픽업 준비",
-      description: "미용이 거의 끝나 픽업 준비가 되었을 때 안내해요.",
-      settingKey: "grooming_almost_done_enabled",
-    },
-    {
-      label: "미용 완료",
-      description: "미용이 끝나 고객이 데리러 오실 수 있을 때 보내요.",
-      settingKey: "grooming_completed_enabled",
-    },
-    {
-      label: "재방문 안내",
-      description: "재방문 시기가 가까워졌을 때 안내해요.",
-      settingKey: "revisit_enabled",
-    },
-    {
-      label: "생일 축하",
-      description: "반려동물 생일에 맞춰 축하 메시지를 보낼 수 있어요.",
-      settingKey: "birthday_greeting_enabled",
+      title: "관계 관리",
+      items: [
+        {
+          label: "재방문 안내",
+          description: "재방문 시기가 가까워졌을 때 안내해요.",
+          settingKey: "revisit_enabled",
+        },
+        {
+          label: "생일 축하",
+          description: "반려동물 생일에 맞춰 축하 메시지를 보낼 수 있어요.",
+          settingKey: "birthday_greeting_enabled",
+        },
+      ],
     },
   ];
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
@@ -1259,6 +1278,7 @@ export default function OwnerApp({
         shop: {
           ...prev.shop,
           approval_mode: nextMode,
+          concurrent_capacity: concurrentCapacityForApprovalMode(nextMode),
         },
         appointments:
           nextMode === "auto"
@@ -1278,7 +1298,7 @@ export default function OwnerApp({
         phone: data.shop.phone,
         address: data.shop.address,
         description: data.shop.description,
-        concurrentCapacity: data.shop.concurrent_capacity,
+        concurrentCapacity: concurrentCapacityForApprovalMode(nextMode),
         bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
         bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
         approvalMode: nextMode,
@@ -2108,18 +2128,25 @@ export default function OwnerApp({
                       }}
                     />
                   </div>
-                  <div className="space-y-2.5 px-4 pb-4 pt-3.5">
-                    {customerNotificationItems.map((item) => (
-                      <CustomerDetailNotificationItemRow
-                        key={item.label}
-                        label={item.label}
-                        description={item.description}
-                        active={guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey]}
-                        disabled={saving || !guardianNotificationsEnabled}
-                        onChange={(checked) => {
-                          void updateGuardianNotifications(selectedGuardian.id, { [item.settingKey]: checked });
-                        }}
-                      />
+                  <div className="space-y-4 px-4 pb-4 pt-3.5">
+                    {customerNotificationGroups.map((group) => (
+                      <div key={group.title} className="space-y-2">
+                        <p className="px-0.5 text-[13px] font-medium leading-5 tracking-[-0.01em] text-[#8f877d]">{group.title}</p>
+                        <div className="space-y-2.5">
+                          {group.items.map((item) => (
+                            <CustomerDetailNotificationItemRow
+                              key={item.label}
+                              label={item.label}
+                              description={item.description}
+                              active={guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey]}
+                              disabled={saving || !guardianNotificationsEnabled}
+                              onChange={(checked) => {
+                                void updateGuardianNotifications(selectedGuardian.id, { [item.settingKey]: checked });
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </CustomerDetailFieldCard>
@@ -3052,7 +3079,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                 phone: phone.trim(),
                 address: combinedAddress,
                 description: description.trim(),
-                concurrentCapacity: data.shop.concurrent_capacity,
+                concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
                 bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
                 bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
                 approvalMode: data.shop.approval_mode,

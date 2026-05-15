@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
+import { concurrentCapacityForApprovalMode, normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
 import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
@@ -45,7 +45,6 @@ type ShopNotificationSettingsState = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
-const concurrentCapacityOptions = [1, 2, 3, 4, 5] as const;
 const bookingSlotPresetOptions = [
   { id: "30-0", interval: 30, offset: 0, label: "정각", helper: "00분 · 30분" },
   { id: "30-15", interval: 30, offset: 15, label: "15분", helper: "15분 · 45분" },
@@ -193,7 +192,6 @@ export default function OwnerSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHours>(
     createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
   );
-  const [concurrentCapacity, setConcurrentCapacity] = useState(data.shop.concurrent_capacity);
   const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] = useState(data.shop.booking_slot_interval_minutes);
   const [bookingSlotOffsetMinutes, setBookingSlotOffsetMinutes] = useState(data.shop.booking_slot_offset_minutes);
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
@@ -245,7 +243,6 @@ export default function OwnerSettingsPanel({
 
   useEffect(() => {
     setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
-    setConcurrentCapacity(data.shop.concurrent_capacity);
     setBookingSlotIntervalMinutes(data.shop.booking_slot_interval_minutes);
     setBookingSlotOffsetMinutes(data.shop.booking_slot_offset_minutes);
     setTimeEditorTarget(null);
@@ -253,7 +250,6 @@ export default function OwnerSettingsPanel({
     data.shop.id,
     data.shop.business_hours,
     data.shop.regular_closed_days,
-    data.shop.concurrent_capacity,
     data.shop.booking_slot_interval_minutes,
     data.shop.booking_slot_offset_minutes,
   ]);
@@ -511,7 +507,7 @@ export default function OwnerSettingsPanel({
           phone,
           address: combinedAddress,
           description,
-          concurrentCapacity,
+          concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
           bookingSlotIntervalMinutes,
           bookingSlotOffsetMinutes,
           approvalMode: data.shop.approval_mode,
@@ -921,27 +917,11 @@ export default function OwnerSettingsPanel({
 
       <SettingsFieldCard label="예약 시간 설정">
         <div className="space-y-2.5">
-          <div>
-            <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동시 예약 가능 수</p>
-            <div className="mt-1.5 grid grid-cols-5 gap-1.5">
-              {concurrentCapacityOptions.map((value) => {
-                const active = concurrentCapacity === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setConcurrentCapacity(value)}
-                    className={`flex h-[36px] w-full items-center justify-center rounded-[12px] border px-2 text-[14px] font-medium ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
-                    }`}
-                  >
-                    {value}명
-                  </button>
-                );
-              })}
-            </div>
+          <div className="rounded-[12px] border border-[var(--border)] bg-white px-3 py-3">
+            <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동일 시간 예약 규칙</p>
+            <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
+              바로 승인: 1건만 확정됩니다. 직접 승인: 승인 대기만 최대 2건까지 받아 빈자리를 대비합니다.
+            </p>
           </div>
             <div>
               <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">예약 시간 패턴</p>
@@ -1102,7 +1082,7 @@ export default function OwnerSettingsPanel({
                 </div>
               ) : (
                 <SettingsFieldCard label={service.name}>
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="relative -top-[3px] flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">
                         가격 {formatServicePrice(service.price, service.price_type ?? "starting")}
@@ -1111,7 +1091,7 @@ export default function OwnerSettingsPanel({
                         <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">소비자 화면에 노출되지 않아요.</p>
                       ) : null}
                     </div>
-                    <button className="shrink-0 text-[13px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
+                    <button className="shrink-0 text-[14px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
                       수정
                     </button>
                   </div>
@@ -1123,9 +1103,6 @@ export default function OwnerSettingsPanel({
 
         {isNewServiceFormOpen ? (
           <div className="space-y-2 rounded-[10px] border border-[#d9e6e0] bg-[#f8fcfa] px-2.5 py-2.5">
-              <div className="pb-0.5">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">새 서비스 추가</p>
-              </div>
               <SettingsFieldCard label="서비스 이름">
                 <input
                   className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"

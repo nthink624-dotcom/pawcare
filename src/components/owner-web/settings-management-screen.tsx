@@ -1,13 +1,10 @@
 "use client";
 
-import { ImagePlus } from "lucide-react";
+import { Check, ChevronDown, ImagePlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
-import {
-  PrimaryButton,
-  WebSurface,
-} from "@/components/owner-web/owner-web-ui";
+import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { cn } from "@/lib/utils";
 
@@ -275,8 +272,78 @@ function mergeSettingsWithDefaults(savedSettings: unknown) {
 }
 
 function focusEditableControl(rowId: string) {
-  const element = document.getElementById(`setting-control-${rowId}`) as HTMLInputElement | HTMLSelectElement | null;
+  const element = document.getElementById(`setting-control-${rowId}`) as HTMLElement | null;
   element?.focus();
+}
+
+function SettingSelectControl({
+  row,
+  onChange,
+}: {
+  row: SettingRow;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const value = String(row.value);
+  const options = row.options ?? [];
+
+  return (
+    <div
+      className="relative inline-block min-w-[210px] text-left"
+      onClick={(event) => event.stopPropagation()}
+      onBlur={(event) => {
+        const nextFocus = event.relatedTarget as Node | null;
+        if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        id={`setting-control-${row.id}`}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex h-10 w-full items-center justify-between gap-3 rounded-[10px] border bg-white px-3 text-[14px] font-medium text-[#111827] outline-none transition",
+          open ? "border-[#1f6b5b] shadow-[0_0_0_3px_rgba(31,107,91,0.08)]" : "border-[#dbe2ea] hover:border-[#bfd3cb]",
+        )}
+      >
+        <span className="min-w-0 truncate text-left">{value}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} />
+      </button>
+
+      {open ? (
+        <div
+          role="listbox"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-max min-w-full overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+        >
+          {options.map((option) => {
+            const selected = option === value;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex h-9 w-full items-center justify-between gap-4 rounded-[8px] px-3 text-left text-[14px] transition",
+                  selected ? "bg-[#edf7f3] font-semibold text-[#1f6b5b]" : "text-[#334155] hover:bg-[#f8fafc]",
+                )}
+              >
+                <span className="whitespace-nowrap">{option}</span>
+                {selected ? <Check className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function SettingValueControl({
@@ -329,21 +396,7 @@ function SettingValueControl({
   }
 
   if (row.control === "select") {
-    return (
-      <select
-        id={`setting-control-${row.id}`}
-        value={String(row.value)}
-        onChange={(event) => onChange(event.target.value)}
-        onClick={(event) => event.stopPropagation()}
-        className="h-10 min-w-[190px] rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-right text-[14px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
-      >
-        {(row.options ?? []).map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    );
+    return <SettingSelectControl row={row} onChange={(value) => onChange(value)} />;
   }
 
   if (row.control === "stepper") {
@@ -440,9 +493,7 @@ export default function SettingsManagementScreen({
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
-  const [savedSettings, setSavedSettings] = useState(() => cloneSettings(initialSettings));
   const [draftSettings, setDraftSettings] = useState(() => cloneSettings(initialSettings));
-  const [notice, setNotice] = useState("변경 사항이 없습니다.");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [shopProfileImage, setShopProfileImage] = useState("");
 
@@ -451,7 +502,6 @@ export default function SettingsManagementScreen({
       const storedSettings = window.localStorage.getItem(ownerWebSettingsStorageKey);
       if (storedSettings) {
         const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings));
-        setSavedSettings(nextSettings);
         setDraftSettings(cloneSettings(nextSettings));
       }
 
@@ -475,34 +525,36 @@ export default function SettingsManagementScreen({
       rows: tab.rows.map((row) => (row.id === "approvalMode" ? { ...row, value: approvalModeValue } : row)),
     };
   }, [activeTab, approvalModeValue, draftSettings, manualApprovalEnabled]);
-  const hasChanges = useMemo(
-    () => JSON.stringify(draftSettings) !== JSON.stringify(savedSettings),
-    [draftSettings, savedSettings],
-  );
 
   function updateRow(rowId: string, value: SettingRow["value"]) {
     if (rowId === "approvalMode" && typeof value === "string") {
       onManualApprovalChange?.(value !== "바로 승인");
     }
-    setDraftSettings((currentSettings) => ({
-      ...currentSettings,
-      [activeTab]: {
-        ...currentSettings[activeTab],
-        rows: currentSettings[activeTab].rows.map((row) => (row.id === rowId ? { ...row, value } : row)),
-      },
-    }));
-    setNotice("저장하지 않은 변경 사항이 있습니다.");
+    setDraftSettings((currentSettings) => {
+      const nextSettings = {
+        ...currentSettings,
+        [activeTab]: {
+          ...currentSettings[activeTab],
+          rows: currentSettings[activeTab].rows.map((row) => (row.id === rowId ? { ...row, value } : row)),
+        },
+      };
+      persistSettings(nextSettings);
+      return nextSettings;
+    });
   }
 
   function updateShopAddress(address: string) {
-    setDraftSettings((currentSettings) => ({
-      ...currentSettings,
-      shop: {
-        ...currentSettings.shop,
-        rows: currentSettings.shop.rows.map((row) => (row.id === "address" ? { ...row, value: address } : row)),
-      },
-    }));
-    setNotice("저장하지 않은 변경 사항이 있습니다.");
+    setDraftSettings((currentSettings) => {
+      const nextSettings = {
+        ...currentSettings,
+        shop: {
+          ...currentSettings.shop,
+          rows: currentSettings.shop.rows.map((row) => (row.id === "address" ? { ...row, value: address } : row)),
+        },
+      };
+      persistSettings(nextSettings);
+      return nextSettings;
+    });
   }
 
   function handleRowClick(row: SettingRow) {
@@ -519,20 +571,18 @@ export default function SettingsManagementScreen({
     }
   }
 
-  function saveSettings() {
-    const nextSettings = cloneSettings(draftSettings);
-    setSavedSettings(nextSettings);
+  function persistSettings(nextSettings: Record<SettingsTabKey, SettingsTab>, nextShopProfileImage = shopProfileImage) {
+    const settingsToStore = cloneSettings(nextSettings);
     try {
-      window.localStorage.setItem(ownerWebSettingsStorageKey, JSON.stringify(nextSettings));
-      if (shopProfileImage) {
-        window.localStorage.setItem(ownerWebShopProfileImageStorageKey, shopProfileImage);
+      window.localStorage.setItem(ownerWebSettingsStorageKey, JSON.stringify(settingsToStore));
+      if (nextShopProfileImage) {
+        window.localStorage.setItem(ownerWebShopProfileImageStorageKey, nextShopProfileImage);
       } else {
         window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
       }
     } catch {
       // Local preview storage can fail in private modes; keep the in-session state saved.
     }
-    setNotice("설정이 저장되었습니다.");
   }
 
   function changeActiveTab(tab: SettingsTabKey) {
@@ -545,8 +595,9 @@ export default function SettingsManagementScreen({
   function updateShopProfileImage(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      setShopProfileImage(typeof reader.result === "string" ? reader.result : "");
-      setNotice("저장하지 않은 변경 사항이 있습니다.");
+      const nextImage = typeof reader.result === "string" ? reader.result : "";
+      setShopProfileImage(nextImage);
+      persistSettings(draftSettings, nextImage);
     };
     reader.readAsDataURL(file);
   }
@@ -576,15 +627,11 @@ export default function SettingsManagementScreen({
         ) : null}
 
         <WebSurface className="p-6">
-          <div className="flex items-start justify-between gap-4 border-b border-[#f0e8e1] pb-4">
+          <div className="border-b border-[#f0e8e1] pb-4">
             <div>
               <h3 className="text-[18px] font-semibold text-[#17211f]">{current.title}</h3>
               <p className="mt-2 text-[14px] leading-6 text-[#7a7269]">{current.description}</p>
-              <p className={cn("mt-2 text-[13px] font-medium", hasChanges ? "text-[#b06550]" : "text-[#64748b]")}>
-                {notice}
-              </p>
             </div>
-            <PrimaryButton label={hasChanges ? "저장" : "저장됨"} onClick={saveSettings} />
           </div>
 
           <div className="divide-y divide-[#f1e8e0]">
@@ -622,6 +669,7 @@ export default function SettingsManagementScreen({
               </div>
             ))}
           </div>
+
         </WebSurface>
       </div>
 

@@ -23,10 +23,17 @@ import CalendarManagementScreen from "@/components/owner-web/calendar-management
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
 import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
 import { ownerWebScreenLabels, settingsTabs, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import {
+  defaultOwnerWebStaff,
+  ownerWebStaffStorageKey,
+  parseStoredOwnerWebStaff,
+  type OwnerWebStaffMember,
+} from "@/components/owner-web/owner-web-staff-data";
 import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import StatsManagementScreen from "@/components/owner-web/stats-management-screen";
+import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
@@ -50,12 +57,15 @@ function renderScreen(
   manualApprovalEnabled: boolean,
   onManualApprovalChange: (enabled: boolean) => void,
   initialData: BootstrapPayload,
+  staffMembers: OwnerWebStaffMember[],
+  onStaffMembersChange: (staff: OwnerWebStaffMember[]) => void,
 ) {
   switch (screen) {
     case "schedule":
       return (
         <CalendarManagementScreen
           initialData={initialData}
+          staffMembers={staffMembers}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
         />
@@ -67,9 +77,9 @@ function renderScreen(
     case "revenue":
       return <StatsManagementScreen />;
     case "services":
-      return <ServiceManagementScreen />;
+      return <ServiceManagementScreen staffMembers={staffMembers} />;
     case "staff":
-      return <StaffManagementScreen />;
+      return <StaffManagementScreen staffMembers={staffMembers} onStaffMembersChange={onStaffMembersChange} />;
     case "settings":
       return (
         <SettingsManagementScreen
@@ -96,6 +106,10 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(true);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [staffMembers, setStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
+    if (typeof window === "undefined") return defaultOwnerWebStaff;
+    return parseStoredOwnerWebStaff(window.localStorage.getItem(ownerWebStaffStorageKey)) ?? defaultOwnerWebStaff;
+  });
   const currentUserName = "정우진";
   const revenueAllowedUsers = ["정우진", "우유 미용실"];
   const canCurrentUserOpenRevenue = revenueAllowedUsers.includes(currentUserName);
@@ -120,6 +134,15 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
       window.localStorage.setItem(approvalModeStorageKey, enabled ? "manual" : "instant");
     } catch {
       // Keep the mode active for the current session even if local storage is blocked.
+    }
+  }
+
+  function handleStaffMembersChange(nextStaff: OwnerWebStaffMember[]) {
+    setStaffMembers(nextStaff);
+    try {
+      window.localStorage.setItem(ownerWebStaffStorageKey, JSON.stringify(nextStaff));
+    } catch {
+      // Keep the shared staff list active in memory even if local storage is blocked.
     }
   }
 
@@ -350,17 +373,14 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
 
         <main className="min-w-0 flex-1">
           <div className="border-b border-[#dbe2ea] bg-white px-5 py-3 lg:hidden">
-            <select
+            <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
-              onChange={(event) => handleScreenSelect(event.target.value as OwnerWebScreenKey)}
-              className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#1f2937]"
-            >
-              {ownerWebScreenLabels.map((screen) => (
-                <option key={screen.key} value={screen.key}>
-                  {screen.label}
-                </option>
-              ))}
-            </select>
+              onChange={handleScreenSelect}
+              options={ownerWebScreenLabels.map((screen) => ({ value: screen.key, label: screen.label }))}
+              align="left"
+              className="max-w-[240px]"
+              buttonClassName="h-10"
+            />
           </div>
           <div className="p-5">
             {renderScreen(
@@ -370,6 +390,8 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
               manualApprovalEnabled,
               handleManualApprovalChange,
               initialData,
+              staffMembers,
+              handleStaffMembersChange,
             )}
           </div>
         </main>

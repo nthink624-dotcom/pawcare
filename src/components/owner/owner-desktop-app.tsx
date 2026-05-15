@@ -310,7 +310,7 @@ export default function OwnerDesktopApp({
                 <div className="mt-4 space-y-3 text-[14px]">
                   <p><span className="text-[#81786f]">매장명</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.name}</span></p>
                   <p><span className="text-[#81786f]">주소</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.address}</span></p>
-                  <p><span className="text-[#81786f]">동시 예약</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.concurrent_capacity}건</span></p>
+                  <p><span className="text-[#81786f]">동일 시간 예약</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.approval_mode === "manual" ? "승인 대기 2건" : "확정 1건"}</span></p>
                 </div>
               </DesktopSurface>
               <DesktopSurface className="px-5 py-4">

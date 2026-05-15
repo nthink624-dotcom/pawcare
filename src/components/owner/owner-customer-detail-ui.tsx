@@ -158,7 +158,7 @@ export function CustomerDetailToggleRow({
   return (
     <label className={`flex min-h-[52px] items-center justify-between gap-3 px-3 py-1.5 ${disabled ? "opacity-50" : ""}`}>
       <div className="relative -top-0.5 min-w-0 flex-1">
-        <p className="text-[17px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
+        <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
         <p className="mt-0.5 text-[12px] leading-4 text-[#a39d94]">{description}</p>
       </div>
       <button
@@ -191,20 +191,21 @@ export function CustomerDetailNotificationItemRow({
       type="button"
       disabled={disabled}
       onClick={() => onChange?.(!active)}
-      className={`flex min-h-[66px] w-full items-center justify-between gap-3 rounded-[12px] border px-3.5 py-3 text-left transition ${
-        active ? "border-[#dfe8e3] bg-[#fbfdfc]" : "border-[var(--border)] bg-[#fcfaf7]"
+      className={`flex min-h-[74px] w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-3.5 text-left transition ${
+        active ? "border-[#d8e7e0] bg-[#fbfdfc]" : "border-[#e9e2d8] bg-white"
       } ${disabled ? "cursor-not-allowed opacity-55" : "hover:border-[#d8d1c8] hover:bg-[#fffdfa]"}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
-        <p className="mt-1 text-[12px] leading-[17px] tracking-[-0.01em] text-[#9b968f]">{description}</p>
+        <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{label}</p>
+        <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.01em] text-[#938c83]">{description}</p>
       </div>
       <span
-        className={`inline-flex h-8 min-w-[52px] items-center justify-center rounded-full border px-3 text-[12px] font-medium leading-none tracking-[-0.01em] ${
-          active ? "border-[#cfe0d8] bg-[#eef7f3] text-[var(--accent)]" : "border-[#e7e1d8] bg-white text-[#b0aba3]"
+        aria-hidden="true"
+        className={`relative h-[26px] w-11 shrink-0 rounded-full transition ${
+          active ? "bg-[var(--accent)]" : "bg-[#d8d4ce]"
         }`}
       >
-        {active ? "ON" : "OFF"}
+        <span className={`absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition ${active ? "left-[22px]" : "left-[3px]"}`} />
       </span>
     </button>
   );

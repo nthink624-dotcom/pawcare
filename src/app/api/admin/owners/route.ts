@@ -64,7 +64,8 @@ type AdminOwnerEventType =
   | "status_changed"
   | "payment_status_changed"
   | "suspended"
-  | "restored";
+  | "restored"
+  | "temporary_password_issued";
 
 type BillingEventStatus = "PAID" | "FAILED" | "CANCELLED" | "REQUESTED" | "SCHEDULED" | null;
 

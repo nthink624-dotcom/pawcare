@@ -4,6 +4,7 @@ import { ChevronLeft, Loader2, RotateCcw, Search, ShieldAlert, Store } from "luc
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
+import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
 import { fetchApiJson } from "@/lib/api";
 
 type OwnerSubscriptionStatus = "trialing" | "trial_will_end" | "active" | "past_due" | "canceled" | "expired";
@@ -16,7 +17,8 @@ type AdminOwnerEventType =
   | "status_changed"
   | "payment_status_changed"
   | "suspended"
-  | "restored";
+  | "restored"
+  | "temporary_password_issued";
 type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
 
 type AdminOwnerHistoryItem = {
@@ -39,6 +41,12 @@ type AdminOwnerPaymentItem = {
   planCode: OwnerPlanCode | null;
   createdAt: string;
   refundable: boolean;
+};
+
+type TemporaryPasswordResult = {
+  loginId: string;
+  temporaryPassword: string;
+  issuedAt: string;
 };
 
 type AdminOwnerItem = {
@@ -159,6 +167,7 @@ const eventLabelMap: Record<AdminOwnerEventType, string> = {
   payment_status_changed: "결제 상태 변경",
   suspended: "계정 정지",
   restored: "계정 복구",
+  temporary_password_issued: "임시비밀번호 발급",
 };
 
 function getPlanLabel(value: OwnerPlanCode | string | null | undefined) {
@@ -271,6 +280,10 @@ function summarizeEvent(event: AdminOwnerHistoryItem) {
         : "운영자에 의해 계정이 일시 정지되었습니다.";
     case "restored":
       return "정지 상태가 해제되어 다시 접속할 수 있습니다.";
+    case "temporary_password_issued":
+      return typeof event.nextPayload.loginId === "string"
+        ? `${event.nextPayload.loginId} 계정에 임시비밀번호를 발급했습니다.`
+        : "오너 계정에 임시비밀번호를 발급했습니다.";
     default:
       return event.note ?? "-";
   }
@@ -291,6 +304,8 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
   const [resettingPaymentMethodUserId, setResettingPaymentMethodUserId] = useState<string | null>(null);
+  const [issuingTemporaryPasswordUserId, setIssuingTemporaryPasswordUserId] = useState<string | null>(null);
+  const [temporaryPasswords, setTemporaryPasswords] = useState<Record<string, TemporaryPasswordResult>>({});
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [adminSurface, setAdminSurface] = useState<"local" | "production" | "unknown">("unknown");
@@ -467,6 +482,57 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     }
   }
 
+  async function issueOwnerTemporaryPassword(item: AdminOwnerItem) {
+    if (!item.loginId) {
+      setError("로그인 아이디가 없는 오너 계정에는 임시비밀번호를 발급할 수 없습니다.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${item.ownerName} 오너에게 임시비밀번호를 발급할까요?\n발급 즉시 기존 비밀번호는 사용할 수 없습니다.`,
+    );
+    if (!confirmed) return;
+
+    setIssuingTemporaryPasswordUserId(item.userId);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchApiJson<
+        TemporaryPasswordResult & {
+          success: true;
+          message: string;
+        }
+      >("/api/admin/owners/temporary-password", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: item.userId,
+          shopId: item.shopId,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      setTemporaryPasswords((prev) => ({
+        ...prev,
+        [item.userId]: {
+          loginId: response.loginId,
+          temporaryPassword: response.temporaryPassword,
+          issuedAt: response.issuedAt,
+        },
+      }));
+
+      const nextOwners = await fetchOwners();
+      setOwners(nextOwners);
+      setDrafts(Object.fromEntries(nextOwners.map((nextItem) => [nextItem.userId, buildDraft(nextItem)])));
+      setSelectedUserId(item.userId);
+      setNotice(response.message);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "임시비밀번호를 발급하지 못했습니다.");
+    } finally {
+      setIssuingTemporaryPasswordUserId(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f4ef] px-6 py-6 text-[#171411] md:px-8">
       <div className="mx-auto w-full max-w-[1560px]">
@@ -639,6 +705,14 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                 </div>
 
                 <div className="space-y-4 overflow-y-auto px-5 py-5 xl:max-h-[calc(100vh-160px)]">
+                  <OwnerAdminPasswordPanel
+                    ownerName={selectedOwner.ownerName}
+                    loginId={selectedOwner.loginId}
+                    issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
+                    result={temporaryPasswords[selectedOwner.userId] ?? null}
+                    onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
+                  />
+
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <SelectField
                       label="현재 플랜"

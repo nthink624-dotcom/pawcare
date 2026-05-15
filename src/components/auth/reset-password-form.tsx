@@ -294,12 +294,12 @@ export default function ResetPasswordForm({
     errors.passwordConfirm?.message;
 
   const notice = message ?? firstError;
-  const verificationStepClass = verificationToken ? "border-[#2f7866] bg-[#f0faf6] text-[#1f735f]" : "border-[#dbe2ea] bg-white text-[#64748b]";
+  const verificationStepClass = verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#d1d5db] bg-white text-[#64748b]";
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-5 text-[#111827]">
       <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
 
-      <div className="mt-7 border-b border-[#dbe2ea] pb-5">
+      <div className="mt-7 border-b border-[#e5e7eb] pb-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[13px] font-semibold text-[#247761]">비밀번호 찾기</p>
@@ -307,21 +307,21 @@ export default function ResetPasswordForm({
               본인 확인 후<br />새 비밀번호 설정
             </h1>
           </div>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#e9f6f1] text-[#247761]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#247761]">
             <KeyRound className="h-5 w-5" strokeWidth={2} />
           </div>
         </div>
         <p className="mt-3 text-[13px] leading-5 text-[#64748b]">가입 정보와 본인인증이 일치하면 새 비밀번호를 입력할 수 있어요.</p>
         <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[12px] font-semibold">
-          <span className="rounded-[8px] border border-[#2f7866] bg-[#f0faf6] py-2 text-[#1f735f]">계정 확인</span>
+          <span className="rounded-[8px] border border-[#2f7866] bg-white py-2 text-[#1f735f]">계정 확인</span>
           <span className={`rounded-[8px] border py-2 ${verificationStepClass}`}>본인인증</span>
-          <span className={`rounded-[8px] border py-2 ${verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#dbe2ea] bg-white text-[#94a3b8]"}`}>재설정</span>
+          <span className={`rounded-[8px] border py-2 ${verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#d1d5db] bg-white text-[#94a3b8]"}`}>재설정</span>
         </div>
       </div>
 
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
-        <section className="rounded-[20px] border border-[#eadfd3] bg-[#fffdf9] px-4 py-3 shadow-[0_12px_30px_rgba(66,50,33,0.05)]">
-          <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-[#7a5c43]">
+        <section className="rounded-[10px] border border-[#d1d5db] bg-white px-4 py-3">
+          <div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-[#475569]">
             <ShieldCheck className="h-4 w-4" />
             계정 확인 정보
           </div>
@@ -343,10 +343,10 @@ export default function ResetPasswordForm({
           </FieldShell>
         </section>
 
-        <section className="space-y-4 rounded-[20px] border border-[#eadfd3] bg-white p-4 shadow-[0_12px_30px_rgba(66,50,33,0.05)]">
+        <section className="space-y-4 rounded-[10px] border border-[#d1d5db] bg-white p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[13px] font-bold text-[#7a5c43]">본인 확인</p>
+              <p className="text-[13px] font-semibold text-[#475569]">본인 확인</p>
               <p className="mt-1 text-[13px] leading-5 text-[#7c7065]">
                 {isDevelopmentFlow
                   ? "개발 환경에서는 인증번호로 확인할 수 있어요."
@@ -354,12 +354,12 @@ export default function ResetPasswordForm({
               </p>
             </div>
             {verificationToken ? (
-              <div className="flex items-center gap-1.5 rounded-full bg-[#ecf6f1] px-3 py-1.5 text-[12px] font-bold text-[#1f735f]">
+              <div className="flex items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1f735f]">
                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
                 인증 완료
               </div>
             ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f7f1ea] text-[#9b8069]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]">
                 <Smartphone className="h-5 w-5" />
               </div>
             )}
@@ -371,7 +371,7 @@ export default function ResetPasswordForm({
                 type="button"
                 onClick={requestCode}
                 disabled={loading}
-                className="flex h-[54px] w-full items-center justify-center rounded-[18px] border border-[#d8cbbb] bg-[#fffaf4] text-[16px] font-bold text-[#17130f] transition active:scale-[0.99] disabled:opacity-60"
+                className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#d1d5db] bg-white text-[16px] font-semibold text-[#111827] transition active:scale-[0.99] disabled:opacity-60"
               >
                 {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
               </button>
@@ -389,7 +389,7 @@ export default function ResetPasswordForm({
                   </FieldShell>
 
                   {canShowDevVerificationCode && devCode ? (
-                    <div className="rounded-[18px] bg-[#f7f1ea] px-4 py-3 text-[13px] leading-5 text-[#6f6257]">
+                  <div className="rounded-[8px] border border-[#d1d5db] bg-white px-4 py-3 text-[13px] leading-5 text-[#64748b]">
                       개발용 인증번호: <span className="font-bold text-[#17130f]">{devCode}</span>
                     </div>
                   ) : null}
@@ -398,7 +398,7 @@ export default function ResetPasswordForm({
                     type="button"
                     onClick={verifyCode}
                     disabled={loading || verificationCode.length !== 6}
-                    className="flex h-[54px] w-full items-center justify-center rounded-[18px] bg-[#247761] text-[16px] font-bold text-white shadow-[0_12px_26px_rgba(36,119,97,0.22)] transition active:scale-[0.99] disabled:opacity-60"
+                    className="flex h-[52px] w-full items-center justify-center rounded-[8px] bg-[#247761] text-[16px] font-semibold text-white transition active:scale-[0.99] disabled:opacity-60"
                   >
                     인증 확인
                   </button>
@@ -410,7 +410,7 @@ export default function ResetPasswordForm({
               type="button"
               onClick={verifyPass}
               disabled={loading}
-              className="flex h-[54px] w-full items-center justify-center rounded-[16px] border border-[#cae1d8] bg-[#eff9f5] text-[16px] font-bold text-[#1f735f] transition active:scale-[0.99] disabled:opacity-60"
+              className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#247761] bg-white text-[16px] font-semibold text-[#1f735f] transition active:scale-[0.99] disabled:opacity-60"
             >
               PASS로 본인 확인하기
             </button>
@@ -418,11 +418,11 @@ export default function ResetPasswordForm({
         </section>
 
         {verificationToken ? (
-          <section className="space-y-3 rounded-[20px] border border-[#cae1d8] bg-[#f8fffb] p-4 shadow-[0_14px_34px_rgba(36,119,97,0.09)]">
+          <section className="space-y-3 rounded-[10px] border border-[#2f7866] bg-white p-4">
             <div className="flex items-start gap-3">
               <VerificationCompleteIcon />
               <div>
-                <p className="text-[13px] font-bold text-[#1f735f]">인증 완료</p>
+                <p className="text-[13px] font-semibold text-[#1f735f]">인증 완료</p>
                 <p className="mt-1 text-[13px] leading-5 text-[#65766e]">이제 새 비밀번호를 입력할 수 있어요.</p>
               </div>
             </div>
@@ -437,7 +437,7 @@ export default function ResetPasswordForm({
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="shrink-0 rounded-full p-1 text-[#70675f] transition hover:bg-[#f2eee8]"
+                  className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
                   aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -455,7 +455,7 @@ export default function ResetPasswordForm({
                 <button
                   type="button"
                   onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                  className="shrink-0 rounded-full p-1 text-[#70675f] transition hover:bg-[#f2eee8]"
+                  className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
                   aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                 >
                   {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -464,31 +464,31 @@ export default function ResetPasswordForm({
             </FieldShell>
           </section>
         ) : (
-          <section className="flex items-center gap-3 rounded-[18px] border border-dashed border-[#decfbe] bg-[#f7f1ea] px-4 py-3.5 text-[#8a7868]">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#9b8069]">
+          <section className="flex items-center gap-3 rounded-[10px] border border-dashed border-[#d1d5db] bg-white px-4 py-3.5 text-[#64748b]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]">
               <LockKeyhole className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[13px] font-bold text-[#7a5c43]">새 비밀번호</p>
+              <p className="text-[13px] font-semibold text-[#475569]">새 비밀번호</p>
               <p className="mt-1 text-[12px] leading-5">본인 확인 후 입력할 수 있어요.</p>
             </div>
           </section>
         )}
 
         {notice ? (
-          <p className="rounded-[16px] bg-[#fff2f0] px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
+          <p className="rounded-[8px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
         ) : null}
 
         <button
           type="submit"
           disabled={loading || isSubmitting || !verificationToken}
-          className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#247761] text-[17px] font-bold text-white shadow-[0_14px_30px_rgba(36,119,97,0.24)] transition active:scale-[0.99] disabled:bg-[#c7beb4] disabled:shadow-none"
+          className="flex h-[54px] w-full items-center justify-center rounded-[8px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
         >
           비밀번호 재설정
         </button>
       </form>
 
-      <div className="mt-7 text-center text-[14px] text-[#8b7f73]">
+      <div className="mt-7 text-center text-[14px] text-[#64748b]">
         로그인 화면으로 돌아가려면{" "}
         <Link href="/login" replace className="font-bold text-[#17130f] underline underline-offset-4">
           여기로 이동해 주세요

@@ -338,12 +338,12 @@ function getBookingIndicatorClass(tone: BookingCardTone) {
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "active") return "bg-[#4f9a89]/70";
+  if (tone === "active") return "bg-[#347f70]/78";
   if (tone === "completed") return "bg-[#94a3b8]/70";
   if (tone === "pending") return "bg-[#edbd3f]/80";
   if (tone === "changed") return "bg-[#e68a2e]/75";
   if (tone === "cancelled") return "bg-[#8f2438]/70";
-  return "bg-[#3f8d7d]/70";
+  return "bg-[#2f7866]/78";
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {

@@ -148,7 +148,7 @@ function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
   }
 
   if (method === "phone") {
-    return <Smartphone className="h-[28px] w-[28px] text-[#5d6660]" />;
+    return <Smartphone className="h-[26px] w-[26px] text-[#64748b]" />;
   }
 
   if (method === "pass") {
@@ -1122,11 +1122,17 @@ export default function SignupForm({
                       <button
                         key={method.id}
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
+                          setMessage(null);
+
+                          if (method.id === "phone") {
+                            await startPhoneIdentity();
+                            return;
+                          }
+
                           setSelectedVerificationMethod(method.id);
                           setVerificationSheetOpen(false);
                           setVerificationDetailSheetOpen(true);
-                          setMessage(null);
                         }}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-[16px] border px-4 py-3.5 text-left transition",

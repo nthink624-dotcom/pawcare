@@ -877,6 +877,10 @@ function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: Owne
   return scheduledBookings;
 }
 
+function shouldUseOwnerWebPreviewBookings(data: BootstrapPayload) {
+  return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
+}
+
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 const initialStaffComments: Record<string, string> = {
   "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
@@ -2840,7 +2844,10 @@ export default function CalendarManagementScreen({
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const selectedDateBookings = useMemo(
-    () => buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff),
+    () =>
+      shouldUseOwnerWebPreviewBookings(bootstrapData)
+        ? buildLocalPreviewDailyBookings(selectedDate, visibleStaff)
+        : buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff),
     [bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
   const [staff, setStaff] = useState<StaffFilter>("전체 스태프");

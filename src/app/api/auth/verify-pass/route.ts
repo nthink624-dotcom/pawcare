@@ -34,6 +34,10 @@ function toKoreanPortoneIdentityMessage(message?: string) {
   return message;
 }
 
+function isAlreadyVerifiedPortoneMessage(message?: string) {
+  return (message ?? "").toLowerCase().includes("already verified");
+}
+
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
   const endpoint = `https://api.portone.io/identity-verifications/${encodeURIComponent(identityVerificationId)}`;
   const headers = {
@@ -82,6 +86,24 @@ export async function POST(request: NextRequest) {
 
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
+      if (isAlreadyVerifiedPortoneMessage(result.message)) {
+        const completed = await completePortoneIdentityVerification({
+          verificationRequestId: payload.verificationRequestId,
+          purpose: payload.purpose,
+          identityVerificationId: payload.identityVerificationId,
+          identityVerification: undefined,
+        });
+
+        if (completed.ok) {
+          return NextResponse.json({
+            success: true,
+            verificationToken: completed.verificationToken,
+            identity: completed.identity,
+            message: "본인 확인이 완료되었습니다.",
+          });
+        }
+      }
+
       result.message = toKoreanPortoneIdentityMessage(result.message);
       return NextResponse.json(
         { message: result.message ?? "본인확인 결과를 조회하지 못했습니다." },

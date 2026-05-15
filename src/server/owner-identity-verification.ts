@@ -460,6 +460,57 @@ export async function completePortoneIdentityVerification(input: {
   }
 
   if (row.status !== "requested") {
+    if (
+      row.status === "verified" &&
+      row.provider_identity_verification_id === input.identityVerificationId &&
+      !row.consumed_at &&
+      row.verified_expires_at &&
+      new Date(row.verified_expires_at).getTime() > Date.now()
+    ) {
+      const verificationTokenId = randomUUID();
+      const verifiedExpiresAt = addMs(VERIFIED_EXPIRES_IN_MS);
+
+      if (isMemoryBacked) {
+        devIdentityVerificationStore.set(row.id, {
+          ...row,
+          verified_expires_at: verifiedExpiresAt,
+          verification_token_id: verificationTokenId,
+        });
+      } else {
+        const { error } = await supabase
+          .from(OWNER_IDENTITY_TABLE)
+          .update({
+            verified_expires_at: verifiedExpiresAt,
+            verification_token_id: verificationTokenId,
+            updated_at: nowIso(),
+          })
+          .eq("id", row.id)
+          .eq("status", "verified")
+          .eq("provider_identity_verification_id", input.identityVerificationId)
+          .is("consumed_at", null);
+
+        if (error) {
+          throw new Error(error.message || "본인인증 상태를 저장하지 못했습니다.");
+        }
+      }
+
+      return {
+        ok: true as const,
+        verificationToken: issueVerifiedIdentityToken({
+          verificationId: row.id,
+          tokenId: verificationTokenId,
+          purpose: row.purpose,
+          source: "portone",
+          expiresInMs: VERIFIED_EXPIRES_IN_MS,
+        }),
+        identity: {
+          name: row.name,
+          birthDate: row.birth_date,
+          phoneNumber: row.phone_number,
+        },
+      };
+    }
+
     return { ok: false as const, message: "이미 사용된 인증 요청입니다. 다시 인증해 주세요." };
   }
 

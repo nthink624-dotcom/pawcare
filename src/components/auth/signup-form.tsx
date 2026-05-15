@@ -109,11 +109,7 @@ const verificationMethods: Array<{
   description: string;
   kind: "active" | "placeholder";
 }> = [
-  { id: "phone", title: "휴대폰 본인인증", description: "가장 익숙한 방식으로 인증해요.", kind: "active" },
-  { id: "kakao-certificate", title: "카카오 간편 인증", description: "카카오 인증서로 간편하게 인증해요.", kind: "placeholder" },
-  { id: "naver-certificate", title: "네이버 간편 인증", description: "네이버 인증서로 간편하게 인증해요.", kind: "placeholder" },
-  { id: "toss", title: "토스 간편 인증", description: "토스 앱으로 빠르게 인증해요.", kind: "placeholder" },
-  { id: "pass", title: "PASS 간편 인증", description: "PASS 앱으로 빠르게 인증해요.", kind: "active" },
+  { id: "phone", title: "휴대폰 본인인증", description: "KCP 휴대폰 본인인증으로 확인해요.", kind: "active" },
 ];
 
 const phoneCarrierOptions = [
@@ -714,64 +710,10 @@ export default function SignupForm({
 
   const verifyPass = async () => {
     await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityChannelKey,
-      successMessage: "PASS 본인 인증이 완료되었어요.",
-      missingEnvMessage: "PASS 본인인증 환경이 아직 준비되지 않았어요.",
+      channelKey: env.portoneIdentityPhoneChannelKey,
+      successMessage: "휴대폰 본인인증이 완료되었어요.",
+      missingEnvMessage: "KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.",
     });
-    return;
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-      setMessage("PASS 본인인증 환경이 아직 준비되지 않았어요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
-      const identityVerificationId = `petmanager_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-      const result = await requestIdentityVerification({
-        storeId: env.portoneStoreId!,
-        channelKey: env.portoneIdentityChannelKey!,
-        identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: fields.name.trim(),
-          phoneNumber: fields.phoneNumber,
-          birthYear: fields.birthDate.slice(0, 4),
-          birthMonth: fields.birthDate.slice(4, 6),
-          birthDay: fields.birthDate.slice(6, 8),
-        },
-      });
-
-      if (!result?.identityVerificationId) {
-        setMessage("PASS 본인인증을 완료하지 못했어요.");
-        return;
-      }
-
-      const response = await fetch("/api/auth/verify-pass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          identityVerificationId: result!.identityVerificationId,
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-        }),
-      });
-      const verifyResult = await response.json();
-
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인인증 확인에 실패했어요.");
-        return;
-      }
-
-      setVerificationToken(verifyResult.verificationToken);
-      setMessage("PASS 본인인증이 완료됐어요.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const startPhoneIdentity = async () => {

@@ -153,8 +153,8 @@ export default function FindLoginIdForm() {
 
   const verifyPass = async () => {
     const values = getValues();
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityChannelKey) {
-      setMessage("PASS 본인인증 환경이 아직 준비되지 않았어요.");
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityPhoneChannelKey) {
+      setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
       return;
     }
 
@@ -185,7 +185,7 @@ export default function FindLoginIdForm() {
 
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityChannelKey,
+        channelKey: env.portoneIdentityPhoneChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {

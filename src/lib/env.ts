@@ -12,12 +12,12 @@ export const env = {
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
   portoneIdentityUnifiedChannelKey:
-    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_UNIFIED_CHANNEL_KEY ||
-    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY ||
-    process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_UNIFIED_CHANNEL_KEY,
   portoneIdentityPhoneChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_PHONE_CHANNEL_KEY ||
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY ||
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_DANAL_CHANNEL_KEY,
+  portoneIdentityKcpChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY,
   portoneIdentityDanalChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_DANAL_CHANNEL_KEY,
   portoneIdentityChannelKey:
     process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY,
@@ -33,7 +33,7 @@ export function hasSupabaseBrowserEnv() {
 }
 
 export function hasPortoneBrowserEnv() {
-  return Boolean(env.portoneStoreId && (env.portoneIdentityUnifiedChannelKey || env.portoneIdentityPhoneChannelKey));
+  return Boolean(env.portoneStoreId && env.portoneIdentityPhoneChannelKey);
 }
 
 export function hasPortonePaymentBrowserEnv() {

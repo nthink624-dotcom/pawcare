@@ -8,7 +8,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
-import { getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
+import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
 
 function FieldShell({
@@ -182,8 +182,8 @@ export default function ResetPasswordForm({
 
   const verifyPass = async () => {
     const values = getValues();
-    if (!portoneReady) {
-      setMessage("PASS 본인인증 환경이 아직 준비되지 않았어요.");
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityPhoneChannelKey) {
+      setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
       return;
     }
 
@@ -213,8 +213,8 @@ export default function ResetPasswordForm({
       const identityVerificationId = `reset_pw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
       const result = await requestIdentityVerification({
-        storeId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID!,
-        channelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY!,
+        storeId: env.portoneStoreId,
+        channelKey: env.portoneIdentityPhoneChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {

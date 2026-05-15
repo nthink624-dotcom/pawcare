@@ -133,14 +133,35 @@ function getStatusAccent(item: DayItem) {
   return "bg-[#2f7866]";
 }
 
-function getCalendarCellTone(active: boolean, hasItems: boolean) {
-  if (active) return "border-[#dbe2ea] bg-white shadow-[inset_0_0_0_1px_rgba(47,120,102,0.52)]";
-  if (hasItems) return "border-[#e5eaf0] bg-[linear-gradient(to_bottom,#fff_0%,#fff_58%,#fbfdfc_100%)] hover:bg-[#fbfcfd]";
-  return "border-[#eef2f7] bg-white hover:bg-[#fbfcfd]";
+function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolean) {
+  if (active) return "border-[#2f7866] bg-white shadow-[inset_3px_0_0_#2f7866,0_8px_20px_rgba(15,23,42,0.08)]";
+  if (isToday) return "border-[#d6e8e1] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.035)]";
+  if (hasItems) return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_62%,#fbfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.035)] hover:border-[#d5e7df] hover:shadow-[0_6px_16px_rgba(15,23,42,0.055)]";
+  return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_72%,#fcfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.032)] hover:border-[#dbe8e2] hover:bg-white hover:shadow-[0_5px_14px_rgba(15,23,42,0.05)]";
 }
 
-function hasAttentionText(item: DayItem) {
-  return /민감|예민|요청|체크|주의|확인/.test(`${item.note} ${item.next ?? ""}`);
+type CalendarStatusIndicator = {
+  key: "pending" | "confirmed" | "changed" | "cancelled";
+  label: string;
+  className: string;
+};
+
+const calendarStatusIndicators: CalendarStatusIndicator[] = [
+  { key: "confirmed", label: "확정", className: "bg-[#2f7866]" },
+  { key: "pending", label: "승인대기", className: "bg-[#d8a634]" },
+  { key: "cancelled", label: "취소", className: "bg-[#9f3a3a]" },
+  { key: "changed", label: "변경", className: "bg-[#b7791f]" },
+];
+
+function getCalendarStatusCounts(items: DayItem[]) {
+  const reservationItems = items.filter((item) => item.type === "reservation");
+
+  return {
+    pending: reservationItems.filter((item) => item.status.includes("승인")).length,
+    confirmed: reservationItems.filter((item) => item.status.includes("확정")).length,
+    changed: reservationItems.filter((item) => item.status.includes("변경")).length,
+    cancelled: reservationItems.filter((item) => item.status.includes("취소")).length,
+  };
 }
 
 export default function GroomingManagementScreen() {
@@ -149,7 +170,6 @@ export default function GroomingManagementScreen() {
   const [selectedDate, setSelectedDate] = useState(currentDateInTimeZone());
   const [monthAnchor, setMonthAnchor] = useState(currentDateInTimeZone());
   const [query, setQuery] = useState("");
-  const [notesOnly, setNotesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
 
   const filteredRecords = useMemo(() => {
@@ -157,10 +177,9 @@ export default function GroomingManagementScreen() {
     return records.filter((record) => {
       const haystack = [record.pet, record.customer, record.date, record.service, record.memo, record.next].join(" ").toLowerCase();
       const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
-      const matchesNotes = !notesOnly || /민감|예민|요청|체크|주의|확인/.test(`${record.memo} ${record.next}`);
-      return matchesQuery && matchesNotes;
+      return matchesQuery;
     });
-  }, [notesOnly, query, records]);
+  }, [query, records]);
 
   const monthDates = useMemo(() => getMonthDates(monthAnchor), [monthAnchor]);
   const dayItemsByDate = useMemo(() => {
@@ -216,18 +235,6 @@ export default function GroomingManagementScreen() {
             placeholder="반려동물명, 보호자명, 메모 검색"
           />
         </label>
-        <button
-          type="button"
-          onClick={() => setNotesOnly((current) => !current)}
-          className={cn(
-            "inline-flex h-9 shrink-0 items-center justify-center rounded-[8px] border px-3 text-[13px] transition",
-            notesOnly
-              ? "border-[#2f7866] bg-white text-[#1f6b5b]"
-              : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
-          )}
-        >
-          {notesOnly ? "전체" : "주의"}
-        </button>
       </ToolbarRow>
 
       <WebSurface className="overflow-hidden">
@@ -267,8 +274,8 @@ export default function GroomingManagementScreen() {
         </div>
 
         <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
-          <section className="min-w-0 xl:border-r xl:border-[#e2e8f0]">
-            <div className="grid grid-cols-7 border-b border-[#e2e8f0] bg-[#f8fafc]">
+          <section className="min-w-0 bg-[#f1f5f9] xl:border-r xl:border-[#edf2f7]">
+            <div className="grid grid-cols-7 border-b border-[#e8eef5] bg-[#fbfcfd]">
               {weekdayLabels.map((label) => (
                 <div key={label} className="px-2 py-2 text-center text-[13px] font-medium text-[#64748b]">
                   {label}
@@ -276,16 +283,19 @@ export default function GroomingManagementScreen() {
               ))}
             </div>
 
-            <div className="grid grid-cols-7">
+            <div className="grid grid-cols-7 gap-px bg-[#eef2f7] p-px">
               {monthDates.map((date, index) => {
                 const items = date ? dayItemsByDate.get(date) ?? [] : [];
                 const recordCount = items.filter((item) => item.type === "record").length;
                 const reservationCount = items.filter((item) => item.type === "reservation").length;
                 const active = date === selectedDate;
                 const hasItems = items.length > 0;
+                const isToday = date === currentDateInTimeZone();
+                const statusCounts = getCalendarStatusCounts(items);
+                const visibleStatuses = calendarStatusIndicators.filter((indicator) => statusCounts[indicator.key] > 0);
 
                 if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-[82px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
+                  return <div key={`empty-${index}`} className="min-h-[82px] rounded-[8px] bg-[#fdfefe]" />;
                 }
 
                 return (
@@ -293,18 +303,46 @@ export default function GroomingManagementScreen() {
                     key={date}
                     type="button"
                     onClick={() => openDate(date)}
-                    className={cn("relative flex min-h-[90px] flex-col justify-between border-b border-r px-3 py-2.5 text-left transition", getCalendarCellTone(active, hasItems))}
+                    className={cn("relative flex min-h-[90px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150", getCalendarCellTone(active, isToday, hasItems))}
+                    aria-label={`${date} 예약 ${reservationCount}건`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className={cn("text-[13px] font-semibold leading-5", active ? "text-[#1f6b5b]" : hasItems ? "text-[#111827]" : "text-[#94a3b8]")}>{Number(date.slice(-2))}</span>
+                      <span
+                        className={cn(
+                          "leading-5",
+                          isToday
+                            ? "text-[15px] font-bold text-[#1f6b5b]"
+                            : active
+                              ? "text-[13px] font-bold text-[#1f6b5b]"
+                              : hasItems
+                                ? "text-[13px] font-medium text-[#111827]"
+                                : "text-[13px] font-medium text-[#111827]",
+                        )}
+                      >
+                        {Number(date.slice(-2))}
+                      </span>
+                      {reservationCount > 0 ? (
+                        <span className="pt-0.5 text-[11px] font-medium leading-4 text-[#64748b]">
+                          {reservationCount}건
+                        </span>
+                      ) : null}
                     </div>
-                    {hasItems ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {reservationCount > 0 ? (
-                          <span className="rounded-[5px] border border-[#b9d8cf] bg-white px-1.5 py-0.5 text-[11px] font-medium leading-4 text-[#1f6b5b]">예약 {reservationCount}</span>
-                        ) : null}
+                    {visibleStatuses.length > 0 || recordCount > 0 ? (
+                      <div className="flex items-end justify-between gap-2">
+                        <div className="flex h-5 w-3 flex-col-reverse items-start justify-start gap-0.5">
+                          {visibleStatuses.map((indicator) => (
+                            <span
+                              key={indicator.key}
+                              className={cn("h-[3px] w-3 rounded-full", indicator.className)}
+                              title={`${indicator.label} ${statusCounts[indicator.key]}건`}
+                            />
+                          ))}
+                        </div>
                         {recordCount > 0 ? (
-                          <span className="rounded-[5px] border border-[#dbe2ea] bg-white px-1.5 py-0.5 text-[11px] font-medium leading-4 text-[#475569]">기록 {recordCount}</span>
+                          <span
+                            className="h-[3px] w-3 rounded-full bg-[#a7b3c2]"
+                            title={`기록 ${recordCount}건`}
+                          />
                         ) : null}
                       </div>
                     ) : null}

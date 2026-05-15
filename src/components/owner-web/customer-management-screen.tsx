@@ -379,16 +379,16 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         </div>
 
         {deleteMode ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ead9cf] bg-[#fffaf6] px-4 py-3">
-            <p className="text-[14px] font-medium text-[#5e5248]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-white px-4 py-3">
+            <p className="text-[14px] font-medium text-[#111827]">
               {selectedDeleteIds.length}명 선택됨
-              <span className="ml-2 text-[13px] font-normal text-[#94624f]">선택한 고객은 목록에서 숨김 처리됩니다.</span>
+              <span className="ml-2 text-[13px] font-normal text-[#64748b]">선택한 고객은 목록에서 숨김 처리됩니다.</span>
             </p>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155]">
+              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]">
                 {allDisplayedCustomersSelected ? "선택 해제" : "전체 선택"}
               </button>
-              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] bg-[#9a4f1f] px-3 text-[13px] font-medium text-white disabled:bg-[#cbd5e1]" disabled={selectedDeleteIds.length === 0}>
+              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0}>
                 선택 삭제
               </button>
             </div>
@@ -468,12 +468,11 @@ function CustomerListRow({
       type="button"
       onClick={() => onOpen(row)}
       className={cn(
-        "relative grid min-h-[68px] w-full items-center border-b border-[#edf2f7] px-4 text-left transition last:border-b-0",
+        "relative grid min-h-[46px] w-full items-center border-b border-[#edf2f7] px-4 text-left transition last:border-b-0",
         customerListGridClass,
-        selected ? "bg-white shadow-[inset_0_0_0_1px_rgba(47,120,102,0.28)]" : "bg-white hover:bg-[#f8fafc]",
+        selected ? "bg-[#fbfcfd] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.22)]" : "bg-white hover:bg-[#f8fafc]",
       )}
     >
-      {selected ? <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#2f7866]" /> : null}
       <span className="flex items-center">
         {deleteMode ? (
           <span
@@ -499,18 +498,18 @@ function CustomerListRow({
             {checked ? <Check className="h-3.5 w-3.5" /> : null}
           </span>
         ) : (
-          <span className={cn("h-2.5 w-2.5 rounded-full", row.noshowCount >= 2 ? "bg-[#b42318]" : row.alertEnabled ? "bg-[#4f9b88]" : "bg-[#d5dde6]")} />
+          <span className={cn("h-2 w-2 rounded-full", row.noshowCount >= 2 ? "bg-[#b42318]" : row.alertEnabled ? "bg-[#4f9b88]" : "bg-[#d5dde6]")} />
         )}
       </span>
       <span className="min-w-0 text-center">
-        <span className="block truncate text-[15px] font-semibold text-[#111827]">{row.name}</span>
-        <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{row.appointmentCount}건 예약 · {row.groomingCount}건 기록</span>
+        <span className="block truncate text-[14px] font-medium text-[#111827]">{row.name}</span>
+        <span className="block truncate text-[11px] text-[#64748b]">{row.appointmentCount}건 예약 · {row.groomingCount}건 기록</span>
       </span>
-      <span className="truncate text-center text-[15px] text-[#111827]">{row.pets.join(", ")}</span>
-      <span className="truncate text-center text-[15px] tabular-nums text-[#111827]">{formatPhoneNumber(row.phone)}</span>
-      <span className={cn("truncate text-center text-[15px]", row.nextBookingDate ? "text-[#1f6b5b]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
+      <span className="truncate text-center text-[14px] text-[#111827]">{row.pets.join(", ")}</span>
+      <span className="truncate text-center text-[14px] tabular-nums text-[#111827]">{formatPhoneNumber(row.phone)}</span>
+      <span className={cn("truncate text-center text-[14px]", row.nextBookingDate ? "text-[#1f6b5b]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
       <span className="flex min-w-0 justify-center">
-        <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-[12px] font-medium", row.alertEnabled ? "bg-[#e8f4ef] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
+        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
           {row.alertEnabled ? "수신" : "중지"}
         </span>
       </span>

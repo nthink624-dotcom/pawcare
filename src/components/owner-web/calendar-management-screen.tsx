@@ -6,16 +6,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
-  MonthlyScheduleOverview,
-  WeeklyScheduleOverview,
-  addSchedulePeriod,
-  getMonthScheduleDates,
-  getWeekScheduleDates,
-  getScheduleToolbarLabel,
-  type CalendarOverviewBooking,
-  type ScheduleViewMode,
-} from "@/components/owner-web/calendar-overviews";
-import {
   defaultOwnerWebStaff,
   toOwnerWebStaffColumn,
   type OwnerWebStaffColumn,
@@ -237,6 +227,49 @@ function matchesReservationFilter(booking: DailyBooking, filter: ReservationStat
 function parseScheduleDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function formatScheduleDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addScheduleDays(date: string, days: number) {
+  const nextDate = parseScheduleDate(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return formatScheduleDateKey(nextDate);
+}
+
+function getWeekScheduleDates(referenceDate = todayScheduleDate) {
+  const date = parseScheduleDate(referenceDate);
+  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+  return Array.from({ length: 7 }, (_, index) => addScheduleDays(referenceDate, mondayOffset + index));
+}
+
+function getMonthScheduleDates(referenceDate = todayScheduleDate) {
+  const date = parseScheduleDate(referenceDate);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const firstOffset = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  return [
+    ...Array.from({ length: firstOffset }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => formatScheduleDateKey(new Date(year, month, index + 1))),
+  ];
+}
+
+function formatScheduleShortDate(date: string) {
+  const parsed = parseScheduleDate(date);
+  return `${parsed.getMonth() + 1}/${parsed.getDate()} ${weekdayShortLabels[parsed.getDay()]}`;
+}
+
+function getScheduleMonthLabel(referenceDate = todayScheduleDate) {
+  const parsed = parseScheduleDate(referenceDate);
+  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
 }
 
 function getPhaseLabel(phase: "now" | "upcoming" | "past") {
@@ -516,9 +549,6 @@ type DailyBooking = {
   changeAcknowledged?: boolean;
 };
 
-type BookingTimeOverride = Partial<Pick<DailyBooking, "start" | "duration" | "staffKey" | "staffName" | "staff">>;
-type BookingTimeOverrides = Record<string, BookingTimeOverride>;
-
 const extraDailyBookings = [
   {
     id: "C-06",
@@ -766,6 +796,21 @@ const extraDailyBookings = [
 
 const dailyBookings = [...baseDailyBookings, ...extraDailyBookings];
 
+function getPreviewBookingsForBucket(bookings: DailyBooking[], bucketIndex: number, bucketCount: number) {
+  return bookings
+    .filter((_, index) => index % bucketCount === bucketIndex)
+    .sort((a, b) => a.start - b.start);
+}
+
+function getBookingCounts(bookings: DailyBooking[]) {
+  return {
+    total: bookings.length,
+    pending: bookings.filter((booking) => booking.status === "승인 대기").length,
+    changes: bookings.filter((booking) => booking.status === "취소").length,
+    completed: bookings.filter((booking) => booking.status === "완료").length,
+  };
+}
+
 function staffColumnForIndex(index: number, staffColumns: OwnerWebStaffColumn[]) {
   return staffColumns[index % staffColumns.length] ?? fallbackStaffColumns[0];
 }
@@ -836,15 +881,7 @@ function shouldUseOwnerWebPreviewBookings(data: BootstrapPayload) {
   return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
 }
 
-function applyBookingTimeOverrides(bookings: DailyBooking[], overrides: BookingTimeOverrides) {
-  return bookings.map((booking) => {
-    const override = overrides[booking.id];
-    return override ? { ...booking, ...override } : booking;
-  });
-}
-
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
-const bookingTimeOverrideStorageKey = "petmanager.ownerWeb.bookingTimeOverrides";
 const initialStaffComments: Record<string, string> = {
   "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
@@ -1377,28 +1414,20 @@ function ApprovalModeSettingsPanel({
 
 function CalendarToolbar({
   selectedDate,
-  viewMode,
   staff,
   visibleStaff,
   onDateChange,
-  onViewModeChange,
   onStaffChange,
   onAddSchedule,
 }: {
   selectedDate: string;
-  viewMode: ScheduleViewMode;
   staff: StaffFilter;
   visibleStaff: OwnerWebStaffColumn[];
   onDateChange: (date: string) => void;
-  onViewModeChange: (viewMode: ScheduleViewMode) => void;
   onStaffChange: (staff: StaffFilter) => void;
   onAddSchedule: () => void;
 }) {
-  const viewOptions: Array<{ key: ScheduleViewMode; label: string }> = [
-    { key: "month", label: "월간" },
-    { key: "week", label: "주간" },
-    { key: "day", label: "일간" },
-  ];
+  const staffLabel = staff === "전체 스태프" ? "전체 스태프" : visibleStaff.find((item) => item.key === staff)?.name ?? "전체 스태프";
 
   return (
     <div className="border-b border-[#e2e8f0] px-4 py-2">
@@ -1406,7 +1435,7 @@ function CalendarToolbar({
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => onDateChange(addSchedulePeriod(selectedDate, viewMode, -1))}
+            onClick={() => onDateChange(addDate(selectedDate, -1))}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -1416,40 +1445,18 @@ function CalendarToolbar({
             onClick={() => onDateChange(currentDateInTimeZone())}
             className="inline-flex min-w-[178px] items-center justify-center rounded-[8px] px-2 text-[17px] font-medium text-[#111827] hover:bg-[#f8fafc]"
           >
-            {getScheduleToolbarLabel(selectedDate, viewMode)}
+            {formatScheduleDateLabel(selectedDate)}
           </button>
           <button
             type="button"
-            onClick={() => onDateChange(addSchedulePeriod(selectedDate, viewMode, 1))}
+            onClick={() => onDateChange(addDate(selectedDate, 1))}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc]"
-          >
-            오늘
-          </button>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <div className="inline-flex h-9 rounded-[8px] border border-[#dbe2ea] bg-white p-0.5">
-            {viewOptions.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => onViewModeChange(option.key)}
-                className={cn(
-                  "rounded-[6px] px-3 text-[13px] transition",
-                  viewMode === option.key ? "bg-[#eef7f4] text-[#1f6b5b]" : "text-[#64748b] hover:bg-[#f8fafc]",
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
           <SoftSelect<StaffFilter>
             label="담당"
             value={staff}
@@ -1967,6 +1974,331 @@ function DailyScheduleGrid({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+type ScheduleDaySummary = {
+  date: string;
+  bookings: DailyBooking[];
+  counts: ReturnType<typeof getBookingCounts>;
+};
+
+function getLoadLabel(total: number) {
+  if (total >= 7) return "많음";
+  if (total >= 4) return "보통";
+  if (total >= 1) return "여유";
+  return "비어 있음";
+}
+
+function getLoadTone(total: number) {
+  if (total >= 7) return "bg-[#1f6b5b]";
+  if (total >= 4) return "bg-[#6fb09f]";
+  if (total >= 1) return "bg-[#b9d8cf]";
+  return "bg-[#e2e8f0]";
+}
+
+function getDaySummaries(bookings: DailyBooking[], dates: string[]) {
+  return dates.map((date, index) => {
+    const dayBookings = getPreviewBookingsForBucket(bookings, index, dates.length);
+    return {
+      date,
+      bookings: dayBookings,
+      counts: getBookingCounts(dayBookings),
+    };
+  });
+}
+
+function sumDayCounts(days: ScheduleDaySummary[]) {
+  return days.reduce(
+    (total, day) => ({
+      total: total.total + day.counts.total,
+      pending: total.pending + day.counts.pending,
+      changes: total.changes + day.counts.changes,
+      completed: total.completed + day.counts.completed,
+    }),
+    { total: 0, pending: 0, changes: 0, completed: 0 },
+  );
+}
+
+function getBusiestDays(days: ScheduleDaySummary[], limit: number) {
+  return [...days]
+    .filter((day) => day.counts.total > 0)
+    .sort((first, second) => second.counts.total - first.counts.total || first.date.localeCompare(second.date))
+    .slice(0, limit);
+}
+
+function WeeklySummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-3 py-2">
+      <p className="text-[11px] text-[#64748b]">{label}</p>
+      <p className="mt-1 text-[16px] font-semibold text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function SmallCount({ label, value, tone }: { label: string; value: number; tone: "pending" | "change" | "done" }) {
+  const toneClass =
+    tone === "pending"
+      ? "bg-[#fff7d6] text-[#9f6f00]"
+      : tone === "change"
+        ? "bg-[#fff1f1] text-[#b42318]"
+        : "bg-[#e6f3ef] text-[#1f6b5b]";
+
+  return (
+    <div className={cn("rounded-[8px] px-2 py-1.5", toneClass)}>
+      <p className="text-[11px]">{label}</p>
+      <p className="text-[13px] font-semibold">{value}건</p>
+    </div>
+  );
+}
+
+function WeeklyScheduleOverview({
+  bookings,
+  selectedDate,
+  selectedBookingId,
+  onSelectBooking,
+}: {
+  bookings: DailyBooking[];
+  selectedDate: string;
+  selectedBookingId: string;
+  onSelectBooking: (id: string) => void;
+}) {
+  const weekDates = getWeekScheduleDates(selectedDate);
+  const daySummaries = getDaySummaries(bookings, weekDates);
+  const weekCounts = sumDayCounts(daySummaries);
+  const busiestDays = getBusiestDays(daySummaries, 2);
+
+  return (
+    <div className="bg-white p-4">
+      <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[18px] font-semibold text-[#111827]">이번 주 예약 흐름</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">요일별 예약 밀도와 승인 대기, 변경/취소만 빠르게 확인합니다.</p>
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <WeeklySummaryMetric label="예약" value={`${weekCounts.total}건`} />
+              <WeeklySummaryMetric label="대기" value={`${weekCounts.pending}건`} />
+              <WeeklySummaryMetric label="변경/취소" value={`${weekCounts.changes}건`} />
+              <WeeklySummaryMetric label="완료" value={`${weekCounts.completed}건`} />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-white p-4">
+          <p className="text-[13px] font-semibold text-[#111827]">이번 주 체크할 날짜</p>
+          <div className="mt-3 space-y-2">
+            {busiestDays.length > 0 ? (
+              busiestDays.map((day) => (
+                <div key={day.date} className="flex items-center justify-between rounded-[8px] bg-[#f8fafc] px-3 py-2">
+                  <div>
+                    <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                  </div>
+                  <span className={cn("h-2.5 w-2.5 rounded-full", getLoadTone(day.counts.total))} />
+                </div>
+              ))
+            ) : (
+              <p className="rounded-[8px] bg-[#f8fafc] px-3 py-3 text-[13px] text-[#94a3b8]">이번 주 예약이 없습니다.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-2 xl:grid-cols-7">
+        {daySummaries.map(({ date, bookings: dayBookings, counts }) => {
+          const isToday = date === todayScheduleDate;
+          const visibleBookings = dayBookings.slice(0, 3);
+
+          return (
+            <section
+              key={date}
+              className={cn(
+                "min-h-[260px] rounded-[8px] border bg-[#f8fafc] p-3",
+                isToday ? "border-[#2f7866] ring-1 ring-[#2f7866]/15" : "border-[#e2e8f0]",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[15px] font-medium text-[#111827]">{formatScheduleShortDate(date)}</p>
+                  <p className="mt-1 text-[12px] text-[#64748b]">{getLoadLabel(counts.total)} · 예약 {counts.total}건</p>
+                </div>
+                {isToday ? <span className="rounded-full bg-[#e6f3ef] px-2 py-1 text-[11px] text-[#1f6b5b]">오늘</span> : null}
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div className={cn("h-full rounded-full", getLoadTone(counts.total))} style={{ width: `${Math.min(100, counts.total * 12)}%` }} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-1 text-center">
+                <SmallCount label="대기" value={counts.pending} tone="pending" />
+                <SmallCount label="변경" value={counts.changes} tone="change" />
+                <SmallCount label="완료" value={counts.completed} tone="done" />
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {visibleBookings.map((booking) => (
+                  <button
+                    key={`${date}-${booking.id}`}
+                    type="button"
+                    onClick={() => onSelectBooking(booking.id)}
+                    className={cn(
+                      "relative w-full overflow-hidden rounded-[8px] border py-2 pl-4 pr-3 text-left transition",
+                      getBookingCardToneClass(getBookingCardTone(booking.status), selectedBookingId === booking.id),
+                    )}
+                  >
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                      {(() => {
+                        const tone = getBookingCardTone(booking.status);
+                        return (
+                          <>
+                            <span className={cn("absolute bottom-0 left-0 top-0 w-1 rounded-l-[8px]", getBookingIndicatorClass(tone))} aria-hidden="true" />
+                            <p className="min-w-0 truncate text-[13px] font-medium text-[#111827]">{booking.pet} · {booking.customer}</p>
+                            <span className={cn("shrink-0 tabular-nums text-[11px]", getBookingTimeTextClass(tone))}>
+                              {formatHourLabel(booking.start)}-{formatHourLabel(booking.start + booking.duration)}
+                            </span>
+                            <p className="col-span-2 mt-0.5 truncate text-[12px] text-[#64748b]">{booking.service}</p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </button>
+                ))}
+                {dayBookings.length > visibleBookings.length ? (
+                  <div className="rounded-[8px] border border-dashed border-[#cfd8e3] bg-white/70 px-3 py-2 text-center text-[12px] text-[#64748b]">
+                    +{dayBookings.length - visibleBookings.length}건 더 보기
+                  </div>
+                ) : null}
+                {dayBookings.length === 0 ? (
+                  <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-white/70 px-3 py-6 text-center text-[12px] text-[#94a3b8]">
+                    예약 없음
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MonthlyScheduleOverview({
+  bookings,
+  selectedDate,
+  onSelectBooking,
+}: {
+  bookings: DailyBooking[];
+  selectedDate: string;
+  onSelectBooking: (id: string) => void;
+}) {
+  const monthDates = getMonthScheduleDates(selectedDate);
+  const realDates = monthDates.filter(Boolean) as string[];
+  const daySummaries = getDaySummaries(bookings, realDates);
+  const monthCounts = sumDayCounts(daySummaries);
+  const activeDayCount = daySummaries.filter((day) => day.counts.total > 0).length;
+  const busiestDays = getBusiestDays(daySummaries, 3);
+
+  return (
+    <div className="bg-white p-4">
+      <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div>
+          <p className="text-[18px] font-medium text-[#111827]">{getScheduleMonthLabel(selectedDate)}</p>
+          <p className="mt-1 text-[13px] text-[#64748b]">한 달 예약 밀도와 승인 대기, 변경/취소가 있는 날짜를 확인합니다.</p>
+          <div className="mt-3 grid max-w-[520px] grid-cols-4 gap-2">
+            <WeeklySummaryMetric label="예약" value={`${monthCounts.total}건`} />
+            <WeeklySummaryMetric label="예약일" value={`${activeDayCount}일`} />
+            <WeeklySummaryMetric label="대기" value={`${monthCounts.pending}건`} />
+            <WeeklySummaryMetric label="변경" value={`${monthCounts.changes}건`} />
+          </div>
+        </div>
+
+        <section className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
+          <p className="text-[13px] font-semibold text-[#111827]">예약이 많은 날짜</p>
+          <div className="mt-3 space-y-2">
+            {busiestDays.length > 0 ? (
+              busiestDays.map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => day.bookings[0] && onSelectBooking(day.bookings[0].id)}
+                  className="flex w-full items-center justify-between rounded-[8px] bg-white px-3 py-2 text-left transition hover:bg-[#eef7f4]"
+                >
+                  <div>
+                    <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                  </div>
+                  <span className="text-[12px] font-semibold text-[#1f6b5b]">{getLoadLabel(day.counts.total)}</span>
+                </button>
+              ))
+            ) : (
+              <p className="rounded-[8px] bg-white px-3 py-3 text-[13px] text-[#94a3b8]">이번 달 예약이 없습니다.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] text-[#64748b]">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#1f6b5b]" />예약 많음</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#b9d8cf]" />예약 있음</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" />승인 대기</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" />변경/취소</span>
+      </div>
+
+      <div className="grid grid-cols-7 overflow-hidden rounded-[8px] border border-[#e2e8f0]">
+        {weekdayShortLabels.map((label) => (
+          <div key={label} className="border-b border-[#e2e8f0] bg-[#f8fafc] px-2 py-2 text-center text-[12px] text-[#64748b]">
+            {label}
+          </div>
+        ))}
+        {monthDates.map((date, index) => {
+          if (!date) {
+            return <div key={`empty-${index}`} className="min-h-[112px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
+          }
+
+          const dateIndex = realDates.indexOf(date);
+          const day = daySummaries[dateIndex];
+          const counts = day.counts;
+          const firstBooking = day.bookings[0];
+          const isToday = date === todayScheduleDate;
+          const densityClass = counts.total >= 7 ? "bg-[#dff0eb]" : counts.total >= 1 ? "bg-[#f5fbf8]" : "bg-white";
+
+          return (
+            <button
+              key={date}
+              type="button"
+              onClick={() => firstBooking && onSelectBooking(firstBooking.id)}
+              className={cn(
+                "min-h-[112px] border-b border-r border-[#eef2f7] p-2 text-left transition hover:bg-[#eef7f4]",
+                densityClass,
+                isToday && "ring-2 ring-inset ring-[#2f7866]",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-[#111827]">{Number(date.slice(-2))}</span>
+                {counts.total > 0 ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#1f6b5b]">{counts.total}건</span> : null}
+              </div>
+
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white">
+                <div className={cn("h-full rounded-full", getLoadTone(counts.total))} style={{ width: `${Math.min(100, counts.total * 12)}%` }} />
+              </div>
+
+              <div className="mt-3 space-y-1">
+                {counts.total > 0 ? <p className="truncate text-[12px] font-medium text-[#111827]">{getLoadLabel(counts.total)}</p> : null}
+                {counts.pending > 0 ? <p className="truncate text-[11px] text-[#9f6f00]">승인 대기 {counts.pending}건</p> : null}
+                {counts.changes > 0 ? <p className="truncate text-[11px] text-[#b42318]">변경/취소 {counts.changes}건</p> : null}
+              </div>
+              <div className="mt-3 flex gap-1">
+                {counts.pending > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#f59e0b]" /> : null}
+                {counts.changes > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" /> : null}
+                {counts.completed > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#1f6b5b]" /> : null}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -2511,28 +2843,14 @@ export default function CalendarManagementScreen({
   const [bootstrapData, setBootstrapData] = useState(() => initialBootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
-  const [bookingTimeOverrides, setBookingTimeOverrides] = useState<BookingTimeOverrides>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      const stored = window.localStorage.getItem(bookingTimeOverrideStorageKey);
-      return stored ? (JSON.parse(stored) as BookingTimeOverrides) : {};
-    } catch {
-      window.localStorage.removeItem(bookingTimeOverrideStorageKey);
-      return {};
-    }
-  });
   const selectedDateBookings = useMemo(
-    () => {
-      const sourceBookings = shouldUseOwnerWebPreviewBookings(bootstrapData)
+    () =>
+      shouldUseOwnerWebPreviewBookings(bootstrapData)
         ? buildLocalPreviewDailyBookings(selectedDate, visibleStaff)
-        : buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff);
-
-      return applyBookingTimeOverrides(sourceBookings, bookingTimeOverrides);
-    },
-    [bookingTimeOverrides, bootstrapData, selectedDate, staffAssignments, visibleStaff],
+        : buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff),
+    [bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
   const [staff, setStaff] = useState<StaffFilter>("전체 스태프");
-  const [viewMode, setViewMode] = useState<ScheduleViewMode>("month");
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
@@ -2570,32 +2888,6 @@ export default function CalendarManagementScreen({
         }),
     [acknowledgedChangeBookingIds, manualApprovalEnabled, scheduleStatusHour, selectedDate, staffScopedBookings],
   );
-  const overviewBookings = useMemo<CalendarOverviewBooking[]>(() => {
-    const dates =
-      viewMode === "month"
-        ? (getMonthScheduleDates(selectedDate).filter(Boolean) as string[])
-        : viewMode === "week"
-          ? getWeekScheduleDates(selectedDate)
-          : [selectedDate];
-
-    return dates.flatMap((date) => {
-      const sourceBookings = shouldUseOwnerWebPreviewBookings(bootstrapData)
-        ? buildLocalPreviewDailyBookings(date, visibleStaff)
-        : buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff);
-      return applyBookingTimeOverrides(sourceBookings, bookingTimeOverrides)
-        .filter((booking) => staff === "전체 스태프" || booking.staffKey === staff)
-        .filter((booking) => !(isChangeBookingStatus(booking.status) && acknowledgedChangeBookingIds.has(booking.id)))
-        .map((booking) => {
-          const normalizedBooking = normalizeBookingForApprovalMode(booking, manualApprovalEnabled);
-          return {
-            ...normalizedBooking,
-            dateKey: date,
-            sourceStatus: normalizedBooking.status,
-            status: getTimedBookingStatus(normalizedBooking, date, scheduleStatusHour),
-          };
-        });
-    });
-  }, [acknowledgedChangeBookingIds, bookingTimeOverrides, bootstrapData, manualApprovalEnabled, scheduleStatusHour, selectedDate, staff, staffAssignments, viewMode, visibleStaff]);
   const summaryMetrics = useMemo(() => buildScheduleMetrics(displayScopedBookings), [displayScopedBookings]);
   const reservationFilterOptions = useMemo(
     () => getReservationFilterOptions(displayScopedBookings, manualApprovalEnabled),
@@ -2673,26 +2965,7 @@ export default function CalendarManagementScreen({
     setSelectedBookingId("");
   }
 
-  function saveBookingTimeOverride(bookingId: string, override: BookingTimeOverride) {
-    setBookingTimeOverrides((current) => {
-      const next = {
-        ...current,
-        [bookingId]: {
-          ...current[bookingId],
-          ...override,
-        },
-      };
-      try {
-        window.localStorage.setItem(bookingTimeOverrideStorageKey, JSON.stringify(next));
-      } catch {
-        // Keep the edited schedule active in memory even if local storage is blocked.
-      }
-      return next;
-    });
-  }
-
   function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
-    saveBookingTimeOverride(bookingId, next);
     setBookings((current) =>
       current.map((booking) =>
         booking.id === bookingId
@@ -2706,7 +2979,6 @@ export default function CalendarManagementScreen({
   }
 
   function handleResizeBooking(bookingId: string, duration: number) {
-    saveBookingTimeOverride(bookingId, { duration });
     setBookings((current) =>
       current.map((booking) =>
         booking.id === bookingId
@@ -2984,68 +3256,43 @@ export default function CalendarManagementScreen({
         />
       ) : null}
 
-      <div className={cn("grid min-w-0 items-start gap-3", viewMode === "month" ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]")}>
+      <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
         <WebSurface className="min-w-0 overflow-hidden">
           <CalendarToolbar
             selectedDate={selectedDate}
-            viewMode={viewMode}
             staff={staff}
             visibleStaff={visibleStaff}
             onDateChange={setSelectedDate}
-            onViewModeChange={setViewMode}
             onStaffChange={setStaff}
             onAddSchedule={handleAddSchedule}
           />
-          {viewMode === "month" ? (
-            <MonthlyScheduleOverview
-              bookings={overviewBookings}
-              selectedDate={selectedDate}
-              onSelectDate={(date) => {
-                setSelectedDate(date);
-                setSelectedBookingId("");
-              }}
-              onSelectBooking={setSelectedBookingId}
-              onOpenDayView={() => setViewMode("day")}
-              onAddSchedule={handleAddSchedule}
-            />
-          ) : viewMode === "week" ? (
-            <WeeklyScheduleOverview
-              bookings={overviewBookings}
-              selectedDate={selectedDate}
-              selectedBookingId={selectedBookingId}
-              onSelectBooking={setSelectedBookingId}
-            />
-          ) : (
-            <DailyScheduleGrid
-              bookings={filteredBookings}
-              staff={staff}
-              visibleStaff={visibleStaff}
-              activeMetric={activeMetric}
-              manualApprovalEnabled={manualApprovalEnabled}
-              selectedBookingId={selectedBookingId}
-              conflictBookings={displayScopedBookings}
-              onSelectBooking={setSelectedBookingId}
-              onMoveBooking={handleMoveBooking}
-              onResizeBooking={handleResizeBooking}
-            />
-          )}
-        </WebSurface>
-
-        {viewMode !== "month" ? (
-          <BookingSidePanel
+          <DailyScheduleGrid
+            bookings={filteredBookings}
+            staff={staff}
+            visibleStaff={visibleStaff}
             activeMetric={activeMetric}
             manualApprovalEnabled={manualApprovalEnabled}
-            selectedBooking={selectedBooking}
             selectedBookingId={selectedBookingId}
-            approvalModeBookings={[]}
-            onManualApprovalChange={handleManualApprovalChange}
-            onChangeStatus={handleChangeBookingStatus}
-            onAcknowledgeChange={handleAcknowledgeChangeBooking}
+            conflictBookings={displayScopedBookings}
             onSelectBooking={setSelectedBookingId}
-            staffComments={staffComments}
-            onChangeStaffComment={handleStaffCommentChange}
+            onMoveBooking={handleMoveBooking}
+            onResizeBooking={handleResizeBooking}
           />
-        ) : null}
+        </WebSurface>
+
+        <BookingSidePanel
+          activeMetric={activeMetric}
+          manualApprovalEnabled={manualApprovalEnabled}
+          selectedBooking={selectedBooking}
+          selectedBookingId={selectedBookingId}
+          approvalModeBookings={[]}
+          onManualApprovalChange={handleManualApprovalChange}
+          onChangeStatus={handleChangeBookingStatus}
+          onAcknowledgeChange={handleAcknowledgeChangeBooking}
+          onSelectBooking={setSelectedBookingId}
+          staffComments={staffComments}
+          onChangeStaffComment={handleStaffCommentChange}
+        />
       </div>
       {earlyStartBooking ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={() => setEarlyStartBooking(null)}>

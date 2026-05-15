@@ -192,6 +192,22 @@ function toKoreanAuthError(message: string) {
   return "처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
 }
 
+function toKoreanIdentityVerificationError(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+
+  if (normalized.includes("already verified")) {
+    return "이미 완료된 본인인증 요청이에요. 창을 닫고 다시 진행해 주세요.";
+  }
+  if (normalized.includes("cancel") || normalized.includes("close")) {
+    return "본인인증이 완료되지 않았어요. 다시 인증해 주세요.";
+  }
+  if (normalized.includes("timeout") || normalized.includes("expired")) {
+    return "본인인증 시간이 만료됐어요. 다시 인증해 주세요.";
+  }
+
+  return message || "본인인증 처리 중 문제가 발생했어요. 다시 시도해 주세요.";
+}
+
 function AuthField({
   label,
   hint,
@@ -698,7 +714,7 @@ export default function SignupForm({
       const verifyResult = (await response.json()) as VerificationApiResponse;
 
       if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "본인 인증 확인에 실패했어요.");
+        setMessage(toKoreanIdentityVerificationError(verifyResult.message ?? "본인 인증 확인에 실패했어요."));
         return;
       }
 
@@ -713,6 +729,8 @@ export default function SignupForm({
         }));
       }
       setMessage(successMessage);
+    } catch (error) {
+      setMessage(toKoreanIdentityVerificationError(error instanceof Error ? error.message : String(error ?? "")));
     } finally {
       setLoading(false);
     }
@@ -1077,16 +1095,15 @@ export default function SignupForm({
 
       {verificationSheetOpen ? (
         <div
-          className="fixed inset-0 z-50 bg-black/30"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) setVerificationSheetOpen(false);
           }}
         >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[16px] border border-b-0 border-[#e5e7eb] bg-white">
-              <div className="shrink-0 px-5 pb-3 pt-4">
-                <div className="mx-auto h-1 w-10 rounded-full bg-[#d1d5db]" />
-                <div className="mt-5 flex items-start justify-between gap-4">
+          <div className="w-full max-w-[430px]">
+            <div className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-[16px] border border-[#e5e7eb] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+              <div className="shrink-0 px-5 pb-3 pt-5">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-[23px] font-semibold text-[#111827]">본인 확인</h2>
                     <p className="mt-2 text-[13px] leading-5 text-[#64748b]">운영자 본인 확인을 진행해 주세요.</p>
@@ -1318,16 +1335,15 @@ export default function SignupForm({
 
       {verificationDetailSheetOpen && selectedVerificationMeta ? (
         <div
-          className="fixed inset-0 z-50 bg-black/30"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) setVerificationDetailSheetOpen(false);
           }}
         >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[18px] border border-b-0 border-[#e5e7eb] bg-white">
+          <div className="w-full max-w-[430px]">
+            <div className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-[16px] border border-[#e5e7eb] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
               <div className="shrink-0 border-b border-[#e5e7eb] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1 w-11 rounded-full bg-[#d1d5db]" />
-                <div className="mt-4 flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <button
                       type="button"

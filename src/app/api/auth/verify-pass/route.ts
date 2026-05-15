@@ -24,6 +24,16 @@ async function readPortoneJson(response: Response): Promise<PortoneVerificationR
   }
 }
 
+function toKoreanPortoneIdentityMessage(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+
+  if (normalized.includes("already verified")) {
+    return "이미 완료된 본인인증 요청입니다. 창을 닫고 다시 인증해 주세요.";
+  }
+
+  return message;
+}
+
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
   const endpoint = `https://api.portone.io/identity-verifications/${encodeURIComponent(identityVerificationId)}`;
   const headers = {
@@ -72,6 +82,7 @@ export async function POST(request: NextRequest) {
 
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
+      result.message = toKoreanPortoneIdentityMessage(result.message);
       return NextResponse.json(
         { message: result.message ?? "본인확인 결과를 조회하지 못했습니다." },
         { status: verificationResponse.ok ? 400 : verificationResponse.status || 400 },
@@ -96,6 +107,13 @@ export async function POST(request: NextRequest) {
       message: "본인 확인이 완료되었습니다.",
     });
   } catch (error) {
+    if (!(error instanceof z.ZodError) && error instanceof Error) {
+      const mappedMessage = toKoreanPortoneIdentityMessage(error.message);
+      if (mappedMessage && mappedMessage !== error.message) {
+        return NextResponse.json({ message: mappedMessage }, { status: 400 });
+      }
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "본인인증 요청 정보를 다시 확인해 주세요." }, { status: 400 });
     }

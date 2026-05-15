@@ -189,7 +189,7 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center rounded-[8px] px-2.5 text-[12px] font-semibold",
+        "inline-flex h-7 min-w-[46px] items-center justify-center whitespace-nowrap rounded-[8px] px-2.5 text-[12px] font-semibold leading-none",
         visible ? "bg-[#edf7f3] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]",
       )}
     >

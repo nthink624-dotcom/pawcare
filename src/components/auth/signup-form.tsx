@@ -36,8 +36,6 @@ import {
   INLINE_ERROR,
   INLINE_HELP,
   INPUT_BASE,
-  PAGE_DESCRIPTION,
-  PAGE_EYEBROW,
   PAGE_FRAME,
   PAGE_TITLE,
   cn,
@@ -212,27 +210,18 @@ function AuthField({
   const message = error || helper || hint;
 
   return (
-    <label className="block">
-      <div
-        className={cn(
-          "group relative rounded-[12px] border bg-white px-4 pb-3 pt-3.5 transition focus-within:border-[#1f6b5b] focus-within:shadow-[0_0_0_3px_rgba(31,107,91,0.08)]",
-          error
-            ? "border-[#d99a90] bg-[#fffdfc]"
-            : tone === "success"
-              ? "border-[#9ec6bb] bg-[#fdfefe]"
-              : "border-[#d9d3ca]",
-        )}
-      >
-        <span className="absolute -top-2 left-3 bg-white px-1.5 text-[12px] font-medium leading-4 text-[#7b746b]">
-          {label}
-        </span>
+    <label className="block space-y-1">
+      <span className="block px-0.5 text-[13px] font-medium leading-[18px] text-[#475569]">
+        {label}
+      </span>
+      <div className={cn(error && "[&_input]:border-[#d99a90]", tone === "success" && "[&_input]:border-[#9ec6bb]")}>
         {children}
       </div>
       {message ? (
         <p
           className={cn(
-            "mt-1 px-0.5 text-[12px] leading-[1.4]",
-            error ? "text-[#c65c50]" : tone === "success" ? "text-[#3a7c6d]" : "text-[#9a9188]",
+            "px-0.5 text-[12px] leading-[1.45]",
+            error ? "text-[#c65c50]" : tone === "success" ? "text-[#1f6b5b]" : "text-[#64748b]",
           )}
         >
           {message}
@@ -253,9 +242,9 @@ function AuthSectionBlock({
 }) {
   return (
     <section className="space-y-2">
-      <div className="space-y-1 px-1">
-        <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-[#2f2a25]">{title}</h2>
-        {description ? <p className="text-[12px] leading-[1.5] text-[#847c73]">{description}</p> : null}
+      <div className="space-y-0.5">
+        <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{title}</h2>
+        {description ? <p className="text-[13px] leading-5 text-[#64748b]">{description}</p> : null}
       </div>
       <div className="space-y-2.5">{children}</div>
     </section>
@@ -288,12 +277,12 @@ function AuthInput({
         placeholder={placeholder}
         inputMode={inputMode}
         className={cn(
-          "h-[24px] w-full border-0 bg-white px-0 py-0 text-[16px] text-[#171411] outline-none placeholder:text-[#b8b1a7] focus:bg-white [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#171411]",
-          rightSlot ? "pr-8" : "",
+          "h-[48px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 text-[15px] font-medium text-[#111827] outline-none transition placeholder:text-[#a8b0bd] focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#111827]",
+          rightSlot ? "pr-12" : "",
           className,
         )}
       />
-      {rightSlot ? <div className="absolute inset-y-0 right-0 flex items-center">{rightSlot}</div> : null}
+      {rightSlot ? <div className="absolute inset-y-0 right-4 flex items-center">{rightSlot}</div> : null}
     </div>
   );
 }
@@ -821,29 +810,18 @@ export default function SignupForm({
 
   return (
     <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
-      <div className="space-y-6">
+      <div className="relative flex min-h-9 items-center justify-center">
         <MobileBackLinkButton
           href={step === "entry" ? `/login?next=${encodeURIComponent(nextPath)}` : "/signup"}
           replace
           aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
+          className="absolute left-0 top-0 h-9 w-9 rounded-[8px] border-[#dbe2ea] bg-white text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:bg-[#f8fafc]"
         />
 
-        <div className="space-y-3">
-          <p className={PAGE_EYEBROW}>회원가입</p>
-          <div>
-            <h1 className={PAGE_TITLE}>
-              {step === "entry" ? "무료체험을 시작해볼까요?" : "계정과 매장 정보를 입력해 주세요"}
-            </h1>
-            <p className={cn(PAGE_DESCRIPTION, "mt-3")}>
-              {step === "entry"
-                ? "기본 약관에 동의하고 가입을 시작하면 2주 무료체험을 바로 이용할 수 있어요."
-                : "아이디, 비밀번호, 매장 정보를 먼저 입력하고 마지막에 본인 인증을 진행할게요."}
-            </p>
-          </div>
-        </div>
+        <h1 className={cn(PAGE_TITLE, "text-center text-[27px] leading-9")}>회원가입</h1>
       </div>
 
-      <div className="mt-7">
+      <div className={cn(step === "entry" ? "mt-7" : "mt-4")}>
         {step === "entry" ? (
           <EntryStep
             loading={loading}
@@ -855,10 +833,9 @@ export default function SignupForm({
         ) : null}
 
         {step === "profile" ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <AuthSectionBlock
               title="계정 정보"
-              description="로그인에 사용할 정보를 설정해 주세요."
             >
               <AuthField
                 label="아이디"
@@ -866,7 +843,7 @@ export default function SignupForm({
                 <AuthInput
                   value={fields.loginId}
                   onChange={(value) => updateField("loginId", value)}
-                  placeholder="영문 소문자·숫자 포함 4자 이상"
+                  placeholder="영문 소문자·숫자 4자 이상"
                 />
               </AuthField>
 
@@ -877,9 +854,9 @@ export default function SignupForm({
                   type={showPassword ? "text" : "password"}
                   value={fields.password}
                   onChange={(value) => updateField("password", value)}
-                  placeholder="대/소문자·숫자·특수문자 중 3종 이상"
+                  placeholder="대소문자·숫자·특수문자 중 3종"
                   rightSlot={
-                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#615d57]">
+                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#64748b]">
                       {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                     </button>
                   }
@@ -901,7 +878,7 @@ export default function SignupForm({
                     <button
                       type="button"
                       onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                      className="text-[#615d57]"
+                      className="text-[#64748b]"
                     >
                       {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                     </button>
@@ -912,7 +889,6 @@ export default function SignupForm({
 
             <AuthSectionBlock
               title="매장 정보"
-              description="기본 매장 정보를 입력해 주세요."
             >
               <AuthField label="매장명">
                 <AuthInput
@@ -936,22 +912,22 @@ export default function SignupForm({
                     <button
                       type="button"
                       onClick={() => setAddressSheetOpen(true)}
-                      className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-[18px] border border-[#e1d7ca] bg-[#fffdf9] px-4 py-3 text-left"
+                      className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 py-2 text-left transition hover:bg-[#f8fafc] focus:border-[#1f6b5b] focus:outline-none focus:ring-[3px] focus:ring-[#1f6b5b]/10"
                     >
                       <div className="min-w-0">
                         <p
                           className={cn(
                             "truncate text-[15px] font-medium tracking-[-0.02em]",
-                            fields.shopAddress ? "text-[#171411]" : "text-[#b8b1a7]",
+                            fields.shopAddress ? "text-[#111827]" : "text-[#a8b0bd]",
                           )}
                         >
                           {fields.shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
                         </p>
                         {shopPostalCode ? (
-                          <p className="mt-1 text-[12px] font-medium text-[#8a8176]">우편번호 {shopPostalCode}</p>
+                          <p className="mt-1 text-[12px] font-medium text-[#64748b]">우편번호 {shopPostalCode}</p>
                         ) : null}
                       </div>
-                      <span className="shrink-0 text-[13px] font-semibold text-[#2f786b]">주소 검색</span>
+                      <span className="shrink-0 rounded-[7px] border border-[#cfded8] px-2.5 py-1.5 text-[12px] font-semibold text-[#1f6b5b]">주소 검색</span>
                     </button>
 
                     <AuthInput
@@ -959,7 +935,7 @@ export default function SignupForm({
                       onChange={setShopDetailAddress}
                       placeholder="상세 주소를 입력해 주세요"
                     />
-                    <p className={INLINE_HELP}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
+                    <p className={cn(INLINE_HELP, "px-0.5 text-[#94a3b8]")}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
                   </div>
 
                   <AuthInput
@@ -977,11 +953,16 @@ export default function SignupForm({
                 onClick={() =>
                   initialStart === "email" ? router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never) : setStep("entry")
                 }
-                className={cn(BUTTON_SECONDARY, "h-[48px]")}
+                className="inline-flex h-[44px] w-full items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
               >
                 이전
               </button>
-              <button type="button" onClick={moveToVerificationStep} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
+              <button
+                type="button"
+                onClick={moveToVerificationStep}
+                disabled={loading}
+                className="inline-flex h-[44px] w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-[15px] font-semibold text-white transition hover:bg-[#185848] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
+              >
                 다음
               </button>
             </div>
@@ -999,23 +980,23 @@ export default function SignupForm({
           }}
         >
           <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="w-full rounded-t-[26px] bg-white px-5 pb-5 pt-4 shadow-[0_-18px_50px_rgba(15,23,42,0.12)]">
-              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7dbd4]" />
+            <div className="w-full rounded-t-[14px] bg-[#fffefc] px-5 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.10)]">
+              <div className="mx-auto h-1 w-10 rounded-full bg-[#d1d5db]" />
 
               <div className="mt-5 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[14px] font-semibold text-[#5f665f]">약관 동의</p>
-                  <h2 className="mt-2 text-[24px] font-extrabold tracking-[-0.05em] text-[#111827]">
-                    가입을 시작하기 전에 확인해 주세요
+                  <p className="text-[13px] font-semibold text-[#64748b]">약관 동의</p>
+                  <h2 className="mt-2 text-[24px] font-extrabold tracking-[-0.04em] text-[#111827]">
+                    약관에 동의해 주세요
                   </h2>
-                  <p className="mt-3 text-[13px] leading-6 text-[#7b746b]">
-                    필수 약관에 동의하면 일반 회원가입 또는 소셜 회원가입을 이어서 진행할 수 있어요.
+                  <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
+                    필수 약관 동의 후 가입을 계속할 수 있어요.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-[16px] border border-[#dce9e0] bg-[#f3faf6] p-4">
-                <label className="flex items-start gap-3">
+              <div className="mt-5 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3.5 py-3">
+                <label className="flex items-center gap-3">
                   <input
                     type="checkbox"
                     checked={allAgreed}
@@ -1027,20 +1008,17 @@ export default function SignupForm({
                         marketing: event.target.checked,
                       })
                     }
-                    className="mt-1 h-[18px] w-[18px] rounded border border-[#c6d8cf] accent-[#1f6b5b]"
+                    className="h-[18px] w-[18px] rounded-[4px] border border-[#cbd5e1] accent-[#1f6b5b]"
                   />
-                  <div>
-                    <p className="text-[15px] font-semibold text-[#111827]">전체 동의하기</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#6f7b73]">필수와 선택 약관을 한 번에 설정할 수 있어요.</p>
-                  </div>
+                  <p className="text-[15px] font-semibold text-[#111827]">전체 동의</p>
                 </label>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white">
                 {ownerSignupTerms.map((term) => (
-                  <div key={term.id} className="rounded-[16px] border border-[#ebe5dc] bg-[#faf9f6] px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <label className="flex min-w-0 items-start gap-3">
+                  <div key={term.id} className="border-b border-[#eef2f6] px-3.5 py-3 last:border-b-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="flex min-w-0 items-center gap-3">
                         <input
                           type="checkbox"
                           checked={agreements[term.id]}
@@ -1050,14 +1028,14 @@ export default function SignupForm({
                               [term.id]: event.target.checked,
                             }))
                           }
-                          className="mt-1 h-[18px] w-[18px] rounded border border-[#d2cbc0] accent-[#1f6b5b]"
+                          className="h-[18px] w-[18px] rounded-[4px] border border-[#cbd5e1] accent-[#1f6b5b]"
                         />
-                        <div>
-                          <p className="text-[14px] font-semibold text-[#111827]">
-                            [{term.required ? "필수" : "선택"}] {term.title}
-                          </p>
-                          <p className="mt-1 text-[12px] leading-5 text-[#8b847b]">
-                            {term.required ? "회원가입을 위해 꼭 필요한 항목이에요." : "필요한 경우에만 선택해도 괜찮아요."}
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-semibold text-[#111827]">
+                            <span className="text-[#64748b]">
+                              {term.required ? "필수" : "선택"}
+                            </span>{" "}
+                            {term.title.replace(" 동의", "")}
                           </p>
                         </div>
                       </label>
@@ -1066,24 +1044,28 @@ export default function SignupForm({
                         href={termLinkById[term.id] as never}
                         target="_blank"
                         rel="noreferrer"
-                        className="shrink-0 text-[13px] font-medium text-[#6f6b64]"
+                        className="shrink-0 text-[13px] font-medium text-[#64748b] hover:text-[#111827]"
                       >
-                        보기
+                        약관 보기
                       </Link>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setStartTarget(null)} className={BUTTON_SECONDARY}>
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setStartTarget(null)}
+                  className="h-[50px] rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
+                >
                   닫기
                 </button>
                 <button
                   type="button"
                   onClick={continueStart}
                   disabled={!requiredAgreed}
-                  className={BUTTON_PRIMARY}
+                  className="h-[50px] rounded-[8px] bg-[#1f6b5b] text-[15px] font-semibold text-white transition hover:bg-[#185848] disabled:bg-[#cbd5e1]"
                 >
                   계속하기
                 </button>
@@ -1101,32 +1083,20 @@ export default function SignupForm({
           }}
         >
           <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[18px] border border-b-0 border-[#e5e7eb] bg-white">
-              <div className="shrink-0 border-b border-[#e5e7eb] px-5 pb-4 pt-4">
-                <div className="mx-auto h-1 w-11 rounded-full bg-[#d1d5db]" />
+            <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[16px] border border-b-0 border-[#e5e7eb] bg-white">
+              <div className="shrink-0 px-5 pb-3 pt-4">
+                <div className="mx-auto h-1 w-10 rounded-full bg-[#d1d5db]" />
                 <div className="mt-5 flex items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    <div>
-                      <h2 className="text-[24px] font-semibold text-[#111827]">본인 확인</h2>
-                      <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-                        입력은 거의 끝났어요.
-                        <br />
-                        운영자 확인만 마치면 바로 시작할 수 있어요.
-                      </p>
-                    </div>
-
-                    <div className="rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3">
-                      <p className="text-[12px] font-semibold text-[#475569]">왜 필요한가요?</p>
-                      <p className="mt-1 text-[12px] leading-5 text-[#64748b]">
-                        예약·고객 정보 보호와 계정 확인을 위해 필요해요.
-                      </p>
-                    </div>
+                  <div>
+                    <h2 className="text-[23px] font-semibold text-[#111827]">본인 확인</h2>
+                    <p className="mt-2 text-[13px] leading-5 text-[#64748b]">운영자 본인 확인을 진행해 주세요.</p>
+                    <p className="mt-1 text-[12px] leading-5 text-[#94a3b8]">예약·고객 정보 보호를 위해 필요합니다.</p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setVerificationSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[24px] leading-none text-[#64748b]"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-[#d1d5db] bg-white text-[22px] leading-none text-[#64748b]"
                     aria-label="본인 확인 닫기"
                   >
                     ×
@@ -1134,10 +1104,10 @@ export default function SignupForm({
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
+              <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#edf2f7] px-5 pb-5 pt-4">
                 <div>
                   <p className="text-[14px] font-semibold text-[#111827]">확인 방법</p>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-2.5 space-y-2">
                     {verificationMethods.map((method) => (
                       <button
                         key={method.id}
@@ -1155,18 +1125,18 @@ export default function SignupForm({
                           setVerificationDetailSheetOpen(true);
                         }}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-[10px] border bg-white px-4 py-3.5 text-left transition",
+                          "flex min-h-[68px] w-full items-center gap-3 rounded-[10px] border bg-white px-3.5 py-2.5 text-left transition",
                           selectedVerificationMethod === method.id
                             ? "border-[#2f7866]"
                             : "border-[#d1d5db] hover:border-[#94a3b8]",
                         )}
                       >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
                           <VerificationMethodLogo method={method.id} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[14px] font-semibold text-[#111827]">{method.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-5 text-[#64748b]">{method.description}</p>
+                          <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">{method.description.replace("휴대폰 본인인증으로 확인해요.", "인증으로 확인")}</p>
                         </div>
                         <span
                           className={cn(

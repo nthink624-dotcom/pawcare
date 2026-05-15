@@ -4,15 +4,12 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
-  CircleHelp,
   CreditCard,
   LogOut,
   LockKeyhole,
-  Phone,
   Scissors,
   Settings,
   ShieldCheck,
-  Sparkles,
   Stethoscope,
   Store,
   Users,
@@ -216,31 +213,11 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
           <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
           <button
             type="button"
-            onClick={() => {
-              setStoreMenuOpen(false);
-            }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef7f4] text-[#1f6b5b] hover:bg-[#e6f3ef]"
-            aria-label="전화 상담"
-          >
-            <Phone className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
             onClick={() => openSettingsTab("shop")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="매장 정보"
           >
             <Store className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStoreMenuOpen(false);
-            }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="도움말"
-          >
-            <CircleHelp className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -257,17 +234,6 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
             aria-label="알림"
           >
             <Bell className="h-4 w-4" />
-          </button>
-          <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
-          <button
-            type="button"
-            onClick={() => {
-              setStoreMenuOpen(false);
-            }}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] px-3 text-[14px] font-semibold text-[#334155] hover:bg-[#f8fafc]"
-          >
-            <Sparkles className="h-4 w-4" />
-            도우미
           </button>
           <span className="mx-1 h-6 w-px bg-[#dbe2ea]" />
           <div className="relative w-[218px]">

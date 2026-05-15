@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, CalendarPlus, Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
 
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
@@ -20,6 +20,7 @@ type CustomerViewRow = {
   recentVisitDate: string | null;
   nextBooking: string;
   nextBookingDate: string | null;
+  nextBookingService: string;
   memo: string;
   alerts: string;
   alertEnabled: boolean;
@@ -76,6 +77,7 @@ function isActiveAppointmentStatus(status: string) {
 function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow[] {
   const today = currentDateInTimeZone();
   const petsByGuardian = new Map<string, typeof data.pets>();
+  const serviceNameById = new Map(data.services.map((service) => [service.id, service.name]));
 
   for (const pet of data.pets) {
     petsByGuardian.set(pet.guardian_id, [...(petsByGuardian.get(pet.guardian_id) ?? []), pet]);
@@ -99,6 +101,7 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       .find((appointment) => appointment.appointment_date < today || appointment.status === "completed");
     const recentVisitDate = recentRecord?.groomed_at.slice(0, 10) ?? recentCompletedAppointment?.appointment_date ?? null;
     const petNames = pets.length > 0 ? pets.map((pet) => pet.name) : ["반려동물 없음"];
+    const nextBookingService = upcomingAppointment ? (serviceNameById.get(upcomingAppointment.service_id) ?? "서비스 확인") : "예약 없음";
     const alertEnabled = guardian.notification_settings?.enabled !== false;
     const noshowCount = guardianAppointments.filter((appointment) => appointment.status === "noshow").length;
     const tags = [
@@ -119,6 +122,7 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       recentVisitDate,
       nextBooking: upcomingAppointment ? `${formatMonthDay(upcomingAppointment.appointment_date)} ${upcomingAppointment.appointment_time}` : "예약 없음",
       nextBookingDate: upcomingAppointment?.appointment_date ?? null,
+      nextBookingService,
       memo: guardian.memo?.trim() || pets.map((pet) => pet.notes).filter(Boolean).join(" / ") || "고객 메모가 없습니다.",
       alerts: alertEnabled ? "알림 수신 중" : "알림 중지",
       alertEnabled,
@@ -143,11 +147,12 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
     { id: "MOCK-008", name: "서민지", phone: "010-4811-2904", pets: ["구름"], tags: ["피부 민감"], recentVisit: "5/6", recentVisitDate: "2026-05-06", nextBooking: "5/22 16:00", nextBookingDate: "2026-05-22", memo: "저자극 샴푸 사용.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 6, groomingCount: 6, noshowCount: 0 },
     { id: "MOCK-009", name: "오지후", phone: "010-5560-7721", pets: ["하루"], tags: ["대형견"], recentVisit: "5/3", recentVisitDate: "2026-05-03", nextBooking: "5/17 13:00", nextBookingDate: "2026-05-17", memo: "목욕 시간 넉넉한 확보 필요.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 3, groomingCount: 3, noshowCount: 0 },
     { id: "MOCK-010", name: "김유라", phone: "010-7002-1908", pets: ["미미"], tags: ["첫 방문"], recentVisit: "방문 전", recentVisitDate: null, nextBooking: "5/15 12:30", nextBookingDate: "2026-05-15", memo: "예약 때 요청사항 없음.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 1, groomingCount: 0, noshowCount: 0 },
-  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted">>;
+  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted" | "nextBookingService">>;
 
   return rows.map((row) => ({
     ...row,
     deleted: false,
+    nextBookingService: row.nextBookingDate ? "전체 미용" : "예약 없음",
     searchText: buildSearchText([row.name, row.phone, ...row.pets, ...row.tags]),
   }));
 }
@@ -231,6 +236,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
       recentVisitDate: null,
       nextBooking: "예약 없음",
       nextBookingDate: null,
+      nextBookingService: "예약 없음",
       memo: "고객 메모를 입력해 주세요.",
       alerts: "알림 수신 중",
       alertEnabled: true,
@@ -316,6 +322,19 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           alerts: nextAlertEnabled ? "알림 수신 중" : "알림 중지",
           tags,
           searchText: buildSearchText([row.name, row.phone, ...row.pets, ...tags]),
+        };
+      }),
+    );
+  }
+
+  function updateCustomer(customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) {
+    setCustomers((current) =>
+      current.map((row) => {
+        if (row.id !== customerId) return row;
+        const next = { ...row, ...patch };
+        return {
+          ...next,
+          searchText: buildSearchText([next.name, next.phone, ...next.pets, ...next.tags]),
         };
       }),
     );
@@ -415,6 +434,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           staffComment={selectedStaffComment}
           onClose={() => setDetailSheetOpen(false)}
           onChangeStaffComment={updateStaffComment}
+          onUpdateCustomer={updateCustomer}
           onAddQuickReservation={addQuickReservation}
           onToggleAlertStatus={toggleAlertStatus}
           onToggleDeleteMode={() => {
@@ -506,6 +526,7 @@ function CustomerDetailSheet({
   staffComment,
   onClose,
   onChangeStaffComment,
+  onUpdateCustomer,
   onAddQuickReservation,
   onToggleAlertStatus,
   onToggleDeleteMode,
@@ -514,34 +535,118 @@ function CustomerDetailSheet({
   staffComment: string;
   onClose: () => void;
   onChangeStaffComment: (value: string) => void;
+  onUpdateCustomer: (customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) => void;
   onAddQuickReservation: () => void;
   onToggleAlertStatus: () => void;
   onToggleDeleteMode: () => void;
 }) {
+  const formattedPhone = formatPhoneNumber(customer.phone);
+  const primaryPetName = customer.pets[0] ?? "반려동물";
+  const nextBookingDetail = customer.nextBookingDate ? `${customer.nextBookingService} · ${primaryPetName}` : "등록된 다음 예약이 없습니다.";
+  const visibleTags = customer.tags.filter((tag) => tag !== "알림 수신" && tag !== "알림 중지");
+
+  function updateEditableField(field: "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo", value: string) {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return;
+
+    if (field === "pets") {
+      const pets = trimmedValue
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (pets.length > 0) onUpdateCustomer(customer.id, { pets });
+      return;
+    }
+    onUpdateCustomer(customer.id, {
+      [field]: field === "phone" ? formatPhoneNumber(trimmedValue) : trimmedValue,
+    });
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
       <aside
         className="ml-auto flex h-full w-full max-w-[460px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f7] px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">고객 상세</p>
-            <h3 className="mt-2 truncate text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{customer.name}</h3>
-            <p className="mt-1 text-[14px] text-[#64748b]">{formatPhoneNumber(customer.phone)}</p>
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-3.5">
+          <div className="min-w-0 flex-1">
+            <EditableText
+              value={customer.name}
+              onSave={(value) => updateEditableField("name", value)}
+              displayClassName="block w-full text-left"
+              displayTextClassName="text-[28px] font-semibold leading-[34px] tracking-[-0.02em] text-[#111827]"
+              inputClassName="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[28px] font-semibold tracking-[-0.02em] text-[#111827] outline-none focus:border-[#1f6b5b]"
+            />
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <EditableText
+                value={formattedPhone}
+                onSave={(value) => updateEditableField("phone", value)}
+                displayClassName="min-w-fit text-left"
+                displayTextClassName="text-[17px] font-medium tabular-nums text-[#334155]"
+                inputClassName="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[17px] font-medium tabular-nums text-[#111827] outline-none focus:border-[#1f6b5b]"
+              />
+              {visibleTags.map((tag) => (
+                <span key={tag} className={cn("inline-flex h-6 items-center rounded-[6px] px-2.5 text-[12px] font-medium", getCustomerTagClass(tag))}>
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+          <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
-          <div className="grid grid-cols-2 gap-2">
-            <CustomerInfoTile label="반려동물" value={customer.pets.join(", ")} />
-            <CustomerInfoTile label="최근 방문" value={customer.recentVisit} />
-            <CustomerInfoTile label="다음 예약" value={customer.nextBooking} />
-            <CustomerInfoTile label="알림" value={customer.alerts} />
-          </div>
+        <div className="flex-1 overflow-y-auto px-5 py-3.5">
+          <section className="relative rounded-[8px] border border-[#dbe2ea] border-l-4 border-l-[#1f6b5b] bg-[#fbfcfd] py-3 pl-4 pr-[112px]">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[13px] font-medium text-[#64748b]">다음 예약</p>
+              <button
+                type="button"
+                onClick={onAddQuickReservation}
+                className="absolute right-4 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+              >
+                {customer.nextBookingDate ? "예약 변경" : "예약 추가"}
+              </button>
+            </div>
+            <EditableText
+              value={customer.nextBooking}
+              onSave={(value) => updateEditableField("nextBooking", value)}
+              displayClassName="mt-1.5 block w-full text-left"
+              displayTextClassName="text-[23px] font-semibold leading-[28px] text-[#111827]"
+              inputClassName="mt-2 h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[22px] font-semibold text-[#111827] outline-none focus:border-[#1f6b5b]"
+            />
+            <p className="mt-0.5 truncate text-[13px] leading-5 text-[#64748b]">{nextBookingDetail}</p>
+          </section>
+
+          <section className="mt-4 divide-y divide-[#edf2f7] border-y border-[#edf2f7]">
+            <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
+              <p className="text-[13px] font-medium text-[#64748b]">반려동물</p>
+              <EditableText
+                value={customer.pets.join(", ")}
+                onSave={(value) => updateEditableField("pets", value)}
+                displayClassName="min-w-0 text-left"
+                displayTextClassName="text-[16px] font-medium text-[#111827]"
+                inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
+              />
+            </div>
+            <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
+              <p className="text-[13px] font-medium text-[#64748b]">최근 방문</p>
+              <EditableText
+                value={customer.recentVisit}
+                onSave={(value) => updateEditableField("recentVisit", value)}
+                displayClassName="min-w-0 text-left"
+                displayTextClassName="text-[16px] font-medium text-[#111827]"
+                inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
+              />
+            </div>
+            <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
+              <p className="text-[13px] font-medium text-[#64748b]">알림</p>
+              <button type="button" onClick={onToggleAlertStatus} className="w-fit text-left text-[16px] font-medium text-[#111827] hover:text-[#1f6b5b]">
+                {customer.alerts}
+              </button>
+            </div>
+          </section>
 
           {customer.noshowCount >= 2 ? (
             <section className="mt-3 rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-4 py-3">
@@ -550,65 +655,127 @@ function CustomerDetailSheet({
             </section>
           ) : null}
 
-          <section className="mt-5 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-4">
+          <section className="mt-5">
             <div className="flex items-center gap-2">
               <MessageSquareText className="h-4 w-4 text-[#64748b]" />
-              <p className="text-[13px] font-semibold text-[#334155]">고객 메모</p>
+              <h3 className="text-[15px] font-semibold text-[#111827]">메모</h3>
             </div>
-            <p className="mt-2 text-[15px] leading-6 text-[#111827]">{customer.memo}</p>
-          </section>
-
-          <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] font-semibold text-[#1f6b5b]">스태프 코멘트</p>
-              <span className="text-[11px] font-medium text-[#94a3b8]">다음 방문 공유</span>
-            </div>
-            <textarea
-              value={staffComment}
-              onChange={(event) => onChangeStaffComment(event.target.value)}
-              placeholder="다음 방문 때 참고할 작업 특징이나 주의사항을 적어주세요."
-              className="mt-2 h-[112px] w-full resize-none bg-transparent text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8]"
-            />
-          </section>
-
-          <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-            <p className="text-[13px] font-semibold text-[#334155]">태그</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {customer.tags.map((tag) => (
-                <span key={tag} className={cn("rounded-full px-3 py-1.5 text-[13px]", getCustomerTagClass(tag))}>
-                  {tag}
-                </span>
-              ))}
+            <div className="mt-2 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <p className="text-[13px] font-medium text-[#64748b]">고객 메모</p>
+              <EditableText
+                value={customer.memo}
+                onSave={(value) => updateEditableField("memo", value)}
+                multiline
+                displayClassName="mt-1.5 block w-full text-left"
+                displayTextClassName="whitespace-pre-wrap text-[15px] leading-6 text-[#111827]"
+                inputClassName="mt-1.5 min-h-[72px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none focus:border-[#1f6b5b]"
+              />
+              <div className="my-3 h-px bg-[#edf2f7]" />
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-medium text-[#64748b]">작업 메모</p>
+                <span className="text-[11px] font-medium text-[#94a3b8]">스태프 공유</span>
+              </div>
+              <textarea
+                value={staffComment}
+                onChange={(event) => onChangeStaffComment(event.target.value)}
+                placeholder="작업 시 주의할 점을 적어주세요."
+                className="mt-1.5 h-[88px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
+              />
             </div>
           </section>
         </div>
 
-        <div className="border-t border-[#edf2f7] bg-white px-5 py-4">
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={onAddQuickReservation} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#2f7866] text-[14px] font-semibold text-white">
-              <CalendarPlus className="h-4 w-4" />
-              예약 추가
-            </button>
-            <button type="button" onClick={onToggleAlertStatus} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
-              <Bell className="h-4 w-4" />
-              알림 변경
-            </button>
-            <button type="button" onClick={onToggleDeleteMode} className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#ead9cf] bg-white text-[13px] font-medium text-[#94624f]">
-              <Trash2 className="h-4 w-4" />
-              고객 삭제 모드로 이동
-            </button>
-          </div>
+        <div className="border-t border-[#edf2f7] bg-white px-5 py-3.5">
+          <button type="button" onClick={onToggleDeleteMode} className="inline-flex h-8 items-center gap-1.5 text-[13px] font-medium text-[#94624f] hover:underline">
+            <Trash2 className="h-4 w-4" />
+            고객 삭제 모드로 이동
+          </button>
         </div>
       </aside>
     </div>
   );
 }
 
-function CustomerInfoTile({ label, value }: { label: string; value: string }) {
+function EditableText({
+  value,
+  onSave,
+  displayClassName,
+  inputClassName,
+  displayTextClassName,
+  multiline = false,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+  displayClassName: string;
+  inputClassName: string;
+  displayTextClassName?: string;
+  multiline?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [editing, value]);
+
+  function commit() {
+    const nextValue = draft.trim();
+    setEditing(false);
+    if (nextValue && nextValue !== value) onSave(nextValue);
+  }
+
+  function cancel() {
+    setDraft(value);
+    setEditing(false);
+  }
+
+  if (editing) {
+    if (multiline) {
+      return (
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+            }
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            }
+          }}
+          className={inputClassName}
+        />
+      );
+    }
+
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            cancel();
+          }
+        }}
+        className={inputClassName}
+      />
+    );
+  }
+
   return (
-    <div className="rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-3">
-      <p className="text-[12px] font-medium text-[#94a3b8]">{label}</p>
-      <p className="mt-1 truncate text-[15px] font-semibold text-[#111827]">{value}</p>
-    </div>
+    <button type="button" onClick={() => setEditing(true)} className={displayClassName} title="클릭해서 수정">
+      <span className={cn("block min-w-0 truncate", displayTextClassName)}>{value}</span>
+    </button>
   );
 }

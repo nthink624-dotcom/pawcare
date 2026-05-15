@@ -2,9 +2,9 @@ export type OwnerWebScreenKey = "schedule" | "customers" | "grooming" | "revenue
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string; description: string }> = [
   { key: "schedule", label: "스케줄", description: "오늘 일정 확인" },
-  { key: "customers", label: "고객 관리", description: "보호자와 반려동물 관리" },
-  { key: "grooming", label: "기록 캘린더", description: "날짜별 예약과 기록" },
+  { key: "grooming", label: "캘린더", description: "날짜별 예약과 기록" },
   { key: "revenue", label: "매출", description: "결제와 미수금 확인" },
+  { key: "customers", label: "고객관리", description: "보호자와 반려동물 관리" },
   { key: "services", label: "서비스", description: "가격표와 예약 기준" },
   { key: "staff", label: "스태프", description: "근무, 휴무, 연차 관리" },
   { key: "settings", label: "설정", description: "매장 운영 정책" },

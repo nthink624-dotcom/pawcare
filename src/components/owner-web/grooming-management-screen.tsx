@@ -27,10 +27,12 @@ type DayItem = {
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
-const reservationDates: ReservationRow[] = reservationRows.map((reservation, index) => ({
-  ...reservation,
-  date: addDate(currentDateInTimeZone(), index === 4 ? 1 : 0),
-}));
+function buildReservationDates(): ReservationRow[] {
+  return reservationRows.map((reservation, index) => ({
+    ...reservation,
+    date: addDate(currentDateInTimeZone(), index === 4 ? 1 : 0),
+  }));
+}
 
 function normalizeRecordDate(date: string) {
   return date.replaceAll(".", "-");
@@ -44,6 +46,11 @@ function formatMonthLabel(date: string) {
 function formatShortDate(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   return `${parsed.getMonth() + 1}.${parsed.getDate()}`;
+}
+
+function formatFullDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekdayLabels[parsed.getDay()]}요일`;
 }
 
 function getMonthDates(monthAnchor: string) {
@@ -103,20 +110,32 @@ function buildDayItems(records: GroomingRecord[], reservations: ReservationRow[]
 }
 
 function getRecordTone(item: DayItem) {
-  if (item.type === "record") return "border-[#d8e2ea] bg-white";
-  if (item.status === "승인 대기") return "border-[#f1e3bf] bg-[#fffdf6]";
-  return "border-[#d8e7e1] bg-[#f9fdfb]";
+  if (item.type === "record") return "border-[#dbe2ea]";
+  if (item.status === "승인 대기") return "border-[#ead28e]";
+  return "border-[#c8ded6]";
 }
 
 function getBadgeTone(item: DayItem) {
-  if (item.type === "record") return "bg-[#eef2f7] text-[#475569]";
-  if (item.status === "승인 대기") return "bg-[#fff1b8] text-[#8a5a00]";
-  return "bg-[#e6f3ef] text-[#1f6b5b]";
+  if (item.type === "record") return "text-[#475569]";
+  if (item.status === "승인 대기") return "text-[#8a5a00]";
+  return "text-[#1f6b5b]";
+}
+
+function getTimeTone(item: DayItem) {
+  if (item.type === "record") return "text-[#475569]";
+  if (item.status === "승인 대기") return "text-[#8a5a00]";
+  return "text-[#1f6b5b]";
+}
+
+function getStatusAccent(item: DayItem) {
+  if (item.type === "record") return "bg-[#94a3b8]";
+  if (item.status === "승인 대기") return "bg-[#dca93b]";
+  return "bg-[#2f7866]";
 }
 
 function getCalendarCellTone(active: boolean, hasItems: boolean) {
-  if (active) return "border-[#2f7866] bg-[#eef7f4] shadow-[inset_0_0_0_1px_#2f7866]";
-  if (hasItems) return "border-[#dfe9e5] bg-[#fbfefd] hover:bg-[#f5fbf8]";
+  if (active) return "border-[#dbe2ea] bg-white shadow-[inset_0_0_0_1px_rgba(47,120,102,0.52)]";
+  if (hasItems) return "border-[#e5eaf0] bg-[linear-gradient(to_bottom,#fff_0%,#fff_58%,#fbfdfc_100%)] hover:bg-[#fbfcfd]";
   return "border-[#eef2f7] bg-white hover:bg-[#fbfcfd]";
 }
 
@@ -126,6 +145,7 @@ function hasAttentionText(item: DayItem) {
 
 export default function GroomingManagementScreen() {
   const records = groomingRecords;
+  const [reservations, setReservations] = useState<ReservationRow[]>(() => buildReservationDates());
   const [selectedDate, setSelectedDate] = useState(currentDateInTimeZone());
   const [monthAnchor, setMonthAnchor] = useState(currentDateInTimeZone());
   const [query, setQuery] = useState("");
@@ -147,11 +167,32 @@ export default function GroomingManagementScreen() {
     const map = new Map<string, DayItem[]>();
     for (const date of monthDates) {
       if (!date) continue;
-      map.set(date, buildDayItems(filteredRecords, reservationDates, date));
+      map.set(date, buildDayItems(filteredRecords, reservations, date));
     }
     return map;
-  }, [filteredRecords, monthDates]);
+  }, [filteredRecords, monthDates, reservations]);
   const selectedItems = dayItemsByDate.get(selectedDate) ?? [];
+
+  function confirmReservation(reservationId: string) {
+    setReservations((current) =>
+      current.map((reservation) =>
+        reservation.id === reservationId
+          ? {
+              ...reservation,
+              status: "확정",
+            }
+          : reservation,
+      ),
+    );
+    setSelectedItem((current) =>
+      current?.id === reservationId && current.type === "reservation"
+        ? {
+            ...current,
+            status: "확정",
+          }
+        : current,
+    );
+  }
 
   function openDate(date: string) {
     setSelectedDate(date);
@@ -166,7 +207,7 @@ export default function GroomingManagementScreen() {
   return (
     <div className="space-y-3">
       <ToolbarRow>
-        <label className="flex h-10 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[#64748b]">
+        <label className="flex h-9 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
           <Search className="h-4 w-4 text-[#94a3b8]" />
           <input
             value={query}
@@ -179,13 +220,13 @@ export default function GroomingManagementScreen() {
           type="button"
           onClick={() => setNotesOnly((current) => !current)}
           className={cn(
-            "inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] border px-3 text-[13px] transition",
+            "inline-flex h-9 shrink-0 items-center justify-center rounded-[8px] border px-3 text-[13px] transition",
             notesOnly
-              ? "border-[#2f7866] bg-[#eef7f4] text-[#1f6b5b]"
+              ? "border-[#2f7866] bg-white text-[#1f6b5b]"
               : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
           )}
         >
-          {notesOnly ? "전체 보기" : "주의사항"}
+          {notesOnly ? "전체" : "주의"}
         </button>
       </ToolbarRow>
 
@@ -222,10 +263,10 @@ export default function GroomingManagementScreen() {
               오늘
             </button>
           </div>
-          <p className="text-[13px] text-[#64748b]">날짜를 선택하면 오른쪽에서 예약과 기록을 확인합니다.</p>
+          <p className="text-[13px] text-[#64748b]">선택한 날짜의 예약과 기록을 오른쪽에서 확인합니다.</p>
         </div>
 
-        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
           <section className="min-w-0 xl:border-r xl:border-[#e2e8f0]">
             <div className="grid grid-cols-7 border-b border-[#e2e8f0] bg-[#f8fafc]">
               {weekdayLabels.map((label) => (
@@ -240,7 +281,6 @@ export default function GroomingManagementScreen() {
                 const items = date ? dayItemsByDate.get(date) ?? [] : [];
                 const recordCount = items.filter((item) => item.type === "record").length;
                 const reservationCount = items.filter((item) => item.type === "reservation").length;
-                const attentionCount = items.filter(hasAttentionText).length;
                 const active = date === selectedDate;
                 const hasItems = items.length > 0;
 
@@ -253,29 +293,18 @@ export default function GroomingManagementScreen() {
                     key={date}
                     type="button"
                     onClick={() => openDate(date)}
-                    className={cn(
-                      "min-h-[82px] border-b border-r p-2.5 text-left transition",
-                      getCalendarCellTone(active, hasItems),
-                    )}
+                    className={cn("relative flex min-h-[90px] flex-col justify-between border-b border-r px-3 py-2.5 text-left transition", getCalendarCellTone(active, hasItems))}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className={cn("text-[13px]", hasItems || active ? "text-[#111827]" : "text-[#94a3b8]")}>{Number(date.slice(-2))}</span>
-                      {hasItems ? (
-                        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b] shadow-[0_0_0_1px_rgba(219,226,234,0.72)]">
-                          {items.length}
-                        </span>
-                      ) : null}
+                      <span className={cn("text-[13px] font-semibold leading-5", active ? "text-[#1f6b5b]" : hasItems ? "text-[#111827]" : "text-[#94a3b8]")}>{Number(date.slice(-2))}</span>
                     </div>
                     {hasItems ? (
-                      <div className="mt-3 flex flex-wrap gap-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {reservationCount > 0 ? (
-                          <span className="rounded-full bg-[#e6f3ef] px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b]">예약 {reservationCount}</span>
+                          <span className="rounded-[5px] border border-[#b9d8cf] bg-white px-1.5 py-0.5 text-[11px] font-medium leading-4 text-[#1f6b5b]">예약 {reservationCount}</span>
                         ) : null}
                         {recordCount > 0 ? (
-                          <span className="rounded-full bg-[#eef2f7] px-2 py-0.5 text-[11px] font-medium text-[#475569]">기록 {recordCount}</span>
-                        ) : null}
-                        {attentionCount > 0 ? (
-                          <span className="rounded-full bg-[#fff1b8] px-2 py-0.5 text-[11px] font-medium text-[#8a5a00]">주의 {attentionCount}</span>
+                          <span className="rounded-[5px] border border-[#dbe2ea] bg-white px-1.5 py-0.5 text-[11px] font-medium leading-4 text-[#475569]">기록 {recordCount}</span>
                         ) : null}
                       </div>
                     ) : null}
@@ -285,7 +314,7 @@ export default function GroomingManagementScreen() {
             </div>
           </section>
 
-          <GroomingDatePanel date={selectedDate} items={selectedItems} onSelectItem={openItem} />
+          <GroomingDatePanel date={selectedDate} items={selectedItems} onSelectItem={openItem} onConfirmReservation={confirmReservation} />
         </div>
       </WebSurface>
 
@@ -298,50 +327,39 @@ function GroomingDatePanel({
   date,
   items,
   onSelectItem,
+  onConfirmReservation,
 }: {
   date: string;
   items: DayItem[];
   onSelectItem: (item: DayItem) => void;
+  onConfirmReservation: (reservationId: string) => void;
 }) {
   const reservationCount = items.filter((item) => item.type === "reservation").length;
   const recordCount = items.filter((item) => item.type === "record").length;
-  const attentionCount = items.filter(hasAttentionText).length;
+  const reservationItems = items.filter((item) => item.type === "reservation");
+  const recordItems = items.filter((item) => item.type === "record");
+  const isPastDate = date < currentDateInTimeZone();
 
   return (
     <aside className="flex min-h-[492px] flex-col bg-white">
       <div className="border-b border-[#edf2f7] px-5 py-4">
-        <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">선택 날짜</p>
-        <h3 className="mt-2 text-[24px] font-semibold text-[#111827]">{formatShortDate(date)}</h3>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-[#e6f3ef] px-2 py-1 text-[12px] font-medium text-[#1f6b5b]">예약 {reservationCount}</span>
-          <span className="rounded-full bg-[#eef2f7] px-2 py-1 text-[12px] font-medium text-[#475569]">기록 {recordCount}</span>
-          {attentionCount > 0 ? <span className="rounded-full bg-[#fff1b8] px-2 py-1 text-[12px] font-medium text-[#8a5a00]">주의 {attentionCount}</span> : null}
-        </div>
+        <h3 className="text-[20px] font-semibold text-[#111827]">{formatFullDate(date)}</h3>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-5 py-2.5">
         {items.length > 0 ? (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <button
-                key={`${item.type}-${item.id}`}
-                type="button"
-                onClick={() => onSelectItem(item)}
-                className={cn("w-full rounded-[8px] border px-4 py-3 text-left transition hover:bg-[#f8fafc]", getRecordTone(item))}
-              >
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <p className="truncate text-[15px] font-semibold text-[#111827]">
-                    {item.pet} · {item.customer}
-                  </p>
-                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px]", getBadgeTone(item))}>{item.type === "record" ? "기록" : item.status}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-[#64748b]">
-                  <span className="truncate">{item.service}</span>
-                  {item.time ? <span className="shrink-0 tabular-nums">{item.time}</span> : null}
-                </div>
-                <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-[#475569]">{item.note || "메모가 없습니다."}</p>
-              </button>
-            ))}
+          <div className="space-y-3">
+            {isPastDate ? (
+              <>
+                <DayItemSection title="기록" count={recordCount} items={recordItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
+                <DayItemSection title="예약" count={reservationCount} items={reservationItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
+              </>
+            ) : (
+              <>
+                <DayItemSection title="예약" count={reservationCount} items={reservationItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
+                <DayItemSection title="기록" count={recordCount} items={recordItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
+              </>
+            )}
           </div>
         ) : (
           <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-8 text-center text-[13px] text-[#94a3b8]">
@@ -350,6 +368,76 @@ function GroomingDatePanel({
         )}
       </div>
     </aside>
+  );
+}
+
+function DayItemSection({
+  title,
+  count,
+  items,
+  onSelectItem,
+  onConfirmReservation,
+}: {
+  title: string;
+  count: number;
+  items: DayItem[];
+  onSelectItem: (item: DayItem) => void;
+  onConfirmReservation: (reservationId: string) => void;
+}) {
+  return (
+    <section>
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-[#334155]">{title}</p>
+        <span className="text-[12px] text-[#94a3b8]">{count}건</span>
+      </div>
+      {items.length > 0 ? (
+        <div className="space-y-1">
+          {items.map((item) => {
+            const confirmable = item.type === "reservation" && item.status === "승인 대기";
+            return (
+            <div
+              key={`${item.type}-${item.id}`}
+              className={cn("relative w-full overflow-hidden rounded-[8px] border bg-white transition hover:bg-[#f8fafc]", getRecordTone(item))}
+            >
+              <span className={cn("absolute bottom-0 left-0 top-0 w-[3px]", getStatusAccent(item))} />
+              <button type="button" onClick={() => onSelectItem(item)} className="w-full px-3 py-2 text-left">
+                <div className="flex min-w-0 items-start justify-between gap-3 pl-1">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-[#111827]">{item.pet} · {item.customer}</p>
+                  </div>
+                  {item.time ? <span className={cn("shrink-0 text-[14px] font-normal tabular-nums", getTimeTone(item))}>{item.time}</span> : null}
+                </div>
+                <div className="mt-1 flex min-w-0 items-end justify-between gap-3 pl-1">
+                  <p className="line-clamp-1 min-w-0 text-[12px] leading-4 text-[#64748b]">
+                    {item.service}
+                    {item.note ? ` · ${item.note}` : ""}
+                  </p>
+                  <span className={cn("shrink-0 bg-white px-0 py-0 text-[14px] font-normal leading-5", getBadgeTone(item))}>
+                    {item.type === "record" ? "기록" : item.status}
+                  </span>
+                </div>
+              </button>
+              {confirmable ? (
+                <div className="border-t border-[#f1e4c2] px-3 pb-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => onConfirmReservation(item.id)}
+                    className="h-8 w-full rounded-[7px] bg-[#dca93b] text-[13px] font-medium text-white transition hover:bg-[#c79024]"
+                  >
+                    예약 확정
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-white px-3 py-3 text-[12px] text-[#94a3b8]">
+          {title === "예약" ? "예약이 없습니다." : "작성된 기록이 없습니다."}
+        </div>
+      )}
+    </section>
   );
 }
 

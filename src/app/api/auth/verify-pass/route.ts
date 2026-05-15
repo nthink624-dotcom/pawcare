@@ -45,6 +45,15 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
     "Content-Type": "application/json",
   };
 
+  const getResponse = await fetch(endpoint, {
+    headers,
+    cache: "no-store",
+  });
+  const getResult = await readPortoneJson(getResponse);
+  if (getResponse.ok && getResult.identityVerification) {
+    return { response: getResponse, result: getResult };
+  }
+
   const confirmResponse = await fetch(`${endpoint}/confirm`, {
     method: "POST",
     headers,
@@ -56,18 +65,9 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
     return { response: confirmResponse, result: confirmResult };
   }
 
-  const getResponse = await fetch(endpoint, {
-    headers,
-    cache: "no-store",
-  });
-  const getResult = await readPortoneJson(getResponse);
-  if (getResponse.ok && getResult.identityVerification) {
-    return { response: getResponse, result: getResult };
-  }
-
   return {
-    response: getResponse.ok ? confirmResponse : getResponse,
-    result: getResult.message ? getResult : confirmResult,
+    response: confirmResponse.ok ? getResponse : confirmResponse,
+    result: confirmResult.message ? confirmResult : getResult,
   };
 }
 

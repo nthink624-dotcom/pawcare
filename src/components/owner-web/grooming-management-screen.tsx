@@ -120,13 +120,16 @@ function getCalendarCellTone(active: boolean, hasItems: boolean) {
   return "border-[#eef2f7] bg-white hover:bg-[#fbfcfd]";
 }
 
+function hasAttentionText(item: DayItem) {
+  return /민감|예민|요청|체크|주의|확인/.test(`${item.note} ${item.next ?? ""}`);
+}
+
 export default function GroomingManagementScreen() {
   const records = groomingRecords;
   const [selectedDate, setSelectedDate] = useState(currentDateInTimeZone());
   const [monthAnchor, setMonthAnchor] = useState(currentDateInTimeZone());
   const [query, setQuery] = useState("");
   const [notesOnly, setNotesOnly] = useState(false);
-  const [dateSheetOpen, setDateSheetOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
 
   const filteredRecords = useMemo(() => {
@@ -153,12 +156,10 @@ export default function GroomingManagementScreen() {
   function openDate(date: string) {
     setSelectedDate(date);
     setSelectedItem(null);
-    setDateSheetOpen(true);
   }
 
   function openItem(item: DayItem) {
     setSelectedDate(item.date);
-    setDateSheetOpen(false);
     setSelectedItem(item);
   }
 
@@ -215,153 +216,140 @@ export default function GroomingManagementScreen() {
                 setSelectedDate(today);
                 setMonthAnchor(today);
                 setSelectedItem(null);
-                setDateSheetOpen(true);
               }}
               className="ml-1 h-8 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc]"
             >
               오늘
             </button>
           </div>
-          <p className="text-[13px] text-[#64748b]">날짜를 선택하면 오른쪽 시트에서 예약과 기록을 확인합니다.</p>
+          <p className="text-[13px] text-[#64748b]">날짜를 선택하면 오른쪽에서 예약과 기록을 확인합니다.</p>
         </div>
 
-        <div className="grid grid-cols-7 border-b border-[#e2e8f0] bg-[#f8fafc]">
-          {weekdayLabels.map((label) => (
-            <div key={label} className="px-3 py-2 text-center text-[15px] text-[#64748b]">
-              {label}
+        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="min-w-0 xl:border-r xl:border-[#e2e8f0]">
+            <div className="grid grid-cols-7 border-b border-[#e2e8f0] bg-[#f8fafc]">
+              {weekdayLabels.map((label) => (
+                <div key={label} className="px-2 py-2 text-center text-[13px] font-medium text-[#64748b]">
+                  {label}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="grid grid-cols-7">
-          {monthDates.map((date, index) => {
-            const items = date ? dayItemsByDate.get(date) ?? [] : [];
-            const recordCount = items.filter((item) => item.type === "record").length;
-            const reservationCount = items.filter((item) => item.type === "reservation").length;
-            const active = date === selectedDate;
-            const hiddenCount = Math.max(0, items.length - 2);
-            const hasItems = items.length > 0;
+            <div className="grid grid-cols-7">
+              {monthDates.map((date, index) => {
+                const items = date ? dayItemsByDate.get(date) ?? [] : [];
+                const recordCount = items.filter((item) => item.type === "record").length;
+                const reservationCount = items.filter((item) => item.type === "reservation").length;
+                const attentionCount = items.filter(hasAttentionText).length;
+                const active = date === selectedDate;
+                const hasItems = items.length > 0;
 
-            if (!date) {
-              return <div key={`empty-${index}`} className="min-h-[124px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
-            }
+                if (!date) {
+                  return <div key={`empty-${index}`} className="min-h-[82px] border-b border-r border-[#eef2f7] bg-[#fbfcfd]" />;
+                }
 
-            return (
-              <button
-                key={date}
-                type="button"
-                onClick={() => openDate(date)}
-                className={cn(
-                  "min-h-[124px] border-b border-r p-3 text-left transition",
-                  getCalendarCellTone(active, hasItems),
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className={cn("text-[13px]", hasItems || active ? "text-[#111827]" : "text-[#94a3b8]")}>{Number(date.slice(-2))}</span>
-                  {hasItems ? (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b] shadow-[0_0_0_1px_rgba(219,226,234,0.72)]">
-                      {items.length}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-3 space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {reservationCount > 0 ? (
-                      <span className="rounded-full bg-[#e6f3ef] px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b]">예약 {reservationCount}</span>
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => openDate(date)}
+                    className={cn(
+                      "min-h-[82px] border-b border-r p-2.5 text-left transition",
+                      getCalendarCellTone(active, hasItems),
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={cn("text-[13px]", hasItems || active ? "text-[#111827]" : "text-[#94a3b8]")}>{Number(date.slice(-2))}</span>
+                      {hasItems ? (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b] shadow-[0_0_0_1px_rgba(219,226,234,0.72)]">
+                          {items.length}
+                        </span>
+                      ) : null}
+                    </div>
+                    {hasItems ? (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {reservationCount > 0 ? (
+                          <span className="rounded-full bg-[#e6f3ef] px-2 py-0.5 text-[11px] font-medium text-[#1f6b5b]">예약 {reservationCount}</span>
+                        ) : null}
+                        {recordCount > 0 ? (
+                          <span className="rounded-full bg-[#eef2f7] px-2 py-0.5 text-[11px] font-medium text-[#475569]">기록 {recordCount}</span>
+                        ) : null}
+                        {attentionCount > 0 ? (
+                          <span className="rounded-full bg-[#fff1b8] px-2 py-0.5 text-[11px] font-medium text-[#8a5a00]">주의 {attentionCount}</span>
+                        ) : null}
+                      </div>
                     ) : null}
-                    {recordCount > 0 ? (
-                      <span className="rounded-full bg-[#eef2f7] px-2 py-0.5 text-[11px] font-medium text-[#475569]">기록 {recordCount}</span>
-                    ) : null}
-                  </div>
-                  <div className="space-y-1">
-                  {items.slice(0, 2).map((item) => (
-                    <span key={`${item.type}-${item.id}`} className="block truncate text-[12px] leading-5 text-[#111827]">
-                      {item.pet} · {item.service}
-                    </span>
-                  ))}
-                  {hiddenCount > 0 ? <span className="block text-[12px] text-[#64748b]">+{hiddenCount} 더보기</span> : null}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <GroomingDatePanel date={selectedDate} items={selectedItems} onSelectItem={openItem} />
         </div>
       </WebSurface>
 
-      {dateSheetOpen && !selectedItem ? (
-        <GroomingDateSheet
-          date={selectedDate}
-          items={selectedItems}
-          onClose={() => setDateSheetOpen(false)}
-          onSelectItem={openItem}
-        />
-      ) : null}
       {selectedItem ? <GroomingRecordSheet item={selectedItem} onClose={() => setSelectedItem(null)} /> : null}
     </div>
   );
 }
 
-function GroomingDateSheet({
+function GroomingDatePanel({
   date,
   items,
-  onClose,
   onSelectItem,
 }: {
   date: string;
   items: DayItem[];
-  onClose: () => void;
   onSelectItem: (item: DayItem) => void;
 }) {
+  const reservationCount = items.filter((item) => item.type === "reservation").length;
+  const recordCount = items.filter((item) => item.type === "record").length;
+  const attentionCount = items.filter(hasAttentionText).length;
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
-      <aside
-        className="ml-auto flex h-full w-full max-w-[430px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f7] px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">날짜 내역</p>
-            <h3 className="mt-2 text-[24px] font-semibold text-[#111827]">{formatShortDate(date)}</h3>
-            <p className="mt-1 text-[14px] text-[#64748b]">예약과 기록 {items.length}건</p>
+    <aside className="flex min-h-[492px] flex-col bg-white">
+      <div className="border-b border-[#edf2f7] px-5 py-4">
+        <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">선택 날짜</p>
+        <h3 className="mt-2 text-[24px] font-semibold text-[#111827]">{formatShortDate(date)}</h3>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-[#e6f3ef] px-2 py-1 text-[12px] font-medium text-[#1f6b5b]">예약 {reservationCount}</span>
+          <span className="rounded-full bg-[#eef2f7] px-2 py-1 text-[12px] font-medium text-[#475569]">기록 {recordCount}</span>
+          {attentionCount > 0 ? <span className="rounded-full bg-[#fff1b8] px-2 py-1 text-[12px] font-medium text-[#8a5a00]">주의 {attentionCount}</span> : null}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+        {items.length > 0 ? (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <button
+                key={`${item.type}-${item.id}`}
+                type="button"
+                onClick={() => onSelectItem(item)}
+                className={cn("w-full rounded-[8px] border px-4 py-3 text-left transition hover:bg-[#f8fafc]", getRecordTone(item))}
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <p className="truncate text-[15px] font-semibold text-[#111827]">
+                    {item.pet} · {item.customer}
+                  </p>
+                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px]", getBadgeTone(item))}>{item.type === "record" ? "기록" : item.status}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-[#64748b]">
+                  <span className="truncate">{item.service}</span>
+                  {item.time ? <span className="shrink-0 tabular-nums">{item.time}</span> : null}
+                </div>
+                <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-[#475569]">{item.note || "메모가 없습니다."}</p>
+              </button>
+            ))}
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-5">
-          {items.length > 0 ? (
-            <div className="space-y-2">
-              {items.map((item) => (
-                <button
-                  key={`${item.type}-${item.id}`}
-                  type="button"
-                  onClick={() => onSelectItem(item)}
-                  className={cn("w-full rounded-[8px] border px-4 py-3 text-left transition hover:bg-[#f8fafc]", getRecordTone(item))}
-                >
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <p className="truncate text-[15px] font-semibold text-[#111827]">
-                      {item.pet} · {item.customer}
-                    </p>
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px]", getBadgeTone(item))}>{item.type === "record" ? "기록" : item.status}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-[13px] text-[#64748b]">
-                    <span className="truncate">{item.service}</span>
-                    {item.time ? <span className="shrink-0 tabular-nums">{item.time}</span> : null}
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-[#475569]">{item.note || "메모가 없습니다."}</p>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-8 text-center text-[13px] text-[#94a3b8]">
-              이 날짜에는 예약이나 기록이 없습니다.
-            </div>
-          )}
-        </div>
-
-      </aside>
-    </div>
+        ) : (
+          <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-8 text-center text-[13px] text-[#94a3b8]">
+            이 날짜에는 예약이나 기록이 없습니다.
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
 

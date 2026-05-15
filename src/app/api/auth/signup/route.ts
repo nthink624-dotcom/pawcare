@@ -224,7 +224,16 @@ export async function POST(request: NextRequest) {
       requiresEmailConfirmation: false,
       message: "회원가입이 완료되었습니다. 로그인 후 카드 등록 없이 2주 무료체험을 시작할 수 있어요. 무료체험 종료 후 자동결제되지는 않습니다.",
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ message: "입력 정보를 다시 확인해 주세요." }, { status: 400 });
+    }
+
+    const message = error instanceof Error ? error.message : "";
+    if (message.toLowerCase().includes("not sent")) {
+      return NextResponse.json({ message: "회원가입 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    }
+
     return NextResponse.json({ message: "회원가입 처리 중 문제가 발생했습니다." }, { status: 400 });
   }
 }

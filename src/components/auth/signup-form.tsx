@@ -812,7 +812,10 @@ export default function SignupForm({
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({
+        success: false,
+        message: "회원가입 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      }));
 
       if (!response.ok || !result.success) {
         setMessage(result.message ?? "회원가입 중 문제가 발생했어요.");
@@ -821,6 +824,13 @@ export default function SignupForm({
 
       router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=signup-success` as never);
       router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setMessage(
+        message.toLowerCase().includes("not sent")
+          ? "회원가입 요청을 서버로 보내지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요."
+          : "회원가입 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setLoading(false);
     }

@@ -21,12 +21,12 @@ function FieldShell({
   children: ReactNode;
 }) {
   return (
-    <label className="block rounded-[18px] border border-[#e6ddd3] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(67,55,43,0.04)] transition focus-within:border-[#247761] focus-within:shadow-[0_0_0_3px_rgba(36,119,97,0.09)]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[12px] font-semibold text-[#7f6f61]">{label}</span>
-        {hint ? <span className="text-[11px] font-medium text-[#a89b8e]">{hint}</span> : null}
+    <label className="flex min-h-[56px] items-center gap-3 border-b border-[#e5e7eb] py-3 last:border-b-0">
+      <div className="w-[86px] shrink-0">
+        <span className="block text-[12px] font-semibold text-[#64748b]">{label}</span>
+        {hint ? <span className="mt-0.5 block text-[11px] font-medium text-[#94a3b8]">{hint}</span> : null}
       </div>
-      <div className="mt-2">{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
     </label>
   );
 }
@@ -35,16 +35,15 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full border-0 bg-transparent p-0 text-[17px] font-semibold text-[#151311] outline-none placeholder:text-[#c2b7ac] disabled:cursor-not-allowed disabled:text-[#aaa198] ${props.className ?? ""}`}
+      className={`w-full border-0 bg-transparent p-0 text-[16px] font-medium text-[#111827] outline-none placeholder:text-[#b6c0cc] disabled:cursor-not-allowed disabled:text-[#94a3b8] ${props.className ?? ""}`}
     />
   );
 }
 
 function VerificationCompleteIcon() {
   return (
-    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#e5f4ef] text-[#1f735f]">
-      <div className="absolute inset-1 rounded-full border border-[#b7dfd2]" />
-      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#247761] text-white shadow-[0_8px_18px_rgba(36,119,97,0.24)]">
+    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#1f735f]">
+      <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#247761] text-white">
         <Check className="h-4 w-4" strokeWidth={3} />
       </div>
     </div>
@@ -182,7 +181,7 @@ export default function ResetPasswordForm({
 
   const verifyPass = async () => {
     const values = getValues();
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityPhoneChannelKey) {
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
       setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
       return;
     }
@@ -214,7 +213,7 @@ export default function ResetPasswordForm({
 
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityPhoneChannelKey,
+        channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {
@@ -227,7 +226,7 @@ export default function ResetPasswordForm({
       });
 
       if (!result?.identityVerificationId) {
-        setMessage("PASS 본인인증이 완료되지 않았어요.");
+        setMessage("휴대폰 본인인증이 완료되지 않았어요.");
         return;
       }
 
@@ -243,12 +242,12 @@ export default function ResetPasswordForm({
       const verifyResult = (await response.json()) as ApiMessage;
 
       if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인인증 확인에 실패했어요.");
+        setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
         return;
       }
 
       syncVerificationToken(verifyResult.verificationToken);
-      setMessage(verifyResult.message ?? "PASS 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
+      setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -295,33 +294,34 @@ export default function ResetPasswordForm({
     errors.passwordConfirm?.message;
 
   const notice = message ?? firstError;
-
+  const verificationStepClass = verificationToken ? "border-[#2f7866] bg-[#f0faf6] text-[#1f735f]" : "border-[#dbe2ea] bg-white text-[#64748b]";
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbf8f2] px-5 pb-10 pt-5 text-[#151311]">
+    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-5 text-[#111827]">
       <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
 
-      <div className="mt-7 rounded-[28px] bg-[#fffdf9] px-5 pb-6 pt-5 shadow-[0_20px_60px_rgba(66,50,33,0.08)] ring-1 ring-[#eee4d8]">
+      <div className="mt-7 border-b border-[#dbe2ea] pb-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[13px] font-bold text-[#247761]">비밀번호 찾기</p>
-            <h1 className="mt-3 text-[28px] font-bold leading-[1.18] text-[#17130f]">
-              본인 확인 후
-              <br />새 비밀번호를
-              <br />설정해요
+            <p className="text-[13px] font-semibold text-[#247761]">비밀번호 찾기</p>
+            <h1 className="mt-2 text-[25px] font-semibold leading-[1.25] text-[#111827]">
+              본인 확인 후<br />새 비밀번호 설정
             </h1>
           </div>
-          <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[20px] bg-[#ecf6f1] text-[#247761]">
-            <KeyRound className="h-7 w-7" strokeWidth={2} />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#e9f6f1] text-[#247761]">
+            <KeyRound className="h-5 w-5" strokeWidth={2} />
           </div>
         </div>
-        <p className="mt-4 text-[14px] leading-6 text-[#75695e]">
-          가입한 계정 정보를 확인한 뒤 본인 인증이 완료되면 새 비밀번호 입력란이 열립니다.
-        </p>
+        <p className="mt-3 text-[13px] leading-5 text-[#64748b]">가입 정보와 본인인증이 일치하면 새 비밀번호를 입력할 수 있어요.</p>
+        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[12px] font-semibold">
+          <span className="rounded-[8px] border border-[#2f7866] bg-[#f0faf6] py-2 text-[#1f735f]">계정 확인</span>
+          <span className={`rounded-[8px] border py-2 ${verificationStepClass}`}>본인인증</span>
+          <span className={`rounded-[8px] border py-2 ${verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#dbe2ea] bg-white text-[#94a3b8]"}`}>재설정</span>
+        </div>
       </div>
 
-      <form onSubmit={onSubmit} className="mt-5 space-y-4">
-        <section className="space-y-3 rounded-[24px] border border-[#eadfd3] bg-[#fffdf9] p-4 shadow-[0_14px_36px_rgba(66,50,33,0.06)]">
-          <div className="flex items-center gap-2 text-[13px] font-bold text-[#7a5c43]">
+      <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        <section className="rounded-[20px] border border-[#eadfd3] bg-[#fffdf9] px-4 py-3 shadow-[0_12px_30px_rgba(66,50,33,0.05)]">
+          <div className="mb-1 flex items-center gap-2 text-[13px] font-bold text-[#7a5c43]">
             <ShieldCheck className="h-4 w-4" />
             계정 확인 정보
           </div>
@@ -343,19 +343,19 @@ export default function ResetPasswordForm({
           </FieldShell>
         </section>
 
-        <section className="space-y-4 rounded-[24px] border border-[#eadfd3] bg-white p-4 shadow-[0_14px_36px_rgba(66,50,33,0.06)]">
+        <section className="space-y-4 rounded-[20px] border border-[#eadfd3] bg-white p-4 shadow-[0_12px_30px_rgba(66,50,33,0.05)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[13px] font-bold text-[#7a5c43]">본인 확인</p>
               <p className="mt-1 text-[13px] leading-5 text-[#7c7065]">
                 {isDevelopmentFlow
                   ? "개발 환경에서는 인증번호로 확인할 수 있어요."
-                  : "PASS 본인인증을 완료해 주세요."}
+                  : "가입된 휴대폰 번호와 일치해야 비밀번호를 재설정할 수 있어요."}
               </p>
             </div>
             {verificationToken ? (
-              <div className="flex items-center gap-2 rounded-full bg-[#ecf6f1] py-1 pl-1 pr-3 text-[12px] font-bold text-[#1f735f]">
-                <VerificationCompleteIcon />
+              <div className="flex items-center gap-1.5 rounded-full bg-[#ecf6f1] px-3 py-1.5 text-[12px] font-bold text-[#1f735f]">
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
                 인증 완료
               </div>
             ) : (
@@ -410,15 +410,15 @@ export default function ResetPasswordForm({
               type="button"
               onClick={verifyPass}
               disabled={loading}
-              className="flex h-[54px] w-full items-center justify-center rounded-[18px] border border-[#cae1d8] bg-[#eff9f5] text-[16px] font-bold text-[#1f735f] transition active:scale-[0.99] disabled:opacity-60"
+              className="flex h-[54px] w-full items-center justify-center rounded-[16px] border border-[#cae1d8] bg-[#eff9f5] text-[16px] font-bold text-[#1f735f] transition active:scale-[0.99] disabled:opacity-60"
             >
-              PASS 본인인증
+              PASS로 본인 확인하기
             </button>
           )}
         </section>
 
         {verificationToken ? (
-          <section className="space-y-3 rounded-[24px] border border-[#cae1d8] bg-[#f8fffb] p-4 shadow-[0_16px_40px_rgba(36,119,97,0.1)]">
+          <section className="space-y-3 rounded-[20px] border border-[#cae1d8] bg-[#f8fffb] p-4 shadow-[0_14px_34px_rgba(36,119,97,0.09)]">
             <div className="flex items-start gap-3">
               <VerificationCompleteIcon />
               <div>
@@ -464,13 +464,13 @@ export default function ResetPasswordForm({
             </FieldShell>
           </section>
         ) : (
-          <section className="flex items-center gap-3 rounded-[22px] border border-dashed border-[#decfbe] bg-[#f7f1ea] px-4 py-4 text-[#8a7868]">
+          <section className="flex items-center gap-3 rounded-[18px] border border-dashed border-[#decfbe] bg-[#f7f1ea] px-4 py-3.5 text-[#8a7868]">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#9b8069]">
               <LockKeyhole className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[13px] font-bold text-[#7a5c43]">새 비밀번호 입력 잠김</p>
-              <p className="mt-1 text-[12px] leading-5">본인 확인이 완료되면 입력 영역이 열립니다.</p>
+              <p className="text-[13px] font-bold text-[#7a5c43]">새 비밀번호</p>
+              <p className="mt-1 text-[12px] leading-5">본인 확인 후 입력할 수 있어요.</p>
             </div>
           </section>
         )}

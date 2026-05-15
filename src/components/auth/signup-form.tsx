@@ -710,45 +710,24 @@ export default function SignupForm({
 
   const verifyPass = async () => {
     await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityPhoneChannelKey,
+      channelKey: env.portoneIdentityKcpChannelKey,
       successMessage: "휴대폰 본인인증이 완료되었어요.",
       missingEnvMessage: "KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.",
     });
   };
 
   const startPhoneIdentity = async () => {
-    const phoneIdentityChannelKey = env.portoneIdentityPhoneChannelKey;
-    const usesLegacyDanalPhoneIdentityChannel =
-      Boolean(env.portoneIdentityDanalChannelKey) &&
-      phoneIdentityChannelKey === env.portoneIdentityDanalChannelKey;
+    const phoneIdentityChannelKey = env.portoneIdentityKcpChannelKey;
 
     await verifyPortoneIdentity({
       channelKey: phoneIdentityChannelKey,
       successMessage: "휴대폰 본인 인증이 완료되었어요.",
       missingEnvMessage: "휴대폰 본인 인증 채널이 아직 연결되지 않았어요.",
-      bypass: usesLegacyDanalPhoneIdentityChannel
-        ? {
-            danal: {
-              IsCarrier: phoneCarrier,
-              CPTITLE: "petmanager.co.kr",
-            },
-          }
-        : undefined,
     });
   };
 
-  const startUnifiedIdentity = async (agency: "KAKAO" | "NAVER" | "TOSS" | "PASS", successMessage: string) => {
-    await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityUnifiedChannelKey,
-      successMessage,
-      missingEnvMessage: "KG이니시스 통합인증 채널이 아직 연결되지 않았어요.",
-      bypass: {
-        inicisUnified: {
-          flgFixedUser: "Y",
-          directAgency: agency,
-        },
-      },
-    });
+  const startUnifiedIdentity = async (..._args: unknown[]) => {
+    setMessage("현재는 KCP 휴대폰 본인인증만 사용할 수 있습니다.");
   };
 
   const submitSignup = async () => {
@@ -1456,78 +1435,6 @@ export default function SignupForm({
                         </button>
                       </div>
                     ) : null}
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod === "pass" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">PASS 인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => startUnifiedIdentity("PASS", "PASS 본인 인증이 완료되었어요.")}
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      PASS로 인증하기
-                    </button>
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="space-y-3 rounded-[18px] border border-[#ece4da] bg-[#fcfaf7] p-4">
-                    <p className="text-[13px] font-semibold text-[#2f2a25]">간편 인증을 시작할게요.</p>
-                    <p className="text-[12px] leading-5 text-[#8b847b]">
-                      선택한 인증 수단으로 이동해 본인 확인을 진행해 주세요.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startUnifiedIdentity(
-                          selectedVerificationMethod === "kakao-certificate"
-                            ? "KAKAO"
-                            : selectedVerificationMethod === "naver-certificate"
-                              ? "NAVER"
-                              : "TOSS",
-                          `${
-                            selectedVerificationMethod === "kakao-certificate"
-                              ? "카카오"
-                              : selectedVerificationMethod === "naver-certificate"
-                                ? "네이버"
-                                : "토스"
-                          } 간편 인증이 완료되었어요.`,
-                        )
-                      }
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      {selectedVerificationMethod === "kakao-certificate"
-                        ? "카카오 간편 인증 시작"
-                        : selectedVerificationMethod === "naver-certificate"
-                          ? "네이버 간편 인증 시작"
-                          : "토스 간편 인증 시작"}
-                    </button>
                   </div>
                 ) : null}
 

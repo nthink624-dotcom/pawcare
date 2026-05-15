@@ -153,7 +153,7 @@ export default function FindLoginIdForm() {
 
   const verifyPass = async () => {
     const values = getValues();
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityPhoneChannelKey) {
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
       setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
       return;
     }
@@ -185,7 +185,7 @@ export default function FindLoginIdForm() {
 
       const result = await requestIdentityVerification({
         storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityPhoneChannelKey,
+        channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
         customer: {
@@ -198,7 +198,7 @@ export default function FindLoginIdForm() {
       });
 
       if (!result?.identityVerificationId) {
-        setMessage("PASS 본인인증이 완료되지 않았어요.");
+        setMessage("휴대폰 본인인증이 완료되지 않았어요.");
         return;
       }
 
@@ -214,12 +214,12 @@ export default function FindLoginIdForm() {
       const verifyResult = (await response.json()) as ApiMessage;
 
       if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "PASS 본인인증 확인에 실패했어요.");
+        setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
         return;
       }
 
       syncVerificationToken(verifyResult.verificationToken);
-      setMessage(verifyResult.message ?? "PASS 본인인증이 완료되었어요.");
+      setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료되었어요.");
     } finally {
       setLoading(false);
     }
@@ -326,7 +326,7 @@ export default function FindLoginIdForm() {
               disabled={loading}
               className="flex h-[48px] items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-[#f4fbf8] text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
             >
-              PASS 본인인증
+              휴대폰 본인인증
             </button>
           </div>
         ) : (
@@ -336,7 +336,7 @@ export default function FindLoginIdForm() {
             disabled={loading}
             className="flex h-[50px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-[#f4fbf8] text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
           >
-            PASS 본인인증
+            휴대폰 본인인증
           </button>
         )}
 

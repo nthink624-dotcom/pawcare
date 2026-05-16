@@ -43,6 +43,10 @@ function toKoreanAuthError(message: string) {
 type OwnerLoginApiResponse = {
   success?: boolean;
   message?: string;
+  session?: {
+    accessToken: string;
+    refreshToken: string;
+  };
 };
 
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
@@ -99,6 +103,13 @@ export default function LoginForm({
       if (!response.ok || !result.success) {
         setMessage(result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.");
         return;
+      }
+
+      if (supabase && result.session) {
+        await supabase.auth.setSession({
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        });
       }
 
       if (rememberLoginId && loginId.trim()) {

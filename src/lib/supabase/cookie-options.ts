@@ -1,6 +1,11 @@
 import { getSupabaseRuntimeStage } from "@/lib/env";
 
-function shouldUseProductionCookieDomain() {
+function shouldUseProductionCookieDomain(hostname?: string) {
+  const normalizedHostname = hostname?.toLowerCase();
+  if (normalizedHostname) {
+    return normalizedHostname === "petmanager.co.kr" || normalizedHostname.endsWith(".petmanager.co.kr");
+  }
+
   if (getSupabaseRuntimeStage() !== "production") {
     return false;
   }
@@ -12,12 +17,12 @@ function shouldUseProductionCookieDomain() {
   return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
 }
 
-export function getSupabaseCookieOptions(options?: { secure?: boolean }) {
+export function getSupabaseCookieOptions(options?: { secure?: boolean; hostname?: string }) {
   const browserSecure =
     typeof window !== "undefined" ? window.location.protocol === "https:" : undefined;
   const secure = options?.secure ?? browserSecure ?? getSupabaseRuntimeStage() === "production";
   const productionOptions =
-    shouldUseProductionCookieDomain()
+    shouldUseProductionCookieDomain(options?.hostname)
       ? {
           domain: ".petmanager.co.kr",
           secure,

@@ -67,7 +67,10 @@ export async function POST(request: NextRequest) {
       options?: Parameters<NextResponse["cookies"]["set"]>[2];
     }> = [];
     const authClient = createServerClient(serverEnv.supabaseUrl!, serverEnv.supabasePublishableKey!, {
-      cookieOptions: getSupabaseCookieOptions({ secure: request.nextUrl.protocol === "https:" }),
+      cookieOptions: getSupabaseCookieOptions({
+        hostname: request.nextUrl.hostname,
+        secure: request.nextUrl.protocol === "https:",
+      }),
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -118,6 +121,10 @@ export async function POST(request: NextRequest) {
 
       const response = NextResponse.json({
         success: true,
+        session: {
+          accessToken: signInResult.data.session.access_token,
+          refreshToken: signInResult.data.session.refresh_token,
+        },
       });
       authCookies.forEach(({ name, value, options }) => {
         response.cookies.set(name, value, options);

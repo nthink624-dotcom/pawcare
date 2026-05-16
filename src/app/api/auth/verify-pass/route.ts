@@ -14,11 +14,16 @@ const schema = z.object({
 type PortoneVerificationResponse = {
   identityVerification?: Record<string, unknown>;
   message?: string;
+  type?: string;
 };
 
 async function readPortoneJson(response: Response): Promise<PortoneVerificationResponse> {
   try {
-    return (await response.json()) as PortoneVerificationResponse;
+    const payload = (await response.json()) as Record<string, unknown>;
+    if (!payload.identityVerification && typeof payload.id === "string" && typeof payload.status === "string") {
+      return { identityVerification: payload };
+    }
+    return payload as PortoneVerificationResponse;
   } catch {
     return {};
   }
@@ -34,8 +39,10 @@ function toKoreanPortoneIdentityMessage(message?: string) {
   return message;
 }
 
-function isAlreadyVerifiedPortoneMessage(message?: string) {
-  return (message ?? "").toLowerCase().includes("already verified");
+function isAlreadyVerifiedPortoneMessage(result: PortoneVerificationResponse) {
+  return [result.message, result.type]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => value.toLowerCase().includes("already verified"));
 }
 
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
-      if (isAlreadyVerifiedPortoneMessage(result.message)) {
+      if (isAlreadyVerifiedPortoneMessage(result)) {
         const completed = await completePortoneIdentityVerification({
           verificationRequestId: payload.verificationRequestId,
           purpose: payload.purpose,

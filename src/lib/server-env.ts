@@ -33,7 +33,11 @@ export const serverEnv = {
     process.env.SUPABASE_ENV_NAME ||
     (process.env.VERCEL_ENV === "production" ? "production" : "development"),
   allowProdSupabaseInDev: process.env.ALLOW_PROD_SUPABASE_IN_DEV === "true",
-  authFlowSecret: readOptionalSecret(process.env.AUTH_FLOW_SECRET),
+  authFlowSecret: readOptionalSecret(
+    process.env.AUTH_FLOW_SECRET ||
+      process.env.ADMIN_SESSION_SECRET ||
+      process.env.BILLING_KEY_ENCRYPTION_SECRET,
+  ),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
   portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),

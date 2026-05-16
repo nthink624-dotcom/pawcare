@@ -115,16 +115,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "이미 사용 중인 아이디입니다." }, { status: 409 });
     }
 
-    const consumed = await consumeVerifiedIdentity({
-      verificationId: verifiedIdentity.id,
-      tokenId: verifiedIdentity.tokenId,
-      action: "signup",
-    });
-
-    if (!consumed) {
-      return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
-    }
-
     const authEmail = buildOwnerAuthEmail(loginId);
     const trialStartedAt = nowIso();
     const trialEndsAt = new Date(Date.now() + OWNER_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -217,6 +207,19 @@ export async function POST(request: NextRequest) {
         },
         { status: profileInsert.error.code === "23505" ? 409 : 400 },
       );
+    }
+
+    const consumed = await consumeVerifiedIdentity({
+      verificationId: verifiedIdentity.id,
+      tokenId: verifiedIdentity.tokenId,
+      action: "signup",
+    });
+
+    if (!consumed) {
+      await supabase.from("owner_profiles").delete().eq("user_id", user.id);
+      await supabase.from("shops").delete().eq("id", shopId);
+      await supabase.auth.admin.deleteUser(user.id);
+      return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
     }
 
     return NextResponse.json({

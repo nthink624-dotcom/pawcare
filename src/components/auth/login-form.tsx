@@ -43,10 +43,6 @@ function toKoreanAuthError(message: string) {
 type OwnerLoginApiResponse = {
   success?: boolean;
   message?: string;
-  session?: {
-    accessToken: string;
-    refreshToken: string;
-  };
 };
 
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
@@ -82,7 +78,7 @@ export default function LoginForm({
   }, []);
 
   const handleLogin = async () => {
-    if (!supabaseReady || !supabase) {
+    if (!supabaseReady) {
       setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
@@ -100,18 +96,8 @@ export default function LoginForm({
         message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       }))) as OwnerLoginApiResponse;
 
-      if (!response.ok || !result.success || !result.session) {
+      if (!response.ok || !result.success) {
         setMessage(result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.");
-        return;
-      }
-
-      const sessionResult = await supabase.auth.setSession({
-        access_token: result.session.accessToken,
-        refresh_token: result.session.refreshToken,
-      });
-
-      if (sessionResult.error) {
-        setMessage(toKoreanAuthError(sessionResult.error.message));
         return;
       }
 

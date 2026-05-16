@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { buildOwnerAuthEmailCandidates } from "@/lib/auth/owner-credentials";
 import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
   getOAuthRedirectOrigin,
@@ -40,6 +39,15 @@ function toKoreanAuthError(message: string) {
 
   return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 }
+
+type OwnerLoginApiResponse = {
+  success?: boolean;
+  message?: string;
+  session?: {
+    accessToken: string;
+    refreshToken: string;
+  };
+};
 
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 
@@ -83,23 +91,27 @@ export default function LoginForm({
     setMessage(null);
 
     try {
-      let authError: { message: string } | null = null;
-      for (const email of buildOwnerAuthEmailCandidates(loginId)) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginId, password }),
+      });
+      const result = (await response.json().catch(() => ({
+        message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      }))) as OwnerLoginApiResponse;
 
-        if (!error) {
-          authError = null;
-          break;
-        }
-
-        authError = error;
+      if (!response.ok || !result.success || !result.session) {
+        setMessage(result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.");
+        return;
       }
 
-      if (authError) {
-        setMessage(toKoreanAuthError(authError.message));
+      const sessionResult = await supabase.auth.setSession({
+        access_token: result.session.accessToken,
+        refresh_token: result.session.refreshToken,
+      });
+
+      if (sessionResult.error) {
+        setMessage(toKoreanAuthError(sessionResult.error.message));
         return;
       }
 
@@ -111,6 +123,8 @@ export default function LoginForm({
 
       router.replace(nextPath as never);
       router.refresh();
+    } catch {
+      setMessage("로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }

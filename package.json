@@ -17,6 +17,7 @@
     "status:fail": "node --experimental-transform-types ./scripts/job-status.ts fail",
     "status:last": "node --experimental-transform-types ./scripts/job-status.ts last",
     "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
+    "check:supabase-env": "node scripts/check-supabase-env-consistency.cjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "npm --prefix backend run typecheck"

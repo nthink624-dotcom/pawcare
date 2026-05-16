@@ -5,6 +5,7 @@ import {
   KeyRound,
   LayoutDashboard,
   MonitorSmartphone,
+  ServerCog,
   ShieldCheck,
   ShoppingBag,
   Store,
@@ -123,6 +124,12 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             icon={KeyRound}
             title="알림톡 키 / 템플릿 관리"
             description="Vercel 앱 서버가 읽는 raw 값과 relay 서버에 저장된 원본 키·템플릿 코드를 한 화면에서 확인하고 수정합니다."
+          />
+          <DashboardLink
+            href="/admin/env"
+            icon={ServerCog}
+            title="환경변수 상태 확인"
+            description="운영 서버에서 AUTH_FLOW_SECRET, Supabase, PortOne 필수 환경변수가 읽히는지만 안전하게 확인합니다."
           />
           <DashboardLink
             href="/owner"

@@ -21,6 +21,24 @@ type OwnedShopSummary = {
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
+const OWNER_LOAD_TIMEOUT_MS = 12000;
+
+function withOwnerLoadTimeout<T>(promise: Promise<T>, message: string) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), OWNER_LOAD_TIMEOUT_MS);
+    }),
+  ]);
+}
+
+function getOwnerLoadErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "오너 화면을 불러오지 못했습니다.";
+}
 
 export default function OwnerPage() {
   const router = useRouter();
@@ -57,6 +75,10 @@ export default function OwnerPage() {
     let active = true;
     const pendingProvider =
       typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
+    let provider: "google" | "kakao" | "naver" | null =
+      pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
+        ? pendingProvider
+        : null;
 
     async function load() {
       if (!hasSupabaseBrowserEnv() || !supabase) {
@@ -66,28 +88,31 @@ export default function OwnerPage() {
         return;
       }
 
-      const session = await getSessionWithRecovery();
-
-      if (!session?.access_token) {
-        router.replace("/login" as never);
-        router.refresh();
-        return;
-      }
-
-      if (session.user.user_metadata?.account_suspended === true) {
-        if (active) {
-          setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
-        }
-        return;
-      }
-
-      const provider =
-        pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
-          ? pendingProvider
-          : resolveSocialProviderFromAuthUser(session.user);
-
       try {
-        const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");
+        const session = await withOwnerLoadTimeout(
+          getSessionWithRecovery(),
+          "로그인 상태 확인이 지연되고 있습니다. 다시 로그인해 주세요.",
+        );
+
+        if (!session?.access_token) {
+          router.replace("/login" as never);
+          router.refresh();
+          return;
+        }
+
+        if (session.user.user_metadata?.account_suspended === true) {
+          if (active) {
+            setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+          }
+          return;
+        }
+
+        provider = provider ?? resolveSocialProviderFromAuthUser(session.user);
+
+        const shops = await withOwnerLoadTimeout(
+          fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
+          "매장 정보를 불러오는 중 지연되고 있습니다. Supabase 또는 Vercel 환경변수를 확인해 주세요.",
+        );
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
         const resolvedShopId =
@@ -101,8 +126,9 @@ export default function OwnerPage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
-          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+        const bootstrap = await withOwnerLoadTimeout(
+          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
+          "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
         );
 
         if (!active) return;
@@ -111,7 +137,7 @@ export default function OwnerPage() {
       } catch (error) {
         if (!active) return;
 
-        const nextMessage = error instanceof Error ? error.message : "오너 화면을 불러오지 못했습니다.";
+        const nextMessage = getOwnerLoadErrorMessage(error);
 
         if (nextMessage === "로그인이 필요합니다.") {
           router.replace("/login" as never);
@@ -124,7 +150,7 @@ export default function OwnerPage() {
           nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
         ) {
           router.replace(
-            `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider)}` as never,
+            `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider ?? "kakao")}` as never,
           );
           router.refresh();
           return;

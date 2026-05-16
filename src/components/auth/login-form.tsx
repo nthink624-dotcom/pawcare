@@ -51,6 +51,19 @@ type OwnerLoginApiResponse = {
 
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 
+function getSessionPersistenceErrorMessage(message?: string) {
+  if (!message) {
+    return "로그인 세션을 저장하지 못했습니다. 브라우저 쿠키 설정과 Supabase 환경변수를 확인해 주세요.";
+  }
+
+  const normalized = message.toLowerCase();
+  if (normalized.includes("invalid") || normalized.includes("jwt")) {
+    return "로그인 세션 정보가 현재 Supabase 설정과 맞지 않습니다. Vercel 환경변수를 확인해 주세요.";
+  }
+
+  return `로그인 세션 저장 중 문제가 발생했습니다. ${message}`;
+}
+
 export default function LoginForm({
   supabaseReady,
   initialMessage,
@@ -105,11 +118,25 @@ export default function LoginForm({
         return;
       }
 
-      if (supabase && result.session) {
-        await supabase.auth.setSession({
-          access_token: result.session.accessToken,
-          refresh_token: result.session.refreshToken,
-        });
+      if (!supabase || !result.session) {
+        setMessage("로그인 세션을 만들지 못했습니다. Supabase 환경변수를 확인해 주세요.");
+        return;
+      }
+
+      const { error: setSessionError } = await supabase.auth.setSession({
+        access_token: result.session.accessToken,
+        refresh_token: result.session.refreshToken,
+      });
+
+      if (setSessionError) {
+        setMessage(getSessionPersistenceErrorMessage(setSessionError.message));
+        return;
+      }
+
+      const verifiedSession = await supabase.auth.getSession();
+      if (verifiedSession.error || !verifiedSession.data.session?.access_token) {
+        setMessage(getSessionPersistenceErrorMessage(verifiedSession.error?.message));
+        return;
       }
 
       if (rememberLoginId && loginId.trim()) {

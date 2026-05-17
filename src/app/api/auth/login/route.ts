@@ -33,7 +33,7 @@ function getLoginErrorMessage(message?: string) {
     return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   }
   if (normalized.includes("rate limit")) {
-    return "로그인 요청이 잠시 제한됐어요. 잠시 후 다시 시도해 주세요.";
+    return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
   }
   if (normalized.includes("network") || normalized.includes("fetch")) {
     return "로그인 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.";

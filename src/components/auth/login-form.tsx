@@ -50,8 +50,103 @@ type OwnerLoginApiResponse = {
 };
 
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
+const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
+const FAILED_LOGIN_LIMIT = 5;
+const FAILED_LOGIN_LOCK_MS = 10 * 60 * 1000;
+
+type FailedLoginState = {
+  count: number;
+  lockedUntil: number | null;
+};
+
+function getFailedLoginStateKey(loginId: string) {
+  return `${FAILED_LOGIN_STATE_PREFIX}:${loginId.trim().toLowerCase() || "unknown"}`;
+}
+
+function readFailedLoginState(loginId: string): FailedLoginState {
+  if (typeof window === "undefined") {
+    return { count: 0, lockedUntil: null };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getFailedLoginStateKey(loginId));
+    if (!raw) return { count: 0, lockedUntil: null };
+
+    const parsed = JSON.parse(raw) as Partial<FailedLoginState>;
+    const count = typeof parsed.count === "number" && Number.isFinite(parsed.count) ? parsed.count : 0;
+    const lockedUntil =
+      typeof parsed.lockedUntil === "number" && Number.isFinite(parsed.lockedUntil) ? parsed.lockedUntil : null;
+
+    if (lockedUntil && lockedUntil <= Date.now()) {
+      window.localStorage.removeItem(getFailedLoginStateKey(loginId));
+      return { count: 0, lockedUntil: null };
+    }
+
+    return { count, lockedUntil };
+  } catch {
+    return { count: 0, lockedUntil: null };
+  }
+}
+
+function writeFailedLoginState(loginId: string, state: FailedLoginState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(getFailedLoginStateKey(loginId), JSON.stringify(state));
+}
+
+function clearFailedLoginState(loginId: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(getFailedLoginStateKey(loginId));
+}
+
+function getRemainingLockMinutes(lockedUntil: number) {
+  return Math.max(1, Math.ceil((lockedUntil - Date.now()) / 60000));
+}
+
+function getLockedLoginMessage(lockedUntil: number) {
+  return `비밀번호를 여러 번 잘못 입력했어요. ${getRemainingLockMinutes(
+    lockedUntil,
+  )}분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.`;
+}
+
+function isRateLimitMessage(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+  return normalized.includes("rate limit") || normalized.includes("too many") || normalized.includes("429");
+}
+
+function isInvalidCredentialMessage(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("아이디") ||
+    normalized.includes("비밀번호")
+  );
+}
+
+function getRateLimitMessage() {
+  return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.";
+}
+
+function recordFailedLoginAttempt(loginId: string) {
+  const current = readFailedLoginState(loginId);
+  const nextCount = current.count + 1;
+
+  if (nextCount >= FAILED_LOGIN_LIMIT) {
+    const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
+    const nextState = { count: nextCount, lockedUntil };
+    writeFailedLoginState(loginId, nextState);
+    return nextState;
+  }
+
+  const nextState = { count: nextCount, lockedUntil: null };
+  writeFailedLoginState(loginId, nextState);
+  return nextState;
+}
 
 function getSessionPersistenceErrorMessage(message?: string) {
+  if (isRateLimitMessage(message)) {
+    return getRateLimitMessage();
+  }
+
   if (!message) {
     return "로그인 세션을 저장하지 못했습니다. 브라우저 쿠키 설정과 Supabase 환경변수를 확인해 주세요.";
   }
@@ -100,6 +195,12 @@ export default function LoginForm({
       return;
     }
 
+    const currentFailedLoginState = readFailedLoginState(loginId);
+    if (currentFailedLoginState.lockedUntil && currentFailedLoginState.lockedUntil > Date.now()) {
+      setMessage(getLockedLoginMessage(currentFailedLoginState.lockedUntil));
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -114,7 +215,28 @@ export default function LoginForm({
       }))) as OwnerLoginApiResponse;
 
       if (!response.ok || !result.success) {
-        setMessage(result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.");
+        const nextMessage = result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.";
+
+        if (isRateLimitMessage(nextMessage)) {
+          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
+          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
+          setMessage(getRateLimitMessage());
+          return;
+        }
+
+        if (isInvalidCredentialMessage(nextMessage)) {
+          const failedState = recordFailedLoginAttempt(loginId);
+          if (failedState.lockedUntil) {
+            setMessage(getLockedLoginMessage(failedState.lockedUntil));
+            return;
+          }
+
+          const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
+          setMessage(`아이디 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 10분간 제한됩니다.`);
+          return;
+        }
+
+        setMessage(nextMessage);
         return;
       }
 
@@ -129,15 +251,25 @@ export default function LoginForm({
       });
 
       if (setSessionError) {
+        if (isRateLimitMessage(setSessionError.message)) {
+          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
+          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
+        }
         setMessage(getSessionPersistenceErrorMessage(setSessionError.message));
         return;
       }
 
       const verifiedSession = await supabase.auth.getSession();
       if (verifiedSession.error || !verifiedSession.data.session?.access_token) {
+        if (isRateLimitMessage(verifiedSession.error?.message)) {
+          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
+          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
+        }
         setMessage(getSessionPersistenceErrorMessage(verifiedSession.error?.message));
         return;
       }
+
+      clearFailedLoginState(loginId);
 
       if (rememberLoginId && loginId.trim()) {
         window.localStorage.setItem(SAVED_LOGIN_ID_KEY, loginId.trim());

@@ -2,4 +2,7 @@
 node_modules
 artifacts
 .local-secrets
+.local-secrets/
+.local-secrets/**
+.local-secrets/yourit_vps_ed25519
 *.log

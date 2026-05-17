@@ -149,23 +149,6 @@ function recordFailedLoginAttempt(loginId: string) {
   return nextState;
 }
 
-function getSessionPersistenceErrorMessage(message?: string) {
-  if (isRateLimitMessage(message)) {
-    return getRateLimitMessage();
-  }
-
-  if (!message) {
-    return "로그인 세션을 저장하지 못했습니다. 브라우저 쿠키 설정과 Supabase 환경변수를 확인해 주세요.";
-  }
-
-  const normalized = message.toLowerCase();
-  if (normalized.includes("invalid") || normalized.includes("jwt")) {
-    return "로그인 세션 정보가 현재 Supabase 설정과 맞지 않습니다. Vercel 환경변수를 확인해 주세요.";
-  }
-
-  return "로그인 세션 저장 중 문제가 발생했습니다. 잠시 후 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
-}
-
 export default function LoginForm({
   supabaseReady,
   initialMessage,
@@ -244,35 +227,6 @@ export default function LoginForm({
         }
 
         setMessage(nextMessage);
-        return;
-      }
-
-      if (!supabase || !result.session) {
-        setMessage("로그인 세션을 만들지 못했습니다. Supabase 환경변수를 확인해 주세요.");
-        return;
-      }
-
-      const { error: setSessionError } = await supabase.auth.setSession({
-        access_token: result.session.accessToken,
-        refresh_token: result.session.refreshToken,
-      });
-
-      if (setSessionError) {
-        if (isRateLimitMessage(setSessionError.message)) {
-          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
-          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
-        }
-        setMessage(getSessionPersistenceErrorMessage(setSessionError.message));
-        return;
-      }
-
-      const verifiedSession = await supabase.auth.getSession();
-      if (verifiedSession.error || !verifiedSession.data.session?.access_token) {
-        if (isRateLimitMessage(verifiedSession.error?.message)) {
-          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
-          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
-        }
-        setMessage(getSessionPersistenceErrorMessage(verifiedSession.error?.message));
         return;
       }
 

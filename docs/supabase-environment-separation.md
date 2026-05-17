@@ -80,6 +80,7 @@ SUPABASE_SERVICE_ROLE_KEY=<production service role key>
 - Local development must not point to production Supabase unless the owner explicitly asks for a one-off inspection or fix.
 - One env file must never mix Supabase refs. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` must all belong to the same Supabase project for that environment.
 - Local password reset/login changes affect only the local Supabase Auth project. Production password reset/login changes affect only the production Supabase Auth project.
+- Owner login IDs are not Supabase Auth emails. The app maps `owner_profiles.login_id` to the linked Auth user and supports both `<login_id>@owner.petmanager.local` and legacy `<login_id>@owner.pawcare.local` Auth emails.
 - Do not insert test bookings, test users, or seed data into production Supabase.
 - Before any write to a remote Supabase project, state which project, shop, date, and table will be changed.
 - Use `demo-shop` only for code-level mock/demo screens. It is not a production database tenant.

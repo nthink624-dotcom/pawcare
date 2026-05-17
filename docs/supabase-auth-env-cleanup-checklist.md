@@ -31,6 +31,29 @@
    - Local password resets do not change production Supabase Auth.
    - Production password resets do not change local Supabase Auth.
 
+## Login ID and Auth Email Rule
+
+Owners log in with a human-facing login ID such as `j4680`. Supabase Auth still requires an email-shaped identifier internally.
+
+The login flow must therefore never pass the raw login ID directly to Supabase Auth. It must:
+
+1. Normalize the submitted login ID.
+2. Find `owner_profiles.login_id`.
+3. Read the linked `owner_profiles.user_id`.
+4. Read that Auth user's current email.
+5. Try password sign-in with the Auth email candidates for that same `user_id`.
+
+Supported Auth email candidates:
+
+```txt
+<login_id>@owner.petmanager.local
+<login_id>@owner.pawcare.local
+```
+
+The `owner.pawcare.local` form is a legacy compatibility address and must remain supported for existing accounts. A production account with `Auth email = j4680@owner.pawcare.local` is valid as long as `owner_profiles.login_id = j4680` and `owner_profiles.user_id` matches the Auth user UID.
+
+Do not diagnose a valid legacy `owner.pawcare.local` email as an email/login-ID conversion bug. If the profile row and Auth UID match but password login returns `401`, treat it first as a project-specific Supabase Auth password issue.
+
 ## What Codex should maintain
 
 1. Keep `docs/supabase-environment-separation.md` as the source rule.

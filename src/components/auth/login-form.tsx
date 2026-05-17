@@ -110,7 +110,14 @@ function getLockedLoginMessage(lockedUntil: number) {
 
 function isRateLimitMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
-  return normalized.includes("rate limit") || normalized.includes("too many") || normalized.includes("429");
+  return (
+    normalized.includes("rate limit") ||
+    normalized.includes("too many") ||
+    normalized.includes("429") ||
+    (normalized.includes("request") && normalized.includes("limit")) ||
+    normalized.includes("요청이 잠시 제한") ||
+    normalized.includes("잠시 제한")
+  );
 }
 
 function isInvalidCredentialMessage(message?: string) {
@@ -156,7 +163,7 @@ function getSessionPersistenceErrorMessage(message?: string) {
     return "로그인 세션 정보가 현재 Supabase 설정과 맞지 않습니다. Vercel 환경변수를 확인해 주세요.";
   }
 
-  return `로그인 세션 저장 중 문제가 발생했습니다. ${message}`;
+  return "로그인 세션 저장 중 문제가 발생했습니다. 잠시 후 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
 }
 
 export default function LoginForm({

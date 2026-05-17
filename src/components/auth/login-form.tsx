@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
@@ -158,7 +157,6 @@ export default function LoginForm({
   initialMessage?: string | null;
   nextPath?: string;
 }) {
-  const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
   const [loginId, setLoginId] = useState("");
@@ -238,8 +236,7 @@ export default function LoginForm({
         window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
       }
 
-      router.replace(nextPath as never);
-      router.refresh();
+      window.location.assign(nextPath);
     } catch {
       setMessage("로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
     } finally {

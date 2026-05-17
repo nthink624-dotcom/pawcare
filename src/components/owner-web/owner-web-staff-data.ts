@@ -21,6 +21,7 @@ export type OwnerWebStaffColumn = {
 };
 
 export const ownerWebStaffStorageKey = "petmanager.ownerWeb.staffMembers";
+export const demoOwnerWebStaffStorageKey = "petmanager.demo.ownerWeb.staffMembers";
 
 export const defaultOwnerWebStaff: OwnerWebStaffMember[] = [
   { id: "staff-1", name: "정우진", phone: "010-8498-2077", role: "원장 / 전체 미용", defaultDays: ["mon", "tue", "thu", "fri", "sat"], startTime: "10:00", endTime: "19:00", regularOff: "수, 일", annualRemain: 8, todayBookings: 4, weekBookings: 18 },

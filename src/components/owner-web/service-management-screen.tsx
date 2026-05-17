@@ -4,7 +4,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { serviceRows } from "@/components/owner-web/owner-web-data";
-import { defaultOwnerWebStaff, type OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import {
   GhostButton,
   PrimaryButton,
@@ -198,7 +198,7 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   );
 }
 
-export default function ServiceManagementScreen({ staffMembers = defaultOwnerWebStaff }: { staffMembers?: OwnerWebStaffMember[] }) {
+export default function ServiceManagementScreen({ staffMembers = [] }: { staffMembers?: OwnerWebStaffMember[] }) {
   const [services, setServices] = useState<ManagedService[]>(() => normalizeServices(serviceRows));
   const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id ?? "");
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => buildForm(services[0] ?? normalizeServices(serviceRows)[0]));

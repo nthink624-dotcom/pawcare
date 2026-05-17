@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
@@ -12,6 +12,10 @@ function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefine
 export async function GET(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
+      if (getSupabaseServerRuntimeStage() === "production") {
+        throw new OwnerApiError("Supabase 서버 설정이 없어 운영 오너 매장 정보를 불러올 수 없습니다.", 503);
+      }
+
       return ownerMobileCorsJson(request, [
         {
           id: "demo-shop",

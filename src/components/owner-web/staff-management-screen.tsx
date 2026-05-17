@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import {
-  defaultOwnerWebStaff,
   type OwnerWebStaffMember,
   type OwnerWebWeekdayKey,
 } from "@/components/owner-web/owner-web-staff-data";
@@ -72,6 +71,17 @@ type StaffDraft = {
   endTime: string;
   regularOff: string;
   annualRemain: string;
+};
+
+const emptyStaffDraft: StaffDraft = {
+  name: "",
+  phone: "",
+  role: "",
+  defaultDaysText: "",
+  startTime: "10:00",
+  endTime: "19:00",
+  regularOff: "",
+  annualRemain: "0",
 };
 
 const weekdayColumns: Array<{ key: WeekdayKey; label: string }> = [
@@ -459,16 +469,17 @@ export default function StaffManagementScreen({
   staffMembers?: StaffMember[];
   onStaffMembersChange?: (staff: StaffMember[]) => void;
 }) {
-  const [localStaff, setLocalStaff] = useState<StaffMember[]>(defaultOwnerWebStaff);
+  const initialStaff = staffMembers?.[0] ?? null;
+  const [localStaff, setLocalStaff] = useState<StaffMember[]>([]);
   const staff = staffMembers ?? localStaff;
   const [requests, setRequests] = useState<LeaveRequest[]>(initialRequests);
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
   const [weekStart, setWeekStart] = useState(getWeekStart());
-  const [selectedStaffId, setSelectedStaffId] = useState(defaultOwnerWebStaff[0].id);
+  const [selectedStaffId, setSelectedStaffId] = useState(initialStaff?.id ?? "");
   const [boardTab, setBoardTab] = useState<StaffBoardTab>("schedule");
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
-  const [draft, setDraft] = useState<StaffDraft>(() => buildDraft(defaultOwnerWebStaff[0]));
+  const [draft, setDraft] = useState<StaffDraft>(() => (initialStaff ? buildDraft(initialStaff) : emptyStaffDraft));
   const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>({
     name: "",
     phone: "",
@@ -479,7 +490,7 @@ export default function StaffManagementScreen({
     regularOff: "일",
     annualRemain: "0",
   });
-  const [leaveDraft, setLeaveDraft] = useState({ staffId: defaultOwnerWebStaff[0].id, date: currentDateInTimeZone(), type: "휴무" as LeaveType, reason: "" });
+  const [leaveDraft, setLeaveDraft] = useState({ staffId: initialStaff?.id ?? "", date: currentDateInTimeZone(), type: "휴무" as LeaveType, reason: "" });
   const [scheduleEditDraft, setScheduleEditDraft] = useState<ScheduleEditDraft | null>(null);
   const [defaultScheduleOpen, setDefaultScheduleOpen] = useState(false);
   const [notice, setNotice] = useState("");

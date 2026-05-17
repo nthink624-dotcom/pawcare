@@ -21,8 +21,7 @@ import CustomerManagementScreen from "@/components/owner-web/customer-management
 import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
 import { ownerWebScreenLabels, settingsTabs, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import {
-  defaultOwnerWebStaff,
-  ownerWebStaffStorageKey,
+  demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
   type OwnerWebStaffMember,
 } from "@/components/owner-web/owner-web-staff-data";
@@ -46,6 +45,10 @@ const screenIcons: Record<OwnerWebScreenKey, typeof CalendarDays> = {
 };
 
 const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
+
+function isDemoOwnerWebData(data: BootstrapPayload) {
+  return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
+}
 
 function renderScreen(
   screen: OwnerWebScreenKey,
@@ -92,7 +95,13 @@ function renderScreen(
   }
 }
 
-export default function OwnerWebPreview({ initialData }: { initialData: BootstrapPayload }) {
+export default function OwnerWebPreview({
+  initialData,
+  demoStaffFallback = [],
+}: {
+  initialData: BootstrapPayload;
+  demoStaffFallback?: OwnerWebStaffMember[];
+}) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
   const [revenueUnlocked, setRevenueUnlocked] = useState(false);
   const [revenueGateOpen, setRevenueGateOpen] = useState(false);
@@ -103,13 +112,36 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(true);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [staffMembers, setStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
-    if (typeof window === "undefined") return defaultOwnerWebStaff;
-    return parseStoredOwnerWebStaff(window.localStorage.getItem(ownerWebStaffStorageKey)) ?? defaultOwnerWebStaff;
+  const demoMode = isDemoOwnerWebData(initialData);
+  const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
+    if (!demoMode) return [];
+    if (typeof window === "undefined") return demoStaffFallback;
+    return parseStoredOwnerWebStaff(window.localStorage.getItem(demoOwnerWebStaffStorageKey)) ?? demoStaffFallback;
   });
+  const staffMembers = demoMode ? demoStaffMembers : [];
+  const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const currentUserName = "정우진";
   const revenueAllowedUsers = ["정우진", "우유 미용실"];
   const canCurrentUserOpenRevenue = revenueAllowedUsers.includes(currentUserName);
+
+  useEffect(() => {
+    const ownerWebStorageKeys =
+      typeof window !== "undefined"
+        ? Object.keys(window.localStorage).filter((key) => key.startsWith("petmanager") && key.includes("ownerWeb"))
+        : [];
+
+    console.log("[OWNER DEBUG] owner-web-preview", {
+      mode: initialData.mode,
+      shopId: initialData.shop.id,
+      bootstrapAppointmentsCount: initialData.appointments?.length ?? 0,
+      bootstrapStaffCount: 0,
+      demoMode,
+      staffSource,
+      finalStaffMembersCount: staffMembers.length,
+      finalStaffMembers: staffMembers.map((staff) => ({ id: staff.id, name: staff.name })),
+      ownerWebStorageKeys,
+    });
+  }, [demoMode, initialData, staffMembers, staffSource]);
 
   useEffect(() => {
     try {
@@ -135,9 +167,10 @@ export default function OwnerWebPreview({ initialData }: { initialData: Bootstra
   }
 
   function handleStaffMembersChange(nextStaff: OwnerWebStaffMember[]) {
-    setStaffMembers(nextStaff);
+    if (!demoMode) return;
+    setDemoStaffMembers(nextStaff);
     try {
-      window.localStorage.setItem(ownerWebStaffStorageKey, JSON.stringify(nextStaff));
+      window.localStorage.setItem(demoOwnerWebStaffStorageKey, JSON.stringify(nextStaff));
     } catch {
       // Keep the shared staff list active in memory even if local storage is blocked.
     }

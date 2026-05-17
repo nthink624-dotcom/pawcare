@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const owner = await requireOwnerShop(request, requestedShopId);
-    const data = await getBootstrap(owner.shopId);
+    const data = await getBootstrap(owner.shopId, { allowMock: false });
     return ownerMobileCorsJson(request, data);
   } catch (error) {
     if (error instanceof OwnerApiError) {

@@ -6,7 +6,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
-  defaultOwnerWebStaff,
   toOwnerWebStaffColumn,
   type OwnerWebStaffColumn,
   type OwnerWebStaffMember,
@@ -53,7 +52,11 @@ type BookingResizeState = {
   nextDuration: number;
 };
 
-const fallbackStaffColumns = defaultOwnerWebStaff.map(toOwnerWebStaffColumn);
+const unassignedStaffColumn: OwnerWebStaffColumn = {
+  key: "unassigned",
+  name: "미배정",
+  role: "담당 미배정",
+};
 const scheduleStartHour = 10;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
@@ -812,17 +815,13 @@ function getBookingCounts(bookings: DailyBooking[]) {
 }
 
 function staffColumnForIndex(index: number, staffColumns: OwnerWebStaffColumn[]) {
-  return staffColumns[index % staffColumns.length] ?? fallbackStaffColumns[0];
+  return staffColumns[index % staffColumns.length] ?? unassignedStaffColumn;
 }
 
-function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}, staffColumns = fallbackStaffColumns): DailyBooking[] {
+function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}, staffColumns: OwnerWebStaffColumn[] = []): DailyBooking[] {
   const selectedDateAppointments = data.appointments
     .filter((appointment) => appointment.appointment_date === selectedDate)
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
-
-  if (selectedDate === todayScheduleDate && selectedDateAppointments.length === 0) {
-    return buildLocalPreviewDailyBookings(selectedDate, staffColumns);
-  }
 
   return selectedDateAppointments.map((appointment, index) => {
     const staffColumn = staffColumnForIndex(index, staffColumns);
@@ -831,7 +830,8 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
 }
 
 function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
-  const columns = staffColumns.length > 0 ? staffColumns : fallbackStaffColumns;
+  const columns = staffColumns;
+  if (columns.length === 0) return [];
   const previewSourceBookings = [
     ...dailyBookings,
     ...dailyBookings.map((booking, index) => {
@@ -848,7 +848,7 @@ function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: Owne
   const scheduledBookings: DailyBooking[] = [];
 
   for (const [index, booking] of previewSourceBookings.entries()) {
-    const fallbackStaffIndex = fallbackStaffColumns.findIndex((staffColumn) => staffColumn.key === booking.staffKey);
+    const fallbackStaffIndex = columns.findIndex((staffColumn) => staffColumn.key === booking.staffKey);
     const preferredColumnIndex = (fallbackStaffIndex >= 0 ? fallbackStaffIndex : index) % columns.length;
     const candidateColumns = [
       ...columns.slice(preferredColumnIndex),
@@ -878,7 +878,11 @@ function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: Owne
 }
 
 function shouldUseOwnerWebPreviewBookings(data: BootstrapPayload) {
-  return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
+  return data.mode !== "supabase" && (data.shop.id === "demo-shop" || data.shop.id === "owner-demo");
+}
+
+function hasAppointmentsOnDate(data: BootstrapPayload, selectedDate: string) {
+  return data.appointments.some((appointment) => appointment.appointment_date === selectedDate);
 }
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
@@ -1528,7 +1532,11 @@ function DailyScheduleGrid({
   const columnCount = scheduleStaff.length;
   const scrollable = columnCount > 4;
   const compactCards = columnCount >= 3;
-  const columnFlexBasis = scrollable ? "0 0 calc((100% - 24px) / 4)" : `0 0 calc((100% - ${(columnCount - 1) * 8}px) / ${columnCount})`;
+  const columnFlexBasis = columnCount === 0
+    ? "0 0 100%"
+    : scrollable
+      ? "0 0 calc((100% - 24px) / 4)"
+      : `0 0 calc((100% - ${(columnCount - 1) * 8}px) / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>
@@ -1837,6 +1845,14 @@ function DailyScheduleGrid({
             className="min-w-0 flex-1 overflow-x-auto scroll-px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4" style={scheduleTrackStyle}>
+              {scheduleStaff.length === 0 ? (
+                <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-[#f8fafc]">
+                  <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
+                    <p className="text-[14px] font-medium text-[#111827]">등록된 스태프가 없습니다.</p>
+                    <p className="mt-1 text-[13px] text-[#64748b]">아직 오늘 예약이 없습니다.</p>
+                  </div>
+                </section>
+              ) : null}
               {scheduleStaff.map((staffMember) => {
                 const staffBookings = displayedVisibleBookings
                   .filter((booking) => booking.staffKey === staffMember.key)
@@ -2313,7 +2329,7 @@ function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWeb
     petName: "",
     customerPhone: "",
     serviceId: data.services.find((service) => service.is_active)?.id ?? data.services[0]?.id ?? "",
-    staffKey: initialStaff?.key ?? "staff-1",
+    staffKey: initialStaff?.key ?? unassignedStaffColumn.key,
     date: selectedDate,
     time: "",
     memo: "",
@@ -2588,7 +2604,7 @@ function ScheduleCreateDialog({
   const dateBookings =
     form.date === selectedDate
       ? bookings
-      : buildDailyBookingsFromBootstrap(data, form.date, staffAssignments);
+      : buildDailyBookingsFromBootstrap(data, form.date, staffAssignments, visibleStaff);
   const availableSlots = selectedService
     ? computeAvailableSlots({
         date: form.date,
@@ -2826,7 +2842,7 @@ function ScheduleCreateDialog({
 
 export default function CalendarManagementScreen({
   initialData,
-  staffMembers = defaultOwnerWebStaff,
+  staffMembers = [],
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
 }: {
@@ -2836,20 +2852,28 @@ export default function CalendarManagementScreen({
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
   const initialBootstrapData = useMemo(() => initialData, [initialData]);
-  const visibleStaff = useMemo(() => {
-    const columns = staffMembers.map(toOwnerWebStaffColumn);
-    return columns.length > 0 ? columns : fallbackStaffColumns;
-  }, [staffMembers]);
   const [bootstrapData, setBootstrapData] = useState(() => initialBootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
+  const visibleStaff = useMemo(() => {
+    const columns = staffMembers.map(toOwnerWebStaffColumn);
+    if (columns.length > 0) return columns;
+    return hasAppointmentsOnDate(bootstrapData, selectedDate) ? [unassignedStaffColumn] : [];
+  }, [bootstrapData, selectedDate, staffMembers]);
   const selectedDateBookings = useMemo(
     () =>
       shouldUseOwnerWebPreviewBookings(bootstrapData)
         ? buildLocalPreviewDailyBookings(selectedDate, visibleStaff)
-        : buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff),
+        : bootstrapData.mode === "supabase"
+          ? buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff)
+          : [],
     [bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
+  const selectedDateBookingSource = shouldUseOwnerWebPreviewBookings(bootstrapData)
+    ? "buildLocalPreviewDailyBookings"
+    : bootstrapData.mode === "supabase"
+      ? "buildDailyBookingsFromBootstrap"
+      : "blocked-non-supabase-owner-data";
   const [staff, setStaff] = useState<StaffFilter>("전체 스태프");
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
@@ -2862,7 +2886,7 @@ export default function CalendarManagementScreen({
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
-    buildDefaultScheduleForm(initialBootstrapData, fallbackStaffColumns, currentDateInTimeZone(), "전체 스태프"),
+    buildDefaultScheduleForm(initialBootstrapData, visibleStaff, currentDateInTimeZone(), "전체 스태프"),
   );
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -2893,6 +2917,31 @@ export default function CalendarManagementScreen({
     () => getReservationFilterOptions(displayScopedBookings, manualApprovalEnabled),
     [displayScopedBookings, manualApprovalEnabled],
   );
+
+  useEffect(() => {
+    console.log("[OWNER DEBUG] calendar-management-screen", {
+      mode: bootstrapData.mode,
+      shopId: bootstrapData.shop.id,
+      selectedDate,
+      bootstrapAppointmentsCount: bootstrapData.appointments?.length ?? 0,
+      selectedDateAppointmentsCount: bootstrapData.appointments.filter((appointment) => appointment.appointment_date === selectedDate).length,
+      bootstrapStaffCount: 0,
+      staffColumnsSource: staffMembers.length > 0 ? "owner-web-preview-props" : visibleStaff.length > 0 ? "system-unassigned" : "empty",
+      finalStaffColumns: visibleStaff,
+      dailyBookingsSource: selectedDateBookingSource,
+      finalDailyBookingsCount: selectedDateBookings.length,
+      finalDailyBookings: selectedDateBookings.map((booking) => ({
+        id: booking.id,
+        staffKey: booking.staffKey,
+        staffName: booking.staffName,
+        pet: booking.pet,
+        customer: booking.customer,
+        start: booking.start,
+        duration: booking.duration,
+        status: booking.status,
+      })),
+    });
+  }, [bootstrapData, selectedDate, selectedDateBookingSource, selectedDateBookings, staffMembers.length, visibleStaff]);
 
   useEffect(() => {
     setBootstrapData(initialBootstrapData);

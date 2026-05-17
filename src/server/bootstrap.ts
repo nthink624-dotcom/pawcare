@@ -21,6 +21,10 @@ import type {
   Shop,
 } from "@/types/domain";
 
+type BootstrapOptions = {
+  allowMock?: boolean;
+};
+
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
   if (shopId === "owner-demo") {
     return buildOwnerDemoBootstrap();
@@ -71,13 +75,21 @@ function splitActiveGuardians(guardians: Guardian[]) {
   };
 }
 
-export async function getBootstrap(shopId = "demo-shop"): Promise<BootstrapPayload> {
+export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
+  const allowMock = options.allowMock ?? true;
+
   if (!hasSupabaseServerEnv()) {
+    if (!allowMock) {
+      throw new Error("Supabase 서버 설정이 없어 운영 오너 데이터를 불러올 수 없습니다.");
+    }
     return buildMockBootstrap(shopId);
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
+    if (!allowMock) {
+      throw new Error("Supabase 서버 연결이 없어 운영 오너 데이터를 불러올 수 없습니다.");
+    }
     return buildMockBootstrap(shopId);
   }
 

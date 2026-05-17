@@ -230,6 +230,18 @@ export default function LoginForm({
 
       clearFailedLoginState(loginId);
 
+      if (supabase && result.session?.accessToken && result.session.refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        });
+
+        if (sessionError) {
+          setMessage("로그인 세션 저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+          return;
+        }
+      }
+
       if (rememberLoginId && loginId.trim()) {
         window.localStorage.setItem(SAVED_LOGIN_ID_KEY, loginId.trim());
       } else {

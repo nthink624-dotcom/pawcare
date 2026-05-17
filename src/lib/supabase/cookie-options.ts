@@ -32,6 +32,7 @@ export function getSupabaseCookieOptions(options?: { secure?: boolean; hostname?
   return {
     path: "/",
     sameSite: "lax" as const,
+    maxAge: 60 * 60 * 24 * 30,
     ...productionOptions,
   };
 }

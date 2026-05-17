@@ -39,8 +39,6 @@ const initialStaffComments: Record<string, string> = {
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
 };
 
-const showLocalMockCustomers = process.env.NODE_ENV !== "production";
-
 function formatMonthDay(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
@@ -157,6 +155,10 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
   }));
 }
 
+function shouldUseLocalMockCustomers(data: BootstrapPayload) {
+  return data.mode !== "supabase" && (data.shop.id === "demo-shop" || data.shop.id === "owner-demo");
+}
+
 function sortCustomers(customers: CustomerViewRow[], sort: CustomerSort) {
   return [...customers].sort((first, second) => {
     if (sort === "nameAsc") return first.name.localeCompare(second.name, "ko");
@@ -173,7 +175,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const initialCustomers = useMemo(() => {
     const rows = buildCustomerRowsFromBootstrap(initialData);
     const baseRows = rows.length > 0 ? rows : [];
-    return showLocalMockCustomers ? [...baseRows, ...buildLocalMockCustomerRows()] : baseRows;
+    return shouldUseLocalMockCustomers(initialData) ? [...baseRows, ...buildLocalMockCustomerRows()] : baseRows;
   }, [initialData]);
   const [customers, setCustomers] = useState<CustomerViewRow[]>(() => initialCustomers);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");

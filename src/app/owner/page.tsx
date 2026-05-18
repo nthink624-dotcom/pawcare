@@ -6,7 +6,12 @@ import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import { fetchApiJsonWithBearer } from "@/lib/api";
-import { consumeOwnerAuthHandoff } from "@/lib/auth/owner-auth-handoff";
+import {
+  clearOwnerAuthTokenCache,
+  consumeOwnerAuthHandoff,
+  readOwnerAuthTokenCache,
+  writeOwnerAuthTokenCache,
+} from "@/lib/auth/owner-auth-handoff";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
@@ -92,6 +97,7 @@ export default function OwnerPage() {
 
     const handoffSession = consumeOwnerAuthHandoff();
     if (handoffSession) {
+      writeOwnerAuthTokenCache(handoffSession.accessToken);
       void supabase.auth
         .setSession({
           access_token: handoffSession.accessToken,
@@ -107,10 +113,19 @@ export default function OwnerPage() {
       };
     }
 
+    const cachedAccessToken = readOwnerAuthTokenCache();
+    if (cachedAccessToken) {
+      return {
+        accessToken: cachedAccessToken,
+        session: null,
+      };
+    }
+
     const initialSession = await withOwnerSessionTimeout(
       supabase.auth.getSession() as Promise<SupabaseSessionResult>,
     );
     if (initialSession.data.session?.access_token) {
+      writeOwnerAuthTokenCache(initialSession.data.session.access_token);
       return {
         accessToken: initialSession.data.session.access_token,
         session: initialSession.data.session,
@@ -207,6 +222,7 @@ export default function OwnerPage() {
         const nextMessage = getOwnerLoadErrorMessage(error);
 
         if (nextMessage === "로그인이 필요합니다.") {
+          clearOwnerAuthTokenCache();
           router.replace("/login" as never);
           router.refresh();
           return;

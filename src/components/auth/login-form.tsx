@@ -10,6 +10,7 @@ import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
+import { writeOwnerAuthHandoff } from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
@@ -229,6 +230,10 @@ export default function LoginForm({
       }
 
       clearFailedLoginState(loginId);
+
+      if (result.session?.accessToken && result.session.refreshToken) {
+        writeOwnerAuthHandoff(result.session);
+      }
 
       if (supabase && result.session?.accessToken && result.session.refreshToken) {
         const { error: sessionError } = await supabase.auth.setSession({

@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
 import { fetchApiJsonWithBearer } from "@/lib/api";
+import { consumeOwnerAuthHandoff } from "@/lib/auth/owner-auth-handoff";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
@@ -18,6 +20,12 @@ type OwnedShopSummary = {
   name: string;
   address: string;
   heroImageUrl: string;
+};
+
+type SupabaseSessionResult = {
+  data: {
+    session: Session | null;
+  };
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
@@ -74,14 +82,28 @@ export default function OwnerPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
 
-  async function getSessionWithRecovery() {
+  async function getSessionWithRecovery(): Promise<Session | null> {
     if (!supabase) return null;
 
-    const initialSession = (await withOwnerSessionTimeout(
-      supabase.auth.getSession(),
-    )) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
+    const initialSession = await withOwnerSessionTimeout(
+      supabase.auth.getSession() as Promise<SupabaseSessionResult>,
+    );
     if (initialSession.data.session?.access_token) {
       return initialSession.data.session;
+    }
+
+    const handoffSession = consumeOwnerAuthHandoff();
+    if (handoffSession) {
+      const restoredSession = (await withOwnerSessionTimeout(
+        supabase.auth.setSession({
+          access_token: handoffSession.accessToken,
+          refresh_token: handoffSession.refreshToken,
+        }),
+      )) as Awaited<ReturnType<typeof supabase.auth.setSession>>;
+
+      if (restoredSession.data.session?.access_token) {
+        return restoredSession.data.session;
+      }
     }
 
     return null;

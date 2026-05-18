@@ -17,9 +17,6 @@ export function getSupabaseBrowserClient() {
   }
 
   browserClient ??= createBrowserClient(env.supabaseUrl, env.supabasePublishableKey, {
-    auth: {
-      autoRefreshToken: false,
-    },
     cookieOptions: getSupabaseCookieOptions(),
   });
 

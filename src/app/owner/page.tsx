@@ -28,6 +28,11 @@ type SupabaseSessionResult = {
   };
 };
 
+type OwnerAccessContext = {
+  accessToken: string;
+  session: Session | null;
+};
+
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 const OWNER_LOAD_TIMEOUT_MS = 12000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
@@ -82,28 +87,34 @@ export default function OwnerPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
 
-  async function getSessionWithRecovery(): Promise<Session | null> {
+  async function getOwnerAccessContext(): Promise<OwnerAccessContext | null> {
     if (!supabase) return null;
+
+    const handoffSession = consumeOwnerAuthHandoff();
+    if (handoffSession) {
+      void supabase.auth
+        .setSession({
+          access_token: handoffSession.accessToken,
+          refresh_token: handoffSession.refreshToken,
+        })
+        .catch(() => {
+          // The login API already set auth cookies. Keep initial owner loading unblocked.
+        });
+
+      return {
+        accessToken: handoffSession.accessToken,
+        session: null,
+      };
+    }
 
     const initialSession = await withOwnerSessionTimeout(
       supabase.auth.getSession() as Promise<SupabaseSessionResult>,
     );
     if (initialSession.data.session?.access_token) {
-      return initialSession.data.session;
-    }
-
-    const handoffSession = consumeOwnerAuthHandoff();
-    if (handoffSession) {
-      const restoredSession = (await withOwnerSessionTimeout(
-        supabase.auth.setSession({
-          access_token: handoffSession.accessToken,
-          refresh_token: handoffSession.refreshToken,
-        }),
-      )) as Awaited<ReturnType<typeof supabase.auth.setSession>>;
-
-      if (restoredSession.data.session?.access_token) {
-        return restoredSession.data.session;
-      }
+      return {
+        accessToken: initialSession.data.session.access_token,
+        session: initialSession.data.session,
+      };
     }
 
     return null;
@@ -132,28 +143,28 @@ export default function OwnerPage() {
             setMessage("로그인 상태를 확인하는 중입니다. 잠시만 기다려 주세요.");
           }
         }, OWNER_SESSION_SLOW_NOTICE_MS);
-        const session = await getSessionWithRecovery().finally(() => {
+        const ownerAccess = await getOwnerAccessContext().finally(() => {
           window.clearTimeout(slowSessionNotice);
         });
 
-        if (!session?.access_token) {
+        if (!ownerAccess?.accessToken) {
           router.replace("/login" as never);
           router.refresh();
           return;
         }
 
-        if (session.user.user_metadata?.account_suspended === true) {
+        if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
           if (active) {
             setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
           }
           return;
         }
 
-        provider = provider ?? resolveSocialProviderFromAuthUser(session.user);
-        setAccessToken(session.access_token);
+        provider = ownerAccess.session ? provider ?? resolveSocialProviderFromAuthUser(ownerAccess.session.user) : provider;
+        setAccessToken(ownerAccess.accessToken);
 
         const shops = await withOwnerLoadTimeout(
-          fetchApiJsonWithBearer<OwnedShopSummary[]>("/api/owner/shops", session.access_token),
+          fetchApiJsonWithBearer<OwnedShopSummary[]>("/api/owner/shops", ownerAccess.accessToken),
           "매장 정보를 불러오는 중 지연되고 있습니다. Supabase 또는 Vercel 환경변수를 확인해 주세요.",
         );
         const storedShopId =
@@ -172,7 +183,7 @@ export default function OwnerPage() {
         const bootstrap = await withOwnerLoadTimeout(
           fetchApiJsonWithBearer<BootstrapPayload>(
             `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
-            session.access_token,
+            ownerAccess.accessToken,
           ),
           "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
         );

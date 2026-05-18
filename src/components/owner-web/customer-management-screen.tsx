@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
 
+import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -29,6 +30,12 @@ type CustomerViewRow = {
   noshowCount: number;
   deleted: boolean;
   searchText: string;
+};
+
+type GuardianDeleteResult = {
+  success: boolean;
+  guardianIds: string[];
+  restoreUntil: string;
 };
 
 const customerListGridClass =
@@ -182,6 +189,8 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingCustomers, setDeletingCustomers] = useState(false);
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
@@ -261,6 +270,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   function toggleDeleteMode() {
     setDeleteMode((current) => !current);
     setSelectedDeleteIds([]);
+    setDeleteError("");
   }
 
   function toggleDisplayedCustomerSelection() {
@@ -273,13 +283,33 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     });
   }
 
-  function moveSelectedCustomersToDeleted() {
+  async function moveSelectedCustomersToDeleted() {
+    if (selectedDeleteIds.length === 0 || deletingCustomers) return;
+
     const selectedIds = new Set(selectedDeleteIds);
+    setDeletingCustomers(true);
+    setDeleteError("");
+
+    try {
+      await fetchApiJsonWithAuth<GuardianDeleteResult>("/api/guardians", {
+        method: "DELETE",
+        body: JSON.stringify({
+          shopId: initialData.shop.id,
+          guardianIds: selectedDeleteIds,
+        }),
+      });
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "고객 삭제에 실패했습니다.");
+      setDeletingCustomers(false);
+      return;
+    }
+
     setCustomers((current) => current.map((row) => (selectedIds.has(row.id) ? { ...row, deleted: true } : row)));
     setSelectedCustomerId((current) => (selectedIds.has(current) ? "" : current));
     setSelectedDeleteIds([]);
     setDeleteMode(false);
     setDetailSheetOpen(false);
+    setDeletingCustomers(false);
   }
 
   function openCustomer(row: CustomerViewRow) {
@@ -382,15 +412,18 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
 
         {deleteMode ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-white px-4 py-3">
+            <div>
             <p className="text-[14px] font-medium text-[#111827]">
               {selectedDeleteIds.length}명 선택됨
-              <span className="ml-2 text-[13px] font-normal text-[#64748b]">선택한 고객은 목록에서 숨김 처리됩니다.</span>
+              <span className="ml-2 text-[13px] font-normal text-[#64748b]">선택한 고객은 삭제 처리됩니다.</span>
             </p>
+            {deleteError ? <p className="mt-1 text-[12px] font-medium text-[#b42318]">{deleteError}</p> : null}
+            </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]">
+              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
                 {allDisplayedCustomersSelected ? "선택 해제" : "전체 선택"}
               </button>
-              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0}>
+              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
                 선택 삭제
               </button>
             </div>

@@ -617,7 +617,7 @@ export async function softDeleteGuardians(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
 
-  const { error } = await supabase
+  let query = supabase
     .from("guardians")
     .update({
       deleted_at: deletedAt,
@@ -626,9 +626,19 @@ export async function softDeleteGuardians(input: unknown) {
     })
     .in("id", guardianIds);
 
-  if (error) throw new Error(error.message);
+  if (payload.shopId) {
+    query = query.eq("shop_id", payload.shopId);
+  }
 
-  return { success: true, guardianIds, restoreUntil };
+  const { data, error } = await query.select("id");
+
+  if (error) throw new Error(error.message);
+  const deletedIds = (data ?? []).map((guardian) => guardian.id);
+  if (deletedIds.length !== guardianIds.length) {
+    throw new Error("삭제할 고객을 찾지 못했거나 해당 매장의 고객이 아닙니다.");
+  }
+
+  return { success: true, guardianIds: deletedIds, restoreUntil };
 }
 
 export async function restoreGuardians(input: unknown) {

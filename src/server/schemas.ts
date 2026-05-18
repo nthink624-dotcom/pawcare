@@ -61,6 +61,7 @@ export const guardianUpdateSchema = z.object({
 });
 
 export const guardianDeleteSchema = z.object({
+  shopId: z.string().optional(),
   guardianId: z.string().optional(),
   guardianIds: z.array(z.string()).default([]).optional(),
 });

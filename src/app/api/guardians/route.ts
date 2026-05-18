@@ -38,8 +38,8 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
-    await requireOwnerShop(request);
-    const result = await softDeleteGuardians(body);
+    const owner = await requireOwnerShop(request, body?.shopId);
+    const result = await softDeleteGuardians({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {

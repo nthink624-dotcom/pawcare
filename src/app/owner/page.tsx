@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJsonWithBearer } from "@/lib/api";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
@@ -23,6 +23,7 @@ type OwnedShopSummary = {
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 const OWNER_LOAD_TIMEOUT_MS = 12000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
+const OWNER_SESSION_TIMEOUT_MS = 10000;
 
 function withOwnerLoadTimeout<T>(promise: Promise<T>, message: string) {
   let timeoutId: number | null = null;
@@ -47,32 +48,40 @@ function getOwnerLoadErrorMessage(error: unknown) {
   return "오너 화면을 불러오지 못했습니다.";
 }
 
+function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timeoutId: number | null = null;
+
+  return Promise.race([
+    promise.finally(() => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    }),
+    new Promise<T>((_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error("로그인 상태를 확인하지 못했습니다. 다시 로그인해 주세요.")),
+        OWNER_SESSION_TIMEOUT_MS,
+      );
+    }),
+  ]);
+}
+
 export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
 
   async function getSessionWithRecovery() {
     if (!supabase) return null;
 
-    const initialSession = await supabase.auth.getSession();
+    const initialSession = (await withOwnerSessionTimeout(
+      supabase.auth.getSession(),
+    )) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
     if (initialSession.data.session?.access_token) {
       return initialSession.data.session;
-    }
-
-    const refreshedSession = await supabase.auth.refreshSession();
-    if (refreshedSession.data.session?.access_token) {
-      return refreshedSession.data.session;
-    }
-
-    const userResult = await supabase.auth.getUser();
-    if (userResult.data.user) {
-      const recoveredSession = await supabase.auth.getSession();
-      if (recoveredSession.data.session?.access_token) {
-        return recoveredSession.data.session;
-      }
     }
 
     return null;
@@ -119,9 +128,10 @@ export default function OwnerPage() {
         }
 
         provider = provider ?? resolveSocialProviderFromAuthUser(session.user);
+        setAccessToken(session.access_token);
 
         const shops = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
+          fetchApiJsonWithBearer<OwnedShopSummary[]>("/api/owner/shops", session.access_token),
           "매장 정보를 불러오는 중 지연되고 있습니다. Supabase 또는 Vercel 환경변수를 확인해 주세요.",
         );
         const storedShopId =
@@ -138,7 +148,10 @@ export default function OwnerPage() {
         }
 
         const bootstrap = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
+          fetchApiJsonWithBearer<BootstrapPayload>(
+            `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+            session.access_token,
+          ),
           "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
         );
 
@@ -194,7 +207,7 @@ export default function OwnerPage() {
   }, [router, supabase]);
 
   useEffect(() => {
-    if (!selectedShopId || typeof window === "undefined") return;
+    if (!selectedShopId || !accessToken || typeof window === "undefined") return;
 
     let active = true;
 
@@ -202,8 +215,9 @@ export default function OwnerPage() {
       if (document.visibilityState !== "visible") return;
 
       try {
-        const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+        const nextBootstrap = await fetchApiJsonWithBearer<BootstrapPayload>(
           `/api/bootstrap?shopId=${encodeURIComponent(selectedShopId)}`,
+          accessToken,
           { cache: "no-store" },
         );
         if (active) {
@@ -231,7 +245,7 @@ export default function OwnerPage() {
       window.removeEventListener("focus", refreshDesktopData);
       document.removeEventListener("visibilitychange", refreshDesktopData);
     };
-  }, [selectedShopId]);
+  }, [accessToken, selectedShopId]);
 
   if (!data) {
     return (

@@ -67,36 +67,53 @@ export async function getPublicBootstrap(shopId?: string) {
   });
 }
 
-async function getAccessTokenWithRecovery() {
+const AUTH_REQUEST_TIMEOUT_MS = 8000;
+
+let accessTokenRequest: Promise<string> | null = null;
+
+function withAuthRequestTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  return Promise.race([
+    promise.finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }),
+    new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error("로그인 상태를 확인하지 못했습니다. 새로고침 후 다시 시도해 주세요.")),
+        AUTH_REQUEST_TIMEOUT_MS,
+      );
+    }),
+  ]);
+}
+
+async function readAccessTokenWithRecovery() {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
-  const initialSession = await supabase.auth.getSession();
+  const initialSession = (await withAuthRequestTimeout(
+    supabase.auth.getSession(),
+  )) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
   if (initialSession.data.session?.access_token) {
     return initialSession.data.session.access_token;
-  }
-
-  const refreshedSession = await supabase.auth.refreshSession();
-  if (refreshedSession.data.session?.access_token) {
-    return refreshedSession.data.session.access_token;
-  }
-
-  const userResult = await supabase.auth.getUser();
-  if (userResult.data.user) {
-    const recoveredSession = await supabase.auth.getSession();
-    if (recoveredSession.data.session?.access_token) {
-      return recoveredSession.data.session.access_token;
-    }
   }
 
   throw new Error("로그인이 필요합니다.");
 }
 
-export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
-  const accessToken = await getAccessTokenWithRecovery();
+async function getAccessTokenWithRecovery() {
+  accessTokenRequest ??= readAccessTokenWithRecovery().finally(() => {
+    accessTokenRequest = null;
+  });
 
+  return accessTokenRequest;
+}
+
+export async function fetchApiJsonWithBearer<T>(input: string, accessToken: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -107,4 +124,9 @@ export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit)
     ...init,
     headers,
   });
+}
+
+export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
+  const accessToken = await getAccessTokenWithRecovery();
+  return fetchApiJsonWithBearer<T>(input, accessToken, init);
 }

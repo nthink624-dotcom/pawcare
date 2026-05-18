@@ -522,6 +522,35 @@ function appointmentToDailyBooking(
   };
 }
 
+function groomingRecordToDailyBooking(
+  record: BootstrapPayload["groomingRecords"][number],
+  data: BootstrapPayload,
+  selectedDate: string,
+  fallbackStaff: OwnerWebStaffColumn,
+): DailyBooking {
+  const guardian = data.guardians.find((item) => item.id === record.guardian_id);
+  const pet = data.pets.find((item) => item.id === record.pet_id);
+  const service = data.services.find((item) => item.id === record.service_id);
+  const time = record.groomed_at.slice(11, 16) || "10:00";
+
+  return {
+    id: `grooming-record-${record.id}`,
+    day: "오늘",
+    start: timeToHour(time),
+    duration: Math.max(0.25, (service?.duration_minutes ?? 60) / 60),
+    lane: 0,
+    customer: guardian?.name ?? "보호자 미등록",
+    pet: pet?.name ?? "반려동물 미등록",
+    service: service?.name ?? "서비스 미등록",
+    staff: fallbackStaff.role,
+    status: "완료",
+    date: formatScheduleDateLabel(selectedDate),
+    staffKey: fallbackStaff.key,
+    staffName: fallbackStaff.name,
+    memo: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
+  };
+}
+
 const baseDailyBookings = calendarBookings.map((booking) => ({
   ...booking,
   ...(dailyBookingTimes[booking.id] ?? {}),
@@ -822,11 +851,19 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
   const selectedDateAppointments = data.appointments
     .filter((appointment) => appointment.appointment_date === selectedDate)
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
+  const appointmentIds = new Set(selectedDateAppointments.map((appointment) => appointment.id));
+  const recordOnlyBookings = data.groomingRecords
+    .filter((record) => record.groomed_at.slice(0, 10) === selectedDate)
+    .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
+    .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, unassignedStaffColumn));
 
-  return selectedDateAppointments.map((appointment, index) => {
-    const staffColumn = staffColumnForIndex(index, staffColumns);
-    return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
-  });
+  return [
+    ...selectedDateAppointments.map((appointment, index) => {
+      const staffColumn = staffColumnForIndex(index, staffColumns.length > 0 ? staffColumns : [unassignedStaffColumn]);
+      return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
+    }),
+    ...recordOnlyBookings,
+  ].sort((first, second) => first.start - second.start || first.id.localeCompare(second.id));
 }
 
 function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
@@ -883,6 +920,13 @@ function shouldUseOwnerWebPreviewBookings(data: BootstrapPayload) {
 
 function hasAppointmentsOnDate(data: BootstrapPayload, selectedDate: string) {
   return data.appointments.some((appointment) => appointment.appointment_date === selectedDate);
+}
+
+function hasScheduleItemsOnDate(data: BootstrapPayload, selectedDate: string) {
+  return (
+    hasAppointmentsOnDate(data, selectedDate) ||
+    data.groomingRecords.some((record) => record.groomed_at.slice(0, 10) === selectedDate)
+  );
 }
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
@@ -2857,8 +2901,10 @@ export default function CalendarManagementScreen({
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const visibleStaff = useMemo(() => {
     const columns = staffMembers.map(toOwnerWebStaffColumn);
-    if (columns.length > 0) return columns;
-    return hasAppointmentsOnDate(bootstrapData, selectedDate) ? [unassignedStaffColumn] : [];
+    if (columns.length > 0) {
+      return hasScheduleItemsOnDate(bootstrapData, selectedDate) ? [...columns, unassignedStaffColumn] : columns;
+    }
+    return hasScheduleItemsOnDate(bootstrapData, selectedDate) ? [unassignedStaffColumn] : [];
   }, [bootstrapData, selectedDate, staffMembers]);
   const selectedDateBookings = useMemo(
     () =>
@@ -2892,10 +2938,21 @@ export default function CalendarManagementScreen({
   const [scheduleError, setScheduleError] = useState("");
   const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
   const staffScopedBookings = useMemo(
-    () =>
-      (staff === "전체 스태프" ? bookings : bookings.filter((item) => item.staffKey === staff)).filter((booking) =>
-        visibleStaff.some((item) => item.key === booking.staffKey),
-      ),
+    () => {
+      const visibleStaffKeys = new Set(visibleStaff.map((item) => item.key));
+      const normalizedBookings = bookings.map((booking) =>
+        visibleStaffKeys.has(booking.staffKey)
+          ? booking
+          : {
+              ...booking,
+              staff: unassignedStaffColumn.role,
+              staffKey: unassignedStaffColumn.key,
+              staffName: unassignedStaffColumn.name,
+            },
+      );
+
+      return staff === "전체 스태프" ? normalizedBookings : normalizedBookings.filter((item) => item.staffKey === staff);
+    },
     [bookings, staff, visibleStaff],
   );
   const displayScopedBookings = useMemo(

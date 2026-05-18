@@ -3,6 +3,8 @@ import { createBrowserClient } from "@supabase/ssr";
 import { env, isUnsafeProdSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
+let browserClient: ReturnType<typeof createBrowserClient> | null = null;
+
 export function getSupabaseBrowserClient() {
   if (isUnsafeProdSupabaseBrowserEnv()) {
     throw new Error(
@@ -14,7 +16,9 @@ export function getSupabaseBrowserClient() {
     return null;
   }
 
-  return createBrowserClient(env.supabaseUrl, env.supabasePublishableKey, {
+  browserClient ??= createBrowserClient(env.supabaseUrl, env.supabasePublishableKey, {
     cookieOptions: getSupabaseCookieOptions(),
   });
+
+  return browserClient;
 }

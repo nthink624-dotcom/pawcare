@@ -22,12 +22,19 @@ type OwnedShopSummary = {
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 const OWNER_LOAD_TIMEOUT_MS = 12000;
+const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 
 function withOwnerLoadTimeout<T>(promise: Promise<T>, message: string) {
+  let timeoutId: number | null = null;
+
   return Promise.race([
-    promise,
+    promise.finally(() => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    }),
     new Promise<T>((_, reject) => {
-      window.setTimeout(() => reject(new Error(message)), OWNER_LOAD_TIMEOUT_MS);
+      timeoutId = window.setTimeout(() => reject(new Error(message)), OWNER_LOAD_TIMEOUT_MS);
     }),
   ]);
 }
@@ -89,10 +96,14 @@ export default function OwnerPage() {
       }
 
       try {
-        const session = await withOwnerLoadTimeout(
-          getSessionWithRecovery(),
-          "로그인 상태 확인이 지연되고 있습니다. 다시 로그인해 주세요.",
-        );
+        const slowSessionNotice = window.setTimeout(() => {
+          if (active) {
+            setMessage("로그인 상태를 확인하는 중입니다. 잠시만 기다려 주세요.");
+          }
+        }, OWNER_SESSION_SLOW_NOTICE_MS);
+        const session = await getSessionWithRecovery().finally(() => {
+          window.clearTimeout(slowSessionNotice);
+        });
 
         if (!session?.access_token) {
           router.replace("/login" as never);

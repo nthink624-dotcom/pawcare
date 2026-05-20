@@ -1,9 +1,9 @@
-export type OwnerWebScreenKey = "schedule" | "customers" | "grooming" | "revenue" | "services" | "staff" | "settings";
+export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "settings";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string; description: string }> = [
   { key: "schedule", label: "스케줄", description: "오늘 일정 확인" },
+  { key: "bookingLink", label: "예약 링크", description: "공유와 QR 관리" },
   { key: "grooming", label: "캘린더", description: "날짜별 예약과 기록" },
-  { key: "revenue", label: "매출", description: "결제와 미수금 확인" },
   { key: "customers", label: "고객관리", description: "보호자와 반려동물 관리" },
   { key: "services", label: "서비스", description: "가격표와 예약 기준" },
   { key: "staff", label: "스태프", description: "근무, 휴무, 연차 관리" },
@@ -147,28 +147,14 @@ export const serviceRows = [
   { name: "목욕 + 부분정리", duration: "90분", price: "55,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
   { name: "목욕", duration: "60분", price: "35,000원", capacity: "동일 시간 1건", staff: "서브" },
   { name: "위생 미용", duration: "45분", price: "25,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+  { name: "부분 미용", duration: "45분", price: "30,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+  { name: "스파/약욕 케어", duration: "60분", price: "40,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
+  { name: "발톱 정리", duration: "30분", price: "10,000원", capacity: "동일 시간 1건", staff: "전체 스태프" },
 ];
 
 export const staffRows = [
   { name: "정우진 원장", role: "전체 미용 / 상담", hours: "10:00 - 19:00", today: "예약 4건" },
   { name: "서하늘", role: "목욕 / 위생 미용", hours: "11:00 - 18:00", today: "예약 3건" },
-];
-
-export const revenueTrend = [
-  { label: "4/22", value: 62 },
-  { label: "4/23", value: 88 },
-  { label: "4/24", value: 71 },
-  { label: "4/25", value: 112 },
-  { label: "4/26", value: 96 },
-  { label: "4/27", value: 132 },
-  { label: "4/28", value: 118 },
-];
-
-export const serviceShare = [
-  { label: "전체 미용", value: 42, color: "#2f7866" },
-  { label: "목욕 + 부분정리", value: 28, color: "#8bb6a8" },
-  { label: "목욕", value: 18, color: "#d7e8e0" },
-  { label: "위생 미용", value: 12, color: "#eed8cb" },
 ];
 
 export const weekdayReservations = [

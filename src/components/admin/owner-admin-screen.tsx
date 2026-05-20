@@ -87,10 +87,10 @@ type OwnerDraft = {
 
 const planOptions = [
   { value: "free", label: "체험 플랜" },
-  { value: "monthly", label: "한 달 플랜" },
-  { value: "quarterly", label: "세 달 플랜" },
-  { value: "halfyearly", label: "여섯 달 플랜" },
-  { value: "yearly", label: "일 년 플랜" },
+  { value: "monthly", label: "베이직" },
+  { value: "quarterly", label: "스탠다드" },
+  { value: "halfyearly", label: "스탠다드(기존)" },
+  { value: "yearly", label: "프로" },
 ] as const satisfies Array<{ value: OwnerPlanCode; label: string }>;
 
 const statusOptions = [

@@ -4,6 +4,27 @@ import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
+function formatDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function getOwnerInitialDataWindow() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+  return {
+    from: formatDate(from),
+    to: formatDate(to),
+    groomingFrom: formatDate(addMonths(now, -3)),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -23,7 +44,17 @@ export async function GET(request: NextRequest) {
     }
 
     const owner = await requireOwnerShop(request, requestedShopId);
-    const data = await getBootstrap(owner.shopId, { allowMock: false });
+    const initialWindow = getOwnerInitialDataWindow();
+    const data = await getBootstrap(owner.shopId, {
+      allowMock: false,
+      includeLanding: false,
+      appointmentsFrom: initialWindow.from,
+      appointmentsTo: initialWindow.to,
+      groomingRecordsFrom: initialWindow.groomingFrom,
+      groomingRecordsTo: initialWindow.to,
+      groomingRecordLimit: 1000,
+      notificationLimit: 200,
+    });
     return ownerMobileCorsJson(request, data);
   } catch (error) {
     if (error instanceof OwnerApiError) {

@@ -33,6 +33,7 @@ export const serverEnv = {
     process.env.SUPABASE_ENV_NAME ||
     (process.env.VERCEL_ENV === "production" ? "production" : "development"),
   allowProdSupabaseInDev: process.env.ALLOW_PROD_SUPABASE_IN_DEV === "true",
+  allowedDevSupabaseRefs: process.env.ALLOWED_DEV_SUPABASE_REFS || process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
   authFlowSecret: readOptionalSecret(
     process.env.AUTH_FLOW_SECRET ||
       process.env.ADMIN_SESSION_SECRET ||
@@ -63,7 +64,7 @@ export const serverEnv = {
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
   alimtalkTemplateRevisitNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_REVISIT_NOTICE),
   alimtalkTemplateBirthdayGreeting: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BIRTHDAY_GREETING),
-  notificationCronSecret: process.env.NOTIFICATION_CRON_SECRET,
+  mediaCleanupCronSecret: process.env.MEDIA_CLEANUP_CRON_SECRET,
   adminSetupKey: readOptionalSecret(process.env.ADMIN_SETUP_KEY),
   adminSessionSecret: readOptionalSecret(process.env.ADMIN_SESSION_SECRET),
 };
@@ -78,12 +79,34 @@ export function getSupabaseServerRuntimeStage() {
   return "development" as const;
 }
 
-export function isUnsafeProdSupabaseServerEnv() {
-  return (
-    getSupabaseServerRuntimeStage() !== "production" &&
-    serverEnv.supabaseEnvName === "production" &&
-    !serverEnv.allowProdSupabaseInDev
+function refFromSupabaseUrl(value: string | undefined) {
+  const match = value?.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/i);
+  return match?.[1] ?? "";
+}
+
+function isRemoteSupabaseUrl(value: string | undefined) {
+  return /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(value ?? "");
+}
+
+function parseAllowedSupabaseRefs(value: string | undefined) {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
   );
+}
+
+function isAllowedDevSupabaseRef(value: string | undefined) {
+  const ref = refFromSupabaseUrl(value);
+  return Boolean(ref && parseAllowedSupabaseRefs(serverEnv.allowedDevSupabaseRefs).has(ref));
+}
+
+export function isUnsafeProdSupabaseServerEnv() {
+  const runtimeStage = getSupabaseServerRuntimeStage();
+  if (runtimeStage === "production" || serverEnv.allowProdSupabaseInDev) return false;
+  if (serverEnv.supabaseEnvName === "production") return true;
+  return isRemoteSupabaseUrl(serverEnv.supabaseUrl) && !isAllowedDevSupabaseRef(serverEnv.supabaseUrl);
 }
 
 export function hasPortoneServerEnv() {

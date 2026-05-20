@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { z } from "zod";
 
 import {
@@ -8,9 +6,8 @@ import {
   isValidOwnerLoginId,
   normalizeOwnerLoginId,
 } from "@/lib/auth/owner-credentials";
-import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
-import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
-import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 
 const schema = z.object({
   loginId: z.string().trim().min(1),
@@ -60,29 +57,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 
-    const cookieStore = await cookies();
-    const authCookies: Array<{
-      name: string;
-      value: string;
-      options?: Parameters<NextResponse["cookies"]["set"]>[2];
-    }> = [];
-    const authClient = createServerClient(serverEnv.supabaseUrl!, serverEnv.supabasePublishableKey!, {
-      cookieOptions: getSupabaseCookieOptions({
-        hostname: request.nextUrl.hostname,
-        secure: request.nextUrl.protocol === "https:",
-      }),
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
-            authCookies.push({ name, value, options });
-          });
-        },
-      },
-    });
+    const authClient = getSupabaseAuthClient();
+    if (!authClient) {
+      return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
+    }
 
     const profileResult = await admin
       .from("owner_profiles")
@@ -126,9 +104,6 @@ export async function POST(request: NextRequest) {
           refreshToken: signInResult.data.session.refresh_token,
         },
       });
-      authCookies.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
-      });
       return response;
     }
 
@@ -139,6 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : undefined;
+    console.error("[auth/login] unexpected login error", error);
     return NextResponse.json({ message: getLoginErrorMessage(message) }, { status: 400 });
   }
 }

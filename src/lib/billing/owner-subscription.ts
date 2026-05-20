@@ -73,18 +73,7 @@ function diffDays(fromIso: string, toIso: string) {
 }
 
 export function planCodeToBillingCycle(code: OwnerPlanCode): BillingCycle {
-  switch (code) {
-    case "free":
-      return "0m";
-    case "quarterly":
-      return "3m";
-    case "halfyearly":
-      return "6m";
-    case "yearly":
-      return "12m";
-    default:
-      return "1m";
-  }
+  return code === "free" ? "0m" : "1m";
 }
 
 export function normalizeOwnerSubscriptionMetadata(
@@ -108,10 +97,10 @@ export function normalizeOwnerSubscriptionMetadata(
 
   const featuredPlanCode = isOwnerPlanCode(metadata?.featured_plan_code)
     ? metadata.featured_plan_code
-    : "yearly";
+    : "quarterly";
   const autoRenewPlanCode = isOwnerPlanCode(metadata?.auto_renew_plan_code)
     ? metadata.auto_renew_plan_code
-    : "monthly";
+    : "quarterly";
   const currentPlanCode = isOwnerPlanCode(metadata?.current_plan_code)
     ? metadata.current_plan_code
     : autoRenewPlanCode;

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isValidBirthDate8 } from "@/lib/auth/owner-credentials";
+import { isValidBirthDate8, normalizeOwnerLoginId } from "@/lib/auth/owner-credentials";
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   createLocalIdentityVerificationRequest,
   createProviderIdentityVerificationRequest,
@@ -12,6 +13,7 @@ import {
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
   method: z.enum(["local", "portone"]).default("local"),
+  loginId: z.string().trim().optional().default(""),
   name: z.string().trim().optional().default(""),
   birthDate: z.string().optional().default(""),
   phoneNumber: z.string().optional().default(""),
@@ -25,6 +27,38 @@ function isValidPhoneNumber(value: string) {
   return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
 }
 
+async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>) {
+  if (
+    input.method !== "local" ||
+    input.purpose !== "reset-password" ||
+    getSupabaseServerRuntimeStage() !== "development" ||
+    (input.name && input.birthDate && input.phoneNumber)
+  ) {
+    return input;
+  }
+
+  const loginId = normalizeOwnerLoginId(input.loginId);
+  if (!loginId) return input;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return input;
+
+  const { data } = await supabase
+    .from("owner_profiles")
+    .select("name, birth_date, phone_number")
+    .eq("login_id", loginId)
+    .maybeSingle<{ name: string | null; birth_date: string | null; phone_number: string | null }>();
+
+  if (!data?.name || !data.birth_date || !data.phone_number) return input;
+
+  return {
+    ...input,
+    name: data.name,
+    birthDate: data.birth_date,
+    phoneNumber: normalizePhoneNumber(data.phone_number),
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
@@ -32,10 +66,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const payload = schema.parse({
+    const parsedPayload = schema.parse({
       ...body,
+      loginId: normalizeOwnerLoginId(body?.loginId ?? ""),
       phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
     });
+    const payload = await fillDevelopmentProfileForLocalReset(parsedPayload);
 
     if (payload.method === "portone") {
       const result = await createProviderIdentityVerificationRequest(payload);

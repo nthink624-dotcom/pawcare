@@ -10,7 +10,7 @@ import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
-import { writeOwnerAuthHandoff, writeOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
@@ -52,11 +52,9 @@ type OwnerLoginApiResponse = {
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
-const FAILED_LOGIN_LOCK_MS = 10 * 60 * 1000;
 
 type FailedLoginState = {
   count: number;
-  lockedUntil: number | null;
 };
 
 function getFailedLoginStateKey(loginId: string) {
@@ -65,26 +63,23 @@ function getFailedLoginStateKey(loginId: string) {
 
 function readFailedLoginState(loginId: string): FailedLoginState {
   if (typeof window === "undefined") {
-    return { count: 0, lockedUntil: null };
+    return { count: 0 };
   }
 
   try {
     const raw = window.localStorage.getItem(getFailedLoginStateKey(loginId));
-    if (!raw) return { count: 0, lockedUntil: null };
+    if (!raw) return { count: 0 };
 
-    const parsed = JSON.parse(raw) as Partial<FailedLoginState>;
-    const count = typeof parsed.count === "number" && Number.isFinite(parsed.count) ? parsed.count : 0;
-    const lockedUntil =
-      typeof parsed.lockedUntil === "number" && Number.isFinite(parsed.lockedUntil) ? parsed.lockedUntil : null;
-
-    if (lockedUntil && lockedUntil <= Date.now()) {
+    const parsed = JSON.parse(raw) as Partial<FailedLoginState> & { lockedUntil?: unknown };
+    if (parsed.lockedUntil) {
       window.localStorage.removeItem(getFailedLoginStateKey(loginId));
-      return { count: 0, lockedUntil: null };
+      return { count: 0 };
     }
 
-    return { count, lockedUntil };
+    const count = typeof parsed.count === "number" && Number.isFinite(parsed.count) ? parsed.count : 0;
+    return { count };
   } catch {
-    return { count: 0, lockedUntil: null };
+    return { count: 0 };
   }
 }
 
@@ -96,16 +91,6 @@ function writeFailedLoginState(loginId: string, state: FailedLoginState) {
 function clearFailedLoginState(loginId: string) {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(getFailedLoginStateKey(loginId));
-}
-
-function getRemainingLockMinutes(lockedUntil: number) {
-  return Math.max(1, Math.ceil((lockedUntil - Date.now()) / 60000));
-}
-
-function getLockedLoginMessage(lockedUntil: number) {
-  return `비밀번호를 여러 번 잘못 입력했어요. ${getRemainingLockMinutes(
-    lockedUntil,
-  )}분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.`;
 }
 
 function isRateLimitMessage(message?: string) {
@@ -135,16 +120,7 @@ function getRateLimitMessage() {
 
 function recordFailedLoginAttempt(loginId: string) {
   const current = readFailedLoginState(loginId);
-  const nextCount = current.count + 1;
-
-  if (nextCount >= FAILED_LOGIN_LIMIT) {
-    const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
-    const nextState = { count: nextCount, lockedUntil };
-    writeFailedLoginState(loginId, nextState);
-    return nextState;
-  }
-
-  const nextState = { count: nextCount, lockedUntil: null };
+  const nextState = { count: Math.min(current.count + 1, FAILED_LOGIN_LIMIT) };
   writeFailedLoginState(loginId, nextState);
   return nextState;
 }
@@ -184,12 +160,6 @@ export default function LoginForm({
       return;
     }
 
-    const currentFailedLoginState = readFailedLoginState(loginId);
-    if (currentFailedLoginState.lockedUntil && currentFailedLoginState.lockedUntil > Date.now()) {
-      setMessage(getLockedLoginMessage(currentFailedLoginState.lockedUntil));
-      return;
-    }
-
     setLoading(true);
     setMessage(null);
 
@@ -207,21 +177,18 @@ export default function LoginForm({
         const nextMessage = result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.";
 
         if (isRateLimitMessage(nextMessage)) {
-          const lockedUntil = Date.now() + FAILED_LOGIN_LOCK_MS;
-          writeFailedLoginState(loginId, { count: FAILED_LOGIN_LIMIT, lockedUntil });
           setMessage(getRateLimitMessage());
           return;
         }
 
         if (isInvalidCredentialMessage(nextMessage)) {
           const failedState = recordFailedLoginAttempt(loginId);
-          if (failedState.lockedUntil) {
-            setMessage(getLockedLoginMessage(failedState.lockedUntil));
-            return;
-          }
-
           const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
-          setMessage(`아이디 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 10분간 제한됩니다.`);
+          setMessage(
+            failedState.count >= FAILED_LOGIN_LIMIT
+              ? "아이디 또는 비밀번호를 다시 확인해 주세요. 계속 안 되면 비밀번호 찾기로 재설정해 주세요."
+              : `아이디 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 비밀번호 찾기를 권장해 드릴게요.`,
+          );
           return;
         }
 
@@ -232,6 +199,18 @@ export default function LoginForm({
       clearFailedLoginState(loginId);
 
       if (result.session?.accessToken && result.session.refreshToken) {
+        clearOwnerAuthTokenCache();
+        if (supabase) {
+          const sessionResult = await supabase.auth.setSession({
+            access_token: result.session.accessToken,
+            refresh_token: result.session.refreshToken,
+          });
+
+          if (sessionResult.error) {
+            setMessage("로그인 세션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            return;
+          }
+        }
         writeOwnerAuthHandoff(result.session);
         writeOwnerAuthTokenCache(result.session.accessToken);
       }
@@ -294,15 +273,17 @@ export default function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      const result = (await response.json()) as { loginId?: string; password?: string; message?: string };
+      const result = (await response.json()) as { loginId?: string; password?: string | null; message?: string };
 
-      if (!response.ok || !result.loginId || !result.password) {
+      if (!response.ok || !result.loginId) {
         setMessage(result.message ?? "개발용 테스트 계정을 만들지 못했어요.");
         return;
       }
 
       setLoginId(result.loginId);
-      setPassword(result.password);
+      if (result.password) {
+        setPassword(result.password);
+      }
       setRememberLoginId(true);
       window.localStorage.setItem(SAVED_LOGIN_ID_KEY, result.loginId);
       setMessage(result.message ?? "개발용 테스트 계정을 준비했어요. 바로 로그인해 보세요.");

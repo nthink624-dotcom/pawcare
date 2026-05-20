@@ -7,6 +7,7 @@ export const appointmentInputSchema = z.object({
   guardianId: z.string(),
   petId: z.string(),
   serviceId: z.string(),
+  staffId: z.string().nullable().optional(),
   customServiceName: z.string().optional().default(""),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
@@ -20,15 +21,22 @@ export const appointmentStatusSchema = z.object({
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
+  mediaAssetIds: z.array(z.string()).max(10).optional(),
 });
 
 export const appointmentEditSchema = z.object({
   appointmentId: z.string(),
   shopId: z.string(),
   serviceId: z.string(),
+  staffId: z.string().nullable().optional(),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
+  durationMinutes: z.coerce.number().min(15).max(24 * 60).optional(),
   memo: z.string().default(""),
+  eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
+  enforceShopCapacity: z.boolean().optional().default(true),
+  notifyCustomer: z.boolean().optional().default(true),
+  preserveStatus: z.boolean().optional().default(false),
 });
 
 export const guardianInputSchema = z.object({
@@ -39,6 +47,7 @@ export const guardianInputSchema = z.object({
 });
 
 export const guardianUpdateSchema = z.object({
+  shopId: z.string().optional(),
   guardianId: z.string(),
   name: z.string().trim().min(1).optional(),
   phone: z.string().trim().min(1).optional(),
@@ -84,10 +93,16 @@ export const petInputSchema = z.object({
 });
 
 export const petUpdateSchema = z.object({
+  shopId: z.string().optional(),
   petId: z.string(),
   name: z.string().trim().min(1),
   breed: z.string().trim().min(1),
   birthday: z.string().nullable().optional(),
+});
+
+export const petDeleteSchema = z.object({
+  shopId: z.string().optional(),
+  petId: z.string(),
 });
 
 export const serviceInputSchema = z.object({

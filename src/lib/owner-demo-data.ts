@@ -20,9 +20,12 @@ function makeAppointment(
 ): Appointment {
   const durationByService: Record<string, number> = {
     "svc-full": 120,
-    "svc-bath": 80,
-    "svc-bath-only": 45,
-    "svc-care": 30,
+    "svc-bath": 90,
+    "svc-bath-only": 60,
+    "svc-care": 45,
+    "svc-partial": 45,
+    "svc-spa": 60,
+    "svc-nail": 30,
   };
   const durationMinutes = durationByService[serviceId] ?? 60;
   const [hour, minute] = time.split(":").map(Number);

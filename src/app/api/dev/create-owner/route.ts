@@ -3,11 +3,13 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
-import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
+import { hasSupabaseServerEnv, isUnsafeProdSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { nowIso } from "@/lib/utils";
 import { seedDemoDataForShop } from "@/server/demo-seed";
+import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
 const DEV_OWNER = {
   loginId: "devowner",
@@ -41,6 +43,13 @@ export async function POST() {
     return NextResponse.json({ message: "Supabase 환경 변수를 먼저 확인해 주세요." }, { status: 503 });
   }
 
+  if (isUnsafeProdSupabaseServerEnv()) {
+    return NextResponse.json(
+      { message: "개발용 테스트 계정 생성은 운영 Supabase를 바라보는 환경에서 실행할 수 없습니다." },
+      { status: 403 },
+    );
+  }
+
   const supabase = getSupabaseAdmin();
   if (!supabase) {
     return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
@@ -63,6 +72,7 @@ export async function POST() {
   }
 
   let authUser = listedUsers.data.users.find((user) => user.email === authEmail) ?? null;
+  let createdNewAuthUser = false;
 
   if (!authUser) {
     const createdUser = await supabase.auth.admin.createUser({
@@ -82,11 +92,7 @@ export async function POST() {
     }
 
     authUser = createdUser.data.user;
-  } else {
-    const updatedUser = await supabase.auth.admin.updateUserById(authUser.id, { password: DEV_OWNER.password });
-    if (updatedUser.error) {
-      return NextResponse.json({ message: mapDevSetupError(updatedUser.error.message) }, { status: 400 });
-    }
+    createdNewAuthUser = true;
   }
 
   const now = nowIso();
@@ -100,10 +106,10 @@ export async function POST() {
       phone: DEV_OWNER.phoneNumber,
       address: DEV_OWNER.shopAddress,
       description: "",
-      business_hours: {},
-      regular_closed_days: [],
+      business_hours: defaultOwnerBusinessHours,
+      regular_closed_days: defaultOwnerRegularClosedDays,
       temporary_closed_dates: [],
-      concurrent_capacity: 2,
+      concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
       approval_mode: "manual",
@@ -149,13 +155,27 @@ export async function POST() {
     return NextResponse.json({ message: mapDevSetupError(profileUpsert.error.message) }, { status: 400 });
   }
 
+  try {
+    await upsertOwnerShopMembership(supabase, {
+      ownerUserId: authUser.id,
+      shopId,
+      isPrimary: true,
+      now,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "매장 소유권 정보를 저장하지 못했습니다.";
+    return NextResponse.json({ message: mapDevSetupError(message) }, { status: 400 });
+  }
+
   await seedDemoDataForShop(shopId, DEV_OWNER.shopName, DEV_OWNER.shopAddress);
 
   return NextResponse.json({
     success: true,
     loginId: DEV_OWNER.loginId,
-    password: DEV_OWNER.password,
+    password: createdNewAuthUser ? DEV_OWNER.password : null,
     shopId,
-    message: "개발용 테스트 오너 계정을 준비했어요. 바로 로그인해 보세요.",
+    message: createdNewAuthUser
+      ? "개발용 테스트 오너 계정을 만들었어요. 바로 로그인해 보세요."
+      : "기존 개발용 테스트 오너 계정을 확인했어요. 기존 비밀번호는 변경하지 않았습니다.",
   });
 }

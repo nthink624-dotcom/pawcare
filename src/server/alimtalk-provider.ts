@@ -1,6 +1,18 @@
 ﻿import { serverEnv } from "@/lib/server-env";
 
-type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
+export type AlimtalkMetadata = Record<string, string | boolean | number | null | undefined>;
+
+export type AlimtalkMediaAttachment = {
+  attachmentId?: string | null;
+  mediaAssetId?: string | null;
+  role?: string | null;
+  url: string;
+  contentType?: string | null;
+  byteSize?: number | null;
+  variantKey?: string | null;
+  expiresInSeconds?: number | null;
+  metadata?: AlimtalkMetadata | null;
+};
 
 type SendAlimtalkInput = {
   to: string;
@@ -10,6 +22,7 @@ type SendAlimtalkInput = {
   templateType?: string | null;
   recipientName?: string | null;
   metadata?: AlimtalkMetadata | null;
+  mediaAttachments?: AlimtalkMediaAttachment[] | null;
 };
 
 type SendAlimtalkResult = {
@@ -82,16 +95,37 @@ function getBodyPreview(body: unknown) {
   }
 }
 
+function normalizeMediaAttachments(value: AlimtalkMediaAttachment[] | null | undefined) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && typeof item.url === "string" && item.url.trim())
+    .slice(0, 10)
+    .map((item) => ({
+      attachmentId: item.attachmentId ?? null,
+      mediaAssetId: item.mediaAssetId ?? null,
+      role: item.role ?? null,
+      url: item.url.trim(),
+      contentType: item.contentType ?? null,
+      byteSize: item.byteSize ?? null,
+      variantKey: item.variantKey ?? null,
+      expiresInSeconds: item.expiresInSeconds ?? null,
+      metadata: item.metadata ?? null,
+    }));
+}
+
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
   const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
+  const mediaAttachments = normalizeMediaAttachments(input.mediaAttachments);
 
   console.log("[alimtalk-provider] env check", {
     hasRelayUrl,
     hasRelaySecret,
     relayUrlHost,
     relayUrlPathname,
+    mediaAttachmentCount: mediaAttachments.length,
   });
 
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
@@ -116,6 +150,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           templateType: input.templateType ?? null,
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
+          ...(mediaAttachments.length ? { mediaAttachments } : {}),
         }),
         cache: "no-store",
       });
@@ -175,6 +210,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           dest_name: input.recipientName ?? "",
           template_type: input.templateType ?? "alimtalk",
           metadata: input.metadata ?? null,
+          ...(mediaAttachments.length ? { mediaAttachments } : {}),
         }
       : {
           profileKey: serverEnv.alimtalkProfileKey ?? null,
@@ -185,6 +221,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           templateType: input.templateType ?? null,
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
+          ...(mediaAttachments.length ? { mediaAttachments } : {}),
         };
 
   const headers: Record<string, string> =

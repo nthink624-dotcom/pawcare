@@ -16,7 +16,14 @@ import {
 } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
-import { sendAlimtalkMessage } from "@/server/alimtalk-provider";
+import { sendAlimtalkMessage, type AlimtalkMediaAttachment } from "@/server/alimtalk-provider";
+import {
+  refundShopAlimtalkCredit,
+  reserveShopAlimtalkCredit,
+  type AlimtalkCreditReservation,
+} from "@/server/alimtalk-credit-service";
+import { markNotificationMediaDeliveryResult } from "@/server/media-delivery-service";
+import { attachMediaToNotification, getOwnerMediaSignedUrl } from "@/server/media-service";
 import type {
   Appointment,
   BootstrapPayload,
@@ -41,6 +48,7 @@ type DispatchNotificationInput = {
   templateType?: string | null;
   message?: string | null;
   metadata?: NotificationMetadata | null;
+  mediaAssetIds?: string[] | null;
   scheduledAt?: string | null;
   skipIfExists?: boolean;
   force?: boolean;
@@ -87,6 +95,93 @@ function shouldSendGuardianNotification(
 ) {
   if (!guardian) return true;
   return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
+}
+
+function normalizeMediaAssetIds(value: string[] | null | undefined) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()))).slice(0, 10);
+}
+
+function getRelayEndpointUrl(pathname: string) {
+  if (!serverEnv.alimtalkRelayUrl) return null;
+
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
+  parsed.pathname = pathname;
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
+}
+
+async function isRelayTemplateConfigured(alias: string | null | undefined) {
+  if (!alias || !serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) return false;
+
+  const url = getRelayEndpointUrl("/debug/templates");
+  if (!url) return false;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-relay-secret": serverEnv.alimtalkRelaySecret,
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return false;
+
+    const body = (await response.json()) as {
+      templates?: Record<string, { configured?: boolean } | undefined>;
+    };
+    return Boolean(body.templates?.[alias]?.configured);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildNotificationMediaAttachments(params: {
+  shopId: string;
+  mediaAssetIds: string[];
+}) {
+  const attachments: AlimtalkMediaAttachment[] = [];
+
+  for (const mediaAssetId of params.mediaAssetIds) {
+    const signed = await getOwnerMediaSignedUrl(
+      {
+        shopId: params.shopId,
+        userId: null,
+      },
+      {
+        mediaAssetId,
+        variantKey: "provider_ready",
+      },
+    );
+
+    attachments.push({
+      mediaAssetId: signed.mediaAsset.id,
+      role:
+        signed.mediaAsset.media_kind === "grooming_before"
+          ? "before_photo"
+          : signed.mediaAsset.media_kind === "grooming_after"
+            ? "after_photo"
+            : "result_photo",
+      url: signed.signedUrl,
+      contentType: signed.variant?.content_type ?? signed.mediaAsset.content_type,
+      byteSize: signed.variant?.byte_size ?? signed.mediaAsset.byte_size,
+      variantKey: signed.variant?.variant_key ?? "original",
+      expiresInSeconds: signed.expiresInSeconds,
+      metadata: {
+        width: signed.variant?.width ?? signed.mediaAsset.width,
+        height: signed.variant?.height ?? signed.mediaAsset.height,
+      },
+    });
+  }
+
+  return attachments;
 }
 
 function legacyBuildBookingLinksBlock(params: {
@@ -488,11 +583,32 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   let sentAt: string | null = null;
   let failReason: string | null = null;
   let providerMessageId: string | null = null;
+  let creditReservation: AlimtalkCreditReservation | null = null;
+  let creditRefunded = false;
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
   const canSendGuardian = input.force ? true : shouldSendGuardianNotification(guardian, input.type);
   const canSend = canSendShop && canSendGuardian;
+  const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
+  const mediaAttachments =
+    bootstrap.mode === "supabase" && mediaAssetIds.length > 0
+      ? await buildNotificationMediaAttachments({
+          shopId: input.shopId,
+          mediaAssetIds,
+        })
+      : [];
+  const isPhotoAlimtalkRequest =
+    (input.channel ?? "alimtalk") === "alimtalk" &&
+    input.type === "grooming_completed" &&
+    mediaAssetIds.length > 0;
+  const hasConfiguredPhotoAlimtalkTemplate =
+    Boolean(serverEnv.alimtalkTemplateGroomingCompleted) ||
+    (isPhotoAlimtalkRequest ? await isRelayTemplateConfigured(templateAlias) : false);
+  const templateKeyForDelivery =
+    isPhotoAlimtalkRequest && usesAlimtalkRelay && !serverEnv.alimtalkTemplateGroomingCompleted
+      ? null
+      : templateKey;
 
   if (input.appointmentId && !appointment) {
     logNotificationSkipped({
@@ -542,6 +658,15 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     status = "sent";
     provider = "in_app";
     sentAt = nowIso();
+  } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
+    status = "queued";
+    provider = "pending_template";
+    failReason = "전후 사진 알림톡 템플릿 승인 전입니다. 요청만 저장했습니다.";
+    logNotificationSkipped({
+      reason: "photo alimtalk template not configured",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
   } else if (
     (input.channel ?? "alimtalk") === "alimtalk" &&
     serverEnv.alimtalkProvider === "ssodaa" &&
@@ -564,20 +689,60 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       sentAt = nowIso();
     } else if (hasAlimtalkServerEnv()) {
       try {
-        const delivery = await sendAlimtalkMessage({
-          to: recipientPhone,
-          message,
-          templateAlias,
-          templateKey,
-          templateType,
-          recipientName,
-          metadata: input.metadata ?? null,
+        creditReservation = await reserveShopAlimtalkCredit({
+          shopId: input.shopId,
+          appointmentId: input.appointmentId ?? appointment?.id ?? null,
+          notificationType: input.type,
+          metadata: {
+            templateAlias,
+            templateKey: templateKeyForDelivery,
+          },
         });
-        status = "sent";
-        provider = delivery.provider;
-        providerMessageId = delivery.providerMessageId;
-        sentAt = nowIso();
+
+        if (!creditReservation.consumed) {
+          status = "skipped";
+          failReason = "알림톡 잔여 건수가 없습니다.";
+          logNotificationSkipped({
+            reason: "insufficient alimtalk credits",
+            type: input.type,
+            appointmentId: input.appointmentId ?? appointment?.id ?? null,
+          });
+        } else {
+          const delivery = await sendAlimtalkMessage({
+            to: recipientPhone,
+            message,
+            templateAlias,
+            templateKey: templateKeyForDelivery,
+            templateType,
+            recipientName,
+            metadata: input.metadata ?? null,
+            mediaAttachments,
+          });
+          status = "sent";
+          provider = delivery.provider;
+          providerMessageId = delivery.providerMessageId;
+          sentAt = nowIso();
+        }
       } catch (error) {
+        if (creditReservation?.consumed) {
+          try {
+            await refundShopAlimtalkCredit({
+              shopId: input.shopId,
+              sourceEventId: creditReservation.eventId,
+              appointmentId: input.appointmentId ?? appointment?.id ?? null,
+              notificationType: input.type,
+              metadata: {
+                providerMessageId,
+              },
+            });
+            creditRefunded = true;
+          } catch (refundError) {
+            console.error("[notification-dispatch] alimtalk credit refund failed", {
+              message: refundError instanceof Error ? refundError.message : String(refundError),
+              sourceEventId: creditReservation.eventId,
+            });
+          }
+        }
         status = "failed";
         failReason = error instanceof Error ? error.message : "Alimtalk send failed.";
       }
@@ -618,6 +783,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       serviceName: service?.name ?? null,
       bookingEntryUrl,
       bookingManageUrl,
+      alimtalkCreditEventId: creditReservation?.eventId ?? null,
+      alimtalkCreditBucket: creditReservation?.consumedBucket ?? null,
+      alimtalkCreditRemaining: creditReservation?.remainingCount ?? null,
+      alimtalkCreditConsumed: status === "sent" && Boolean(creditReservation?.consumed),
+      alimtalkCreditRefunded: creditRefunded,
     },
     sent_at: sentAt,
     created_at: nowIso(),
@@ -662,85 +832,69 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     throw new Error(result.error.message);
   }
 
-  return {
-    notification: result.data as Notification,
-    skipped: status === "skipped",
-    alreadyExists: false,
-  };
-}
-
-export async function runScheduledNotificationDispatch() {
-  if (!hasSupabaseServerEnv()) {
-    return {
-      reminderQueued: 0,
-      almostDoneQueued: 0,
-      processed: 0,
-    };
+  if (creditReservation?.eventId) {
+    const creditEventResult = await admin
+      .from("shop_alimtalk_credit_events")
+      .update({ notification_id: result.data.id })
+      .eq("id", creditReservation.eventId);
+    if (creditEventResult.error) {
+      console.error("[notification-dispatch] alimtalk credit event notification link failed", {
+        message: creditEventResult.error.message,
+        creditEventId: creditReservation.eventId,
+        notificationId: result.data.id,
+      });
+    }
   }
 
-  const admin = getSupabaseAdmin();
-  if (!admin) {
-    throw new Error("Notification scheduler server connection is unavailable.");
-  }
+  if (mediaAssetIds.length > 0) {
+    const attached = await attachMediaToNotification(
+      {
+        shopId: input.shopId,
+        userId: null,
+      },
+      {
+        notificationId: result.data.id,
+        channel: input.channel ?? "alimtalk",
+        media: mediaAssetIds.map((mediaAssetId, index) => ({
+          mediaAssetId,
+          attachmentRole:
+            mediaAttachments[index]?.role === "before_photo"
+              ? "before_photo"
+              : mediaAttachments[index]?.role === "after_photo"
+                ? "after_photo"
+                : "result_photo",
+          sortOrder: index,
+        })),
+      },
+    );
 
-  const shopsResult = await admin.from("shops").select("id");
-  if (shopsResult.error) {
-    throw new Error(shopsResult.error.message);
-  }
-
-  const now = Date.now();
-  const reminderDeadline = now + 10 * 60 * 1000;
-  const almostDoneDeadline = now + 5 * 60 * 1000;
-
-  let reminderQueued = 0;
-  let almostDoneQueued = 0;
-
-  for (const shop of shopsResult.data ?? []) {
-    const bootstrap = await getBootstrap(shop.id);
-
-    for (const appointment of bootstrap.appointments) {
-      const startTime = new Date(appointment.start_at).getTime();
-      const endTime = new Date(appointment.end_at).getTime();
-
-      if (
-        ["pending", "confirmed"].includes(appointment.status) &&
-        startTime > now &&
-        startTime <= reminderDeadline
-      ) {
-        const result = await dispatchNotification({
-          shopId: bootstrap.shop.id,
-          type: "appointment_reminder_10m",
-          appointmentId: appointment.id,
-          guardianId: appointment.guardian_id,
-          petId: appointment.pet_id,
-          scheduledAt: appointment.start_at,
-          skipIfExists: true,
-        });
-        if (!result.skipped && !result.alreadyExists) reminderQueued += 1;
-      }
-
-      if (
-        appointment.status === "in_progress" &&
-        endTime > now &&
-        endTime <= almostDoneDeadline
-      ) {
-        const result = await dispatchNotification({
-          shopId: bootstrap.shop.id,
-          type: "grooming_almost_done",
-          appointmentId: appointment.id,
-          guardianId: appointment.guardian_id,
-          petId: appointment.pet_id,
-          scheduledAt: appointment.end_at,
-          skipIfExists: true,
-        });
-        if (!result.skipped && !result.alreadyExists) almostDoneQueued += 1;
-      }
+    if (status === "sent" || status === "failed") {
+      await markNotificationMediaDeliveryResult(
+        {
+          shopId: input.shopId,
+          userId: null,
+        },
+        {
+          notificationId: result.data.id,
+          status,
+          channel: input.channel ?? "alimtalk",
+          provider,
+          providerMessageId,
+          recipientPhone,
+          failReason,
+          sentAt,
+          providerMedia: attached.attachments.map((attachment) => ({
+            notificationMediaAttachmentId: attachment.id,
+            providerMediaId: null,
+          })),
+        },
+      );
     }
   }
 
   return {
-    reminderQueued,
-    almostDoneQueued,
-    processed: reminderQueued + almostDoneQueued,
+    notification: result.data as Notification,
+    skipped: status === "skipped",
+    alreadyExists: false,
   };
 }

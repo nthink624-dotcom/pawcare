@@ -10,6 +10,8 @@ import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/o
 
 type OwnerPasswordResetProfile = {
   user_id: string;
+  name: string | null;
+  birth_date: string | null;
   phone_number: string | null;
   ci_hash: string | null;
   di_hash: string | null;
@@ -40,9 +42,6 @@ export async function POST(request: NextRequest) {
     const verifiedIdentity = await getVerifiedIdentityForToken({
       verificationToken: body.identityVerificationToken,
       purpose: "reset-password",
-      expectedName: body.name,
-      expectedBirthDate: body.birthDate,
-      expectedPhoneNumber: body.phoneNumber,
     });
 
     if (!verifiedIdentity) {
@@ -58,20 +57,16 @@ export async function POST(request: NextRequest) {
     let profileData: OwnerPasswordResetProfile | null = null;
     const profile = await supabase
       .from("owner_profiles")
-      .select("user_id, phone_number, ci_hash, di_hash")
+      .select("user_id, name, birth_date, phone_number, ci_hash, di_hash")
       .eq("login_id", body.loginId)
-      .eq("name", verifiedIdentity.name)
-      .eq("birth_date", verifiedIdentity.birth_date)
       .maybeSingle<OwnerPasswordResetProfile>();
 
     if (profile.error && isMissingIdentityHashColumnError(profile.error)) {
       canUseIdentityHashColumns = false;
       const fallbackProfile = await supabase
         .from("owner_profiles")
-        .select("user_id, phone_number")
+        .select("user_id, name, birth_date, phone_number")
         .eq("login_id", body.loginId)
-        .eq("name", verifiedIdentity.name)
-        .eq("birth_date", verifiedIdentity.birth_date)
         .maybeSingle<Omit<OwnerPasswordResetProfile, "ci_hash" | "di_hash">>();
 
       if (fallbackProfile.error) {
@@ -92,6 +87,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!profileData?.user_id) {
+      return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
+    }
+
+    if (
+      (profileData.name && profileData.name !== verifiedIdentity.name) ||
+      (profileData.birth_date && profileData.birth_date !== verifiedIdentity.birth_date)
+    ) {
       return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
     }
 

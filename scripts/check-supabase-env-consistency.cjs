@@ -83,6 +83,15 @@ function maskRef(ref) {
   return `${ref.slice(0, 6)}...${ref.slice(-4)}`;
 }
 
+function parseAllowedRefs(value) {
+  return new Set(
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
 function checkFile(filePath) {
   const values = parseEnvFile(filePath);
   if (!values) {
@@ -100,6 +109,17 @@ function checkFile(filePath) {
   const publicStage = readValue(values, "NEXT_PUBLIC_SUPABASE_ENV_NAME");
   const serverStage = readValue(values, "SUPABASE_ENV_NAME");
   const apiBaseUrl = readValue(values, "NEXT_PUBLIC_API_BASE_URL");
+  const allowProdSupabaseInDev =
+    readValue(values, "NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV") === "true" ||
+    readValue(values, "ALLOW_PROD_SUPABASE_IN_DEV") === "true";
+  const allowedDevSupabaseRefs = parseAllowedRefs(
+    [
+      readValue(values, "NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS"),
+      readValue(values, "ALLOWED_DEV_SUPABASE_REFS"),
+    ]
+      .filter(Boolean)
+      .join(","),
+  );
   const supabaseUrl = readValue(values, "NEXT_PUBLIC_SUPABASE_URL") || readValue(values, "SUPABASE_URL");
   const anonKey = readValue(values, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
   const serviceRoleKey = readValue(values, "SUPABASE_SERVICE_ROLE_KEY");
@@ -119,6 +139,11 @@ function checkFile(filePath) {
   summary.push(`anonRef=${maskRef(refFromSupabaseJwt(anonKey))}`);
   summary.push(`serviceRef=${maskRef(refFromSupabaseJwt(serviceRoleKey))}`);
   summary.push(`publishableKey=${publishableKey ? "present" : "missing"}`);
+  summary.push(
+    `allowedDevRefs=${
+      allowedDevSupabaseRefs.size > 0 ? [...allowedDevSupabaseRefs].map(maskRef).join(",") : "(empty)"
+    }`,
+  );
 
   const uniqueRemoteRefs = [...new Set(refs.map(([, ref]) => ref).filter((ref) => ref !== "local"))];
   if (uniqueRemoteRefs.length > 1) {
@@ -136,6 +161,18 @@ function checkFile(filePath) {
 
     if (serverStage && serverStage !== "development") {
       issues.push("SUPABASE_ENV_NAME in .env.local should be development.");
+    }
+
+    const supabaseRef = refFromSupabaseUrl(supabaseUrl);
+    if (
+      supabaseRef &&
+      supabaseRef !== "local" &&
+      !allowedDevSupabaseRefs.has(supabaseRef) &&
+      !allowProdSupabaseInDev
+    ) {
+      issues.push(
+        `Local env remote Supabase ref ${maskRef(supabaseRef)} is not in ALLOWED_DEV_SUPABASE_REFS. Add only development Supabase refs to the allowlist, or use http://127.0.0.1:54321.`,
+      );
     }
   }
 

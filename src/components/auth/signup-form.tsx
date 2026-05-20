@@ -58,6 +58,11 @@ type VerificationApiResponse = {
     phoneNumber?: string | null;
   } | null;
 };
+type LoginIdCheckState = {
+  status: "idle" | "checking" | "available" | "unavailable" | "error";
+  loginId: string;
+  message: string | null;
+};
 
 const initialAgreements: AgreementState = {
   service: false,
@@ -113,7 +118,7 @@ const verificationMethods: Array<{
   description: string;
   kind: "active" | "placeholder";
 }> = [
-  { id: "phone", title: "휴대폰 본인인증", description: "KCP 휴대폰 본인인증으로 확인해요.", kind: "active" },
+  { id: "phone", title: "휴대폰 본인인증", description: "가입자 본인 여부를 확인해요.", kind: "active" },
 ];
 
 const phoneCarrierOptions = [
@@ -185,7 +190,7 @@ function toKoreanAuthError(message: string) {
   if (normalized.includes("invalid login credentials")) return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   if (normalized.includes("email not confirmed")) return "이메일 인증이 아직 완료되지 않았습니다.";
   if (normalized.includes("user already registered")) return "이미 가입된 계정입니다.";
-  if (normalized.includes("password should be at least")) return "비밀번호는 6자 이상 입력해 주세요.";
+  if (normalized.includes("password should be at least")) return ownerPasswordRuleMessage;
   if (normalized.includes("unable to validate email address")) return "이메일 형식을 다시 확인해 주세요.";
   if (normalized.includes("oauth")) return "소셜 로그인 처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
 
@@ -378,6 +383,11 @@ export default function SignupForm({
   );
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [loginIdCheck, setLoginIdCheck] = useState<LoginIdCheckState>({
+    status: "idle",
+    loginId: "",
+    message: null,
+  });
   const [shopDetailAddress, setShopDetailAddress] = useState("");
   const [shopPostalCode, setShopPostalCode] = useState("");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
@@ -402,9 +412,74 @@ export default function SignupForm({
       : fields.password === fields.passwordConfirm
         ? { tone: "success" as const, helper: "비밀번호가 일치합니다" }
         : { error: "비밀번호가 일치하지 않습니다" };
+  const passwordRuleError = fields.password.length > 0 && !isValidOwnerPassword(fields.password) ? ownerPasswordRuleMessage : undefined;
+  const normalizedLoginId = normalizeOwnerLoginId(fields.loginId);
+  const loginIdFieldError =
+    fields.loginId.length > 0 && !isValidOwnerLoginId(normalizedLoginId)
+      ? "아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요."
+      : loginIdCheck.status === "unavailable" && loginIdCheck.loginId === normalizedLoginId
+        ? loginIdCheck.message ?? "이미 사용 중인 아이디입니다."
+        : loginIdCheck.status === "error" && loginIdCheck.loginId === normalizedLoginId
+          ? loginIdCheck.message ?? "아이디 중복 확인 중 문제가 발생했습니다."
+          : undefined;
+  const loginIdFieldHelper =
+    !loginIdFieldError && loginIdCheck.loginId === normalizedLoginId
+      ? loginIdCheck.status === "checking"
+        ? "아이디 중복을 확인하고 있어요."
+        : loginIdCheck.status === "available"
+          ? loginIdCheck.message ?? "사용 가능한 아이디입니다."
+          : undefined
+      : undefined;
+  const loginIdFieldTone = loginIdCheck.status === "available" && loginIdCheck.loginId === normalizedLoginId ? "success" : "default";
+  const passwordFieldHelper = fields.password.length > 0 && !passwordRuleError ? "사용 가능합니다." : undefined;
+  const passwordFieldTone = passwordFieldHelper ? "success" : "default";
 
   const verificationPurpose: VerificationPurpose = "signup";
   const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
+
+  useEffect(() => {
+    const loginId = normalizeOwnerLoginId(fields.loginId);
+    if (!fields.loginId.trim()) {
+      setLoginIdCheck({ status: "idle", loginId: "", message: null });
+      return;
+    }
+
+    if (!isValidOwnerLoginId(loginId)) {
+      setLoginIdCheck({ status: "idle", loginId, message: null });
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setLoginIdCheck({ status: "checking", loginId, message: null });
+
+      try {
+        const response = await fetch(`/api/auth/check-login-id?loginId=${encodeURIComponent(loginId)}`, {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as { available?: boolean; message?: string };
+        if (!active) return;
+
+        setLoginIdCheck({
+          status: response.ok && result.available ? "available" : "unavailable",
+          loginId,
+          message: result.message ?? null,
+        });
+      } catch {
+        if (!active) return;
+        setLoginIdCheck({
+          status: "error",
+          loginId,
+          message: "아이디 중복 확인 중 문제가 발생했습니다.",
+        });
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [fields.loginId]);
 
   useEffect(() => {
     let active = true;
@@ -519,6 +594,14 @@ export default function SignupForm({
 
     if (!isValidOwnerLoginId(loginId)) {
       setMessage("아이디는 영문 소문자, 숫자, 마침표(.), 하이픈(-), 밑줄(_) 조합으로 4자 이상 입력해 주세요.");
+      return;
+    }
+    if (loginIdCheck.loginId !== loginId || loginIdCheck.status === "checking") {
+      setMessage("아이디 중복 확인이 끝난 뒤 다시 진행해 주세요.");
+      return;
+    }
+    if (loginIdCheck.status !== "available") {
+      setMessage(loginIdCheck.message ?? "이미 사용 중인 아이디입니다.");
       return;
     }
     if (!isValidOwnerPassword(fields.password)) {
@@ -867,6 +950,9 @@ export default function SignupForm({
             >
               <AuthField
                 label="아이디"
+                tone={loginIdFieldTone}
+                helper={loginIdFieldHelper}
+                error={loginIdFieldError}
               >
                 <AuthInput
                   value={fields.loginId}
@@ -877,6 +963,9 @@ export default function SignupForm({
 
               <AuthField
                 label="비밀번호"
+                tone={passwordFieldTone}
+                helper={passwordFieldHelper}
+                error={passwordRuleError}
               >
                 <AuthInput
                   type={showPassword ? "text" : "password"}
@@ -1115,16 +1204,20 @@ export default function SignupForm({
               <div className="shrink-0 px-5 pb-3 pt-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-[23px] font-semibold text-[#111827]">본인 확인</h2>
-                    <p className="mt-2 text-[13px] leading-5 text-[#64748b]">운영자 본인 확인을 진행해 주세요.</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#94a3b8]">예약·고객 정보 보호를 위해 필요합니다.</p>
+                    <h2 className="text-[23px] font-semibold text-[#111827]">본인 인증</h2>
+                    <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
+                      안전한 매장 관리를 위해 가입자 본인 여부를 확인합니다.
+                    </p>
+                    <p className="mt-1 text-[12px] leading-5 text-[#94a3b8]">
+                      확인된 정보는 아이디 찾기와 비밀번호 재설정에도 사용됩니다.
+                    </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setVerificationSheetOpen(false)}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-[#d1d5db] bg-white text-[22px] leading-none text-[#64748b]"
-                    aria-label="본인 확인 닫기"
+                    aria-label="본인 인증 닫기"
                   >
                     ×
                   </button>
@@ -1133,7 +1226,7 @@ export default function SignupForm({
 
               <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#edf2f7] px-5 pb-5 pt-4">
                 <div>
-                  <p className="text-[14px] font-semibold text-[#111827]">확인 방법</p>
+                  <p className="text-[14px] font-semibold text-[#111827]">인증 방법</p>
                   <div className="mt-2.5 space-y-2">
                     {verificationMethods.map((method) => (
                       <button
@@ -1163,7 +1256,7 @@ export default function SignupForm({
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[14px] font-semibold text-[#111827]">{method.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">{method.description.replace("휴대폰 본인인증으로 확인해요.", "인증으로 확인")}</p>
+                          <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">{method.description}</p>
                         </div>
                         <span
                           className={cn(
@@ -1369,7 +1462,7 @@ export default function SignupForm({
                       <ChevronLeft className="h-5 w-5" />
                     </button>
                     <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-[#64748b]">본인 확인</p>
+                      <p className="text-[12px] font-semibold text-[#64748b]">본인 인증</p>
                       <h2 className="mt-1 truncate text-[20px] font-semibold text-[#111827]">
                         {selectedVerificationMeta.title}
                       </h2>
@@ -1380,7 +1473,7 @@ export default function SignupForm({
                     type="button"
                     onClick={() => setVerificationDetailSheetOpen(false)}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[24px] leading-none text-[#64748b]"
-                    aria-label="본인 확인 닫기"
+                    aria-label="본인 인증 닫기"
                   >
                     ×
                   </button>

@@ -269,8 +269,8 @@ export default function LandingPage() {
 
           <div className="flow">
             {[
-              { ico: "✅", label: "예약 확정", desc: "사장님 승인 시 자동 알림", tag: "사장 버튼", tagBg: "#FCEEE9", tagColor: "#C96B4F" },
-              { ico: "🔔", label: "전날 리마인더", desc: "전날 오후 6시 자동 발송", tag: "자동", tagBg: "#F9F4E0", tagColor: "#B89A3E" },
+              { ico: "✅", label: "예약 확정", desc: "사장님 승인 시 알림 발송", tag: "사장 버튼", tagBg: "#FCEEE9", tagColor: "#C96B4F" },
+              { ico: "🔔", label: "리마인더", desc: "필요할 때 직접 발송", tag: "사장 버튼", tagBg: "#F9F4E0", tagColor: "#B89A3E" },
               { ico: "🎨", label: "미용 시작", desc: "시작 버튼 → 고객에게 안내", tag: "사장 버튼", tagBg: "#FCEEE9", tagColor: "#C96B4F" },
               { ico: "💇", label: "거의 완료", desc: "소요시간 80% 경과 시 자동", tag: "자동", tagBg: "#F9F4E0", tagColor: "#B89A3E" },
               { ico: "🎀", label: "픽업 가능!", desc: "완료 버튼 → 픽업 알림 발송", tag: "사장 버튼", tagBg: "#EAF5ED", tagColor: "#4E9462" },
@@ -339,7 +339,7 @@ export default function LandingPage() {
             <ul>
               <li>예약 통합 관리</li>
               <li>고객·반려견 관리</li>
-              <li>재방문 자동 알림</li>
+              <li>재방문 안내 직접 발송</li>
               <li>미용 완료 알림</li>
               <li>고객 예약 페이지</li>
               <li>카카오 알림톡 연동</li>

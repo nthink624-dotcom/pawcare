@@ -40,7 +40,13 @@ export async function getServerUserShopId(userId: string) {
     return null;
   }
 
-  const shopResult = await admin.from("shops").select("id").eq("owner_user_id", userId).maybeSingle();
+  const shopResult = await admin
+    .from("shops")
+    .select("id")
+    .eq("owner_user_id", userId)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
 
   if (shopResult.error) {
     return null;

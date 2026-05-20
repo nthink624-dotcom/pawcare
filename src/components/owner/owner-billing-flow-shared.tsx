@@ -12,11 +12,11 @@ function formatDate(iso: string | null) {
 }
 
 function getPlanSummaryLine(plan: OwnerPlan) {
-  if (plan.code === "monthly") {
-    return "총 12,900원";
+  if (plan.code === "free") {
+    return "무료체험";
   }
 
-  return plan.totalLabel ?? `총 ${won(plan.totalPrice)}`;
+  return `${plan.staffLimitLabel} · ${plan.alimtalkIncludedLabel}`;
 }
 
 export function OwnerBillingSuccessCard({
@@ -86,7 +86,7 @@ export function OwnerBillingSuccessCard({
 
           <div className="space-y-3 pt-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[14px] font-medium text-[#7b7369]">서비스 종료일</p>
+              <p className="text-[14px] font-medium text-[#7b7369]">다음 결제 기준일</p>
               <p className="text-[15px] font-semibold text-[#171411]">{formatDate(endAt)}</p>
             </div>
             {paymentMethodLabel ? (

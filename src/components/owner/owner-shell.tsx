@@ -43,11 +43,8 @@ function getResumePlanCode(summary: OwnerSubscriptionSummary) {
 }
 
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
-  if (summary.status === "past_due" || summary.status === "expired") return null;
-  if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
-
   const dismissKey = `owner-trial-banner:${summary.noticeLevel}:${summary.trialEndsAt}`;
-  const [dismissed, setDismissed] = useState(false);
+  const [, rerenderDismissState] = useState(0);
 
   const title =
     summary.noticeLevel === "1day"
@@ -58,16 +55,15 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
       ? "계속 사용하려면 종료 후 플랜을 확인하고 결제를 진행해 주세요. 자동결제는 되지 않습니다."
       : "이용 기간이 끝나면 서비스 이용이 제한될 수 있습니다.";
 
-  useEffect(() => {
-    const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
-    setDismissed(savedDismissKey === dismissKey);
-  }, [dismissKey]);
-
+  const dismissed =
+    typeof window !== "undefined" && window.localStorage.getItem("owner-trial-banner-dismissed") === dismissKey;
+  if (summary.status === "past_due" || summary.status === "expired") return null;
+  if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
   if (dismissed) return null;
 
   const handleDismiss = () => {
     window.localStorage.setItem("owner-trial-banner-dismissed", dismissKey);
-    setDismissed(true);
+    rerenderDismissState((current) => current + 1);
   };
 
   return (

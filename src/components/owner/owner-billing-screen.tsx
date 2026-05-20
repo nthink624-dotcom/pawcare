@@ -46,19 +46,6 @@ function formatProjectedServiceEndDate(
   return formatDate(displayEndsAt);
 }
 
-function getPlanSelectionLine(plan: NonNullable<ReturnType<typeof getOwnerPlanByCode>>) {
-  switch (plan.code) {
-    case "monthly":
-      return "총 12,900원";
-    case "quarterly":
-    case "halfyearly":
-    case "yearly":
-      return plan.totalLabel ?? `총 ${won(plan.totalPrice)}`;
-    default:
-      return `총 ${won(plan.totalPrice)}`;
-  }
-}
-
 function hasSuccessfulPayment(summary: OwnerSubscriptionSummary) {
   return summary.lastPaymentStatus === "paid" || summary.status === "active";
 }
@@ -132,7 +119,7 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
   if (summary.status === "expired") {
     return {
       title: summary.currentPlanCode === "free" ? "체험 플랜이 종료되었습니다" : "이용 기간이 종료되었습니다",
-      body: "자동결제는 되지 않습니다. 계속 사용하려면 플랜을 확인하고 결제를 진행해 주세요.",
+      body: "계속 사용하려면 매장 규모에 맞는 요금제를 선택하고 결제를 진행해 주세요.",
     };
   }
 
@@ -225,8 +212,9 @@ export default function OwnerBillingScreen({
         "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
       ]
     : [
-        "선택한 플랜은 등록된 카드로 매 결제일 자동 결제됩니다.",
+        "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
         "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
+        `${selectedPlan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
         "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
       ];
   const agreementContinueLabel =
@@ -583,13 +571,13 @@ export default function OwnerBillingScreen({
           <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
           <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{selectedPlanLabel}</p>
           <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
-          <p className="mt-1 text-sm leading-6 text-[#6e6a61]">예상 서비스 종료일 {projectedServiceEndDate}</p>
+          <p className="mt-1 text-sm leading-6 text-[#6e6a61]">다음 결제 기준일 {projectedServiceEndDate}</p>
           <p className="mt-2 text-[13px] leading-5 text-[#6e6a61]">
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
-              ? "한 달 플랜은 한 번 결제하고 바로 시작할 수 있습니다."
-              : `${selectedPlanLabel}은 카드 등록 후 이용 기간 동안 계속 사용할 수 있습니다.`}
+              ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
+              : `${selectedPlan.staffLimitLabel} 기준, ${selectedPlan.alimtalkIncludedLabel} 요금제입니다.`}
           </p>
         </div>
 
@@ -604,8 +592,8 @@ export default function OwnerBillingScreen({
                 {isFreePlan
                   ? "체험 플랜은 결제가 필요하지 않습니다."
                   : usesOneTimePayment
-                  ? "한 달 플랜은 일반결제로 한 번 결제하고 바로 시작합니다."
-                  : "약정 플랜은 카드 등록 후 매달 자동 청구로 이어집니다."}
+                  ? "선택한 플랜은 결제 후 바로 시작합니다."
+                  : "카드 등록 후 매월 같은 요금제로 자동 결제됩니다."}
               </p>
             </div>
           </div>

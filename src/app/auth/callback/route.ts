@@ -117,7 +117,13 @@ export async function GET(request: NextRequest) {
 
   const admin = getSupabaseAdmin();
   if (admin) {
-    const shopResult = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
+    const shopResult = await admin
+      .from("shops")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .order("created_at")
+      .limit(1)
+      .maybeSingle();
 
     if (!shopResult.error && !shopResult.data?.id) {
       const provider =

@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
-import { fetchApiJsonWithBearer } from "@/lib/api";
+import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
   readOwnerAuthTokenCache,
+  setCurrentOwnerAccessToken,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
 import {
@@ -42,6 +43,7 @@ const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 const OWNER_LOAD_TIMEOUT_MS = 12000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
+const OWNER_BACKGROUND_REFRESH_MS = 60_000;
 
 function withOwnerLoadTimeout<T>(promise: Promise<T>, message: string) {
   let timeoutId: number | null = null;
@@ -97,27 +99,18 @@ export default function OwnerPage() {
 
     const handoffSession = consumeOwnerAuthHandoff();
     if (handoffSession) {
-      writeOwnerAuthTokenCache(handoffSession.accessToken);
-      void supabase.auth
-        .setSession({
+      const sessionResult = await withOwnerSessionTimeout(
+        supabase.auth.setSession({
           access_token: handoffSession.accessToken,
           refresh_token: handoffSession.refreshToken,
-        })
-        .catch(() => {
-          // The login API already set auth cookies. Keep initial owner loading unblocked.
-        });
+        }) as Promise<SupabaseSessionResult>,
+      );
+      const accessToken = sessionResult.data.session?.access_token ?? handoffSession.accessToken;
+      writeOwnerAuthTokenCache(accessToken);
 
       return {
-        accessToken: handoffSession.accessToken,
-        session: null,
-      };
-    }
-
-    const cachedAccessToken = readOwnerAuthTokenCache();
-    if (cachedAccessToken) {
-      return {
-        accessToken: cachedAccessToken,
-        session: null,
+        accessToken,
+        session: sessionResult.data.session,
       };
     }
 
@@ -129,6 +122,25 @@ export default function OwnerPage() {
       return {
         accessToken: initialSession.data.session.access_token,
         session: initialSession.data.session,
+      };
+    }
+
+    const refreshedSession = await withOwnerSessionTimeout(
+      supabase.auth.refreshSession() as Promise<SupabaseSessionResult>,
+    );
+    if (refreshedSession.data.session?.access_token) {
+      writeOwnerAuthTokenCache(refreshedSession.data.session.access_token);
+      return {
+        accessToken: refreshedSession.data.session.access_token,
+        session: refreshedSession.data.session,
+      };
+    }
+
+    const cachedAccessToken = readOwnerAuthTokenCache();
+    if (cachedAccessToken) {
+      return {
+        accessToken: cachedAccessToken,
+        session: null,
       };
     }
 
@@ -176,10 +188,11 @@ export default function OwnerPage() {
         }
 
         provider = ownerAccess.session ? provider ?? resolveSocialProviderFromAuthUser(ownerAccess.session.user) : provider;
+        setCurrentOwnerAccessToken(ownerAccess.accessToken);
         setAccessToken(ownerAccess.accessToken);
 
         const shops = await withOwnerLoadTimeout(
-          fetchApiJsonWithBearer<OwnedShopSummary[]>("/api/owner/shops", ownerAccess.accessToken),
+          fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
           "매장 정보를 불러오는 중 지연되고 있습니다. Supabase 또는 Vercel 환경변수를 확인해 주세요.",
         );
         const storedShopId =
@@ -196,10 +209,7 @@ export default function OwnerPage() {
         }
 
         const bootstrap = await withOwnerLoadTimeout(
-          fetchApiJsonWithBearer<BootstrapPayload>(
-            `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
-            ownerAccess.accessToken,
-          ),
+          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
           "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
         );
 
@@ -264,9 +274,8 @@ export default function OwnerPage() {
       if (document.visibilityState !== "visible") return;
 
       try {
-        const nextBootstrap = await fetchApiJsonWithBearer<BootstrapPayload>(
+        const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
           `/api/bootstrap?shopId=${encodeURIComponent(selectedShopId)}`,
-          accessToken,
           { cache: "no-store" },
         );
         if (active) {
@@ -275,7 +284,7 @@ export default function OwnerPage() {
             shopId: nextBootstrap.shop.id,
             selectedShopId,
             appointmentsCount: nextBootstrap.appointments?.length ?? 0,
-            staffMembersCount: 0,
+            staffMembersCount: nextBootstrap.staffMembers?.length ?? 0,
           });
           setData(nextBootstrap);
         }
@@ -284,7 +293,7 @@ export default function OwnerPage() {
       }
     };
 
-    const intervalId = window.setInterval(refreshDesktopData, 15000);
+    const intervalId = window.setInterval(refreshDesktopData, OWNER_BACKGROUND_REFRESH_MS);
     window.addEventListener("focus", refreshDesktopData);
     document.addEventListener("visibilitychange", refreshDesktopData);
 

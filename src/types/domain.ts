@@ -27,6 +27,21 @@ export type NotificationType =
 
 export type ChannelType = "alimtalk" | "sms" | "in_app" | "mock";
 export type NotificationStatus = "queued" | "sent" | "failed" | "mocked" | "skipped";
+export type MediaKind =
+  | "grooming_before"
+  | "grooming_after"
+  | "grooming_result"
+  | "message_image"
+  | "shop_profile"
+  | "customer_shared"
+  | "memo_attachment";
+export type MediaVisibility = "private" | "customer_shared" | "public";
+export type MediaStatus = "uploading" | "uploaded" | "processing" | "ready" | "failed" | "deleted";
+export type MediaRetentionPolicy = "transient" | "standard" | "archive";
+export type MediaUploadSource = "owner_web" | "owner_mobile" | "customer_page" | "system";
+export type MediaVariantKey = "thumbnail" | "preview" | "optimized" | "provider_ready";
+export type NotificationMediaAttachmentRole = "message_image" | "before_photo" | "after_photo" | "result_photo" | "receipt" | "other";
+export type MediaSendStatus = "queued" | "sent" | "failed" | "skipped";
 
 export type ShopNotificationSettings = {
   enabled: boolean;
@@ -150,6 +165,7 @@ export type Appointment = {
   guardian_id: string;
   pet_id: string;
   service_id: string;
+  staff_id?: string | null;
   appointment_date: string;
   appointment_time: string;
   status: AppointmentStatus;
@@ -177,6 +193,34 @@ export type GroomingRecord = {
   updated_at: string;
 };
 
+export type BootstrapStaffMember = {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  defaultDays: Array<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun">;
+  startTime: string;
+  endTime: string;
+  regularOff: string;
+  annualRemain: number;
+  todayBookings: number;
+  weekBookings: number;
+};
+
+export type StaffScheduleOverride = {
+  id: string;
+  shop_id: string;
+  staff_id: string;
+  work_date: string;
+  status: "work" | "off" | "annual" | "half";
+  start_time: string | null;
+  end_time: string | null;
+  period: "오전" | "오후" | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Notification = {
   id: string;
   shop_id: string;
@@ -197,6 +241,114 @@ export type Notification = {
   metadata?: Record<string, string | boolean | number | null>;
   sent_at: string | null;
   created_at: string;
+};
+
+export type MediaAsset = {
+  id: string;
+  shop_id: string;
+  guardian_id: string | null;
+  pet_id: string | null;
+  appointment_id: string | null;
+  grooming_record_id: string | null;
+  bucket: string;
+  storage_path: string;
+  original_file_name: string | null;
+  content_type: string;
+  byte_size: number;
+  source_byte_size?: number | null;
+  width: number | null;
+  height: number | null;
+  checksum_sha256: string | null;
+  media_kind: MediaKind;
+  visibility: MediaVisibility;
+  status: MediaStatus;
+  retention_policy: MediaRetentionPolicy;
+  uploaded_by_user_id: string | null;
+  uploaded_from: MediaUploadSource;
+  metadata: Record<string, string | boolean | number | null>;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string | null;
+  deleted_at: string | null;
+};
+
+export type MediaVariant = {
+  id: string;
+  media_asset_id: string;
+  variant_key: MediaVariantKey;
+  bucket: string;
+  storage_path: string;
+  content_type: string;
+  byte_size: number;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+};
+
+export type NotificationMediaAttachment = {
+  id: string;
+  shop_id: string;
+  notification_id: string;
+  media_asset_id: string;
+  guardian_id: string | null;
+  pet_id: string | null;
+  appointment_id: string | null;
+  attachment_role: NotificationMediaAttachmentRole;
+  sort_order: number;
+  channel: ChannelType | string;
+  provider: string | null;
+  provider_media_id: string | null;
+  provider_media_url: string | null;
+  send_status: MediaSendStatus;
+  sent_at: string | null;
+  fail_reason: string | null;
+  metadata: Record<string, string | boolean | number | null>;
+  created_at: string;
+};
+
+export type MediaSendAttempt = {
+  id: string;
+  shop_id: string;
+  notification_id: string | null;
+  notification_media_attachment_id: string | null;
+  media_asset_id: string;
+  guardian_id: string | null;
+  pet_id: string | null;
+  appointment_id: string | null;
+  channel: ChannelType | string;
+  provider: string | null;
+  provider_message_id: string | null;
+  provider_media_id: string | null;
+  recipient_phone: string | null;
+  status: MediaSendStatus;
+  fail_reason: string | null;
+  sent_at: string | null;
+  metadata: Record<string, string | boolean | number | null>;
+  created_at: string;
+};
+
+export type AlimtalkCreditSummary = {
+  shop_id: string;
+  included_total: number;
+  included_used: number;
+  included_remaining: number;
+  included_period_started_at: string | null;
+  included_period_ends_at: string | null;
+  purchased_total: number;
+  purchased_used: number;
+  purchased_remaining: number;
+  remaining_total: number;
+  updated_at: string | null;
+};
+
+export type ShopMediaUsageMonth = {
+  shop_id: string;
+  usage_month: string;
+  uploaded_asset_count: number;
+  uploaded_bytes: number;
+  sent_asset_count: number;
+  sent_bytes: number;
+  updated_at: string;
 };
 
 export type LandingInterest = {
@@ -222,9 +374,12 @@ export type BootstrapPayload = {
   deletedGuardians?: Guardian[];
   pets: Pet[];
   services: Service[];
+  staffMembers: BootstrapStaffMember[];
+  staffScheduleOverrides?: StaffScheduleOverride[];
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
   notifications: Notification[];
+  alimtalkCreditSummary?: AlimtalkCreditSummary | null;
   landingInterests: LandingInterest[];
   landingFeedback: LandingFeedback[];
 };

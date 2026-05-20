@@ -11,7 +11,6 @@ import {
   SoftSelect,
   TableRow,
   TableShell,
-  WebSectionTitle,
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
@@ -71,6 +70,12 @@ function formatPrice(value: string) {
   return `${numericValue.toLocaleString("ko-KR")}원`;
 }
 
+function formatPriceInput(value: string) {
+  const numericValue = parsePrice(value);
+  if (!numericValue) return "";
+  return numericValue.toLocaleString("ko-KR");
+}
+
 function inferCategory(serviceName: string) {
   if (serviceName.includes("목욕")) return "목욕";
   if (serviceName.includes("위생")) return "위생";
@@ -116,7 +121,7 @@ function buildForm(service: ManagedService): ServiceForm {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[13px] font-semibold text-[#334155]">{label}</span>
+      <span className="text-[15px] font-semibold text-[#334155]">{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -189,7 +194,7 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-7 min-w-[46px] items-center justify-center whitespace-nowrap rounded-[8px] px-2.5 text-[12px] font-semibold leading-none",
+        "inline-flex h-7 min-w-[46px] items-center justify-center whitespace-nowrap rounded-[8px] px-2.5 text-[15px] font-semibold leading-none",
         visible ? "bg-[#edf7f3] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]",
       )}
     >
@@ -277,15 +282,12 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
     setFormError("");
   }
 
-  function duplicateService(service: ManagedService) {
-    const duplicated = {
-      ...service,
-      id: createServiceId(),
-      name: `${service.name} 복사본`,
-      order: services.length + 1,
-    };
-    setServices((current) => [...current, duplicated]);
-    selectService(duplicated);
+  function updatePriceInput(value: string) {
+    const numericValue = parsePrice(value);
+    setServiceForm((form) => ({
+      ...form,
+      price: numericValue ? String(numericValue) : "",
+    }));
   }
 
   function toggleVisibility(service: ManagedService) {
@@ -298,12 +300,6 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
 
   return (
     <div className="space-y-5">
-      <WebSectionTitle
-        title="서비스"
-        description="고객 예약 화면에 노출되는 서비스, 가격, 소요시간을 관리합니다."
-        action={<PrimaryButton label="서비스 추가" onClick={startNewService} />}
-      />
-
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_380px]">
         <TableShell columns={["서비스", "카테고리", "소요시간", "가격", "담당", "예약 노출", "관리"]} align="center">
           {services.map((service) => (
@@ -315,13 +311,13 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               align="center"
               columns={[
                 <div key="name" className="min-w-0 text-center">
-                  <p className="truncate text-[18px] font-normal text-[#111827]">{service.name}</p>
-                  {service.description ? <p className="mt-1 truncate text-[12px] text-[#64748b]">{service.description}</p> : null}
+                  <p className="truncate text-[15px] font-normal text-[#111827]">{service.name}</p>
+                  {service.description ? <p className="mt-1 truncate text-[15px] text-[#64748b]">{service.description}</p> : null}
                 </div>,
-                <p key="category" className="text-[14px] text-[#334155]">{service.category}</p>,
-                <p key="duration" className="text-[14px] text-[#334155]">{service.duration}</p>,
-                <p key="price" className="text-[14px] font-medium text-[#111827]">{service.price}</p>,
-                <p key="staff" className={cn("text-[14px]", service.staff === "직원 미지정" ? "font-medium text-[#b91c1c]" : "text-[#64748b]")}>
+                <p key="category" className="text-[15px] text-[#334155]">{service.category}</p>,
+                <p key="duration" className="text-[15px] text-[#334155]">{service.duration}</p>,
+                <p key="price" className="text-[15px] font-medium text-[#111827]">{service.price}</p>,
+                <p key="staff" className={cn("text-[15px]", service.staff === "직원 미지정" ? "font-medium text-[#b91c1c]" : "text-[#64748b]")}>
                   {service.staff}
                 </p>,
                 <VisibilityBadge key="visible" visible={service.visible} />,
@@ -332,7 +328,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
                       event.stopPropagation();
                       selectService(service);
                     }}
-                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[15px] font-medium text-[#334155] hover:bg-[#f8fafc]"
                   >
                     수정
                   </button>
@@ -342,7 +338,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
                       event.stopPropagation();
                       toggleVisibility(service);
                     }}
-                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[15px] font-medium text-[#334155] hover:bg-[#f8fafc]"
                   >
                     {service.visible ? "숨김" : "노출"}
                   </button>
@@ -350,23 +346,24 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               ]}
             />
           ))}
+          <div
+            className="grid w-full items-center border-b-0 bg-white px-5 py-4 text-center"
+            style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+          >
+            <div className="col-span-7 flex justify-center">
+              <button
+                type="button"
+                onClick={startNewService}
+                className="flex h-11 w-full max-w-[360px] items-center justify-center rounded-[8px] border border-[#1f6b5b] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white transition hover:bg-[#1b604f]"
+              >
+                서비스 추가
+              </button>
+            </div>
+          </div>
         </TableShell>
 
         <WebSurface className="p-5">
-          <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] pb-4">
-            <div>
-              <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">SERVICE</p>
-              <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">
-                {serviceForm.id ? "서비스 수정" : "서비스 추가"}
-              </h3>
-              <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-                가격과 소요시간은 고객 예약 화면과 예약 가능 시간 계산에 함께 사용됩니다.
-              </p>
-            </div>
-            {serviceForm.id ? <VisibilityBadge visible={serviceForm.visible} /> : null}
-          </div>
-
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             <Field label="서비스명">
               <TextInput
                 value={serviceForm.name}
@@ -393,9 +390,9 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               </Field>
               <Field label="가격">
                 <TextInput
-                  value={serviceForm.price}
-                  onChange={(price) => setServiceForm((form) => ({ ...form, price }))}
-                  placeholder="예: 65000"
+                  value={formatPriceInput(serviceForm.price)}
+                  onChange={updatePriceInput}
+                  placeholder="예: 80,000"
                   inputMode="numeric"
                 />
               </Field>
@@ -413,7 +410,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               />
             </Field>
 
-            <Field label="고객 예약 화면 노출">
+            <Field label="예약 노출">
               <button
                 type="button"
                 onClick={() => setServiceForm((form) => ({ ...form, visible: !form.visible }))}
@@ -424,7 +421,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
                     : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
                 )}
               >
-                <span>{serviceForm.visible ? "예약 화면에 노출" : "예약 화면에서 숨김"}</span>
+                <span>{serviceForm.visible ? "노출 중" : "숨김"}</span>
                 <span className={cn("h-5 w-9 rounded-full p-0.5 transition", serviceForm.visible ? "bg-[#2f7866]" : "bg-[#cbd5e1]")}>
                   <span className={cn("block h-4 w-4 rounded-full bg-white transition", serviceForm.visible ? "translate-x-4" : "translate-x-0")} />
                 </span>
@@ -435,7 +432,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               <TextArea
                 value={serviceForm.description}
                 onChange={(description) => setServiceForm((form) => ({ ...form, description }))}
-                placeholder="고객 예약 화면에 보여줄 짧은 안내를 입력해 주세요."
+                placeholder="예: 첫 방문 상담 포함, 털엉킴 추가요금 별도"
               />
             </Field>
           </div>
@@ -443,12 +440,8 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
           {formError ? <p className="mt-4 text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
 
           <div className="mt-6 grid grid-cols-[1fr_auto] gap-2">
-            {serviceForm.id && selectedService ? (
-              <GhostButton label="복제" onClick={() => duplicateService(selectedService)} />
-            ) : (
-              <GhostButton label="초기화" onClick={startNewService} />
-            )}
-            <PrimaryButton label={serviceForm.id ? "수정 저장" : "서비스 저장"} onClick={saveService} />
+            <GhostButton label="새 서비스 추가" onClick={startNewService} />
+            <PrimaryButton label="저장" onClick={saveService} />
           </div>
         </WebSurface>
       </div>

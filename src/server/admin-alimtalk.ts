@@ -41,6 +41,55 @@ export type RelayTemplateCatalogResponse = {
   items: RelaySsodaaTemplateItem[];
 };
 
+export type RelayTemplateCodeCheckInput = {
+  templateCode: string;
+};
+
+export type RelayTemplateCodeCheckResponse = {
+  ok: true;
+  templateCode: string;
+  providerResponse: unknown;
+};
+
+export type RelayTemplateRegisterInput = {
+  templateCode: string;
+  templateName: string;
+  templateContent: string;
+  categoryCode: string;
+  templateMessageType: "BA" | "EX" | "AD" | "MI";
+  templateEmphasizeType: "NONE" | "TEXT" | "IMAGE" | "ITEM_LIST";
+  templateExtra?: string | null;
+  templateAd?: string | null;
+  templateTitle?: string | null;
+  templateSubtitle?: string | null;
+  comment?: string | null;
+  requestReview: boolean;
+  templateConfigKey?: AlimtalkTemplateConfigKey | null;
+};
+
+export type RelayTemplateRegisterResponse = {
+  ok: true;
+  templateCode: string;
+  registered: boolean;
+  reviewRequested: boolean;
+  mappedConfigKey: AlimtalkTemplateConfigKey | null;
+  providerResponse: unknown;
+};
+
+export type RelayTemplateCategory = {
+  code: string;
+  name: string;
+  groupName: string | null;
+  inclusion: string | null;
+  exclusion: string | null;
+};
+
+export type RelayTemplateCategoryListResponse = {
+  ok: true;
+  categories: RelayTemplateCategory[];
+  providerResponse: unknown;
+};
+
 export type RelayAdminConfigResponse = {
   ok: true;
   config: RelayAdminConfig;
@@ -161,6 +210,17 @@ function getRelayAdminTemplatesUrl() {
 
   const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
   parsed.pathname = "/admin/templates";
+  parsed.search = "";
+  return parsed.toString();
+}
+
+function getRelayAdminTemplateActionUrl(pathname: string) {
+  if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) {
+    throw new Error("알림톡 relay 연결값이 아직 설정되어 있지 않습니다.");
+  }
+
+  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
+  parsed.pathname = pathname;
   parsed.search = "";
   return parsed.toString();
 }
@@ -291,6 +351,73 @@ export async function getRelayTemplateCatalog() {
   }
 
   return body as RelayTemplateCatalogResponse;
+}
+
+export async function checkRelayTemplateCode(input: RelayTemplateCodeCheckInput) {
+  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/code-check"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  const body = await parseRelayResponse(response);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "message" in body && typeof body.message === "string"
+        ? body.message
+        : "쏘다 템플릿 코드 검증에 실패했습니다.";
+    throw new Error(message);
+  }
+
+  return body as RelayTemplateCodeCheckResponse;
+}
+
+export async function registerRelayTemplate(input: RelayTemplateRegisterInput) {
+  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/register"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  const body = await parseRelayResponse(response);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "message" in body && typeof body.message === "string"
+        ? body.message
+        : "쏘다 템플릿 등록에 실패했습니다.";
+    throw new Error(message);
+  }
+
+  return body as RelayTemplateRegisterResponse;
+}
+
+export async function getRelayTemplateCategories() {
+  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/categories"), {
+    method: "GET",
+    headers: {
+      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+    },
+    cache: "no-store",
+  });
+
+  const body = await parseRelayResponse(response);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "message" in body && typeof body.message === "string"
+        ? body.message
+        : "쏘다 템플릿 카테고리 조회에 실패했습니다.";
+    throw new Error(message);
+  }
+
+  return body as RelayTemplateCategoryListResponse;
 }
 
 export function getAppAlimtalkConfig(): AppAlimtalkConfig {

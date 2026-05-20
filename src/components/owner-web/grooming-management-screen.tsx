@@ -1,17 +1,49 @@
 "use client";
 
-import { Camera, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-import { groomingRecords, reservationRows } from "@/components/owner-web/owner-web-data";
+import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { ToolbarRow, WebSurface } from "@/components/owner-web/owner-web-ui";
-import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
+import { cn, currentDateInTimeZone } from "@/lib/utils";
+import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
-type GroomingRecord = (typeof groomingRecords)[number];
-type ReservationRow = (typeof reservationRows)[number] & { date: string };
+type GroomingCalendarRecord = {
+  id: string;
+  guardianId: string;
+  petId: string;
+  appointmentId: string | null;
+  pet: string;
+  customer: string;
+  service: string;
+  memo: string;
+  next: string;
+  date: string;
+};
+
+type ReservationRow = {
+  id: string;
+  guardianId: string;
+  petId: string;
+  pet: string;
+  customer: string;
+  service: string;
+  status: string;
+  note: string;
+  date: string;
+  time: string;
+  staff: string;
+  phone: string;
+  channel: string;
+};
+
 type DayItem = {
   id: string;
   type: "record" | "reservation";
+  guardianId: string;
+  petId: string;
+  appointmentId?: string | null;
+  groomingRecordId?: string | null;
   pet: string;
   customer: string;
   service: string;
@@ -27,11 +59,73 @@ type DayItem = {
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
-function buildReservationDates(): ReservationRow[] {
-  return reservationRows.map((reservation, index) => ({
-    ...reservation,
-    date: addDate(currentDateInTimeZone(), index === 4 ? 1 : 0),
-  }));
+const appointmentStatusLabels: Record<AppointmentStatus, string> = {
+  pending: "승인 대기",
+  confirmed: "확정",
+  in_progress: "진행 중",
+  almost_done: "픽업 준비",
+  completed: "완료",
+  cancelled: "취소",
+  rejected: "거절",
+  noshow: "노쇼",
+};
+
+function buildBootstrapLookup(data: BootstrapPayload) {
+  return {
+    guardianById: new Map(data.guardians.map((guardian) => [guardian.id, guardian])),
+    petById: new Map(data.pets.map((pet) => [pet.id, pet])),
+    serviceById: new Map(data.services.map((service) => [service.id, service])),
+  };
+}
+
+function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[] {
+  const { guardianById, petById, serviceById } = buildBootstrapLookup(data);
+
+  return data.appointments.map((appointment) => {
+    const guardian = guardianById.get(appointment.guardian_id);
+    const pet = petById.get(appointment.pet_id);
+    const service = serviceById.get(appointment.service_id);
+
+    return {
+      id: appointment.id,
+      guardianId: appointment.guardian_id,
+      petId: appointment.pet_id,
+      pet: pet?.name ?? "반려동물 미등록",
+      customer: guardian?.name ?? "보호자 미등록",
+      service: service?.name ?? "서비스 미등록",
+      status: appointmentStatusLabels[appointment.status],
+      note: appointment.memo?.trim() || "요청 메모가 없습니다.",
+      date: appointment.appointment_date,
+      time: appointment.appointment_time,
+      staff: "담당 미배정",
+      phone: guardian?.phone ?? "",
+      channel: appointment.source === "customer" ? "고객 예약" : "오너 등록",
+    };
+  });
+}
+
+function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarRecord[] {
+  const { guardianById, petById, serviceById } = buildBootstrapLookup(data);
+
+  return data.groomingRecords.map((record) => {
+    const guardian = guardianById.get(record.guardian_id);
+    const pet = petById.get(record.pet_id);
+    const service = serviceById.get(record.service_id);
+    const memoParts = [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean);
+
+    return {
+      id: record.id,
+      guardianId: record.guardian_id,
+      petId: record.pet_id,
+      appointmentId: record.appointment_id,
+      pet: pet?.name ?? "반려동물 미등록",
+      customer: guardian?.name ?? "보호자 미등록",
+      service: service?.name ?? "서비스 미등록",
+      memo: memoParts.join(" · ") || "작성된 메모가 없습니다.",
+      next: "",
+      date: record.groomed_at.slice(0, 10),
+    };
+  });
 }
 
 function normalizeRecordDate(date: string) {
@@ -74,12 +168,16 @@ function moveMonth(date: string, offset: number) {
   return parsed.toLocaleDateString("en-CA");
 }
 
-function buildDayItems(records: GroomingRecord[], reservations: ReservationRow[], date: string): DayItem[] {
+function buildDayItems(records: GroomingCalendarRecord[], reservations: ReservationRow[], date: string): DayItem[] {
   const recordItems: DayItem[] = records
     .filter((record) => normalizeRecordDate(record.date) === date)
     .map((record) => ({
       id: record.id,
       type: "record" as const,
+      guardianId: record.guardianId,
+      petId: record.petId,
+      appointmentId: record.appointmentId,
+      groomingRecordId: record.id,
       pet: record.pet,
       customer: record.customer,
       service: record.service,
@@ -94,6 +192,10 @@ function buildDayItems(records: GroomingRecord[], reservations: ReservationRow[]
     .map((reservation) => ({
       id: reservation.id,
       type: "reservation" as const,
+      guardianId: reservation.guardianId,
+      petId: reservation.petId,
+      appointmentId: reservation.id,
+      groomingRecordId: null,
       pet: reservation.pet,
       customer: reservation.customer,
       service: reservation.service,
@@ -164,13 +266,26 @@ function getCalendarStatusCounts(items: DayItem[]) {
   };
 }
 
-export default function GroomingManagementScreen() {
-  const records = groomingRecords;
-  const [reservations, setReservations] = useState<ReservationRow[]>(() => buildReservationDates());
+export default function GroomingManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
+  const records = useMemo(() => buildRecordsFromBootstrap(initialData), [initialData]);
+  const initialReservations = useMemo(() => buildReservationsFromBootstrap(initialData), [initialData]);
+  const [reservations, setReservations] = useState<ReservationRow[]>(() => initialReservations);
   const [selectedDate, setSelectedDate] = useState(currentDateInTimeZone());
   const [monthAnchor, setMonthAnchor] = useState(currentDateInTimeZone());
   const [query, setQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setReservations(initialReservations);
+      setSelectedItem((current) => {
+        if (!current) return null;
+        const exists = [...initialReservations, ...records].some((item) => item.id === current.id);
+        return exists ? current : null;
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialReservations, records]);
 
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -356,7 +471,9 @@ export default function GroomingManagementScreen() {
         </div>
       </WebSurface>
 
-      {selectedItem ? <GroomingRecordSheet item={selectedItem} onClose={() => setSelectedItem(null)} /> : null}
+      {selectedItem ? (
+        <GroomingRecordSheet shopId={initialData.shop.id} item={selectedItem} onClose={() => setSelectedItem(null)} />
+      ) : null}
     </div>
   );
 }
@@ -479,7 +596,7 @@ function DayItemSection({
   );
 }
 
-function GroomingRecordSheet({ item, onClose }: { item: DayItem; onClose: () => void }) {
+function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
       <aside
@@ -517,17 +634,15 @@ function GroomingRecordSheet({ item, onClose }: { item: DayItem; onClose: () => 
             </section>
           ) : null}
 
-          <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-            <p className="text-[12px] font-semibold text-[#64748b]">사진</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {["전", "후", "주의"].map((label) => (
-                <div key={label} className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-[#cfd8e3] bg-[#f8fafc] text-[13px] text-[#64748b]">
-                  <Camera className="mr-1 h-4 w-4" />
-                  {label}
-                </div>
-              ))}
-            </div>
-          </section>
+          <OwnerMediaUploadPanel
+            context={{
+              shopId,
+              guardianId: item.guardianId,
+              petId: item.petId,
+              appointmentId: item.appointmentId ?? null,
+              groomingRecordId: item.groomingRecordId ?? null,
+            }}
+          />
         </div>
       </aside>
     </div>

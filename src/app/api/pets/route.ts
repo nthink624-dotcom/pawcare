@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
-import { createPet, updatePet } from "@/server/owner-mutations";
+import { createPet, deletePet, updatePet } from "@/server/owner-mutations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    await requireOwnerShop(request);
-    const result = await updatePet(body);
+    const owner = await requireOwnerShop(request, body?.shopId);
+    const result = await updatePet({ ...body, shopId: owner.shopId });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {
@@ -31,6 +31,22 @@ export async function PATCH(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : "반려동물 수정에 실패했습니다.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const owner = await requireOwnerShop(request, body?.shopId);
+    const result = await deletePet({ ...body, shopId: owner.shopId });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "반려동물 삭제에 실패했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

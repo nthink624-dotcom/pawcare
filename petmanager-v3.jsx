@@ -1364,7 +1364,7 @@ function CustomerView({ D, getSvc, getAvailableSlots, addAppt, flash, save, isSl
 
       <div className="cv-card" style={{ background: "var(--gl)", border: "1px solid #b5d4bc" }}>
         <div style={{ textAlign: "center", padding: "4px 0" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--g)" }}>💬 자동 알림 안내</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--g)" }}>💬 알림 발송 안내</div>
           <div style={{ fontSize: 10, color: "var(--t2)", marginTop: 3, lineHeight: 1.5 }}>
             미용 진행 상황이 카카오 알림톡으로 자동 전송됩니다<br />
             "거의 완료" 알림 → "픽업 가능" 알림 순서로 안내해드려요

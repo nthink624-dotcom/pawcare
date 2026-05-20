@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchApiJson } from "@/lib/api";
 import type { AlimtalkTemplateAlias } from "@/lib/notification-registry";
 import type {
+  AdminAlimtalkTestResult,
   AppTemplateDraft,
   RelayRuntimeDiagnostics,
-  AdminAlimtalkTestResult,
 } from "@/server/admin-alimtalk";
 
 function statusTone(ok: boolean) {
@@ -38,7 +38,7 @@ export default function AdminAlimtalkRuntimePanel({
     shopName: "펫매니저 테스트 매장",
     petName: "우유",
     serviceName: "전체 미용",
-    appointmentDateTime: "2026-05-04(월) 14:00",
+    appointmentDateTime: "2026-05-19 14:00",
     bookingManageUrl: "https://www.petmanager.co.kr",
   });
 
@@ -56,7 +56,7 @@ export default function AdminAlimtalkRuntimePanel({
       setDiagnostics(response);
       setDiagnosticsError(null);
     } catch (error) {
-      setDiagnosticsError(error instanceof Error ? error.message : "relay 진단 정보를 불러오지 못했습니다.");
+      setDiagnosticsError(error instanceof Error ? error.message : "릴레이 진단 정보를 불러오지 못했습니다.");
     } finally {
       setLoadingDiagnostics(false);
     }
@@ -96,10 +96,10 @@ export default function AdminAlimtalkRuntimePanel({
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
-            <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">실시간 relay 진단</p>
-            <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">현재 relay와 템플릿 상태</h2>
+            <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">실시간 릴레이 진단</p>
+            <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">현재 릴레이와 템플릿 상태</h2>
             <p className="text-[13px] leading-6 text-[#6f665f]">
-              relay가 살아 있는지, 템플릿이 몇 개 연결됐는지, 디버그 엔드포인트 응답이 어떤지 바로 확인합니다.
+              릴레이 서버가 살아 있는지, 앱이 어느 릴레이 주소를 보고 있는지, 템플릿 코드가 몇 개 연결되어 있는지 확인합니다.
             </p>
           </div>
           <button
@@ -121,7 +121,7 @@ export default function AdminAlimtalkRuntimePanel({
 
         {loadingDiagnostics ? (
           <div className="mt-5 rounded-[6px] border border-[#e6e3dd] bg-white px-5 py-6 text-[14px] text-[#7a7268]">
-            relay 진단 상태를 불러오는 중이에요.
+            릴레이 진단 상태를 불러오는 중입니다.
           </div>
         ) : diagnostics ? (
           <div className="mt-5 space-y-4">
@@ -138,7 +138,7 @@ export default function AdminAlimtalkRuntimePanel({
                 <p className="mt-2 text-[16px] font-semibold text-[#171411]">
                   {diagnostics.templates.configuredTemplates} / {diagnostics.templates.totalTemplates}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-[#7a7268]">relay debug 기준 연결된 템플릿 개수</p>
+                <p className="mt-2 text-[12px] leading-5 text-[#7a7268]">릴레이 기준으로 코드가 채워진 템플릿 개수입니다.</p>
               </div>
             </div>
 
@@ -178,9 +178,9 @@ export default function AdminAlimtalkRuntimePanel({
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">관리자 테스트 발송</p>
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 + relay 즉시 테스트</h2>
+          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 + 릴레이 즉시 테스트</h2>
           <p className="text-[13px] leading-6 text-[#6f665f]">
-            선택한 템플릿의 현재 초안 본문으로 직접 발송합니다. 특히 10분 전 알림처럼 특정 타입만 안 될 때 빠르게 확인할 수 있어요.
+            이미 승인된 템플릿 코드가 릴레이에 연결되어 있을 때만 실제 발송 테스트를 하세요. 승인 전 템플릿은 공급자에서 거절될 수 있습니다.
           </p>
         </div>
 

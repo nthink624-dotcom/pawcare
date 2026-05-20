@@ -9,6 +9,11 @@ function normalizePhone(value: string) {
   return value.replace(/[^0-9]/g, "");
 }
 
+function normalizeMediaAssetIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim());
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -47,6 +52,7 @@ export async function POST(request: NextRequest) {
       templateType: body?.templateType ?? null,
       message: message || null,
       metadata: body?.metadata ?? null,
+      mediaAssetIds: normalizeMediaAssetIds(body?.mediaAssetIds),
       scheduledAt: body?.scheduledAt ?? null,
       force: body?.force === true || body?.status === "sent" || !hasSupabaseServerEnv(),
       skipIfExists: body?.skipIfExists === true,

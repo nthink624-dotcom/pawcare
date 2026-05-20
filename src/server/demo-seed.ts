@@ -41,6 +41,9 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
     bath: randomUUID(),
     bathOnly: randomUUID(),
     care: randomUUID(),
+    partial: randomUUID(),
+    spa: randomUUID(),
+    nail: randomUUID(),
   };
 
   const appointmentIds = {
@@ -84,7 +87,7 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
       },
       regular_closed_days: [0],
       temporary_closed_dates: [temporaryClosedDate],
-      concurrent_capacity: 2,
+      concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
       approval_mode: "manual",
@@ -138,7 +141,7 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
         },
         regular_closed_days: [0],
         temporary_closed_dates: [temporaryClosedDate],
-        concurrent_capacity: 2,
+        concurrent_capacity: 1,
         booking_slot_interval_minutes: 30,
         booking_slot_offset_minutes: 0,
         approval_mode: "manual",
@@ -152,10 +155,13 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
   }
 
   await supabase.from("services").insert([
-    { id: serviceIds.full, shop_id: shopId, name: "전체 미용", price: 55000, duration_minutes: 120, is_active: true, created_at: now, updated_at: now },
-    { id: serviceIds.bath, shop_id: shopId, name: "목욕 + 부분정리", price: 38000, duration_minutes: 80, is_active: true, created_at: now, updated_at: now },
-    { id: serviceIds.bathOnly, shop_id: shopId, name: "목욕", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
-    { id: serviceIds.care, shop_id: shopId, name: "위생 미용", price: 18000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.full, shop_id: shopId, name: "전체 미용", price: 80000, duration_minutes: 120, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.bath, shop_id: shopId, name: "목욕 + 부분정리", price: 55000, duration_minutes: 90, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.bathOnly, shop_id: shopId, name: "목욕", price: 35000, duration_minutes: 60, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.care, shop_id: shopId, name: "위생 미용", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.partial, shop_id: shopId, name: "부분 미용", price: 30000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.spa, shop_id: shopId, name: "스파/약욕 케어", price: 40000, duration_minutes: 60, is_active: true, created_at: now, updated_at: now },
+    { id: serviceIds.nail, shop_id: shopId, name: "발톱 정리", price: 10000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
   ]);
 
   await supabase.from("guardians").insert([

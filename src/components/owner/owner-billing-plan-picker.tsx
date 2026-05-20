@@ -3,40 +3,6 @@
 import { type OwnerPlan, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
-function getPlanTermLabel(plan: OwnerPlan) {
-  if (plan.months === 12) return "1년";
-  return `${plan.months}개월`;
-}
-
-function getPlanBillingLabel(plan: OwnerPlan) {
-  return plan.billingType === "one_time" ? "일반 결제" : "약정 결제";
-}
-
-function getPlanDescription(plan: OwnerPlan) {
-  switch (plan.code) {
-    case "monthly":
-      return "부담 없이 다시 시작하기 좋아요.";
-    case "quarterly":
-      return "재이용 흐름을 천천히 되찾기 좋아요.";
-    case "halfyearly":
-      return "운영 리듬을 안정적으로 이어가기 좋아요.";
-    case "yearly":
-      return "가장 낮은 월 요금으로 오래 쓸수록 더 이득이에요.";
-    default:
-      return "가볍게 시작하고 필요에 맞게 이어갈 수 있어요.";
-  }
-}
-
-function getPlanSavingsLabel(plan: OwnerPlan, plans: OwnerPlan[]) {
-  const monthlyPlan = plans.find((item) => item.code === "monthly");
-  if (!monthlyPlan || plan.months <= 1) return null;
-
-  const savings = monthlyPlan.totalPrice * plan.months - plan.totalPrice;
-  if (savings <= 0) return null;
-
-  return `1개월 대비 ${won(savings)} 절약`;
-}
-
 type OwnerBillingPlanPickerProps = {
   plans: OwnerPlan[];
   selectedPlanCode: OwnerPlanCode;
@@ -57,103 +23,82 @@ export function OwnerBillingPlanPicker({
   message,
 }: OwnerBillingPlanPickerProps) {
   const selectedPlan = plans.find((plan) => plan.code === selectedPlanCode) ?? plans[0];
-  const selectedPlanTerm = getPlanTermLabel(selectedPlan);
-  const selectedPlanSavings = getPlanSavingsLabel(selectedPlan, plans);
+
+  if (!selectedPlan) {
+    return null;
+  }
 
   return (
-    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-7 text-[#171411]">
-      <section className="rounded-[24px] border border-[#e1dacd] bg-[#fffdf8] px-5 pb-6 pt-5 shadow-[0_10px_30px_rgba(41,41,38,0.04)]">
-        <p className="text-[13px] font-medium tracking-[-0.02em] text-[#1f5b51]">플랜 선택</p>
-        <h1 className="mt-2 whitespace-nowrap text-[29px] font-semibold leading-none tracking-[-0.05em] text-[#171411]">
-          플랜을 선택해 주세요
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-7 text-[#111827]">
+      <section className="rounded-[22px] border border-[#dbe2ea] bg-white px-5 pb-6 pt-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+        <p className="text-[13px] font-medium text-[#1f6b5b]">요금제 선택</p>
+        <h1 className="mt-2 text-[28px] font-semibold leading-tight tracking-[-0.03em] text-[#111827]">
+          매장 규모에 맞는 요금제를 선택해 주세요
         </h1>
+        <p className="mt-3 text-[14px] leading-6 text-[#64748b]">
+          예약 건수와 사진 수는 제한하지 않고, 직원 수와 알림톡 포함량을 기준으로 나눴습니다.
+        </p>
 
-        <div className="mt-5 rounded-[18px] bg-[#f1ede6] p-1.5">
-          <div className="grid grid-cols-4 gap-1.5">
-            {plans.map((plan) => {
-              const selected = selectedPlan.code === plan.code;
+        <div className="mt-5 space-y-3">
+          {plans.map((plan) => {
+            const selected = selectedPlan.code === plan.code;
 
-              return (
-                <button
-                  key={plan.code}
-                  type="button"
-                  onClick={() => onSelectPlanCode(plan.code)}
-                  className={`relative min-w-0 rounded-[12px] px-2 py-3 text-center transition ${
-                    selected
-                      ? "bg-white shadow-[0_6px_16px_rgba(32,31,27,0.12)]"
-                      : "text-[#7d756b]"
-                  }`}
-                >
-                  {plan.featured ? (
-                    <span className="absolute -top-2 right-2 rounded-full bg-[#1f5b51] px-2 py-[3px] text-[10px] font-medium leading-none text-white">
-                      추천
-                    </span>
-                  ) : null}
-                  <p
-                    className={`text-[13px] leading-none tracking-[-0.02em] ${
-                      selected ? "font-medium text-[#171411]" : "font-normal"
-                    }`}
-                  >
-                    {getPlanTermLabel(plan)}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-[20px] border border-[#ded7cb] bg-white px-5 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[14px] font-normal tracking-[-0.02em] text-[#8b8278]">
-                {getPlanBillingLabel(selectedPlan)}
-              </p>
-              <p className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.05em] text-[#171411]">
-                {won(selectedPlan.monthlyPrice)}
-                <span className="ml-1.5 text-[18px] font-normal tracking-[-0.03em] text-[#5e5750]">/ 월</span>
-              </p>
-              <p className="mt-3 text-[14px] font-normal tracking-[-0.02em] text-[#8b8278]">
-                총 {won(selectedPlan.totalPrice)} 청구
-              </p>
-              <p
-                className={`mt-4 tracking-[-0.02em] text-[#4f4942] ${
-                  selectedPlan.code === "yearly" || selectedPlan.code === "halfyearly"
-                    ? "whitespace-nowrap text-[12px] leading-none"
-                    : "text-[14px] leading-[1.55]"
+            return (
+              <button
+                key={plan.code}
+                type="button"
+                onClick={() => onSelectPlanCode(plan.code)}
+                className={`w-full rounded-[16px] border px-4 py-4 text-left transition ${
+                  selected
+                    ? "border-[#1f6b5b] bg-white shadow-[0_10px_24px_rgba(31,107,91,0.10)]"
+                    : "border-[#dbe2ea] bg-white hover:border-[#b8c5d4]"
                 }`}
               >
-                {getPlanDescription(selectedPlan)}
-              </p>
-            </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">{plan.title}</p>
+                      {plan.badge ? (
+                        <span className="rounded-full bg-[#eef7f4] px-2 py-1 text-[11px] font-medium text-[#1f6b5b]">
+                          {plan.badge}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-[13px] leading-5 text-[#64748b]">{plan.description}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#111827]">{won(plan.monthlyPrice)}</p>
+                    <p className="mt-1 text-[12px] text-[#64748b]">월 정기결제</p>
+                  </div>
+                </div>
 
-            {selectedPlan.discountPercent > 0 ? (
-              <div className="inline-flex h-[38px] shrink-0 items-center rounded-[10px] bg-[#eef7f4] px-2.5 text-[#1f5b51]">
-                <p className="relative -top-[1px] whitespace-nowrap text-[15px] font-medium leading-none tracking-[-0.03em]">
-                  {selectedPlan.discountPercent}% 할인
-                </p>
-              </div>
-            ) : null}
-          </div>
+                <div className="mt-4 grid gap-2 text-[13px] text-[#334155]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">직원</span>
+                    <span>{plan.staffLimitLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">알림톡</span>
+                    <span>{plan.alimtalkIncludedLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">초과</span>
+                    <span>{plan.excessAlimtalkLabel}</span>
+                  </div>
+                </div>
 
-          {selectedPlanSavings ? (
-            <div className="mt-5 rounded-[12px] bg-[#f3faf7] px-4 py-3">
-              <p className="text-[15px] font-normal tracking-[-0.02em] text-[#245e55]">
-                <span className="mr-2 text-[#1f7a68]">•</span>
-                {selectedPlanSavings}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="mt-6 border-t border-[#ece6dc] pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[15px] font-normal tracking-[-0.02em] text-[#6a645d]">월 요금</p>
-              <p className="text-[15px] font-medium tracking-[-0.02em] text-[#171411]">{won(selectedPlan.monthlyPrice)}</p>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[15px] font-normal tracking-[-0.02em] text-[#6a645d]">총 결제</p>
-              <p className="text-[15px] font-medium tracking-[-0.02em] text-[#171411]">{won(selectedPlan.totalPrice)}</p>
-            </div>
-          </div>
+                {plan.highlights.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {plan.highlights.map((highlight) => (
+                      <span key={highlight} className="rounded-full border border-[#dbe2ea] px-2.5 py-1 text-[12px] text-[#475569]">
+                        {highlight}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-5 grid gap-2.5">
@@ -161,22 +106,22 @@ export function OwnerBillingPlanPicker({
             type="button"
             onClick={onContinue}
             disabled={loading}
-            className="flex h-[48px] w-full items-center justify-center rounded-[12px] bg-[#1f5b51] px-4 text-[15px] font-semibold tracking-[-0.03em] text-white disabled:opacity-60"
+            className="flex h-[50px] w-full items-center justify-center rounded-[12px] bg-[#1f6b5b] px-4 text-[15px] font-semibold text-white disabled:opacity-60"
           >
-            {loading ? "결제 진행 중..." : `${selectedPlanTerm} 플랜으로 시작하기`}
+            {loading ? "결제 진행 중..." : `${selectedPlan.title}로 시작하기`}
           </button>
 
           <button
             type="button"
             onClick={onBack}
-            className="flex h-[36px] w-full items-center justify-center text-[14px] font-normal tracking-[-0.02em] text-[#8a8177]"
+            className="flex h-[38px] w-full items-center justify-center text-[14px] font-normal text-[#64748b]"
           >
             이전으로 돌아가기
           </button>
         </div>
 
         {message ? (
-          <p className="mt-4 rounded-[14px] border border-[#d8d1c5] bg-white px-4 py-3 text-[14px] leading-[1.55] text-[#4a4640]">
+          <p className="mt-4 rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-[14px] leading-[1.55] text-[#334155]">
             {message}
           </p>
         ) : null}

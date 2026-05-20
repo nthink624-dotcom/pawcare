@@ -80,10 +80,13 @@ export const demoShop: Shop = {
 };
 
 export const demoServices: Service[] = [
-  { id: "svc-full", shop_id: "demo-shop", name: "전체 미용", price: 55000, duration_minutes: 120, is_active: true, created_at: now, updated_at: now },
-  { id: "svc-bath", shop_id: "demo-shop", name: "목욕 + 부분미용", price: 38000, duration_minutes: 80, is_active: true, created_at: now, updated_at: now },
-  { id: "svc-bath-only", shop_id: "demo-shop", name: "목욕", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
-  { id: "svc-care", shop_id: "demo-shop", name: "저자극 케어", price: 18000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-full", shop_id: "demo-shop", name: "전체 미용", price: 80000, duration_minutes: 120, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-bath", shop_id: "demo-shop", name: "목욕 + 부분정리", price: 55000, duration_minutes: 90, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-bath-only", shop_id: "demo-shop", name: "목욕", price: 35000, duration_minutes: 60, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-care", shop_id: "demo-shop", name: "위생 미용", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-partial", shop_id: "demo-shop", name: "부분 미용", price: 30000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-spa", shop_id: "demo-shop", name: "스파/약욕 케어", price: 40000, duration_minutes: 60, is_active: true, created_at: now, updated_at: now },
+  { id: "svc-nail", shop_id: "demo-shop", name: "발톱 정리", price: 10000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
 ];
 
 export const demoGuardians: Guardian[] = [
@@ -173,6 +176,7 @@ export function buildDemoBootstrap(): BootstrapPayload {
     deletedGuardians: [],
     pets: demoPets,
     services: demoServices,
+    staffMembers: [],
     appointments: demoAppointments,
     groomingRecords: demoRecords,
     notifications: demoNotifications,

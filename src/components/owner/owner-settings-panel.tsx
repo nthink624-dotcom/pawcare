@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode, normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -578,28 +579,16 @@ export default function OwnerSettingsPanel({
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
         const isFreePlan = currentPlan.code === "free";
-        const currentPlanTitle = isFreePlan || showTrialCard
-          ? "체험 플랜"
-          : currentPlan.months === 1
-            ? "한 달 플랜"
-            : currentPlan.months === 3
-              ? "세 달 플랜"
-              : currentPlan.months === 6
-                ? "여섯 달 플랜"
-                : "일 년 플랜";
+        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : currentPlan.billingType === "one_time"
-            ? "일반결제"
-            : `${currentPlan.months}개월 동안 매월 ${won(currentPlan.monthlyPrice)} 결제`;
+          : `${currentPlan.staffLimitLabel} · ${currentPlan.alimtalkIncludedLabel}`;
         const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
           : showTrialCard
             ? "체험 플랜"
-          : currentPlan.billingType === "one_time"
-            ? "1회 결제"
-            : currentPlan.totalLabel;
+          : currentPlan.excessAlimtalkLabel;
         const endDateLabel = "서비스 종료일";
         const isInService =
           subscriptionSummary.status === "active" ||
@@ -978,6 +967,11 @@ export default function OwnerSettingsPanel({
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
           />
+          <div className="rounded-[12px] border border-[#e4ebe7] bg-[#f8fbfa] px-3 py-2.5">
+            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#5f6c66]">
+              알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
+            </p>
+          </div>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"

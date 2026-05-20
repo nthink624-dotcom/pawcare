@@ -626,9 +626,9 @@ export async function completePortoneIdentityVerification(input: {
 export async function getVerifiedIdentityForToken(input: {
   verificationToken: string;
   purpose: IdentityVerificationPurpose;
-  expectedName: string;
-  expectedBirthDate: string;
-  expectedPhoneNumber: string;
+  expectedName?: string;
+  expectedBirthDate?: string;
+  expectedPhoneNumber?: string;
 }) {
   const token = readVerifiedIdentityToken(input.verificationToken);
   if (!token || token.purpose !== input.purpose) {
@@ -657,12 +657,14 @@ export async function getVerifiedIdentityForToken(input: {
     return null;
   }
 
-  if (
-    row.name !== input.expectedName.trim() ||
-    row.birth_date !== normalizeBirthDate(input.expectedBirthDate) ||
-    row.phone_number !== normalizePhoneNumber(input.expectedPhoneNumber)
-  ) {
-    return null;
+  if (input.expectedName || input.expectedBirthDate || input.expectedPhoneNumber) {
+    if (
+      row.name !== (input.expectedName ?? "").trim() ||
+      row.birth_date !== normalizeBirthDate(input.expectedBirthDate ?? "") ||
+      row.phone_number !== normalizePhoneNumber(input.expectedPhoneNumber ?? "")
+    ) {
+      return null;
+    }
   }
 
   if (

@@ -97,10 +97,11 @@ export function isSlotAvailable(params: {
   const overlapBoundaries = new Set<number>([startMinute, endMinute]);
   const overlappingAppointments = activeAppointments.flatMap((appointment) => {
     const service = services.find((item) => item.id === appointment.service_id);
-    if (!service) return [];
+    const appointmentDurationMinutes = getAppointmentDurationMinutes(appointment) ?? service?.duration_minutes;
+    if (!appointmentDurationMinutes) return [];
 
     const appointmentStart = minutesFromTime(appointment.appointment_time);
-    const appointmentEnd = appointmentStart + service.duration_minutes;
+    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
     const overlapsWindow = appointmentStart < endMinute && startMinute < appointmentEnd;
     if (!overlapsWindow) return [];
 
@@ -134,6 +135,13 @@ export function isSlotAvailable(params: {
     }
   }
   return true;
+}
+
+function getAppointmentDurationMinutes(appointment: Appointment) {
+  const start = new Date(appointment.start_at).getTime();
+  const end = new Date(appointment.end_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return Math.round((end - start) / 60 / 1000);
 }
 
 function alignToSlotPattern(openMinute: number, intervalMinutes: number, offsetMinutes: number) {

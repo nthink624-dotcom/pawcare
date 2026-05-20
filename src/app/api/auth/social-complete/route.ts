@@ -7,8 +7,11 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
+import { insertOwnerDefaultSetup } from "@/server/owner-default-setup";
+import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
 const payloadSchema = z.object({
   ownerName: z.string().trim().min(1),
@@ -110,7 +113,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Supabase 관리자 설정을 확인해 주세요." }, { status: 503 });
     }
 
-    const existingShop = await admin.from("shops").select("id").eq("owner_user_id", user.id).maybeSingle();
+    const existingShop = await admin
+      .from("shops")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .order("created_at")
+      .limit(1)
+      .maybeSingle();
     if (existingShop.error) {
       return NextResponse.json({ message: existingShop.error.message }, { status: 500 });
     }
@@ -133,10 +142,10 @@ export async function POST(request: NextRequest) {
       phone: ownerPhoneNumber,
       address: payload.shopAddress,
       description: "",
-      business_hours: {},
-      regular_closed_days: [],
+      business_hours: defaultOwnerBusinessHours,
+      regular_closed_days: defaultOwnerRegularClosedDays,
       temporary_closed_dates: [],
-      concurrent_capacity: 2,
+      concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
       approval_mode: "manual",
@@ -147,6 +156,18 @@ export async function POST(request: NextRequest) {
 
     if (shopInsert.error) {
       return NextResponse.json({ message: "매장 정보를 저장하지 못했어요." }, { status: 400 });
+    }
+
+    try {
+      await insertOwnerDefaultSetup(admin, {
+        shopId,
+        ownerName,
+        ownerPhone: ownerPhoneNumber,
+        now,
+      });
+    } catch {
+      await admin.from("shops").delete().eq("id", shopId);
+      return NextResponse.json({ message: "기본 운영 정보를 저장하지 못했어요." }, { status: 400 });
     }
 
     const agreementPayload = {
@@ -171,6 +192,19 @@ export async function POST(request: NextRequest) {
     if (profileInsert.error) {
       await admin.from("shops").delete().eq("id", shopId);
       return NextResponse.json({ message: "사장님 정보를 저장하지 못했어요." }, { status: 400 });
+    }
+
+    try {
+      await upsertOwnerShopMembership(admin, {
+        ownerUserId: user.id,
+        shopId,
+        isPrimary: true,
+        now,
+      });
+    } catch {
+      await admin.from("owner_profiles").delete().eq("user_id", user.id);
+      await admin.from("shops").delete().eq("id", shopId);
+      return NextResponse.json({ message: "매장 소유권 정보를 저장하지 못했습니다." }, { status: 400 });
     }
 
     return NextResponse.json({

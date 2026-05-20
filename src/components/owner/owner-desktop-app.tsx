@@ -1,10 +1,10 @@
 "use client";
 
-import { BarChart3, CalendarDays, CheckCircle2, Clock3, PawPrint, Settings, Store, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, PawPrint, Settings, Store, Users, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { formatClockTime, shortDate, won } from "@/lib/utils";
+import { formatClockTime, shortDate } from "@/lib/utils";
 import type { Appointment, BootstrapPayload } from "@/types/domain";
 
 type OwnedShopSummary = {
@@ -121,7 +121,7 @@ export default function OwnerDesktopApp({
   const pendingCount = todayAppointments.filter((appointment) => appointment.status === "pending").length;
   const activeCount = todayAppointments.filter((appointment) => ["confirmed", "in_progress", "almost_done"].includes(appointment.status)).length;
   const completedCount = todayAppointments.filter((appointment) => appointment.status === "completed").length;
-  const todayRevenue = todayAppointments.reduce((sum, appointment) => sum + (serviceMap[appointment.service_id]?.price ?? 0), 0);
+  const cancelledCount = todayAppointments.filter((appointment) => ["cancelled", "rejected", "noshow"].includes(appointment.status)).length;
   const recentNotifications = data.notifications.slice(0, 5);
 
   const navItems = [
@@ -214,7 +214,7 @@ export default function OwnerDesktopApp({
             <MetricTile label="승인 대기" value={`${pendingCount}`} icon={Clock3} />
             <MetricTile label="진행 예약" value={`${activeCount}`} icon={CalendarDays} />
             <MetricTile label="완료" value={`${completedCount}`} icon={CheckCircle2} />
-            <MetricTile label="예상 매출" value={won(todayRevenue)} icon={BarChart3} />
+            <MetricTile label="취소/거절" value={`${cancelledCount}`} icon={XCircle} />
           </div>
 
           {activeView === "reservations" ? (

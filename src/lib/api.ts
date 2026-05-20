@@ -1,6 +1,12 @@
 ﻿import { env } from "@/lib/env";
+import {
+  clearOwnerAuthTokenCache,
+  readOwnerAuthTokenCache,
+  writeOwnerAuthTokenCache,
+} from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
+import type { Session } from "@supabase/supabase-js";
 
 export type PublicBootstrapPayload = Pick<
   BootstrapPayload,
@@ -71,6 +77,12 @@ const AUTH_REQUEST_TIMEOUT_MS = 8000;
 
 let accessTokenRequest: Promise<string> | null = null;
 
+type SupabaseSessionResult = {
+  data: {
+    session: Session | null;
+  };
+};
+
 function withAuthRequestTimeout<T>(promise: Promise<T>): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -92,14 +104,30 @@ function withAuthRequestTimeout<T>(promise: Promise<T>): Promise<T> {
 async function readAccessTokenWithRecovery() {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
+    const cachedAccessToken = readOwnerAuthTokenCache();
+    if (cachedAccessToken) return cachedAccessToken;
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
-  const initialSession = (await withAuthRequestTimeout(
-    supabase.auth.getSession(),
-  )) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
+  const initialSession = await withAuthRequestTimeout(
+    supabase.auth.getSession() as Promise<SupabaseSessionResult>,
+  );
   if (initialSession.data.session?.access_token) {
+    writeOwnerAuthTokenCache(initialSession.data.session.access_token);
     return initialSession.data.session.access_token;
+  }
+
+  const refreshedSession = await withAuthRequestTimeout(
+    supabase.auth.refreshSession() as Promise<SupabaseSessionResult>,
+  );
+  if (refreshedSession.data.session?.access_token) {
+    writeOwnerAuthTokenCache(refreshedSession.data.session.access_token);
+    return refreshedSession.data.session.access_token;
+  }
+
+  const cachedAccessToken = readOwnerAuthTokenCache();
+  if (cachedAccessToken) {
+    return cachedAccessToken;
   }
 
   throw new Error("로그인이 필요합니다.");
@@ -128,5 +156,16 @@ export async function fetchApiJsonWithBearer<T>(input: string, accessToken: stri
 
 export async function fetchApiJsonWithAuth<T>(input: string, init?: RequestInit) {
   const accessToken = await getAccessTokenWithRecovery();
-  return fetchApiJsonWithBearer<T>(input, accessToken, init);
+  try {
+    return await fetchApiJsonWithBearer<T>(input, accessToken, init);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("로그인이 필요합니다")) {
+      throw error;
+    }
+
+    clearOwnerAuthTokenCache();
+    const retryAccessToken = await getAccessTokenWithRecovery();
+    return fetchApiJsonWithBearer<T>(input, retryAccessToken, init);
+  }
 }

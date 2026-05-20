@@ -15,10 +15,13 @@ import {
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { nowIso } from "@/lib/utils";
+import { insertOwnerDefaultSetup } from "@/server/owner-default-setup";
 import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
+import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
 const schema = z.object({
   loginId: z.string().min(1),
@@ -46,6 +49,54 @@ function normalizePhoneNumber(value: string) {
 
 function isValidPhoneNumber(value: string) {
   return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
+}
+
+const duplicateAccountMessage = "이미 가입된 계정이 있어요. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요.";
+
+async function findExistingOwnerByIdentity(input: {
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+  name: string;
+  birthDate: string;
+  phoneNumber: string;
+  ciHash: string | null;
+  diHash: string | null;
+}) {
+  const identityFilters = [
+    input.ciHash ? `ci_hash.eq.${input.ciHash}` : null,
+    input.diHash ? `di_hash.eq.${input.diHash}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  if (identityFilters.length > 0) {
+    const identityResult = await input.supabase
+      .from("owner_profiles")
+      .select("login_id")
+      .or(identityFilters.join(","))
+      .limit(1)
+      .maybeSingle<{ login_id: string }>();
+
+    if (identityResult.error) {
+      throw new Error(identityResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
+    }
+
+    if (identityResult.data?.login_id) {
+      return identityResult.data;
+    }
+  }
+
+  const profileResult = await input.supabase
+    .from("owner_profiles")
+    .select("login_id")
+    .eq("name", input.name.trim())
+    .eq("birth_date", input.birthDate)
+    .eq("phone_number", input.phoneNumber)
+    .limit(1)
+    .maybeSingle<{ login_id: string }>();
+
+  if (profileResult.error) {
+    throw new Error(profileResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
+  }
+
+  return profileResult.data ?? null;
 }
 
 export async function POST(request: NextRequest) {
@@ -115,6 +166,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "이미 사용 중인 아이디입니다." }, { status: 409 });
     }
 
+    const ciHash = verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null;
+    const diHash = verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null;
+    const existingOwner = await findExistingOwnerByIdentity({
+      supabase,
+      name: payload.name,
+      birthDate: payload.birthDate,
+      phoneNumber: payload.phoneNumber,
+      ciHash,
+      diHash,
+    });
+
+    if (existingOwner?.login_id) {
+      return NextResponse.json({ message: duplicateAccountMessage }, { status: 409 });
+    }
+
     const authEmail = buildOwnerAuthEmail(loginId);
     const trialStartedAt = nowIso();
     const trialEndsAt = new Date(Date.now() + OWNER_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -130,11 +196,11 @@ export async function POST(request: NextRequest) {
         trial_started_at: trialStartedAt,
         trial_ends_at: trialEndsAt,
         next_billing_at: null,
-        current_plan_code: "monthly",
+        current_plan_code: "quarterly",
         auto_renew_enabled: false,
-        auto_renew_plan_code: "monthly",
+        auto_renew_plan_code: "quarterly",
         cancel_at_period_end: false,
-        featured_plan_code: "yearly",
+        featured_plan_code: "quarterly",
       },
     });
 
@@ -157,10 +223,10 @@ export async function POST(request: NextRequest) {
       phone: payload.shopPhone,
       address: payload.shopAddress,
       description: "",
-      business_hours: {},
-      regular_closed_days: [],
+      business_hours: defaultOwnerBusinessHours,
+      regular_closed_days: defaultOwnerRegularClosedDays,
       temporary_closed_dates: [],
-      concurrent_capacity: 2,
+      concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
       approval_mode: "manual",
@@ -172,6 +238,19 @@ export async function POST(request: NextRequest) {
     if (shopInsert.error) {
       await supabase.auth.admin.deleteUser(user.id);
       return NextResponse.json({ message: "매장 정보를 저장하지 못했습니다." }, { status: 400 });
+    }
+
+    try {
+      await insertOwnerDefaultSetup(supabase, {
+        shopId,
+        ownerName: payload.name.trim(),
+        ownerPhone: payload.phoneNumber,
+        now,
+      });
+    } catch {
+      await supabase.from("shops").delete().eq("id", shopId);
+      await supabase.auth.admin.deleteUser(user.id);
+      return NextResponse.json({ message: "기본 운영 정보를 저장하지 못했습니다." }, { status: 400 });
     }
 
     const agreementPayload = {
@@ -187,8 +266,8 @@ export async function POST(request: NextRequest) {
       name: payload.name.trim(),
       birth_date: payload.birthDate,
       phone_number: payload.phoneNumber,
-      ci_hash: verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null,
-      di_hash: verifiedIdentity.di ? hashIdentityStableValue(verifiedIdentity.di) : null,
+      ci_hash: ciHash,
+      di_hash: diHash,
       identity_verified_at: now,
       agreements: agreementPayload,
       created_at: now,
@@ -202,11 +281,25 @@ export async function POST(request: NextRequest) {
         {
           message:
             profileInsert.error.code === "23505"
-              ? "이미 사용 중인 아이디입니다."
+              ? "이미 사용 중인 아이디이거나 이미 가입된 계정입니다. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요."
               : "회원 정보를 저장하지 못했습니다.",
         },
         { status: profileInsert.error.code === "23505" ? 409 : 400 },
       );
+    }
+
+    try {
+      await upsertOwnerShopMembership(supabase, {
+        ownerUserId: user.id,
+        shopId,
+        isPrimary: true,
+        now,
+      });
+    } catch {
+      await supabase.from("owner_profiles").delete().eq("user_id", user.id);
+      await supabase.from("shops").delete().eq("id", shopId);
+      await supabase.auth.admin.deleteUser(user.id);
+      return NextResponse.json({ message: "매장 소유권 정보를 저장하지 못했습니다." }, { status: 400 });
     }
 
     const consumed = await consumeVerifiedIdentity({

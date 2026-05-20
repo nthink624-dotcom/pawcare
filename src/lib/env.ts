@@ -10,6 +10,7 @@ export const env = {
     process.env.NEXT_PUBLIC_SUPABASE_ENV_NAME ||
     ((process.env.NEXT_PUBLIC_SITE_URL || "").includes("petmanager.co.kr") ? "production" : "development"),
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
+  allowedDevSupabaseRefs: process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
   portoneIdentityKcpChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY,
   portonePaymentChannelKey: process.env.NEXT_PUBLIC_PORTONE_PAYMENT_CHANNEL_KEY,
@@ -56,6 +57,32 @@ export function getSupabaseRuntimeStage() {
   return "production" as const;
 }
 
+function refFromSupabaseUrl(value: string | undefined) {
+  const match = value?.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/i);
+  return match?.[1] ?? "";
+}
+
+function isRemoteSupabaseUrl(value: string | undefined) {
+  return /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(value ?? "");
+}
+
+function parseAllowedSupabaseRefs(value: string | undefined) {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
+function isAllowedDevSupabaseRef(value: string | undefined) {
+  const ref = refFromSupabaseUrl(value);
+  return Boolean(ref && parseAllowedSupabaseRefs(env.allowedDevSupabaseRefs).has(ref));
+}
+
 export function isUnsafeProdSupabaseBrowserEnv() {
-  return getSupabaseRuntimeStage() !== "production" && env.supabaseEnvName === "production" && !env.allowProdSupabaseInDev;
+  const runtimeStage = getSupabaseRuntimeStage();
+  if (runtimeStage === "production" || env.allowProdSupabaseInDev) return false;
+  if (env.supabaseEnvName === "production") return true;
+  return isRemoteSupabaseUrl(env.supabaseUrl) && !isAllowedDevSupabaseRef(env.supabaseUrl);
 }

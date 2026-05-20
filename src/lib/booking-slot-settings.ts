@@ -4,7 +4,7 @@ export const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 export const defaultBookingSlotIntervalMinutes = 30;
 export const defaultBookingSlotOffsetMinutes = 0;
 export const confirmedSlotCapacity = 1;
-export const manualPendingHoldCapacity = 2;
+export const manualPendingHoldCapacity = 1;
 export const defaultConcurrentCapacity = confirmedSlotCapacity;
 
 export function concurrentCapacityForApprovalMode(approvalMode: "manual" | "auto" | null | undefined) {

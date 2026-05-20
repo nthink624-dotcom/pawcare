@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
+import { Bell, Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { BootstrapPayload } from "@/types/domain";
+import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet } from "@/types/domain";
 
 const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 
@@ -16,6 +16,7 @@ type CustomerViewRow = {
   name: string;
   phone: string;
   pets: string[];
+  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "birthday">>;
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
@@ -66,6 +67,64 @@ function formatPhoneNumber(value: string) {
   if (digits.length === 10 && digits.startsWith("02")) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
   if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return value;
+}
+
+function formatNotificationDateTime(value: string | null | undefined) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 16).replace("T", " ");
+  return `${parsed.getMonth() + 1}/${parsed.getDate()} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+}
+
+function getNotificationTypeLabel(type: NotificationType) {
+  const labels: Record<NotificationType, string> = {
+    booking_received: "예약 접수",
+    booking_confirmed: "예약 확정",
+    owner_booking_requested: "오너 알림",
+    booking_rejected: "예약 거절",
+    booking_cancelled: "예약 취소",
+    booking_rescheduled_confirmed: "예약 변경",
+    appointment_reminder_10m: "방문 전 안내",
+    grooming_started: "미용 시작",
+    grooming_almost_done: "픽업 준비",
+    grooming_completed: "미용 완료",
+    revisit_notice: "재방문 안내",
+    landing_feedback: "피드백",
+    waitlist_interest: "대기 신청",
+    birthday_greeting: "생일 안내",
+  };
+  return labels[type] ?? type;
+}
+
+function getNotificationStatusMeta(status: NotificationStatus) {
+  const labels: Record<NotificationStatus, { label: string; className: string; dotClassName: string }> = {
+    sent: {
+      label: "발송됨",
+      className: "border-[#c9ded7] bg-[#f7fbf9] text-[#1f6b5b]",
+      dotClassName: "bg-[#3f8f7a]",
+    },
+    queued: {
+      label: "대기",
+      className: "border-[#dbe2ea] bg-white text-[#64748b]",
+      dotClassName: "bg-[#94a3b8]",
+    },
+    failed: {
+      label: "실패",
+      className: "border-[#efcaca] bg-[#fffafa] text-[#b42318]",
+      dotClassName: "bg-[#d1495b]",
+    },
+    mocked: {
+      label: "테스트",
+      className: "border-[#dbe2ea] bg-[#f8fafc] text-[#475569]",
+      dotClassName: "bg-[#64748b]",
+    },
+    skipped: {
+      label: "건너뜀",
+      className: "border-[#eadfd3] bg-[#fffaf4] text-[#9a5b1f]",
+      dotClassName: "bg-[#c98a2c]",
+    },
+  };
+  return labels[status] ?? labels.queued;
 }
 
 function compareDateDesc(first: string | null, second: string | null) {
@@ -122,6 +181,12 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       name: guardian.name,
       phone: guardian.phone,
       pets: petNames,
+      petDetails: pets.map((pet) => ({
+        id: pet.id,
+        name: pet.name,
+        breed: pet.breed,
+        birthday: pet.birthday ?? null,
+      })),
       tags: tags.length > 0 ? tags : ["일반"],
       recentVisit: recentVisitDate ? formatMonthDay(recentVisitDate) : "방문 전",
       recentVisitDate,
@@ -152,12 +217,18 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
     { id: "MOCK-008", name: "서민지", phone: "010-4811-2904", pets: ["구름"], tags: ["피부 민감"], recentVisit: "5/6", recentVisitDate: "2026-05-06", nextBooking: "5/22 16:00", nextBookingDate: "2026-05-22", memo: "저자극 샴푸 사용.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 6, groomingCount: 6, noshowCount: 0 },
     { id: "MOCK-009", name: "오지후", phone: "010-5560-7721", pets: ["하루"], tags: ["대형견"], recentVisit: "5/3", recentVisitDate: "2026-05-03", nextBooking: "5/17 13:00", nextBookingDate: "2026-05-17", memo: "목욕 시간 넉넉한 확보 필요.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 3, groomingCount: 3, noshowCount: 0 },
     { id: "MOCK-010", name: "김유라", phone: "010-7002-1908", pets: ["미미"], tags: ["첫 방문"], recentVisit: "방문 전", recentVisitDate: null, nextBooking: "5/15 12:30", nextBookingDate: "2026-05-15", memo: "예약 때 요청사항 없음.", alerts: "알림 수신 중", alertEnabled: true, appointmentCount: 1, groomingCount: 0, noshowCount: 0 },
-  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted" | "nextBookingService">>;
+  ] satisfies Array<Omit<CustomerViewRow, "searchText" | "deleted" | "nextBookingService" | "petDetails">>;
 
   return rows.map((row) => ({
     ...row,
     deleted: false,
     nextBookingService: row.nextBookingDate ? "전체 미용" : "예약 없음",
+    petDetails: row.pets.map((petName, index) => ({
+      id: `mock-pet-${row.id}-${index}`,
+      name: petName,
+      breed: "미입력",
+      birthday: null,
+    })),
     searchText: buildSearchText([row.name, row.phone, ...row.pets, ...row.tags]),
   }));
 }
@@ -171,6 +242,45 @@ function sortCustomers(customers: CustomerViewRow[], sort: CustomerSort) {
     if (sort === "nameAsc") return first.name.localeCompare(second.name, "ko");
     return compareDateDesc(first.recentVisitDate, second.recentVisitDate) || first.name.localeCompare(second.name, "ko");
   });
+}
+
+async function patchOwnerGuardian(payload: unknown) {
+  return fetchApiJsonWithAuth<Guardian>("/api/guardians", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function createOwnerGuardian(payload: unknown) {
+  return fetchApiJsonWithAuth<Guardian>("/api/guardians", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function patchOwnerPet(payload: unknown) {
+  return fetchApiJsonWithAuth<Pet>("/api/pets", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function createOwnerPet(payload: unknown) {
+  return fetchApiJsonWithAuth<Pet>("/api/pets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function deleteOwnerPet(payload: unknown) {
+  return fetchApiJsonWithAuth<{ success: boolean; petId: string }>("/api/pets", {
+    method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
+function isLocalOnlyCustomer(row: CustomerViewRow) {
+  return row.id.startsWith("MOCK-") || row.id.startsWith("G-");
 }
 
 function getCustomerTagClass(tag: string) {
@@ -190,20 +300,27 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
   const [deleteError, setDeleteError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [deletingCustomers, setDeletingCustomers] = useState(false);
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
 
   useEffect(() => {
-    setCustomers(initialCustomers);
-    setSelectedCustomerId((current) => (initialCustomers.some((customer) => customer.id === current) ? current : ""));
+    const frame = window.requestAnimationFrame(() => {
+      setCustomers(initialCustomers);
+      setSelectedCustomerId((current) => (initialCustomers.some((customer) => customer.id === current) ? current : ""));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [initialCustomers]);
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(staffCommentStorageKey);
-      if (stored) setStaffComments((current) => ({ ...current, ...JSON.parse(stored) }));
+      if (stored) {
+        const frame = window.requestAnimationFrame(() => setStaffComments((current) => ({ ...current, ...JSON.parse(stored) })));
+        return () => window.cancelAnimationFrame(frame);
+      }
     } catch {
       // Ignore malformed local storage data.
     }
@@ -223,6 +340,14 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const selectedPetName = selectedCustomer?.pets[0] ?? "";
   const selectedCommentKey = selectedCustomer ? `${selectedPetName}|${selectedCustomer.name}` : "";
   const selectedStaffComment = staffComments[selectedCommentKey] ?? "";
+  const selectedNotifications = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const petIds = new Set(selectedCustomer.petDetails.map((pet) => pet.id));
+    return initialData.notifications
+      .filter((notification) => notification.guardian_id === selectedCustomer.id || (notification.pet_id ? petIds.has(notification.pet_id) : false))
+      .sort((first, second) => (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at))
+      .slice(0, 6);
+  }, [initialData.notifications, selectedCustomer]);
   const displayedCustomerIds = useMemo(() => displayedCustomers.map((row) => row.id), [displayedCustomers]);
   const allDisplayedCustomersSelected =
     displayedCustomerIds.length > 0 && displayedCustomerIds.every((id) => selectedDeleteIds.includes(id));
@@ -236,12 +361,14 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     });
   }
 
-  function addCustomer() {
+  async function addCustomer() {
+    setSaveError("");
     const nextCustomer: CustomerViewRow = {
       id: `G-${Date.now()}`,
       name: "신규 보호자",
       phone: "010-0000-0000",
       pets: ["반려동물"],
+      petDetails: [],
       tags: ["상담 필요", "알림 수신"],
       recentVisit: "방문 전",
       recentVisitDate: null,
@@ -261,6 +388,46 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     setCustomers((current) => [nextCustomer, ...current]);
     setSelectedCustomerId(nextCustomer.id);
     setDetailSheetOpen(true);
+
+    if (shouldUseLocalMockCustomers(initialData)) return;
+
+    try {
+      const guardian = await createOwnerGuardian({
+        shopId: initialData.shop.id,
+        name: nextCustomer.name,
+        phone: nextCustomer.phone,
+        memo: nextCustomer.memo,
+      });
+      const pet = await createOwnerPet({
+        shopId: initialData.shop.id,
+        guardianId: guardian.id,
+        name: "반려동물",
+        breed: "미입력",
+        birthday: null,
+        notes: "",
+        groomingCycleWeeks: 4,
+      });
+      setCustomers((current) =>
+        current.map((row) =>
+          row.id === nextCustomer.id
+            ? {
+                ...row,
+                id: guardian.id,
+                name: guardian.name,
+                phone: guardian.phone,
+                petDetails: [{ id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null }],
+                searchText: buildSearchText([guardian.name, guardian.phone, pet.name, ...row.tags]),
+              }
+            : row,
+        ),
+      );
+      setSelectedCustomerId(guardian.id);
+    } catch (error) {
+      setCustomers((current) => current.filter((row) => row.id !== nextCustomer.id));
+      setSelectedCustomerId("");
+      setDetailSheetOpen(false);
+      setSaveError(error instanceof Error ? error.message : "고객 추가에 실패했습니다.");
+    }
   }
 
   function toggleDelete(id: string) {
@@ -271,6 +438,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     setDeleteMode((current) => !current);
     setSelectedDeleteIds([]);
     setDeleteError("");
+    setSaveError("");
   }
 
   function toggleDisplayedCustomerSelection() {
@@ -339,12 +507,14 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     );
   }
 
-  function toggleAlertStatus() {
+  async function toggleAlertStatus() {
     if (!selectedCustomer) return;
+    const previousCustomers = customers;
+    const nextAlertEnabled = !selectedCustomer.alertEnabled;
+    setSaveError("");
     setCustomers((current) =>
       current.map((row) => {
         if (row.id !== selectedCustomer.id) return row;
-        const nextAlertEnabled = !row.alertEnabled;
         const tags = row.tags
           .filter((tag) => tag !== "알림 수신" && tag !== "알림 중지")
           .concat(nextAlertEnabled ? "알림 수신" : "알림 중지");
@@ -357,19 +527,188 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         };
       }),
     );
+
+    try {
+      if (!isLocalOnlyCustomer(selectedCustomer)) {
+        await patchOwnerGuardian({
+          shopId: initialData.shop.id,
+          guardianId: selectedCustomer.id,
+          notificationSettings: {
+            enabled: nextAlertEnabled,
+          },
+        });
+      }
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setSaveError(error instanceof Error ? error.message : "알림 수신 상태 저장에 실패했습니다.");
+    }
   }
 
-  function updateCustomer(customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) {
+  async function updateCustomer(customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    if (!currentCustomer) return;
+
+    const previousCustomers = customers;
+    setSaveError("");
     setCustomers((current) =>
       current.map((row) => {
         if (row.id !== customerId) return row;
-        const next = { ...row, ...patch };
+        const next = {
+          ...row,
+          ...patch,
+          petDetails: patch.pets
+            ? row.petDetails.map((pet, index) => ({
+                ...pet,
+                name: patch.pets?.[index] ?? pet.name,
+              }))
+            : row.petDetails,
+        };
         return {
           ...next,
           searchText: buildSearchText([next.name, next.phone, ...next.pets, ...next.tags]),
         };
       }),
     );
+
+    try {
+      const guardianPatch: Record<string, unknown> = { guardianId: customerId };
+      if (!isLocalOnlyCustomer(currentCustomer)) guardianPatch.shopId = initialData.shop.id;
+      if (typeof patch.name === "string") guardianPatch.name = patch.name;
+      if (typeof patch.phone === "string") guardianPatch.phone = patch.phone;
+      if (typeof patch.memo === "string") guardianPatch.memo = patch.memo;
+
+      if (!isLocalOnlyCustomer(currentCustomer) && Object.keys(guardianPatch).length > 2) {
+        await patchOwnerGuardian(guardianPatch);
+      }
+
+      if (patch.pets && !isLocalOnlyCustomer(currentCustomer)) {
+        const nextPetNames = patch.pets;
+        const editablePetDetails = currentCustomer.petDetails.slice(0, nextPetNames.length);
+        await Promise.all(
+          editablePetDetails.map((pet, index) =>
+            patchOwnerPet({
+              shopId: initialData.shop.id,
+              petId: pet.id,
+              name: nextPetNames[index],
+              breed: pet.breed || "미입력",
+              birthday: pet.birthday ?? null,
+            }),
+          ),
+        );
+        const newPetNames = nextPetNames.slice(currentCustomer.petDetails.length);
+        if (newPetNames.length > 0) {
+          const createdPets = await Promise.all(
+            newPetNames.map((name) =>
+              createOwnerPet({
+                shopId: initialData.shop.id,
+                guardianId: currentCustomer.id,
+                name,
+                breed: "미입력",
+                birthday: null,
+                notes: "",
+                groomingCycleWeeks: 4,
+              }),
+            ),
+          );
+          setCustomers((current) =>
+            current.map((row) =>
+              row.id === customerId
+                ? {
+                    ...row,
+                    petDetails: [
+                      ...row.petDetails,
+                      ...createdPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null })),
+                    ],
+                  }
+                : row,
+            ),
+          );
+        }
+      }
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setSaveError(error instanceof Error ? error.message : "고객 정보 저장에 실패했습니다.");
+    }
+  }
+
+  async function addPet(customerId: string, petName: string) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    const name = petName.trim();
+    if (!currentCustomer || !name) return;
+    const previousCustomers = customers;
+    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", birthday: null };
+    setSaveError("");
+    setCustomers((current) =>
+      current.map((row) =>
+        row.id === customerId
+          ? {
+              ...row,
+              pets: [...row.pets.filter((item) => item !== "반려동물 없음"), name],
+              petDetails: [...row.petDetails, tempPet],
+              searchText: buildSearchText([row.name, row.phone, ...row.pets, name, ...row.tags]),
+            }
+          : row,
+      ),
+    );
+
+    if (isLocalOnlyCustomer(currentCustomer)) return;
+
+    try {
+      const pet = await createOwnerPet({
+        shopId: initialData.shop.id,
+        guardianId: customerId,
+        name,
+        breed: "미입력",
+        birthday: null,
+        notes: "",
+        groomingCycleWeeks: 4,
+      });
+      setCustomers((current) =>
+        current.map((row) =>
+          row.id === customerId
+            ? {
+                ...row,
+                petDetails: row.petDetails.map((item) => (item.id === tempPet.id ? { id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null } : item)),
+              }
+            : row,
+        ),
+      );
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setSaveError(error instanceof Error ? error.message : "반려동물 추가에 실패했습니다.");
+    }
+  }
+
+  async function removePet(customerId: string, petId: string) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    const targetPet = currentCustomer?.petDetails.find((pet) => pet.id === petId);
+    if (!currentCustomer || !targetPet || currentCustomer.petDetails.length <= 1) return;
+    const previousCustomers = customers;
+    setSaveError("");
+    setCustomers((current) =>
+      current.map((row) =>
+        row.id === customerId
+          ? {
+              ...row,
+              pets: row.pets.filter((name) => name !== targetPet.name),
+              petDetails: row.petDetails.filter((pet) => pet.id !== petId),
+              searchText: buildSearchText([row.name, row.phone, ...row.pets.filter((name) => name !== targetPet.name), ...row.tags]),
+            }
+          : row,
+      ),
+    );
+
+    if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
+
+    try {
+      await deleteOwnerPet({
+        shopId: initialData.shop.id,
+        petId,
+      });
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setSaveError(error instanceof Error ? error.message : "반려동물 삭제에 실패했습니다.");
+    }
   }
 
   return (
@@ -430,6 +769,12 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           </div>
         ) : null}
 
+        {saveError ? (
+          <p className="border-b border-[#f4c7cc] bg-[#fff7f8] px-4 py-2 text-[12px] font-medium text-[#b42318]">
+            {saveError}
+          </p>
+        ) : null}
+
         <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[15px] font-semibold text-[#64748b]", customerListGridClass)}>
           <span />
           <button type="button" onClick={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))} className="text-center transition hover:text-[#1f6b5b]">
@@ -467,9 +812,12 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         <CustomerDetailSheet
           customer={selectedCustomer}
           staffComment={selectedStaffComment}
+          notifications={selectedNotifications}
           onClose={() => setDetailSheetOpen(false)}
           onChangeStaffComment={updateStaffComment}
           onUpdateCustomer={updateCustomer}
+          onAddPet={addPet}
+          onDeletePet={removePet}
           onAddQuickReservation={addQuickReservation}
           onToggleAlertStatus={toggleAlertStatus}
           onToggleDeleteMode={() => {
@@ -558,26 +906,33 @@ function CustomerListRow({
 function CustomerDetailSheet({
   customer,
   staffComment,
+  notifications,
   onClose,
   onChangeStaffComment,
   onUpdateCustomer,
+  onAddPet,
+  onDeletePet,
   onAddQuickReservation,
   onToggleAlertStatus,
   onToggleDeleteMode,
 }: {
   customer: CustomerViewRow;
   staffComment: string;
+  notifications: Notification[];
   onClose: () => void;
   onChangeStaffComment: (value: string) => void;
-  onUpdateCustomer: (customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) => void;
+  onUpdateCustomer: (customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) => void | Promise<void>;
+  onAddPet: (customerId: string, petName: string) => void | Promise<void>;
+  onDeletePet: (customerId: string, petId: string) => void | Promise<void>;
   onAddQuickReservation: () => void;
-  onToggleAlertStatus: () => void;
+  onToggleAlertStatus: () => void | Promise<void>;
   onToggleDeleteMode: () => void;
 }) {
   const formattedPhone = formatPhoneNumber(customer.phone);
   const primaryPetName = customer.pets[0] ?? "반려동물";
   const nextBookingDetail = customer.nextBookingDate ? `${customer.nextBookingService} · ${primaryPetName}` : "등록된 다음 예약이 없습니다.";
   const visibleTags = customer.tags.filter((tag) => tag !== "알림 수신" && tag !== "알림 중지");
+  const [newPetName, setNewPetName] = useState("");
 
   function updateEditableField(field: "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo", value: string) {
     const trimmedValue = value.trim();
@@ -588,10 +943,10 @@ function CustomerDetailSheet({
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-      if (pets.length > 0) onUpdateCustomer(customer.id, { pets });
+      if (pets.length > 0) void onUpdateCustomer(customer.id, { pets });
       return;
     }
-    onUpdateCustomer(customer.id, {
+    void onUpdateCustomer(customer.id, {
       [field]: field === "phone" ? formatPhoneNumber(trimmedValue) : trimmedValue,
     });
   }
@@ -654,15 +1009,54 @@ function CustomerDetailSheet({
           </section>
 
           <section className="mt-4 divide-y divide-[#edf2f7] border-y border-[#edf2f7]">
-            <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
+            <div className="grid grid-cols-[92px_minmax(0,1fr)] items-start gap-3 py-3">
               <p className="text-[13px] font-medium text-[#64748b]">반려동물</p>
-              <EditableText
-                value={customer.pets.join(", ")}
-                onSave={(value) => updateEditableField("pets", value)}
-                displayClassName="min-w-0 text-left"
-                displayTextClassName="text-[16px] font-medium text-[#111827]"
-                inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
-              />
+              <div className="min-w-0 space-y-2">
+                {(customer.petDetails.length > 0 ? customer.petDetails : customer.pets.map((name, index) => ({ id: `local-pet-${index}`, name, breed: "미입력", birthday: null }))).map((pet, index) => (
+                  <div key={pet.id} className="flex min-w-0 items-center gap-2">
+                    <EditableText
+                      value={pet.name}
+                      onSave={(value) => {
+                        const nextPets = [...customer.pets];
+                        nextPets[index] = value;
+                        updateEditableField("pets", nextPets.join(", "));
+                      }}
+                      displayClassName="min-w-0 flex-1 text-left"
+                      displayTextClassName="text-[16px] font-medium text-[#111827]"
+                      inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
+                    />
+                    {customer.petDetails.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => void onDeletePet(customer.id, pet.id)}
+                        className="h-8 rounded-[7px] border border-[#ead9cf] bg-white px-2 text-[12px] font-medium text-[#94624f] hover:bg-[#fffafa]"
+                      >
+                        삭제
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                <form
+                  className="flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const name = newPetName.trim();
+                    if (!name) return;
+                    void onAddPet(customer.id, name);
+                    setNewPetName("");
+                  }}
+                >
+                  <input
+                    value={newPetName}
+                    onChange={(event) => setNewPetName(event.target.value)}
+                    placeholder="반려동물 추가"
+                    className="h-9 min-w-0 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
+                  />
+                  <button type="submit" className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                    추가
+                  </button>
+                </form>
+              </div>
             </div>
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
               <p className="text-[13px] font-medium text-[#64748b]">최근 방문</p>
@@ -676,7 +1070,7 @@ function CustomerDetailSheet({
             </div>
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
               <p className="text-[13px] font-medium text-[#64748b]">알림</p>
-              <button type="button" onClick={onToggleAlertStatus} className="w-fit text-left text-[16px] font-medium text-[#111827] hover:text-[#1f6b5b]">
+              <button type="button" onClick={() => void onToggleAlertStatus()} className="w-fit text-left text-[16px] font-medium text-[#111827] hover:text-[#1f6b5b]">
                 {customer.alerts}
               </button>
             </div>
@@ -717,6 +1111,49 @@ function CustomerDetailSheet({
               />
             </div>
           </section>
+
+          <section className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-[#64748b]" />
+                <h3 className="text-[15px] font-medium text-[#111827]">알림 이력</h3>
+              </div>
+              <span className="text-[12px] text-[#94a3b8]">최근 {notifications.length}건</span>
+            </div>
+            {notifications.length > 0 ? (
+              <div className="divide-y divide-[#edf2f7]">
+                {notifications.map((notification) => {
+                  const statusMeta = getNotificationStatusMeta(notification.status);
+                  const deliveredAt = formatNotificationDateTime(notification.sent_at ?? notification.created_at);
+                  const reason = notification.status === "failed" || notification.status === "skipped" ? notification.fail_reason : "";
+                  return (
+                    <div key={notification.id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className={cn("h-2 w-2 shrink-0 rounded-full", statusMeta.dotClassName)} />
+                            <p className="truncate text-[14px] font-medium text-[#111827]">{getNotificationTypeLabel(notification.type)}</p>
+                          </div>
+                          <p className="mt-1 truncate text-[13px] text-[#64748b]">{notification.message || "발송 메시지 내용이 없습니다."}</p>
+                          {reason ? <p className="mt-1 text-[12px] leading-5 text-[#b42318]">{reason}</p> : null}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className={cn("inline-flex h-6 items-center rounded-[6px] border px-2 text-[11px] font-medium", statusMeta.className)}>
+                            {statusMeta.label}
+                          </span>
+                          <p className="mt-1 text-[12px] tabular-nums text-[#94a3b8]">{deliveredAt}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-4 py-4 text-[13px] leading-5 text-[#64748b]">
+                아직 이 고객에게 기록된 알림이 없습니다.
+              </div>
+            )}
+          </section>
         </div>
 
         <div className="border-t border-[#edf2f7] bg-white px-5 py-3.5">
@@ -749,7 +1186,9 @@ function EditableText({
   const [draft, setDraft] = useState(value);
 
   useEffect(() => {
-    if (!editing) setDraft(value);
+    if (editing) return;
+    const frame = window.requestAnimationFrame(() => setDraft(value));
+    return () => window.cancelAnimationFrame(frame);
   }, [editing, value]);
 
   function commit() {

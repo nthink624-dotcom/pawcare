@@ -18,6 +18,11 @@
     "status:last": "node --experimental-transform-types ./scripts/job-status.ts last",
     "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
     "check:supabase-env": "node scripts/check-supabase-env-consistency.cjs",
+    "smoke:owner-login": "node scripts/smoke-owner-login.cjs",
+    "check:media-architecture": "node scripts/check-media-architecture.cjs",
+    "media:migration-plan": "node scripts/print-media-migration-plan.cjs",
+    "media:build-migration-bundle": "node scripts/build-media-migration-bundle.cjs",
+    "media:schema-rest-check": "node scripts/check-media-schema-rest.cjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "npm --prefix backend run typecheck"

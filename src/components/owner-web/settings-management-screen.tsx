@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ImagePlus } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
@@ -169,8 +170,8 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       {
         id: "plan",
         label: "현재 플랜",
-        value: "프로 플랜",
-        description: "월 7,900원 / 서비스 종료일 2027.04.29",
+        value: "스탠다드",
+        description: "월 29,000원 / 직원 2~5명 / 알림톡 1,500건 포함",
         control: "readonly",
       },
       {
@@ -458,7 +459,7 @@ function ShopProfileImageRow({
       <div className="shrink-0 text-right">
         <label className="relative inline-flex h-[72px] w-[72px] cursor-pointer overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#1f6b5b] transition hover:border-[#1f6b5b] hover:bg-[#f6fbf9]">
           {previewUrl ? (
-            <img src={previewUrl} alt="매장 프로필" className="h-full w-full object-cover" />
+            <Image src={previewUrl} alt="매장 프로필" width={72} height={72} unoptimized className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-[#eef7f4]">
               <ImagePlus className="h-6 w-6" />
@@ -500,15 +501,18 @@ export default function SettingsManagementScreen({
   useEffect(() => {
     try {
       const storedSettings = window.localStorage.getItem(ownerWebSettingsStorageKey);
-      if (storedSettings) {
-        const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings));
-        setDraftSettings(cloneSettings(nextSettings));
-      }
-
       const storedProfileImage = window.localStorage.getItem(ownerWebShopProfileImageStorageKey);
-      if (storedProfileImage) {
-        setShopProfileImage(storedProfileImage);
-      }
+      const frame = window.requestAnimationFrame(() => {
+        if (storedSettings) {
+          const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings));
+          setDraftSettings(cloneSettings(nextSettings));
+        }
+
+        if (storedProfileImage) {
+          setShopProfileImage(storedProfileImage);
+        }
+      });
+      return () => window.cancelAnimationFrame(frame);
     } catch {
       window.localStorage.removeItem(ownerWebSettingsStorageKey);
       window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
@@ -632,6 +636,13 @@ export default function SettingsManagementScreen({
               <h3 className="text-[18px] font-semibold text-[#17211f]">{current.title}</h3>
               <p className="mt-2 text-[14px] leading-6 text-[#7a7269]">{current.description}</p>
             </div>
+            {activeTab === "alerts" ? (
+              <div className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-[#f8fbfa] px-4 py-3">
+                <p className="text-[13px] leading-5 text-[#5f6c66]">
+                  알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="divide-y divide-[#f1e8e0]">

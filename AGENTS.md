@@ -8,7 +8,9 @@
 - Prioritize end-to-end completion over placeholder scaffolding.
 - Keep Korean-first UX copy natural and operationally practical.
 - Optimize all primary app surfaces for a max-width of 430px.
-- Preserve extensibility for future notification automations and owner workflows.
+- Preserve extensibility for owner-triggered notification and owner workflows.
+- Notification delivery for customer-facing appointment events is owner-action/manual only by default. Do not add background cron, scheduled auto-send, or automatic reminder dispatch unless the owner explicitly re-approves that product direction.
+- Alimtalk usage is accounted per shop inside PetManager, not by separate Ssodaa accounts. Ssodaa balance is the platform pool; each shop has an internal credit balance, sends must be blocked when the shop has no remaining credits, and successful sends consume one shop credit with a ledger event. Failed provider sends must refund the reserved credit. Monthly/plan-included Alimtalk credits reset at each paid period and unused included credits do not carry over. Separately purchased paid credits must not expire or reset unless the owner explicitly requests a refund, adjustment, or policy change.
 
 ## Implementation defaults
 - Frontend: Next.js App Router + TypeScript + Tailwind CSS.
@@ -29,6 +31,8 @@
 - Selected, dragged, or auto-focused schedule booking cards may use only a thin low-opacity ring or slightly darker neutral border. Never use `border-2` or saturated focus rings for ordinary schedule cards.
 - Dense schedule views should remain readable by preserving vertical time placement and non-overlap first; if density increases, assign bookings to available staff/time windows rather than visually stacking overlapping cards.
 - Owner schedule board current-work anchor must be the earliest-starting booking among active work statuses (`진행 중`, `픽업 준비`) whose scheduled time window contains the current time. Expired active-status bookings must not become anchors. The timeline should snap to that booking near the top when entering the board or when scrolling near it.
+- Owner PC web and owner mobile web must treat appointment status as one shared source of truth through the same appointment APIs. Owner mobile status changes must sync back to PC views, and PC views must periodically refresh visible schedule data for external changes.
+- Grooming start and pickup-ready status changes require an owner-captured photo before the status update. This applies equally to PC web, mobile web, demo seeds, manual API calls, and future owner surfaces.
 - In the staff weekly schedule edit modal, keep "기본 근무 설정" collapsed by default. Show its weekday/time controls only after the owner clicks the dropdown header, and keep weekday work/off selection color-coded.
 - Staff weekly schedule table baseline: tabs sit above the table; the active tab uses the same neutral selected style as schedule summary chips (white background, thin neutral border, light shadow), and inactive tabs are plain text with subtle hover. The date navigation sits in its own bordered surface row below the tabs.
 - Staff weekly schedule columns are `스태프명` plus `월 화 수 목 금 토 일`. Staff cells show name in bold and role/service as smaller muted text underneath.

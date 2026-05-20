@@ -735,13 +735,13 @@ export async function PATCH(request: NextRequest) {
       nextPlanCode === "free"
         ? (existingRecord?.auto_renew_plan_code && existingRecord.auto_renew_plan_code !== "free"
             ? existingRecord.auto_renew_plan_code
-            : "monthly")
+            : "quarterly")
         : nextPlanCode;
     const nextFeaturedPlanCode: OwnerPlanCode =
       nextPlanCode === "free"
         ? (existingRecord?.featured_plan_code && existingRecord.featured_plan_code !== "free"
             ? existingRecord.featured_plan_code
-            : "yearly")
+            : "quarterly")
         : nextPlanCode;
     const nextLastPaymentStatus =
       body.lastPaymentStatus ?? existingRecord?.last_payment_status ?? previousOwner.lastPaymentStatus;

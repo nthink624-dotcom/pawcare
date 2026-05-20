@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck, Smartphone } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, Smartphone, Sparkles } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
@@ -21,10 +21,10 @@ function FieldShell({
   children: ReactNode;
 }) {
   return (
-    <label className="flex min-h-[56px] items-center gap-3 border-b border-[#e5e7eb] py-3 last:border-b-0">
-      <div className="w-[86px] shrink-0">
-        <span className="block text-[12px] font-semibold text-[#64748b]">{label}</span>
-        {hint ? <span className="mt-0.5 block text-[11px] font-medium text-[#94a3b8]">{hint}</span> : null}
+    <label className="flex min-h-[60px] items-center gap-4 border-b border-[#edf1f5] py-3.5 last:border-b-0">
+      <div className="w-[96px] shrink-0">
+        <span className="block text-[14px] font-semibold leading-5 text-[#4d6077]">{label}</span>
+        {hint ? <span className="mt-0.5 block text-[12px] font-medium leading-4 text-[#8090a4]">{hint}</span> : null}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
     </label>
@@ -35,18 +35,8 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full border-0 bg-transparent p-0 text-[16px] font-medium text-[#111827] outline-none placeholder:text-[#b6c0cc] disabled:cursor-not-allowed disabled:text-[#94a3b8] ${props.className ?? ""}`}
+      className={`w-full border-0 bg-transparent p-0 text-[16px] font-medium leading-6 text-[#111827] outline-none placeholder:font-medium placeholder:text-[#aab5c4] disabled:cursor-not-allowed disabled:text-[#94a3b8] ${props.className ?? ""}`}
     />
-  );
-}
-
-function VerificationCompleteIcon() {
-  return (
-    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#1f735f]">
-      <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#247761] text-white">
-        <Check className="h-4 w-4" strokeWidth={3} />
-      </div>
-    </div>
   );
 }
 
@@ -57,9 +47,8 @@ type ApiMessage = {
   verificationToken?: string | null;
 };
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
+type ResetStep = "account" | "method" | "code" | "password";
+const successMessagePatterns = ["완료", "변경", "보냈어요", "준비했어요", "확인했어요"];
 
 export default function ResetPasswordForm({
   initialLoginId,
@@ -72,6 +61,7 @@ export default function ResetPasswordForm({
   const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
   const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
   const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
+  const useLocalVerificationFlow = isDevelopmentFlow && !portoneReady;
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
@@ -83,12 +73,14 @@ export default function ResetPasswordForm({
   const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<ResetStep>("account");
 
   const {
     register,
     handleSubmit,
     getValues,
     setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<OwnerPasswordResetInput>({
     resolver: zodResolver(ownerPasswordResetSchema),
@@ -106,10 +98,45 @@ export default function ResetPasswordForm({
   const syncVerificationToken = (token: string | null) => {
     setVerificationToken(token);
     setValue("identityVerificationToken", token ?? "", { shouldValidate: true });
+    if (token) {
+      setStep("password");
+    }
+  };
+
+  const goBack = () => {
+    setMessage(null);
+    if (step === "account") {
+      router.replace("/login");
+      return;
+    }
+
+    if (step === "password") {
+      setStep(useLocalVerificationFlow ? "code" : "method");
+      return;
+    }
+
+    if (step === "code") {
+      setStep("method");
+      return;
+    }
+
+    setStep("account");
+  };
+
+  const goToMethodStep = async () => {
+    const isValid = await trigger("loginId");
+    if (!isValid) return;
+    setMessage(null);
+    setStep("method");
   };
 
   const requestCode = async () => {
     const values = getValues();
+    if (!values.loginId?.trim()) {
+      setMessage("아이디를 먼저 입력해 주세요.");
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -118,9 +145,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
+          loginId: values.loginId,
           purpose: "reset-password",
           method: "local",
         }),
@@ -136,6 +161,7 @@ export default function ResetPasswordForm({
       setDevCode(result.devVerificationCode ?? null);
       setVerificationCode("");
       syncVerificationToken(null);
+      setStep("code");
       setMessage(result.message ?? "인증번호를 보냈어요. 화면에 표시된 번호를 입력해 주세요.");
     } finally {
       setLoading(false);
@@ -144,6 +170,11 @@ export default function ResetPasswordForm({
 
   const verifyCode = async () => {
     const values = getValues();
+    if (!values.loginId?.trim()) {
+      setMessage("아이디를 먼저 입력해 주세요.");
+      return;
+    }
+
     if (!verificationRequestId) {
       setMessage("먼저 인증번호를 받아 주세요.");
       return;
@@ -157,9 +188,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
+          loginId: values.loginId,
           code: verificationCode,
           purpose: "reset-password",
           verificationRequestId,
@@ -181,6 +210,11 @@ export default function ResetPasswordForm({
 
   const verifyPass = async () => {
     const values = getValues();
+    if (!values.loginId?.trim()) {
+      setMessage("아이디를 먼저 입력해 주세요.");
+      return;
+    }
+
     if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
       setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
       return;
@@ -194,9 +228,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
+          loginId: values.loginId,
           purpose: "reset-password",
           method: "portone",
         }),
@@ -216,13 +248,6 @@ export default function ResetPasswordForm({
         channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: values.name.trim(),
-          phoneNumber: normalizePhoneNumber(values.phoneNumber),
-          birthYear: values.birthDate.slice(0, 4),
-          birthMonth: values.birthDate.slice(4, 6),
-          birthDay: values.birthDate.slice(6, 8),
-        },
       });
 
       if (!result?.identityVerificationId) {
@@ -286,206 +311,228 @@ export default function ResetPasswordForm({
 
   const firstError =
     errors.loginId?.message ||
-    errors.name?.message ||
-    errors.birthDate?.message ||
-    errors.phoneNumber?.message ||
-    errors.identityVerificationToken?.message ||
     errors.password?.message ||
     errors.passwordConfirm?.message;
 
-  const notice = message ?? firstError;
-  const verificationStepClass = verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#d1d5db] bg-white text-[#64748b]";
+  const isSuccessMessage = Boolean(message && successMessagePatterns.some((pattern) => message.includes(pattern)));
+  const passwordNotice = step === "password" ? errors.password?.message ?? errors.passwordConfirm?.message : null;
+  const notice = step === "password" ? (isSuccessMessage ? null : message) : firstError ?? (isSuccessMessage ? null : message);
+  const pageTitle =
+    step === "method"
+      ? "본인 확인"
+      : step === "code"
+        ? "인증번호 입력"
+        : step === "password"
+          ? "새 비밀번호 설정"
+          : "비밀번호 찾기";
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-5 text-[#111827]">
-      <MobileBackButton onClick={() => router.replace("/login")} label="로그인으로 이동" />
-
-      <div className="mt-7 border-b border-[#e5e7eb] pb-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-semibold text-[#247761]">비밀번호 찾기</p>
-            <h1 className="mt-2 text-[25px] font-semibold leading-[1.25] text-[#111827]">
-              본인 확인 후<br />새 비밀번호 설정
-            </h1>
-          </div>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#247761]">
-            <KeyRound className="h-5 w-5" strokeWidth={2} />
-          </div>
-        </div>
-        <p className="mt-3 text-[13px] leading-5 text-[#64748b]">가입 정보와 본인인증이 일치하면 새 비밀번호를 입력할 수 있어요.</p>
-        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[12px] font-semibold">
-          <span className="rounded-[8px] border border-[#2f7866] bg-white py-2 text-[#1f735f]">계정 확인</span>
-          <span className={`rounded-[8px] border py-2 ${verificationStepClass}`}>본인인증</span>
-          <span className={`rounded-[8px] border py-2 ${verificationToken ? "border-[#2f7866] bg-white text-[#1f735f]" : "border-[#d1d5db] bg-white text-[#94a3b8]"}`}>재설정</span>
-        </div>
+    <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-white px-5 pb-8 pt-5 text-[#111827]">
+      <div className="relative flex h-10 items-center justify-center">
+        <MobileBackButton
+          onClick={goBack}
+          label={step === "account" ? "로그인으로 이동" : "이전 단계"}
+          className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
+        />
+        <h1 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[#111827]">{pageTitle}</h1>
       </div>
 
-      <form onSubmit={onSubmit} className="mt-4 space-y-4">
-        <section className="rounded-[10px] border border-[#d1d5db] bg-white px-4 py-3">
-          <div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-[#475569]">
-            <ShieldCheck className="h-4 w-4" />
-            계정 확인 정보
-          </div>
-
-          <FieldShell label="아이디">
-            <TextInput type="text" {...register("loginId")} placeholder="가입한 아이디" />
-          </FieldShell>
-
-          <FieldShell label="이름">
-            <TextInput type="text" {...register("name")} placeholder="실명 입력" />
-          </FieldShell>
-
-          <FieldShell label="생년월일" hint="8자리">
-            <TextInput type="text" inputMode="numeric" maxLength={8} {...register("birthDate")} placeholder="예: 19960624" />
-          </FieldShell>
-
-          <FieldShell label="휴대폰번호">
-            <TextInput type="text" inputMode="numeric" maxLength={11} {...register("phoneNumber")} placeholder="숫자만 입력" />
-          </FieldShell>
-        </section>
-
-        <section className="space-y-4 rounded-[10px] border border-[#d1d5db] bg-white p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[13px] font-semibold text-[#475569]">본인 확인</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#7c7065]">
-                {isDevelopmentFlow
-                  ? "개발 환경에서는 인증번호로 확인할 수 있어요."
-                  : "가입된 휴대폰 번호와 일치해야 비밀번호를 재설정할 수 있어요."}
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col">
+        <div className="flex-1 pt-8">
+          {step === "account" ? (
+            <section>
+              <p className="mt-4 block w-full min-w-0 whitespace-nowrap text-[17px] font-semibold leading-7 text-[#111827]">
+                가입할 때 사용한 아이디를 입력해 주세요.
               </p>
-            </div>
-            {verificationToken ? (
-              <div className="flex items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1f735f]">
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                인증 완료
-              </div>
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]">
-                <Smartphone className="h-5 w-5" />
-              </div>
-            )}
-          </div>
 
-          {isDevelopmentFlow ? (
-            <div className="space-y-3">
+              <label className="mt-7 block">
+                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">아이디</span>
+                <input
+                  type="text"
+                  {...register("loginId")}
+                  autoComplete="username"
+                  placeholder="가입한 아이디"
+                  className="h-[54px] w-full rounded-[8px] border border-[#d7e0e9] bg-white px-4 text-[16px] font-medium text-[#111827] outline-none transition placeholder:text-[#aab5c4] focus:border-[#247761] focus:ring-2 focus:ring-[#247761]/10"
+                />
+              </label>
+            </section>
+          ) : null}
+
+          {step === "method" ? (
+            <section>
+              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
+                인증 방법을 선택해주세요
+              </h1>
+              <p className="mt-4 w-full max-w-none break-keep text-[14px] leading-6 text-[#667589]">
+                가입 정보와 인증 결과가 일치하면 비밀번호를 바꿀 수 있어요.
+              </p>
+
+              <div className="mt-7 space-y-3">
+                <button
+                  type="button"
+                  onClick={useLocalVerificationFlow ? requestCode : verifyPass}
+                  disabled={loading}
+                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#d7e0e9] bg-white px-4 text-left transition hover:border-[#247761] hover:bg-[#f7fbf9] active:scale-[0.99] disabled:opacity-60"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#eef7f4] text-[#247761]">
+                    <Smartphone className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-medium text-[#111827]">
+                      {useLocalVerificationFlow ? "개발용 인증번호" : "휴대폰 본인인증"}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] font-medium text-[#8090a4]">
+                      {useLocalVerificationFlow ? "가입 정보로 테스트 인증번호를 확인해요" : "KCP/PASS로 본인 여부를 확인해요"}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-[#94a3b8]" />
+                </button>
+
+                <button
+                  type="button"
+                  disabled
+                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#e3e9f0] bg-[#fbfcfd] px-4 text-left opacity-70"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#94a3b8]">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-medium text-[#64748b]">간편인증</span>
+                    <span className="mt-0.5 block text-[12px] font-medium text-[#94a3b8]">카카오, 네이버, 토스 인증은 추후 제공 예정</span>
+                  </span>
+                  <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[11px] font-semibold text-[#7a8797]">준비중</span>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {step === "code" ? (
+            <section>
+              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
+                인증번호를 입력해주세요
+              </h1>
+              <p className="mt-4 text-[14px] leading-6 text-[#667589]">
+                인증번호는 5분간 유지됩니다.
+                <br />
+                인증번호 6자리 숫자를 입력해주세요.
+              </p>
+
+              <label className="mt-7 block">
+                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">인증번호</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={verificationCode}
+                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6자리 숫자"
+                  className="h-[54px] w-full rounded-[8px] border border-[#d7e0e9] bg-white px-4 text-[18px] font-semibold tracking-[0.08em] text-[#111827] outline-none transition placeholder:text-[16px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[#aab5c4] focus:border-[#247761] focus:ring-2 focus:ring-[#247761]/10"
+                />
+              </label>
+
+              {canShowDevVerificationCode && devCode ? (
+                <div className="mt-4 rounded-[10px] border border-[#d7e0e9] bg-[#fbfcfd] px-4 py-3 text-[13px] leading-5 text-[#64748b]">
+                  개발용 인증번호: <span className="font-bold text-[#17130f]">{devCode}</span>
+                </div>
+              ) : null}
+
               <button
                 type="button"
                 onClick={requestCode}
                 disabled={loading}
-                className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#d1d5db] bg-white text-[16px] font-semibold text-[#111827] transition active:scale-[0.99] disabled:opacity-60"
+                className="mt-4 text-[13px] font-semibold text-[#247761] disabled:opacity-60"
               >
-                {verificationRequestId ? "인증번호 다시 받기" : "인증번호 받기"}
+                인증번호 다시 받기
               </button>
+            </section>
+          ) : null}
 
-              {verificationRequestId ? (
-                <>
-                  <FieldShell label="인증번호">
+          {step === "password" ? (
+            <section>
+              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
+                새 비밀번호를 설정해 주세요
+              </h1>
+              <p className="mt-4 max-w-[340px] text-[14px] leading-6 text-[#667589]">
+                본인 확인이 완료 됐어요.
+              </p>
+
+              <div className="mt-6 rounded-[12px] border border-[#d7e0e9] bg-white px-4 py-1">
+                <FieldShell label="새 비밀번호">
+                  <div className="flex items-center gap-3">
                     <TextInput
-                      type="text"
-                      inputMode="numeric"
-                      value={verificationCode}
-                      onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="6자리 숫자"
+                      type={showPassword ? "text" : "password"}
+                      {...register("password")}
+                      placeholder="새 비밀번호 입력"
+                      autoComplete="new-password"
                     />
-                  </FieldShell>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
+                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </FieldShell>
 
-                  {canShowDevVerificationCode && devCode ? (
-                  <div className="rounded-[8px] border border-[#d1d5db] bg-white px-4 py-3 text-[13px] leading-5 text-[#64748b]">
-                      개발용 인증번호: <span className="font-bold text-[#17130f]">{devCode}</span>
-                    </div>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={verifyCode}
-                    disabled={loading || verificationCode.length !== 6}
-                    className="flex h-[52px] w-full items-center justify-center rounded-[8px] bg-[#247761] text-[16px] font-semibold text-white transition active:scale-[0.99] disabled:opacity-60"
-                  >
-                    인증 확인
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={verifyPass}
-              disabled={loading}
-              className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#247761] bg-white text-[16px] font-semibold text-[#1f735f] transition active:scale-[0.99] disabled:opacity-60"
-            >
-              PASS로 본인 확인하기
-            </button>
-          )}
-        </section>
-
-        {verificationToken ? (
-          <section className="space-y-3 rounded-[10px] border border-[#2f7866] bg-white p-4">
-            <div className="flex items-start gap-3">
-              <VerificationCompleteIcon />
-              <div>
-                <p className="text-[13px] font-semibold text-[#1f735f]">인증 완료</p>
-                <p className="mt-1 text-[13px] leading-5 text-[#65766e]">이제 새 비밀번호를 입력할 수 있어요.</p>
+                <FieldShell label="비밀번호 확인">
+                  <div className="flex items-center gap-3">
+                    <TextInput
+                      type={showPasswordConfirm ? "text" : "password"}
+                      {...register("passwordConfirm")}
+                      placeholder="한 번 더 입력"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordConfirm((prev) => !prev)}
+                      className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
+                      aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
+                    >
+                      {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </FieldShell>
               </div>
-            </div>
-
-            <FieldShell label="새 비밀번호">
-              <div className="flex items-center gap-3">
-                <TextInput
-                  type={showPassword ? "text" : "password"}
-                  {...register("password")}
-                  placeholder="새 비밀번호 입력"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
-                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </FieldShell>
-
-            <FieldShell label="새 비밀번호 확인">
-              <div className="flex items-center gap-3">
-                <TextInput
-                  type={showPasswordConfirm ? "text" : "password"}
-                  {...register("passwordConfirm")}
-                  placeholder="한 번 더 입력"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                  className="shrink-0 rounded-[8px] p-1 text-[#64748b] transition hover:bg-[#f8fafc]"
-                  aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
-                >
-                  {showPasswordConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </FieldShell>
-          </section>
-        ) : (
-          <section className="flex items-center gap-3 rounded-[10px] border border-dashed border-[#d1d5db] bg-white px-4 py-3.5 text-[#64748b]">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]">
-              <LockKeyhole className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold text-[#475569]">새 비밀번호</p>
-              <p className="mt-1 text-[12px] leading-5">본인 확인 후 입력할 수 있어요.</p>
-            </div>
-          </section>
-        )}
+              {passwordNotice ? <p className="mt-3 text-[12px] leading-5 text-[#9f5b52]">{passwordNotice}</p> : null}
+            </section>
+          ) : null}
+        </div>
 
         {notice ? (
-          <p className="rounded-[8px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
+          <p className="mb-3 rounded-[10px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={loading || isSubmitting || !verificationToken}
-          className="flex h-[54px] w-full items-center justify-center rounded-[8px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
-        >
-          비밀번호 재설정
-        </button>
+        {step === "account" ? (
+          <button
+            type="button"
+            onClick={goToMethodStep}
+            disabled={loading}
+            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
+          >
+            다음
+          </button>
+        ) : null}
+
+        {step === "code" ? (
+          <button
+            type="button"
+            onClick={verifyCode}
+            disabled={loading || verificationCode.length !== 6}
+            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
+          >
+            인증 확인
+          </button>
+        ) : null}
+
+        {step === "password" ? (
+          <button
+            type="submit"
+            disabled={loading || isSubmitting || !verificationToken}
+            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
+          >
+            비밀번호 변경
+          </button>
+        ) : null}
       </form>
 
       <div className="mt-7 text-center text-[14px] text-[#64748b]">

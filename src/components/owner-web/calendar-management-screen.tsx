@@ -1,7 +1,7 @@
 "use client";
 
-import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, MessageCircle } from "lucide-react";
-import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import { CalendarPlus, Camera, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImagePlus, Loader2, MessageCircle, X } from "lucide-react";
+import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
@@ -9,6 +9,7 @@ import {
   toOwnerWebStaffColumn,
   type OwnerWebStaffColumn,
   type OwnerWebStaffMember,
+  type OwnerWebWeekdayKey,
 } from "@/components/owner-web/owner-web-staff-data";
 import {
   SoftSelect,
@@ -16,16 +17,31 @@ import {
 } from "@/components/owner-web/owner-web-ui";
 import { computeAvailableSlots } from "@/lib/availability";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
-import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, Pet } from "@/types/domain";
+import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, Pet } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "pending" | "confirmed";
 type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "changed" | "cancelled";
 type ScheduleMetric = { key: SummaryMetricKey; label: string; value?: string };
+type OwnerScheduleRangeResponse = Pick<BootstrapPayload, "appointments" | "groomingRecords" | "notifications"> & {
+  shopId: string;
+  from: string;
+  to: string;
+};
+type PhotoStatusAction = {
+  bookingId: string;
+  nextStatus: "진행 중" | "픽업 준비";
+  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  title: string;
+  description: string;
+  buttonLabel: string;
+};
 type StaffKey = string;
 type StaffFilter = "전체 스태프" | StaffKey;
 type StaffAssignments = Record<string, StaffKey>;
+const staffWeekdayKeys: OwnerWebWeekdayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 type ScheduleCreateFormState = {
   customerMode: "new" | "existing";
   petId: string;
@@ -82,6 +98,17 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   cancelled: "취소",
   rejected: "거절",
   noshow: "노쇼",
+};
+
+const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
+  "승인 대기": "pending",
+  확정: "confirmed",
+  "진행 중": "in_progress",
+  "픽업 준비": "almost_done",
+  완료: "completed",
+  취소: "cancelled",
+  거절: "rejected",
+  노쇼: "noshow",
 };
 
 const dailyBookingTimes: Record<string, { start: number; duration: number }> = {
@@ -449,6 +476,41 @@ function hasStaffBookingConflict(
   });
 }
 
+function isStaffWorkingWindow(
+  staffMembers: OwnerWebStaffMember[],
+  staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"] | undefined,
+  staffKey: StaffKey,
+  date: string,
+  start: number,
+  duration: number,
+) {
+  if (staffKey === unassignedStaffColumn.key) return true;
+  const staffMember = staffMembers.find((item) => item.id === staffKey);
+  if (!staffMember) return true;
+
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const dayKey = staffWeekdayKeys[weekday];
+
+  const override = staffScheduleOverrides?.find((item) => item.staff_id === staffKey && item.work_date === date);
+  if (override) {
+    if (override.status === "off" || override.status === "annual") return false;
+    if (override.status === "half") {
+      const split = timeToHour("13:00");
+      const availableStart = override.period === "오전" ? split : timeToHour(staffMember.startTime);
+      const availableEnd = override.period === "오후" ? split : timeToHour(staffMember.endTime);
+      return start >= availableStart && start + duration <= availableEnd;
+    }
+    if (override.status === "work") {
+      return start >= timeToHour(override.start_time ?? staffMember.startTime) && start + duration <= timeToHour(override.end_time ?? staffMember.endTime);
+    }
+  }
+
+  if (!staffMember.defaultDays.includes(dayKey)) return false;
+
+  return start >= timeToHour(staffMember.startTime) && start + duration <= timeToHour(staffMember.endTime);
+}
+
 function findNextAvailableBookingStart(
   bookings: Array<{ id: string; staffKey: string; start: number; duration: number; status?: string }>,
   staffKey: StaffKey,
@@ -497,8 +559,9 @@ function appointmentToDailyBooking(
   const guardian = data.guardians.find((item) => item.id === appointment.guardian_id);
   const pet = data.pets.find((item) => item.id === appointment.pet_id);
   const service = data.services.find((item) => item.id === appointment.service_id);
-  const assignedStaff = staffAssignments[appointment.id]
-    ? staffColumns.find((item) => item.key === staffAssignments[appointment.id])
+  const persistedStaffKey = appointment.staff_id ?? staffAssignments[appointment.id] ?? null;
+  const assignedStaff = persistedStaffKey
+    ? staffColumns.find((item) => item.key === persistedStaffKey)
     : null;
   const staffColumn = assignedStaff ?? fallbackStaff;
   const durationMinutes = minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
@@ -1052,14 +1115,18 @@ function BookingSidePanel({
   const changeEventSelected = selectedBooking ? isChangeBookingStatus(selectedBooking.status) : false;
   const rescheduledEventSelected = selectedBooking ? isRescheduledBookingStatus(selectedBooking.status) : false;
   const startEnabled = selectedBooking ? canStartGrooming(sourceStatus) && displayStatus === "확정" : false;
-  const completeEnabled = selectedBooking ? canSendCompletionNotice(sourceStatus, displayStatus) : false;
+  const pickupReadyEnabled = selectedBooking ? canSendCompletionNotice(sourceStatus, displayStatus) : false;
+  const finishEnabled = selectedBooking ? sourceStatus === "픽업 준비" || (displayStatus === "완료" && sourceStatus !== "완료") : false;
+  const finalActionEnabled = pickupReadyEnabled || finishEnabled;
+  const finalActionStatus = finishEnabled ? "완료" : "픽업 준비";
   const startLabel = startEnabled ? "미용 시작" : displayStatus === "진행 중" ? "자동 진행 중" : displayStatus === "완료" ? "완료됨" : "확정 후 시작";
-  const completeLabel =
-    completeEnabled ? "미용 완료" : sourceStatus === "픽업 준비" ? "알림 완료" : displayStatus === "완료" ? "완료됨" : "진행 후 완료";
+  const finalActionLabel =
+    finishEnabled ? "완료 처리" : pickupReadyEnabled ? "픽업 준비 알림" : displayStatus === "완료" ? "완료됨" : "진행 후 완료";
   const [activePanelTab, setActivePanelTab] = useState<"details" | "comments">("details");
 
   useEffect(() => {
-    setActivePanelTab("details");
+    const frame = window.requestAnimationFrame(() => setActivePanelTab("details"));
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedBooking?.id]);
 
   return (
@@ -1180,17 +1247,17 @@ function BookingSidePanel({
                     </button>
                     <button
                       type="button"
-                      disabled={!completeEnabled}
+                      disabled={!finalActionEnabled}
                       onClick={() => {
-                        if (completeEnabled) onChangeStatus(selectedBooking.id, "픽업 준비");
+                        if (finalActionEnabled) onChangeStatus(selectedBooking.id, finalActionStatus);
                       }}
                       className={cn(
                         "inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-3 text-[14px] font-medium transition",
-                        completeEnabled ? "bg-[#2f7866] text-white hover:bg-[#286a5a]" : "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed",
+                        finalActionEnabled ? "bg-[#2f7866] text-white hover:bg-[#286a5a]" : "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed",
                       )}
                     >
                       <MessageCircle className="h-4 w-4" />
-                      {completeLabel}
+                      {finalActionLabel}
                     </button>
                   </div>
                 )}
@@ -1222,6 +1289,102 @@ function BookingSidePanel({
         )}
       </WebSurface>
     </aside>
+  );
+}
+
+function PhotoStatusDialog({
+  action,
+  onClose,
+  onSubmit,
+}: {
+  action: PhotoStatusAction;
+  onClose: () => void;
+  onSubmit: (file: File) => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    if (!file || saving) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      await onSubmit(file);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "사진 저장 중 문제가 발생했습니다.");
+    } finally {
+      setSaving(false);
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-medium text-[#1f6b5b]">{action.nextStatus === "진행 중" ? "시작 알림" : "픽업 알림"}</p>
+            <h3 className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{action.title}</h3>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(event) => void handleFileChange(event)}
+        />
+
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => inputRef.current?.click()}
+          className="mt-5 flex min-h-[150px] w-full flex-col items-center justify-center rounded-[10px] border border-dashed border-[#cfd8e3] bg-[#f8fafc] px-4 text-center text-[#334155] transition hover:border-[#7ba99b] hover:bg-[#f3fbf8] disabled:cursor-wait disabled:opacity-70"
+        >
+          {saving ? <Loader2 className="mb-2 h-7 w-7 animate-spin" /> : <Camera className="mb-2 h-7 w-7" />}
+          <span className="text-[15px] font-medium">{saving ? "사진 저장 후 알림 전송 중" : action.buttonLabel}</span>
+          <span className="mt-1 text-[12px] text-[#64748b]">한 장만 선택하면 바로 다음 단계로 진행됩니다.</span>
+        </button>
+
+        {error ? (
+          <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={saving}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white hover:bg-[#185848] disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+            사진 선택
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2403,6 +2566,41 @@ async function postOwnerAppointment(payload: unknown) {
   }
 }
 
+async function patchOwnerAppointmentStatus(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<Appointment>("/api/appointments", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
+async function fetchOwnerScheduleRange(shopId: string, from: string, to: string) {
+  const path = `/api/owner/schedule?${new URLSearchParams({ shopId, from, to }).toString()}`;
+  try {
+    return await fetchApiJsonWithAuth<OwnerScheduleRangeResponse>(path, {
+      method: "GET",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<OwnerScheduleRangeResponse>(path, {
+        method: "GET",
+      });
+    }
+    throw error;
+  }
+}
+
 async function postOwnerGuardian(payload: unknown) {
   try {
     return await fetchApiJsonWithAuth<Guardian>("/api/guardians", {
@@ -2497,6 +2695,7 @@ function buildLocalOwnerAppointment(params: {
   appointmentTime: string;
   durationMinutes: number;
   memo: string;
+  staffId?: string | null;
 }): Appointment {
   const startMinute = Math.round(timeToHour(params.appointmentTime) * 60);
   const endMinute = startMinute + params.durationMinutes;
@@ -2509,6 +2708,7 @@ function buildLocalOwnerAppointment(params: {
     guardian_id: params.guardianId,
     pet_id: params.petId,
     service_id: params.serviceId,
+    staff_id: params.staffId ?? null,
     appointment_date: params.appointmentDate,
     appointment_time: params.appointmentTime,
     status: "confirmed",
@@ -2520,6 +2720,45 @@ function buildLocalOwnerAppointment(params: {
     created_at: now,
     updated_at: now,
   };
+}
+
+function replaceAppointmentInBootstrap(data: BootstrapPayload, appointment: Appointment): BootstrapPayload {
+  return {
+    ...data,
+    appointments: data.appointments.map((item) => (item.id === appointment.id ? { ...item, ...appointment } : item)),
+  };
+}
+
+function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: OwnerScheduleRangeResponse): BootstrapPayload {
+  const isAppointmentInRange = (appointment: Appointment) =>
+    appointment.appointment_date >= range.from && appointment.appointment_date <= range.to;
+  const isGroomingRecordInRange = (record: BootstrapPayload["groomingRecords"][number]) => {
+    const recordDate = record.groomed_at.slice(0, 10);
+    return recordDate >= range.from && recordDate <= range.to;
+  };
+  const notificationIds = new Set(range.notifications.map((item) => item.id));
+
+  return {
+    ...data,
+    appointments: [
+      ...data.appointments.filter((item) => !isAppointmentInRange(item)),
+      ...range.appointments,
+    ],
+    groomingRecords: [
+      ...data.groomingRecords.filter((item) => !isGroomingRecordInRange(item)),
+      ...range.groomingRecords,
+    ],
+    notifications: [
+      ...range.notifications,
+      ...data.notifications.filter((item) => !notificationIds.has(item.id)),
+    ]
+      .sort((first, second) => (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at))
+      .slice(0, 200),
+  };
+}
+
+function getAppointmentStatusFromBookingStatus(status: string) {
+  return bookingStatusToAppointmentStatus[status] ?? null;
 }
 
 type ScheduleDropdownOption = {
@@ -2600,6 +2839,7 @@ function ScheduleCreateDialog({
   form,
   selectedDate,
   visibleStaff,
+  staffMembers,
   staffAssignments,
   saving,
   error,
@@ -2612,6 +2852,7 @@ function ScheduleCreateDialog({
   form: ScheduleCreateFormState;
   selectedDate: string;
   visibleStaff: OwnerWebStaffColumn[];
+  staffMembers: OwnerWebStaffMember[];
   staffAssignments: StaffAssignments;
   saving: boolean;
   error: string;
@@ -2657,6 +2898,7 @@ function ScheduleCreateDialog({
         services: data.services,
         appointments: data.appointments,
       }).filter((slot) => !hasStaffBookingConflict(dateBookings, "__new-booking__", { staffKey: form.staffKey, start: timeToHour(slot), duration }))
+        .filter((slot) => isStaffWorkingWindow(staffMembers, data.staffScheduleOverrides, form.staffKey, form.date, timeToHour(slot), duration))
     : [];
   const selectedPet = data.pets.find((pet) => pet.id === form.petId);
   const selectedGuardian = selectedPet ? data.guardians.find((guardian) => guardian.id === selectedPet.guardian_id) : null;
@@ -2886,17 +3128,18 @@ function ScheduleCreateDialog({
 
 export default function CalendarManagementScreen({
   initialData,
+  onDataChange,
   staffMembers = [],
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
 }: {
   initialData: BootstrapPayload;
+  onDataChange?: (data: BootstrapPayload) => void;
   staffMembers?: OwnerWebStaffMember[];
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
-  const initialBootstrapData = useMemo(() => initialData, [initialData]);
-  const [bootstrapData, setBootstrapData] = useState(() => initialBootstrapData);
+  const [bootstrapData, setBootstrapData] = useState(() => initialData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const visibleStaff = useMemo(() => {
@@ -2930,12 +3173,14 @@ export default function CalendarManagementScreen({
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
   const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
+  const [photoStatusAction, setPhotoStatusAction] = useState<PhotoStatusAction | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
-    buildDefaultScheduleForm(initialBootstrapData, visibleStaff, currentDateInTimeZone(), "전체 스태프"),
+    buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 스태프"),
   );
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
+  const [boardError, setBoardError] = useState("");
   const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
   const staffScopedBookings = useMemo(
     () => {
@@ -3001,14 +3246,64 @@ export default function CalendarManagementScreen({
   }, [bootstrapData, selectedDate, selectedDateBookingSource, selectedDateBookings, staffMembers.length, visibleStaff]);
 
   useEffect(() => {
-    setBootstrapData(initialBootstrapData);
-    setScheduleForm(buildDefaultScheduleForm(initialBootstrapData, visibleStaff, selectedDate, staff));
-  }, [initialBootstrapData, staff, selectedDate, visibleStaff]);
+    setBootstrapData(initialData);
+  }, [initialData]);
+
+  useEffect(() => {
+    if (scheduleDialogOpen) return;
+    setScheduleForm(buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff));
+  }, [bootstrapData, scheduleDialogOpen, staff, selectedDate, visibleStaff]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setScheduleStatusHour(getCurrentDayHour()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (bootstrapData.mode !== "supabase") return;
+
+    let cancelled = false;
+    const syncScheduleRange = async () => {
+      const canSync =
+        typeof document === "undefined" ||
+        (document.visibilityState === "visible" &&
+          !scheduleDialogOpen &&
+          !scheduleSaving &&
+          !photoStatusAction &&
+          !earlyStartBooking);
+
+      if (!canSync) return;
+
+      try {
+        const range = await fetchOwnerScheduleRange(bootstrapData.shop.id, selectedDate, selectedDate);
+        if (cancelled) return;
+        const nextBootstrapData = replaceScheduleRangeInBootstrap(bootstrapData, range);
+        setBootstrapData(nextBootstrapData);
+        onDataChange?.(nextBootstrapData);
+      } catch {
+        // External sync should never interrupt the board while the owner is working.
+      }
+    };
+
+    const intervalId = window.setInterval(syncScheduleRange, 15_000);
+    window.addEventListener("focus", syncScheduleRange);
+    document.addEventListener("visibilitychange", syncScheduleRange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", syncScheduleRange);
+      document.removeEventListener("visibilitychange", syncScheduleRange);
+    };
+  }, [
+    bootstrapData,
+    earlyStartBooking,
+    onDataChange,
+    photoStatusAction,
+    scheduleDialogOpen,
+    scheduleSaving,
+    selectedDate,
+  ]);
 
   useEffect(() => {
     if (staff !== "전체 스태프" && !visibleStaff.some((item) => item.key === staff)) {
@@ -3071,30 +3366,95 @@ export default function CalendarManagementScreen({
     setSelectedBookingId("");
   }
 
-  function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === bookingId
-          ? {
-              ...booking,
-              ...next,
-            }
-          : booking,
-      ),
-    );
+  async function persistBoardBookingChange(nextBooking: DailyBooking) {
+    const appointment = bootstrapData.appointments.find((item) => item.id === nextBooking.id);
+    if (!appointment) return;
+
+    const updatedAppointment = await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+      method: "PATCH",
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        serviceId: appointment.service_id,
+        staffId: nextBooking.staffKey === unassignedStaffColumn.key ? null : nextBooking.staffKey,
+        appointmentDate: appointment.appointment_date,
+        appointmentTime: formatHourLabel(nextBooking.start),
+        durationMinutes: Math.round(nextBooking.duration * 60),
+        memo: appointment.memo ?? "",
+        enforceShopCapacity: false,
+        notifyCustomer: false,
+        preserveStatus: true,
+      }),
+    });
+
+    const nextBootstrapData = replaceAppointmentInBootstrap(bootstrapData, updatedAppointment);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+    setStaffAssignments((current) => ({
+      ...current,
+      [updatedAppointment.id]: updatedAppointment.staff_id ?? unassignedStaffColumn.key,
+    }));
   }
 
-  function handleResizeBooking(bookingId: string, duration: number) {
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === bookingId
-          ? {
-              ...booking,
-              duration,
-            }
-          : booking,
-      ),
-    );
+  async function refreshScheduleRangeAfterStatusChange(date: string, fallbackData: BootstrapPayload) {
+    const range = await fetchOwnerScheduleRange(fallbackData.shop.id, date, date);
+    const nextBootstrapData = replaceScheduleRangeInBootstrap(fallbackData, range);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+    return nextBootstrapData;
+  }
+
+  async function persistBookingStatusChange(bookingId: string, nextStatus: string, mediaAssetIds: string[] = []) {
+    const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
+    if (!appointmentStatus) return null;
+
+    const updatedAppointment = await patchOwnerAppointmentStatus({
+      appointmentId: bookingId,
+      status: appointmentStatus,
+      mediaAssetIds,
+    });
+    const nextBootstrapData = replaceAppointmentInBootstrap(bootstrapData, updatedAppointment);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+
+    if (appointmentStatus === "completed") {
+      return refreshScheduleRangeAfterStatusChange(updatedAppointment.appointment_date, nextBootstrapData);
+    }
+
+    return nextBootstrapData;
+  }
+
+  async function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
+    const previousBookings = bookings;
+    const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    if (!targetBooking) return;
+
+    const nextBooking = { ...targetBooking, ...next };
+    setBoardError("");
+    setBookings((current) => current.map((booking) => (booking.id === bookingId ? nextBooking : booking)));
+
+    try {
+      await persistBoardBookingChange(nextBooking);
+    } catch (error) {
+      setBookings(previousBookings);
+      setBoardError(getApiErrorMessage(error, "예약 위치 저장 중 문제가 발생했습니다."));
+    }
+  }
+
+  async function handleResizeBooking(bookingId: string, duration: number) {
+    const previousBookings = bookings;
+    const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    if (!targetBooking) return;
+
+    const nextBooking = { ...targetBooking, duration };
+    setBoardError("");
+    setBookings((current) => current.map((booking) => (booking.id === bookingId ? nextBooking : booking)));
+
+    try {
+      await persistBoardBookingChange(nextBooking);
+    } catch (error) {
+      setBookings(previousBookings);
+      setBoardError(getApiErrorMessage(error, "예약 시간 저장 중 문제가 발생했습니다."));
+    }
   }
 
   function isBeforeBookingStart(booking: DailyBooking) {
@@ -3103,19 +3463,69 @@ export default function CalendarManagementScreen({
     return selectedDay > todayDay || (selectedDay === todayDay && getCurrentDayHour() < booking.start);
   }
 
-  function applyBookingStatusChange(bookingId: string, nextStatus: string) {
+  async function applyBookingStatusChange(bookingId: string, nextStatus: string, mediaAssetIds: string[] = []) {
+    const previousBookings = bookings;
+    const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    if (!targetBooking) return;
+
+    const displayStatus = getTimedBookingStatus(targetBooking, selectedDate, getCurrentDayHour());
+    if (nextStatus === "진행 중" && !canStartGrooming(targetBooking.status)) return;
+    if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(targetBooking.status) && !canSendCompletionNotice(targetBooking.status, displayStatus)) return;
+    if (nextStatus === "완료" && targetBooking.status !== "픽업 준비" && displayStatus !== "완료") return;
+
+    const nextBooking = { ...targetBooking, status: nextStatus };
+    setBoardError("");
     setBookings((current) =>
-      current.map((booking) => {
-        if (booking.id !== bookingId) return booking;
-        const displayStatus = getTimedBookingStatus(booking, selectedDate, getCurrentDayHour());
-        if (nextStatus === "진행 중" && !canStartGrooming(booking.status)) return booking;
-        if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(booking.status) && !canSendCompletionNotice(booking.status, displayStatus)) {
-          return booking;
-        }
-        return { ...booking, status: nextStatus };
-      }),
+      current.map((booking) => (booking.id === bookingId ? nextBooking : booking)),
     );
     setScheduleStatusHour(getCurrentDayHour());
+
+    try {
+      await persistBookingStatusChange(bookingId, nextStatus, mediaAssetIds);
+    } catch (error) {
+      setBookings(previousBookings);
+      setBoardError(getApiErrorMessage(error, "예약 상태 저장 중 문제가 발생했습니다."));
+    }
+  }
+
+  function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "진행 중" | "픽업 준비") {
+    setPhotoStatusAction({
+      bookingId: booking.id,
+      nextStatus,
+      mediaKind: nextStatus === "진행 중" ? "grooming_before" : "grooming_after",
+      title: nextStatus === "진행 중" ? "미용 시작 사진" : "미용 완료 사진",
+      description:
+        nextStatus === "진행 중"
+          ? "미용 시작 전 상태를 한 장 촬영하면 시작 알림에 함께 전송됩니다."
+          : "마무리된 모습을 한 장 촬영하면 픽업 준비 알림에 함께 전송됩니다.",
+      buttonLabel: nextStatus === "진행 중" ? "사진 찍고 미용 시작" : "사진 찍고 알림 보내기",
+    });
+  }
+
+  async function handlePhotoStatusFile(file: File) {
+    if (!photoStatusAction) return;
+    const appointment = bootstrapData.appointments.find((item) => item.id === photoStatusAction.bookingId);
+    const booking = bookings.find((item) => item.id === photoStatusAction.bookingId);
+    if (!appointment || !booking) {
+      setBoardError("사진을 연결할 예약 정보를 찾지 못했습니다.");
+      return;
+    }
+
+    setBoardError("");
+    const uploaded = await createOwnerMediaAssetFromFile(
+      {
+        shopId: bootstrapData.shop.id,
+        guardianId: appointment.guardian_id,
+        petId: appointment.pet_id,
+        appointmentId: appointment.id,
+        groomingRecordId: null,
+      },
+      photoStatusAction.mediaKind,
+      file,
+    );
+
+    setPhotoStatusAction(null);
+    await applyBookingStatusChange(booking.id, photoStatusAction.nextStatus, [uploaded.mediaAsset.id]);
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
@@ -3125,7 +3535,12 @@ export default function CalendarManagementScreen({
       return;
     }
 
-    applyBookingStatusChange(bookingId, nextStatus);
+    if (targetBooking && (nextStatus === "진행 중" || nextStatus === "픽업 준비")) {
+      requestPhotoStatusChange(targetBooking, nextStatus);
+      return;
+    }
+
+    void applyBookingStatusChange(bookingId, nextStatus);
   }
 
   function handleAcknowledgeChangeBooking(bookingId: string) {
@@ -3214,6 +3629,11 @@ export default function CalendarManagementScreen({
       return;
     }
 
+    if (!isStaffWorkingWindow(staffMembers, bootstrapData.staffScheduleOverrides, targetStaff.key, scheduleForm.date, timeToHour(scheduleForm.time), duration)) {
+      setScheduleError("선택한 담당자의 근무요일 또는 근무시간 밖입니다.");
+      return;
+    }
+
     setScheduleSaving(true);
     setScheduleError("");
     let createdGuardian: Guardian | null = null;
@@ -3281,6 +3701,7 @@ export default function CalendarManagementScreen({
       guardianId: selectedGuardian.id,
       petId: selectedPet.id,
       serviceId: selectedService.id,
+      staffId: targetStaff.key === unassignedStaffColumn.key ? null : targetStaff.key,
       appointmentDate: scheduleForm.date,
       appointmentTime: scheduleForm.time,
       memo: scheduleForm.memo,
@@ -3301,6 +3722,7 @@ export default function CalendarManagementScreen({
 
       setStaffAssignments(nextAssignments);
       setBootstrapData(nextBootstrapData);
+      onDataChange?.(nextBootstrapData);
       setSelectedDate(scheduleForm.date);
       setBookings(manualApprovalEnabled ? nextBookings : nextBookings.map((booking) => normalizeBookingForApprovalMode(booking, false)));
       setSelectedBookingId(appointment.id);
@@ -3348,6 +3770,7 @@ export default function CalendarManagementScreen({
           form={scheduleForm}
           selectedDate={selectedDate}
           visibleStaff={visibleStaff}
+          staffMembers={staffMembers}
           staffAssignments={staffAssignments}
           saving={scheduleSaving}
           error={scheduleError}
@@ -3360,6 +3783,11 @@ export default function CalendarManagementScreen({
           }}
           onSubmit={handleCreateSchedule}
         />
+      ) : null}
+      {boardError ? (
+        <p className="rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] text-[#b42318]">
+          {boardError}
+        </p>
       ) : null}
 
       <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
@@ -3400,6 +3828,13 @@ export default function CalendarManagementScreen({
           onChangeStaffComment={handleStaffCommentChange}
         />
       </div>
+      {photoStatusAction ? (
+        <PhotoStatusDialog
+          action={photoStatusAction}
+          onClose={() => setPhotoStatusAction(null)}
+          onSubmit={handlePhotoStatusFile}
+        />
+      ) : null}
       {earlyStartBooking ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={() => setEarlyStartBooking(null)}>
           <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
@@ -3414,7 +3849,7 @@ export default function CalendarManagementScreen({
               <button
                 type="button"
                 onClick={() => {
-                  applyBookingStatusChange(earlyStartBooking.id, "진행 중");
+                  requestPhotoStatusChange(earlyStartBooking, "진행 중");
                   setEarlyStartBooking(null);
                 }}
                 className="h-10 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white"

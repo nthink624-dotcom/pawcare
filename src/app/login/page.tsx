@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
 import LoginForm from "@/components/auth/login-form";
-import { getServerSessionUser } from "@/lib/auth/server-session";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 
 const errorMessages: Record<string, string> = {
@@ -28,14 +27,13 @@ export default async function LoginPage({
   const errorDetail = typeof params.detail === "string" ? params.detail : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
-  const user = await getServerSessionUser();
   const initialMessage = errorKey
     ? [errorMessages[errorKey] ?? null, errorDetail ? `상세: ${errorDetail}` : null].filter(Boolean).join(" ")
     : messageKey
       ? (infoMessages[messageKey] ?? null)
       : null;
 
-  if (user) {
+  if (messageKey === "already-authenticated") {
     redirect(nextPath as never);
   }
 

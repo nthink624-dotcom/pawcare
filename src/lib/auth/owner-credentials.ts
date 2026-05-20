@@ -1,4 +1,5 @@
-﻿export const ownerPasswordRuleMessage = "비밀번호는 영문 대문자, 영문 소문자, 숫자, 특수문자 중 3종류 이상을 포함해야 합니다.";
+export const ownerPasswordRuleMessage =
+  "비밀번호 규칙에 맞지 않습니다. 6자 이상, 영문 대문자·소문자·숫자·특수문자 중 3종류 이상을 포함해 주세요.";
 
 export function normalizeOwnerLoginId(value: string) {
   return value.trim().toLowerCase();
@@ -38,5 +39,5 @@ export function isValidOwnerPassword(value: string) {
     /[^A-Za-z0-9]/.test(value),
   ].filter(Boolean).length;
 
-  return categories >= 3;
+  return value.length >= 6 && categories >= 3;
 }

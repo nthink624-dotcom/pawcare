@@ -179,6 +179,47 @@ const requestSchema = z.object({
     .nullable(),
 });
 
+const templateCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(30)
+  .regex(/^[A-Za-z0-9_-]+$/, "templateCode must contain only letters, numbers, underscore, or hyphen.");
+
+const templateCodeCheckSchema = z.object({
+  templateCode: templateCodeSchema,
+});
+
+const relayTemplateConfigKeys = [
+  "templateBookingReceived",
+  "templateBookingConfirmed",
+  "templateBookingRejected",
+  "templateBookingCancelled",
+  "templateBookingRescheduledConfirmed",
+  "templateAppointmentReminder10m",
+  "templateGroomingStarted",
+  "templateGroomingAlmostDone",
+  "templateGroomingCompleted",
+  "templateRevisitNotice",
+  "templateBirthdayGreeting",
+] as const;
+
+const templateRegisterSchema = z.object({
+  templateCode: templateCodeSchema,
+  templateName: z.string().trim().min(1).max(100),
+  templateContent: z.string().trim().min(1).max(1000),
+  categoryCode: z.string().trim().min(1),
+  templateMessageType: z.enum(["BA", "EX", "AD", "MI"]).default("BA"),
+  templateEmphasizeType: z.enum(["NONE", "TEXT", "IMAGE", "ITEM_LIST"]).default("NONE"),
+  templateExtra: z.string().trim().optional().nullable(),
+  templateAd: z.string().trim().optional().nullable(),
+  templateTitle: z.string().trim().optional().nullable(),
+  templateSubtitle: z.string().trim().optional().nullable(),
+  comment: z.string().trim().max(500).optional().nullable(),
+  requestReview: z.boolean().default(true),
+  templateConfigKey: z.enum(relayTemplateConfigKeys).optional().nullable(),
+});
+
 const adminConfigSchema = z.object({
   relaySecret: z.string(),
   ssodaaApiUrl: z.string().url(),
@@ -214,6 +255,7 @@ const templateAliases = [
 ] as const;
 
 type TemplateAlias = (typeof templateAliases)[number];
+type RelayTemplateConfigKey = (typeof relayTemplateConfigKeys)[number];
 
 type SsodaaTemplateDetail = {
   templateCode: string;
@@ -221,6 +263,14 @@ type SsodaaTemplateDetail = {
   templateContent: string | null;
   inspectionStatus: string | null;
   serviceStatus: string | null;
+};
+
+type SsodaaTemplateCategory = {
+  code: string;
+  name: string;
+  groupName: string | null;
+  inclusion: string | null;
+  exclusion: string | null;
 };
 
 function coerceJsonLikeBody(value: unknown) {
@@ -378,6 +428,148 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
     inspectionStatus: typeof content.inspectionStatus === "string" ? content.inspectionStatus : null,
     serviceStatus: typeof content.serviceStatus === "string" ? content.serviceStatus : null,
   } satisfies SsodaaTemplateDetail;
+}
+
+function getSsodaaApiUrl(pathname: string) {
+  return new URL(pathname, env.ssodaaApiUrl).toString();
+}
+
+async function postSsodaaJson(pathname: string, payload: Record<string, unknown>) {
+  const providerResponse = await fetch(getSsodaaApiUrl(pathname), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": env.ssodaaApiKey,
+    },
+    body: JSON.stringify({
+      token_key: env.ssodaaTokenKey,
+      ...payload,
+    }),
+  });
+
+  const contentType = providerResponse.headers.get("content-type") ?? "";
+  const rawResponseBody = contentType.includes("application/json")
+    ? await providerResponse.json()
+    : await providerResponse.text();
+  const responseBody = coerceJsonLikeBody(rawResponseBody);
+
+  if (!providerResponse.ok) {
+    const message =
+      typeof responseBody === "string"
+        ? responseBody
+        : (responseBody as { message?: string; error?: string } | null)?.message ||
+          (responseBody as { message?: string; error?: string } | null)?.error ||
+          "쏘다 API 요청에 실패했습니다.";
+    const error = new Error(message);
+    (error as Error & { status?: number; providerResponse?: unknown }).status = providerResponse.status;
+    (error as Error & { status?: number; providerResponse?: unknown }).providerResponse = responseBody;
+    throw error;
+  }
+
+  if (typeof responseBody === "object" && responseBody !== null) {
+    const providerCode = (responseBody as { code?: string | number }).code;
+    if (providerCode !== undefined && String(providerCode) !== "200") {
+      const message =
+        (responseBody as { message?: string; error?: string } | null)?.message ||
+        (responseBody as { message?: string; error?: string } | null)?.error ||
+        "쏘다 API가 요청을 거절했습니다.";
+      const error = new Error(message);
+      (error as Error & { status?: number; providerResponse?: unknown }).status = 502;
+      (error as Error & { status?: number; providerResponse?: unknown }).providerResponse = responseBody;
+      throw error;
+    }
+  }
+
+  return responseBody;
+}
+
+async function checkSsodaaTemplateCode(templateCode: string) {
+  return postSsodaaJson("/kakao/template/codeCheck", {
+    senderKey: env.ssodaaSenderKey,
+    templateCode,
+  });
+}
+
+async function addSsodaaTemplate(input: z.infer<typeof templateRegisterSchema>) {
+  return postSsodaaJson("/kakao/template/add", {
+    senderKey: env.ssodaaSenderKey,
+    templateCode: input.templateCode,
+    templateName: input.templateName,
+    templateMessageType: input.templateMessageType,
+    templateEmphasizeType: input.templateEmphasizeType,
+    templateContent: input.templateContent,
+    templateExtra: input.templateExtra || undefined,
+    templateAd: input.templateAd || undefined,
+    templateTitle: input.templateTitle || undefined,
+    templateSubtitle: input.templateSubtitle || undefined,
+    categoryCode: input.categoryCode,
+  });
+}
+
+async function requestSsodaaTemplateReview(input: z.infer<typeof templateRegisterSchema>) {
+  return postSsodaaJson("/kakao/template/request", {
+    senderKey: env.ssodaaSenderKey,
+    templateCode: input.templateCode,
+    comment: input.comment || undefined,
+  });
+}
+
+function normalizeSsodaaTemplateCategories(responseBody: unknown) {
+  const source =
+    typeof responseBody === "object" && responseBody !== null && Array.isArray((responseBody as { category?: unknown[] }).category)
+      ? ((responseBody as { category?: unknown[] }).category ?? [])
+      : typeof responseBody === "object" &&
+          responseBody !== null &&
+          "content" in responseBody &&
+          typeof (responseBody as { content?: unknown }).content === "object" &&
+          (responseBody as { content?: unknown }).content !== null &&
+          Array.isArray(((responseBody as { content?: { category?: unknown[] } }).content ?? {}).category)
+        ? (((responseBody as { content?: { category?: unknown[] } }).content ?? {}).category ?? [])
+        : [];
+
+  return source
+    .map((item) => {
+      const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const code = typeof row.code === "string" ? row.code : "";
+      const name = typeof row.name === "string" ? row.name : "";
+      if (!code || !name) return null;
+
+      return {
+        code,
+        name,
+        groupName: typeof row.groupName === "string" ? row.groupName : null,
+        inclusion:
+          typeof row.Inclusion === "string"
+            ? row.Inclusion
+            : typeof row.inclusion === "string"
+              ? row.inclusion
+              : null,
+        exclusion:
+          typeof row.exclusion === "string"
+            ? row.exclusion
+            : typeof row.Exclusion === "string"
+              ? row.Exclusion
+              : null,
+      } satisfies SsodaaTemplateCategory;
+    })
+    .filter((item): item is SsodaaTemplateCategory => Boolean(item));
+}
+
+async function listSsodaaTemplateCategories() {
+  const responseBody = await postSsodaaJson("/kakao/template/category/all", {});
+  return {
+    providerResponse: responseBody,
+    categories: normalizeSsodaaTemplateCategories(responseBody),
+  };
+}
+
+function mapTemplateCodeToRelayConfig(configKey: RelayTemplateConfigKey, templateCode: string) {
+  const nextConfig = {
+    ...getRelayConfigPayload(),
+    [configKey]: templateCode,
+  };
+  persistRelayConfig(nextConfig);
+  applyRelayConfig(nextConfig);
 }
 
 async function buildSsodaaTemplateCatalog() {
@@ -700,6 +892,87 @@ app.get("/admin/templates", async (request, response) => {
     const status = (error as Error & { status?: number }).status ?? 500;
     const message = error instanceof Error ? error.message : "Relay template catalog fetch failed.";
     response.status(status).json({ ok: false, message });
+  }
+});
+
+app.post("/admin/templates/code-check", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const payload = templateCodeCheckSchema.parse(request.body);
+    const providerResponse = await checkSsodaaTemplateCode(payload.templateCode);
+
+    response.json({
+      ok: true,
+      templateCode: payload.templateCode,
+      providerResponse,
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay template code check failed.";
+    response.status(status).json({
+      ok: false,
+      message,
+      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
+    });
+  }
+});
+
+app.post("/admin/templates/register", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const payload = templateRegisterSchema.parse(request.body);
+    const addResponse = await addSsodaaTemplate(payload);
+    const reviewResponse = payload.requestReview ? await requestSsodaaTemplateReview(payload) : null;
+    if (payload.templateConfigKey) {
+      mapTemplateCodeToRelayConfig(payload.templateConfigKey, payload.templateCode);
+    }
+
+    response.json({
+      ok: true,
+      templateCode: payload.templateCode,
+      registered: true,
+      reviewRequested: Boolean(reviewResponse),
+      mappedConfigKey: payload.templateConfigKey ?? null,
+      providerResponse: {
+        add: addResponse,
+        review: reviewResponse,
+      },
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay template registration failed.";
+    response.status(status).json({
+      ok: false,
+      message,
+      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
+    });
+  }
+});
+
+app.get("/admin/templates/categories", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const result = await listSsodaaTemplateCategories();
+
+    response.json({
+      ok: true,
+      categories: result.categories,
+      providerResponse: result.providerResponse,
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "Relay template category fetch failed.";
+    response.status(status).json({
+      ok: false,
+      message,
+      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
+    });
   }
 });
 

@@ -8,7 +8,7 @@ import { getSupabaseRuntimeStage } from "@/lib/env";
 import type { Service, Shop } from "@/types/domain";
 import { CalendarDays, ChevronRight, Search, Settings2, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 const SURFACE =
   "rounded-[28px] border border-[#ddd6ca] bg-white shadow-[0_12px_30px_rgba(24,33,31,0.05)]";
@@ -33,11 +33,7 @@ function formatWon(value: number) {
 
 export default function LandingPage({ shop }: { shop: Shop; services: Service[] }) {
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [canShowDemoLinks, setCanShowDemoLinks] = useState(false);
-
-  useEffect(() => {
-    setCanShowDemoLinks(getSupabaseRuntimeStage() !== "production");
-  }, []);
+  const canShowDemoLinks = getSupabaseRuntimeStage() !== "production";
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f4efe7] text-[#18211f]">
@@ -184,8 +180,10 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="flex items-start justify-between gap-3 px-5 pb-4 pt-5">
           <div>
             <p className="text-[12px] font-semibold tracking-[0.08em] text-[#6f665d]">모든 플랜 보기</p>
-            <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#18211f]">월 금액 중심으로 플랜을 비교해 보세요</h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#625d56]">1개월은 일반결제, 3개월 이상은 약정 기간 동안 매달 결제됩니다.</p>
+            <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#18211f]">매장 규모에 맞게 비교해 보세요</h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#625d56]">
+              예약 건수와 사진 수는 막지 않고, 직원 수와 알림톡 포함량을 기준으로 나눴습니다.
+            </p>
           </div>
           <button
             type="button"
@@ -207,20 +205,22 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             }`}
           >
             <span className="absolute -top-[12px] right-4 rounded-[10px] bg-[#1f5b51] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-[0_6px_16px_rgba(31,91,81,0.22)]">
-              {featuredPlan.badge ?? `약 ${featuredPlan.discountPercent}% 할인`}
+              {featuredPlan.badge ?? "추천"}
             </span>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-[22px] font-extrabold tracking-[-0.03em] text-[#18211f]">{featuredPlan.title}</p>
-                <p className="mt-2 text-[14px] leading-6 text-[#6a6259]">{featuredPlan.billingLabel}</p>
+                <p className="mt-2 text-[14px] leading-6 text-[#6a6259]">{featuredPlan.description}</p>
                 {featuredPlan.dailyPriceText ? (
                   <p className="mt-2 text-[13px] font-semibold text-[#1f5b51]">{featuredPlan.dailyPriceText}</p>
                 ) : null}
-                <p className="mt-3 text-[12px] font-medium text-[#827b72]">{featuredPlan.totalLabel}</p>
+                <p className="mt-3 text-[12px] font-medium text-[#827b72]">
+                  {featuredPlan.staffLimitLabel} · {featuredPlan.alimtalkIncludedLabel}
+                </p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-[31px] font-extrabold tracking-[-0.05em] text-[#18211f]">월 {formatWon(featuredPlan.monthlyPrice)}</p>
-                <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{featuredPlan.shortTitle}</p>
+                <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{featuredPlan.excessAlimtalkLabel}</p>
               </div>
             </div>
           </button>
@@ -234,29 +234,31 @@ function PlanModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   key={plan.code}
                   type="button"
                   onClick={() => setSelectedPlanCode(plan.code)}
-                  className={`relative ${plan.discountPercent > 0 ? "mt-3" : ""} w-full overflow-visible rounded-[24px] border bg-white px-5 py-4 text-left transition ${
+                  className={`relative ${plan.badge ? "mt-3" : ""} w-full overflow-visible rounded-[24px] border bg-white px-5 py-4 text-left transition ${
                     selected
                       ? "border-[#1f5b51] bg-[#f4faf7] shadow-[0_10px_24px_rgba(11,77,63,0.06)]"
                       : "border-[#ddd6ca]"
                   }`}
                 >
-                  {plan.discountPercent > 0 ? (
+                  {plan.badge ? (
                     <span className="absolute -top-[12px] right-4 rounded-[10px] bg-[#1f5b51] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-white shadow-[0_6px_14px_rgba(31,91,81,0.22)]">
-                      약 {plan.discountPercent}% 할인
+                      {plan.badge}
                     </span>
                   ) : null}
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-[20px] font-extrabold tracking-[-0.03em] text-[#18211f]">{plan.title}</p>
-                      <p className="mt-2 text-[13px] leading-6 text-[#6a6259]">{plan.billingLabel}</p>
+                      <p className="mt-2 text-[13px] leading-6 text-[#6a6259]">{plan.description}</p>
                       {plan.dailyPriceText ? (
                         <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{plan.dailyPriceText}</p>
                       ) : null}
-                      <p className="mt-2.5 text-[12px] font-medium text-[#827b72]">{plan.totalLabel ?? "일반결제"}</p>
+                      <p className="mt-2.5 text-[12px] font-medium text-[#827b72]">
+                        {plan.staffLimitLabel} · {plan.alimtalkIncludedLabel}
+                      </p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-[24px] font-extrabold tracking-[-0.04em] text-[#18211f]">월 {formatWon(plan.monthlyPrice)}</p>
-                      <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{plan.shortTitle}</p>
+                      <p className="mt-1 text-[12px] font-medium text-[#1f5b51]">{plan.excessAlimtalkLabel}</p>
                     </div>
                   </div>
                 </button>

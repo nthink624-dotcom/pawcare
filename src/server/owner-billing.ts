@@ -757,15 +757,7 @@ function buildDefaultRecord(identity: BillingIdentity, shopId: string): OwnerSub
 }
 
 function getBillingCycleForPlan(plan: { months: number }) {
-  return plan.months === 12
-    ? "12m"
-    : plan.months === 6
-      ? "6m"
-      : plan.months === 3
-        ? "3m"
-        : plan.months === 0
-          ? "0m"
-          : "1m";
+  return plan.months === 0 ? "0m" : "1m";
 }
 
 function getChargeAmountForPlan(plan: { billingType: "one_time" | "subscription"; monthlyPrice: number; totalPrice: number }) {

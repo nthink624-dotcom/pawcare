@@ -8,13 +8,55 @@ Owner-facing notices are defined in `docs/media-owner-notice-copy.md`.
 
 ## Storage Rule
 
-- Store binary files in Supabase Storage bucket `petmanager-media`.
+- Store binary files in the configured media object storage.
+- Default development fallback is Supabase Storage bucket `petmanager-media`.
+- Production photo storage can use Cloudflare R2 by setting `MEDIA_STORAGE_PROVIDER=r2`.
 - Store database metadata in `media_assets`.
 - Store `bucket` and `storage_path`, not signed URLs.
 - Signed URLs are short-lived API responses only.
 - Keep image metadata out of `notifications.metadata` except for small provider-specific snapshots.
 - Do not proxy media files through Vercel routes. Vercel should only verify permissions, create database rows, and issue short-lived upload/download instructions.
-- Upload and download media directly between the client and Supabase Storage whenever possible.
+- Upload and download media directly between the client and object storage whenever possible.
+
+## Cloudflare R2 Storage
+
+Recommended production setup:
+
+```env
+MEDIA_STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=<cloudflare-account-id>
+R2_ACCESS_KEY_ID=<r2-access-key-id>
+R2_SECRET_ACCESS_KEY=<r2-secret-access-key>
+R2_BUCKET=petmanager-media
+R2_ENDPOINT=
+```
+
+If `R2_ENDPOINT` is empty, the server uses:
+
+```text
+https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+The bucket must remain private. PetManager issues short-lived signed upload/read URLs after owner/shop authorization.
+
+R2 bucket CORS must allow browser uploads from production and local development:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://www.petmanager.co.kr",
+      "http://127.0.0.1:3000"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Do not make the R2 bucket public. Do not put customer names, phone numbers, pet names, or memo text in object paths.
 
 ## Cost Control Rule
 
@@ -46,7 +88,7 @@ Use Vercel for:
 
 - checking the signed-in owner and shop access
 - creating `media_assets` rows
-- issuing short-lived Supabase Storage upload URLs or upload instructions
+- issuing short-lived object storage upload URLs or upload instructions
 - writing notification/media attachment records
 - returning short-lived signed URLs for authorized reads
 
@@ -77,7 +119,7 @@ Do not use the relay server for:
 - resizing or compressing owner-uploaded images
 - serving recent sent images
 
-When a message includes images later, PetManager should pass media references or provider-ready URLs to the messaging flow. The canonical file still lives in Supabase Storage, and the canonical audit trail still lives in `media_assets`, `notification_media_attachments`, and `media_send_attempts`.
+When a message includes images later, PetManager should pass media references or provider-ready URLs to the messaging flow. The canonical file still lives in configured object storage, and the canonical audit trail still lives in `media_assets`, `notification_media_attachments`, and `media_send_attempts`.
 
 ## Core Tables
 
@@ -172,8 +214,8 @@ Never put phone numbers, customer names, pet names, or raw memo text in storage 
 
 1. Owner uploads an image.
 2. Client compresses the image before upload.
-3. Server creates `media_assets` with status `uploading` and returns a Supabase Storage signed upload instruction.
-4. Client uploads the compressed canonical image directly to Supabase Storage.
+3. Server creates `media_assets` with status `uploading` and returns an object storage signed upload instruction.
+4. Client uploads the compressed canonical image directly to object storage.
 5. Client calls the completion endpoint.
 6. Server updates `media_assets.status` to `ready`.
 7. Server or a future worker creates thumbnail/optimized variants if needed.
@@ -187,7 +229,7 @@ Variants are generated outside the normal Vercel request body. The browser can g
 1. Start from a ready `media_assets` row.
 2. Generate one or more variants: `thumbnail`, `preview`, `optimized`, `provider_ready`.
 3. Request a signed upload URL from `POST /api/owner/media/variants/upload-intents`.
-4. Upload the variant directly to Supabase Storage.
+4. Upload the variant directly to object storage.
 5. Finalize with `POST /api/owner/media/variants/complete`.
 
 Vercel must not stream or resize the binary image file.
@@ -230,7 +272,7 @@ These APIs are intentionally separate from `/api/bootstrap`.
 - `POST /api/owner/media/upload-intents`
   - verifies owner/shop access
   - creates a `media_assets` row
-  - returns a Supabase Storage signed upload instruction
+  - returns an object storage signed upload instruction
   - rejects uncompressed or oversized uploads
 - `POST /api/owner/media/complete`
   - verifies owner/shop access

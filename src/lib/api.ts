@@ -1,6 +1,7 @@
 ﻿import { env } from "@/lib/env";
 import {
   clearOwnerAuthTokenCache,
+  readOwnerAuthRefreshTokenCache,
   readOwnerAuthTokenCache,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
@@ -102,32 +103,42 @@ function withAuthRequestTimeout<T>(promise: Promise<T>): Promise<T> {
 }
 
 async function readAccessTokenWithRecovery() {
+  const cachedAccessToken = readOwnerAuthTokenCache();
+  if (cachedAccessToken) {
+    return cachedAccessToken;
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    const cachedAccessToken = readOwnerAuthTokenCache();
-    if (cachedAccessToken) return cachedAccessToken;
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
   }
 
-  const initialSession = await withAuthRequestTimeout(
-    supabase.auth.getSession() as Promise<SupabaseSessionResult>,
-  );
+  const initialSession = await withAuthRequestTimeout(supabase.auth.getSession() as Promise<SupabaseSessionResult>);
   if (initialSession.data.session?.access_token) {
-    writeOwnerAuthTokenCache(initialSession.data.session.access_token);
+    writeOwnerAuthTokenCache(initialSession.data.session.access_token, initialSession.data.session.refresh_token);
     return initialSession.data.session.access_token;
+  }
+
+  const cachedRefreshToken = readOwnerAuthRefreshTokenCache();
+  if (cachedRefreshToken) {
+    const refreshedFromCache = await withAuthRequestTimeout(
+      supabase.auth.refreshSession({ refresh_token: cachedRefreshToken }) as Promise<SupabaseSessionResult>,
+    );
+    if (refreshedFromCache.data.session?.access_token) {
+      writeOwnerAuthTokenCache(
+        refreshedFromCache.data.session.access_token,
+        refreshedFromCache.data.session.refresh_token,
+      );
+      return refreshedFromCache.data.session.access_token;
+    }
   }
 
   const refreshedSession = await withAuthRequestTimeout(
     supabase.auth.refreshSession() as Promise<SupabaseSessionResult>,
   );
   if (refreshedSession.data.session?.access_token) {
-    writeOwnerAuthTokenCache(refreshedSession.data.session.access_token);
+    writeOwnerAuthTokenCache(refreshedSession.data.session.access_token, refreshedSession.data.session.refresh_token);
     return refreshedSession.data.session.access_token;
-  }
-
-  const cachedAccessToken = readOwnerAuthTokenCache();
-  if (cachedAccessToken) {
-    return cachedAccessToken;
   }
 
   throw new Error("로그인이 필요합니다.");

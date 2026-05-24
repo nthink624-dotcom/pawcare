@@ -16,7 +16,7 @@ import {
 } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
-import { sendAlimtalkMessage, type AlimtalkMediaAttachment } from "@/server/alimtalk-provider";
+import { sendAlimtalkMessage, type AlimtalkButton, type AlimtalkMediaAttachment } from "@/server/alimtalk-provider";
 import {
   refundShopAlimtalkCredit,
   reserveShopAlimtalkCredit,
@@ -407,9 +407,11 @@ function buildNotificationTemplateValues(params: {
   appointment: Appointment | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
+  directionsUrl: string | null;
   petName: string;
   recipientName: string | null;
   serviceName: string | null;
+  shopAddress: string | null;
   shopName: string;
 }) {
   const appointmentDateTime =
@@ -423,8 +425,11 @@ function buildNotificationTemplateValues(params: {
     보호자명: params.recipientName?.trim() || "",
     예약일시: appointmentDateTime,
     서비스명: params.serviceName?.trim() || "",
+    매장주소: params.shopAddress?.trim() || "",
     "예약 링크": params.bookingEntryUrl ?? "",
     "예약 확인 링크": params.bookingManageUrl ?? "",
+    예약관리링크: params.bookingManageUrl ?? "",
+    길찾기링크: params.directionsUrl ?? "",
   };
 }
 
@@ -435,9 +440,11 @@ function buildNotificationMessage(params: {
   petName: string;
   recipientName: string | null;
   serviceName: string | null;
+  shopAddress: string | null;
   rejectionReason: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
+  directionsUrl: string | null;
 }) {
   const rendered = renderNotificationTemplateBody(
     params.type,
@@ -445,9 +452,11 @@ function buildNotificationMessage(params: {
       appointment: params.appointment,
       bookingEntryUrl: params.bookingEntryUrl,
       bookingManageUrl: params.bookingManageUrl,
+      directionsUrl: params.directionsUrl,
       petName: params.petName,
       recipientName: params.recipientName,
       serviceName: params.serviceName,
+      shopAddress: params.shopAddress,
       shopName: params.shopName,
     }),
   );
@@ -464,6 +473,53 @@ function buildNotificationMessage(params: {
   }
 
   return params.serviceName ? `${params.petName} / ${params.serviceName}` : params.petName;
+}
+
+function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | undefined) {
+  const query = [shopName, shopAddress?.trim()].filter(Boolean).join(" ");
+  if (!query) return null;
+  return `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+}
+
+function buildNotificationButtons(params: {
+  type: NotificationType;
+  bookingManageUrl: string | null;
+  directionsUrl: string | null;
+  hasMediaAttachments: boolean;
+}): AlimtalkButton[] {
+  if (params.type === "booking_confirmed" || params.type === "booking_cancelled") {
+    const buttons: AlimtalkButton[] = [];
+    if (params.bookingManageUrl) {
+      buttons.push({
+        type: "WL",
+        name: "예약 확인",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      });
+    }
+    if (params.type === "booking_confirmed" && params.directionsUrl) {
+      buttons.push({
+        type: "WL",
+        name: "길찾기",
+        linkMobile: params.directionsUrl,
+        linkPc: params.directionsUrl,
+      });
+    }
+    return buttons;
+  }
+
+  if (params.type !== "grooming_completed" || !params.hasMediaAttachments || !params.bookingManageUrl) {
+    return [];
+  }
+
+  return [
+    {
+      type: "WL",
+      name: "사진 확인",
+      linkMobile: params.bookingManageUrl,
+      linkPc: params.bookingManageUrl,
+    },
+  ];
 }
 
 function hasExistingNotification(
@@ -564,11 +620,13 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const bookingEntryUrl = buildBookingEntryUrl(input.shopId);
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
+  const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
   const message =
     input.message?.trim() ||
     buildNotificationMessage({
       type: input.type,
       shopName: bootstrap.shop.name,
+      shopAddress: bootstrap.shop.address ?? null,
       appointment,
       petName: pet?.name ?? "pet",
       recipientName,
@@ -576,6 +634,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       rejectionReason: appointment?.rejection_reason ?? null,
       bookingEntryUrl,
       bookingManageUrl,
+      directionsUrl,
     });
 
   let status: NotificationStatus = "queued";
@@ -598,6 +657,12 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           mediaAssetIds,
         })
       : [];
+  const alimtalkButtons = buildNotificationButtons({
+    type: input.type,
+    bookingManageUrl,
+    directionsUrl,
+    hasMediaAttachments: mediaAttachments.length > 0,
+  });
   const isPhotoAlimtalkRequest =
     (input.channel ?? "alimtalk") === "alimtalk" &&
     input.type === "grooming_completed" &&
@@ -717,6 +782,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
             recipientName,
             metadata: input.metadata ?? null,
             mediaAttachments,
+            buttons: alimtalkButtons,
           });
           status = "sent";
           provider = delivery.provider;

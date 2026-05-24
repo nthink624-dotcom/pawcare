@@ -1,6 +1,7 @@
 import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { buildDemoBootstrap } from "@/lib/mock-data";
+import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import {
   normalizeBootstrapNotifications,
@@ -119,6 +120,22 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     endTime: normalizeTime(row.end_time),
     regularOff: row.regular_off ?? "일",
     annualRemain: row.annual_remain ?? 0,
+    todayBookings: 0,
+    weekBookings: 0,
+  };
+}
+
+function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember {
+  return {
+    id: `${shop.id}-staff-owner`,
+    name: "원장",
+    phone: shop.phone ?? "",
+    role: "원장 / 전체 미용",
+    defaultDays: defaultOwnerStaffDays,
+    startTime: "10:00",
+    endTime: "19:00",
+    regularOff: "일",
+    annualRemain: 0,
     todayBookings: 0,
     weekBookings: 0,
   };
@@ -248,22 +265,25 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       .map((pet) => pet.id),
   );
 
+  const normalizedShop = {
+    ...normalizeShopBookingSettings(shopRes.data as Shop),
+    notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
+    customer_page_settings: normalizeCustomerPageSettings(
+      (shopRes.data as Shop).customer_page_settings,
+      (shopRes.data as Shop).name,
+      (shopRes.data as Shop).description,
+    ),
+  };
+  const staffMembers = ((staffMembersRes.data ?? []) as StaffMemberRow[]).map(normalizeStaffMember);
+
   return normalizeBootstrapNotifications({
     mode: "supabase",
-    shop: {
-      ...normalizeShopBookingSettings(shopRes.data as Shop),
-      notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
-      customer_page_settings: normalizeCustomerPageSettings(
-        (shopRes.data as Shop).customer_page_settings,
-        (shopRes.data as Shop).name,
-        (shopRes.data as Shop).description,
-      ),
-    },
+    shop: normalizedShop,
     guardians: activeGuardians,
     deletedGuardians,
     pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),
     services: (servicesRes.data ?? []) as Service[],
-    staffMembers: ((staffMembersRes.data ?? []) as StaffMemberRow[]).map(normalizeStaffMember),
+    staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop)],
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
     appointments: ((appointmentsRes.data ?? []) as Appointment[]).filter((appointment) =>
       activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id),

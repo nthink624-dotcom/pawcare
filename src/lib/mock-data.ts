@@ -1,10 +1,11 @@
-import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+﻿import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications, normalizeGuardianNotificationSettings, normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { addDate, currentDateInTimeZone } from "@/lib/utils";
 
 import type {
   Appointment,
   BootstrapPayload,
+  BootstrapStaffMember,
   GroomingRecord,
   Guardian,
   LandingFeedback,
@@ -89,6 +90,22 @@ export const demoServices: Service[] = [
   { id: "svc-nail", shop_id: "demo-shop", name: "발톱 정리", price: 10000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
 ];
 
+export const demoStaffMembers: BootstrapStaffMember[] = [
+  {
+    id: "demo-shop-staff-owner",
+    name: "원장",
+    phone: demoShop.phone,
+    role: "원장 / 전체 미용",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
+    startTime: "10:00",
+    endTime: "19:00",
+    regularOff: "일",
+    annualRemain: 0,
+    todayBookings: 0,
+    weekBookings: 0,
+  },
+];
+
 export const demoGuardians: Guardian[] = [
   { id: "g-1", shop_id: "demo-shop", name: "김민지", phone: "010-1234-5678", memo: "문 앞 픽업 선호", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: true }), created_at: now, updated_at: now },
   { id: "g-2", shop_id: "demo-shop", name: "박서준", phone: "010-9876-5432", memo: "오전 시간 선호", notification_settings: normalizeGuardianNotificationSettings({ enabled: true, revisit_enabled: false }), created_at: now, updated_at: now },
@@ -124,7 +141,7 @@ export const demoAppointments: Appointment[] = [
   { id: "a-20", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-care", appointment_date: today, appointment_time: "21:15", status: "completed", memo: "빠른 케어 완료", rejection_reason: null, start_at: at(today, "21:15"), end_at: at(today, "21:45"), source: "owner", created_at: now, updated_at: now },
   { id: "a-21", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-care", appointment_date: today, appointment_time: "22:15", status: "pending", memo: "야간 접수 테스트", rejection_reason: null, start_at: at(today, "22:15"), end_at: at(today, "22:45"), source: "customer", created_at: now, updated_at: now },
   { id: "a-22", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath-only", appointment_date: today, appointment_time: "23:00", status: "confirmed", memo: "마지막 타임", rejection_reason: null, start_at: at(today, "23:00"), end_at: at(today, "23:45"), source: "customer", created_at: now, updated_at: now },
-  { id: "a-23", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-bath-only", appointment_date: today, appointment_time: "10:30", status: "confirmed", memo: "6인 스태프 테스트", rejection_reason: null, start_at: at(today, "10:30"), end_at: at(today, "11:15"), source: "owner", created_at: now, updated_at: now },
+  { id: "a-23", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-bath-only", appointment_date: today, appointment_time: "10:30", status: "confirmed", memo: "6인 직원 테스트", rejection_reason: null, start_at: at(today, "10:30"), end_at: at(today, "11:15"), source: "owner", created_at: now, updated_at: now },
   { id: "a-24", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-care", appointment_date: today, appointment_time: "11:15", status: "pending", memo: "대기 카드 테스트", rejection_reason: null, start_at: at(today, "11:15"), end_at: at(today, "11:45"), source: "customer", created_at: now, updated_at: now },
   { id: "a-25", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath", appointment_date: today, appointment_time: "12:00", status: "confirmed", memo: "컬럼 채우기", rejection_reason: null, start_at: at(today, "12:00"), end_at: at(today, "13:20"), source: "customer", created_at: now, updated_at: now },
   { id: "a-26", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-care", appointment_date: today, appointment_time: "13:00", status: "confirmed", memo: "짧은 케어 테스트", rejection_reason: null, start_at: at(today, "13:00"), end_at: at(today, "13:30"), source: "owner", created_at: now, updated_at: now },
@@ -176,7 +193,7 @@ export function buildDemoBootstrap(): BootstrapPayload {
     deletedGuardians: [],
     pets: demoPets,
     services: demoServices,
-    staffMembers: [],
+    staffMembers: demoStaffMembers,
     appointments: demoAppointments,
     groomingRecords: demoRecords,
     notifications: demoNotifications,

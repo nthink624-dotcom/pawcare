@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/owner-credentials";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
+import { attachOwnerLoginSessionCookie, recordOwnerLoginSession } from "@/server/owner-login-sessions";
 
 const schema = z.object({
   loginId: z.string().trim().min(1),
@@ -16,6 +17,7 @@ const schema = z.object({
 
 type OwnerLoginProfile = {
   user_id: string;
+  shop_id: string | null;
   login_id: string | null;
 };
 
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const profileResult = await admin
       .from("owner_profiles")
-      .select("user_id, login_id")
+      .select("user_id, shop_id, login_id")
       .eq("login_id", loginId)
       .maybeSingle<OwnerLoginProfile>();
 
@@ -104,6 +106,13 @@ export async function POST(request: NextRequest) {
           refreshToken: signInResult.data.session.refresh_token,
         },
       });
+      const recordedSession = await recordOwnerLoginSession({
+        request,
+        ownerUserId: profileResult.data.user_id,
+        shopId: profileResult.data.shop_id,
+        loginId,
+      });
+      attachOwnerLoginSessionCookie(response, request, recordedSession.sessionTrackingId);
       return response;
     }
 

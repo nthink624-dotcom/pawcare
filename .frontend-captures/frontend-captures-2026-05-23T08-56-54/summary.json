@@ -1,0 +1,602 @@
+[
+  {
+    "name": "home",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-home.png",
+    "ms": 1374
+  },
+  {
+    "name": "business",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/business",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-business.png",
+    "ms": 713
+  },
+  {
+    "name": "privacy",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/privacy",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-privacy.png",
+    "ms": 742
+  },
+  {
+    "name": "terms",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/terms",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-terms.png",
+    "ms": 880
+  },
+  {
+    "name": "refund",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/refund",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-refund.png",
+    "ms": 865
+  },
+  {
+    "name": "login",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-login.png",
+    "ms": 772
+  },
+  {
+    "name": "find-id",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/login/find-id",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-find-id.png",
+    "ms": 730
+  },
+  {
+    "name": "reset-password",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/login/reset",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-reset-password.png",
+    "ms": 695
+  },
+  {
+    "name": "signup",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/signup",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-signup.png",
+    "ms": 736
+  },
+  {
+    "name": "signup-social-naver",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/signup/social?provider=naver",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-signup-social-naver.png",
+    "ms": 854
+  },
+  {
+    "name": "admin-login",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin-login.png",
+    "ms": 705
+  },
+  {
+    "name": "admin-register",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin/register",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin-register.png",
+    "ms": 944
+  },
+  {
+    "name": "admin-reset",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin/reset",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin-reset.png",
+    "ms": 681
+  },
+  {
+    "name": "demo-book",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/book",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-book.png",
+    "ms": 1235
+  },
+  {
+    "name": "demo-book-start",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/book/start",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-book-start.png",
+    "ms": 908
+  },
+  {
+    "name": "demo-book-info",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/book/info",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-book-info.png",
+    "ms": 959
+  },
+  {
+    "name": "demo-book-manage",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/book/manage",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-book-manage.png",
+    "ms": 949
+  },
+  {
+    "name": "book-demo-shop",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/book/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-book-demo-shop.png",
+    "ms": 993
+  },
+  {
+    "name": "book-demo-shop-info",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/book/demo-shop/info",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-book-demo-shop-info.png",
+    "ms": 1031
+  },
+  {
+    "name": "book-demo-shop-manage",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/book/demo-shop/manage",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-book-demo-shop-manage.png",
+    "ms": 1004
+  },
+  {
+    "name": "entry-demo-shop",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/entry/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-entry-demo-shop.png",
+    "ms": 1217
+  },
+  {
+    "name": "s-demo-shop",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/s/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-s-demo-shop.png",
+    "ms": 1280
+  },
+  {
+    "name": "mobile-entry",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/m",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-mobile-entry.png",
+    "ms": 1413
+  },
+  {
+    "name": "owner-login",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-login.png",
+    "ms": 820
+  },
+  {
+    "name": "owner-billing",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/billing",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-billing.png",
+    "ms": 882
+  },
+  {
+    "name": "owner-billing-process",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/billing/process",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-billing-process.png",
+    "ms": 1517
+  },
+  {
+    "name": "owner-billing-success",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/billing/success?plan=monthly&endAt=2026-12-31&method=%EC%B9%B4%EB%93%9C",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-billing-success.png",
+    "ms": 891
+  },
+  {
+    "name": "owner-demo",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/demo",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-demo.png",
+    "ms": 823
+  },
+  {
+    "name": "owner-mobile",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/mobile",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-mobile.png",
+    "ms": 1686
+  },
+  {
+    "name": "owner-web-preview",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/web-preview",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-web-preview.png",
+    "ms": 989
+  },
+  {
+    "name": "demo-owner",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-owner.png",
+    "ms": 758
+  },
+  {
+    "name": "demo-owner-web",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/owner-web",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-owner-web.png",
+    "ms": 1008
+  },
+  {
+    "name": "demo-schedule-board",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/demo/schedule-board",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-demo-schedule-board.png",
+    "ms": 1063
+  },
+  {
+    "name": "admin",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin.png",
+    "ms": 747
+  },
+  {
+    "name": "admin-alimtalk",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin/alimtalk",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin-alimtalk.png",
+    "ms": 1370
+  },
+  {
+    "name": "admin-env",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/admin/env",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-admin-env.png",
+    "ms": 1185
+  },
+  {
+    "name": "owner-admin",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner/admin",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-admin.png",
+    "ms": 738
+  },
+  {
+    "name": "home",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-home.png",
+    "ms": 1194
+  },
+  {
+    "name": "business",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/business",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-business.png",
+    "ms": 678
+  },
+  {
+    "name": "privacy",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/privacy",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-privacy.png",
+    "ms": 675
+  },
+  {
+    "name": "terms",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/terms",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-terms.png",
+    "ms": 749
+  },
+  {
+    "name": "refund",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/refund",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-refund.png",
+    "ms": 725
+  },
+  {
+    "name": "login",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-login.png",
+    "ms": 683
+  },
+  {
+    "name": "find-id",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/login/find-id",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-find-id.png",
+    "ms": 725
+  },
+  {
+    "name": "reset-password",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/login/reset",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-reset-password.png",
+    "ms": 648
+  },
+  {
+    "name": "signup",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/signup",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-signup.png",
+    "ms": 654
+  },
+  {
+    "name": "signup-social-naver",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/signup/social?provider=naver",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-signup-social-naver.png",
+    "ms": 758
+  },
+  {
+    "name": "admin-login",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin-login.png",
+    "ms": 641
+  },
+  {
+    "name": "admin-register",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin/register",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin-register.png",
+    "ms": 919
+  },
+  {
+    "name": "admin-reset",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin/reset",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin-reset.png",
+    "ms": 650
+  },
+  {
+    "name": "demo-book",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/book",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-book.png",
+    "ms": 1190
+  },
+  {
+    "name": "demo-book-start",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/book/start",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-book-start.png",
+    "ms": 858
+  },
+  {
+    "name": "demo-book-info",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/book/info",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-book-info.png",
+    "ms": 899
+  },
+  {
+    "name": "demo-book-manage",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/book/manage",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-book-manage.png",
+    "ms": 929
+  },
+  {
+    "name": "book-demo-shop",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/book/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-book-demo-shop.png",
+    "ms": 1019
+  },
+  {
+    "name": "book-demo-shop-info",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/book/demo-shop/info",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-book-demo-shop-info.png",
+    "ms": 968
+  },
+  {
+    "name": "book-demo-shop-manage",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/book/demo-shop/manage",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-book-demo-shop-manage.png",
+    "ms": 953
+  },
+  {
+    "name": "entry-demo-shop",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/entry/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-entry-demo-shop.png",
+    "ms": 1182
+  },
+  {
+    "name": "s-demo-shop",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/s/demo-shop",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-s-demo-shop.png",
+    "ms": 1276
+  },
+  {
+    "name": "mobile-entry",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/m",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-mobile-entry.png",
+    "ms": 1014
+  },
+  {
+    "name": "owner-login",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/login",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-login.png",
+    "ms": 736
+  },
+  {
+    "name": "owner-billing",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/billing",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-billing.png",
+    "ms": 828
+  },
+  {
+    "name": "owner-billing-process",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/billing/process",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-billing-process.png",
+    "ms": 903
+  },
+  {
+    "name": "owner-billing-success",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/billing/success?plan=monthly&endAt=2026-12-31&method=%EC%B9%B4%EB%93%9C",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-billing-success.png",
+    "ms": 830
+  },
+  {
+    "name": "owner-demo",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/demo",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-demo.png",
+    "ms": 798
+  },
+  {
+    "name": "owner-mobile",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/mobile",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-mobile.png",
+    "ms": 851
+  },
+  {
+    "name": "owner-web-preview",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/web-preview",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-web-preview.png",
+    "ms": 893
+  },
+  {
+    "name": "demo-owner",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-owner.png",
+    "ms": 722
+  },
+  {
+    "name": "demo-owner-web",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/owner-web",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-owner-web.png",
+    "ms": 725
+  },
+  {
+    "name": "demo-schedule-board",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/demo/schedule-board",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-demo-schedule-board.png",
+    "ms": 726
+  },
+  {
+    "name": "admin",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin.png",
+    "ms": 756
+  },
+  {
+    "name": "admin-alimtalk",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin/alimtalk",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin-alimtalk.png",
+    "ms": 723
+  },
+  {
+    "name": "admin-env",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/admin/env",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-admin-env.png",
+    "ms": 721
+  },
+  {
+    "name": "owner-admin",
+    "viewport": "mobile",
+    "url": "http://127.0.0.1:3000/owner/admin",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\mobile-owner-admin.png",
+    "ms": 715
+  },
+  {
+    "name": "owner-auth-required",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T08-56-54\\desktop-owner-auth-required.png",
+    "ms": 949
+  }
+]

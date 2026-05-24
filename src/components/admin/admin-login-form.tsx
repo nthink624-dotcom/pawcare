@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -42,9 +42,9 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
         </div>
 
         <div className="mt-5 text-center">
-          <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">관리자 전용</p>
+          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#1f6b5b]">관리자 전용</p>
           <h1 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#171411]">관리자 로그인</h1>
-          <p className="mt-3 text-[15px] leading-7 text-[#7b746b]">
+          <p className="mt-3 text-[16px] leading-7 text-[#7b746b]">
             관리자 아이디와 비밀번호로 로그인하면
             <br />
             오너 계정 관리와 운영자 기능을 바로 사용할 수 있어요.
@@ -78,7 +78,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
           </div>
         </div>
 
-        {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
+        {message ? <p className="mt-3 text-[16px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
 
         <button
           type="button"
@@ -89,7 +89,7 @@ export default function AdminLoginForm({ nextPath }: { nextPath: string }) {
           {submitting ? "로그인 중..." : "관리자 로그인"}
         </button>
 
-        <div className="mt-4 flex items-center justify-center gap-4 text-[13px] font-semibold text-[#6f675d]">
+        <div className="mt-4 flex items-center justify-center gap-4 text-[14px] font-semibold text-[#6f675d]">
           <button
             type="button"
             onClick={() => router.push("/admin/register" as never)}

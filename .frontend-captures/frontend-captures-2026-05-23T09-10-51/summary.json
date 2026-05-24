@@ -1,0 +1,58 @@
+[
+  {
+    "name": "owner-authenticated",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-authenticated.png"
+  },
+  {
+    "name": "owner-menu-schedule",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-schedule.png"
+  },
+  {
+    "name": "owner-menu-booking-link",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-booking-link.png"
+  },
+  {
+    "name": "owner-menu-calendar",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-calendar.png"
+  },
+  {
+    "name": "owner-menu-customers",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-customers.png"
+  },
+  {
+    "name": "owner-menu-services",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-services.png"
+  },
+  {
+    "name": "owner-menu-staff",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-staff.png"
+  },
+  {
+    "name": "owner-menu-settings",
+    "viewport": "desktop",
+    "url": "http://127.0.0.1:3000/owner",
+    "status": "ok",
+    "file": "D:\\petmanager\\.frontend-captures\\frontend-captures-2026-05-23T09-10-51\\desktop-owner-menu-settings.png"
+  }
+]

@@ -133,7 +133,7 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
   if (summary.noticeLevel === "3days") {
     return {
       title: `펫매니저 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
-      body: "이용 기간이 끝나면 예약·고객관리 기능 이용이 제한될 수 있습니다.\n서비스를 계속 이용하시려면 플랜 연장이 필요합니다.",
+      body: "이용 기간이 끝나면 예약·고객 관리 기능 이용이 제한될 수 있습니다.\n서비스를 계속 이용하시려면 플랜 연장이 필요합니다.",
     };
   }
 

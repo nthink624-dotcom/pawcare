@@ -140,7 +140,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   shop: "매장 기본 정보",
   closures: "운영시간 안내",
   notifications: "알림톡 설정",
-  services: "서비스 관리",
+  services: "미용 요금",
   addons: "부가기능",
   account: "계정",
 };
@@ -242,7 +242,7 @@ function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
 const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "home", label: "홈", icon: House },
   { key: "book", label: "예약조회", icon: CalendarDays },
-  { key: "customers", label: "고객관리", icon: PawPrint },
+  { key: "customers", label: "고객 관리", icon: PawPrint },
   { key: "settings", label: "설정", icon: Settings },
 ];
 
@@ -527,17 +527,12 @@ export default function OwnerApp({
   );
   const isOnboardingIncomplete = onboardingTasks.length > 0;
 
-  const todayConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, todayDate]);
-  const pendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "pending"), [data.appointments, todayDate]);
-  const todayActionAppointments = useMemo(() => todayConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [todayConfirmedAppointments]);
-  const todayHistoryAppointments = useMemo(() => todayConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [todayConfirmedAppointments]);
-  const completedHistoryAppointments = useMemo(() => todayHistoryAppointments.filter((item) => item.status === "completed"), [todayHistoryAppointments]);
-  const cancelChangeAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "cancelled"), [data.appointments, todayDate]);
   const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeReservationDate]);
   const homePendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && item.status === "pending"), [data.appointments, homeReservationDate]);
   const homeActionAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
   const homeHistoryAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
   const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments.filter((item) => item.status === "completed"), [homeHistoryAppointments]);
+  const homeCancelChangeAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "cancelled"), [homeConfirmedAppointments]);
   const homeWorkAppointments = useMemo(
     () => [...homePendingAppointments, ...homeActionAppointments, ...homeCompletedHistoryAppointments],
     [homeActionAppointments, homeCompletedHistoryAppointments, homePendingAppointments],
@@ -575,6 +570,14 @@ export default function OwnerApp({
     () => homeCompletedHistoryAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
     [homeCompletedHistoryAppointments, homeStaffFilter],
   );
+  const filteredHomeCancelChangeAppointments = useMemo(
+    () => homeCancelChangeAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
+    [homeCancelChangeAppointments, homeStaffFilter],
+  );
+  const filteredHomeConfirmedAppointmentsForStat = useMemo(
+    () => [...filteredHomeActionAppointments, ...filteredHomeCompletedHistoryAppointments, ...filteredHomeCancelChangeAppointments],
+    [filteredHomeActionAppointments, filteredHomeCancelChangeAppointments, filteredHomeCompletedHistoryAppointments],
+  );
   useEffect(() => {
     if (homeStaffFilter === "all") return;
     if (!homeStaffFilterOptions.some((option) => option.key === homeStaffFilter)) {
@@ -582,8 +585,10 @@ export default function OwnerApp({
     }
   }, [homeStaffFilter, homeStaffFilterOptions]);
   const selectedDayAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === selectedDate).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [data.appointments, selectedDate]);
+  const tomorrowDate = useMemo(() => addDate(todayDate, 1), [todayDate]);
   const homeReservationDateLabel = useMemo(() => {
     if (homeReservationDate === todayDate) return "오늘";
+    if (homeReservationDate === tomorrowDate) return "내일";
     return new Intl.DateTimeFormat("ko-KR", {
       month: "long",
       day: "numeric",
@@ -591,7 +596,19 @@ export default function OwnerApp({
     })
       .format(new Date(homeReservationDate + "T00:00:00"))
       .replace("요일", "");
-  }, [homeReservationDate, todayDate]);
+  }, [homeReservationDate, todayDate, tomorrowDate]);
+  const homeReservationFullDateLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      })
+        .format(new Date(homeReservationDate + "T00:00:00"))
+        .replace("요일", ""),
+    [homeReservationDate],
+  );
   const homeReservationPanelTitle = "예약관리";
   const homeReservationPanelCount =
     filteredHomePendingAppointments.length + filteredHomeActionAppointments.length + filteredHomeCompletedHistoryAppointments.length;
@@ -1540,11 +1557,11 @@ export default function OwnerApp({
     const guardian = guardianMap[pet.guardian_id];
     if (!guardian) return;
     if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
     if (!guardian.notification_settings.birthday_greeting_enabled) {
-      setError("이 고객은 생일 축하 알림이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 생일 축하 알림이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
 
@@ -1610,11 +1627,11 @@ export default function OwnerApp({
     const guardian = guardianMap[pet.guardian_id];
     if (!guardian) return;
     if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
     if (!guardian.notification_settings.revisit_enabled) {
-      setError("이 고객은 재방문 알림이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 재방문 알림이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
 
@@ -1678,11 +1695,11 @@ export default function OwnerApp({
 
   async function sendAppointmentReminder(appointment: Appointment, pet: Pet, guardian: Guardian, service: Service) {
     if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
     if (!guardian.notification_settings.appointment_reminder_10m_enabled) {
-      setError("이 고객은 방문 전 안내 알림이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 방문 전 안내 알림이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
 
@@ -1750,7 +1767,7 @@ export default function OwnerApp({
   const currentSettingsScreenTitle = settingsEntryScreen ? settingsEntryScreenTitles[settingsEntryScreen] : "";
   const screenTitle =
     activeTab === "customers"
-      ? "고객관리"
+      ? "고객 관리"
       : tabItems.find((item) => item.key === activeTab)?.label;
   const bookingEntryUrl = `${ownerPageOrigin || ""}/s/${data.shop.id}`;
   const isHomeTab = activeTab === "home";
@@ -1784,7 +1801,7 @@ export default function OwnerApp({
 
   return (
     <div
-      className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(47,49,46,0.03)]"
+      className="pm-mobile-owner mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]"
     >
       {!isCustomerDetailView ? (
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(248,246,242,0.94)] px-4 py-3 backdrop-blur">
@@ -1869,11 +1886,35 @@ export default function OwnerApp({
                 </div>
               </Panel>
             ) : null}
+            <div className="flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-white px-2.5 py-2 shadow-[0_4px_14px_rgba(35,35,31,0.04)]" aria-label="예약 날짜 선택">
+              <button
+                type="button"
+                onClick={() => moveHomeReservationDate("prev")}
+                disabled={!canMoveHomeReservationBackward}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="이전 날짜"
+              >
+                <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2} />
+              </button>
+              <div className="min-w-0 flex-1 text-center">
+                <p className="text-[17px] font-semibold leading-5 tracking-[-0.03em] text-[var(--text)]">{homeReservationDateLabel}</p>
+                <p className="mt-1 text-[12px] font-medium leading-4 tracking-[-0.01em] text-[var(--muted)]">{homeReservationFullDateLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => moveHomeReservationDate("next")}
+                disabled={!canMoveHomeReservationForward}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="다음 날짜"
+              >
+                <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2} />
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label={ownerHomeCopy.statPending} value={String(homeReservationDate === todayDate ? filteredHomePendingAppointments.length : pendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
-              <StatCard label={ownerHomeCopy.statUpcoming} value={String(homeReservationDate === todayDate ? filteredHomeActionAppointments.length : todayActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
-              <StatCard label={ownerHomeCopy.statCompleted} value={String(homeReservationDate === todayDate ? filteredHomeCompletedHistoryAppointments.length : completedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
-              <StatCard label={ownerHomeCopy.statCancelChange} value={String(cancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
+              <StatCard label={ownerHomeCopy.statPending} value={String(filteredHomePendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
+              <StatCard label={ownerHomeCopy.statUpcoming} value={String(filteredHomeActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
+              <StatCard label={ownerHomeCopy.statCompleted} value={String(filteredHomeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
+              <StatCard label={ownerHomeCopy.statCancelChange} value={String(filteredHomeCancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
             </div>
             <MobileStaffFilterStrip
               options={homeStaffFilterOptions}
@@ -2212,7 +2253,7 @@ export default function OwnerApp({
                   setIsCustomerToolsOpen(false);
                 }}
                 className="absolute left-0 inline-flex h-8 w-8 items-center justify-center text-[var(--text)]"
-                aria-label="고객관리로 돌아가기"
+                aria-label="고객 관리로 돌아가기"
               >
                 <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} />
               </button>
@@ -2532,7 +2573,7 @@ export default function OwnerApp({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={updateAppointmentWithMobilePhotoGuard} onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={filteredHomeConfirmedAppointmentsForStat} pendingAppointments={filteredHomePendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={updateAppointmentWithMobilePhotoGuard} onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })} onClose={() => setModal(null)} /></Overlay> : null}</div>}
       {mobilePhotoStatusAction ? (
         <MobilePhotoStatusSheet
           action={mobilePhotoStatusAction}
@@ -2675,30 +2716,30 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
 function StatCard({ label, value, tone, onClick }: { label: string; value: string; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }) {
   const toneMap = {
     accent: {
-      bar: "before:bg-[var(--accent)]",
-      border: "border-[#d6e7e1]",
+      bar: "before:bg-[#2f7866]",
+      border: "border-[#dbe2ea]",
     },
     warning: {
-      bar: "before:bg-[#e4b08d]",
-      border: "border-[#ead8c9]",
+      bar: "before:bg-[#b98121]",
+      border: "border-[#dbe2ea]",
     },
     danger: {
-      bar: "before:bg-[#cf9b8d]",
-      border: "border-[#ead8d2]",
+      bar: "before:bg-[#a04455]",
+      border: "border-[#dbe2ea]",
     },
     neutral: {
-      bar: "before:bg-[#c9b39e]",
-      border: "border-[#e9ddd3]",
+      bar: "before:bg-[#94a3b8]",
+      border: "border-[#dbe2ea]",
     },
   } as const;
 
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden rounded-[10px] border border-[var(--border)] bg-white px-4 py-3 text-left transition before:absolute before:inset-x-0 before:top-0 before:h-1.5 ${toneMap[tone].bar}`}
+      className={`relative overflow-hidden rounded-[8px] border bg-white px-4 py-3.5 text-left transition before:absolute before:inset-x-0 before:top-0 before:h-[3px] ${toneMap[tone].border} ${toneMap[tone].bar}`}
     >
-      <p className="relative z-[1] text-[14px] font-semibold tracking-[-0.01em] text-[var(--muted)]">{label}</p>
-      <p className="relative z-[1] mt-3 text-[32px] font-extrabold leading-none tracking-[-0.05em] text-[var(--text)]">{value}</p>
+      <p className="relative z-[1] text-[13px] font-medium tracking-[-0.01em] text-[#64748b]">{label}</p>
+      <p className="relative z-[1] mt-3 text-[30px] font-bold leading-none tracking-[-0.05em] text-[#0f172a]">{value}</p>
     </button>
   );
 }

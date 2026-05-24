@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { ToolbarRow, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
@@ -229,10 +230,10 @@ function getTimeTone(item: DayItem) {
   return "text-[#1f6b5b]";
 }
 
-function getStatusAccent(item: DayItem) {
-  if (item.type === "record") return "bg-[#94a3b8]";
-  if (item.status === "승인 대기") return "bg-[#dca93b]";
-  return "bg-[#2f7866]";
+function getStatusAccent(item: DayItem): StatusIndicatorTone {
+  if (item.type === "record") return "slate";
+  if (item.status === "승인 대기") return "amber";
+  return "teal";
 }
 
 function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolean) {
@@ -418,7 +419,10 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
                     key={date}
                     type="button"
                     onClick={() => openDate(date)}
-                    className={cn("relative flex min-h-[90px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150", getCalendarCellTone(active, isToday, hasItems))}
+                    className={cn(
+                      "relative flex min-h-[90px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150",
+                      getCalendarCellTone(active, isToday, hasItems),
+                    )}
                     aria-label={`${date} 예약 ${reservationCount}건`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -552,9 +556,12 @@ function DayItemSection({
             return (
             <div
               key={`${item.type}-${item.id}`}
-              className={cn("relative w-full overflow-hidden rounded-[8px] border bg-white transition hover:bg-[#f8fafc]", getRecordTone(item))}
+              className={cn(
+                "relative w-full overflow-hidden rounded-[8px] border bg-white transition hover:bg-[#f8fafc]",
+                getRecordTone(item),
+                getWrapIndicatorClass(getStatusAccent(item)),
+              )}
             >
-              <span className={cn("absolute bottom-0 left-0 top-0 w-[3px]", getStatusAccent(item))} />
               <button type="button" onClick={() => onSelectItem(item)} className="w-full px-3 py-2 text-left">
                 <div className="flex min-w-0 items-start justify-between gap-3 pl-1">
                   <div className="min-w-0">

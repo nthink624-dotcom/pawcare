@@ -1,0 +1,47 @@
+name: Owner Auth Guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  owner-auth-guard:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      OWNER_LOGIN_E2E_ID: ${{ secrets.OWNER_LOGIN_E2E_ID || 'devowner' }}
+      OWNER_LOGIN_E2E_PASSWORD: ${{ secrets.OWNER_LOGIN_E2E_PASSWORD || 'test1234' }}
+      OWNER_LOGIN_SMOKE_ID: ${{ secrets.OWNER_LOGIN_E2E_ID || 'devowner' }}
+      OWNER_LOGIN_SMOKE_PASSWORD: ${{ secrets.OWNER_LOGIN_E2E_PASSWORD || 'test1234' }}
+      OWNER_LOGIN_SMOKE_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install chromium
+
+      - run: npm run check:supabase-env
+
+      - run: npm run check:owner-auth-guards
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run build
+
+      - run: npm run smoke:owner-login:with-server
+
+      - run: npm run test:e2e:owner-login

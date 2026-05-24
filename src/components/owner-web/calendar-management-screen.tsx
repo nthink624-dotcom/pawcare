@@ -1,7 +1,32 @@
 "use client";
 
-import { CalendarPlus, Camera, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImagePlus, Loader2, MessageCircle, X } from "lucide-react";
-import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import {
+  AlertTriangle,
+  CalendarPlus,
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  ClipboardList,
+  Clock,
+  Copy,
+  History,
+  ImagePlus,
+  Loader2,
+  MessageCircle,
+  MoreVertical,
+  NotebookPen,
+  PawPrint,
+  Play,
+  Scissors,
+  Send,
+  ShieldAlert,
+  User,
+  X,
+} from "lucide-react";
+import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
@@ -15,6 +40,11 @@ import {
   SoftSelect,
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
+import {
+  getMiniWrapIndicatorClass,
+  getWrapIndicatorClass,
+  type StatusIndicatorTone,
+} from "@/components/owner-web/status-indicators";
 import { computeAvailableSlots } from "@/lib/availability";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
@@ -39,7 +69,7 @@ type PhotoStatusAction = {
   buttonLabel: string;
 };
 type StaffKey = string;
-type StaffFilter = "전체 스태프" | StaffKey;
+type StaffFilter = "전체 직원" | StaffKey;
 type StaffAssignments = Record<string, StaffKey>;
 const staffWeekdayKeys: OwnerWebWeekdayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 type ScheduleCreateFormState = {
@@ -68,11 +98,6 @@ type BookingResizeState = {
   nextDuration: number;
 };
 
-const unassignedStaffColumn: OwnerWebStaffColumn = {
-  key: "unassigned",
-  name: "미배정",
-  role: "담당 미배정",
-};
 const scheduleStartHour = 10;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
@@ -133,6 +158,19 @@ function formatHourLabel(hour: number) {
 function formatScheduleDateLabel(date = currentDateInTimeZone()) {
   const [year, month, day] = date.split("-").map(Number);
   return `${year}년 ${month}월 ${day}일`;
+}
+
+function formatSchedulePickerDateLabel(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return `${year}년 ${String(month).padStart(2, "0")}월 ${String(day).padStart(2, "0")}일`;
+}
+
+function formatSchedulePickerRelativeLabel(date: string) {
+  const today = currentDateInTimeZone();
+  if (date === today) return "오늘";
+  if (date === addScheduleDays(today, 1)) return "내일";
+  if (date === addScheduleDays(today, 2)) return "모레";
+  return formatSchedulePickerDateLabel(date);
 }
 
 function timeToHour(time: string) {
@@ -359,12 +397,43 @@ function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
   );
 }
 
-function getBookingIndicatorClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#edbd3f]";
-  if (tone === "completed") return "bg-[#d5dde6]";
-  if (tone === "changed") return "bg-[#e68a2e]";
-  if (tone === "cancelled") return "bg-[#8f2438]";
-  return "bg-[#4f9b88]";
+function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
+  if (tone === "pending") return "amber";
+  if (tone === "completed") return "slate";
+  if (tone === "changed") return "amber";
+  if (tone === "cancelled") return "burgundy";
+  return "teal";
+}
+
+function isMissedStartBooking(
+  booking: Pick<DailyBooking, "status" | "sourceStatus" | "start">,
+  selectedDate: string,
+  currentHour: number,
+  minutesAfterStart = 5,
+) {
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  return selectedDate === currentDateInTimeZone() && canStartGrooming(sourceStatus) && currentHour >= booking.start + minutesAfterStart / 60;
+}
+
+function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "시작 확인 필요";
+  if (isPendingBookingStatus(sourceStatus)) return "승인대기";
+  if (sourceStatus === "진행 중" || booking.status === "진행 중") return "진행중";
+  if (isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status)) return "완료";
+  if (isChangeBookingStatus(sourceStatus)) return sourceStatus;
+  if (canStartGrooming(sourceStatus)) return "확정";
+  return sourceStatus;
+}
+
+function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "border-[#ead7c7] bg-[#fff7ed] text-[#9a4f1f]";
+  if (isPendingBookingStatus(sourceStatus)) return "border-[#e8c67e] bg-[#fff8e7] text-[#9a640f]";
+  if (sourceStatus === "진행 중" || booking.status === "진행 중") return "border-[#b7d8cd] bg-[#e8f5f1] text-[#1f6b5b]";
+  if (isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status)) return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
+  if (isChangeBookingStatus(sourceStatus)) return "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]";
+  return "border-[#b7d8cd] bg-[#eef8f4] text-[#1f6b5b]";
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
@@ -484,7 +553,6 @@ function isStaffWorkingWindow(
   start: number,
   duration: number,
 ) {
-  if (staffKey === unassignedStaffColumn.key) return true;
   const staffMember = staffMembers.find((item) => item.id === staffKey);
   if (!staffMember) return true;
 
@@ -907,10 +975,12 @@ function getBookingCounts(bookings: DailyBooking[]) {
 }
 
 function staffColumnForIndex(index: number, staffColumns: OwnerWebStaffColumn[]) {
-  return staffColumns[index % staffColumns.length] ?? unassignedStaffColumn;
+  return staffColumns[index % staffColumns.length] ?? staffColumns[0]!;
 }
 
 function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}, staffColumns: OwnerWebStaffColumn[] = []): DailyBooking[] {
+  if (staffColumns.length === 0) return [];
+
   const selectedDateAppointments = data.appointments
     .filter((appointment) => appointment.appointment_date === selectedDate)
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
@@ -918,11 +988,11 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
   const recordOnlyBookings = data.groomingRecords
     .filter((record) => record.groomed_at.slice(0, 10) === selectedDate)
     .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
-    .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, unassignedStaffColumn));
+    .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, staffColumns[0]));
 
   return [
     ...selectedDateAppointments.map((appointment, index) => {
-      const staffColumn = staffColumnForIndex(index, staffColumns.length > 0 ? staffColumns : [unassignedStaffColumn]);
+      const staffColumn = staffColumnForIndex(index, staffColumns);
       return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
     }),
     ...recordOnlyBookings,
@@ -1081,6 +1151,7 @@ function BookingSidePanel({
   approvalModeBookings,
   onManualApprovalChange,
   onChangeStatus,
+  onSuggestAlternativeTime,
   onSelectBooking,
   onAcknowledgeChange,
   staffComments,
@@ -1093,6 +1164,7 @@ function BookingSidePanel({
   approvalModeBookings: DailyBooking[];
   onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onSuggestAlternativeTime: (bookingId: string) => void;
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
@@ -1134,7 +1206,18 @@ function BookingSidePanel({
       <WebSurface className="min-w-0 overflow-hidden">
         {selectedBooking ? (
           <div className="p-4">
-            <div className="border-b border-[#edf2f7] pb-3">
+            <PersistentBookingPanelHero
+              booking={selectedBooking}
+              timeRange={timeRange}
+              isPending={isPendingBookingStatus(selectedBooking.status)}
+              startEnabled={startEnabled}
+              finalActionEnabled={finalActionEnabled}
+              finalActionStatus={finalActionStatus}
+              finalActionLabel={finalActionLabel}
+              onChangeStatus={onChangeStatus}
+              onSuggestAlternativeTime={onSuggestAlternativeTime}
+            />
+            <div className="hidden">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h3 className="break-keep text-[22px] font-medium leading-7 tracking-[-0.03em] text-[#111827]">{selectedBooking.pet} · {selectedBooking.customer}</h3>
@@ -1167,7 +1250,7 @@ function BookingSidePanel({
 
             {activePanelTab === "details" ? (
               <>
-                <div className="mt-4">
+                <div className="hidden">
                   <p className="text-[12px] text-[#94a3b8]">시간</p>
                   <p className="mt-1 text-[26px] font-medium tracking-[-0.04em] text-[#111827]">{timeRange}</p>
                   <div className="mt-3">
@@ -1197,7 +1280,7 @@ function BookingSidePanel({
                       <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
                         {rescheduledEventSelected
                           ? "확인하면 변경된 시간으로 확정되어 초록 카드로 표시됩니다."
-                          : "확인하면 스케줄 보드와 변경 · 취소 관리에서 더 이상 보이지 않습니다."}
+                          : "확인하면 예약 보드와 변경 · 취소 관리에서 더 이상 보이지 않습니다."}
                       </p>
                     </div>
                     <button
@@ -1212,53 +1295,80 @@ function BookingSidePanel({
                     </button>
                   </div>
                 ) : isPendingBookingStatus(selectedBooking.status) ? (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="hidden">
                     <button
                       type="button"
                       onClick={() => onChangeStatus(selectedBooking.id, "확정")}
-                      className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[14px] font-medium text-white transition hover:bg-[#185848]"
+                      className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#1f6b5b] px-2 text-[13px] font-medium text-white transition hover:bg-[#185848]"
                     >
                       예약 확정
                     </button>
                     <button
                       type="button"
+                      onClick={() => onSuggestAlternativeTime(selectedBooking.id)}
+                      className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                    >
+                      다른 시간 안내
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => onChangeStatus(selectedBooking.id, "거절")}
-                      className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead7c7] bg-white px-3 text-[14px] font-medium text-[#9a4f1f] transition hover:bg-[#fff7ed]"
+                      className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead7c7] bg-white px-2 text-[13px] font-medium text-[#9a4f1f] transition hover:bg-[#fff7ed]"
                     >
                       예약 거절
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={!startEnabled}
-                      onClick={() => {
-                        if (startEnabled) onChangeStatus(selectedBooking.id, "진행 중");
-                      }}
-                      className={cn(
-                        "inline-flex h-11 items-center justify-center rounded-[8px] border px-3 text-[14px] font-medium transition",
-                        startEnabled
-                          ? "border-[#cfded8] bg-white text-[#1f6b5b] hover:bg-[#f6fbf9]"
-                          : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] cursor-not-allowed",
-                      )}
-                    >
-                      {startLabel}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!finalActionEnabled}
-                      onClick={() => {
-                        if (finalActionEnabled) onChangeStatus(selectedBooking.id, finalActionStatus);
-                      }}
-                      className={cn(
-                        "inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-3 text-[14px] font-medium transition",
-                        finalActionEnabled ? "bg-[#2f7866] text-white hover:bg-[#286a5a]" : "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed",
-                      )}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      {finalActionLabel}
-                    </button>
+                  <div className="hidden">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={!startEnabled}
+                        onClick={() => {
+                          if (startEnabled) onChangeStatus(selectedBooking.id, "진행 중");
+                        }}
+                        className={cn(
+                          "inline-flex h-11 items-center justify-center rounded-[8px] border px-3 text-[14px] font-medium transition",
+                          startEnabled
+                            ? "border-[#cfded8] bg-white text-[#1f6b5b] hover:bg-[#f6fbf9]"
+                            : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] cursor-not-allowed",
+                        )}
+                      >
+                        {startLabel}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!finalActionEnabled}
+                        onClick={() => {
+                          if (finalActionEnabled) onChangeStatus(selectedBooking.id, finalActionStatus);
+                        }}
+                        className={cn(
+                          "inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-3 text-[14px] font-medium transition",
+                          finalActionEnabled ? "bg-[#2f7866] text-white hover:bg-[#286a5a]" : "bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed",
+                        )}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        {finalActionLabel}
+                      </button>
+                    </div>
+                    {selectedBooking && isBookableStatus(sourceStatus) ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onSuggestAlternativeTime(selectedBooking.id)}
+                          className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                        >
+                          다른 시간 안내
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onChangeStatus(selectedBooking.id, "거절")}
+                          className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead7c7] bg-white px-3 text-[13px] font-medium text-[#9a4f1f] transition hover:bg-[#fff7ed]"
+                        >
+                          예약 거절
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -1270,7 +1380,7 @@ function BookingSidePanel({
             ) : (
               <div id="staff-comment" className="mt-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[12px] text-[#94a3b8]">스태프 코멘트</p>
+                  <p className="text-[12px] text-[#94a3b8]">직원 코멘트</p>
                   <span className="text-[11px] text-[#94a3b8]">고객 관리 공유</span>
                 </div>
                 <textarea
@@ -1289,6 +1399,667 @@ function BookingSidePanel({
         )}
       </WebSurface>
     </aside>
+  );
+}
+
+type TimeProposalRow = { id: string; start: string; end: string };
+
+const timeProposalDefaultMessage =
+  "신청해주신 예약 시간은 매장 사정으로 인해 확정이 어려워, 가능한 다른 시간을 안내드립니다. 아래 추천 시간 중 편하신 일정을 선택해 주세요.";
+
+const cancelDefaultMessage =
+  "신청해주신 예약은 매장 사정으로 인해 부득이하게 취소 처리되었습니다. 이용에 불편을 드려 죄송합니다.";
+
+function formatPanelDateLabel(date: string) {
+  if (date === currentDateInTimeZone()) return "오늘";
+  const [year, month, day] = date.split("-").map(Number);
+  return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+function formatDurationLabel(duration: number) {
+  const minutes = Math.round(duration * 60);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours > 0 && rest > 0) return `${hours}시간 ${rest}분`;
+  if (hours > 0) return `${hours}시간`;
+  return `${rest}분`;
+}
+
+function getPetProfile(booking: DailyBooking) {
+  const profiles: Record<string, { breed: string; age: string; sex: string; weight: string; cautions: string[] }> = {
+    우유: { breed: "말티푸", age: "3살", sex: "여아", weight: "4.2kg", cautions: ["피부 예민", "귀 예민"] },
+    토리: { breed: "푸들", age: "5살", sex: "남아", weight: "5.1kg", cautions: ["입질 주의"] },
+    쿠키: { breed: "비숑", age: "4살", sex: "여아", weight: "3.8kg", cautions: ["피부 예민"] },
+    아지: { breed: "포메라니안", age: "7살", sex: "남아", weight: "2.5kg", cautions: ["노령견", "관절 주의"] },
+  };
+  return profiles[booking.pet] ?? { breed: "견종 미입력", age: "나이 미입력", sex: "성별 미입력", weight: "몸무게 미입력", cautions: ["특이사항 없음"] };
+}
+
+function getVisitProfile(booking: DailyBooking) {
+  const seed = Array.from(booking.pet).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const visits = (seed % 8) + 1;
+  return {
+    lastVisit: visits > 1 ? "2025.05.02" : "첫 방문",
+    visitCount: `${visits}회`,
+  };
+}
+
+function getGuardianPhone(booking: DailyBooking) {
+  const seed = Array.from(booking.customer).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const suffix = String(1000 + (seed % 9000));
+  return `010-1234-${suffix}`;
+}
+
+function getBookingRequestText(booking: DailyBooking) {
+  return getCustomerRequest(booking.id) || "고객 요청사항이 없습니다.";
+}
+
+function DetailCard({ icon: Icon, title, children, className }: { icon: typeof User; title: string; children: ReactNode; className?: string }) {
+  return (
+    <section className={cn("rounded-[8px] border border-[#e2e8f0] bg-white p-4", className)}>
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className="h-4 w-4 text-[#2f7866]" />
+        <h4 className="text-[15px] font-semibold text-[#111827]">{title}</h4>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function GuardianInfoCard({ name, phone, onCopyPhone }: { name: string; phone: string; onCopyPhone: () => void }) {
+  return (
+    <DetailCard icon={User} title="보호자 정보">
+      <div className="grid grid-cols-[56px_minmax(0,1fr)_112px] items-center gap-x-3 gap-y-2">
+        <span className="text-[15px] leading-6 text-[#64748b]">보호자명</span>
+        <span className="min-w-0 text-right text-[16px] font-semibold text-[#111827]">{name}</span>
+        <span />
+        <span className="text-[15px] leading-6 text-[#64748b]">연락처</span>
+        <span className="min-w-0 text-right text-[16px] font-semibold leading-6 text-[#111827]">{phone}</span>
+        <button
+          type="button"
+          onClick={onCopyPhone}
+          className="inline-flex h-10 items-center justify-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+        >
+          <Copy className="h-4 w-4 text-[#64748b]" />
+          번호 복사
+        </button>
+      </div>
+    </DetailCard>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-[14px] leading-6">
+      <span className="shrink-0 text-[#64748b]">{label}</span>
+      <span className="min-w-0 text-right font-medium text-[#111827]">{value}</span>
+    </div>
+  );
+}
+
+function PetImageBlock({ pet }: { pet: string }) {
+  return (
+    <div className="flex h-[112px] w-[128px] shrink-0 items-center justify-center rounded-[8px] border border-[#d5dde7] bg-[#f8fafc]">
+      <PawPrint className="h-9 w-9 text-[#9aa8ba]" />
+      <span className="sr-only">{pet} 이미지</span>
+    </div>
+  );
+}
+
+function MissedStartAlert({
+  booking,
+  selectedDate,
+  currentHour,
+  onStart,
+}: {
+  booking: DailyBooking;
+  selectedDate: string;
+  currentHour: number;
+  onStart: () => void;
+}) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed || !isMissedStartBooking(booking, selectedDate, currentHour)) return null;
+
+  const strong = isMissedStartBooking(booking, selectedDate, currentHour, 15);
+  return (
+    <div className={cn("rounded-[8px] border px-4 py-3", strong ? "border-[#e8c67e] bg-[#fff7ed]" : "border-[#dbe2ea] bg-[#f8fafc]")}>
+      <div className="flex items-start gap-3">
+        <AlertTriangle className={cn("mt-0.5 h-5 w-5", strong ? "text-[#b98121]" : "text-[#64748b]")} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#e8c67e] bg-white px-2 py-0.5 text-[12px] font-medium text-[#9a640f]">시작 확인 필요</span>
+            <p className="text-[14px] font-medium text-[#111827]">
+              {strong
+                ? `${booking.pet} 예약의 미용 시작 처리가 아직 되지 않았습니다.`
+                : `${booking.pet} 예약 시간이 지났습니다.`}
+            </p>
+          </div>
+          <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+            {strong
+              ? "진행 상태를 확인해 주세요."
+              : `미용을 시작했다면 '미용 시작하기'를 눌러주세요.`}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={onStart} className="h-9 rounded-[8px] bg-[#2f7866] px-3 text-[13px] font-medium text-white">
+              미용 시작하기
+            </button>
+            <button type="button" onClick={() => setDismissed(true)} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155]">
+              나중에
+            </button>
+          </div>
+          {/* TODO: 시작 알림 사용 여부, 1차/2차 알림 시간, 자동 시작 처리 기본 OFF 설정을 매장 설정에 연결합니다. */}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersistentBookingPanelHero({
+  booking,
+  timeRange,
+  isPending,
+  startEnabled,
+  finalActionEnabled,
+  finalActionStatus,
+  finalActionLabel,
+  onChangeStatus,
+  onSuggestAlternativeTime,
+}: {
+  booking: DailyBooking;
+  timeRange: string;
+  isPending: boolean;
+  startEnabled: boolean;
+  finalActionEnabled: boolean;
+  finalActionStatus: string;
+  finalActionLabel: string;
+  onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onSuggestAlternativeTime: (bookingId: string) => void;
+}) {
+  const profile = getPetProfile(booking);
+  const statusClass = isPending
+    ? "border-[#e8c67e] bg-[#fff7ed] text-[#9a640f]"
+    : "border-[#b7d8cd] bg-[#eef8f4] text-[#1f6b5b]";
+
+  return (
+    <div className="border-b border-[#edf2f7] pb-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", statusClass)}>
+            {isPending ? "승인대기 예약" : "예약 확정"}
+          </span>
+          <p className="mt-3 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[#111827]">
+            오늘 {timeRange} <span className="text-[14px] font-normal text-[#64748b]">(예상)</span>
+          </p>
+          <p className="mt-2 text-[17px] font-semibold leading-6 text-[#111827]">
+            {booking.pet} · {profile.breed} · {profile.weight}
+          </p>
+          <p className="mt-1 text-[15px] font-medium text-[#334155]">{booking.service}</p>
+        </div>
+        <PetImageBlock pet={booking.pet} />
+      </div>
+
+      {isPending ? (
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => onChangeStatus(booking.id, "확정")}
+            className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#b98121] px-2 text-[14px] font-semibold text-white transition hover:bg-[#9a640f]"
+          >
+            예약 확정
+          </button>
+          <button
+            type="button"
+            onClick={() => onSuggestAlternativeTime(booking.id)}
+            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+          >
+            다른 시간 제안
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeStatus(booking.id, "거절")}
+            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-2 text-[13px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
+          >
+            예약 취소
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            disabled={!startEnabled && !finalActionEnabled}
+            onClick={() => {
+              if (startEnabled) onChangeStatus(booking.id, "진행 중");
+              else if (finalActionEnabled) onChangeStatus(booking.id, finalActionStatus);
+            }}
+            className={cn(
+              "inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-[16px] font-semibold transition",
+              startEnabled || finalActionEnabled
+                ? "bg-[#2f7866] text-white shadow-[0_10px_20px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]"
+                : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]",
+            )}
+          >
+            {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+            {startEnabled ? "미용 시작하기" : finalActionLabel}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => onSuggestAlternativeTime(booking.id)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+              예약 변경
+            </button>
+            <button type="button" onClick={() => onChangeStatus(booking.id, "거절")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
+              예약 취소
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReservationDetailSheet({
+  booking,
+  selectedDate,
+  currentHour,
+  staffComments,
+  onClose,
+  onChangeStatus,
+  onChangeStaffComment,
+}: {
+  booking: DailyBooking;
+  selectedDate: string;
+  currentHour: number;
+  staffComments: Record<string, string>;
+  onClose: () => void;
+  onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string) => void;
+}) {
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  const isPending = isPendingBookingStatus(sourceStatus);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/10" onClick={onClose}>
+      <aside
+        className="h-full w-full max-w-[760px] overflow-y-auto border-l border-[#dbe2ea] bg-white shadow-[-24px_0_60px_rgba(15,23,42,0.14)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e2e8f0] bg-white/95 px-6 py-4 backdrop-blur">
+          <div>
+            <p className="text-[13px] font-medium text-[#64748b]">예약 작업 패널</p>
+            <h3 className="mt-0.5 text-[20px] font-semibold text-[#111827]">{booking.pet} · {booking.customer}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f1f5f9]" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4 p-6">
+          {isPending ? (
+            <PendingReservationDetail
+              booking={booking}
+              selectedDate={selectedDate}
+              staffComments={staffComments}
+              onChangeStatus={onChangeStatus}
+              onChangeStaffComment={onChangeStaffComment}
+            />
+          ) : (
+            <ConfirmedReservationDetail
+              booking={booking}
+              selectedDate={selectedDate}
+              currentHour={currentHour}
+              staffComments={staffComments}
+              onChangeStatus={onChangeStatus}
+              onChangeStaffComment={onChangeStaffComment}
+            />
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function ConfirmedReservationDetail({
+  booking,
+  selectedDate,
+  currentHour,
+  staffComments,
+  onChangeStatus,
+  onChangeStaffComment,
+}: {
+  booking: DailyBooking;
+  selectedDate: string;
+  currentHour: number;
+  staffComments: Record<string, string>;
+  onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string) => void;
+}) {
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const profile = getPetProfile(booking);
+  const visits = getVisitProfile(booking);
+  const phone = getGuardianPhone(booking);
+  const commentKey = getCustomerCommentKey(booking);
+  const staffComment = staffComments[commentKey] ?? "";
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
+  const canStart = canStartGrooming(sourceStatus);
+  const canComplete = sourceStatus === "진행 중" || booking.status === "진행 중";
+  const canFinish = sourceStatus === "픽업 준비";
+  const completed = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status);
+
+  return (
+    <>
+      <MissedStartAlert booking={booking} selectedDate={selectedDate} currentHour={currentHour} onStart={() => onChangeStatus(booking.id, "진행 중")} />
+      <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", getReservationStatusPillClass(booking, selectedDate, currentHour))}>
+              {isMissedStartBooking(booking, selectedDate, currentHour) ? "시작 확인 필요" : "예약 확정"}
+            </span>
+            <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
+            <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
+            <p className="mt-1 text-[16px] font-medium text-[#334155]">{booking.service}</p>
+          </div>
+          <PetImageBlock pet={booking.pet} />
+        </div>
+
+        <div className="mt-5">
+          {canStart ? (
+            <button type="button" onClick={() => onChangeStatus(booking.id, "진행 중")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f7866] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]">
+              <Play className="h-5 w-5" />
+              미용 시작하기
+            </button>
+          ) : canComplete ? (
+            <button type="button" onClick={() => onChangeStatus(booking.id, "픽업 준비")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(31,107,91,0.16)] hover:bg-[#185848]">
+              <Scissors className="h-5 w-5" />
+              미용 완료하기
+            </button>
+          ) : canFinish ? (
+            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f7866] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]">
+              <CheckCircle2 className="h-5 w-5" />
+              완료 처리하기
+            </button>
+          ) : completed ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className="h-11 rounded-[8px] bg-[#2f7866] text-[14px] font-medium text-white">완료 내역 보기</button>
+              <button type="button" className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">다음 예약 등록</button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+          <button type="button" className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">예약 변경</button>
+          <button type="button" onClick={() => setCancelOpen(true)} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438]">예약 취소</button>
+          <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b]" aria-label="더보기">
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </div>
+      </section>
+
+      <ReservationInfoSections
+        booking={booking}
+        profile={profile}
+        visits={visits}
+        phone={phone}
+        staffComment={staffComment}
+        onCopyPhone={() => void navigator.clipboard?.writeText(phone)}
+        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value)}
+      />
+
+      {cancelOpen ? (
+        <CancelReservationDialog
+          onClose={() => setCancelOpen(false)}
+          onConfirm={() => {
+            onChangeStatus(booking.id, "취소");
+            setCancelOpen(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function PendingReservationDetail({
+  booking,
+  selectedDate,
+  staffComments,
+  onChangeStatus,
+  onChangeStaffComment,
+}: {
+  booking: DailyBooking;
+  selectedDate: string;
+  staffComments: Record<string, string>;
+  onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string) => void;
+}) {
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const profile = getPetProfile(booking);
+  const visits = getVisitProfile(booking);
+  const phone = getGuardianPhone(booking);
+  const commentKey = getCustomerCommentKey(booking);
+  const staffComment = staffComments[commentKey] ?? "";
+  const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
+
+  return (
+    <>
+      <section className="rounded-[8px] border border-[#ead7c7] bg-white p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <span className="inline-flex rounded-full border border-[#e8c67e] bg-[#fff7ed] px-3 py-1.5 text-[15px] font-medium text-[#9a640f]">승인대기 예약</span>
+            <p className="mt-3 text-[15px] font-medium text-[#9a640f]">고객이 예약 확정을 기다리는 중입니다.</p>
+            <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
+            <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
+            <p className="mt-1 text-[16px] font-medium text-[#334155]">{booking.service}</p>
+          </div>
+          <PetImageBlock pet={booking.pet} />
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => onChangeStatus(booking.id, "확정")} className="col-span-2 min-h-[56px] rounded-[8px] bg-[#b98121] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(185,129,33,0.16)] hover:bg-[#9a640f]">
+            예약 확정
+          </button>
+          <button type="button" onClick={() => setProposalOpen((current) => !current)} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
+            다른 시간 제안
+          </button>
+          <button type="button" onClick={() => setCancelOpen(true)} className="h-11 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] font-medium text-[#b42318]">
+            예약 취소
+          </button>
+        </div>
+      </section>
+
+      {proposalOpen ? (
+        <TimeProposalForm booking={booking} onClose={() => setProposalOpen(false)} />
+      ) : null}
+
+      <ReservationInfoSections
+        booking={booking}
+        profile={profile}
+        visits={visits}
+        phone={phone}
+        staffComment={staffComment}
+        onCopyPhone={() => void navigator.clipboard?.writeText(phone)}
+        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value)}
+      />
+
+      {cancelOpen ? (
+        <CancelReservationDialog
+          onClose={() => setCancelOpen(false)}
+          onConfirm={() => {
+            onChangeStatus(booking.id, "거절");
+            setCancelOpen(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function ReservationInfoSections({
+  booking,
+  profile,
+  visits,
+  phone,
+  staffComment,
+  onCopyPhone,
+  onChangeStaffComment,
+}: {
+  booking: DailyBooking;
+  profile: ReturnType<typeof getPetProfile>;
+  visits: ReturnType<typeof getVisitProfile>;
+  phone: string;
+  staffComment: string;
+  onCopyPhone: () => void;
+  onChangeStaffComment: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <GuardianInfoCard name={booking.customer} phone={phone} onCopyPhone={onCopyPhone} />
+
+      <DetailCard icon={PawPrint} title="반려동물 정보">
+        <div className="space-y-1.5">
+          <InfoRow label="이름" value={booking.pet} />
+          <InfoRow label="견종" value={profile.breed} />
+          <InfoRow label="나이" value={profile.age} />
+          <InfoRow label="성별" value={profile.sex} />
+          <InfoRow label="몸무게" value={profile.weight} />
+        </div>
+      </DetailCard>
+
+      <DetailCard icon={ClipboardList} title="서비스 정보">
+        <div className="space-y-1.5">
+          <InfoRow label="서비스명" value={booking.service.split("+")[0]?.trim() || booking.service} />
+          <InfoRow label="옵션" value={booking.service.includes("+") ? booking.service.split("+").slice(1).join("+").trim() : "옵션 없음"} />
+          <InfoRow label="예상 소요시간" value={formatDurationLabel(booking.duration)} />
+        </div>
+      </DetailCard>
+
+      <DetailCard icon={MessageCircle} title="고객 요청사항">
+        <p className="min-h-[48px] whitespace-pre-wrap text-[14px] leading-6 text-[#111827]">{getBookingRequestText(booking)}</p>
+      </DetailCard>
+
+      <DetailCard icon={NotebookPen} title="내부 메모">
+        <textarea
+          value={staffComment}
+          onChange={(event) => onChangeStaffComment(event.target.value)}
+          placeholder="오너/직원만 보는 메모를 입력해 주세요."
+          className="min-h-[74px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+        />
+        <button type="button" className="mt-2 h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[12px] font-medium text-[#334155]">메모 수정</button>
+      </DetailCard>
+
+      <DetailCard icon={History} title="방문 이력">
+        <div className="space-y-1.5">
+          <InfoRow label="최근 방문일" value={visits.lastVisit} />
+          <InfoRow label="누적 방문" value={visits.visitCount} />
+        </div>
+      </DetailCard>
+
+      <DetailCard icon={ShieldAlert} title="주의사항">
+        <div className="flex flex-wrap gap-2">
+          {profile.cautions.map((item) => (
+            <span key={item} className="rounded-[7px] border border-[#e5d8f3] bg-[#faf5ff] px-2.5 py-1 text-[13px] font-medium text-[#6b4a8f]">
+              {item}
+            </span>
+          ))}
+        </div>
+      </DetailCard>
+    </div>
+  );
+}
+
+function TimeProposalForm({ booking, onClose }: { booking: DailyBooking; onClose: () => void }) {
+  const [rows, setRows] = useState<TimeProposalRow[]>(() => [
+    {
+      id: "proposal-1",
+      start: formatHourLabel(Math.min(booking.start + 1, scheduleEndHour - booking.duration)),
+      end: formatHourLabel(Math.min(booking.start + 1 + booking.duration, scheduleEndHour)),
+    },
+  ]);
+  const [message, setMessage] = useState(timeProposalDefaultMessage);
+  const [sent, setSent] = useState(false);
+  const currentTime = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
+
+  function updateRow(id: string, key: "start" | "end", value: string) {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+  }
+
+  return (
+    <section className="rounded-[8px] border border-[#e8c67e] bg-[#fffaf0] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="text-[16px] font-semibold text-[#111827]">다른 시간 제안</h4>
+          <p className="mt-1 text-[13px] text-[#64748b]">기존 신청 시간: {currentTime}</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-[13px] font-medium text-[#64748b]">취소</button>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {rows.map((row, index) => (
+          <div key={row.id} className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
+            <span className="text-[13px] font-medium text-[#64748b]">{index + 1}</span>
+            <input type="time" value={row.start} onChange={(event) => updateRow(row.id, "start", event.target.value)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]" />
+            <input type="time" value={row.end} onChange={(event) => updateRow(row.id, "end", event.target.value)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]" />
+          </div>
+        ))}
+      </div>
+      {rows.length < 3 ? (
+        <button
+          type="button"
+          onClick={() => setRows((current) => [...current, { id: `proposal-${current.length + 1}`, start: current[current.length - 1]?.start ?? "14:00", end: current[current.length - 1]?.end ?? "15:00" }])}
+          className="mt-2 h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155]"
+        >
+          추천 시간 추가
+        </button>
+      ) : null}
+
+      <label className="mt-4 block space-y-1.5">
+        <span className="text-[13px] font-medium text-[#64748b]">고객 안내 메시지</span>
+        <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] leading-6 text-[#111827]" />
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          // TODO: time_proposed 상태 전환 API가 준비되면 추천 시간과 메시지를 함께 저장/발송합니다.
+          setSent(true);
+        }}
+        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#b98121] text-[15px] font-semibold text-white"
+      >
+        <Send className="h-4 w-4" />
+        제안 보내기
+      </button>
+      {sent ? <p className="mt-2 text-[13px] font-medium text-[#9a640f]">제안 보내기 mock 처리 완료. API 연결 전까지 화면 상태만 확인합니다.</p> : null}
+    </section>
+  );
+}
+
+function CancelReservationDialog({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
+  const [reason, setReason] = useState("매장 일정상 어려움");
+  const [message, setMessage] = useState(cancelDefaultMessage);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
+      <div className="w-full max-w-[460px] rounded-[12px] border border-[#ead6dc] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
+        <h3 className="text-[22px] font-semibold text-[#111827]">예약을 취소하시겠어요?</h3>
+        <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+          이 예약은 고객에게 취소 안내가 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요.
+        </p>
+        <label className="mt-4 block space-y-1.5">
+          <span className="text-[13px] font-medium text-[#64748b]">취소 사유</span>
+          <select value={reason} onChange={(event) => setReason(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827]">
+            <option>매장 일정상 어려움</option>
+            <option>서비스 제공이 어려움</option>
+            <option>고객 요청 취소</option>
+            <option>기타</option>
+          </select>
+        </label>
+        <label className="mt-3 block space-y-1.5">
+          <span className="text-[13px] font-medium text-[#64748b]">고객 안내 메시지</span>
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827]" />
+        </label>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">닫기</button>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[14px] font-semibold text-white">취소 안내 보내기</button>
+        </div>
+        <p className="mt-2 text-[12px] text-[#94a3b8]">선택 사유: {reason}</p>
+      </div>
+    </div>
   );
 }
 
@@ -1322,7 +2093,7 @@ function PhotoStatusDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
       <div
         className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
@@ -1388,6 +2159,93 @@ function PhotoStatusDialog({
   );
 }
 
+function AlternativeTimeGuideDialog({
+  booking,
+  selectedDate,
+  onClose,
+}: {
+  booking: DailyBooking;
+  selectedDate: string;
+  onClose: () => void;
+}) {
+  const suggestedStarts = [booking.start + 0.5, booking.start + 1, booking.start + 1.5]
+    .filter((start) => start + booking.duration <= scheduleEndHour)
+    .slice(0, 3);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-medium text-[#64748b]">예약 응대</p>
+            <h3 className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">다른 시간 안내</h3>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+              {booking.pet} · {booking.customer} 예약에 안내할 후보 시간을 고릅니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
+          <p className="text-[12px] text-[#94a3b8]">기존 신청</p>
+          <p className="mt-1 text-[17px] font-medium tabular-nums text-[#111827]">
+            {formatScheduleDateLabel(selectedDate)} · {formatHourLabel(booking.start)}-{formatHourLabel(booking.start + booking.duration)}
+          </p>
+          <p className="mt-1 text-[13px] text-[#64748b]">{booking.service}</p>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-[13px] font-medium text-[#111827]">추천 시간</p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {suggestedStarts.length > 0 ? (
+              suggestedStarts.map((start) => (
+                <button
+                  key={start}
+                  type="button"
+                  className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[13px] font-medium tabular-nums text-[#334155] transition hover:bg-[#f8fafc]"
+                >
+                  {formatHourLabel(start)}
+                </button>
+              ))
+            ) : (
+              <p className="col-span-3 rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-3 py-3 text-center text-[13px] text-[#94a3b8]">
+                오늘 남은 추천 시간이 없습니다.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[14px] font-medium text-white transition hover:bg-[#185848]"
+          >
+            안내 준비
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PendingApprovalPanel({
   approvalModeBookings,
   manualApprovalEnabled,
@@ -1412,7 +2270,7 @@ function PendingApprovalPanel({
   const emptyLabel = manualApprovalEnabled ? "승인 대기 예약이 없습니다." : "바로 확정된 예약이 없습니다.";
   const approvalHelp = manualApprovalEnabled
     ? "고객 예약은 승인 대기로 들어오고, 예약 확정 후에만 미용을 시작할 수 있습니다."
-    : "가능한 시간은 고객 예약 즉시 확정되고, 스케줄에 바로 반영됩니다.";
+    : "가능한 시간은 고객 예약 즉시 확정되고, 예약에 바로 반영됩니다.";
   const sortedApprovalModeBookings = useMemo(
     () => [...approvalModeBookings].sort((first, second) => first.start - second.start || first.id.localeCompare(second.id)),
     [approvalModeBookings],
@@ -1483,11 +2341,11 @@ function PendingApprovalPanel({
                           type="button"
                           onClick={() => onSelectBooking(booking.id)}
                           className={cn(
-                            "group flex w-full items-center gap-3 border-b border-[#edf2f7] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#fffdf2]",
+                            "group relative flex w-full items-center border-b border-[#edf2f7] py-2.5 pl-4 pr-3 text-left transition last:border-b-0 hover:bg-[#fffdf2]",
                             selected && "bg-[#fff8dc]",
+                            getWrapIndicatorClass("amber"),
                           )}
                         >
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#edbd3f] transition" aria-hidden="true" />
                           <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <p className="min-w-0 truncate text-[14px] font-medium text-[#111827]">{booking.pet} · {booking.customer}</p>
@@ -1547,7 +2405,7 @@ function PendingApprovalPanel({
               <div className="rounded-[8px] border border-[#e2e8f0] bg-white p-4">
                 <p className="text-[13px] font-semibold text-[#111827]">화면 기준</p>
                 <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-                  확정된 예약은 스케줄 보드에서 초록 카드로 표시됩니다. 미용 시작, 시간 이동, 취소 처리는 예약 현황 카드에서 진행합니다.
+                  확정된 예약은 예약 보드에서 초록 카드로 표시됩니다. 미용 시작, 시간 이동, 취소 처리는 예약 현황 카드에서 진행합니다.
                 </p>
               </div>
             </div>
@@ -1569,7 +2427,7 @@ function ApprovalModeSettingsPanel({
     {
       key: "manual",
       title: "승인 후 확정",
-      description: "고객 예약은 승인 대기로 들어오고, 오너가 확정해야 스케줄에 반영됩니다.",
+      description: "고객 예약은 승인 대기로 들어오고, 오너가 확정해야 예약에 반영됩니다.",
       selected: manualApprovalEnabled,
       onClick: () => onManualApprovalChange(true),
     },
@@ -1638,7 +2496,12 @@ function CalendarToolbar({
   onStaffChange: (staff: StaffFilter) => void;
   onAddSchedule: () => void;
 }) {
-  const staffLabel = staff === "전체 스태프" ? "전체 스태프" : visibleStaff.find((item) => item.key === staff)?.name ?? "전체 스태프";
+  const singleStaff = visibleStaff.length <= 1;
+  const staffLabel = singleStaff
+    ? visibleStaff[0]?.name ?? "담당 없음"
+    : staff === "전체 직원"
+      ? "전체 직원"
+      : visibleStaff.find((item) => item.key === staff)?.name ?? "전체 직원";
 
   return (
     <div className="border-b border-[#e2e8f0] px-4 py-2">
@@ -1648,6 +2511,7 @@ function CalendarToolbar({
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -1))}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -1662,30 +2526,41 @@ function CalendarToolbar({
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, 1))}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <SoftSelect<StaffFilter>
-            label="담당"
-            value={staff}
-            onChange={onStaffChange}
-            options={[
-              { value: "전체 스태프", label: "전체 스태프" },
-              ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
-            ]}
-            className="min-w-[188px]"
-            buttonClassName="h-9"
-          />
+          {singleStaff ? (
+            <div className="inline-flex h-9 w-[152px] items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#0f172a]">
+              <span className="text-[16px] text-[#64748b]">담당</span>
+              <span className="truncate font-semibold">{staffLabel}</span>
+            </div>
+          ) : (
+            <SoftSelect<StaffFilter>
+              label="담당"
+              value={staff}
+              onChange={onStaffChange}
+              options={[
+                { value: "전체 직원", label: "전체 직원" },
+                ...visibleStaff.map((option) => ({ value: option.key, label: option.name })),
+              ]}
+              className="w-[152px]"
+              buttonClassName="h-9"
+              labelClassName="text-[16px]"
+              valueClassName="text-[16px]"
+              menuClassName="w-[152px] min-w-0"
+            />
+          )}
           <button
             type="button"
             onClick={onAddSchedule}
             className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[14px] font-medium text-white transition hover:bg-[#185848]"
           >
             <CalendarPlus className="h-4 w-4" />
-            스케줄 추가
+            예약 추가
           </button>
         </div>
       </div>
@@ -1700,6 +2575,8 @@ function DailyScheduleGrid({
   activeMetric,
   manualApprovalEnabled,
   selectedBookingId,
+  selectedDate,
+  currentHour,
   conflictBookings,
   onSelectBooking,
   onMoveBooking,
@@ -1711,6 +2588,8 @@ function DailyScheduleGrid({
   activeMetric: SummaryMetricKey;
   manualApprovalEnabled: boolean;
   selectedBookingId: string;
+  selectedDate: string;
+  currentHour: number;
   conflictBookings: DailyBooking[];
   onSelectBooking: (id: string) => void;
   onMoveBooking: (bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) => void;
@@ -1727,7 +2606,7 @@ function DailyScheduleGrid({
   const [resizingBooking, setResizingBooking] = useState<BookingResizeState | null>(null);
   const [boardPanning, setBoardPanning] = useState(false);
   const [expandedMicroBookingId, setExpandedMicroBookingId] = useState<string | null>(null);
-  const scheduleStaff = staff === "전체 스태프" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
+  const scheduleStaff = staff === "전체 직원" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
   const staffScopedBookings = bookings.filter((booking) => scheduleStaff.some((item) => item.key === booking.staffKey));
   const metricFilteredBookings = staffScopedBookings.filter((booking) => {
     if (activeMetric === "completed") return isCompletedBookingStatus(booking.status);
@@ -2055,7 +2934,7 @@ function DailyScheduleGrid({
               {scheduleStaff.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-[#f8fafc]">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
-                    <p className="text-[14px] font-medium text-[#111827]">등록된 스태프가 없습니다.</p>
+                    <p className="text-[14px] font-medium text-[#111827]">등록된 직원가 없습니다.</p>
                     <p className="mt-1 text-[13px] text-[#64748b]">아직 오늘 예약이 없습니다.</p>
                   </div>
                 </section>
@@ -2103,6 +2982,8 @@ function DailyScheduleGrid({
                           const bookingHeight = getBookingHeight(booking.duration);
                           const bookingLayout = bookingLayouts.get(booking.id) ?? { lane: 0, laneCount: 1 };
                           const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount);
+                          const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
+                          const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
 
                           return (
                             <button
@@ -2131,6 +3012,7 @@ function DailyScheduleGrid({
                                       ? "z-50 shadow-none ring-1 ring-[#8ab9ab]/22"
                                       : "z-50 shadow-[0_16px_28px_rgba(15,23,42,0.12)] ring-1 ring-[#8ab9ab]/22"),
                                 getBookingCardToneClass(cardTone, selected),
+                                getWrapIndicatorClass(getBookingIndicatorTone(cardTone)),
                               )}
                               style={{
                                 ...bookingLayoutStyle,
@@ -2138,7 +3020,6 @@ function DailyScheduleGrid({
                                 height: bookingHeight,
                               }}
                             >
-                              <span className={cn("absolute bottom-0 left-0 top-0 w-1 rounded-l-[8px]", getBookingIndicatorClass(cardTone))} aria-hidden="true" />
                               <div className="absolute inset-0 flex min-h-0 min-w-0 items-center overflow-hidden pl-4 pr-3 text-left">
                                 <div
                                   className={cn(
@@ -2166,9 +3047,14 @@ function DailyScheduleGrid({
                                     {microCard ? booking.service : timeLabel}
                                   </span>
                                   {!microCard ? (
-                                    <p className="col-span-2 min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
-                                      {booking.service}
-                                    </p>
+                                    <div className="col-span-2 flex min-w-0 items-center gap-1.5">
+                                      <span className={cn("shrink-0 rounded-[6px] border px-1.5 py-0.5 text-[11px] leading-none", statusPillClass)}>
+                                        {statusLabel}
+                                      </span>
+                                      <p className="min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
+                                        {booking.service}
+                                      </p>
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
@@ -2266,7 +3152,7 @@ function SmallCount({ label, value, tone }: { label: string; value: number; tone
     tone === "pending"
       ? "bg-[#fff7d6] text-[#9f6f00]"
       : tone === "change"
-        ? "bg-[#fff1f1] text-[#b42318]"
+        ? "bg-[#f8eef1] text-[#8f2438]"
         : "bg-[#e6f3ef] text-[#1f6b5b]";
 
   return (
@@ -2371,6 +3257,7 @@ function WeeklyScheduleOverview({
                     className={cn(
                       "relative w-full overflow-hidden rounded-[8px] border py-2 pl-4 pr-3 text-left transition",
                       getBookingCardToneClass(getBookingCardTone(booking.status), selectedBookingId === booking.id),
+                      getWrapIndicatorClass(getBookingIndicatorTone(getBookingCardTone(booking.status))),
                     )}
                   >
                     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
@@ -2378,7 +3265,6 @@ function WeeklyScheduleOverview({
                         const tone = getBookingCardTone(booking.status);
                         return (
                           <>
-                            <span className={cn("absolute bottom-0 left-0 top-0 w-1 rounded-l-[8px]", getBookingIndicatorClass(tone))} aria-hidden="true" />
                             <p className="min-w-0 truncate text-[13px] font-medium text-[#111827]">{booking.pet} · {booking.customer}</p>
                             <span className={cn("shrink-0 tabular-nums text-[11px]", getBookingTimeTextClass(tone))}>
                               {formatHourLabel(booking.start)}-{formatHourLabel(booking.start + booking.duration)}
@@ -2465,10 +3351,10 @@ function MonthlyScheduleOverview({
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] text-[#64748b]">
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#1f6b5b]" />예약 많음</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#b9d8cf]" />예약 있음</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" />승인 대기</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" />변경/취소</span>
+        <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("teal")} />예약 많음</span>
+        <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("neutral")} />예약 있음</span>
+        <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("amber")} />승인 대기</span>
+        <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("burgundy")} />변경/취소</span>
       </div>
 
       <div className="grid grid-cols-7 overflow-hidden rounded-[8px] border border-[#e2e8f0]">
@@ -2512,12 +3398,12 @@ function MonthlyScheduleOverview({
               <div className="mt-3 space-y-1">
                 {counts.total > 0 ? <p className="truncate text-[12px] font-medium text-[#111827]">{getLoadLabel(counts.total)}</p> : null}
                 {counts.pending > 0 ? <p className="truncate text-[11px] text-[#9f6f00]">승인 대기 {counts.pending}건</p> : null}
-                {counts.changes > 0 ? <p className="truncate text-[11px] text-[#b42318]">변경/취소 {counts.changes}건</p> : null}
+                {counts.changes > 0 ? <p className="truncate text-[11px] text-[#8f2438]">변경/취소 {counts.changes}건</p> : null}
               </div>
               <div className="mt-3 flex gap-1">
-                {counts.pending > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#f59e0b]" /> : null}
-                {counts.changes > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" /> : null}
-                {counts.completed > 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#1f6b5b]" /> : null}
+                {counts.pending > 0 ? <span className={getMiniWrapIndicatorClass("amber")} /> : null}
+                {counts.changes > 0 ? <span className={getMiniWrapIndicatorClass("burgundy")} /> : null}
+                {counts.completed > 0 ? <span className={getMiniWrapIndicatorClass("slate")} /> : null}
               </div>
             </button>
           );
@@ -2528,7 +3414,7 @@ function MonthlyScheduleOverview({
 }
 
 function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWebStaffColumn[], selectedDate: string, staff: StaffFilter): ScheduleCreateFormState {
-  const initialStaff = staff === "전체 스태프" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
+  const initialStaff = staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
   return {
     customerMode: "new",
     petId: data.pets[0]?.id ?? "",
@@ -2536,7 +3422,7 @@ function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWeb
     petName: "",
     customerPhone: "",
     serviceId: data.services.find((service) => service.is_active)?.id ?? data.services[0]?.id ?? "",
-    staffKey: initialStaff?.key ?? unassignedStaffColumn.key,
+    staffKey: initialStaff?.key ?? "",
     date: selectedDate,
     time: "",
     memo: "",
@@ -2639,6 +3525,22 @@ async function postOwnerPet(payload: unknown) {
 
 function normalizeSchedulePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatSchedulePhone(value: string) {
+  const digits = normalizeSchedulePhone(value);
+  if (!digits) return "";
+
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 }
 
 function buildLocalGuardian(params: { shopId: string; name: string; phone: string; memo?: string }): Guardian {
@@ -2765,6 +3667,7 @@ type ScheduleDropdownOption = {
   value: string;
   label: string;
   meta?: string;
+  searchText?: string;
 };
 
 function ScheduleDropdown({
@@ -2772,60 +3675,99 @@ function ScheduleDropdown({
   value,
   options,
   placeholder = "선택",
+  showMeta = true,
+  showSelectedMeta = showMeta,
+  showOptionMeta = showMeta,
+  searchable = false,
+  searchPlaceholder = "검색",
   onChange,
 }: {
   label: string;
   value: string;
   options: ScheduleDropdownOption[];
   placeholder?: string;
+  showMeta?: boolean;
+  showSelectedMeta?: boolean;
+  showOptionMeta?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const selected = options.find((option) => option.value === value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const queryDigits = query.replace(/\D/g, "");
+  const filteredOptions = normalizedQuery
+    ? options.filter((option) => {
+        const haystack = `${option.label} ${option.meta ?? ""} ${option.searchText ?? ""}`.toLowerCase();
+        const haystackDigits = haystack.replace(/\D/g, "");
+        return haystack.includes(normalizedQuery) || Boolean(queryDigits && haystackDigits.includes(queryDigits));
+      })
+    : options;
 
   return (
     <div className="relative space-y-1.5">
-      <span className="text-[12px] text-[#64748b]">{label}</span>
+      <span className="text-[14px] text-[#64748b]">{label}</span>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setOpen((current) => !current);
+          if (open) setQuery("");
+        }}
         className={cn(
           "flex h-11 w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 text-left text-[14px] outline-none transition",
-          open ? "border-[#1f6b5b] ring-[3px] ring-[#1f6b5b]/10" : "border-[#dbe2ea] hover:border-[#b8c8d8]",
+          open ? "border-[#b8c8d8] bg-[#fbfdff]" : "border-[#dbe2ea] hover:border-[#b8c8d8]",
         )}
       >
         <span className="min-w-0">
           <span className={cn("block truncate", selected ? "text-[#111827]" : "text-[#94a3b8]")}>
             {selected?.label ?? placeholder}
           </span>
-          {selected?.meta ? <span className="mt-0.5 block truncate text-[11px] text-[#64748b]">{selected.meta}</span> : null}
+          {showSelectedMeta && selected?.meta ? <span className="mt-0.5 block truncate text-[11px] text-[#64748b]">{selected.meta}</span> : null}
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#64748b] transition", open && "rotate-180")} />
       </button>
 
       {open ? (
         <div className="absolute left-0 right-0 top-[68px] z-[70] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
+          {searchable ? (
+            <div className="border-b border-[#edf2f7] p-2">
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                autoFocus
+                className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition placeholder:text-[#94a3b8] focus:border-[#b8c8d8] focus:bg-[#fbfdff]"
+                placeholder={searchPlaceholder}
+              />
+            </div>
+          ) : null}
           <div className="max-h-[220px] overflow-y-auto p-1">
-            {options.map((option) => (
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => {
                   onChange(option.value);
                   setOpen(false);
+                  setQuery("");
                 }}
                 className={cn(
                   "flex w-full items-center justify-between gap-3 rounded-[7px] px-3 py-2.5 text-left transition",
-                  option.value === value ? "bg-[#e8f4f0] text-[#1f6b5b]" : "text-[#111827] hover:bg-[#f8fafc]",
+                  option.value === value ? "bg-[#f8fafc] text-[#111827]" : "text-[#111827] hover:bg-[#f8fafc]",
                 )}
               >
                 <span className="min-w-0">
                   <span className="block truncate text-[14px]">{option.label}</span>
-                  {option.meta ? <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{option.meta}</span> : null}
+                  {showOptionMeta && option.meta ? <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{option.meta}</span> : null}
                 </span>
-                {option.value === value ? <span className="h-2 w-2 shrink-0 rounded-full bg-[#1f6b5b]" /> : null}
               </button>
-            ))}
+              ))
+            ) : (
+              <p className="px-3 py-6 text-center text-[13px] text-[#64748b]">검색 결과가 없습니다.</p>
+            )}
           </div>
         </div>
       ) : null}
@@ -2872,7 +3814,8 @@ function ScheduleCreateDialog({
   const petOptions = petRows.map(({ pet, guardian }) => ({
     value: pet.id,
     label: `${pet.name} · ${guardian?.name ?? "보호자 미등록"}`,
-    meta: guardian?.phone ?? undefined,
+    meta: guardian?.phone ? formatSchedulePhone(guardian.phone) : undefined,
+    searchText: `${pet.name} ${guardian?.name ?? ""} ${guardian?.phone ?? ""} ${guardian?.phone ? formatSchedulePhone(guardian.phone) : ""}`,
   }));
   const serviceOptions = activeServices.map((service) => ({
     value: service.id,
@@ -2900,13 +3843,31 @@ function ScheduleCreateDialog({
       }).filter((slot) => !hasStaffBookingConflict(dateBookings, "__new-booking__", { staffKey: form.staffKey, start: timeToHour(slot), duration }))
         .filter((slot) => isStaffWorkingWindow(staffMembers, data.staffScheduleOverrides, form.staffKey, form.date, timeToHour(slot), duration))
     : [];
-  const selectedPet = data.pets.find((pet) => pet.id === form.petId);
-  const selectedGuardian = selectedPet ? data.guardians.find((guardian) => guardian.id === selectedPet.guardian_id) : null;
+  const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
+  const isCustomerPhoneIncomplete = form.customerMode === "new" && Boolean(form.customerPhone.trim()) && normalizedCustomerPhone.length < 10;
   const hasCustomerInfo =
     form.customerMode === "existing"
       ? Boolean(form.petId)
-      : Boolean(form.customerName.trim() && form.petName.trim() && normalizeSchedulePhone(form.customerPhone).length >= 10);
+      : Boolean(form.customerName.trim() && form.petName.trim() && normalizedCustomerPhone.length >= 10);
   const canSubmit = Boolean(hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && !saving);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  function updateDate(nextDate: string) {
+    onChange({ ...form, date: nextDate, time: "" });
+  }
+
+  function openDatePicker() {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={onClose}>
@@ -2914,21 +3875,52 @@ function ScheduleCreateDialog({
         className="w-full max-w-[560px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-[20px] font-medium text-[#111827]">스케줄 추가</h3>
-            <p className="mt-1 text-[13px] text-[#64748b]">기존 고객을 선택해 예약을 바로 등록합니다.</p>
+        <div className="flex items-center justify-center">
+          <div className="relative flex min-w-0 items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={() => updateDate(addScheduleDays(form.date, -1))}
+              className="inline-flex h-9 w-7 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
+              aria-label="이전 날짜"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={openDatePicker}
+              className={cn(
+                "h-9 min-w-[154px] rounded-[8px] px-1 text-center text-[15px] text-[#111827] transition hover:bg-[#f8fafc]",
+                form.date === currentDateInTimeZone() ? "font-bold" : "font-medium",
+              )}
+            >
+              {formatSchedulePickerRelativeLabel(form.date)}
+            </button>
+            <button
+              type="button"
+              onClick={() => updateDate(addScheduleDays(form.date, 1))}
+              className="inline-flex h-9 w-7 items-center justify-center rounded-[8px] text-[#475569] transition hover:bg-[#f8fafc]"
+              aria-label="다음 날짜"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={form.date}
+              onChange={(event) => updateDate(event.target.value)}
+              className="pointer-events-none absolute h-px w-px opacity-0"
+              tabIndex={-1}
+              aria-hidden="true"
+            />
           </div>
-          <button type="button" onClick={onClose} className="h-9 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] text-[#475569]">
-            닫기
-          </button>
         </div>
 
-        <div className="mt-5 space-y-4">
+        <div className="mt-4 space-y-3">
           <ScheduleDropdown
             label="고객 등록 방식"
             value={form.customerMode}
             options={customerModeOptions}
+            showMeta={false}
             onChange={(value) => onChange({ ...form, customerMode: value as "new" | "existing", time: "" })}
           />
 
@@ -2938,66 +3930,66 @@ function ScheduleCreateDialog({
               value={form.petId}
               options={petOptions}
               placeholder="기존 고객을 선택해 주세요"
+              showMeta={false}
+              showOptionMeta
+              searchable
+              searchPlaceholder="고객명, 반려동물명, 연락처 검색"
               onChange={(value) => onChange({ ...form, petId: value })}
             />
           ) : (
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-2.5 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-[12px] text-[#64748b]">고객명</span>
+                <span className="text-[14px] text-[#64748b]">고객명</span>
                 <input
                   type="text"
                   value={form.customerName}
                   onChange={(event) => onChange({ ...form, customerName: event.target.value })}
-                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
                   placeholder="예: 김민지"
                 />
               </label>
               <label className="space-y-1.5">
-                <span className="text-[12px] text-[#64748b]">반려동물 이름</span>
+                <span className="text-[14px] text-[#64748b]">반려동물 이름</span>
                 <input
                   type="text"
                   value={form.petName}
                   onChange={(event) => onChange({ ...form, petName: event.target.value })}
-                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
                   placeholder="예: 몽이"
                 />
               </label>
-              <label className="space-y-1.5">
-                <span className="text-[12px] text-[#64748b]">고객 연락처</span>
+              <label className="space-y-1.5 md:col-span-2">
+                <span className="text-[14px] text-[#64748b]">고객 연락처</span>
                 <input
                   type="tel"
                   inputMode="numeric"
                   value={form.customerPhone}
-                  onChange={(event) => onChange({ ...form, customerPhone: normalizeSchedulePhone(event.target.value) })}
-                  className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
-                  placeholder="01012345678"
+                  onChange={(event) => onChange({ ...form, customerPhone: formatSchedulePhone(event.target.value) })}
+                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
+                  placeholder="010-1234-5678"
                 />
+                {isCustomerPhoneIncomplete ? (
+                  <span className="block text-[14px] text-[#64748b]">연락처를 10자리 이상 입력해 주세요.</span>
+                ) : null}
               </label>
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-2.5 md:grid-cols-2">
             <ScheduleDropdown
               label="서비스"
               value={form.serviceId}
               options={serviceOptions}
+              showMeta={false}
               onChange={(value) => onChange({ ...form, serviceId: value, time: "" })}
             />
             <ScheduleDropdown
               label="담당"
               value={form.staffKey}
               options={staffOptions}
+              showMeta={false}
               onChange={(value) => onChange({ ...form, staffKey: value as StaffKey, time: "" })}
             />
-            <label className="space-y-1.5">
-              <span className="text-[12px] text-[#64748b]">날짜</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(event) => onChange({ ...form, date: event.target.value, time: "" })}
-                className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none transition focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10"
-              />
-            </label>
           </div>
         </div>
 
@@ -3058,29 +4050,20 @@ function ScheduleCreateDialog({
           </label>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[12px] text-[#64748b]">가능 시간</p>
-            {form.customerMode === "new" && form.petName.trim() && form.customerName.trim() ? (
-              <p className="truncate text-[12px] text-[#64748b]">
-                {form.petName.trim()} · {form.customerName.trim()}
-              </p>
-            ) : selectedPet && selectedGuardian ? (
-              <p className="truncate text-[12px] text-[#64748b]">
-                {selectedPet.name} · {selectedGuardian.name}
-              </p>
-            ) : null}
+            <p className="text-[14px] text-[#64748b]">가능 시간</p>
           </div>
-          <div className="mt-2 max-h-[144px] overflow-y-auto rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-2">
+          <div className="mt-1.5 max-h-[128px] overflow-y-auto rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-2">
             {availableSlots.length > 0 ? (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {availableSlots.map((slot) => (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => onChange({ ...form, time: slot })}
                     className={cn(
-                      "h-9 rounded-[8px] border text-[13px] tabular-nums transition",
+                      "h-8 rounded-[8px] border text-[13px] tabular-nums transition",
                       form.time === slot
                         ? "border-[#1f6b5b] bg-[#1f6b5b] text-white"
                         : "border-[#dbe2ea] bg-white text-[#334155] hover:border-[#9fc9bd]",
@@ -3096,19 +4079,19 @@ function ScheduleCreateDialog({
           </div>
         </div>
 
-        <label className="mt-4 block space-y-1.5">
-          <span className="text-[12px] text-[#64748b]">메모</span>
+        <label className="mt-3 block space-y-1.5">
+          <span className="text-[14px] text-[#64748b]">메모</span>
           <textarea
             value={form.memo}
             onChange={(event) => onChange({ ...form, memo: event.target.value })}
-            className="min-h-[84px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#1f6b5b]"
+            className="min-h-[68px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#1f6b5b]"
             placeholder="고객 요청사항이나 직원 참고 메모를 적어주세요."
           />
         </label>
 
         {error ? <p className="mt-3 rounded-[8px] bg-[#fff7ed] px-3 py-2 text-[13px] text-[#9a3412]">{error}</p> : null}
 
-        <div className="mt-5 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155]">
             취소
           </button>
@@ -3143,12 +4126,8 @@ export default function CalendarManagementScreen({
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const visibleStaff = useMemo(() => {
-    const columns = staffMembers.map(toOwnerWebStaffColumn);
-    if (columns.length > 0) {
-      return hasScheduleItemsOnDate(bootstrapData, selectedDate) ? [...columns, unassignedStaffColumn] : columns;
-    }
-    return hasScheduleItemsOnDate(bootstrapData, selectedDate) ? [unassignedStaffColumn] : [];
-  }, [bootstrapData, selectedDate, staffMembers]);
+    return staffMembers.map(toOwnerWebStaffColumn);
+  }, [staffMembers]);
   const selectedDateBookings = useMemo(
     () =>
       shouldUseOwnerWebPreviewBookings(bootstrapData)
@@ -3163,7 +4142,7 @@ export default function CalendarManagementScreen({
     : bootstrapData.mode === "supabase"
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
-  const [staff, setStaff] = useState<StaffFilter>("전체 스태프");
+  const [staff, setStaff] = useState<StaffFilter>("전체 직원");
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
@@ -3174,9 +4153,10 @@ export default function CalendarManagementScreen({
   const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [photoStatusAction, setPhotoStatusAction] = useState<PhotoStatusAction | null>(null);
+  const [alternativeTimeBooking, setAlternativeTimeBooking] = useState<DailyBooking | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
-    buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 스태프"),
+    buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 직원"),
   );
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -3185,18 +4165,21 @@ export default function CalendarManagementScreen({
   const staffScopedBookings = useMemo(
     () => {
       const visibleStaffKeys = new Set(visibleStaff.map((item) => item.key));
-      const normalizedBookings = bookings.map((booking) =>
-        visibleStaffKeys.has(booking.staffKey)
-          ? booking
-          : {
-              ...booking,
-              staff: unassignedStaffColumn.role,
-              staffKey: unassignedStaffColumn.key,
-              staffName: unassignedStaffColumn.name,
-            },
-      );
+      const fallbackStaff = visibleStaff[0] ?? null;
+      const normalizedBookings = bookings.flatMap((booking) => {
+        if (visibleStaffKeys.has(booking.staffKey)) return [booking];
+        if (!fallbackStaff) return [];
+        return [
+          {
+            ...booking,
+            staff: fallbackStaff.role,
+            staffKey: fallbackStaff.key,
+            staffName: fallbackStaff.name,
+          },
+        ];
+      });
 
-      return staff === "전체 스태프" ? normalizedBookings : normalizedBookings.filter((item) => item.staffKey === staff);
+      return staff === "전체 직원" ? normalizedBookings : normalizedBookings.filter((item) => item.staffKey === staff);
     },
     [bookings, staff, visibleStaff],
   );
@@ -3228,7 +4211,7 @@ export default function CalendarManagementScreen({
       bootstrapAppointmentsCount: bootstrapData.appointments?.length ?? 0,
       selectedDateAppointmentsCount: bootstrapData.appointments.filter((appointment) => appointment.appointment_date === selectedDate).length,
       bootstrapStaffCount: 0,
-      staffColumnsSource: staffMembers.length > 0 ? "owner-web-preview-props" : visibleStaff.length > 0 ? "system-unassigned" : "empty",
+      staffColumnsSource: staffMembers.length > 0 ? "owner-web-preview-props" : "empty",
       finalStaffColumns: visibleStaff,
       dailyBookingsSource: selectedDateBookingSource,
       finalDailyBookingsCount: selectedDateBookings.length,
@@ -3306,8 +4289,12 @@ export default function CalendarManagementScreen({
   ]);
 
   useEffect(() => {
-    if (staff !== "전체 스태프" && !visibleStaff.some((item) => item.key === staff)) {
-      setStaff("전체 스태프");
+    if (visibleStaff.length === 1 && staff !== visibleStaff[0].key) {
+      setStaff(visibleStaff[0].key);
+      return;
+    }
+    if (staff !== "전체 직원" && !visibleStaff.some((item) => item.key === staff)) {
+      setStaff("전체 직원");
     }
   }, [staff, visibleStaff]);
 
@@ -3375,7 +4362,7 @@ export default function CalendarManagementScreen({
       body: JSON.stringify({
         appointmentId: appointment.id,
         serviceId: appointment.service_id,
-        staffId: nextBooking.staffKey === unassignedStaffColumn.key ? null : nextBooking.staffKey,
+        staffId: nextBooking.staffKey,
         appointmentDate: appointment.appointment_date,
         appointmentTime: formatHourLabel(nextBooking.start),
         durationMinutes: Math.round(nextBooking.duration * 60),
@@ -3391,7 +4378,7 @@ export default function CalendarManagementScreen({
     onDataChange?.(nextBootstrapData);
     setStaffAssignments((current) => ({
       ...current,
-      [updatedAppointment.id]: updatedAppointment.staff_id ?? unassignedStaffColumn.key,
+      [updatedAppointment.id]: updatedAppointment.staff_id ?? nextBooking.staffKey,
     }));
   }
 
@@ -3543,6 +4530,12 @@ export default function CalendarManagementScreen({
     void applyBookingStatusChange(bookingId, nextStatus);
   }
 
+  function handleSuggestAlternativeTime(bookingId: string) {
+    const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    if (!targetBooking) return;
+    setAlternativeTimeBooking(targetBooking);
+  }
+
   function handleAcknowledgeChangeBooking(bookingId: string) {
     const booking = bookings.find((item) => item.id === bookingId);
     if (booking && isRescheduledBookingStatus(booking.status)) {
@@ -3582,7 +4575,7 @@ export default function CalendarManagementScreen({
 
   function handleAddSchedule() {
     const targetStaff =
-      staff === "전체 스태프" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
+      staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
     setScheduleForm({
       ...buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff),
       staffKey: targetStaff?.key ?? "staff-1",
@@ -3701,7 +4694,7 @@ export default function CalendarManagementScreen({
       guardianId: selectedGuardian.id,
       petId: selectedPet.id,
       serviceId: selectedService.id,
-      staffId: targetStaff.key === unassignedStaffColumn.key ? null : targetStaff.key,
+      staffId: targetStaff.key,
       appointmentDate: scheduleForm.date,
       appointmentTime: scheduleForm.time,
       memo: scheduleForm.memo,
@@ -3807,6 +4800,8 @@ export default function CalendarManagementScreen({
             activeMetric={activeMetric}
             manualApprovalEnabled={manualApprovalEnabled}
             selectedBookingId={selectedBookingId}
+            selectedDate={selectedDate}
+            currentHour={scheduleStatusHour}
             conflictBookings={displayScopedBookings}
             onSelectBooking={setSelectedBookingId}
             onMoveBooking={handleMoveBooking}
@@ -3822,6 +4817,7 @@ export default function CalendarManagementScreen({
           approvalModeBookings={[]}
           onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
+          onSuggestAlternativeTime={handleSuggestAlternativeTime}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
@@ -3835,8 +4831,15 @@ export default function CalendarManagementScreen({
           onSubmit={handlePhotoStatusFile}
         />
       ) : null}
+      {alternativeTimeBooking ? (
+        <AlternativeTimeGuideDialog
+          booking={alternativeTimeBooking}
+          selectedDate={selectedDate}
+          onClose={() => setAlternativeTimeBooking(null)}
+        />
+      ) : null}
       {earlyStartBooking ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={() => setEarlyStartBooking(null)}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/25 px-4" onClick={() => setEarlyStartBooking(null)}>
           <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-[17px] font-medium text-[#111827]">예약 시간 전입니다</h3>
             <p className="mt-2 text-[13px] leading-5 text-[#64748b]">

@@ -1225,7 +1225,7 @@ export default function OwnerSettingsPanel({
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "운영시간 안내", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
-    services: { title: "서비스 관리", content: servicesSection },
+    services: { title: "미용 요금", content: servicesSection },
     addons: { title: "부가기능", content: addonsSection },
     account: { title: "계정", content: accountSection },
   };
@@ -1371,7 +1371,7 @@ export default function OwnerSettingsPanel({
         />
         <SettingsNavRow
           icon={Scissors}
-          title="서비스 관리"
+          title="미용 요금"
           onClick={() => updateActiveScreen("services")}
         />
         <SettingsNavRow

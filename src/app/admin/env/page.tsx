@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+﻿import { redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, CircleAlert, CircleMinus } from "lucide-react";
 
 import { serverEnv } from "@/lib/server-env";
@@ -134,7 +134,7 @@ export default async function AdminEnvPage() {
       <div className="mx-auto w-full max-w-[1120px]">
         <a
           href="/admin"
-          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#e5ddd2] bg-white px-3 text-[14px] font-semibold text-[#4f5f59]"
+          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#e5ddd2] bg-white px-3 text-[16px] font-semibold text-[#4f5f59]"
         >
           <ArrowLeft className="h-4 w-4" />
           관리자 콘솔
@@ -143,13 +143,13 @@ export default async function AdminEnvPage() {
         <section className="mt-4 rounded-[18px] border border-[#e5ddd2] bg-white px-6 py-6 shadow-[0_12px_28px_rgba(23,20,17,0.05)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-[13px] font-semibold text-[#1f6b5b]">서버 런타임 진단</p>
+              <p className="text-[14px] font-semibold text-[#1f6b5b]">서버 런타임 진단</p>
               <h1 className="mt-2 text-[30px] font-bold tracking-[-0.03em] text-[#171411]">환경변수 상태</h1>
-              <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#6f665f]">
+              <p className="mt-3 max-w-[760px] text-[16px] leading-6 text-[#6f665f]">
                 운영 서버에서 실제로 읽히는 환경변수의 등록 여부만 확인합니다. 보안상 값은 표시하지 않습니다.
               </p>
             </div>
-            <div className="rounded-[12px] border border-[#e5ddd2] bg-[#fcfbf8] px-4 py-3 text-[13px] text-[#6f665f]">
+            <div className="rounded-[12px] border border-[#e5ddd2] bg-[#fcfbf8] px-4 py-3 text-[14px] text-[#6f665f]">
               <span className="font-semibold text-[#171411]">{missingCount === 0 ? "필수값 정상" : `누락 ${missingCount}개`}</span>
               <span className="mx-2 text-[#c9c0b4]">/</span>
               <span>{process.env.VERCEL_ENV || process.env.NODE_ENV || "runtime"}</span>
@@ -158,7 +158,7 @@ export default async function AdminEnvPage() {
         </section>
 
         <section className="mt-4 overflow-hidden rounded-[18px] border border-[#e5ddd2] bg-white">
-          <div className="grid grid-cols-[minmax(0,1fr)_128px] border-b border-[#eee7dc] bg-[#fcfbf8] px-5 py-3 text-[13px] font-semibold text-[#6f665f] md:grid-cols-[260px_minmax(0,1fr)_128px]">
+          <div className="grid grid-cols-[minmax(0,1fr)_128px] border-b border-[#eee7dc] bg-[#fcfbf8] px-5 py-3 text-[14px] font-semibold text-[#6f665f] md:grid-cols-[260px_minmax(0,1fr)_128px]">
             <span>환경변수</span>
             <span className="hidden md:block">용도</span>
             <span className="text-right">상태</span>
@@ -174,12 +174,12 @@ export default async function AdminEnvPage() {
                 className="grid gap-3 border-b border-[#f0ebe4] px-5 py-4 last:border-b-0 md:grid-cols-[260px_minmax(0,1fr)_128px] md:items-center"
               >
                 <div className="min-w-0">
-                  <p className="break-all text-[14px] font-semibold text-[#171411]">{row.name}</p>
-                  <p className="mt-1 text-[12px] text-[#7a7066]">{row.label}</p>
+                  <p className="break-all text-[16px] font-semibold text-[#171411]">{row.name}</p>
+                  <p className="mt-1 text-[14px] text-[#7a7066]">{row.label}</p>
                 </div>
-                <p className="text-[13px] leading-6 text-[#6f665f]">{row.note}</p>
+                <p className="text-[14px] leading-6 text-[#6f665f]">{row.note}</p>
                 <div className="flex md:justify-end">
-                  <span className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[12px] font-semibold ${meta.className}`}>
+                  <span className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-[14px] font-semibold ${meta.className}`}>
                     <Icon className="h-3.5 w-3.5" />
                     {meta.label}
                   </span>

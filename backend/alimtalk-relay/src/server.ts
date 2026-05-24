@@ -177,6 +177,18 @@ const requestSchema = z.object({
     .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
     .optional()
     .nullable(),
+  buttons: z
+    .array(
+      z.object({
+        type: z.literal("WL"),
+        name: z.string().trim().min(1).max(14),
+        linkMobile: z.string().trim().min(1).max(500),
+        linkPc: z.string().trim().max(500).optional().nullable(),
+      }),
+    )
+    .max(5)
+    .optional()
+    .nullable(),
 });
 
 const templateCodeSchema = z
@@ -204,6 +216,13 @@ const relayTemplateConfigKeys = [
   "templateBirthdayGreeting",
 ] as const;
 
+const templateButtonSchema = z.object({
+  buttonType: z.literal("WL").default("WL"),
+  buttonName: z.string().trim().min(1).max(14),
+  linkMobile: z.string().trim().min(1).max(500),
+  linkPc: z.string().trim().max(500).optional().nullable(),
+});
+
 const templateRegisterSchema = z.object({
   templateCode: templateCodeSchema,
   templateName: z.string().trim().min(1).max(100),
@@ -218,6 +237,7 @@ const templateRegisterSchema = z.object({
   comment: z.string().trim().max(500).optional().nullable(),
   requestReview: z.boolean().default(true),
   templateConfigKey: z.enum(relayTemplateConfigKeys).optional().nullable(),
+  templateButtons: z.array(templateButtonSchema).max(5).optional().nullable(),
 });
 
 const adminConfigSchema = z.object({
@@ -238,6 +258,13 @@ const adminConfigSchema = z.object({
   templateGroomingCompleted: z.string(),
   templateRevisitNotice: z.string(),
   templateBirthdayGreeting: z.string(),
+});
+
+const sentListLookupSchema = z.object({
+  destPhone: z.string().min(8),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  message: z.string().optional().nullable(),
+  providerMessageId: z.string().optional().nullable(),
 });
 
 const templateAliases = [
@@ -286,6 +313,134 @@ function coerceJsonLikeBody(value: unknown) {
   } catch {
     return value;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getStringValue(record: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+
+  return null;
+}
+
+function findNestedStringValue(value: unknown, keys: string[], depth = 0): string | null {
+  if (depth > 6) return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedStringValue(item, keys, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const record = asRecord(value);
+  if (!record) return null;
+
+  const direct = getStringValue(record, keys);
+  if (direct) return direct;
+
+  for (const nested of Object.values(record)) {
+    const found = findNestedStringValue(nested, keys, depth + 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function extractTemplateRecords(value: unknown, depth = 0): Record<string, unknown>[] {
+  if (depth > 6) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractTemplateRecords(item, depth + 1));
+  }
+
+  const record = asRecord(value);
+  if (!record) return [];
+
+  const ownCode = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
+  const nested = Object.values(record).flatMap((item) => extractTemplateRecords(item, depth + 1));
+
+  return ownCode ? [record, ...nested] : nested;
+}
+
+function findTemplateRecord(value: unknown, templateCode: string) {
+  return (
+    extractTemplateRecords(value).find((record) => {
+      const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
+      return code === templateCode;
+    }) ?? null
+  );
+}
+
+function getResponseContentRecord(responseBody: unknown) {
+  const body = asRecord(responseBody);
+  if (!body) return null;
+  return asRecord(body.content) ?? asRecord(body.data) ?? body;
+}
+
+function normalizeSsodaaTemplateDetail(
+  templateCode: string,
+  detailRecord: Record<string, unknown> | null,
+  listRecord?: Record<string, unknown> | null,
+) {
+  const pick = (keys: string[]) => getStringValue(detailRecord, keys) ?? getStringValue(listRecord, keys);
+  const pickDeep = (keys: string[]) =>
+    getStringValue(detailRecord, keys) ??
+    findNestedStringValue(detailRecord, keys) ??
+    getStringValue(listRecord, keys) ??
+    findNestedStringValue(listRecord, keys);
+
+  return {
+    templateCode: pick(["templateCode", "template_code", "templtCode", "templt_code"]) ?? templateCode,
+    templateName: pick(["templateName", "template_name", "templtName", "templt_name", "name"]),
+    templateContent: pickDeep([
+      "templateContent",
+      "template_content",
+      "templtContent",
+      "templt_content",
+      "template",
+      "msgBody",
+      "msg_body",
+      "message",
+      "templateMsg",
+      "template_msg",
+      "templateText",
+      "template_text",
+      "templtText",
+      "templt_text",
+      "content",
+    ]),
+    inspectionStatus: pick([
+      "inspectionStatus",
+      "templateInspectionStatus",
+      "templtInspectionStatus",
+      "templt_inspection_status",
+      "inspection_status",
+      "inspectionStatusName",
+      "templateInspectionStatusName",
+      "templtInspectionStatusName",
+    ]),
+    serviceStatus: pick([
+      "serviceStatus",
+      "templateStatus",
+      "templtStatus",
+      "status",
+      "service_status",
+      "template_status",
+      "templt_status",
+    ]),
+  } satisfies SsodaaTemplateDetail;
 }
 
 function extractProviderMessageId(responseBody: unknown) {
@@ -349,6 +504,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function normalizePhone(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 async function fetchSentList(params: { destPhone: string; date: string }) {
   const providerResponse = await fetch(env.ssodaaSentListUrl, {
     method: "POST",
@@ -371,11 +530,12 @@ async function fetchSentList(params: { destPhone: string; date: string }) {
   const responseBody = contentType.includes("application/json")
     ? await providerResponse.json()
     : await providerResponse.text();
+  const parsedResponseBody = coerceJsonLikeBody(responseBody);
 
   return {
     ok: providerResponse.ok,
     status: providerResponse.status,
-    body: coerceJsonLikeBody(responseBody),
+    body: parsedResponseBody,
   };
 }
 
@@ -398,36 +558,30 @@ async function fetchSsodaaTemplateDetail(templateCode: string) {
   const responseBody = contentType.includes("application/json")
     ? await providerResponse.json()
     : await providerResponse.text();
+  const parsedResponseBody = coerceJsonLikeBody(responseBody);
 
   if (!providerResponse.ok) {
     throw new Error("쏘다 템플릿 상세 조회에 실패했습니다.");
   }
 
   const providerCode =
-    typeof responseBody === "object" && responseBody !== null && "code" in responseBody
-      ? String((responseBody as { code?: string | number }).code ?? "")
+    typeof parsedResponseBody === "object" && parsedResponseBody !== null && "code" in parsedResponseBody
+      ? String((parsedResponseBody as { code?: string | number }).code ?? "")
       : "";
 
   if (providerCode && providerCode !== "200") {
     const message =
-      typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof (responseBody as { error?: unknown }).error === "string"
-        ? ((responseBody as { error: string }).error || "쏘다 템플릿 상세 조회가 거절되었습니다.")
+      typeof parsedResponseBody === "object" &&
+      parsedResponseBody !== null &&
+      "error" in parsedResponseBody &&
+      typeof (parsedResponseBody as { error?: unknown }).error === "string"
+        ? ((parsedResponseBody as { error: string }).error || "쏘다 템플릿 상세 조회가 거절되었습니다.")
         : "쏘다 템플릿 상세 조회가 거절되었습니다.";
     throw new Error(message);
   }
 
-  const content =
-    typeof responseBody === "object" && responseBody !== null && "content" in responseBody
-      ? ((responseBody as { content?: Record<string, unknown> }).content ?? {})
-      : {};
-
-  return {
-    templateCode: typeof content.templateCode === "string" ? content.templateCode : templateCode,
-    templateName: typeof content.templateName === "string" ? content.templateName : null,
-    templateContent: typeof content.templateContent === "string" ? content.templateContent : null,
-    inspectionStatus: typeof content.inspectionStatus === "string" ? content.inspectionStatus : null,
-    serviceStatus: typeof content.serviceStatus === "string" ? content.serviceStatus : null,
-  } satisfies SsodaaTemplateDetail;
+  const detailRecord = findTemplateRecord(parsedResponseBody, templateCode) ?? getResponseContentRecord(parsedResponseBody);
+  return normalizeSsodaaTemplateDetail(templateCode, detailRecord);
 }
 
 function getSsodaaApiUrl(pathname: string) {
@@ -491,6 +645,16 @@ async function checkSsodaaTemplateCode(templateCode: string) {
 }
 
 async function addSsodaaTemplate(input: z.infer<typeof templateRegisterSchema>) {
+  const buttons =
+    input.templateButtons
+      ?.filter((button) => button.buttonName && button.linkMobile)
+      .map((button) => ({
+        name: button.buttonName,
+        linkType: button.buttonType,
+        linkMo: button.linkMobile,
+        linkPc: button.linkPc || button.linkMobile,
+      })) ?? [];
+
   return postSsodaaJson("/kakao/template/add", {
     senderKey: env.ssodaaSenderKey,
     templateCode: input.templateCode,
@@ -503,6 +667,7 @@ async function addSsodaaTemplate(input: z.infer<typeof templateRegisterSchema>) 
     templateTitle: input.templateTitle || undefined,
     templateSubtitle: input.templateSubtitle || undefined,
     categoryCode: input.categoryCode,
+    buttons: buttons.length ? buttons : undefined,
   });
 }
 
@@ -563,6 +728,16 @@ async function listSsodaaTemplateCategories() {
   };
 }
 
+async function fetchSsodaaTemplateList() {
+  const responseBody = await postSsodaaJson("/kakao/template/list", {
+    senderKey: env.ssodaaSenderKey,
+    page: "1",
+    count: "100",
+  });
+
+  return extractTemplateRecords(responseBody);
+}
+
 function mapTemplateCodeToRelayConfig(configKey: RelayTemplateConfigKey, templateCode: string) {
   const nextConfig = {
     ...getRelayConfigPayload(),
@@ -577,6 +752,15 @@ async function buildSsodaaTemplateCatalog() {
     alias,
     configuredCode: resolveTemplateKey(alias) ?? "",
   }));
+  let listRecords: Record<string, unknown>[] = [];
+
+  try {
+    listRecords = await fetchSsodaaTemplateList();
+  } catch (error) {
+    console.warn("[relay] Ssodaa template list fetch failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const detailEntries = await Promise.all(
     aliasEntries.map(async ({ alias, configuredCode }) => {
@@ -590,7 +774,17 @@ async function buildSsodaaTemplateCatalog() {
       }
 
       try {
-        const detail = await fetchSsodaaTemplateDetail(configuredCode);
+        const listRecord =
+          listRecords.find(
+            (record) => getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]) === configuredCode,
+          ) ?? null;
+        const detailFromList = listRecord ? normalizeSsodaaTemplateDetail(configuredCode, listRecord) : null;
+        const detailFromApi = await fetchSsodaaTemplateDetail(configuredCode);
+        const detail = normalizeSsodaaTemplateDetail(
+          configuredCode,
+          detailFromApi as unknown as Record<string, unknown>,
+          detailFromList as unknown as Record<string, unknown> | null,
+        );
         return {
           alias,
           configuredCode,
@@ -611,17 +805,21 @@ async function buildSsodaaTemplateCatalog() {
   return detailEntries;
 }
 
-function selectFinalStatusRow(rows: SsodaaSentListRow[], criteria: { msgId: string | null; destPhone: string; message: string }) {
+function selectFinalStatusRow(rows: SsodaaSentListRow[], criteria: { msgId: string | null; destPhone: string; message?: string | null }) {
   if (criteria.msgId) {
     const byMessageId = rows.find((row) => row.msg_id === criteria.msgId);
     if (byMessageId) return byMessageId;
   }
 
-  return rows.find(
-    (row) =>
-      (row.dest_phone ?? "") === criteria.destPhone &&
-      (row.msg_body ?? "").trim() === criteria.message.trim(),
-  ) ?? null;
+  const normalizedDestPhone = normalizePhone(criteria.destPhone);
+  const trimmedMessage = criteria.message?.trim() ?? "";
+
+  return rows.find((row) => {
+    const samePhone = normalizePhone(row.dest_phone) === normalizedDestPhone;
+    if (!samePhone) return false;
+    if (!trimmedMessage) return true;
+    return (row.msg_body ?? "").trim() === trimmedMessage;
+  }) ?? null;
 }
 
 async function pollFinalDeliveryStatus(params: {
@@ -976,6 +1174,115 @@ app.get("/admin/templates/categories", async (request, response) => {
   }
 });
 
+app.get("/admin/provider/diagnostics", async (request, response) => {
+  const startedAt = Date.now();
+
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const result = await listSsodaaTemplateCategories();
+
+    response.json({
+      ok: true,
+      provider: "ssodaa",
+      status: 200,
+      latencyMs: Date.now() - startedAt,
+      endpoints: {
+        apiUrlHost: new URL(env.ssodaaApiUrl).host,
+        sentListUrlHost: new URL(env.ssodaaSentListUrl).host,
+      },
+      checks: {
+        apiKey: Boolean(env.ssodaaApiKey),
+        tokenKey: Boolean(env.ssodaaTokenKey),
+        senderKey: Boolean(env.ssodaaSenderKey),
+      },
+      categoryCount: result.categories.length,
+      bodyPreview: JSON.stringify(result.providerResponse).slice(0, 800),
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "쏘다 공급자 진단에 실패했습니다.";
+    response.status(status).json({
+      ok: false,
+      provider: "ssodaa",
+      status,
+      latencyMs: Date.now() - startedAt,
+      message,
+      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
+    });
+  }
+});
+
+app.post("/admin/sent-list", async (request, response) => {
+  try {
+    requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
+    ensureProviderConfig();
+
+    const payload = sentListLookupSchema.parse(request.body);
+    const date = payload.date || getDateStringInSeoul();
+    const sentListResponse = await fetchSentList({
+      destPhone: normalizePhone(payload.destPhone),
+      date,
+    });
+
+    if (!sentListResponse.ok) {
+      return response.status(sentListResponse.status).json({
+        ok: false,
+        message: "쏘다 발송내역 조회에 실패했습니다.",
+        providerResponse: sentListResponse.body,
+      });
+    }
+
+    if (typeof sentListResponse.body === "object" && sentListResponse.body !== null) {
+      const providerCode = (sentListResponse.body as { code?: string | number }).code;
+      if (providerCode !== undefined && String(providerCode) !== "200") {
+        return response.status(502).json({
+          ok: false,
+          message:
+            (sentListResponse.body as { error?: string; message?: string } | null)?.error ||
+            (sentListResponse.body as { error?: string; message?: string } | null)?.message ||
+            "쏘다 발송내역 조회가 공급자 단계에서 거절되었습니다.",
+          providerResponse: sentListResponse.body,
+        });
+      }
+    }
+
+    const rows =
+      typeof sentListResponse.body === "object" &&
+      sentListResponse.body !== null &&
+      Array.isArray((sentListResponse.body as { result?: SsodaaSentListRow[] }).result)
+        ? ((sentListResponse.body as { result?: SsodaaSentListRow[] }).result ?? [])
+        : [];
+
+    const matchedRow = selectFinalStatusRow(rows, {
+      msgId: payload.providerMessageId ?? null,
+      destPhone: payload.destPhone,
+      message: payload.message ?? null,
+    });
+
+    response.json({
+      ok: true,
+      provider: "ssodaa",
+      date,
+      found: Boolean(matchedRow),
+      status: matchedRow?.status ?? null,
+      message: matchedRow?.error_msg || matchedRow?.failover_msg || null,
+      row: matchedRow ?? null,
+      totalRows: rows.length,
+      providerResponse: sentListResponse.body,
+    });
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    const message = error instanceof Error ? error.message : "쏘다 발송내역 조회 처리 중 오류가 발생했습니다.";
+    return response.status(status).json({
+      ok: false,
+      message,
+      providerResponse: (error as Error & { providerResponse?: unknown }).providerResponse ?? null,
+    });
+  }
+});
+
 app.post("/alimtalk/send", async (request, response) => {
   try {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
@@ -996,6 +1303,14 @@ app.post("/alimtalk/send", async (request, response) => {
       templateKey: resolvedTemplateKey,
     });
 
+    const buttons =
+      payload.buttons?.map((button) => ({
+        name: button.name,
+        type: button.type,
+        url_mobile: button.linkMobile,
+        url_pc: button.linkPc || button.linkMobile,
+      })) ?? [];
+
     const providerResponse = await fetch(env.ssodaaApiUrl, {
       method: "POST",
       headers: {
@@ -1011,6 +1326,7 @@ app.post("/alimtalk/send", async (request, response) => {
         dest_phone: payload.to,
         dest_name: payload.recipientName ?? "",
         metadata: payload.metadata ?? null,
+        ...(buttons.length ? { button: buttons } : {}),
       }),
     });
 

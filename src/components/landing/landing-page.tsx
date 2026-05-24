@@ -24,7 +24,7 @@ const TERTIARY_BUTTON =
 const heroMetrics = [
   { label: "홈", value: "오늘 예약 한눈에" },
   { label: "예약조회", value: "날짜별 확인" },
-  { label: "고객관리", value: "검색·상세·삭제" },
+  { label: "고객 관리", value: "검색·상세·삭제" },
 ] as const;
 
 function formatWon(value: number) {
@@ -61,7 +61,7 @@ export default function LandingPage({ shop }: { shop: Shop; services: Service[] 
             </IntegratedPreview>
 
             <IntegratedPreview
-              title="검색 중심으로 정리한 고객관리 화면"
+              title="검색 중심으로 정리한 고객 관리 화면"
               body="고객 찾기, 상세 보기, 삭제 선택 모드를 섞지 않고 더 단순하게 정리했습니다."
             >
               <OwnerCustomerMock />
@@ -113,7 +113,7 @@ function HeroSection({
         오너 업무를 한 흐름으로
       </h1>
       <p className="mt-4 text-[15px] leading-6 text-white/80">
-        홈, 예약조회, 고객관리, 설정을 모바일에 맞게 정리했습니다.
+        홈, 예약조회, 고객 관리, 설정을 모바일에 맞게 정리했습니다.
         <br />
         고객 예약 페이지와도 자연스럽게 이어집니다.
       </p>

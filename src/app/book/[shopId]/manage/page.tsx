@@ -31,6 +31,7 @@ export default async function BookManagePage({
       shopId={shopId}
       initialShop={data.shop}
       initialServices={data.services}
+      initialStaffMembers={data.staffMembers}
       initialAppointments={data.appointments}
       initialRecords={data.groomingRecords}
       initialMode="manage"

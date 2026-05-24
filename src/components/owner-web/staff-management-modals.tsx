@@ -1,4 +1,4 @@
-import { Field, StaffDraftForm, StaffModal, TextInput } from "@/components/owner-web/staff-management-ui";
+﻿import { Field, StaffDraftForm, StaffModal, TextInput } from "@/components/owner-web/staff-management-ui";
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
 import type { LeaveType, StaffDraft, StaffMember } from "@/components/owner-web/staff-management-model";
 
@@ -22,7 +22,7 @@ export function StaffAddModal({
   onAdd: () => void;
 }) {
   return (
-    <StaffModal title="스태프 추가" onClose={onClose}>
+    <StaffModal title="직원 추가" onClose={onClose}>
       <StaffDraftForm draft={draft} onChange={onDraftChange} />
       <div className="mt-5 grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onClose} />
@@ -48,7 +48,7 @@ export function StaffLeaveModal({
   return (
     <StaffModal title="휴무/연차 등록" onClose={onClose}>
       <div className="space-y-3">
-        <Field label="스태프명">
+        <Field label="직원명">
           <SoftSelect
             value={draft.staffId}
             onChange={(staffId) => onDraftChange((current) => ({ ...current, staffId }))}

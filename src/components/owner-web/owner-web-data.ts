@@ -1,13 +1,13 @@
-export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "settings";
+﻿export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "settings";
 
-export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string; description: string }> = [
-  { key: "schedule", label: "스케줄", description: "오늘 일정 확인" },
-  { key: "bookingLink", label: "예약 링크", description: "공유와 QR 관리" },
-  { key: "grooming", label: "캘린더", description: "날짜별 예약과 기록" },
-  { key: "customers", label: "고객관리", description: "보호자와 반려동물 관리" },
-  { key: "services", label: "서비스", description: "가격표와 예약 기준" },
-  { key: "staff", label: "스태프", description: "근무, 휴무, 연차 관리" },
-  { key: "settings", label: "설정", description: "매장 운영 정책" },
+export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
+  { key: "schedule", label: "예약 관리" },
+  { key: "bookingLink", label: "예약 링크" },
+  { key: "grooming", label: "캘린더" },
+  { key: "customers", label: "고객 관리" },
+  { key: "services", label: "미용 요금" },
+  { key: "staff", label: "직원 관리" },
+  { key: "settings", label: "설정" },
 ];
 
 export type ReservationStatus = "승인 대기" | "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";
@@ -149,7 +149,7 @@ export const serviceRows = [
   { name: "위생 미용", duration: "45분", price: "25,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
   { name: "부분 미용", duration: "45분", price: "30,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
   { name: "스파/약욕 케어", duration: "60분", price: "40,000원", capacity: "동일 시간 1건", staff: "원장, 서브" },
-  { name: "발톱 정리", duration: "30분", price: "10,000원", capacity: "동일 시간 1건", staff: "전체 스태프" },
+  { name: "발톱 정리", duration: "30분", price: "10,000원", capacity: "동일 시간 1건", staff: "전체 직원" },
 ];
 
 export const staffRows = [

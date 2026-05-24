@@ -15,6 +15,21 @@ function statusTone(status: string) {
   }
 }
 
+function providerStatusTone(status: string | null, found: boolean | null, error: string | null) {
+  if (error) return "border-[#efd4d4] bg-[#fff7f7] text-[#b54b4b]";
+  if (found === false) return "border-[#ece6dc] bg-[#fcfaf7] text-[#8a6f4a]";
+  if (status === "실패") return "border-[#efd4d4] bg-[#fff7f7] text-[#b54b4b]";
+  if (status) return "border-[#d8e7e1] bg-[#f5fbf8] text-[#2f7266]";
+  return "border-[#e6e3dd] bg-white text-[#6f665f]";
+}
+
+function providerStatusLabel(item: AdminNotificationActivity["recentEvents"][number]) {
+  if (item.providerDeliveryLookupError) return "쏘다 조회 실패";
+  if (item.providerDeliveryFound === false) return "쏘다 미확인";
+  if (item.providerDeliveryStatus) return `쏘다 ${item.providerDeliveryStatus}`;
+  return "쏘다 조회 안함";
+}
+
 export default function AdminAlimtalkActivitySections({
   notificationActivity,
 }: {
@@ -24,9 +39,9 @@ export default function AdminAlimtalkActivitySections({
     <section className="grid gap-5 xl:grid-cols-2">
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
-          <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 알림 이슈</p>
+          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 알림 이슈</p>
           <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">실패나 스킵이 난 최근 건</h2>
-          <p className="text-[13px] leading-6 text-[#6f665f]">
+          <p className="text-[14px] leading-6 text-[#6f665f]">
             템플릿 상태, 고객 수신 설정, relay 전달 문제는 여기서 가장 먼저 확인할 수 있어요.
           </p>
         </div>
@@ -37,10 +52,10 @@ export default function AdminAlimtalkActivitySections({
               <div key={item.id} className="rounded-[6px] border border-[#e6e3dd] bg-white px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-[#171411]">
+                    <p className="text-[16px] font-semibold text-[#171411]">
                       {item.title} · {item.shopName}
                     </p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
+                    <p className="mt-1 text-[14px] leading-5 text-[#6f665f]">
                       {item.guardianName || "고객 미상"}
                       {item.petName ? ` · ${item.petName}` : ""}
                       {item.recipientPhoneTail ? ` · ****${item.recipientPhoneTail}` : ""}
@@ -52,13 +67,29 @@ export default function AdminAlimtalkActivitySections({
                     {item.status}
                   </span>
                 </div>
-                <p className="mt-2 text-[12px] leading-5 text-[#7a7268]">
+                <p className="mt-2 text-[14px] leading-5 text-[#7a7268]">
                   {item.failReason || "실패 사유가 남지 않았습니다."}
                 </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${providerStatusTone(
+                      item.providerDeliveryStatus,
+                      item.providerDeliveryFound,
+                      item.providerDeliveryLookupError,
+                    )}`}
+                  >
+                    {providerStatusLabel(item)}
+                  </span>
+                  {item.providerDeliveryError || item.providerDeliveryLookupError ? (
+                    <span className="text-[12px] leading-5 text-[#7a7268]">
+                      {item.providerDeliveryError || item.providerDeliveryLookupError}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             ))
           ) : (
-            <div className="rounded-[6px] border border-[#e6e3dd] bg-white px-4 py-5 text-[13px] leading-6 text-[#7a7268]">
+            <div className="rounded-[6px] border border-[#e6e3dd] bg-white px-4 py-5 text-[14px] leading-6 text-[#7a7268]">
               최근 실패나 스킵 이슈가 없습니다.
             </div>
           )}
@@ -67,9 +98,9 @@ export default function AdminAlimtalkActivitySections({
 
       <article className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
         <div className="space-y-2">
-          <p className="text-[12px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 발송 이벤트</p>
+          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">최근 발송 이벤트</p>
           <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">관리자에서 바로 보는 최근 알림 흐름</h2>
-          <p className="text-[13px] leading-6 text-[#6f665f]">
+          <p className="text-[14px] leading-6 text-[#6f665f]">
             어떤 타입이 실제로 많이 나가는지, 특정 타입만 계속 실패하는지 한 번에 볼 수 있어요.
           </p>
         </div>
@@ -84,10 +115,10 @@ export default function AdminAlimtalkActivitySections({
                 }`}
               >
                 <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-[#171411]">
+                  <p className="text-[16px] font-semibold text-[#171411]">
                     {item.title} · {item.shopName}
                   </p>
-                  <p className="mt-1 text-[12px] leading-5 text-[#6f665f]">
+                  <p className="mt-1 text-[14px] leading-5 text-[#6f665f]">
                     {item.guardianName || "고객 미상"}
                     {item.petName ? ` · ${item.petName}` : ""}
                     {item.recipientPhoneTail ? ` · ****${item.recipientPhoneTail}` : ""}
@@ -96,6 +127,22 @@ export default function AdminAlimtalkActivitySections({
                     {item.createdAt}
                     {item.providerMessageId ? ` · ${item.providerMessageId}` : ""}
                   </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${providerStatusTone(
+                        item.providerDeliveryStatus,
+                        item.providerDeliveryFound,
+                        item.providerDeliveryLookupError,
+                      )}`}
+                    >
+                      {providerStatusLabel(item)}
+                    </span>
+                    {item.providerDeliveryError || item.providerDeliveryLookupError ? (
+                      <span className="text-[12px] leading-5 text-[#7a7268]">
+                        {item.providerDeliveryError || item.providerDeliveryLookupError}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <span
                   className={`shrink-0 rounded-[999px] border px-2.5 py-1 text-[11px] font-medium ${statusTone(item.status)}`}
@@ -105,7 +152,7 @@ export default function AdminAlimtalkActivitySections({
               </div>
             ))
           ) : (
-            <div className="px-4 py-5 text-[13px] leading-6 text-[#7a7268]">최근 알림 이벤트가 없습니다.</div>
+            <div className="px-4 py-5 text-[14px] leading-6 text-[#7a7268]">최근 알림 이벤트가 없습니다.</div>
           )}
         </div>
       </article>

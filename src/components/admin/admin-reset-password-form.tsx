@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -60,9 +60,9 @@ export default function AdminResetPasswordForm() {
         </div>
 
         <div className="mt-5 text-center">
-          <p className="text-[13px] font-semibold tracking-[0.04em] text-[#1f6b5b]">관리자 전용</p>
+          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#1f6b5b]">관리자 전용</p>
           <h1 className="mt-2 text-[28px] font-bold tracking-[-0.04em] text-[#171411]">비밀번호 재설정</h1>
-          <p className="mt-3 text-[15px] leading-7 text-[#7b746b]">
+          <p className="mt-3 text-[16px] leading-7 text-[#7b746b]">
             관리자 아이디와 운영자 등록 키를 확인한 뒤
             <br />
             새 비밀번호로 다시 설정할 수 있어요.
@@ -112,13 +112,13 @@ export default function AdminResetPasswordForm() {
                 {setupKeyVisible ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
               </button>
             </div>
-            <p className="px-1 text-[12px] leading-5 text-[#8a8075]">
+            <p className="px-1 text-[14px] leading-5 text-[#8a8075]">
               환경변수 <span className="font-semibold text-[#5f554a]">ADMIN_SETUP_KEY=</span> 뒤에 있는 값만 입력해 주세요.
             </p>
           </div>
         </div>
 
-        {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
+        {message ? <p className="mt-3 text-[16px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
 
         <button
           type="button"
@@ -129,7 +129,7 @@ export default function AdminResetPasswordForm() {
           {submitting ? "재설정 중..." : "비밀번호 재설정"}
         </button>
 
-        <div className="mt-4 flex items-center justify-center gap-4 text-[13px] font-semibold text-[#6f675d]">
+        <div className="mt-4 flex items-center justify-center gap-4 text-[14px] font-semibold text-[#6f675d]">
           <button
             type="button"
             onClick={() => router.push("/admin/login" as never)}

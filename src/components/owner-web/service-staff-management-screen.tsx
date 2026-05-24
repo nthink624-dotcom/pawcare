@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -22,7 +22,7 @@ const serviceInitialState = {
   duration: "60",
   price: "",
   capacity: "1",
-  staff: "전체 스태프",
+  staff: "전체 직원",
 };
 
 const servicesStorageKey = "petmanager.ownerWeb.services";
@@ -175,7 +175,7 @@ export default function ServiceStaffManagementScreen() {
 
   function addStaff() {
     if (!staffForm.name.trim()) {
-      setFormError("스태프 이름을 입력해 주세요.");
+      setFormError("직원 이름을 입력해 주세요.");
       return;
     }
 
@@ -200,7 +200,7 @@ export default function ServiceStaffManagementScreen() {
   return (
     <div className="space-y-5">
       <WebSectionTitle
-        title="서비스/스태프"
+        title="서비스/직원"
         description="서비스 소요시간, 가격, 동시 수용 수, 담당자 근무 정보를 예약 가능 시간 계산과 연결합니다."
         action={<PrimaryButton label="서비스 추가" onClick={() => openDialog("service")} />}
       />
@@ -221,7 +221,7 @@ export default function ServiceStaffManagementScreen() {
           ))}
         </TableShell>
 
-        <MiniSection title="스태프 근무" action={<PrimaryButton label="스태프 추가" onClick={() => openDialog("staff")} />}>
+        <MiniSection title="직원 근무" action={<PrimaryButton label="직원 추가" onClick={() => openDialog("staff")} />}>
           <div className="space-y-3">
             {staff.map((staffMember) => (
               <div key={staffMember.name} className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
@@ -248,12 +248,12 @@ export default function ServiceStaffManagementScreen() {
           <div className="w-full max-w-[460px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
             <div>
               <h3 className="text-[20px] font-semibold text-[#111827]">
-                {dialogMode === "service" ? "서비스 추가" : "스태프 추가"}
+                {dialogMode === "service" ? "서비스 추가" : "직원 추가"}
               </h3>
               <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
                 {dialogMode === "service"
                   ? "가격표에 표시되고 예약 가능 시간 계산에 사용할 서비스 정보를 입력합니다."
-                  : "스태프 카드에 표시할 담당 서비스와 오늘 근무 시간을 입력합니다."}
+                  : "직원 카드에 표시할 담당 서비스와 오늘 근무 시간을 입력합니다."}
               </p>
             </div>
 
@@ -291,12 +291,12 @@ export default function ServiceStaffManagementScreen() {
                 <Field label="가격">
                   <TextInput value={serviceForm.price} onChange={(price) => setServiceForm((form) => ({ ...form, price }))} placeholder="예: 65000" inputMode="numeric" />
                 </Field>
-                <Field label="담당 스태프">
+                <Field label="담당 직원">
                   <SelectInput
                     value={serviceForm.staff}
                     onChange={(nextStaff) => setServiceForm((form) => ({ ...form, staff: nextStaff }))}
                     options={[
-                      { value: "전체 스태프", label: "전체 스태프" },
+                      { value: "전체 직원", label: "전체 직원" },
                       ...staffOptions.map((option) => ({ value: option, label: option })),
                     ]}
                   />
@@ -304,7 +304,7 @@ export default function ServiceStaffManagementScreen() {
               </div>
             ) : (
               <div className="mt-5 space-y-4">
-                <Field label="스태프 이름">
+                <Field label="직원 이름">
                   <TextInput value={staffForm.name} onChange={(name) => setStaffForm((form) => ({ ...form, name }))} placeholder="예: 민서윤" />
                 </Field>
                 <Field label="담당 가능 서비스">
@@ -325,7 +325,7 @@ export default function ServiceStaffManagementScreen() {
 
             <div className="mt-6 grid grid-cols-2 gap-2">
               <GhostButton label="취소" onClick={closeDialog} />
-              <PrimaryButton label={dialogMode === "service" ? "서비스 저장" : "스태프 저장"} onClick={dialogMode === "service" ? addService : addStaff} />
+              <PrimaryButton label={dialogMode === "service" ? "서비스 저장" : "직원 저장"} onClick={dialogMode === "service" ? addService : addStaff} />
             </div>
           </div>
         </div>

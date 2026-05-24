@@ -15,6 +15,12 @@ import {
   getPetmanagerMediaUsageStatus,
 } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import {
+  createMediaSignedReadUrl,
+  createMediaSignedUploadUrl,
+  getMediaStorageInfo,
+  removeMediaStorageObjects,
+} from "@/server/media-storage";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type {
   ChannelType,
@@ -61,7 +67,7 @@ const attachmentRoles = new Set<NotificationMediaAttachmentRole>([
   "receipt",
   "other",
 ]);
-const transientKinds = new Set<MediaKind>(["message_image", "customer_shared"]);
+const transientKinds = new Set<MediaKind>(["grooming_before", "grooming_after", "message_image", "customer_shared"]);
 
 type OwnerContext = {
   shopId: string;
@@ -508,10 +514,11 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     contentType,
   });
 
-  const signedUpload = await admin.storage.from(MEDIA_BUCKET).createSignedUploadUrl(storagePath);
-  if (signedUpload.error || !signedUpload.data) {
-    throw new OwnerApiError(signedUpload.error?.message ?? "Could not create media upload URL.", 500);
-  }
+  const signedUpload = await createMediaSignedUploadUrl({
+    bucket: MEDIA_BUCKET,
+    path: storagePath,
+    contentType,
+  });
 
   const insertPayload = {
     id: mediaAssetId,
@@ -585,10 +592,13 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     upload: {
       bucket: MEDIA_BUCKET,
       path: storagePath,
-      signedUrl: signedUpload.data.signedUrl,
-      token: signedUpload.data.token,
+      provider: signedUpload.provider,
+      signedUrl: signedUpload.signedUrl,
+      token: signedUpload.token,
+      method: signedUpload.method,
+      headers: signedUpload.headers,
       maxBytes: OWNER_MEDIA_MAX_COMPRESSED_UPLOAD_BYTES,
-      expiresInSeconds: 2 * 60 * 60,
+      expiresInSeconds: signedUpload.expiresInSeconds,
     },
   };
 }
@@ -699,15 +709,16 @@ export async function getOwnerMediaSignedUrl(owner: OwnerContext, input: {
     }
   }
 
-  const signedUrl = await admin.storage.from(bucket).createSignedUrl(path, OWNER_MEDIA_SIGNED_READ_SECONDS);
-  if (signedUrl.error || !signedUrl.data) {
-    throw new OwnerApiError(signedUrl.error?.message ?? "Could not create media signed URL.", 500);
-  }
+  const signedUrl = await createMediaSignedReadUrl({
+    bucket,
+    path,
+    expiresInSeconds: OWNER_MEDIA_SIGNED_READ_SECONDS,
+  });
 
   return {
     mediaAsset: assetResult.data as MediaAsset,
     variant,
-    signedUrl: signedUrl.data.signedUrl,
+    signedUrl,
     expiresInSeconds: OWNER_MEDIA_SIGNED_READ_SECONDS,
   };
 }
@@ -1063,10 +1074,7 @@ export async function cleanupExpiredTransientMedia(input: CleanupExpiredMediaInp
       }
 
       for (const [bucket, paths] of pathsByBucket.entries()) {
-        const removeResult = await admin.storage.from(bucket).remove(paths);
-        if (removeResult.error) {
-          throw new Error(removeResult.error.message);
-        }
+        await removeMediaStorageObjects({ bucket, paths });
       }
 
       const updateResult = await admin
@@ -1106,5 +1114,12 @@ export async function cleanupExpiredTransientMedia(input: CleanupExpiredMediaInp
       },
     })),
     errors,
+  };
+}
+
+export function getOwnerMediaStorageStatus() {
+  return {
+    bucket: MEDIA_BUCKET,
+    ...getMediaStorageInfo(),
   };
 }

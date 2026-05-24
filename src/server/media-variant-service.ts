@@ -3,6 +3,7 @@ import {
   PETMANAGER_MEDIA_VARIANT_PROFILES,
 } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { createMediaSignedUploadUrl, getMediaStorageInfo } from "@/server/media-storage";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { MediaAsset, MediaVariant, MediaVariantKey } from "@/types/domain";
 
@@ -139,7 +140,6 @@ export async function createOwnerMediaVariantUploadIntent(
   owner: OwnerContext,
   input: CreateVariantUploadIntentInput,
 ) {
-  const admin = getAdmin();
   const mediaAssetId = requiredUuid(input.mediaAssetId, "mediaAssetId");
   const variantKey = normalizeVariantKey(input.variantKey);
   const contentType = normalizeContentType(input.contentType);
@@ -150,17 +150,18 @@ export async function createOwnerMediaVariantUploadIntent(
 
   const mediaAsset = await getMediaAsset(owner, mediaAssetId);
   const storagePath = buildVariantStoragePath({ mediaAsset, variantKey, contentType });
-  const signedUpload = await admin.storage.from(PETMANAGER_MEDIA_BUCKET).createSignedUploadUrl(storagePath);
-
-  if (signedUpload.error || !signedUpload.data) {
-    throw new OwnerApiError(signedUpload.error?.message ?? "Could not create variant upload URL.", 500);
-  }
+  const signedUpload = await createMediaSignedUploadUrl({
+    bucket: PETMANAGER_MEDIA_BUCKET,
+    path: storagePath,
+    contentType,
+  });
 
   return {
     mediaAsset,
     variant: {
       variantKey,
       bucket: PETMANAGER_MEDIA_BUCKET,
+      storageProvider: getMediaStorageInfo().provider,
       path: storagePath,
       contentType,
       byteSize,
@@ -171,10 +172,13 @@ export async function createOwnerMediaVariantUploadIntent(
     upload: {
       bucket: PETMANAGER_MEDIA_BUCKET,
       path: storagePath,
-      signedUrl: signedUpload.data.signedUrl,
-      token: signedUpload.data.token,
+      provider: signedUpload.provider,
+      signedUrl: signedUpload.signedUrl,
+      token: signedUpload.token,
+      method: signedUpload.method,
+      headers: signedUpload.headers,
       maxBytes: PETMANAGER_MEDIA_VARIANT_PROFILES[variantKey].maxBytes,
-      expiresInSeconds: 2 * 60 * 60,
+      expiresInSeconds: signedUpload.expiresInSeconds,
     },
   };
 }
@@ -226,6 +230,7 @@ export async function completeOwnerMediaVariantUpload(
 export function getOwnerMediaVariantPolicy() {
   return {
     bucket: PETMANAGER_MEDIA_BUCKET,
+    storage: getMediaStorageInfo(),
     profiles: PETMANAGER_MEDIA_VARIANT_PROFILES,
     variantKeys: [...variantKeys],
   };

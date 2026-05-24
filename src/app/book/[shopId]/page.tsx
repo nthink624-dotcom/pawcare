@@ -8,12 +8,14 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ shopId: string }>;
-  searchParams?: Promise<{ mode?: string; token?: string; t?: string }>;
+  searchParams?: Promise<{ mode?: string; token?: string; t?: string; date?: string; time?: string }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
   const initialAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
+  const initialDate = resolvedSearchParams?.date || "";
+  const initialTime = resolvedSearchParams?.time || "";
   const initialMode = requestedMode === "manage" ? "manage" : "first";
 
   if (shopId === "demo-shop") {
@@ -29,6 +31,12 @@ export default async function BookPage({
     if (initialAccessToken) {
       nextUrl.searchParams.set("t", initialAccessToken);
     }
+    if (initialDate) {
+      nextUrl.searchParams.set("date", initialDate);
+    }
+    if (initialTime) {
+      nextUrl.searchParams.set("time", initialTime);
+    }
 
     redirect(`${nextUrl.pathname}${nextUrl.search}` as never);
   }
@@ -40,10 +48,13 @@ export default async function BookPage({
       shopId={shopId}
       initialShop={data.shop}
       initialServices={data.services}
+      initialStaffMembers={data.staffMembers}
       initialAppointments={data.appointments}
       initialRecords={data.groomingRecords}
       initialMode={initialMode}
       initialAccessToken={initialAccessToken}
+      initialDate={initialDate}
+      initialTime={initialTime}
       entryHref={`/entry/${shopId}`}
     />
   );

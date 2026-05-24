@@ -1,4 +1,4 @@
-export type OwnerPlanCode = "free" | "monthly" | "quarterly" | "halfyearly" | "yearly";
+﻿export type OwnerPlanCode = "free" | "monthly" | "quarterly" | "halfyearly" | "yearly";
 
 export type OwnerPlanBillingType = "one_time" | "subscription";
 
@@ -128,12 +128,12 @@ export const ownerPlans: OwnerPlan[] = [
     title: "스탠다드",
     shortTitle: "스탠다드",
     monthlyPrice: 29000,
-    description: "오너와 스태프가 함께 쓰는 매장에 맞춘 기본 운영 플랜입니다.",
+    description: "오너와 직원가 함께 쓰는 매장에 맞춘 기본 운영 플랜입니다.",
     badge: "추천",
     staffLimitLabel: "직원 2~5명",
     alimtalkIncludedLabel: "알림톡 1,500건 포함",
     targetLabel: "소형 팀 매장",
-    highlights: ["스태프별 스케줄 관리", "고객·반려동물 통합 관리", "미용 완료 알림톡과 사진 링크"],
+    highlights: ["직원별 예약 관리", "고객·반려동물 통합 관리", "미용 완료 알림톡과 사진 링크"],
     featured: true,
   }),
   makePlan({

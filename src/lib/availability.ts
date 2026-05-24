@@ -1,6 +1,6 @@
 ﻿import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 
-import type { Appointment, Pet, Service, Shop } from "@/types/domain";
+import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 import {
   confirmedSlotCapacity,
   manualPendingHoldCapacity,
@@ -31,8 +31,22 @@ export function computeAvailableSlots(params: {
   services: Service[];
   appointments: Appointment[];
   excludeAppointmentId?: string;
+  staffId?: string | null;
+  staffMembers?: BootstrapStaffMember[];
+  staffScheduleOverrides?: StaffScheduleOverride[];
 }) {
-  const { date, serviceId, durationMinutesOverride, shop, services, appointments, excludeAppointmentId } = params;
+  const {
+    date,
+    serviceId,
+    durationMinutesOverride,
+    shop,
+    services,
+    appointments,
+    excludeAppointmentId,
+    staffId,
+    staffMembers = [],
+    staffScheduleOverrides = [],
+  } = params;
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   if (isShopClosedOnDate(shop, date)) return [];
@@ -69,11 +83,85 @@ export function computeAvailableSlots(params: {
         approvalMode: shop.approval_mode,
         excludeAppointmentId,
       })
+      && isStaffSlotAvailable({
+        date,
+        startMinute: cursor,
+        durationMinutes,
+        staffId,
+        staffMembers,
+        staffScheduleOverrides,
+        appointments,
+        services,
+        excludeAppointmentId,
+      })
     ) {
       slots.push(timeFromMinutes(cursor));
     }
   }
   return slots;
+}
+
+function isStaffSlotAvailable(params: {
+  date: string;
+  startMinute: number;
+  durationMinutes: number;
+  staffId?: string | null;
+  staffMembers: BootstrapStaffMember[];
+  staffScheduleOverrides: StaffScheduleOverride[];
+  appointments: Appointment[];
+  services: Service[];
+  excludeAppointmentId?: string;
+}): boolean {
+  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
+  if (!staffId) {
+    if (staffMembers.length === 0) return true;
+    return staffMembers.some((staffMember) => isStaffSlotAvailable({ ...params, staffId: staffMember.id }));
+  }
+
+  const staffMember = staffMembers.find((item) => item.id === staffId);
+  if (!staffMember) return false;
+
+  const endMinute = startMinute + durationMinutes;
+  const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const dayKey = weekdayKeys[weekday];
+  const override = staffScheduleOverrides.find((item) => item.staff_id === staffId && item.work_date === date);
+
+  if (override) {
+    if (override.status === "off" || override.status === "annual") return false;
+
+    if (override.status === "half") {
+      const splitMinute = minutesFromTime("13:00");
+      const availableStart = override.period === "오전" ? splitMinute : minutesFromTime(staffMember.startTime);
+      const availableEnd = override.period === "오후" ? splitMinute : minutesFromTime(staffMember.endTime);
+      if (startMinute < availableStart || endMinute > availableEnd) return false;
+    }
+
+    if (override.status === "work") {
+      const availableStart = minutesFromTime(override.start_time ?? staffMember.startTime);
+      const availableEnd = minutesFromTime(override.end_time ?? staffMember.endTime);
+      if (startMinute < availableStart || endMinute > availableEnd) return false;
+    }
+  } else {
+    if (!staffMember.defaultDays.includes(dayKey)) return false;
+    if (startMinute < minutesFromTime(staffMember.startTime) || endMinute > minutesFromTime(staffMember.endTime)) return false;
+  }
+
+  return !appointments.some((appointment) => {
+    if (appointment.id === excludeAppointmentId) return false;
+    if (appointment.appointment_date !== date) return false;
+    if (appointment.staff_id !== staffId) return false;
+    if (["cancelled", "rejected", "noshow"].includes(appointment.status)) return false;
+
+    const service = services.find((item) => item.id === appointment.service_id);
+    const appointmentDurationMinutes = getAppointmentDurationMinutes(appointment) ?? service?.duration_minutes;
+    if (!appointmentDurationMinutes) return false;
+
+    const appointmentStart = minutesFromTime(appointment.appointment_time);
+    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    return appointmentStart < endMinute && startMinute < appointmentEnd;
+  });
 }
 
 export function isSlotAvailable(params: {

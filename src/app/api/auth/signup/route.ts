@@ -53,6 +53,21 @@ function isValidPhoneNumber(value: string) {
 
 const duplicateAccountMessage = "이미 가입된 계정이 있어요. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요.";
 
+function isMissingSchemaFieldError(error: { code?: string; message?: string } | null | undefined, fields: string[]) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    fields.some((field) => message.includes(field)) ||
+    /schema cache|column .* does not exist|Could not find .* column/i.test(message)
+  );
+}
+
+function logSignupIssue(stage: string, error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(error);
+  console.error("[owner-signup]", stage, message);
+}
+
 async function findExistingOwnerByIdentity(input: {
   supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>;
   name: string;
@@ -75,7 +90,11 @@ async function findExistingOwnerByIdentity(input: {
       .maybeSingle<{ login_id: string }>();
 
     if (identityResult.error) {
-      throw new Error(identityResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
+      if (isMissingSchemaFieldError(identityResult.error, ["ci_hash", "di_hash"])) {
+        logSignupIssue("identity-hash-columns-missing", identityResult.error.message);
+      } else {
+        throw new Error(identityResult.error.message || "가입된 계정 확인 중 문제가 발생했습니다.");
+      }
     }
 
     if (identityResult.data?.login_id) {
@@ -216,7 +235,7 @@ export async function POST(request: NextRequest) {
     const shopId = `shop-${randomUUID().slice(0, 8)}`;
     const now = nowIso();
 
-    const shopInsert = await supabase.from("shops").insert({
+    const shopPayload = {
       id: shopId,
       owner_user_id: user.id,
       name: payload.shopName,
@@ -233,9 +252,18 @@ export async function POST(request: NextRequest) {
       notification_settings: defaultShopNotificationSettings,
       created_at: now,
       updated_at: now,
-    });
+    };
+
+    let shopInsert = await supabase.from("shops").insert(shopPayload);
+
+    if (shopInsert.error && isMissingSchemaFieldError(shopInsert.error, ["booking_slot_interval_minutes", "booking_slot_offset_minutes"])) {
+      logSignupIssue("shop-booking-slot-columns-missing", shopInsert.error.message);
+      const { booking_slot_interval_minutes, booking_slot_offset_minutes, ...fallbackShopPayload } = shopPayload;
+      shopInsert = await supabase.from("shops").insert(fallbackShopPayload);
+    }
 
     if (shopInsert.error) {
+      logSignupIssue("shop-insert-failed", shopInsert.error.message);
       await supabase.auth.admin.deleteUser(user.id);
       return NextResponse.json({ message: "매장 정보를 저장하지 못했습니다." }, { status: 400 });
     }
@@ -247,7 +275,8 @@ export async function POST(request: NextRequest) {
         ownerPhone: payload.phoneNumber,
         now,
       });
-    } catch {
+    } catch (error) {
+      logSignupIssue("default-setup-failed", error);
       await supabase.from("shops").delete().eq("id", shopId);
       await supabase.auth.admin.deleteUser(user.id);
       return NextResponse.json({ message: "기본 운영 정보를 저장하지 못했습니다." }, { status: 400 });
@@ -259,7 +288,7 @@ export async function POST(request: NextRequest) {
       agreements: payload.agreements,
     };
 
-    const profileInsert = await supabase.from("owner_profiles").upsert({
+    const profilePayload = {
       user_id: user.id,
       shop_id: shopId,
       login_id: loginId,
@@ -272,9 +301,18 @@ export async function POST(request: NextRequest) {
       agreements: agreementPayload,
       created_at: now,
       updated_at: now,
-    });
+    };
+
+    let profileInsert = await supabase.from("owner_profiles").upsert(profilePayload);
+
+    if (profileInsert.error && isMissingSchemaFieldError(profileInsert.error, ["ci_hash", "di_hash"])) {
+      logSignupIssue("profile-identity-hash-columns-missing", profileInsert.error.message);
+      const { ci_hash, di_hash, ...fallbackProfilePayload } = profilePayload;
+      profileInsert = await supabase.from("owner_profiles").upsert(fallbackProfilePayload);
+    }
 
     if (profileInsert.error) {
+      logSignupIssue("profile-insert-failed", profileInsert.error.message);
       await supabase.from("shops").delete().eq("id", shopId);
       await supabase.auth.admin.deleteUser(user.id);
       return NextResponse.json(

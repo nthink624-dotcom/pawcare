@@ -111,7 +111,7 @@ function ensureStaffAvailableForWindow(params: {
 
   const staffMember = staffMembers.find((item) => item.id === staffId);
   if (!staffMember) {
-    throw new Error("담당 스태프 정보를 찾을 수 없습니다.");
+    throw new Error("담당 직원 정보를 찾을 수 없습니다.");
   }
 
   const [year, month, day] = date.split("-").map(Number);

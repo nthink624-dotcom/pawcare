@@ -99,8 +99,8 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
   const title = summary.status === "past_due" ? "이용 재개가 필요합니다" : "이용 기간이 종료되었습니다";
   const body =
     summary.status === "past_due"
-      ? "결제가 완료되지 않아 현재 예약·고객관리 기능이 일시적으로 제한되어 있습니다. 결제를 완료하면 바로 다시 이용할 수 있습니다."
-      : "서비스 이용 기간이 종료되어 현재 예약·고객관리 기능이 일시적으로 제한되어 있습니다. 플랜을 다시 선택하고 결제하면 바로 이용을 재개할 수 있습니다.";
+      ? "결제가 완료되지 않아 현재 예약·고객 관리 기능이 일시적으로 제한되어 있습니다. 결제를 완료하면 바로 다시 이용할 수 있습니다."
+      : "서비스 이용 기간이 종료되어 현재 예약·고객 관리 기능이 일시적으로 제한되어 있습니다. 플랜을 다시 선택하고 결제하면 바로 이용을 재개할 수 있습니다.";
   const resumePlanCode = getResumePlanCode(summary);
   const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent("펫매니저 이용 재개 문의")}`;
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Check, ChevronDown, ImagePlus } from "lucide-react";
 import Image from "next/image";
@@ -8,6 +8,7 @@ import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { cn } from "@/lib/utils";
+import type { Shop } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper";
 
@@ -207,7 +208,7 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       },
       {
         id: "staffCount",
-        label: "서브 스태프",
+        label: "서브 직원",
         value: 2,
         description: "캘린더 열람, 예약 진행, 완료 처리 권한",
         control: "stepper",
@@ -236,15 +237,33 @@ function cloneSettings(settings: Record<SettingsTabKey, SettingsTab>) {
   ) as Record<SettingsTabKey, SettingsTab>;
 }
 
+function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop?: Shop) {
+  if (!shop) return settings;
+
+  return {
+    ...settings,
+    shop: {
+      ...settings.shop,
+      rows: settings.shop.rows.map((row) => {
+        if (row.id === "shopName") return { ...row, value: shop.name };
+        if (row.id === "phone") return { ...row, value: shop.phone };
+        if (row.id === "address") return { ...row, value: shop.address };
+        return row;
+      }),
+    },
+  };
+}
+
 const ownerWebSettingsStorageKey = "petmanager.ownerWeb.settings";
 const ownerWebShopProfileImageStorageKey = "petmanager.ownerWeb.shopProfileImage";
 
-function mergeSettingsWithDefaults(savedSettings: unknown) {
-  const nextSettings = cloneSettings(initialSettings);
+function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
+  const nextSettings = applyShopToSettings(cloneSettings(initialSettings), shop);
 
   if (!savedSettings || typeof savedSettings !== "object") return nextSettings;
 
   for (const [tabKey, savedTab] of Object.entries(savedSettings)) {
+    if (shop && tabKey === "shop") continue;
     if (!(tabKey in nextSettings) || !savedTab || typeof savedTab !== "object") continue;
     const rows = (savedTab as { rows?: unknown }).rows;
     if (!Array.isArray(rows)) continue;
@@ -484,17 +503,19 @@ export default function SettingsManagementScreen({
   activeTab: controlledActiveTab,
   onActiveTabChange,
   showTabNavigation = true,
+  shop,
   manualApprovalEnabled,
   onManualApprovalChange,
 }: {
   activeTab?: SettingsTabKey;
   onActiveTabChange?: (tab: SettingsTabKey) => void;
   showTabNavigation?: boolean;
+  shop?: Shop;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
-  const [draftSettings, setDraftSettings] = useState(() => cloneSettings(initialSettings));
+  const [draftSettings, setDraftSettings] = useState(() => applyShopToSettings(cloneSettings(initialSettings), shop));
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [shopProfileImage, setShopProfileImage] = useState("");
 
@@ -504,7 +525,7 @@ export default function SettingsManagementScreen({
       const storedProfileImage = window.localStorage.getItem(ownerWebShopProfileImageStorageKey);
       const frame = window.requestAnimationFrame(() => {
         if (storedSettings) {
-          const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings));
+          const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings), shop);
           setDraftSettings(cloneSettings(nextSettings));
         }
 
@@ -517,7 +538,7 @@ export default function SettingsManagementScreen({
       window.localStorage.removeItem(ownerWebSettingsStorageKey);
       window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
     }
-  }, []);
+  }, [shop]);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const approvalModeValue = manualApprovalEnabled === false ? "바로 승인" : "직접 승인";

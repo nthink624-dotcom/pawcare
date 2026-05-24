@@ -7,6 +7,12 @@ export type OwnerAuthHandoffSession = {
   refreshToken: string;
 };
 
+type OwnerAuthTokenCachePayload = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+};
+
 export function writeOwnerAuthHandoff(session: OwnerAuthHandoffSession) {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(OWNER_AUTH_HANDOFF_STORAGE_KEY, JSON.stringify(session));
@@ -43,19 +49,24 @@ function getJwtExpiresAt(accessToken: string) {
   }
 }
 
-export function writeOwnerAuthTokenCache(accessToken: string) {
+export function writeOwnerAuthTokenCache(accessToken: string, refreshToken?: string) {
   const expiresAt = getJwtExpiresAt(accessToken);
   currentOwnerAccessToken = { accessToken, expiresAt };
   if (typeof window === "undefined") return;
   if (!expiresAt) return;
 
-  window.localStorage.setItem(
-    OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY,
-    JSON.stringify({
-      accessToken,
-      expiresAt,
-    }),
-  );
+  const existingRefreshToken = readOwnerAuthRefreshTokenCache();
+  const payload: OwnerAuthTokenCachePayload = {
+    accessToken,
+    expiresAt,
+    ...(refreshToken || existingRefreshToken ? { refreshToken: refreshToken ?? existingRefreshToken ?? undefined } : {}),
+  };
+
+  window.localStorage.setItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, JSON.stringify(payload));
+}
+
+export function writeOwnerAuthSessionCache(session: OwnerAuthHandoffSession) {
+  writeOwnerAuthTokenCache(session.accessToken, session.refreshToken);
 }
 
 export function setCurrentOwnerAccessToken(accessToken: string | null) {
@@ -96,6 +107,22 @@ export function readOwnerAuthTokenCache() {
   } catch {
     window.localStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
     window.sessionStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+    return null;
+  }
+}
+
+export function readOwnerAuthRefreshTokenCache() {
+  if (typeof window === "undefined") return null;
+
+  const raw =
+    window.localStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
+    window.sessionStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as { refreshToken?: unknown };
+    return typeof parsed.refreshToken === "string" && parsed.refreshToken ? parsed.refreshToken : null;
+  } catch {
     return null;
   }
 }

@@ -138,8 +138,46 @@
   - chevron 버튼은 `h-8 w-8`, 8px radius, 흰 배경, 얇은 `#dbe2ea` 계열 border를 사용한다.
   - 가운데 날짜/기간 버튼은 테두리 없는 plain text 버튼으로 둔다.
   - 스태프 주간 근무표 날짜 범위에는 calendar icon이나 bordered date chip을 쓰지 않는다.
+  - 스태프 주간 근무표 날짜 이동은 주간 근무표 헤더/툴바 안에서 작고 조용하게 유지한다.
+  - 스태프 주간 근무표 날짜 이동을 큰 별도 bordered date row로 분리하지 않는다.
   - 가운데 날짜/기간 버튼은 오늘/이번 주로 돌아가는 액션으로 사용할 수 있다.
   - 같은 화면군에서 날짜 이동 UI를 새로 만들 때 `h-9`, calendar icon, bordered date chip으로 되돌리지 않는다.
+
+- 스태프 주간 근무표 셀:
+  - 셀은 흰 배경, 8px radius, `h-9`, 가운데 정렬을 기준으로 한다.
+  - 셀 상태는 전체 배경색이 아니라 왼쪽 상태 브래킷 레일로만 구분한다.
+  - 상태 레일은 자식 `span`이 아니라 부모 카드/셀의 공통 `pm-wrap-indicator` class로 구현한다.
+  - 부모는 왼쪽 edge에 `box-shadow: inset 1px 0 0 var(--pm-wrap-indicator-color)`를 함께 사용해 인디케이터가 카드 edge에 붙어 보이게 한다.
+  - `pm-wrap-indicator::before`는 4px 너비, `top:1px`, `bottom:1px`, `border-radius:999px`, `--pm-wrap-indicator-color`를 기준으로 한다.
+  - 부모 카드/셀은 `overflow-hidden`과 8px radius를 가져야 한다.
+  - 캘린더 선택 카드의 왼쪽 면만 떼어온 것처럼 보여야 하며, 전체 테두리까지 색칠하지 않는다. 위/아래 가로선, 떨어진 세로 막대, pill chip으로 만들지 않는다.
+  - 근무는 teal `#2f9b8a`, 휴무는 burgundy `#8f2438`, 연차/반차/승인대기는 amber `#d99a2b` 레일을 사용한다.
+  - 셀 안에 상태 점을 넣지 않는다.
+  - soft green/soft gray full-surface 셀 스타일로 되돌리지 않는다.
+
+- 스케줄/캘린더 예약 상태 인디케이터:
+  - 예약 카드와 캘린더 예약 표시는 흰 배경, neutral border, 8px radius를 유지한다.
+  - 상태는 카드 왼쪽의 말린 브래킷 레일로만 표시한다. 점(dot), 단순 좌측 border, pill bar, 카드 전체 배경색으로 상태를 구분하지 않는다.
+  - 상태 레일은 자식 `span`이 아니라 부모 카드/셀의 공통 `pm-wrap-indicator` class로 구현한다.
+  - 부모는 왼쪽 edge에 `box-shadow: inset 1px 0 0 var(--pm-wrap-indicator-color)`를 함께 사용해 인디케이터가 카드 edge에 붙어 보이게 한다.
+  - `pm-wrap-indicator::before`는 4px 너비, `top:1px`, `bottom:1px`, `border-radius:999px`, `--pm-wrap-indicator-color`를 기준으로 한다.
+  - 부모 카드/셀은 `overflow-hidden`과 8px radius를 가져야 한다.
+  - 캘린더 선택 카드의 왼쪽 면만 떼어온 것처럼 보여야 하며, 전체 테두리까지 색칠하지 않는다.
+  - 색상은 확정/진행/근무 teal `#2f9b8a`, 승인대기/변경/연차/반차 amber `#d99a2b`, 휴무/취소/거절 burgundy `#8f2438`, 완료 slate `#64748b`, 비활성/알 수 없음 muted neutral을 사용한다.
+
+- 상태 인디케이터 공통 용어:
+  - PetManager 상태 인디케이터는 `점 인디케이터`와 `감싸는 인디케이터` 두 종류만 사용한다.
+  - `점 인디케이터`: 작은 row, badge, 알림 이력처럼 공간이 좁은 곳에 쓰는 `h-2 w-2 rounded-full` 채움 점이다.
+  - `감싸는 인디케이터`: 카드, 스케줄 예약, 캘린더 예약, 주간 근무표 셀 왼쪽 면에 붙는 색상 surface다.
+  - 감싸는 인디케이터는 자식 `span`이 아니라 부모 카드/셀의 공통 `pm-wrap-indicator` class로 구현한다.
+  - 부모는 왼쪽 edge에 `box-shadow: inset 1px 0 0 var(--pm-wrap-indicator-color)`를 함께 사용해 인디케이터가 카드 edge에 붙어 보이게 한다.
+  - `pm-wrap-indicator::before`는 4px 너비, `top:1px`, `bottom:1px`, `border-radius:999px`, `--pm-wrap-indicator-color`를 기준으로 한다.
+  - 감싸는 면이 사라져 보이는 gradient fade 방식은 사용하지 않는다.
+  - 부모 카드/셀은 `overflow-hidden`과 8px radius를 가져야 한다.
+  - 감싸는 인디케이터는 캘린더 선택 카드의 왼쪽 면처럼 보여야 하며, 전체 테두리를 두르거나 위/아래 가로선, 떨어진 세로 막대, pill chip으로 만들지 않는다.
+  - 두 인디케이터의 색은 반드시 같은 토큰을 사용한다.
+  - 색상 토큰은 teal `#2f9b8a`, amber `#d99a2b`, burgundy `#8f2438`, slate `#64748b`, neutral `#b9c3cf`로 고정한다.
+  - 구현 시 `src/components/owner-web/status-indicators.ts`의 공통 클래스를 사용하고, 페이지별로 임의 색을 하드코딩하지 않는다.
 
 ### F. 인증/가입 화면
 

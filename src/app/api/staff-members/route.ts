@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -206,7 +206,7 @@ async function assertStaffCanBeDeactivated(
   }
 
   if (!staffResult.data?.id) {
-    throw new OwnerApiError("해당 매장의 스태프를 찾을 수 없습니다.", 404);
+    throw new OwnerApiError("해당 매장의 직원를 찾을 수 없습니다.", 404);
   }
 
   const activeStaffResult = await supabase
@@ -220,7 +220,7 @@ async function assertStaffCanBeDeactivated(
   }
 
   if (staffResult.data.is_active && (activeStaffResult.data ?? []).length <= 1) {
-    throw new OwnerApiError("최소 1명의 활성 스태프는 남아 있어야 합니다.", 400);
+    throw new OwnerApiError("최소 1명의 활성 직원는 남아 있어야 합니다.", 400);
   }
 
   const appointmentResult = await supabase
@@ -237,7 +237,7 @@ async function assertStaffCanBeDeactivated(
   }
 
   if ((appointmentResult.data ?? []).length > 0) {
-    throw new OwnerApiError("예정된 활성 예약이 있는 스태프는 비활성화할 수 없습니다.", 409);
+    throw new OwnerApiError("예정된 활성 예약이 있는 직원는 비활성화할 수 없습니다.", 409);
   }
 }
 
@@ -245,11 +245,11 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = payloadSchema.parse(await request.json());
     if (hasDuplicateStaffIds(body.staffMembers)) {
-      throw new OwnerApiError("중복된 스태프 정보가 있습니다.", 400);
+      throw new OwnerApiError("중복된 직원 정보가 있습니다.", 400);
     }
 
     if (body.staffMembers.some((staffMember) => !isEarlierTime(staffMember.startTime, staffMember.endTime))) {
-      throw new OwnerApiError("스태프 근무 시작 시간은 종료 시간보다 빨라야 합니다.", 400);
+      throw new OwnerApiError("직원 근무 시작 시간은 종료 시간보다 빨라야 합니다.", 400);
     }
 
     const owner = await requireOwnerShop(request, body.shopId);
@@ -268,12 +268,12 @@ export async function PATCH(request: NextRequest) {
 
       const foreignStaff = (existingResult.data ?? []).find((staffMember) => staffMember.shop_id !== owner.shopId);
       if (foreignStaff) {
-        throw new OwnerApiError("다른 매장의 스태프 정보는 수정할 수 없습니다.", 403);
+        throw new OwnerApiError("다른 매장의 직원 정보는 수정할 수 없습니다.", 403);
       }
 
       const inactiveStaff = (existingResult.data ?? []).find((staffMember) => !staffMember.is_active);
       if (inactiveStaff) {
-        throw new OwnerApiError("비활성화된 스태프는 목록 저장으로 다시 활성화할 수 없습니다.", 409);
+        throw new OwnerApiError("비활성화된 직원는 목록 저장으로 다시 활성화할 수 없습니다.", 409);
       }
     }
 
@@ -311,10 +311,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error instanceof z.ZodError) {
-      return ownerMobileCorsJson(request, { message: "스태프 정보를 다시 확인해 주세요." }, { status: 400 });
+      return ownerMobileCorsJson(request, { message: "직원 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "스태프 정보를 저장하지 못했습니다.";
+    const message = error instanceof Error ? error.message : "직원 정보를 저장하지 못했습니다.";
     return ownerMobileCorsJson(request, { message }, { status: 500 });
   }
 }
@@ -347,10 +347,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (error instanceof z.ZodError) {
-      return ownerMobileCorsJson(request, { message: "스태프 삭제 요청을 다시 확인해 주세요." }, { status: 400 });
+      return ownerMobileCorsJson(request, { message: "직원 삭제 요청을 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "스태프를 삭제하지 못했습니다.";
+    const message = error instanceof Error ? error.message : "직원를 삭제하지 못했습니다.";
     return ownerMobileCorsJson(request, { message }, { status: 500 });
   }
 }

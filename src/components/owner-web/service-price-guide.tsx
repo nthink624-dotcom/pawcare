@@ -1,0 +1,664 @@
+"use client";
+
+import { Plus, Trash2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+export type ServicePriceGuideCell = {
+  price: string;
+  durationMinutes: string;
+};
+
+export type ServicePriceGuideSection = {
+  id: string;
+  title: string;
+  note: string;
+  weightBands: string[];
+  items: Array<{
+    id: string;
+    label: string;
+    cells: Record<string, ServicePriceGuideCell>;
+  }>;
+};
+
+export type ServicePriceGuide = {
+  enabled: boolean;
+  weightBands: string[];
+  items: Array<{
+    id: string;
+    label: string;
+    durationMinutes: string;
+    prices: Record<string, string>;
+  }>;
+  sections?: ServicePriceGuideSection[];
+  extraNote: string;
+};
+
+const defaultExtraNote = [
+  "얼굴 가위컷 추가 +5,000원",
+  "포메 라인컷, 곰돌이 얼굴컷, 털엉킴, 입질, 피부 상태에 따라 추가 요금이 발생할 수 있어요.",
+  "미용 시간은 아이 상태와 현장 상담에 따라 달라질 수 있어요.",
+].join("\n");
+
+function createGuideItemId() {
+  return `price_item_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createGuideSectionId() {
+  return `price_section_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizePriceText(value: string) {
+  return value.replace(/[^0-9]/g, "");
+}
+
+function normalizeMinutesText(value: string) {
+  return value.replace(/[^0-9]/g, "");
+}
+
+function formatPriceInput(value: string) {
+  const numericValue = Number(normalizePriceText(value));
+  if (!numericValue) return "";
+  return numericValue.toLocaleString("ko-KR");
+}
+
+function buildCells(weightBands: string[], prices: string[], durations: string[]) {
+  return Object.fromEntries(
+    weightBands.map((band, index) => [
+      band,
+      {
+        price: normalizePriceText(prices[index] ?? ""),
+        durationMinutes: normalizeMinutesText(durations[index] ?? ""),
+      },
+    ]),
+  );
+}
+
+function buildSection({
+  id,
+  title,
+  note,
+  weightBands,
+  items,
+}: {
+  id: string;
+  title: string;
+  note: string;
+  weightBands: string[];
+  items: Array<{ id: string; label: string; prices: string[]; durations: string[] }>;
+}): ServicePriceGuideSection {
+  return {
+    id,
+    title,
+    note,
+    weightBands,
+    items: items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      cells: buildCells(weightBands, item.prices, item.durations),
+    })),
+  };
+}
+
+const defaultWeightBands = ["5kg 이하", "8kg 이하", "10kg 이하", "12kg 이하"];
+const removedDefaultItemLabels = new Set(["빡빡이"]);
+
+const defaultGuideSections: ServicePriceGuideSection[] = [
+  buildSection({
+    id: "small_dog",
+    title: "소형견",
+    note: "말티, 요키, 시츄, 포메, 토이푸들 등",
+    weightBands: defaultWeightBands,
+    items: [
+      { id: "small_bath", label: "목욕", prices: ["15000", "20000", "25000", "30000"], durations: ["40", "45", "50", "55"] },
+      { id: "small_partial", label: "부분미용", prices: ["15000", "20000", "25000", "30000"], durations: ["35", "40", "45", "50"] },
+      { id: "small_partial_bath", label: "부분+목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["60", "70", "80", "90"] },
+      { id: "small_summer", label: "썸머컷 추가", prices: ["10000", "10000", "20000", "20000"], durations: ["20", "20", "25", "25"] },
+      { id: "small_scissor", label: "전체 가위컷", prices: ["65000", "70000", "75000", "80000"], durations: ["140", "150", "160", "170"] },
+    ],
+  }),
+  buildSection({
+    id: "medium_dog",
+    title: "중형견",
+    note: "코카, 슈나, 스피츠, 닥스훈트, 패키니즈, 미니어처푸들, 믹스견 등",
+    weightBands: defaultWeightBands,
+    items: [
+      { id: "medium_bath", label: "목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["45", "50", "60", "70"] },
+      { id: "medium_partial", label: "부분미용", prices: ["20000", "25000", "30000", "35000"], durations: ["40", "45", "50", "55"] },
+      { id: "medium_partial_bath", label: "부분+목욕", prices: ["25000", "30000", "35000", "40000"], durations: ["70", "80", "90", "100"] },
+      { id: "medium_summer", label: "썸머컷 추가", prices: ["10000", "10000", "20000", "20000"], durations: ["20", "20", "25", "25"] },
+      { id: "medium_scissor", label: "전체 가위컷", prices: ["70000", "75000", "80000", "85000"], durations: ["150", "160", "170", "180"] },
+    ],
+  }),
+  buildSection({
+    id: "special_large_dog",
+    title: "특수견/대형견",
+    note: "비숑, 베들링턴, 특수컷, 대형견은 아이 상태와 사이즈에 따라 상담 후 확정",
+    weightBands: defaultWeightBands,
+    items: [
+      { id: "special_bath", label: "목욕", prices: ["30000", "35000", "40000", "45000"], durations: ["60", "70", "80", "90"] },
+      { id: "special_partial", label: "부분미용", prices: ["30000", "35000", "40000", "45000"], durations: ["50", "55", "60", "65"] },
+      { id: "special_partial_bath", label: "부분+목욕", prices: ["35000", "40000", "45000", "50000"], durations: ["90", "100", "110", "120"] },
+      { id: "special_summer", label: "썸머컷 추가", prices: ["15000", "15000", "20000", "25000"], durations: ["25", "25", "30", "35"] },
+      { id: "special_scissor", label: "전체 가위컷", prices: ["85000", "90000", "95000", "100000"], durations: ["170", "180", "190", "210"] },
+    ],
+  }),
+  buildSection({
+    id: "cat",
+    title: "고양이 미용",
+    note: "",
+    weightBands: defaultWeightBands,
+    items: [
+      { id: "cat_short_bath", label: "단모 목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["40", "45", "50", "55"] },
+      { id: "cat_short_cut", label: "단모 미용", prices: ["50000", "55000", "60000", "65000"], durations: ["80", "90", "100", "110"] },
+      { id: "cat_long_bath", label: "장모 목욕", prices: ["30000", "35000", "40000", "45000"], durations: ["50", "55", "60", "70"] },
+      { id: "cat_long_cut", label: "장모 미용", prices: ["55000", "60000", "65000", "70000"], durations: ["90", "100", "110", "120"] },
+      { id: "cat_color", label: "염색", prices: ["10000", "10000", "10000", "10000"], durations: ["20", "20", "20", "20"] },
+    ],
+  }),
+];
+
+function cloneDefaultSections() {
+  return defaultGuideSections.map((section) => ({
+    ...section,
+    weightBands: [...section.weightBands],
+    items: section.items.map((item) => ({
+      ...item,
+      cells: Object.fromEntries(
+        Object.entries(item.cells).map(([band, cell]) => [band, { ...cell }]),
+      ),
+    })),
+  }));
+}
+
+function legacyItemsFromSections(sections: ServicePriceGuideSection[]) {
+  const firstSection = sections[0];
+  if (!firstSection) return [];
+  return firstSection.items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    durationMinutes: firstSection.weightBands.map((band) => item.cells[band]?.durationMinutes ?? "").find(Boolean) ?? "",
+    prices: Object.fromEntries(firstSection.weightBands.map((band) => [band, item.cells[band]?.price ?? ""])),
+  }));
+}
+
+function normalizeCell(value: unknown): ServicePriceGuideCell {
+  if (!value || typeof value !== "object") {
+    return { price: "", durationMinutes: "" };
+  }
+  const source = value as Partial<ServicePriceGuideCell>;
+  return {
+    price: normalizePriceText(String(source.price ?? "")),
+    durationMinutes: normalizeMinutesText(String(source.durationMinutes ?? "")),
+  };
+}
+
+function normalizeWeightBandLabel(value: string) {
+  const label = value.trim();
+  const upperBound = label.match(/(?:~|～|~\s*)?(\d+(?:\.\d+)?)\s*kg$/i) ?? label.match(/\d+(?:\.\d+)?\s*~\s*(\d+(?:\.\d+)?)\s*kg/i);
+  if (label.endsWith("이하")) return label;
+  if (!upperBound) return label;
+  return `${upperBound[1]}kg 이하`;
+}
+
+function normalizeWeightBands(value: unknown, fallback: string[]) {
+  if (!Array.isArray(value) || value.length === 0) return [...fallback];
+  const labels = value.map((band) => (typeof band === "string" ? normalizeWeightBandLabel(band) : "")).filter(Boolean);
+  return labels;
+}
+
+function normalizeGuideItems(items: ServicePriceGuideSection["items"]) {
+  return items.filter((item) => !removedDefaultItemLabels.has(item.label.trim()));
+}
+
+function normalizeSections(value: unknown): ServicePriceGuideSection[] {
+  if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
+
+  return value.map((section, sectionIndex) => {
+    const source = section as Partial<ServicePriceGuideSection>;
+    const fallback = defaultGuideSections[sectionIndex] ?? defaultGuideSections[0];
+    const sourceWeightBands = Array.isArray(source.weightBands) ? source.weightBands.filter((band): band is string => typeof band === "string") : [];
+    const weightBands = normalizeWeightBands(sourceWeightBands, fallback.weightBands);
+    const normalizedSourceItems =
+      Array.isArray(source.items) && source.items.length > 0
+        ? normalizeGuideItems(source.items as ServicePriceGuideSection["items"])
+        : fallback.items;
+    const sourceItems = normalizedSourceItems.length > 0 ? normalizedSourceItems : fallback.items;
+
+    return {
+      id: typeof source.id === "string" && source.id ? source.id : createGuideSectionId(),
+      title: typeof source.title === "string" && source.title.trim() ? source.title.trim() : fallback.title,
+      note: typeof source.note === "string" ? source.note : fallback.note,
+      weightBands,
+      items: sourceItems.map((item, itemIndex) => {
+        const sourceItem = item as Partial<ServicePriceGuideSection["items"][number]>;
+        const fallbackItem = fallback.items[itemIndex] ?? fallback.items[0];
+        const cells = typeof sourceItem.cells === "object" && sourceItem.cells ? sourceItem.cells : {};
+        return {
+          id: typeof sourceItem.id === "string" && sourceItem.id ? sourceItem.id : createGuideItemId(),
+          label: typeof sourceItem.label === "string" && sourceItem.label.trim() ? sourceItem.label.trim() : fallbackItem.label,
+          cells: Object.fromEntries(
+            weightBands.map((band, bandIndex) => {
+              const sourceBand = sourceWeightBands[bandIndex] ?? band;
+              return [band, normalizeCell(cells[band] ?? cells[sourceBand] ?? fallbackItem.cells[band])];
+            }),
+          ) as Record<string, ServicePriceGuideCell>,
+        };
+      }),
+    };
+  });
+}
+
+export function buildDefaultServicePriceGuide(): ServicePriceGuide {
+  const sections = cloneDefaultSections();
+  return {
+    enabled: false,
+    weightBands: [...sections[0].weightBands],
+    items: legacyItemsFromSections(sections),
+    sections,
+    extraNote: defaultExtraNote,
+  };
+}
+
+export function normalizeServicePriceGuide(value: unknown): ServicePriceGuide {
+  const fallback = buildDefaultServicePriceGuide();
+  if (!value || typeof value !== "object") return fallback;
+
+  const source = value as Partial<ServicePriceGuide>;
+  const sections = normalizeSections(source.sections);
+  return {
+    enabled: Boolean(source.enabled),
+    weightBands: [...(sections[0]?.weightBands ?? fallback.weightBands)],
+    items: legacyItemsFromSections(sections),
+    sections,
+    extraNote:
+      typeof source.extraNote === "string" && source.extraNote.trim()
+        ? source.extraNote.trim()
+        : fallback.extraNote,
+  };
+}
+
+export function summarizeServicePriceGuide(guide: ServicePriceGuide) {
+  if (!guide.enabled) return "";
+  const normalized = normalizeServicePriceGuide(guide);
+  const sections = normalized.sections ?? [];
+  const rowCount = sections.reduce((total, section) => total + section.weightBands.length, 0);
+  const itemCount = sections.reduce((total, section) => total + section.items.length, 0);
+  return `${sections.length}개 구분 · ${rowCount}개 무게 · ${itemCount}개 항목`;
+}
+
+export function ServicePriceGuideEditor({
+  value,
+  onChange,
+  framed = true,
+  showHeader = true,
+  showEnabledToggle = true,
+}: {
+  value: ServicePriceGuide;
+  onChange: (value: ServicePriceGuide) => void;
+  framed?: boolean;
+  showHeader?: boolean;
+  showEnabledToggle?: boolean;
+}) {
+  const guide = normalizeServicePriceGuide(value);
+  const sections = guide.sections ?? [];
+
+  function updateSections(nextSections: ServicePriceGuideSection[]) {
+    onChange({
+      ...guide,
+      sections: nextSections,
+      weightBands: [...(nextSections[0]?.weightBands ?? [])],
+      items: legacyItemsFromSections(nextSections),
+    });
+  }
+
+  function updateSection(sectionId: string, patch: Partial<ServicePriceGuideSection>) {
+    updateSections(sections.map((section) => (section.id === sectionId ? { ...section, ...patch } : section)));
+  }
+
+  function updateWeightBand(sectionId: string, index: number, nextLabel: string) {
+    updateSections(
+      sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const previousLabel = section.weightBands[index];
+        const label = nextLabel;
+        const weightBands = section.weightBands.map((band, bandIndex) => (bandIndex === index ? label : band));
+        const items = section.items.map((item) => {
+          const cells = { ...item.cells };
+          if (previousLabel !== label) {
+            cells[label] = cells[previousLabel] ?? { price: "", durationMinutes: "" };
+            delete cells[previousLabel];
+          }
+          return { ...item, cells };
+        });
+        return { ...section, weightBands, items };
+      }),
+    );
+  }
+
+  function addWeightBand(sectionId: string) {
+    updateSections(
+      sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const nextLabel = `${section.weightBands.length * 2 + 4}kg~`;
+        return {
+          ...section,
+          weightBands: [...section.weightBands, nextLabel],
+          items: section.items.map((item) => ({
+            ...item,
+            cells: { ...item.cells, [nextLabel]: { price: "", durationMinutes: "" } },
+          })),
+        };
+      }),
+    );
+  }
+
+  function removeWeightBand(sectionId: string, index: number) {
+    updateSections(
+      sections.map((section) => {
+        if (section.id !== sectionId || section.weightBands.length <= 1) return section;
+        const removedLabel = section.weightBands[index] ?? "";
+        const weightBands = section.weightBands.filter((_, bandIndex) => bandIndex !== index);
+        return {
+          ...section,
+          weightBands,
+          items: section.items.map((item) => {
+            const cells = { ...item.cells };
+            if (!weightBands.includes(removedLabel)) {
+              delete cells[removedLabel];
+            }
+            return { ...item, cells };
+          }),
+        };
+      }),
+    );
+  }
+
+  function updateItemLabel(sectionId: string, itemId: string, label: string) {
+    updateSections(
+      sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: section.items.map((item) => (item.id === itemId ? { ...item, label } : item)),
+            }
+          : section,
+      ),
+    );
+  }
+
+  function addItem(sectionId: string) {
+    updateSections(
+      sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: [
+                ...section.items,
+                {
+                  id: createGuideItemId(),
+                  label: "새 항목",
+                  cells: Object.fromEntries(section.weightBands.map((band) => [band, { price: "", durationMinutes: "" }])),
+                },
+              ],
+            }
+          : section,
+      ),
+    );
+  }
+
+  function removeItem(sectionId: string, itemId: string) {
+    updateSections(
+      sections.map((section) =>
+        section.id === sectionId && section.items.length > 1
+          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+          : section,
+      ),
+    );
+  }
+
+  function updateCell(sectionId: string, itemId: string, band: string, patch: Partial<ServicePriceGuideCell>) {
+    updateSections(
+      sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: section.items.map((item) =>
+                item.id === itemId
+                  ? {
+                      ...item,
+                      cells: {
+                        ...item.cells,
+                        [band]: {
+                          price: patch.price !== undefined ? normalizePriceText(patch.price) : (item.cells[band]?.price ?? ""),
+                          durationMinutes:
+                            patch.durationMinutes !== undefined
+                              ? normalizeMinutesText(patch.durationMinutes)
+                              : (item.cells[band]?.durationMinutes ?? ""),
+                        },
+                      },
+                    }
+                  : item,
+              ),
+            }
+          : section,
+      ),
+    );
+  }
+
+  function addSection() {
+    const nextBand = "~5kg";
+    updateSections([
+      ...sections,
+      {
+        id: createGuideSectionId(),
+        title: "새 구분",
+        note: "",
+        weightBands: [nextBand],
+        items: [{ id: createGuideItemId(), label: "목욕", cells: { [nextBand]: { price: "", durationMinutes: "" } } }],
+      },
+    ]);
+  }
+
+  function removeSection(sectionId: string) {
+    if (sections.length <= 1) return;
+    updateSections(sections.filter((section) => section.id !== sectionId));
+  }
+
+  const content = (
+    <>
+      {showHeader || showEnabledToggle ? (
+        <div className="flex items-start justify-between gap-4">
+          {showHeader ? (
+            <div>
+              <p className="text-[16px] font-semibold text-[#111827]">실제 요금표</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">구분과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
+            </div>
+          ) : (
+            <span />
+          )}
+          {showEnabledToggle ? (
+            <button
+              type="button"
+              onClick={() => onChange({ ...guide, enabled: !guide.enabled })}
+              className={cn(
+                "flex h-8 min-w-[64px] items-center justify-center rounded-[8px] border px-3 text-[13px] font-semibold",
+                guide.enabled ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+              )}
+            >
+              {guide.enabled ? "사용" : "미사용"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {guide.enabled ? (
+        <div className={cn("space-y-5", showHeader || showEnabledToggle ? "mt-4" : "")}>
+          <div className="space-y-4">
+            {sections.map((section) => (
+              <section key={section.id} className="rounded-[8px] border border-[#dbe2ea] bg-white">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
+                  <div className="min-w-[240px] flex-1">
+                    <div className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)]">
+                      <input
+                        type="text"
+                        value={section.title}
+                        onChange={(event) => updateSection(section.id, { title: event.target.value })}
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[14px] font-semibold text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={section.note}
+                        onChange={(event) => updateSection(section.id, { note: event.target.value })}
+                        placeholder="예: 말티, 요키, 시츄"
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[14px] text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dbe2ea] px-2.5 text-[13px] font-medium text-[#334155]">
+                      <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                      무게
+                    </button>
+                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dbe2ea] px-2.5 text-[13px] font-medium text-[#334155]">
+                      <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                      항목
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSection(section.id)}
+                      disabled={sections.length <= 1}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#e5eaf0] text-[#94a3b8] disabled:opacity-35"
+                      aria-label="요금 구분 삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 128 + 148 + section.items.length * 196 + 40 }}>
+                    <colgroup>
+                      <col className="w-[128px]" />
+                      <col className="w-[148px]" />
+                      {section.items.map((item) => (
+                        <col key={item.id} className="w-[196px]" />
+                      ))}
+                      <col className="w-10" />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-[#f8fafc] text-[#475569]">
+                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">구분</th>
+                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">무게</th>
+                        {section.items.map((item) => (
+                          <th key={item.id} className="border-b border-r border-[#e5eaf0] px-3 py-3 text-center last:border-r-0">
+                            <div className="flex items-center justify-center gap-2">
+                              <input
+                                type="text"
+                                value={item.label}
+                                onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
+                                className="h-9 min-w-0 flex-1 rounded-[7px] border border-transparent bg-white px-3 text-center text-[16px] font-semibold text-[#334155] outline-none focus:border-[#2f7866]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeItem(section.id, item.id)}
+                                disabled={section.items.length <= 1}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] text-[#94a3b8] hover:bg-[#f1f5f9] disabled:opacity-35"
+                                aria-label="요금 항목 삭제"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+                              </button>
+                            </div>
+                          </th>
+                        ))}
+                        <th className="sticky right-0 z-20 w-10 border-b border-l border-[#d5dde7] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.035)]" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.weightBands.map((band, bandIndex) => (
+                        <tr key={`${section.id}-weight-${bandIndex}`}>
+                          {bandIndex === 0 ? (
+                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-[#fbfdff] px-4 py-3 text-center align-middle text-[16px] font-semibold text-[#111827]">
+                              {section.title}
+                            </td>
+                          ) : null}
+                          <td className="border-r border-t border-[#edf2f7] px-3 py-3">
+                            <input
+                              type="text"
+                              value={band}
+                              onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
+                              className="h-11 w-full rounded-[8px] border border-transparent bg-[#f8fafc] px-3 text-center text-[16px] font-medium text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                            />
+                          </td>
+                          {section.items.map((item) => {
+                            const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
+                            return (
+                              <td key={item.id} className="border-r border-t border-[#edf2f7] px-3 py-3 last:border-r-0">
+                                <div className="flex h-12 min-w-0 items-center justify-between gap-2 rounded-[8px] bg-[#f8fafc] px-3">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={formatPriceInput(cell.price)}
+                                    onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
+                                    placeholder="-"
+                                    className="h-8 min-w-0 flex-1 bg-transparent text-right text-[16px] text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                  />
+                                  <span className="shrink-0 text-[14px] text-[#94a3b8]">/</span>
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={cell.durationMinutes}
+                                      onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
+                                      placeholder="-"
+                                      className="h-8 w-11 bg-transparent text-right text-[16px] text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                    />
+                                    <span className="shrink-0 text-[14px] text-[#64748b]">분</span>
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="sticky right-0 z-10 border-l border-t border-[#d5dde7] bg-white px-0 py-3 text-center shadow-[-6px_0_10px_rgba(15,23,42,0.035)]">
+                            <button
+                              type="button"
+                              onClick={() => removeWeightBand(section.id, bandIndex)}
+                              disabled={section.weightBands.length <= 1}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#334155] disabled:opacity-40"
+                              aria-label="무게 구간 삭제"
+                            >
+                              <Trash2 className="h-4 w-4" strokeWidth={2} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] font-medium text-[#334155]">
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+            구분 추가
+          </button>
+
+          <label className="block">
+            <span className="text-[13px] font-semibold text-[#334155]">추가 요금 안내</span>
+            <textarea
+              value={guide.extraNote}
+              onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
+              rows={4}
+              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+            />
+          </label>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (!framed) return <div>{content}</div>;
+
+  return <section className="rounded-[10px] border border-[#dbe2ea] bg-white p-4">{content}</section>;
+}

@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
 
+import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
+import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
+import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet } from "@/types/domain";
-
-const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 
 type CustomerSort = "recentDesc" | "nameAsc";
 
@@ -16,7 +17,7 @@ type CustomerViewRow = {
   name: string;
   phone: string;
   pets: string[];
-  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "birthday">>;
+  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "weight" | "notes" | "birthday">>;
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
@@ -33,10 +34,36 @@ type CustomerViewRow = {
   searchText: string;
 };
 
+type NewCustomerDraft = {
+  name: string;
+  phone: string;
+  petName: string;
+  breed: string;
+  weight: string;
+  petNotes: string;
+  memo: string;
+  staffMemo: string;
+  alertEnabled: boolean;
+  needsConsultation: boolean;
+};
+
 type GuardianDeleteResult = {
   success: boolean;
   guardianIds: string[];
   restoreUntil: string;
+};
+
+const emptyNewCustomerDraft: NewCustomerDraft = {
+  name: "",
+  phone: "",
+  petName: "",
+  breed: "",
+  weight: "",
+  petNotes: "",
+  memo: "",
+  staffMemo: "",
+  alertEnabled: true,
+  needsConsultation: false,
 };
 
 const customerListGridClass =
@@ -67,6 +94,16 @@ function formatPhoneNumber(value: string) {
   if (digits.length === 10 && digits.startsWith("02")) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
   if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return value;
+}
+
+function formatPetProfile(pet: Pick<Pet, "breed" | "weight" | "notes">) {
+  const parts = [
+    pet.breed && pet.breed !== "미정" && pet.breed !== "미입력" ? pet.breed : "",
+    typeof pet.weight === "number" && Number.isFinite(pet.weight) ? `${pet.weight.toLocaleString("ko-KR")}kg` : "",
+  ].filter(Boolean);
+
+  if (parts.length > 0) return parts.join(" · ");
+  return pet.notes?.replace(/^고객 입력:\s*/, "").trim() || "견종/몸무게 미입력";
 }
 
 function formatNotificationDateTime(value: string | null | undefined) {
@@ -101,27 +138,27 @@ function getNotificationStatusMeta(status: NotificationStatus) {
     sent: {
       label: "발송됨",
       className: "border-[#c9ded7] bg-[#f7fbf9] text-[#1f6b5b]",
-      dotClassName: "bg-[#3f8f7a]",
+      dotClassName: getDotIndicatorClass("teal"),
     },
     queued: {
       label: "대기",
       className: "border-[#dbe2ea] bg-white text-[#64748b]",
-      dotClassName: "bg-[#94a3b8]",
+      dotClassName: getDotIndicatorClass("neutral"),
     },
     failed: {
       label: "실패",
       className: "border-[#efcaca] bg-[#fffafa] text-[#b42318]",
-      dotClassName: "bg-[#d1495b]",
+      dotClassName: getDotIndicatorClass("burgundy"),
     },
     mocked: {
       label: "테스트",
       className: "border-[#dbe2ea] bg-[#f8fafc] text-[#475569]",
-      dotClassName: "bg-[#64748b]",
+      dotClassName: getDotIndicatorClass("slate"),
     },
     skipped: {
       label: "건너뜀",
       className: "border-[#eadfd3] bg-[#fffaf4] text-[#9a5b1f]",
-      dotClassName: "bg-[#c98a2c]",
+      dotClassName: getDotIndicatorClass("amber"),
     },
   };
   return labels[status] ?? labels.queued;
@@ -185,6 +222,8 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
         id: pet.id,
         name: pet.name,
         breed: pet.breed,
+        weight: pet.weight,
+        notes: pet.notes,
         birthday: pet.birthday ?? null,
       })),
       tags: tags.length > 0 ? tags : ["일반"],
@@ -200,7 +239,7 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
       groomingCount: groomingRecords.length,
       noshowCount,
       deleted: Boolean(guardian.deleted_at),
-      searchText: buildSearchText([guardian.name, guardian.phone, ...petNames, ...tags]),
+      searchText: buildSearchText([guardian.name, guardian.phone, ...petNames, ...pets.map((pet) => pet.breed), ...tags]),
     };
   });
 }
@@ -227,6 +266,8 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
       id: `mock-pet-${row.id}-${index}`,
       name: petName,
       breed: "미입력",
+      weight: null,
+      notes: "",
       birthday: null,
     })),
     searchText: buildSearchText([row.name, row.phone, ...row.pets, ...row.tags]),
@@ -296,13 +337,16 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   }, [initialData]);
   const [customers, setCustomers] = useState<CustomerViewRow[]>(() => initialCustomers);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState<string[]>([]);
   const [deleteError, setDeleteError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [deletingCustomers, setDeletingCustomers] = useState(false);
-  const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerDraft, setNewCustomerDraft] = useState<NewCustomerDraft>(() => emptyNewCustomerDraft);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
 
@@ -313,18 +357,6 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     });
     return () => window.cancelAnimationFrame(frame);
   }, [initialCustomers]);
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(staffCommentStorageKey);
-      if (stored) {
-        const frame = window.requestAnimationFrame(() => setStaffComments((current) => ({ ...current, ...JSON.parse(stored) })));
-        return () => window.cancelAnimationFrame(frame);
-      }
-    } catch {
-      // Ignore malformed local storage data.
-    }
-  }, []);
 
   const displayedCustomers = useMemo(() => {
     const normalizedQuery = normalizeSearch(query);
@@ -337,96 +369,116 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   }, [customers, query, sort]);
 
   const selectedCustomer = customers.find((row) => row.id === selectedCustomerId);
-  const selectedPetName = selectedCustomer?.pets[0] ?? "";
-  const selectedCommentKey = selectedCustomer ? `${selectedPetName}|${selectedCustomer.name}` : "";
-  const selectedStaffComment = staffComments[selectedCommentKey] ?? "";
-  const selectedNotifications = useMemo(() => {
-    if (!selectedCustomer) return [];
-    const petIds = new Set(selectedCustomer.petDetails.map((pet) => pet.id));
-    return initialData.notifications
-      .filter((notification) => notification.guardian_id === selectedCustomer.id || (notification.pet_id ? petIds.has(notification.pet_id) : false))
-      .sort((first, second) => (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at))
-      .slice(0, 6);
-  }, [initialData.notifications, selectedCustomer]);
+  const selectedCustomerDetail = useMemo(
+    () => (selectedCustomerId ? buildCustomerDetailFromBootstrap(initialData, selectedCustomerId, selectedPetId) : null),
+    [initialData, selectedCustomerId, selectedPetId],
+  );
   const displayedCustomerIds = useMemo(() => displayedCustomers.map((row) => row.id), [displayedCustomers]);
   const allDisplayedCustomersSelected =
     displayedCustomerIds.length > 0 && displayedCustomerIds.every((id) => selectedDeleteIds.includes(id));
 
-  function updateStaffComment(value: string) {
-    if (!selectedCommentKey) return;
-    setStaffComments((current) => {
-      const next = { ...current, [selectedCommentKey]: value };
-      window.localStorage.setItem(staffCommentStorageKey, JSON.stringify(next));
-      return next;
-    });
+  function openNewCustomerModal() {
+    setSaveError("");
+    setNewCustomerDraft(emptyNewCustomerDraft);
+    setNewCustomerOpen(true);
   }
 
   async function addCustomer() {
+    const name = newCustomerDraft.name.trim();
+    const phone = formatPhoneNumber(newCustomerDraft.phone.trim());
+    const petName = newCustomerDraft.petName.trim();
+    const breed = newCustomerDraft.breed.trim() || "미입력";
+    const memo = newCustomerDraft.memo.trim();
+    const petNotes = newCustomerDraft.petNotes.trim();
+    const parsedWeight = Number(newCustomerDraft.weight.replace(/[^\d.]/g, ""));
+    const weight = Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : null;
+
+    if (!name || !phone || !petName) {
+      setSaveError("보호자명, 연락처, 반려동물 이름을 입력해 주세요.");
+      return;
+    }
+
     setSaveError("");
+    setCreatingCustomer(true);
+
+    const tags = [newCustomerDraft.needsConsultation ? "상담 필요" : "", newCustomerDraft.alertEnabled ? "알림 수신" : "알림 중지"].filter(Boolean);
+    const localId = `G-${Date.now()}`;
+    const localPetId = `local-pet-${Date.now()}`;
     const nextCustomer: CustomerViewRow = {
-      id: `G-${Date.now()}`,
-      name: "신규 보호자",
-      phone: "010-0000-0000",
-      pets: ["반려동물"],
-      petDetails: [],
-      tags: ["상담 필요", "알림 수신"],
+      id: localId,
+      name,
+      phone,
+      pets: [petName],
+      petDetails: [{ id: localPetId, name: petName, breed, weight, notes: petNotes, birthday: null }],
+      tags: tags.length > 0 ? tags : ["일반"],
       recentVisit: "방문 전",
       recentVisitDate: null,
       nextBooking: "예약 없음",
       nextBookingDate: null,
       nextBookingService: "예약 없음",
-      memo: "고객 메모를 입력해 주세요.",
-      alerts: "알림 수신 중",
-      alertEnabled: true,
+      memo: memo || (newCustomerDraft.needsConsultation ? "상담 필요" : "고객 메모가 없습니다."),
+      alerts: newCustomerDraft.alertEnabled ? "알림 수신 중" : "알림 중지",
+      alertEnabled: newCustomerDraft.alertEnabled,
       appointmentCount: 0,
       groomingCount: 0,
       noshowCount: 0,
       deleted: false,
-      searchText: buildSearchText(["신규 보호자", "010-0000-0000", "반려동물", "상담 필요", "알림 수신"]),
+      searchText: buildSearchText([name, phone, petName, breed, petNotes, memo, ...tags]),
     };
 
-    setCustomers((current) => [nextCustomer, ...current]);
-    setSelectedCustomerId(nextCustomer.id);
-    setDetailSheetOpen(true);
-
-    if (shouldUseLocalMockCustomers(initialData)) return;
+    if (shouldUseLocalMockCustomers(initialData)) {
+      setCustomers((current) => [nextCustomer, ...current]);
+      setSelectedCustomerId(nextCustomer.id);
+      setDetailSheetOpen(true);
+      setNewCustomerOpen(false);
+      setCreatingCustomer(false);
+      return;
+    }
 
     try {
-      const guardian = await createOwnerGuardian({
+      let guardian = await createOwnerGuardian({
         shopId: initialData.shop.id,
-        name: nextCustomer.name,
-        phone: nextCustomer.phone,
+        name,
+        phone,
         memo: nextCustomer.memo,
       });
+
+      if (!newCustomerDraft.alertEnabled) {
+        guardian = await patchOwnerGuardian({
+          shopId: initialData.shop.id,
+          guardianId: guardian.id,
+          enabled: false,
+        });
+      }
+
       const pet = await createOwnerPet({
         shopId: initialData.shop.id,
         guardianId: guardian.id,
-        name: "반려동물",
-        breed: "미입력",
+        name: petName,
+        breed,
+        weight,
         birthday: null,
-        notes: "",
+        notes: petNotes,
         groomingCycleWeeks: 4,
       });
-      setCustomers((current) =>
-        current.map((row) =>
-          row.id === nextCustomer.id
-            ? {
-                ...row,
-                id: guardian.id,
-                name: guardian.name,
-                phone: guardian.phone,
-                petDetails: [{ id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null }],
-                searchText: buildSearchText([guardian.name, guardian.phone, pet.name, ...row.tags]),
-              }
-            : row,
-        ),
-      );
+
+      const savedCustomer: CustomerViewRow = {
+        ...nextCustomer,
+        id: guardian.id,
+        name: guardian.name,
+        phone: guardian.phone,
+        petDetails: [{ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null }],
+        searchText: buildSearchText([guardian.name, guardian.phone, pet.name, pet.breed, pet.notes, ...nextCustomer.tags]),
+      };
+
+      setCustomers((current) => [savedCustomer, ...current]);
       setSelectedCustomerId(guardian.id);
+      setDetailSheetOpen(true);
+      setNewCustomerOpen(false);
     } catch (error) {
-      setCustomers((current) => current.filter((row) => row.id !== nextCustomer.id));
-      setSelectedCustomerId("");
-      setDetailSheetOpen(false);
       setSaveError(error instanceof Error ? error.message : "고객 추가에 실패했습니다.");
+    } finally {
+      setCreatingCustomer(false);
     }
   }
 
@@ -486,6 +538,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
       return;
     }
     setSelectedCustomerId(row.id);
+    setSelectedPetId(null);
     setDetailSheetOpen(true);
   }
 
@@ -617,7 +670,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
                     ...row,
                     petDetails: [
                       ...row.petDetails,
-                      ...createdPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null })),
+                      ...createdPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null })),
                     ],
                   }
                 : row,
@@ -636,7 +689,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     const name = petName.trim();
     if (!currentCustomer || !name) return;
     const previousCustomers = customers;
-    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", birthday: null };
+    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null };
     setSaveError("");
     setCustomers((current) =>
       current.map((row) =>
@@ -668,7 +721,11 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           row.id === customerId
             ? {
                 ...row,
-                petDetails: row.petDetails.map((item) => (item.id === tempPet.id ? { id: pet.id, name: pet.name, breed: pet.breed, birthday: pet.birthday ?? null } : item)),
+                petDetails: row.petDetails.map((item) =>
+                  item.id === tempPet.id
+                    ? { id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null }
+                    : item,
+                ),
               }
             : row,
         ),
@@ -727,7 +784,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
             </label>
             <button
               type="button"
-              onClick={addCustomer}
+              onClick={openNewCustomerModal}
               className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f7866] px-4 text-[14px] font-semibold text-white transition hover:bg-[#286a5a]"
             >
               <Plus className="h-4 w-4" />
@@ -775,7 +832,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           </p>
         ) : null}
 
-        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[15px] font-semibold text-[#64748b]", customerListGridClass)}>
+        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[15px] font-medium text-[#64748b]", customerListGridClass)}>
           <span />
           <button type="button" onClick={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))} className="text-center transition hover:text-[#1f6b5b]">
             보호자명
@@ -808,25 +865,212 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         </div>
       </section>
 
-      {selectedCustomer && detailSheetOpen ? (
-        <CustomerDetailSheet
-          customer={selectedCustomer}
-          staffComment={selectedStaffComment}
-          notifications={selectedNotifications}
-          onClose={() => setDetailSheetOpen(false)}
-          onChangeStaffComment={updateStaffComment}
-          onUpdateCustomer={updateCustomer}
-          onAddPet={addPet}
-          onDeletePet={removePet}
-          onAddQuickReservation={addQuickReservation}
-          onToggleAlertStatus={toggleAlertStatus}
-          onToggleDeleteMode={() => {
-            setDeleteMode(true);
-            setSelectedDeleteIds([selectedCustomer.id]);
-            setDetailSheetOpen(false);
+      {newCustomerOpen ? (
+        <NewCustomerModal
+          draft={newCustomerDraft}
+          saving={creatingCustomer}
+          error={saveError}
+          onDraftChange={setNewCustomerDraft}
+          onClose={() => {
+            if (creatingCustomer) return;
+            setNewCustomerOpen(false);
+            setSaveError("");
           }}
+          onSubmit={() => void addCustomer()}
         />
       ) : null}
+
+      {selectedCustomer && selectedCustomerDetail && detailSheetOpen ? (
+        <CustomerDetailPanel
+          detail={selectedCustomerDetail}
+          selectedPetId={selectedPetId}
+          onSelectPet={setSelectedPetId}
+          onClose={() => setDetailSheetOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function NewCustomerModal({
+  draft,
+  saving,
+  error,
+  onDraftChange,
+  onClose,
+  onSubmit,
+}: {
+  draft: NewCustomerDraft;
+  saving: boolean;
+  error: string;
+  onDraftChange: (draft: NewCustomerDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  function patchDraft(patch: Partial<NewCustomerDraft>) {
+    onDraftChange({ ...draft, ...patch });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
+      <aside
+        className="ml-auto flex h-full w-full max-w-[480px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
+          <div>
+            <p className="text-[13px] font-medium text-[#64748b]">고객 관리</p>
+            <h2 className="mt-1 text-[26px] font-semibold tracking-[-0.02em] text-[#111827]">신규 고객 추가</h2>
+            <p className="mt-1 text-[14px] leading-5 text-[#64748b]">예약 전에 꼭 필요한 정보만 먼저 등록합니다.</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[16px] font-semibold text-[#111827]">보호자 정보</h3>
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]">
+                    <input
+                      type="checkbox"
+                      checked={draft.alertEnabled}
+                      onChange={(event) => patchDraft({ alertEnabled: event.target.checked })}
+                      className="h-3.5 w-3.5 accent-[#2f7866]"
+                    />
+                    알림 수신
+                  </label>
+                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]">
+                    <input
+                      type="checkbox"
+                      checked={draft.needsConsultation}
+                      onChange={(event) => patchDraft({ needsConsultation: event.target.checked })}
+                      className="h-3.5 w-3.5 accent-[#2f7866]"
+                    />
+                    상담 필요
+                  </label>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">보호자명</span>
+                  <input
+                    value={draft.name}
+                    onChange={(event) => patchDraft({ name: event.target.value })}
+                    placeholder="예: 정유진"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">연락처</span>
+                  <input
+                    value={draft.phone}
+                    onChange={(event) => patchDraft({ phone: formatPhoneNumber(event.target.value) })}
+                    placeholder="010-0000-0000"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">반려동물 이름</span>
+                  <input
+                    value={draft.petName}
+                    onChange={(event) => patchDraft({ petName: event.target.value })}
+                    placeholder="예: 우유"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">품종</span>
+                  <input
+                    value={draft.breed}
+                    onChange={(event) => patchDraft({ breed: event.target.value })}
+                    placeholder="미입력 가능"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">몸무게</span>
+                  <input
+                    value={draft.weight}
+                    onChange={(event) => patchDraft({ weight: event.target.value })}
+                    placeholder="예: 4.8"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[13px] font-medium text-[#64748b]">특이사항</span>
+                  <input
+                    value={draft.petNotes}
+                    onChange={(event) => patchDraft({ petNotes: event.target.value })}
+                    placeholder="피부, 성향, 요청 등"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-[#64748b]" />
+                <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
+              </div>
+              <label className="mt-3 block">
+                <span className="text-[13px] font-medium text-[#64748b]">고객 요청 / 상담 메모</span>
+                <textarea
+                  value={draft.memo}
+                  onChange={(event) => patchDraft({ memo: event.target.value })}
+                  placeholder="예약 전 확인할 고객 요청을 적어주세요."
+                  className="mt-1.5 min-h-[92px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                />
+              </label>
+              <label className="mt-3 block">
+                <span className="text-[13px] font-medium text-[#64748b]">작업자 공유 메모</span>
+                <textarea
+                  value={draft.staffMemo}
+                  onChange={(event) => patchDraft({ staffMemo: event.target.value })}
+                  placeholder="미용 시 바로 볼 내부 메모입니다."
+                  className="mt-1.5 min-h-[76px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                />
+              </label>
+            </section>
+
+            {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[13px] font-medium text-[#b42318]">{error}</p> : null}
+          </div>
+
+          <div className="flex gap-2 border-t border-[#edf2f7] bg-white px-5 py-3.5">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="h-11 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:text-[#94a3b8]"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="h-11 flex-[1.6] rounded-[8px] bg-[#2f7866] text-[15px] font-semibold text-white transition hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
+            >
+              {saving ? "추가 중" : "고객 추가"}
+            </button>
+          </div>
+        </form>
+      </aside>
     </div>
   );
 }
@@ -881,18 +1125,17 @@ function CustomerListRow({
             {checked ? <Check className="h-3.5 w-3.5" /> : null}
           </span>
         ) : (
-          <span className={cn("h-2 w-2 rounded-full", row.noshowCount >= 2 ? "bg-[#b42318]" : row.alertEnabled ? "bg-[#4f9b88]" : "bg-[#d5dde6]")} />
+          <span className={row.noshowCount >= 2 ? getDotIndicatorClass("burgundy") : row.alertEnabled ? getDotIndicatorClass("teal") : getDotIndicatorClass("neutral")} />
         )}
       </span>
       <span className="min-w-0 text-center">
-        <span className="block truncate text-[14px] font-medium text-[#111827]">{row.name}</span>
-        <span className="block truncate text-[11px] text-[#64748b]">{row.appointmentCount}건 예약 · {row.groomingCount}건 기록</span>
+        <span className="block truncate text-[15px] font-normal text-[#334155]">{row.name}</span>
       </span>
-      <span className="truncate text-center text-[14px] text-[#111827]">{row.pets.join(", ")}</span>
-      <span className="truncate text-center text-[14px] tabular-nums text-[#111827]">{formatPhoneNumber(row.phone)}</span>
-      <span className={cn("truncate text-center text-[14px]", row.nextBookingDate ? "text-[#1f6b5b]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
+      <span className="truncate text-center text-[15px] font-normal text-[#334155]">{row.pets.join(", ")}</span>
+      <span className="truncate text-center text-[15px] font-normal tabular-nums text-[#334155]">{formatPhoneNumber(row.phone)}</span>
+      <span className={cn("truncate text-center text-[15px] font-normal", row.nextBookingDate ? "text-[#334155]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
       <span className="flex min-w-0 justify-center">
-        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
+        <span className={cn("inline-flex h-7 items-center rounded-full px-2.5 text-[15px] font-normal", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
           {row.alertEnabled ? "수신" : "중지"}
         </span>
       </span>
@@ -1012,24 +1255,30 @@ function CustomerDetailSheet({
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-start gap-3 py-3">
               <p className="text-[13px] font-medium text-[#64748b]">반려동물</p>
               <div className="min-w-0 space-y-2">
-                {(customer.petDetails.length > 0 ? customer.petDetails : customer.pets.map((name, index) => ({ id: `local-pet-${index}`, name, breed: "미입력", birthday: null }))).map((pet, index) => (
-                  <div key={pet.id} className="flex min-w-0 items-center gap-2">
-                    <EditableText
-                      value={pet.name}
-                      onSave={(value) => {
-                        const nextPets = [...customer.pets];
-                        nextPets[index] = value;
-                        updateEditableField("pets", nextPets.join(", "));
-                      }}
-                      displayClassName="min-w-0 flex-1 text-left"
-                      displayTextClassName="text-[16px] font-medium text-[#111827]"
-                      inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
-                    />
+                {(customer.petDetails.length > 0
+                  ? customer.petDetails
+                  : customer.pets.map((name, index) => ({ id: `local-pet-${index}`, name, breed: "미입력", weight: null, notes: "", birthday: null }))
+                ).map((pet, index) => (
+                  <div key={pet.id} className="flex min-w-0 items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <EditableText
+                        value={pet.name}
+                        onSave={(value) => {
+                          const nextPets = [...customer.pets];
+                          nextPets[index] = value;
+                          updateEditableField("pets", nextPets.join(", "));
+                        }}
+                        displayClassName="min-w-0 text-left"
+                        displayTextClassName="text-[16px] font-medium text-[#111827]"
+                        inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
+                      />
+                      <p className="mt-0.5 truncate text-[13px] font-medium text-[#64748b]">{formatPetProfile(pet)}</p>
+                    </div>
                     {customer.petDetails.length > 1 ? (
                       <button
                         type="button"
                         onClick={() => void onDeletePet(customer.id, pet.id)}
-                        className="h-8 rounded-[7px] border border-[#ead9cf] bg-white px-2 text-[12px] font-medium text-[#94624f] hover:bg-[#fffafa]"
+                        className="mt-0.5 h-8 rounded-[7px] border border-[#ead9cf] bg-white px-2 text-[12px] font-medium text-[#94624f] hover:bg-[#fffafa]"
                       >
                         삭제
                       </button>

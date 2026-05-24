@@ -98,7 +98,7 @@ export function createBookingAccessToken(input: {
 
 export function buildBookingManageUrl(shopId: string, token: string) {
   const url = new URL("/m", resolvePublicSiteUrl());
-  url.searchParams.set("s", shopId);
+  url.searchParams.set(BOOKING_ACCESS_QUERY_KEY, token);
   return url.toString();
 }
 

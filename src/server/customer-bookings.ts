@@ -42,6 +42,7 @@ const customerBookingCreateSchema = z.object({
     .optional()
     .default([]),
   serviceId: z.string().min(1),
+  staffId: z.string().nullable().optional(),
   customServiceName: z.string().trim().optional().default(""),
   appointmentDate: z.string().min(1),
   appointmentTime: z.string().min(1),
@@ -106,6 +107,23 @@ function matchName(a: string, b: string) {
   return normalizeName(a) === normalizeName(b);
 }
 
+function parsePetProfile(value: string) {
+  const raw = value.trim();
+  const weightMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(?:kg|키로|킬로)/i);
+  const weight = weightMatch ? Number(weightMatch[1].replace(",", ".")) : null;
+  const breed = raw
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:kg|키로|킬로)/gi, "")
+    .replace(/[·,/|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    breed: breed || "미정",
+    weight: Number.isFinite(weight) ? weight : null,
+    raw,
+  };
+}
+
 function hasMissingColumnError(
   error: {
     message?: string | null;
@@ -137,17 +155,17 @@ function makePetBase(
   petInput?: { name: string; breed?: string },
 ) {
   const petName = (petInput?.name ?? payload.petName).trim();
-  const breed = (petInput?.breed ?? payload.breed).trim();
+  const profile = parsePetProfile(petInput?.breed ?? payload.breed);
 
   return {
     id: randomUUID(),
     shop_id: payload.shopId,
     guardian_id: guardianId,
     name: petName,
-    breed: breed || "미정",
-    weight: null,
+    breed: profile.breed,
+    weight: profile.weight,
     age: null,
-    notes: "",
+    notes: profile.raw ? `고객 입력: ${profile.raw}` : "",
     grooming_cycle_weeks: 4,
     avatar_seed: petName.slice(0, 1) || "M",
     created_at: nowIso(),
@@ -196,6 +214,12 @@ async function findOrCreateMockEntities(payload: z.infer<typeof customerBookingC
   if (!pet) {
     pet = makePetBase(payload, guardian.id) as Pet;
     store.pets = [...store.pets, pet];
+  } else if (payload.breed.trim()) {
+    const petBase = makePetBase(payload, guardian.id);
+    pet.breed = petBase.breed;
+    pet.weight = petBase.weight;
+    pet.notes = petBase.notes || pet.notes;
+    pet.updated_at = nowIso();
   }
 
   const extraPets = payload.extraPets ?? [];
@@ -209,6 +233,12 @@ async function findOrCreateMockEntities(payload: z.infer<typeof customerBookingC
 
     if (!exists) {
       store.pets = [...store.pets, makePetBase(payload, guardian.id, extraPet) as Pet];
+    } else if (extraPet.breed?.trim()) {
+      const petBase = makePetBase(payload, guardian.id, extraPet);
+      exists.breed = petBase.breed;
+      exists.weight = petBase.weight;
+      exists.notes = petBase.notes || exists.notes;
+      exists.updated_at = nowIso();
     }
   }
 
@@ -373,6 +403,19 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
 
     if (insertPet.error) throw new Error(insertPet.error.message);
     petId = insertPet.data.id;
+  } else if (payload.breed.trim()) {
+    const petBase = makePetBase(payload, guardianId);
+    const updatePet = await supabase
+      .from("pets")
+      .update({
+        breed: petBase.breed,
+        weight: petBase.weight,
+        notes: petBase.notes,
+        updated_at: nowIso(),
+      })
+      .eq("id", petId);
+
+    if (updatePet.error) throw new Error(updatePet.error.message);
   }
 
   for (const extraPet of payload.extraPets ?? []) {
@@ -389,7 +432,23 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
       .maybeSingle();
 
     if (existingExtraPet.error) throw new Error(existingExtraPet.error.message);
-    if (existingExtraPet.data?.id) continue;
+    if (existingExtraPet.data?.id) {
+      if (extraPet.breed.trim()) {
+        const petBase = makePetBase(payload, guardianId, extraPet);
+        const updateExtraPet = await supabase
+          .from("pets")
+          .update({
+            breed: petBase.breed,
+            weight: petBase.weight,
+            notes: petBase.notes,
+            updated_at: nowIso(),
+          })
+          .eq("id", existingExtraPet.data.id);
+
+        if (updateExtraPet.error) throw new Error(updateExtraPet.error.message);
+      }
+      continue;
+    }
 
     const petBase = makePetBase(payload, guardianId, extraPet);
     const insertExtraPet = await supabase
@@ -439,6 +498,7 @@ export async function createCustomerBooking(input: unknown) {
     guardianId: entityIds.guardianId,
     petId: entityIds.petId,
     serviceId: resolvedServiceId,
+    staffId: payload.staffId ?? null,
     customServiceName: usesCustomService ? payload.customServiceName.trim() : "",
     appointmentDate: payload.appointmentDate,
     appointmentTime: payload.appointmentTime,

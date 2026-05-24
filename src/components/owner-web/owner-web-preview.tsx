@@ -163,6 +163,7 @@ function renderScreen(
           activeTab={settingsTab}
           onActiveTabChange={onSettingsTabChange}
           showTabNavigation={false}
+          shop={initialData.shop}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
         />
@@ -452,9 +453,6 @@ export default function OwnerWebPreview({
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[14px] font-semibold">{screen.label}</span>
-                          <span className={cn("mt-0.5 block truncate text-[11px]", active ? "text-[#456b61]" : "text-[#94a3b8]")}>
-                            {screen.description}
-                          </span>
                         </span>
                       </button>
                       {screen.key === "settings" && active ? (

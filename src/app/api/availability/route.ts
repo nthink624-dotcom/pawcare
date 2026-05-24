@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const shopId = searchParams.get("shopId") ?? "";
     const date = searchParams.get("date") ?? "";
     const serviceId = searchParams.get("serviceId") ?? "";
+    const staffId = searchParams.get("staffId") ?? "";
     const previewDurationMinutesRaw = searchParams.get("previewDurationMinutes") ?? "";
     const excludeAppointmentId = searchParams.get("excludeAppointmentId") ?? undefined;
     const previewDurationMinutes = previewDurationMinutesRaw ? Number(previewDurationMinutesRaw) : undefined;
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
       services: bootstrap.services,
       appointments: bootstrap.appointments,
       excludeAppointmentId,
+      staffId: staffId || null,
+      staffMembers: bootstrap.staffMembers,
+      staffScheduleOverrides: bootstrap.staffScheduleOverrides,
     });
 
     return NextResponse.json({ slots });

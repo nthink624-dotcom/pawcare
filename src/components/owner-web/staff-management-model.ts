@@ -1,5 +1,6 @@
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { OwnerWebStaffMember, OwnerWebWeekdayKey } from "@/components/owner-web/owner-web-staff-data";
+import type { StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
 
 export type StaffStatus = "work" | "off" | "annual" | "half" | "pending";
@@ -224,16 +225,16 @@ export function getAnnualLeaveUsage(staff: StaffMember, requests: LeaveRequest[]
 }
 
 export function getCellTone(status: StaffStatus) {
-  if (status === "pending") return "border-dashed border-[#d8dee6] bg-white text-[#1f2937]";
-  return "border-[#d8dee6] bg-white text-[#1f2937]";
+  if (status === "pending") return "border-dashed border-[#d8dee6] bg-white text-[#111827] hover:bg-[#f8fafc]";
+  return "border-[#d8dee6] bg-white text-[#111827] hover:bg-[#f8fafc]";
 }
 
-export function getCellIndicatorTone(status: StaffStatus) {
-  if (status === "work") return "bg-[#4f9b88]";
-  if (status === "annual") return "bg-[#b47a4f]";
-  if (status === "half") return "bg-[#c2993f]";
-  if (status === "pending") return "bg-[#c2993f]";
-  return "bg-[#8f2438]";
+export function getCellIndicatorTone(status: StaffStatus): StatusIndicatorTone {
+  if (status === "work") return "teal";
+  if (status === "annual") return "amber";
+  if (status === "half") return "amber";
+  if (status === "pending") return "amber";
+  return "burgundy";
 }
 
 export function getRequestTone(status: LeaveStatus) {

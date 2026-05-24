@@ -11,6 +11,7 @@ import {
   consumeOwnerAuthHandoff,
   readOwnerAuthTokenCache,
   setCurrentOwnerAccessToken,
+  writeOwnerAuthSessionCache,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
 import {
@@ -44,6 +45,17 @@ const OWNER_LOAD_TIMEOUT_MS = 12000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
 const OWNER_BACKGROUND_REFRESH_MS = 60_000;
+
+function shouldOpenMobileOwnerScreen() {
+  if (typeof window === "undefined") return false;
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const isMobileUserAgent = /android|iphone|ipod|mobile/.test(userAgent);
+  const isCompactTouchViewport =
+    window.matchMedia("(max-width: 767px)").matches && window.matchMedia("(pointer: coarse)").matches;
+
+  return isMobileUserAgent || isCompactTouchViewport;
+}
 
 function withOwnerLoadTimeout<T>(promise: Promise<T>, message: string) {
   let timeoutId: number | null = null;
@@ -99,18 +111,34 @@ export default function OwnerPage() {
 
     const handoffSession = consumeOwnerAuthHandoff();
     if (handoffSession) {
-      const sessionResult = await withOwnerSessionTimeout(
-        supabase.auth.setSession({
+      writeOwnerAuthSessionCache(handoffSession);
+      void supabase.auth
+        .setSession({
           access_token: handoffSession.accessToken,
           refresh_token: handoffSession.refreshToken,
-        }) as Promise<SupabaseSessionResult>,
-      );
-      const accessToken = sessionResult.data.session?.access_token ?? handoffSession.accessToken;
-      writeOwnerAuthTokenCache(accessToken);
+        })
+        .then((sessionResult: SupabaseSessionResult) => {
+          const nextSession = sessionResult.data.session;
+          if (nextSession?.access_token) {
+            writeOwnerAuthTokenCache(nextSession.access_token, nextSession.refresh_token);
+            setCurrentOwnerAccessToken(nextSession.access_token);
+          }
+        })
+        .catch(() => {
+          // The freshly issued API token is enough for owner endpoints; do not block entry on browser session persistence.
+        });
 
       return {
-        accessToken,
-        session: sessionResult.data.session,
+        accessToken: handoffSession.accessToken,
+        session: null,
+      };
+    }
+
+    const cachedAccessToken = readOwnerAuthTokenCache();
+    if (cachedAccessToken) {
+      return {
+        accessToken: cachedAccessToken,
+        session: null,
       };
     }
 
@@ -136,14 +164,6 @@ export default function OwnerPage() {
       };
     }
 
-    const cachedAccessToken = readOwnerAuthTokenCache();
-    if (cachedAccessToken) {
-      return {
-        accessToken: cachedAccessToken,
-        session: null,
-      };
-    }
-
     return null;
   }
 
@@ -157,6 +177,11 @@ export default function OwnerPage() {
         : null;
 
     async function load() {
+      if (shouldOpenMobileOwnerScreen()) {
+        router.replace("/owner/mobile" as never);
+        return;
+      }
+
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active) {
           setMessage("Supabase 설정을 확인해 주세요. .env.local 값이 필요합니다.");

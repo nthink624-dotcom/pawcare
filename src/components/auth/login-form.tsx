@@ -10,7 +10,7 @@ import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
-import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
@@ -212,7 +212,7 @@ export default function LoginForm({
           }
         }
         writeOwnerAuthHandoff(result.session);
-        writeOwnerAuthTokenCache(result.session.accessToken);
+        writeOwnerAuthSessionCache(result.session);
       }
 
       if (rememberLoginId && loginId.trim()) {

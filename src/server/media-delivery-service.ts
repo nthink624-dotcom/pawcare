@@ -2,6 +2,7 @@ import { PETMANAGER_MEDIA_SIGNED_READ_SECONDS } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { AlimtalkMediaAttachment } from "@/server/alimtalk-provider";
 import { recordMediaSendAttempt } from "@/server/media-service";
+import { createMediaSignedReadUrl } from "@/server/media-storage";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type {
   MediaAsset,
@@ -211,13 +212,11 @@ function pickDeliveryObject(
 }
 
 async function createSignedReadUrl(bucket: string, path: string) {
-  const admin = getAdmin();
-  const result = await admin.storage.from(bucket).createSignedUrl(path, PETMANAGER_MEDIA_SIGNED_READ_SECONDS);
-  if (result.error || !result.data) {
-    throw new OwnerApiError(result.error?.message ?? "Could not create media delivery URL.", 500);
-  }
-
-  return result.data.signedUrl;
+  return createMediaSignedReadUrl({
+    bucket,
+    path,
+    expiresInSeconds: PETMANAGER_MEDIA_SIGNED_READ_SECONDS,
+  });
 }
 
 export async function resolveNotificationMediaDelivery(

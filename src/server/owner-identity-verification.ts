@@ -623,6 +623,72 @@ export async function completePortoneIdentityVerification(input: {
   };
 }
 
+export async function reuseCompletedPortoneIdentityVerification(input: {
+  purpose: IdentityVerificationPurpose;
+  identityVerificationId: string;
+}) {
+  const supabase = getSupabaseOrThrow();
+  const { data, error } = await supabase
+    .from(OWNER_IDENTITY_TABLE)
+    .select("*")
+    .eq("purpose", input.purpose)
+    .eq("verification_method", "portone")
+    .eq("status", "verified")
+    .eq("provider_identity_verification_id", input.identityVerificationId)
+    .is("consumed_at", null)
+    .order("verified_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "본인인증 상태를 확인하지 못했습니다.");
+  }
+
+  if (!data) {
+    return { ok: false as const, message: "이미 완료된 인증입니다. 창을 닫고 다시 인증해 주세요." };
+  }
+
+  const row = mapRow(data);
+  if (!row.verified_expires_at || new Date(row.verified_expires_at).getTime() < Date.now()) {
+    return { ok: false as const, message: "이미 완료된 인증입니다. 창을 닫고 다시 인증해 주세요." };
+  }
+
+  const verificationTokenId = randomUUID();
+  const verifiedExpiresAt = addMs(VERIFIED_EXPIRES_IN_MS);
+  const updatedAt = nowIso();
+  const updateResult = await supabase
+    .from(OWNER_IDENTITY_TABLE)
+    .update({
+      verified_expires_at: verifiedExpiresAt,
+      verification_token_id: verificationTokenId,
+      updated_at: updatedAt,
+    })
+    .eq("id", row.id)
+    .eq("status", "verified")
+    .eq("provider_identity_verification_id", input.identityVerificationId)
+    .is("consumed_at", null);
+
+  if (updateResult.error) {
+    throw new Error(updateResult.error.message || "본인인증 상태를 저장하지 못했습니다.");
+  }
+
+  return {
+    ok: true as const,
+    verificationToken: issueVerifiedIdentityToken({
+      verificationId: row.id,
+      tokenId: verificationTokenId,
+      purpose: row.purpose,
+      source: "portone",
+      expiresInMs: VERIFIED_EXPIRES_IN_MS,
+    }),
+    identity: {
+      name: row.name,
+      birthDate: row.birth_date,
+      phoneNumber: row.phone_number,
+    },
+  };
+}
+
 export async function getVerifiedIdentityForToken(input: {
   verificationToken: string;
   purpose: IdentityVerificationPurpose;

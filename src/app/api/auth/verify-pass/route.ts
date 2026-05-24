@@ -3,7 +3,10 @@ import { z } from "zod";
 
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { hasPortoneServerEnv, hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
-import { completePortoneIdentityVerification } from "@/server/owner-identity-verification";
+import {
+  completePortoneIdentityVerification,
+  reuseCompletedPortoneIdentityVerification,
+} from "@/server/owner-identity-verification";
 
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
@@ -16,6 +19,14 @@ type PortoneVerificationResponse = {
   message?: string;
   type?: string;
 };
+
+function getPortoneIdentityStatus(identityVerification: Record<string, unknown> | undefined) {
+  return typeof identityVerification?.status === "string" ? identityVerification.status.toUpperCase() : "";
+}
+
+function isVerifiedPortoneIdentity(identityVerification: Record<string, unknown> | undefined) {
+  return getPortoneIdentityStatus(identityVerification) === "VERIFIED";
+}
 
 async function readPortoneJson(response: Response): Promise<PortoneVerificationResponse> {
   try {
@@ -45,6 +56,10 @@ function isAlreadyVerifiedPortoneMessage(result: PortoneVerificationResponse) {
     .some((value) => value.toLowerCase().includes("already verified"));
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
   const endpoint = `https://api.portone.io/identity-verifications/${encodeURIComponent(identityVerificationId)}`;
   const headers = {
@@ -52,29 +67,48 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
     "Content-Type": "application/json",
   };
 
-  const getResponse = await fetch(endpoint, {
-    headers,
-    cache: "no-store",
-  });
-  const getResult = await readPortoneJson(getResponse);
-  if (getResponse.ok && getResult.identityVerification) {
-    return { response: getResponse, result: getResult };
-  }
+  let lastResponse: Response | null = null;
+  let lastResult: PortoneVerificationResponse = {};
 
-  const confirmResponse = await fetch(`${endpoint}/confirm`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(serverEnv.portoneStoreId ? { storeId: serverEnv.portoneStoreId } : {}),
-    cache: "no-store",
-  });
-  const confirmResult = await readPortoneJson(confirmResponse);
-  if (confirmResponse.ok && confirmResult.identityVerification) {
-    return { response: confirmResponse, result: confirmResult };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await wait(500 * attempt);
+    }
+
+    const getResponse = await fetch(endpoint, {
+      headers,
+      cache: "no-store",
+    });
+    const getResult = await readPortoneJson(getResponse);
+    lastResponse = getResponse;
+    lastResult = getResult;
+
+    if (getResponse.ok && isVerifiedPortoneIdentity(getResult.identityVerification)) {
+      return { response: getResponse, result: getResult };
+    }
+
+    const confirmResponse = await fetch(`${endpoint}/confirm`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(serverEnv.portoneStoreId ? { storeId: serverEnv.portoneStoreId } : {}),
+      cache: "no-store",
+    });
+    const confirmResult = await readPortoneJson(confirmResponse);
+    lastResponse = confirmResponse.ok ? getResponse : confirmResponse;
+    lastResult = confirmResult.identityVerification || confirmResult.message ? confirmResult : getResult;
+
+    if (confirmResponse.ok && isVerifiedPortoneIdentity(confirmResult.identityVerification)) {
+      return { response: confirmResponse, result: confirmResult };
+    }
+
+    if (isAlreadyVerifiedPortoneMessage(confirmResult)) {
+      return { response: confirmResponse, result: confirmResult };
+    }
   }
 
   return {
-    response: confirmResponse.ok ? getResponse : confirmResponse,
-    result: confirmResult.message ? confirmResult : getResult,
+    response: lastResponse ?? new Response(null, { status: 400 }),
+    result: lastResult,
   };
 }
 
@@ -94,6 +128,20 @@ export async function POST(request: NextRequest) {
     const { response: verificationResponse, result } = await fetchPortoneIdentityVerification(payload.identityVerificationId);
     if (!verificationResponse.ok || !result.identityVerification) {
       if (isAlreadyVerifiedPortoneMessage(result)) {
+        const reused = await reuseCompletedPortoneIdentityVerification({
+          purpose: payload.purpose,
+          identityVerificationId: payload.identityVerificationId,
+        });
+
+        if (reused.ok) {
+          return NextResponse.json({
+            success: true,
+            verificationToken: reused.verificationToken,
+            identity: reused.identity,
+            message: "본인 확인이 완료되었습니다.",
+          });
+        }
+
         const completed = await completePortoneIdentityVerification({
           verificationRequestId: payload.verificationRequestId,
           purpose: payload.purpose,

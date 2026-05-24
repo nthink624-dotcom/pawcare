@@ -1,4 +1,4 @@
-import type { BusinessHours } from "@/types/domain";
+import type { BootstrapStaffMember, BusinessHours } from "@/types/domain";
 
 export const defaultOwnerBusinessHours: BusinessHours = {
   1: { open: "10:00", close: "19:00", enabled: true },
@@ -22,7 +22,7 @@ export const defaultOwnerServiceTemplates = [
   { key: "nail-trim", name: "발톱 정리", price: 10000, durationMinutes: 30 },
 ];
 
-export const defaultOwnerStaffDays = ["mon", "tue", "wed", "thu", "fri", "sat"];
+export const defaultOwnerStaffDays: BootstrapStaffMember["defaultDays"] = ["mon", "tue", "wed", "thu", "fri", "sat"];
 
 export function buildDefaultOwnerServices(shopId: string, now: string) {
   return defaultOwnerServiceTemplates.map((service) => ({
@@ -44,14 +44,14 @@ export function buildDefaultOwnerStaffMembers(params: {
   ownerPhone?: string | null;
   now: string;
 }) {
-  const { shopId, ownerName, ownerPhone, now } = params;
+  const { shopId, ownerPhone, now } = params;
   return [
     {
       id: `${shopId}-staff-owner`,
       shop_id: shopId,
-      name: ownerName.trim() || "대표",
+      name: "원장",
       phone: ownerPhone?.trim() || "",
-      role: "대표 / 전체 미용",
+      role: "원장 / 전체 미용",
       default_days: defaultOwnerStaffDays,
       start_time: "10:00",
       end_time: "19:00",

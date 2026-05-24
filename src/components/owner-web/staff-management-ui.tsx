@@ -1,10 +1,12 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import { ChevronDown, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
 import { cn } from "@/lib/utils";
 import {
   applyScheduleToCell,
+  buildDraft,
   formatShortDate,
   formatWeekdayKeys,
   getAnnualLeaveUsage,
@@ -12,7 +14,6 @@ import {
   getCellTone,
   getScheduledLeaveCount,
   getStaffAvailability,
-  getStaffRank,
   getWeeklyWorkDays,
   parseWeekdayText,
   timeSelectOptions,
@@ -26,6 +27,22 @@ import {
   type StaffMember,
   type WeekdayKey,
 } from "@/components/owner-web/staff-management-model";
+
+function formatStaffPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (!digits) return "";
+
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
 
 export function ScheduleTable({
   staff,
@@ -43,8 +60,8 @@ export function ScheduleTable({
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[920px]">
-        <div className="grid grid-cols-[180px_repeat(7,minmax(94px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[13px] text-[#64748b]">
-          <div className="px-5 py-3">스태프명</div>
+        <div className="grid grid-cols-[180px_repeat(7,minmax(94px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
+          <div className="px-5 py-3">직원명</div>
           {weekDates.map((day) => (
             <div key={day.date} className="px-3 py-3 text-center">
               {day.label}
@@ -55,7 +72,7 @@ export function ScheduleTable({
           <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(94px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
               <p className="text-[16px] font-semibold text-[#111827]">{staffMember.name}</p>
-              <p className="mt-1 truncate text-[12px] text-[#64748b]">{staffMember.role}</p>
+              <p className="mt-1 truncate text-[14px] text-[#64748b]">{staffMember.role}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
@@ -64,12 +81,13 @@ export function ScheduleTable({
                   key={`${staffMember.id}-${day.date}`}
                   type="button"
                   onClick={() => onOpenScheduleEditor(staffMember, day)}
-                  className={cn("mx-2 my-3 h-9 rounded-[8px] border px-2 text-[13px] transition hover:bg-[#f8fafc]", getCellTone(cell.status))}
+                  className={cn(
+                    "relative mx-2 my-3 flex h-9 items-center justify-center overflow-hidden rounded-[8px] border px-2 text-center text-[14px] font-medium transition",
+                    getCellTone(cell.status),
+                    getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
+                  )}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", getCellIndicatorTone(cell.status))} />
-                    {cell.label}
-                  </span>
+                  {cell.label}
                 </button>
               );
             })}
@@ -96,25 +114,53 @@ export function StaffList({
   onSelect: (staff: StaffMember) => void;
 }) {
   return (
-    <div className="divide-y divide-[#edf2f7]">
-      {staff.map((staffMember) => (
-        <button
-          key={staffMember.id}
-          type="button"
-          onClick={() => onSelect(staffMember)}
-          className={cn("grid w-full grid-cols-[minmax(0,1fr)_auto] gap-4 px-5 py-4 text-left transition hover:bg-[#f8fafc]", selectedStaffId === staffMember.id && "bg-[#f8fafc]")}
-        >
-          <div>
-            <p className="text-[18px] font-semibold text-[#111827]">{staffMember.name}</p>
-            <p className="mt-1 text-[13px] text-[#64748b]">{staffMember.role}</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-right">
-            <StaffMetric label="상태" value={getStaffAvailability(staffMember, requests, overrides)} />
-            <StaffMetric label="주간 근무" value={`${getWeeklyWorkDays(staffMember, weekStart, requests, overrides)}일`} />
-            <StaffMetric label="예정 휴무" value={`${getScheduledLeaveCount(staffMember, requests)}건`} />
-          </div>
-        </button>
-      ))}
+    <div className="overflow-x-auto">
+      <div className="min-w-[920px]">
+        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2.5 text-[14px] font-medium text-[#64748b]">
+          <span>직원</span>
+          <span>연락처</span>
+          <span className="text-center">상태</span>
+          <span className="text-center">주간 근무</span>
+          <span className="text-center">오늘 예약</span>
+          <span className="text-right">휴무/연차</span>
+        </div>
+        <div className="max-h-[560px] divide-y divide-[#edf2f7] overflow-y-auto">
+          {staff.map((staffMember) => {
+            const active = selectedStaffId === staffMember.id;
+            const availability = getStaffAvailability(staffMember, requests, overrides);
+            const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests, overrides);
+
+            return (
+              <button
+                key={staffMember.id}
+                type="button"
+                onClick={() => onSelect(staffMember)}
+                className={cn(
+                  "grid w-full grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
+                  active ? "bg-[#f6fbf9]" : "bg-white hover:bg-[#f8fafc]",
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[17px] font-semibold text-[#111827]">{staffMember.name}</p>
+                  <p className="mt-1 truncate text-[14px] text-[#64748b]">{staffMember.role}</p>
+                </div>
+                <p className="truncate text-[14px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
+                <span
+                  className={cn(
+                    "justify-self-center rounded-full px-2.5 py-1 text-[14px] font-medium",
+                    availability === "근무 가능" ? "bg-[#e6f3ef] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]",
+                  )}
+                >
+                  {availability}
+                </span>
+                <p className="text-center text-[14px] text-[#334155]">{weeklyDays}일</p>
+                <p className="text-center text-[14px] text-[#334155]">{staffMember.todayBookings}건</p>
+                <p className="text-right text-[14px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -123,6 +169,7 @@ export function StaffDetailPanel({
   selectedStaff,
   draft,
   requests,
+  overrides,
   onDraftChange,
   onSave,
   onOpenLeaveDialog,
@@ -131,50 +178,76 @@ export function StaffDetailPanel({
   selectedStaff: StaffMember;
   draft: StaffDraft;
   requests: LeaveRequest[];
+  overrides: ScheduleOverride[];
   onDraftChange: (updater: (current: StaffDraft) => StaffDraft) => void;
   onSave: () => void;
   onOpenLeaveDialog: () => void;
   onDeactivate: () => void;
 }) {
+  const annualUsage = getAnnualLeaveUsage(selectedStaff, requests);
+  const availability = getStaffAvailability(selectedStaff, requests, overrides);
+
   return (
     <WebSurface className="p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-medium text-[#64748b]">선택 스태프</p>
-          <h3 className="mt-1 text-[26px] font-medium text-[#111827]">{selectedStaff.name}</h3>
-          <p className="mt-1 text-[14px] text-[#64748b]">{getStaffRank(selectedStaff.role)}</p>
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold tracking-[0.12em] text-[#94a3b8]">직원 상세</p>
+          <h3 className="mt-2 truncate text-[22px] font-semibold text-[#111827]">{selectedStaff.name}</h3>
+          <p className="mt-1 text-[14px] text-[#64748b]">
+            오늘 예약 {selectedStaff.todayBookings}건 · 이번 주 {selectedStaff.weekBookings}건
+          </p>
         </div>
+        <span className="shrink-0 rounded-full bg-[#e6f3ef] px-2.5 py-1 text-[14px] font-medium text-[#1f6b5b]">{availability}</span>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <Field label="직원명">
+          <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
+        </Field>
+        <Field label="연락처">
+          <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
+        </Field>
+        <Field label="역할">
+          <TextInput value={draft.role} onChange={(role) => onDraftChange((current) => ({ ...current, role }))} />
+        </Field>
+        <Field label="기본 근무 요일">
+          <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => ({ ...current, defaultDaysText }))} />
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="기본 출근 시간">
+            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-10" />
+          </Field>
+          <Field label="기본 퇴근 시간">
+            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-10" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="정기 휴무">
+            <TextInput value={draft.regularOff} onChange={(regularOff) => onDraftChange((current) => ({ ...current, regularOff }))} placeholder="예: 일" />
+          </Field>
+          <Field label="연차 잔여일">
+            <TextInput value={draft.annualRemain} onChange={(annualRemain) => onDraftChange((current) => ({ ...current, annualRemain }))} type="number" />
+          </Field>
+        </div>
+        <div className="rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
+          <div className="flex items-center justify-between gap-3 text-[14px]">
+            <span className="text-[#64748b]">예정 휴무/연차</span>
+            <span className="font-medium text-[#111827]">{getScheduledLeaveCount(selectedStaff, requests)}건</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 text-[14px]">
+            <span className="text-[#64748b]">남은 연차</span>
+            <span className="font-medium text-[#111827]">{annualUsage.remaining}일</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <GhostButton label="취소" onClick={() => onDraftChange(() => buildDraft(selectedStaff))} />
         <PrimaryButton label="저장" onClick={onSave} />
       </div>
-      <div className="mt-5 space-y-2">
-        <StaffInfoRow label="이름">
-          <CompactInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} ariaLabel="이름" />
-        </StaffInfoRow>
-        <StaffInfoRow label="연락처">
-          <CompactInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone }))} ariaLabel="연락처" />
-        </StaffInfoRow>
-        <StaffInfoRow label="역할">
-          <CompactInput value={draft.role} onChange={(role) => onDraftChange((current) => ({ ...current, role }))} ariaLabel="역할" />
-        </StaffInfoRow>
-        <StaffInfoRow label="근무 요일">
-          <CompactInput value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => ({ ...current, defaultDaysText }))} ariaLabel="근무 요일" />
-        </StaffInfoRow>
-        <StaffInfoRow label="기본 시간">
-          <div className="flex items-center gap-2">
-            <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} />
-            <span className="text-[#94a3b8]">-</span>
-            <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} />
-          </div>
-        </StaffInfoRow>
-      </div>
-      <div className="mt-5 grid grid-cols-3 gap-2">
-        <StaffMetric label="오늘 예약" value={`${selectedStaff.todayBookings}건`} />
-        <StaffMetric label="주간 예약" value={`${selectedStaff.weekBookings}건`} />
-        <StaffMetric label="연차 잔여" value={`${getAnnualLeaveUsage(selectedStaff, requests).remaining}일`} />
-      </div>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <GhostButton label="휴무/연차 등록" onClick={onOpenLeaveDialog} />
-        <GhostButton label="스태프 비활성화" onClick={onDeactivate} />
+        <GhostButton label="직원 비활성화" onClick={onDeactivate} />
       </div>
     </WebSurface>
   );
@@ -183,7 +256,7 @@ export function StaffDetailPanel({
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[13px] font-normal text-[#334155]">{label}</span>
+      <span className="text-[14px] font-normal text-[#334155]">{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -213,7 +286,7 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         {weekdayColumns.map((day) => {
           const selected = selectedKeys.has(day.key);
           return (
@@ -222,8 +295,8 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
               type="button"
               onClick={() => toggleDay(day.key)}
               className={cn(
-                "h-10 rounded-[8px] border text-[13px] font-semibold transition",
-                selected ? "border-[#9ccabe] bg-[#f3faf7] text-[#1f6b5b]" : "border-[#d5dde6] bg-[#f8fafc] text-[#64748b]",
+                "h-8 min-w-8 rounded-full border px-2 text-[14px] font-normal transition",
+                selected ? "border-[#9ccabe] bg-[#edf7f3] text-[#1f6b5b]" : "border-[#d5dde6] bg-white text-[#64748b]",
               )}
               aria-pressed={selected}
             >
@@ -291,7 +364,7 @@ export function CompactInput({
 export function StaffInfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 items-center gap-3 border-b border-[#edf2f7] py-2 last:border-b-0">
-      <span className="shrink-0 text-[13px] text-[#64748b]">{label}</span>
+      <span className="shrink-0 text-[14px] text-[#64748b]">{label}</span>
       <div className="ml-auto flex min-w-0 flex-1 justify-end">{children}</div>
     </div>
   );
@@ -300,8 +373,8 @@ export function StaffInfoRow({ label, children }: { label: string; children: Rea
 export function StaffMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-      <p className="text-[12px] text-[#64748b]">{label}</p>
-      <p className="mt-0.5 text-[15px] font-medium text-[#111827]">{value}</p>
+      <p className="text-[14px] text-[#64748b]">{label}</p>
+      <p className="mt-0.5 text-[16px] font-medium text-[#111827]">{value}</p>
     </div>
   );
 }
@@ -311,14 +384,14 @@ export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardT
     <div className="flex flex-wrap items-center gap-3 border-b border-[#dbe2ea] pb-2">
       {[
         { key: "schedule" as StaffBoardTab, label: "주간 근무표" },
-        { key: "list" as StaffBoardTab, label: "스태프 목록" },
+        { key: "list" as StaffBoardTab, label: "직원 목록" },
       ].map((tab) => (
         <button
           key={tab.key}
           type="button"
           onClick={() => onChange(tab.key)}
           className={cn(
-            "h-10 rounded-[8px] px-4 text-[15px] transition",
+            "h-10 rounded-[8px] px-4 text-[16px] transition",
             activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
           )}
         >
@@ -332,11 +405,11 @@ export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardT
 export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChange: (draft: StaffDraft) => void }) {
   return (
     <div className="space-y-3">
-      <Field label="스태프명">
+      <Field label="직원명">
         <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
       </Field>
       <Field label="연락처">
-        <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone })} placeholder="010-0000-0000" />
+        <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>
       <Field label="역할">
         <TextInput value={draft.role} onChange={(role) => onChange({ ...draft, role })} placeholder="예: 미용사 / 목욕" />
@@ -377,32 +450,7 @@ export function StaffScheduleEditModal({
 }) {
   return (
     <StaffModal title={`${formatShortDate(draft.date)} ${draft.dayLabel}`} onClose={onClose}>
-      <div className="rounded-[8px] border border-[#dbe2ea]">
-        <button type="button" onClick={onToggleDefaultSchedule} className="flex w-full items-center justify-between px-4 py-3 text-left text-[15px] text-[#111827]">
-          <span>기본 근무 설정</span>
-          <ChevronDown className={cn("h-4 w-4 transition", defaultScheduleOpen && "rotate-180")} />
-        </button>
-        {defaultScheduleOpen ? (
-          <div className="space-y-3 border-t border-[#edf2f7] px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <Field label="기본 근무 요일">
-                <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => (current ? { ...current, defaultDaysText } : current))} />
-              </Field>
-              <GhostButton label="저장" onClick={onSaveDefaultSchedule} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="기본 출근">
-                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" />
-              </Field>
-              <Field label="기본 퇴근">
-                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" />
-              </Field>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-4 space-y-3">
+      <div className="space-y-3">
         <Field label="이날 일정">
           <SoftSelect<ScheduleOverrideStatus>
             value={draft.status}
@@ -420,10 +468,10 @@ export function StaffScheduleEditModal({
         {draft.status === "work" ? (
           <div className="grid grid-cols-2 gap-2">
             <Field label="출근 시간">
-              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" />
+              <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => (current ? { ...current, startTime } : current))} align="left" buttonClassName="h-10" />
             </Field>
             <Field label="퇴근 시간">
-              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" />
+              <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => (current ? { ...current, endTime } : current))} align="left" buttonClassName="h-10" />
             </Field>
           </div>
         ) : null}
@@ -445,6 +493,36 @@ export function StaffScheduleEditModal({
           <Field label="메모">
             <TextInput value={draft.reason} onChange={(reason) => onDraftChange((current) => (current ? { ...current, reason } : current))} placeholder="예: 개인 일정, 병원 방문" />
           </Field>
+        ) : null}
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-[8px] border border-[#e5eaf0] bg-[#fbfcfd]">
+        <button type="button" onClick={onToggleDefaultSchedule} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+          <span className="min-w-0">
+            <span className="block text-[14px] font-normal text-[#334155]">반복 근무 기준</span>
+            <span className="mt-0.5 block text-[13px] text-[#64748b]">매주 반복되는 요일과 시간은 필요할 때만 수정합니다.</span>
+          </span>
+          <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", defaultScheduleOpen && "rotate-180")} />
+        </button>
+        {defaultScheduleOpen ? (
+          <div className="border-t border-[#edf2f7] px-4 py-4">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_auto] md:items-start">
+              <Field label="반복 근무 요일">
+                <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => (current ? { ...current, defaultDaysText } : current))} />
+              </Field>
+              <div className="flex justify-end">
+                <GhostButton label="기준 저장" onClick={onSaveDefaultSchedule} />
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Field label="출근 기준">
+                <TimeSelect value={draft.defaultStartTime} onChange={(defaultStartTime) => onDraftChange((current) => (current ? { ...current, defaultStartTime } : current))} align="left" buttonClassName="h-10" />
+              </Field>
+              <Field label="퇴근 기준">
+                <TimeSelect value={draft.defaultEndTime} onChange={(defaultEndTime) => onDraftChange((current) => (current ? { ...current, defaultEndTime } : current))} align="left" buttonClassName="h-10" />
+              </Field>
+            </div>
+          </div>
         ) : null}
       </div>
 

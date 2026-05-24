@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -124,7 +124,7 @@ async function getActiveStaffForShop(
   }
 
   if (!staffResult.data?.id) {
-    throw new OwnerApiError("해당 매장의 활성 스태프를 찾을 수 없습니다.", 404);
+    throw new OwnerApiError("해당 매장의 활성 직원를 찾을 수 없습니다.", 404);
   }
 
   return staffResult.data as StaffMemberRow;
@@ -222,10 +222,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error instanceof z.ZodError) {
-      return ownerMobileCorsJson(request, { message: "스태프 일정 정보를 다시 확인해 주세요." }, { status: 400 });
+      return ownerMobileCorsJson(request, { message: "직원 일정 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "스태프 일정을 저장하지 못했습니다.";
+    const message = error instanceof Error ? error.message : "직원 일정을 저장하지 못했습니다.";
     return ownerMobileCorsJson(request, { message }, { status: 500 });
   }
 }
@@ -261,10 +261,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (error instanceof z.ZodError) {
-      return ownerMobileCorsJson(request, { message: "스태프 일정 정보를 다시 확인해 주세요." }, { status: 400 });
+      return ownerMobileCorsJson(request, { message: "직원 일정 정보를 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "스태프 일정을 초기화하지 못했습니다.";
+    const message = error instanceof Error ? error.message : "직원 일정을 초기화하지 못했습니다.";
     return ownerMobileCorsJson(request, { message }, { status: 500 });
   }
 }

@@ -14,6 +14,13 @@ export type AlimtalkMediaAttachment = {
   metadata?: AlimtalkMetadata | null;
 };
 
+export type AlimtalkButton = {
+  type: "WL";
+  name: string;
+  linkMobile: string;
+  linkPc?: string | null;
+};
+
 type SendAlimtalkInput = {
   to: string;
   message: string;
@@ -23,6 +30,7 @@ type SendAlimtalkInput = {
   recipientName?: string | null;
   metadata?: AlimtalkMetadata | null;
   mediaAttachments?: AlimtalkMediaAttachment[] | null;
+  buttons?: AlimtalkButton[] | null;
 };
 
 type SendAlimtalkResult = {
@@ -114,11 +122,26 @@ function normalizeMediaAttachments(value: AlimtalkMediaAttachment[] | null | und
     }));
 }
 
+function normalizeButtons(value: AlimtalkButton[] | null | undefined) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && item.type === "WL" && item.name.trim() && item.linkMobile.trim())
+    .slice(0, 5)
+    .map((item) => ({
+      type: item.type,
+      name: item.name.trim(),
+      linkMobile: item.linkMobile.trim(),
+      linkPc: item.linkPc?.trim() || item.linkMobile.trim(),
+    }));
+}
+
 export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<SendAlimtalkResult> {
   const { relayUrlHost, relayUrlPathname } = getRelayUrlParts(serverEnv.alimtalkRelayUrl);
   const hasRelayUrl = Boolean(serverEnv.alimtalkRelayUrl);
   const hasRelaySecret = Boolean(serverEnv.alimtalkRelaySecret);
   const mediaAttachments = normalizeMediaAttachments(input.mediaAttachments);
+  const buttons = normalizeButtons(input.buttons);
 
   console.log("[alimtalk-provider] env check", {
     hasRelayUrl,
@@ -151,6 +174,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),
+          ...(buttons.length ? { buttons } : {}),
         }),
         cache: "no-store",
       });
@@ -211,6 +235,16 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           template_type: input.templateType ?? "alimtalk",
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),
+          ...(buttons.length
+            ? {
+                button: buttons.map((button) => ({
+                  name: button.name,
+                  type: button.type,
+                  url_mobile: button.linkMobile,
+                  url_pc: button.linkPc,
+                })),
+              }
+            : {}),
         }
       : {
           profileKey: serverEnv.alimtalkProfileKey ?? null,
@@ -222,6 +256,7 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),
+          ...(buttons.length ? { buttons } : {}),
         };
 
   const headers: Record<string, string> =

@@ -65,6 +65,12 @@ export type RelayTemplateRegisterInput = {
   comment?: string | null;
   requestReview: boolean;
   templateConfigKey?: AlimtalkTemplateConfigKey | null;
+  templateButtons?: Array<{
+    buttonType: "WL";
+    buttonName: string;
+    linkMobile: string;
+    linkPc?: string | null;
+  }> | null;
 };
 
 export type RelayTemplateRegisterResponse = {
@@ -127,6 +133,11 @@ export type AdminNotificationActivityItem = {
   failReason: string | null;
   providerMessageId: string | null;
   recipientPhoneTail: string | null;
+  providerDeliveryStatus: string | null;
+  providerDeliveryError: string | null;
+  providerDeliveryFound: boolean | null;
+  providerDeliveryCheckedAt: string | null;
+  providerDeliveryLookupError: string | null;
 };
 
 export type AdminNotificationActivity = {
@@ -147,11 +158,27 @@ export type RelayRuntimeDiagnostics = {
   configured: boolean;
   relayHost: string | null;
   health: RelayEndpointDiagnostic;
+  provider: RelayEndpointDiagnostic & {
+    latencyMs: number | null;
+    categoryCount: number | null;
+  };
   templates: RelayEndpointDiagnostic & {
     configuredTemplates: number;
     totalTemplates: number;
     templateMap: Partial<Record<AlimtalkTemplateAlias, { configured: boolean; length: number }>> | null;
   };
+};
+
+type RelaySentListLookupResponse = {
+  ok: true;
+  provider: "ssodaa";
+  date: string;
+  found: boolean;
+  status: string | null;
+  message: string | null;
+  row: unknown;
+  totalRows: number;
+  providerResponse: unknown;
 };
 
 export type AdminAlimtalkTestInput = {
@@ -184,12 +211,18 @@ type NotificationRow = {
   pet_id: string | null;
   type: NotificationType;
   channel: ChannelType;
+  message: string | null;
   status: NotificationStatus;
   provider_message_id: string | null;
   recipient_phone: string | null;
   fail_reason: string | null;
   created_at: string;
   sent_at: string | null;
+};
+
+type AdminNotificationActivityItemWithLookupInput = AdminNotificationActivityItem & {
+  recipientPhone: string | null;
+  message: string;
 };
 
 function getRelayAdminUrl() {
@@ -260,6 +293,18 @@ function getBodyPreview(body: unknown, maxLength = 800) {
   } catch {
     return "[unserializable]";
   }
+}
+
+function getDateStringInSeoul(value: string | null | undefined) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 function getRelayHost() {
@@ -490,9 +535,10 @@ async function fetchRelayDiagnostic(pathname: string, requiresSecret = false): P
 }
 
 export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnostics> {
-  const [healthResult, templatesResult] = await Promise.all([
+  const [healthResult, templatesResult, providerResult] = await Promise.all([
     fetchRelayDiagnostic("/health"),
     fetchRelayDiagnostic("/debug/templates", true),
+    fetchRelayDiagnostic("/admin/provider/diagnostics", true),
   ]);
 
   const templateMap =
@@ -514,6 +560,21 @@ export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnost
       bodyPreview: healthResult.bodyPreview,
       error: healthResult.error,
     },
+    provider: {
+      url: providerResult.url,
+      status: providerResult.status,
+      ok: providerResult.ok,
+      bodyPreview: providerResult.bodyPreview,
+      error: providerResult.error,
+      latencyMs:
+        providerResult.body && typeof providerResult.body === "object" && "latencyMs" in providerResult.body
+          ? Number((providerResult.body as { latencyMs?: unknown }).latencyMs) || null
+          : null,
+      categoryCount:
+        providerResult.body && typeof providerResult.body === "object" && "categoryCount" in providerResult.body
+          ? Number((providerResult.body as { categoryCount?: unknown }).categoryCount) || null
+          : null,
+    },
     templates: {
       url: templatesResult.url,
       status: templatesResult.status,
@@ -528,15 +589,22 @@ export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnost
 }
 
 function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
+  const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
+  const shopAddress = "서울시 강남구 테헤란로 123";
+  const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo";
+  const directionsUrl = `https://map.naver.com/p/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
+
   return {
-    매장명: input.shopName?.trim() || "펫매니저 테스트 매장",
+    매장명: shopName,
     반려동물명: input.petName?.trim() || "보리",
     보호자명: input.recipientName?.trim() || "보호자님",
     예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
     서비스명: input.serviceName?.trim() || "전체 미용",
+    매장주소: shopAddress,
     "예약 링크": input.bookingEntryUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop",
-    "예약 확인 링크":
-      input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo",
+    "예약 확인 링크": bookingManageUrl,
+    예약관리링크: bookingManageUrl,
+    길찾기링크: directionsUrl,
   };
 }
 
@@ -563,7 +631,9 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     반려동물명: input.petName?.trim() || "우유",
     예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
     서비스명: input.serviceName?.trim() || "전체 미용",
+    매장주소: "서울시 강남구 테헤란로 123",
     예약관리링크: input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr",
+    길찾기링크: `https://map.naver.com/p/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
   });
 
   const message = renderNotificationTemplateBody(spec.type, buildAdminTestTemplateValues(input)) ?? fallbackMessage;
@@ -591,6 +661,39 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
   };
 }
 
+async function lookupRelaySentList(input: {
+  recipientPhone: string;
+  date: string;
+  message: string;
+  providerMessageId: string | null;
+}): Promise<RelaySentListLookupResponse> {
+  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/sent-list"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+    },
+    body: JSON.stringify({
+      destPhone: input.recipientPhone,
+      date: input.date,
+      message: input.message,
+      providerMessageId: input.providerMessageId,
+    }),
+    cache: "no-store",
+  });
+
+  const body = await parseRelayResponse(response);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "message" in body && typeof body.message === "string"
+        ? body.message
+        : "쏘다 발송내역 조회에 실패했습니다.";
+    throw new Error(message);
+  }
+
+  return body as RelaySentListLookupResponse;
+}
+
 function phoneTail(value: string | null | undefined) {
   if (!value) return null;
   const normalized = value.replace(/[^0-9]/g, "");
@@ -610,7 +713,7 @@ export async function getAdminNotificationActivity(limit = 30): Promise<AdminNot
   const { data, error } = await supabase
     .from("notifications")
     .select(
-      "id, shop_id, guardian_id, pet_id, type, channel, status, provider_message_id, recipient_phone, fail_reason, created_at, sent_at",
+      "id, shop_id, guardian_id, pet_id, type, channel, message, status, provider_message_id, recipient_phone, fail_reason, created_at, sent_at",
     )
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -646,7 +749,7 @@ export async function getAdminNotificationActivity(limit = 30): Promise<AdminNot
   const guardianMap = new Map((guardiansRes.data ?? []).map((item) => [item.id as string, item.name as string]));
   const petMap = new Map((petsRes.data ?? []).map((item) => [item.id as string, item.name as string]));
 
-  const items = rows.map<AdminNotificationActivityItem>((row) => ({
+  const items = rows.map<AdminNotificationActivityItemWithLookupInput>((row) => ({
     id: row.id,
     createdAt: row.created_at,
     sentAt: row.sent_at,
@@ -660,11 +763,74 @@ export async function getAdminNotificationActivity(limit = 30): Promise<AdminNot
     status: row.status,
     failReason: row.fail_reason ?? null,
     providerMessageId: row.provider_message_id ?? null,
+    recipientPhone: row.recipient_phone ?? null,
     recipientPhoneTail: phoneTail(row.recipient_phone),
+    message: row.message ?? "",
+    providerDeliveryStatus: null,
+    providerDeliveryError: null,
+    providerDeliveryFound: null,
+    providerDeliveryCheckedAt: null,
+    providerDeliveryLookupError: null,
   }));
 
+  const enrichedItems = await Promise.all(items.map(enrichNotificationActivityWithProviderDelivery));
+  const publicItems = enrichedItems.map(stripNotificationActivityLookupInput);
+
   return {
-    issues: items.filter((item) => item.status === "failed" || item.status === "skipped").slice(0, 12),
-    recentEvents: items.filter((item) => item.channel !== "mock").slice(0, 20),
+    issues: publicItems.filter((item) => item.status === "failed" || item.status === "skipped").slice(0, 12),
+    recentEvents: publicItems.filter((item) => item.channel !== "mock").slice(0, 20),
   };
+}
+
+async function enrichNotificationActivityWithProviderDelivery(
+  item: AdminNotificationActivityItemWithLookupInput,
+): Promise<AdminNotificationActivityItemWithLookupInput> {
+  if (item.channel !== "alimtalk" || !item.recipientPhone || !item.message.trim()) {
+    return item;
+  }
+
+  if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) {
+    return {
+      ...item,
+      providerDeliveryLookupError: "알림톡 relay URL/Secret이 없어 쏘다 발송내역을 조회하지 못했습니다.",
+    };
+  }
+
+  const date = getDateStringInSeoul(item.sentAt ?? item.createdAt);
+  if (!date) {
+    return {
+      ...item,
+      providerDeliveryLookupError: "발송일을 계산하지 못해 쏘다 발송내역을 조회하지 못했습니다.",
+    };
+  }
+
+  try {
+    const result = await lookupRelaySentList({
+      recipientPhone: item.recipientPhone,
+      date,
+      message: item.message,
+      providerMessageId: item.providerMessageId,
+    });
+
+    return {
+      ...item,
+      providerDeliveryStatus: result.status,
+      providerDeliveryError: result.message,
+      providerDeliveryFound: result.found,
+      providerDeliveryCheckedAt: new Date().toISOString(),
+      providerDeliveryLookupError: null,
+    };
+  } catch (error) {
+    return {
+      ...item,
+      providerDeliveryLookupError: error instanceof Error ? error.message : "쏘다 발송내역 조회에 실패했습니다.",
+    };
+  }
+}
+
+function stripNotificationActivityLookupInput(
+  item: AdminNotificationActivityItemWithLookupInput,
+): AdminNotificationActivityItem {
+  const { recipientPhone: _recipientPhone, message: _message, ...publicItem } = item;
+  return publicItem;
 }

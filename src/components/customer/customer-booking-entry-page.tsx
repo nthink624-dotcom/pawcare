@@ -1,24 +1,31 @@
-"use client";
+﻿"use client";
 
-import { ChevronDown, Copy, MapPinned, Navigation, Phone, Scissors, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Copy, Navigation, Phone, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-import LegalLinksFooter from "@/components/legal/legal-links-footer";
-import { formatServicePrice } from "@/lib/utils";
-import type { BusinessHours, Service, Shop } from "@/types/domain";
+import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
+import type { BusinessHours, Shop } from "@/types/domain";
 
-const DEFAULT_HERO_IMAGE =
-  "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=900&q=80";
+const DEFAULT_HERO_IMAGES = [
+  "/images/customer-booking-hero-original.jpg",
+];
+const visibleDateOptionCount = 4;
 
 const weekRows = [
-  { key: 1, label: "월요일", shortLabel: "월" },
-  { key: 2, label: "화요일", shortLabel: "화" },
-  { key: 3, label: "수요일", shortLabel: "수" },
-  { key: 4, label: "목요일", shortLabel: "목" },
-  { key: 5, label: "금요일", shortLabel: "금" },
-  { key: 6, label: "토요일", shortLabel: "토" },
-  { key: 0, label: "일요일", shortLabel: "일" },
+  { key: 1, label: "월요일" },
+  { key: 2, label: "화요일" },
+  { key: 3, label: "수요일" },
+  { key: 4, label: "목요일" },
+  { key: 5, label: "금요일" },
+  { key: 6, label: "토요일" },
+  { key: 0, label: "일요일" },
 ] as const;
+
+type EntryDateOption = {
+  value: string;
+  label: string;
+  weekday: string;
+};
 
 function getTodayWeekdayInSeoul() {
   const weekday = new Intl.DateTimeFormat("en-US", {
@@ -45,6 +52,56 @@ function formatHoursRow(day: number, businessHours: BusinessHours, regularClosed
   return `${hours.open} - ${hours.close}`;
 }
 
+function getSeoulDateKey() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function formatDateKey(date: Date) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function buildEntryDateOptions(
+  shop: Pick<Shop, "business_hours" | "regular_closed_days" | "temporary_closed_dates">,
+): EntryDateOption[] {
+  const options: EntryDateOption[] = [];
+  const todayKey = getSeoulDateKey();
+  const startDate = new Date(`${todayKey}T00:00:00`);
+  let offset = 0;
+
+  while (options.length < 30 && offset < 90) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + offset);
+    const value = formatDateKey(date);
+    const weekdayNumber = date.getDay();
+    const hours = shop.business_hours[weekdayNumber];
+    const isClosed =
+      shop.regular_closed_days.includes(weekdayNumber) ||
+      shop.temporary_closed_dates.includes(value) ||
+      !hours?.enabled;
+
+    if (!isClosed) {
+      options.push({
+        value,
+        label: value === todayKey ? "오늘" : `${date.getMonth() + 1}/${date.getDate()}`,
+        weekday: new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(date),
+      });
+    }
+
+    offset += 1;
+  }
+
+  return options;
+}
+
 function openExternalMap(appUrl: string, webUrl: string) {
   if (typeof window === "undefined") return;
 
@@ -62,38 +119,120 @@ function openExternalMap(appUrl: string, webUrl: string) {
   window.location.href = appUrl;
 }
 
-function resolveHeroImage(value: string | undefined) {
-  return value?.trim() || DEFAULT_HERO_IMAGE;
+function resolveHeroImages(value: string | undefined) {
+  const uploadedImage = value?.trim();
+  return uploadedImage ? [uploadedImage, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
 }
 
 export default function CustomerBookingEntryPage({
   shop,
-  services,
   bookingHref,
-  infoHref,
 }: {
-  shop: Pick<Shop, "id" | "name" | "phone" | "address" | "customer_page_settings" | "business_hours" | "regular_closed_days">;
-  services: Service[];
+  shop: Pick<Shop, "id" | "name" | "phone" | "address" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
+  services: unknown[];
   bookingHref: string;
   infoHref: string;
 }) {
   const settings = shop.customer_page_settings;
   const displayName = settings.shop_name?.trim() || shop.name;
-  const tagline = settings.tagline?.trim() || "아이 성향에 맞춰 차분하게 미용 시간을 준비해요.";
-  const primaryColor = settings.primary_color || "#1F6B5B";
+  const savedTagline = settings.tagline?.trim() || "";
+  const tagline =
+    savedTagline.includes("운영을 돕는") || savedTagline.includes("예약 관리 앱")
+      ? "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요."
+      : savedTagline || "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.";
+  const bookingAccentColor = "#7A5A45";
   const todayWeekday = getTodayWeekdayInSeoul();
   const todayRow = weekRows.find((row) => row.key === todayWeekday) ?? weekRows[0];
   const todayHours = formatHoursRow(todayRow.key, shop.business_hours, shop.regular_closed_days);
-  const activeServices = services.filter((service) => service.is_active).slice(0, 3);
-  const visibleParkingNotice = settings.show_parking_notice ? settings.parking_notice.trim() : "";
+  const operatingStatusLabel = todayHours === "휴무" ? "오늘 휴무" : "영업 중";
+  const dateOptions = useMemo(() => buildEntryDateOptions(shop), [shop]);
+  const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url), [settings.hero_image_url]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
+  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const [datePageStartIndex, setDatePageStartIndex] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(() => dateOptions[0]?.value ?? "");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const directionsQuery = useMemo(() => [displayName, shop.address].filter(Boolean).join(" "), [displayName, shop.address]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
   const kakaoWebUrl = `https://map.kakao.com/link/search/${encodeURIComponent(directionsQuery)}`;
   const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
+  const kakaoInquiryUrl = settings.kakao_inquiry_url.trim();
+  const inquiryHref = kakaoInquiryUrl || `tel:${shop.phone.replace(/[^0-9+]/g, "")}`;
+  const maxDatePageStartIndex = Math.max(0, dateOptions.length - visibleDateOptionCount);
+  const effectiveDatePageStartIndex = Math.min(datePageStartIndex, maxDatePageStartIndex);
+  const visibleDateOptions = useMemo(
+    () => dateOptions.slice(effectiveDatePageStartIndex, effectiveDatePageStartIndex + visibleDateOptionCount),
+    [dateOptions, effectiveDatePageStartIndex],
+  );
+  const canMoveDatePrev = effectiveDatePageStartIndex > 0;
+  const canMoveDateNext = effectiveDatePageStartIndex < maxDatePageStartIndex;
+
+  useEffect(() => {
+    if (heroImages.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveHeroIndex((current) => (current + 1) % heroImages.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [heroImages.length]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      return;
+    }
+
+    let active = true;
+    const loadingTimer = window.setTimeout(() => {
+      if (!active) return;
+      setLoadingSlots(true);
+      setSelectedTime("");
+    }, 0);
+
+    const query = new URLSearchParams({
+      shopId: shop.id,
+      date: selectedDate,
+      previewDurationMinutes: "30",
+    });
+
+    fetch(`/api/availability?${query.toString()}`)
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("availability failed"))))
+      .then((payload: { slots?: string[] }) => {
+        if (!active) return;
+        setAvailableSlots(Array.isArray(payload.slots) ? payload.slots : []);
+      })
+      .catch(() => {
+        if (active) setAvailableSlots([]);
+      })
+      .finally(() => {
+        if (active) setLoadingSlots(false);
+      });
+
+    return () => {
+      active = false;
+      window.clearTimeout(loadingTimer);
+    };
+  }, [selectedDate, shop.id]);
+
+  function startBookingWithSlot(timeSlot: string) {
+    setSelectedTime(timeSlot);
+
+    if (typeof window === "undefined") return;
+    const nextUrl = new URL(bookingHref, window.location.origin);
+    nextUrl.searchParams.set("date", selectedDate);
+    nextUrl.searchParams.set("time", timeSlot);
+    window.location.assign(`${nextUrl.pathname}${nextUrl.search}`);
+  }
+
+  function moveDatePage(direction: "prev" | "next") {
+    setDatePageStartIndex((current) => {
+      const nextIndex = direction === "next" ? current + visibleDateOptionCount : current - visibleDateOptionCount;
+      return Math.max(0, Math.min(maxDatePageStartIndex, nextIndex));
+    });
+  }
 
   async function handleCopyAddress() {
     if (typeof window === "undefined") return;
@@ -108,172 +247,190 @@ export default function CustomerBookingEntryPage({
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfaf7] px-5 pb-10 pt-4">
-      <section className="overflow-hidden rounded-[30px] border border-[#e0e6e2] bg-white shadow-[0_16px_36px_rgba(26,38,33,0.08)]">
+    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-4">
+      <section className="overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
         <div
-          className="min-h-[385px] bg-cover bg-center px-6 pb-8 pt-8 text-white"
+          className="relative aspect-[16/9] overflow-hidden bg-[#efe7dd] text-white"
           style={{
-            backgroundImage: `linear-gradient(180deg, rgba(12, 17, 15, 0.14), rgba(12, 17, 15, 0.72)), url(${resolveHeroImage(settings.hero_image_url)})`,
+            backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[activeHeroIndex]})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="inline-flex rounded-full border border-white/32 bg-white/10 px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.08em] text-white/95 backdrop-blur-sm">
-              PETMANAGER RESERVATION
+          <span className="sr-only">{displayName}</span>
+          {heroImages.length > 1 ? (
+            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+              {heroImages.map((image, index) => (
+                <button
+                  key={`${image}-${index}`}
+                  type="button"
+                  aria-label={`${index + 1}번째 대표 사진 보기`}
+                  onClick={() => setActiveHeroIndex(index)}
+                  className={`h-1.5 rounded-full transition ${activeHeroIndex === index ? "w-5 bg-white" : "w-1.5 bg-white/55"}`}
+                />
+              ))}
             </div>
-            <a
-              href={infoHref}
-              className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-full border border-white/24 bg-white/14 px-4 text-[12px] font-semibold text-white/92 backdrop-blur-sm"
-            >
-              매장 정보
-            </a>
-          </div>
-
-          <h1 className="mt-11 max-w-[310px] text-[31px] font-semibold leading-[1.16] tracking-[-0.04em] text-white">
-            {displayName}
-          </h1>
-          <p className="mt-4 max-w-[300px] text-[15px] font-semibold leading-7 tracking-[-0.02em] text-white/88">
-            {tagline}
-          </p>
-
-          <a
-            href={bookingHref}
-            className="mt-8 flex h-[52px] items-center justify-center rounded-full text-[16px] font-semibold text-white shadow-[0_14px_28px_rgba(0,0,0,0.16)]"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {settings.booking_button_label || "예약하기"}
-          </a>
-
-          <button
-            type="button"
-            onClick={() => setDirectionsOpen(true)}
-            className="mt-3 flex h-[52px] w-full items-center justify-center rounded-full border border-white/46 bg-white/12 text-[16px] font-semibold text-white backdrop-blur-sm"
-          >
-            길찾기
-          </button>
+          ) : (
+            <div aria-hidden="true" className="absolute bottom-3 left-1/2 h-1.5 w-12 -translate-x-1/2 rounded-full bg-white/85 shadow-[0_1px_6px_rgba(0,0,0,0.18)]" />
+          )}
         </div>
       </section>
 
-      <section className="mt-4 rounded-[24px] border border-[#e0e6e2] bg-white p-4 shadow-[0_12px_26px_rgba(26,38,33,0.05)]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[13px] font-medium text-[#7a8881]">오늘 운영</p>
-            <p className="mt-1 text-[22px] font-semibold tracking-[-0.03em] text-[#071923]">{todayHours}</p>
-          </div>
-          <span
-            className="rounded-full px-3 py-1 text-[13px] font-medium"
-            style={{
-              backgroundColor: todayHours === "휴무" ? "#f3f5f4" : "#edf7f4",
-              color: todayHours === "휴무" ? "#6d7772" : primaryColor,
-            }}
-          >
-            {todayRow.shortLabel}
-          </span>
-        </div>
-
-      </section>
-
-      <section className="mt-4 rounded-[24px] border border-[#e0e6e2] bg-white p-4 shadow-[0_12px_26px_rgba(26,38,33,0.05)]">
-        <div className="flex items-start gap-3">
-          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#edf7f4]" style={{ color: primaryColor }}>
-            <MapPinned className="h-4.5 w-4.5" strokeWidth={2} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#071923]">오시는 길</p>
-            <p className="mt-1 text-[14px] leading-6 text-[#65726b]">{shop.address}</p>
+      <section className="mt-3 rounded-[18px] border border-[#e5e7eb] bg-white p-4 shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
+        <div className="px-1 pb-3">
+          <div className="min-w-0">
+            <h2 className="truncate text-[24px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
+            <p className="mt-1.5 truncate text-[14px] font-medium tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
           </div>
         </div>
-      </section>
 
-      <section className="mt-4 rounded-[24px] border border-[#e0e6e2] bg-white p-4 shadow-[0_12px_26px_rgba(26,38,33,0.05)]">
         <button
           type="button"
           onClick={() => setHoursOpen((value) => !value)}
-          className="flex h-11 w-full items-center justify-between rounded-[14px] border border-[#e0e6e2] bg-[#fcfbf8] px-4 text-[14px] font-medium text-[#26352f]"
+          aria-expanded={hoursOpen}
+          className="grid h-[58px] w-full grid-cols-[auto_auto_1fr] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left text-[#071923]"
         >
-          운영 시간 전체 보기
-          <ChevronDown className={`h-4 w-4 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
+          <span className="inline-flex min-w-0 justify-start">
+            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[15px] font-medium text-[#6f6258]">
+              <span className={getDotIndicatorClass(todayHours === "휴무" ? "neutral" : "teal")} />
+              <span>{operatingStatusLabel}</span>
+            </span>
+          </span>
+          <span className="whitespace-nowrap text-center text-[18px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>
+          <span className="inline-flex min-w-0 justify-end">
+            <span className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-3 text-[15px] font-normal text-[#6f6258]">
+              전체 보기
+              <ChevronDown className={`h-3.5 w-3.5 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
+            </span>
+          </span>
         </button>
 
         {hoursOpen ? (
-          <div className="mt-3 overflow-hidden rounded-[16px] border border-[#e5e9e6]">
+          <div className="mt-3 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white text-[#26352f]">
             {weekRows.map((row, index) => {
               const hoursText = formatHoursRow(row.key, shop.business_hours, shop.regular_closed_days);
               const isToday = row.key === todayWeekday;
               return (
                 <div
                   key={row.key}
-                  className={`grid grid-cols-[1fr_120px] items-center px-4 py-3 text-[14px] ${
+                  className={`grid grid-cols-[1fr_120px] items-center px-4 py-2.5 text-[13px] ${
                     index !== weekRows.length - 1 ? "border-b border-[#edf0ee]" : ""
-                  } ${isToday ? "bg-[#f4faf7]" : "bg-white"}`}
+                  } ${isToday ? "bg-[#faf7f2]" : "bg-white"}`}
                 >
-                  <span className="font-medium text-[#26352f]">{row.label}</span>
+                  <span className="font-medium">{row.label}</span>
                   <span className={`text-right ${hoursText === "휴무" ? "text-[#87918c]" : "text-[#26352f]"}`}>{hoursText}</span>
                 </div>
               );
             })}
           </div>
         ) : null}
-      </section>
 
-      {activeServices.length > 0 ? (
-        <section className="mt-4 rounded-[24px] border border-[#e0e6e2] bg-white p-4 shadow-[0_12px_26px_rgba(26,38,33,0.05)]">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#071923]">서비스 안내</p>
-            <Scissors className="h-4 w-4 text-[#94a09a]" strokeWidth={1.8} />
+        <div className="mt-3 rounded-[10px] border border-[#e5e7eb] bg-white p-3.5 text-[#071923]">
+          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#26352f]">예약 날짜</p>
+          <div className="mt-2 grid grid-cols-[24px_repeat(4,minmax(0,1fr))_24px] items-stretch gap-1.5">
+            <button
+              type="button"
+              onClick={() => moveDatePage("prev")}
+              disabled={!canMoveDatePrev}
+              className="inline-flex h-[64px] items-center justify-center rounded-[10px] bg-transparent text-[#7a6a5d] transition hover:bg-[#faf7f2] disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="이전 날짜 보기"
+            >
+              <ChevronLeft className="h-4 w-4" strokeWidth={1.9} />
+            </button>
+            {visibleDateOptions.map((option) => {
+              const active = selectedDate === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSelectedDate(option.value)}
+                  className={`h-[64px] rounded-[8px] border px-2 py-2 text-center transition ${
+                    active ? "text-white" : "border-[#e5e7eb] bg-white text-[#3f352d] hover:bg-[#faf7f2]"
+                  }`}
+                  style={active ? { borderColor: bookingAccentColor, backgroundColor: bookingAccentColor } : undefined}
+                >
+                  <span className={`block text-[11px] ${active ? "text-white/80" : "text-[#7a6a5d]"}`}>{option.weekday}</span>
+                  <span className="mt-0.5 block text-[14px] font-semibold tracking-[-0.03em]">{option.label}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => moveDatePage("next")}
+              disabled={!canMoveDateNext}
+              className="inline-flex h-[64px] items-center justify-center rounded-[10px] bg-transparent text-[#7a6a5d] transition hover:bg-[#faf7f2] disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="다음 날짜 보기"
+            >
+              <ChevronRight className="h-4 w-4" strokeWidth={1.9} />
+            </button>
           </div>
-          <div className="space-y-2">
-            {activeServices.map((service) => (
-              <div key={service.id} className="flex items-center justify-between gap-3 rounded-[16px] bg-[#fcfbf8] px-4 py-3">
-                <span className="min-w-0 truncate text-[14px] font-medium text-[#26352f]">{service.name}</span>
-                <span className="shrink-0 text-[13px] font-medium" style={{ color: primaryColor }}>
-                  {formatServicePrice(service.price, service.price_type ?? "starting")}
-                </span>
+
+          <div className="mt-3">
+            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#26352f]">시간 선택</p>
+            {loadingSlots ? (
+              <p className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-3 text-[13px] text-[#7a6a5d]">
+                가능한 시간을 확인하고 있어요.
+              </p>
+            ) : availableSlots.length > 0 ? (
+              <div className="mt-2 grid max-h-[118px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
+                {availableSlots.map((slot) => {
+                  const active = selectedTime === slot;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => startBookingWithSlot(slot)}
+                      className={`rounded-[8px] border px-2 py-2 text-[14px] font-medium tracking-[-0.02em] transition ${
+                        active ? "text-white" : "border-[#e5e7eb] bg-white text-[#3f352d] hover:bg-[#faf7f2]"
+                      }`}
+                      style={active ? { borderColor: bookingAccentColor, backgroundColor: bookingAccentColor } : undefined}
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+            ) : (
+              <p className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-3 text-[13px] text-[#7a6a5d]">
+                선택한 날짜에 가능한 시간이 없어요.
+              </p>
+            )}
           </div>
-        </section>
-      ) : null}
+        </div>
 
-      <section className="mt-4 rounded-[24px] border border-[#e0e6e2] bg-white p-4 shadow-[0_12px_26px_rgba(26,38,33,0.05)]">
-        <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#071923]">매장 안내</p>
-        <div className="mt-3 space-y-2.5">
-          <a
-            href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`}
-            className="flex min-h-[46px] items-center justify-between gap-3 rounded-[16px] bg-[#fcfbf8] px-4 py-3 text-[14px] text-[#26352f]"
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setDirectionsOpen(true)}
+            className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[15px] font-bold text-[#3f352d] hover:bg-[#faf7f2]"
           >
-            <span className="font-medium">전화 문의</span>
-            <span className="text-right text-[#65726b]">{shop.phone}</span>
-          </a>
-          {visibleParkingNotice ? (
-            <div className="rounded-[16px] bg-[#fcfbf8] px-4 py-3">
-              <p className="text-[14px] font-medium text-[#26352f]">방문 안내</p>
-              <p className="mt-1 text-[14px] leading-6 text-[#65726b]">{visibleParkingNotice}</p>
-            </div>
-          ) : null}
+            길찾기
+          </button>
           <a
-            href={infoHref}
-            className="flex h-[46px] items-center justify-between rounded-[16px] bg-[#fcfbf8] px-4 text-[14px] font-medium text-[#26352f]"
+            href={inquiryHref}
+            target={kakaoInquiryUrl ? "_blank" : undefined}
+            rel={kakaoInquiryUrl ? "noreferrer" : undefined}
+            className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[15px] font-bold text-[#3f352d] hover:bg-[#faf7f2]"
           >
-            매장 정보 더 보기
-            <span className="text-[#65726b]">열기</span>
+            문의하기
           </a>
         </div>
       </section>
 
       {directionsOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 px-4" onClick={() => setDirectionsOpen(false)}>
-          <div className="w-full max-w-[430px] rounded-t-[28px] bg-[#fbfaf7] p-4" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
+          <div className="w-full max-w-[430px] rounded-t-[18px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#e5e7eb]" />
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-medium" style={{ color: primaryColor }}>
+                <p className="text-[13px] font-bold" style={{ color: bookingAccentColor }}>
                   길찾기
                 </p>
                 <h3 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#071923]">{displayName}</h3>
               </div>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#dce5e0] bg-white text-[#65726b]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[#7a5a45]"
                 onClick={() => setDirectionsOpen(false)}
                 aria-label="길찾기 닫기"
               >
@@ -281,20 +438,20 @@ export default function CustomerBookingEntryPage({
               </button>
             </div>
 
-            <div className="rounded-[22px] border border-[#e0e6e2] bg-white px-4 py-4">
-              <p className="text-[14px] leading-6 text-[#65726b]">{shop.address}</p>
+            <div className="rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-4">
+              <p className="text-[14px] leading-6 text-[#6f6258]">{shop.address}</p>
               <div className="mt-4 grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={handleCopyAddress}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[14px] border border-[#dce5e0] bg-white px-4 text-[14px] font-medium text-[#26352f]"
+                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-medium text-[#26352f] hover:bg-[#faf7f2]"
                 >
                   <Copy className="h-4 w-4" strokeWidth={1.9} />
                   {addressCopied ? "복사 완료" : "주소 복사"}
                 </button>
                 <a
                   href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[14px] border border-[#dce5e0] bg-white px-4 text-[14px] font-medium text-[#26352f]"
+                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-medium text-[#26352f] hover:bg-[#faf7f2]"
                 >
                   <Phone className="h-4 w-4" strokeWidth={1.9} />
                   전화하기
@@ -325,7 +482,6 @@ export default function CustomerBookingEntryPage({
         </div>
       ) : null}
 
-      <LegalLinksFooter />
     </div>
   );
 }
@@ -335,15 +491,16 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[50px] w-full items-center justify-between rounded-[16px] border border-[#dce5e0] bg-white px-4 text-left"
+      className="flex h-[50px] w-full items-center justify-between rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left hover:bg-[#faf7f2]"
     >
       <span className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#edf7f4] text-[#1F6B5B]">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f3ebe2] text-[#7a5a45]">
           <Navigation className="h-4.5 w-4.5" strokeWidth={2} />
         </span>
         <span className="text-[15px] font-medium tracking-[-0.02em] text-[#26352f]">{label}</span>
       </span>
-      <span className="text-[13px] font-medium text-[#7b8881]">열기</span>
+      <span className="text-[13px] font-medium text-[#7a6a5d]">열기</span>
     </button>
   );
 }
+

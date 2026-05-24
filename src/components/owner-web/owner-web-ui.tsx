@@ -81,6 +81,8 @@ export function SoftSelect<T extends string = string>({
   label,
   className,
   buttonClassName,
+  labelClassName,
+  valueClassName,
   menuClassName,
   align = "right",
   direction = "down",
@@ -92,6 +94,8 @@ export function SoftSelect<T extends string = string>({
   label?: string;
   className?: string;
   buttonClassName?: string;
+  labelClassName?: string;
+  valueClassName?: string;
   menuClassName?: string;
   align?: "left" | "right";
   direction?: "down" | "up";
@@ -129,8 +133,8 @@ export function SoftSelect<T extends string = string>({
           buttonClassName,
         )}
       >
-        {label ? <span className="text-[12px] text-[#64748b]">{label}</span> : <span />}
-        <span className="truncate text-right text-[14px] font-medium text-[#111827]">{selectedOption?.label ?? ""}</span>
+        {label ? <span className={cn("text-[12px] text-[#64748b]", labelClassName)}>{label}</span> : <span />}
+        <span className={cn("truncate text-right text-[14px] font-medium text-[#111827]", valueClassName)}>{selectedOption?.label ?? ""}</span>
         <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} />
       </button>
       {open ? (

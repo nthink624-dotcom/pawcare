@@ -1,4 +1,4 @@
-const staffColumns = [
+﻿const staffColumns = [
   {
     name: "정우진",
     role: "디자이너",
@@ -55,7 +55,7 @@ export default function ScheduleBoardDiagramPage() {
         <div className="mb-4 flex items-end justify-between gap-6">
           <div>
             <p className="text-sm font-semibold text-[#7b7569]">Notion capture diagram</p>
-            <h1 className="mt-1 text-2xl font-black">[1] 스케줄 보드</h1>
+            <h1 className="mt-1 text-2xl font-black">[1] 예약 보드</h1>
           </div>
           <p className="text-sm font-semibold text-[#7b7569]">430px 앱 IA를 설명하는 웹 캡처용 그림</p>
         </div>
@@ -63,8 +63,8 @@ export default function ScheduleBoardDiagramPage() {
         <div className="overflow-hidden rounded-[8px] border-2 border-[#2d2a25] bg-white shadow-[0_24px_60px_rgba(37,35,31,0.14)]">
           <div className="flex h-[76px] items-center justify-between border-b-2 border-[#2d2a25] bg-[#fbfaf7] px-6">
             <div>
-              <p className="text-[13px] font-black text-[#5f6d63]">날짜 / 오늘 / 스태프 수 / 담당 필터</p>
-              <p className="mt-1 text-xl font-black">2026.05.12 화요일 · 오늘 · 스태프 3명</p>
+              <p className="text-[13px] font-black text-[#5f6d63]">날짜 / 오늘 / 직원 수 / 담당 필터</p>
+              <p className="mt-1 text-xl font-black">2026.05.12 화요일 · 오늘 · 직원 3명</p>
             </div>
             <div className="flex items-center gap-2 text-sm font-bold">
               <span className="rounded-full border border-[#cfc7b9] bg-white px-3 py-2">오늘</span>
@@ -97,7 +97,7 @@ export default function ScheduleBoardDiagramPage() {
                 key={staff.name}
               >
                 <div className="flex h-[92px] flex-col justify-center border-b-2 border-[#2d2a25] bg-[#fcfbf8] px-5">
-                  <p className="text-[15px] font-black text-[#7b7569]">[2] 스태프 컬럼</p>
+                  <p className="text-[15px] font-black text-[#7b7569]">[2] 직원 컬럼</p>
                   <div className="mt-1 flex items-center justify-between">
                     <div>
                       <p className="text-xl font-black">{staff.name}</p>
@@ -117,7 +117,7 @@ export default function ScheduleBoardDiagramPage() {
                   </div>
 
                   <div className="absolute left-5 top-4 z-10 rounded-full border border-[#d2cabc] bg-[#fbfaf7] px-3 py-1 text-[13px] font-black text-[#6a6258]">
-                    [4] 스케줄 레인
+                    [4] 예약 레인
                   </div>
 
                   <article

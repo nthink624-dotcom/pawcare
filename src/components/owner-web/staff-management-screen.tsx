@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -99,7 +99,7 @@ export default function StaffManagementScreen({
         await onStaffMembersChange(nextStaff);
         return true;
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : "스태프 정보를 저장하지 못했습니다.");
+        setNotice(error instanceof Error ? error.message : "직원 정보를 저장하지 못했습니다.");
         return false;
       }
     }
@@ -145,7 +145,7 @@ export default function StaffManagementScreen({
       ),
     );
     if (saved) {
-      setNotice("스태프 정보를 저장했습니다.");
+      setNotice("직원 정보를 저장했습니다.");
     }
   }
 
@@ -157,7 +157,7 @@ export default function StaffManagementScreen({
     const nextDays = parseDefaultDays(newStaffDraft.defaultDaysText);
     const nextStaff: StaffMember = {
       id: createStaffId(),
-      name: newStaffDraft.name.trim() || "신규 스태프",
+      name: newStaffDraft.name.trim() || "신규 직원",
       phone: newStaffDraft.phone.trim(),
       role: newStaffDraft.role.trim() || "미용 / 보조",
       defaultDays: nextDays.length > 0 ? nextDays : ["mon", "tue", "wed", "thu", "fri"],
@@ -175,16 +175,16 @@ export default function StaffManagementScreen({
     selectStaff(nextStaff);
     setNewStaffDraft({ ...emptyStaffDraft, defaultDaysText: "월, 화, 수, 목, 금", regularOff: "토, 일" });
     setStaffDialogOpen(false);
-    setNotice("스태프를 추가했습니다.");
+    setNotice("직원를 추가했습니다.");
   }
 
   async function deactivateSelectedStaff() {
     if (!selectedStaff) return;
     if (staff.length <= 1) {
-      setNotice("최소 1명의 활성 스태프는 남아 있어야 합니다.");
+      setNotice("최소 1명의 활성 직원는 남아 있어야 합니다.");
       return;
     }
-    if (typeof window !== "undefined" && !window.confirm(`${selectedStaff.name} 스태프를 비활성화할까요?`)) {
+    if (typeof window !== "undefined" && !window.confirm(`${selectedStaff.name} 직원를 비활성화할까요?`)) {
       return;
     }
 
@@ -199,9 +199,9 @@ export default function StaffManagementScreen({
       if (nextSelectedStaff) {
         selectStaff(nextSelectedStaff);
       }
-      setNotice("스태프를 비활성화했습니다.");
+      setNotice("직원를 비활성화했습니다.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "스태프를 비활성화하지 못했습니다.");
+      setNotice(error instanceof Error ? error.message : "직원를 비활성화하지 못했습니다.");
     }
   }
 
@@ -414,8 +414,15 @@ export default function StaffManagementScreen({
           <WebSurface className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
               <div>
-                <h2 className="text-[20px] font-semibold text-[#111827]">{boardTab === "list" ? "스태프 목록" : "주간 근무표"}</h2>
-                <p className="mt-1 text-[13px] text-[#64748b]">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[20px] font-semibold text-[#111827]">{boardTab === "list" ? "직원 목록" : "주간 근무표"}</h2>
+                  {boardTab === "list" ? (
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[14px] font-semibold text-[#2f7866]">
+                      {staff.length}명
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-[14px] text-[#64748b]">
                   {boardTab === "list" ? "근무 가능 인원과 역할을 관리합니다." : "예약 배정 전 근무 가능 여부를 확인합니다."}
                 </p>
               </div>
@@ -425,30 +432,30 @@ export default function StaffManagementScreen({
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, -7))}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="이전 주"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-10 px-3 text-[15px] font-medium text-[#111827]">
+                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-8 px-3 text-[14px] font-medium text-[#111827]">
                       {formatWeekLabel(weekStart)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, 7))}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#475569] hover:bg-[#f8fafc]"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
                       aria-label="다음 주"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </>
                 ) : (
-                  <PrimaryButton label="스태프 추가" onClick={() => setStaffDialogOpen(true)} />
+                  <PrimaryButton label="직원 추가" onClick={() => setStaffDialogOpen(true)} />
                 )}
               </div>
             </div>
 
-            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[13px] text-[#1f6b5b]">{notice}</div> : null}
+            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[14px] text-[#1f6b5b]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />
@@ -470,6 +477,7 @@ export default function StaffManagementScreen({
             selectedStaff={selectedStaff}
             draft={draft}
             requests={requests}
+            overrides={scheduleOverrides}
             onDraftChange={setDraft}
             onSave={saveStaff}
             onOpenLeaveDialog={() => setLeaveDialogOpen(true)}

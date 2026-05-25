@@ -81,7 +81,8 @@ function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel
 
 function pendingHoldLimitLabel(value: number | null | undefined) {
   if (value && value >= 3) return "3건 이상 받아두기";
-  return value === 2 ? "2건까지 받아두기" : "1건만 받기";
+  if (value === 1) return "1건만 받기";
+  return "2건까지 받아두기";
 }
 
 function pendingHoldLimitFromLabel(value: string | number): 1 | 2 | 3 {
@@ -209,7 +210,7 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       {
         id: "pendingHoldLimit",
         label: "승인대기 접수 방식",
-        value: "1건만 받기",
+        value: "2건까지 받아두기",
         description: "직접 승인일 때 같은 시간대에 받을 승인대기 예약 수",
         control: "select",
         options: ["1건만 받기", "2건까지 받아두기", "3건 이상 받아두기"],
@@ -857,13 +858,15 @@ export default function SettingsManagementScreen({
       showSaveCompletePopup();
       return;
     }
+    const settingsToSave = draftSettings;
     setSavingShopInfo(true);
+    setIsShopInfoDirty(false);
+    showSaveCompletePopup();
     try {
-      await saveShopSettings(draftSettings, { profile: true, policy: true });
-      setIsShopInfoDirty(false);
-      showSaveCompletePopup();
+      await saveShopSettings(settingsToSave, { profile: true, policy: true });
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save shop profile", error);
+      setIsShopInfoDirty(true);
     } finally {
       setSavingShopInfo(false);
     }

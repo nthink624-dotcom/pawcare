@@ -147,7 +147,7 @@ export async function PATCH(request: NextRequest) {
           reservation_policy_settings: {
             cancel_window: body.cancelWindow ?? "2h",
             customer_change_enabled: body.cancelWindow !== "none",
-            pending_hold_limit: body.pendingHoldLimit ?? 1,
+            pending_hold_limit: body.pendingHoldLimit ?? 2,
           },
           customer_page_settings: {
             shop_name: body.name ?? "?곕え 留ㅼ옣",

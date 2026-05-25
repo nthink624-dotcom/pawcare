@@ -228,7 +228,9 @@ function createRegularHolidayLabelsFromShop(shop: Shop) {
 }
 
 function createTemporaryHolidaysFromShop(shop: Shop): TemporaryHoliday[] {
+  const today = todayKey();
   return [...shop.temporary_closed_dates]
+    .filter((date) => date >= today)
     .sort()
     .map((date, index) => ({ id: `holiday-${index + 1}`, date, label: "임시 휴무" }));
 }
@@ -406,7 +408,10 @@ export default function OperatingHoursSettings({
       regular_closed_days: createRegularClosedDaysPayload(nextDays),
       regular_closed_cycle: cycle,
       regular_closed_anchor_date: cycle === "biweekly" ? anchorDate : null,
-      temporary_closed_dates: nextSettings.temporaryHolidays.map((holiday) => holiday.date).sort(),
+      temporary_closed_dates: nextSettings.temporaryHolidays
+        .map((holiday) => holiday.date)
+        .filter((date) => date >= todayKey())
+        .sort(),
       booking_slot_interval_minutes: Number(nextSettings.intervalMinutes),
       booking_available_start_time: nextSettings.firstBookingTime,
       booking_available_end_time: nextSettings.lastBookingTime,
@@ -503,7 +508,7 @@ export default function OperatingHoursSettings({
   }
 
   function addTemporaryHoliday(dateKey: string) {
-    if (!dateKey || temporaryHolidayDates.has(dateKey)) {
+    if (!dateKey || dateKey < todayKey() || temporaryHolidayDates.has(dateKey)) {
       setPendingTemporaryHolidayDate("");
       return;
     }

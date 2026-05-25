@@ -7,6 +7,7 @@ export const defaultBookingAvailableStartTime = "10:00";
 export const defaultBookingAvailableEndTime = "17:00";
 export const confirmedSlotCapacity = 1;
 export const manualPendingHoldCapacity = 1;
+export const defaultManualPendingHoldLimit = 2;
 export const maxManualPendingHoldCapacity = 3;
 export const defaultConcurrentCapacity = confirmedSlotCapacity;
 
@@ -20,7 +21,7 @@ export function normalizeConcurrentCapacity(value: number | null | undefined) {
 }
 
 export function normalizePendingHoldLimit(value: number | null | undefined) {
-  const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : manualPendingHoldCapacity;
+  const numeric = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : defaultManualPendingHoldLimit;
   return Math.min(maxManualPendingHoldCapacity, Math.max(manualPendingHoldCapacity, numeric));
 }
 

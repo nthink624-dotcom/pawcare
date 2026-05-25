@@ -7,7 +7,7 @@ const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const defaultReservationPolicySettings: ReservationPolicySettings = {
   cancel_window: "2h",
   customer_change_enabled: true,
-  pending_hold_limit: 1,
+  pending_hold_limit: 2,
   booking_blocked_windows: [
     { id: "lunch", start: "13:00", end: "14:00", label: "점심시간" },
     { id: "cleaning", start: "16:00", end: "16:30", label: "정리 시간" },

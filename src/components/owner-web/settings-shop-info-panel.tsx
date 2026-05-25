@@ -217,7 +217,7 @@ export default function ShopInfoSettingsPanel({
   const address = rowValue(rows, "address");
   const addressDetail = rowValue(rows, "addressDetail");
   const approvalMode = rowValue(rows, "approvalMode");
-  const pendingHoldLimit = rowValue(rows, "pendingHoldLimit") || "1건만 받기";
+  const pendingHoldLimit = rowValue(rows, "pendingHoldLimit") || "2건까지 받아두기";
   const cancelWindow = rowValue(rows, "cancelWindow");
   const autoApproval = approvalMode === "바로 승인" || approvalMode === "auto";
   const manualApproval = !autoApproval;

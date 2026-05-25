@@ -154,7 +154,7 @@ export const shopSettingsSchema = z.object({
     .object({
       cancel_window: z.enum(["none", "1h", "2h", "6h", "24h"]).default("2h"),
       customer_change_enabled: z.boolean().default(true),
-      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(1),
+      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(2),
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
       regular_closed_cycle: z.enum(["weekly", "biweekly"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),

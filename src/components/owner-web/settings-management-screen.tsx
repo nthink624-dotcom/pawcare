@@ -674,6 +674,10 @@ export default function SettingsManagementScreen({
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (isShopInfoDirty || savingShopInfo || addressSheetOpen) {
+      return;
+    }
+
     try {
       const storedSettings = window.localStorage.getItem(ownerWebSettingsStorageKey);
       const storedProfileImages = window.localStorage.getItem(ownerWebShopProfileImagesStorageKey);
@@ -699,7 +703,7 @@ export default function SettingsManagementScreen({
       window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
       window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
     }
-  }, [shop]);
+  }, [addressSheetOpen, isShopInfoDirty, savingShopInfo, shop]);
 
   useEffect(() => {
     return () => {

@@ -19,7 +19,7 @@ const updateShopSchema = z.object({
   addressDetail: z.string().trim().max(120).optional(),
   approvalMode: z.enum(["manual", "auto"]).optional(),
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
-  pendingHoldLimit: z.coerce.number().int().min(1).max(2).optional(),
+  pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional(),
 });
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -250,7 +250,7 @@ export async function PATCH(request: NextRequest) {
         reservation_policy_settings: {
           cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
           customer_change_enabled: boolean;
-          pending_hold_limit?: 1 | 2;
+          pending_hold_limit?: 1 | 2 | 3;
         };
         customer_page_settings: Record<string, unknown>;
       }>();

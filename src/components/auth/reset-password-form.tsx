@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
+import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 
 function FieldShell({
   label,
@@ -240,10 +241,9 @@ export default function ResetPasswordForm({
         return;
       }
 
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `resetpw${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
-      const result = await requestIdentityVerification({
+      const result = await requestPortoneIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,

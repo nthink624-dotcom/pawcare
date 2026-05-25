@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  buildOwnerAuthEmail,
   buildOwnerAuthEmailCandidates,
+  isLegacyOwnerAuthEmail,
   isValidOwnerLoginId,
   normalizeOwnerLoginId,
 } from "@/lib/auth/owner-credentials";
@@ -79,7 +81,26 @@ export async function POST(request: NextRequest) {
     }
 
     const userResult = await admin.auth.admin.getUserById(profileResult.data.user_id);
-    const existingEmail = userResult.data.user?.email ?? null;
+    let existingEmail = userResult.data.user?.email ?? null;
+
+    if (isLegacyOwnerAuthEmail(existingEmail)) {
+      const canonicalEmail = buildOwnerAuthEmail(loginId);
+      const updatedUser = await admin.auth.admin.updateUserById(profileResult.data.user_id, {
+        email: canonicalEmail,
+        email_confirm: true,
+        user_metadata: {
+          ...(userResult.data.user?.user_metadata ?? {}),
+          login_id: loginId,
+        },
+      });
+
+      if (!updatedUser.error) {
+        existingEmail = updatedUser.data.user?.email ?? canonicalEmail;
+      } else {
+        console.error("[auth/login] failed to canonicalize owner auth email", updatedUser.error.message);
+      }
+    }
+
     const candidates = buildOwnerAuthEmailCandidates(loginId, existingEmail);
     let lastErrorMessage = "";
 

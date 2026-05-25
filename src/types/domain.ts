@@ -85,6 +85,15 @@ export type CustomerPageSettings = {
   show_kakao_inquiry: boolean;
   font_preset: "soft" | "clean" | "classic";
   font_scale: "compact" | "comfortable";
+  business_category?: string;
+  additional_contact?: string;
+  postal_code?: string;
+  address_detail?: string;
+};
+
+export type ReservationPolicySettings = {
+  cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
+  customer_change_enabled: boolean;
 };
 
 export type BusinessHours = Partial<
@@ -111,7 +120,10 @@ export type Shop = {
   concurrent_capacity: number;
   booking_slot_interval_minutes: number;
   booking_slot_offset_minutes: number;
+  booking_available_start_time: string;
+  booking_available_end_time: string;
   approval_mode: ApprovalMode;
+  reservation_policy_settings?: ReservationPolicySettings;
   notification_settings: ShopNotificationSettings;
   customer_page_settings: CustomerPageSettings;
   created_at: string;

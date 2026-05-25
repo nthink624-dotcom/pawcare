@@ -12,7 +12,9 @@ export const env = {
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
   allowedDevSupabaseRefs: process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
-  portoneIdentityKcpChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY,
+  portoneIdentityChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY,
+  portoneIdentityKcpChannelKey:
+    process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY,
   portonePaymentChannelKey: process.env.NEXT_PUBLIC_PORTONE_PAYMENT_CHANNEL_KEY,
   portoneKakaoPayChannelKey: process.env.NEXT_PUBLIC_PORTONE_KAKAOPAY_CHANNEL_KEY,
   portoneNaverPayChannelKey: process.env.NEXT_PUBLIC_PORTONE_NAVERPAY_CHANNEL_KEY,

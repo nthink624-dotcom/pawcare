@@ -20,6 +20,7 @@
     "check:supabase-env": "node scripts/check-supabase-env-consistency.cjs",
     "check:owner-auth-guards": "node scripts/check-owner-auth-guards.cjs",
     "smoke:owner-login": "node scripts/smoke-owner-login.cjs",
+    "smoke:owner-auth-recovery": "node scripts/smoke-owner-auth-recovery.cjs",
     "smoke:owner-login:with-server": "node scripts/run-owner-login-smoke-with-server.cjs",
     "test:e2e:owner-login": "playwright test tests/e2e/owner-login.spec.ts",
     "predeploy:auth": "npm run check:supabase-env && npm run check:owner-auth-guards && npm run smoke:owner-login:with-server && npm run test:e2e:owner-login",

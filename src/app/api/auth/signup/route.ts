@@ -10,6 +10,7 @@ import {
   isValidOwnerLoginId,
   isValidOwnerPassword,
   normalizeOwnerLoginId,
+  normalizeOwnerPhoneNumber,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
@@ -43,12 +44,8 @@ const schema = z.object({
   termsVersion: z.string().optional(),
 });
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
-
 function isValidPhoneNumber(value: string) {
-  return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
+  return /^01\d{8,9}$/.test(normalizeOwnerPhoneNumber(value));
 }
 
 const duplicateAccountMessage = "이미 가입된 계정이 있어요. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요.";
@@ -127,8 +124,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = schema.parse({
       ...body,
-      phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
-      shopPhone: normalizePhoneNumber(body?.shopPhone ?? ""),
+      phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
+      shopPhone: normalizeOwnerPhoneNumber(body?.shopPhone ?? ""),
     });
 
     const loginId = normalizeOwnerLoginId(payload.loginId);
@@ -248,6 +245,8 @@ export async function POST(request: NextRequest) {
       concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
+      booking_available_start_time: "10:00",
+      booking_available_end_time: "17:00",
       approval_mode: "manual",
       notification_settings: defaultShopNotificationSettings,
       created_at: now,
@@ -256,9 +255,23 @@ export async function POST(request: NextRequest) {
 
     let shopInsert = await supabase.from("shops").insert(shopPayload);
 
-    if (shopInsert.error && isMissingSchemaFieldError(shopInsert.error, ["booking_slot_interval_minutes", "booking_slot_offset_minutes"])) {
+    if (
+      shopInsert.error &&
+      isMissingSchemaFieldError(shopInsert.error, [
+        "booking_slot_interval_minutes",
+        "booking_slot_offset_minutes",
+        "booking_available_start_time",
+        "booking_available_end_time",
+      ])
+    ) {
       logSignupIssue("shop-booking-slot-columns-missing", shopInsert.error.message);
-      const { booking_slot_interval_minutes, booking_slot_offset_minutes, ...fallbackShopPayload } = shopPayload;
+      const {
+        booking_slot_interval_minutes,
+        booking_slot_offset_minutes,
+        booking_available_start_time,
+        booking_available_end_time,
+        ...fallbackShopPayload
+      } = shopPayload;
       shopInsert = await supabase.from("shops").insert(fallbackShopPayload);
     }
 

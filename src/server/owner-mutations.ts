@@ -345,6 +345,8 @@ export async function updateShopSettings(input: unknown) {
     concurrent_capacity: concurrentCapacity,
     booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
     booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
+    booking_available_start_time: payload.bookingAvailableStartTime,
+    booking_available_end_time: payload.bookingAvailableEndTime,
     approval_mode: payload.approvalMode,
     regular_closed_days: payload.regularClosedDays,
     temporary_closed_dates: payload.temporaryClosedDates,
@@ -365,6 +367,8 @@ export async function updateShopSettings(input: unknown) {
       concurrent_capacity: concurrentCapacity,
       booking_slot_interval_minutes: payload.bookingSlotIntervalMinutes,
       booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
+      booking_available_start_time: payload.bookingAvailableStartTime,
+      booking_available_end_time: payload.bookingAvailableEndTime,
       approval_mode: payload.approvalMode,
       regular_closed_days: payload.regularClosedDays,
       temporary_closed_dates: payload.temporaryClosedDates,
@@ -383,9 +387,11 @@ export async function updateShopSettings(input: unknown) {
   const runShopUpdate = async ({
     includeBookingSlotSettings,
     includeNotificationSettings,
+    includeBookingAvailableTimeWindow,
   }: {
     includeBookingSlotSettings: boolean;
     includeNotificationSettings: boolean;
+    includeBookingAvailableTimeWindow: boolean;
   }) => {
     const nextPayload: Record<string, unknown> = {
       ...fullUpdatePayload,
@@ -394,6 +400,11 @@ export async function updateShopSettings(input: unknown) {
     if (!includeBookingSlotSettings) {
       delete nextPayload.booking_slot_interval_minutes;
       delete nextPayload.booking_slot_offset_minutes;
+    }
+
+    if (!includeBookingAvailableTimeWindow) {
+      delete nextPayload.booking_available_start_time;
+      delete nextPayload.booking_available_end_time;
     }
 
     if (!includeNotificationSettings) {
@@ -411,18 +422,23 @@ export async function updateShopSettings(input: unknown) {
   const { data, error } = await runShopUpdate({
     includeBookingSlotSettings: true,
     includeNotificationSettings: true,
+    includeBookingAvailableTimeWindow: true,
   });
 
   if (error) {
     const missingBookingSlotSettings =
       hasMissingColumnError(error, "booking_slot_interval_minutes") ||
       hasMissingColumnError(error, "booking_slot_offset_minutes");
+    const missingBookingAvailableTimeWindow =
+      hasMissingColumnError(error, "booking_available_start_time") ||
+      hasMissingColumnError(error, "booking_available_end_time");
     const missingNotificationSettings = hasMissingColumnError(error, "notification_settings");
 
-    if (missingBookingSlotSettings || missingNotificationSettings) {
+    if (missingBookingSlotSettings || missingNotificationSettings || missingBookingAvailableTimeWindow) {
       let fallback = await runShopUpdate({
         includeBookingSlotSettings: !missingBookingSlotSettings,
         includeNotificationSettings: !missingNotificationSettings,
+        includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
       });
 
       if (
@@ -433,6 +449,7 @@ export async function updateShopSettings(input: unknown) {
         fallback = await runShopUpdate({
           includeBookingSlotSettings: !missingBookingSlotSettings,
           includeNotificationSettings: false,
+          includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
         });
       }
 

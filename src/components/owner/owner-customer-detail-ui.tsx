@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { ChevronRight, UserRound } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { phoneNormalize } from "@/lib/utils";
@@ -257,14 +257,19 @@ export function CustomerDetailHistoryPagination({
   );
 }
 
+function getShopInitials(name: string) {
+  const compact = name.replace(/\s+/g, "");
+  return compact.slice(0, 2) || "펫";
+}
+
 export function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
   if (imageUrl) {
-    return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-11 w-11 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;
+    return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-9 w-9 shrink-0 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;
   }
 
   return (
-    <div className="flex size-11 items-center justify-center rounded-full border border-[#dfeae5] bg-[#f4f5f4] text-[#9ea4a1] shadow-[0_2px_8px_rgba(31,107,91,0.05)]">
-      <UserRound className="h-5 w-5" strokeWidth={1.9} />
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dfeae5] bg-[#eef7f4] text-[11px] font-semibold tracking-[-0.03em] text-[#1f6b5b] shadow-[0_2px_8px_rgba(31,107,91,0.05)]">
+      {getShopInitials(name)}
     </div>
   );
 }

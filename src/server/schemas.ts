@@ -127,6 +127,8 @@ export const shopSettingsSchema = z.object({
     { message: "지원하지 않는 예약 시간 간격입니다." },
   ),
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
+  bookingAvailableStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("10:00"),
+  bookingAvailableEndTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("17:00"),
   approvalMode: z.enum(["manual", "auto"]),
   regularClosedDays: z.array(z.number().min(0).max(6)),
   temporaryClosedDates: z.array(z.string()),
@@ -162,6 +164,14 @@ export const shopSettingsSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
       message: "기준 분은 5분 단위로 선택해 주세요.",
+    });
+  }
+
+  if (value.bookingAvailableStartTime >= value.bookingAvailableEndTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bookingAvailableEndTime"],
+      message: "마지막 미용 예약 시간은 시작 시간보다 늦어야 합니다.",
     });
   }
 });

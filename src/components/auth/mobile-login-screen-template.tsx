@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SocialProvider } from "@/lib/auth/social-auth";
 
@@ -59,7 +59,7 @@ type Props = {
   onLoginIdChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onRememberLoginIdChange: (checked: boolean) => void;
-  onLogin: () => void;
+  onLogin: (credentials?: { loginId: string; password: string }) => void;
   onSocialLogin: (provider: SocialProvider) => void;
 };
 
@@ -88,6 +88,8 @@ export default function MobileLoginScreenTemplate({
   onSocialLogin,
 }: Props) {
   const [showPassword, setShowPassword] = useState(false);
+  const loginIdInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const resolvedSocialLabels = {
     kakao: {
       idle: "카카오 1초 로그인/회원가입",
@@ -109,6 +111,40 @@ export default function MobileLoginScreenTemplate({
     { href: "/login/reset", label: "비밀번호 찾기" },
     { href: `/signup?next=${encodeURIComponent(nextPath)}`, label: "회원가입" },
   ];
+
+  const readCurrentCredentials = useCallback(() => ({
+    loginId: loginIdInputRef.current?.value ?? loginId,
+    password: passwordInputRef.current?.value ?? password,
+  }), [loginId, password]);
+
+  const syncBrowserFilledCredentials = useCallback(() => {
+    const current = readCurrentCredentials();
+    if (current.loginId !== loginId) {
+      onLoginIdChange(current.loginId);
+    }
+    if (current.password !== password) {
+      onPasswordChange(current.password);
+    }
+    return current;
+  }, [loginId, onLoginIdChange, onPasswordChange, password, readCurrentCredentials]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(syncBrowserFilledCredentials);
+    const timers = [
+      window.setTimeout(syncBrowserFilledCredentials, 150),
+      window.setTimeout(syncBrowserFilledCredentials, 600),
+    ];
+
+    window.addEventListener("focus", syncBrowserFilledCredentials);
+    window.addEventListener("pageshow", syncBrowserFilledCredentials);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("focus", syncBrowserFilledCredentials);
+      window.removeEventListener("pageshow", syncBrowserFilledCredentials);
+    };
+  }, [syncBrowserFilledCredentials]);
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-12 pt-10 text-[#111111]">
@@ -150,19 +186,25 @@ export default function MobileLoginScreenTemplate({
 
       <div className="mt-6 space-y-3">
         <input
+          ref={loginIdInputRef}
           type="text"
           value={loginId}
           onChange={(event) => onLoginIdChange(event.target.value)}
+          onBlur={syncBrowserFilledCredentials}
           placeholder={loginIdPlaceholder}
+          autoComplete="username"
           className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
         />
 
         <div className="relative">
           <input
+            ref={passwordInputRef}
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(event) => onPasswordChange(event.target.value)}
+            onBlur={syncBrowserFilledCredentials}
             placeholder={passwordPlaceholder}
+            autoComplete="current-password"
             className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 pr-12 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
           />
           <button
@@ -192,8 +234,8 @@ export default function MobileLoginScreenTemplate({
 
       <button
         type="button"
-        onClick={onLogin}
-        disabled={loading || !loginId || !password}
+        onClick={() => onLogin(syncBrowserFilledCredentials())}
+        disabled={loading}
         className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[6px] bg-[#0e8c6d] px-5 text-[20px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? loginButtonLoadingLabel : loginButtonLabel}

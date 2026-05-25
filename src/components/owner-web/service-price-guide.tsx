@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +34,11 @@ export type ServicePriceGuide = {
   sections?: ServicePriceGuideSection[];
   extraNote: string;
 };
+
+type DeleteTarget =
+  | { kind: "section"; sectionId: string; title: string }
+  | { kind: "item"; sectionId: string; itemId: string; title: string }
+  | { kind: "weight"; sectionId: string; index: number; title: string };
 
 const defaultExtraNote = [
   "얼굴 가위컷 추가 +5,000원",
@@ -211,6 +217,17 @@ function normalizeGuideItems(items: ServicePriceGuideSection["items"]) {
   return items.filter((item) => !removedDefaultItemLabels.has(item.label.trim()));
 }
 
+function cloneSectionsSnapshot(source: ServicePriceGuideSection[]) {
+  return source.map((section) => ({
+    ...section,
+    weightBands: [...section.weightBands],
+    items: section.items.map((item) => ({
+      ...item,
+      cells: Object.fromEntries(Object.entries(item.cells).map(([band, cell]) => [band, { ...cell }])),
+    })),
+  }));
+}
+
 function normalizeSections(value: unknown): ServicePriceGuideSection[] {
   if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
 
@@ -302,6 +319,8 @@ export function ServicePriceGuideEditor({
 }) {
   const guide = normalizeServicePriceGuide(value);
   const sections = guide.sections ?? [];
+  const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
+  const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
 
   function updateSections(nextSections: ServicePriceGuideSection[]) {
     onChange({
@@ -310,6 +329,59 @@ export function ServicePriceGuideEditor({
       weightBands: [...(nextSections[0]?.weightBands ?? [])],
       items: legacyItemsFromSections(nextSections),
     });
+  }
+
+  function commitDelete(nextSections: ServicePriceGuideSection[]) {
+    setDeleteHistory((history) => [cloneSectionsSnapshot(sections), ...history].slice(0, 3));
+    updateSections(nextSections);
+    setPendingDelete(null);
+  }
+
+  function restoreLastDelete() {
+    const [snapshot, ...rest] = deleteHistory;
+    if (!snapshot) return;
+    setDeleteHistory(rest);
+    updateSections(cloneSectionsSnapshot(snapshot));
+  }
+
+  function confirmPendingDelete() {
+    if (!pendingDelete) return;
+
+    if (pendingDelete.kind === "section") {
+      if (sections.length <= 1) return setPendingDelete(null);
+      commitDelete(sections.filter((section) => section.id !== pendingDelete.sectionId));
+      return;
+    }
+
+    if (pendingDelete.kind === "item") {
+      commitDelete(
+        sections.map((section) =>
+          section.id === pendingDelete.sectionId && section.items.length > 1
+            ? { ...section, items: section.items.filter((item) => item.id !== pendingDelete.itemId) }
+            : section,
+        ),
+      );
+      return;
+    }
+
+    commitDelete(
+      sections.map((section) => {
+        if (section.id !== pendingDelete.sectionId || section.weightBands.length <= 1) return section;
+        const removedLabel = section.weightBands[pendingDelete.index] ?? "";
+        const weightBands = section.weightBands.filter((_, bandIndex) => bandIndex !== pendingDelete.index);
+        return {
+          ...section,
+          weightBands,
+          items: section.items.map((item) => {
+            const cells = { ...item.cells };
+            if (!weightBands.includes(removedLabel)) {
+              delete cells[removedLabel];
+            }
+            return { ...item, cells };
+          }),
+        };
+      }),
+    );
   }
 
   function updateSection(sectionId: string, patch: Partial<ServicePriceGuideSection>) {
@@ -354,24 +426,9 @@ export function ServicePriceGuideEditor({
   }
 
   function removeWeightBand(sectionId: string, index: number) {
-    updateSections(
-      sections.map((section) => {
-        if (section.id !== sectionId || section.weightBands.length <= 1) return section;
-        const removedLabel = section.weightBands[index] ?? "";
-        const weightBands = section.weightBands.filter((_, bandIndex) => bandIndex !== index);
-        return {
-          ...section,
-          weightBands,
-          items: section.items.map((item) => {
-            const cells = { ...item.cells };
-            if (!weightBands.includes(removedLabel)) {
-              delete cells[removedLabel];
-            }
-            return { ...item, cells };
-          }),
-        };
-      }),
-    );
+    const section = sections.find((item) => item.id === sectionId);
+    if (!section || section.weightBands.length <= 1) return;
+    setPendingDelete({ kind: "weight", sectionId, index, title: `${section.title} · ${section.weightBands[index] ?? "무게 구간"}` });
   }
 
   function updateItemLabel(sectionId: string, itemId: string, label: string) {
@@ -408,13 +465,10 @@ export function ServicePriceGuideEditor({
   }
 
   function removeItem(sectionId: string, itemId: string) {
-    updateSections(
-      sections.map((section) =>
-        section.id === sectionId && section.items.length > 1
-          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
-          : section,
-      ),
-    );
+    const section = sections.find((item) => item.id === sectionId);
+    const targetItem = section?.items.find((item) => item.id === itemId);
+    if (!section || !targetItem || section.items.length <= 1) return;
+    setPendingDelete({ kind: "item", sectionId, itemId, title: `${section.title} · ${targetItem.label}` });
   }
 
   function updateCell(sectionId: string, itemId: string, band: string, patch: Partial<ServicePriceGuideCell>) {
@@ -462,7 +516,8 @@ export function ServicePriceGuideEditor({
 
   function removeSection(sectionId: string) {
     if (sections.length <= 1) return;
-    updateSections(sections.filter((section) => section.id !== sectionId));
+    const section = sections.find((item) => item.id === sectionId);
+    setPendingDelete({ kind: "section", sectionId, title: section?.title ?? "구분" });
   }
 
   const content = (
@@ -639,10 +694,21 @@ export function ServicePriceGuideEditor({
             ))}
           </div>
 
-          <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] font-medium text-[#334155]">
-            <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
-            구분 추가
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] font-medium text-[#334155]">
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+              구분 추가
+            </button>
+            {deleteHistory.length > 0 ? (
+              <button
+                type="button"
+                onClick={restoreLastDelete}
+                className="inline-flex h-9 items-center rounded-[8px] border border-[#c8ded8] bg-[#edf7f3] px-3 text-[13px] font-semibold text-[#2f7866] transition hover:bg-[#e2f1ec]"
+              >
+                삭제 복구 {deleteHistory.length}
+              </button>
+            ) : null}
+          </div>
 
           <label className="block">
             <span className="text-[13px] font-semibold text-[#334155]">추가 요금 안내</span>
@@ -653,6 +719,33 @@ export function ServicePriceGuideEditor({
               className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
             />
           </label>
+        </div>
+      ) : null}
+
+      {pendingDelete ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/30 px-4">
+          <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
+            <p className="text-[17px] font-semibold tracking-[-0.02em] text-[#111827]">정말 삭제하시겠습니까?</p>
+            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+              {pendingDelete.title} 항목이 삭제됩니다. 최근 삭제 3건까지는 복구할 수 있어요.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingDelete}
+                className="h-11 rounded-[8px] bg-[#8f2438] text-[15px] font-semibold text-white transition hover:bg-[#7b1f31]"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </>

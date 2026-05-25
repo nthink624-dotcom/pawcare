@@ -7,7 +7,7 @@ import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { concurrentCapacityForApprovalMode, normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
 import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
@@ -46,11 +46,6 @@ type ShopNotificationSettingsState = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
-const bookingSlotPresetOptions = [
-  { id: "30-0", interval: 30, offset: 0, label: "정각", helper: "00분 · 30분" },
-  { id: "30-15", interval: 30, offset: 15, label: "15분", helper: "15분 · 45분" },
-] as const;
-
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
     Array.from({ length: 7 }, (_, day) => {
@@ -383,20 +378,6 @@ export default function OwnerSettingsPanel({
 
     return allSame ? formatBusinessHoursRange(first) : "요일별로 다르게 설정 중";
   }, [businessHours, regularClosedDays]);
-  const activeBookingSlotPresetId = `${bookingSlotIntervalMinutes}-${bookingSlotOffsetMinutes}`;
-  const bookingSlotPatternPreview = useMemo(() => {
-    const samples: string[] = [];
-    for (
-      let minute = bookingSlotOffsetMinutes;
-      minute < bookingSlotOffsetMinutes + bookingSlotIntervalMinutes * 3;
-      minute += bookingSlotIntervalMinutes
-    ) {
-      const hour = Math.floor(minute / 60);
-      const minutePart = String(minute % 60).padStart(2, "0");
-      samples.push(`${String(hour).padStart(2, "0")}:${minutePart}`);
-    }
-    return samples.join(" · ");
-  }, [bookingSlotIntervalMinutes, bookingSlotOffsetMinutes]);
   const parkingNoticeSummary = useMemo(() => {
     const trimmed = parkingNotice.trim();
     return trimmed || "주차 안내 문구를 입력해 주세요.";
@@ -511,6 +492,8 @@ export default function OwnerSettingsPanel({
           concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
           bookingSlotIntervalMinutes,
           bookingSlotOffsetMinutes,
+          bookingAvailableStartTime: data.shop.booking_available_start_time,
+          bookingAvailableEndTime: data.shop.booking_available_end_time,
           approvalMode: data.shop.approval_mode,
           regularClosedDays,
           temporaryClosedDates,
@@ -912,39 +895,6 @@ export default function OwnerSettingsPanel({
               바로 승인: 1건만 확정됩니다. 직접 승인: 승인 대기만 최대 2건까지 받아 빈자리를 대비합니다.
             </p>
           </div>
-            <div>
-              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">예약 시간 패턴</p>
-              <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
-                고객이 시간을 고르기 쉽게, 예약이 열리는 리듬을 정해 주세요.
-              </p>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                {bookingSlotPresetOptions.map((option) => {
-                  const active = activeBookingSlotPresetId === option.id;
-                  return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => {
-                      setBookingSlotIntervalMinutes(option.interval);
-                      setBookingSlotOffsetMinutes(
-                        normalizeBookingSlotOffsetMinutes(option.offset, option.interval),
-                      );
-                    }}
-                    className={`flex h-[46px] w-full flex-col items-center justify-center rounded-[12px] border px-2 text-[14px] ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
-                    }`}
-                    >
-                      <span className="text-[14px] font-medium tracking-[-0.02em]">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
-                예: {bookingSlotPatternPreview}부터 자연스럽게 열려요.
-              </p>
-            </div>
         </div>
       </SettingsFieldCard>
     </SettingsCard>

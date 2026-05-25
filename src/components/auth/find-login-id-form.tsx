@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
 import { ownerFindLoginIdSchema, type OwnerFindLoginIdInput } from "@/lib/auth/owner-find-login-id";
 import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
+import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 
 type ApiMessage = {
   message?: string;
@@ -242,10 +243,9 @@ export default function FindLoginIdForm() {
         return;
       }
 
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `findid${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
-      const result = await requestIdentityVerification({
+      const result = await requestPortoneIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,

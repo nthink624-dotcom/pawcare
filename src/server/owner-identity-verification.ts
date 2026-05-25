@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { getSupabaseServerRuntimeStage } from "@/lib/server-env";
+import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import {
   createIdentityVerificationCode,
   hashIdentityVerificationCode,
@@ -68,7 +69,7 @@ function addMs(ms: number) {
 }
 
 function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
+  return normalizeOwnerPhoneNumber(value);
 }
 
 function normalizeBirthDate(value: string) {

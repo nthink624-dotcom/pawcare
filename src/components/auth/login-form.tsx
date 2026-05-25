@@ -154,7 +154,21 @@ export default function LoginForm({
     }
   }, []);
 
-  const handleLogin = async () => {
+  const handleLogin = async (credentials?: { loginId: string; password: string }) => {
+    const currentLoginId = (credentials?.loginId ?? loginId).trim();
+    const currentPassword = credentials?.password ?? password;
+
+    if (currentLoginId !== loginId) {
+      setLoginId(currentLoginId);
+    }
+    if (currentPassword !== password) {
+      setPassword(currentPassword);
+    }
+
+    if (!currentLoginId || !currentPassword) {
+      setMessage("아이디와 비밀번호를 입력해 주세요.");
+      return;
+    }
     if (!supabaseReady) {
       setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -167,7 +181,7 @@ export default function LoginForm({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loginId, password }),
+        body: JSON.stringify({ loginId: currentLoginId, password: currentPassword }),
       });
       const result = (await response.json().catch(() => ({
         message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -182,7 +196,7 @@ export default function LoginForm({
         }
 
         if (isInvalidCredentialMessage(nextMessage)) {
-          const failedState = recordFailedLoginAttempt(loginId);
+          const failedState = recordFailedLoginAttempt(currentLoginId);
           const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
           setMessage(
             failedState.count >= FAILED_LOGIN_LIMIT
@@ -196,7 +210,7 @@ export default function LoginForm({
         return;
       }
 
-      clearFailedLoginState(loginId);
+      clearFailedLoginState(currentLoginId);
 
       if (result.session?.accessToken && result.session.refreshToken) {
         clearOwnerAuthTokenCache();
@@ -215,8 +229,8 @@ export default function LoginForm({
         writeOwnerAuthSessionCache(result.session);
       }
 
-      if (rememberLoginId && loginId.trim()) {
-        window.localStorage.setItem(SAVED_LOGIN_ID_KEY, loginId.trim());
+      if (rememberLoginId && currentLoginId) {
+        window.localStorage.setItem(SAVED_LOGIN_ID_KEY, currentLoginId);
       } else {
         window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
       }

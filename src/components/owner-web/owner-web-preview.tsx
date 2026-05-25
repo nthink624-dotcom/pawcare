@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
@@ -33,6 +33,7 @@ import StaffManagementScreen from "@/components/owner-web/staff-management-scree
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
@@ -56,6 +57,11 @@ function isDemoOwnerWebData(data: BootstrapPayload) {
 function formatAlimtalkCount(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "-";
   return value.toLocaleString("ko-KR");
+}
+
+function buildShopInitials(shopName: string) {
+  const compactName = shopName.replace(/\s+/g, "");
+  return Array.from(compactName).slice(0, 2).join("").toUpperCase() || "PM";
 }
 
 function KakaoTalkIconMark() {
@@ -119,6 +125,7 @@ function renderScreen(
   onManualApprovalChange: (enabled: boolean) => void,
   initialData: BootstrapPayload,
   onDataChange: (data: BootstrapPayload) => void,
+  onShopChange: (shop: BootstrapPayload["shop"]) => void,
   staffMembers: OwnerWebStaffMember[],
   onStaffMembersChange: (staff: OwnerWebStaffMember[]) => void | Promise<void>,
   onStaffMemberDeactivate: (staffId: string) => void | Promise<void>,
@@ -164,6 +171,8 @@ function renderScreen(
           onActiveTabChange={onSettingsTabChange}
           showTabNavigation={false}
           shop={initialData.shop}
+          onShopChange={onShopChange}
+          persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
         />
@@ -181,12 +190,13 @@ export default function OwnerWebPreview({
   demoStaffFallback?: OwnerWebStaffMember[];
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>("policy");
-  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(true);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>("shop");
+  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(initialData.shop.approval_mode !== "auto");
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
+  const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
@@ -196,8 +206,11 @@ export default function OwnerWebPreview({
   });
   const staffMembers = demoMode ? demoStaffMembers : liveStaffMembers;
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
+  const shopDisplayName = ownerData.shop.name.trim() || "PetManager";
+  const shopInitials = buildShopInitials(shopDisplayName);
 
   useEffect(() => {
+    setManualApprovalEnabled(initialData.shop.approval_mode !== "auto");
     setOwnerData(initialData);
     if (!isDemoOwnerWebData(initialData)) {
       setLiveStaffMembers(initialData.staffMembers ?? []);
@@ -224,6 +237,7 @@ export default function OwnerWebPreview({
   }, [demoMode, initialData, staffMembers, staffSource]);
 
   useEffect(() => {
+    if (!demoMode) return;
     try {
       const storedApprovalMode = window.localStorage.getItem(approvalModeStorageKey);
       if (storedApprovalMode === "instant") {
@@ -235,15 +249,62 @@ export default function OwnerWebPreview({
     } catch {
       window.localStorage.removeItem(approvalModeStorageKey);
     }
-  }, []);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (!storeMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (storeMenuRef.current?.contains(target)) return;
+      setStoreMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [storeMenuOpen]);
 
   function handleManualApprovalChange(enabled: boolean) {
     setManualApprovalEnabled(enabled);
+    const nextMode = enabled ? "manual" : "auto";
+    setOwnerData((current) => ({
+      ...current,
+      shop: {
+        ...current.shop,
+        approval_mode: nextMode,
+        concurrent_capacity: concurrentCapacityForApprovalMode(nextMode),
+      },
+      appointments:
+        nextMode === "auto"
+          ? current.appointments.map((appointment) =>
+              appointment.status === "pending" ? { ...appointment, status: "confirmed" } : appointment,
+            )
+          : current.appointments,
+    }));
     try {
       window.localStorage.setItem(approvalModeStorageKey, enabled ? "manual" : "instant");
     } catch {
       // Keep the mode active for the current session even if local storage is blocked.
     }
+    if (!demoMode) {
+      void fetchApiJsonWithAuth("/api/owner/shops", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: ownerData.shop.id,
+          approvalMode: nextMode,
+        }),
+      }).catch((error) => {
+        console.error("[OWNER WEB] failed to save approval mode", error);
+      });
+    }
+  }
+
+  function handleShopProfileChange(shop: BootstrapPayload["shop"]) {
+    setOwnerData((current) => ({
+      ...current,
+      shop,
+    }));
   }
 
   async function handleStaffMembersChange(nextStaff: OwnerWebStaffMember[]) {
@@ -375,7 +436,7 @@ export default function OwnerWebPreview({
           </button>
           <button
             type="button"
-            onClick={() => openSettingsTab("policy")}
+            onClick={() => openSettingsTab("shop")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="설정"
           >
@@ -389,27 +450,28 @@ export default function OwnerWebPreview({
           >
             <Bell className="h-4 w-4" />
           </button>
-          <div className="relative w-[218px]">
+          <div ref={storeMenuRef} className="relative w-[218px]">
             <button
               type="button"
               onClick={() => {
                 setStoreMenuOpen((current) => !current);
                 setAlimtalkCreditMenuOpen(false);
               }}
-              className="inline-flex h-9 w-full items-center gap-2 rounded-full px-1.5 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+              className="inline-flex h-9 w-full items-center justify-end gap-2 rounded-full px-1.5 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
               aria-expanded={storeMenuOpen}
             >
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">WJ</span>
-              <span className="min-w-0 flex-1 truncate text-left">우유 미용실</span>
+              <span className="ml-auto flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">
+                  {shopInitials}
+                </span>
+                <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
+              </span>
               <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
             </button>
             {storeMenuOpen ? (
               <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
                 <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   매장 프로필
-                </button>
-                <button type="button" onClick={() => openSettingsTab("users")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                  사용자 관리
                 </button>
                 <button type="button" onClick={() => openSettingsTab("billing")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   결제 설정
@@ -508,6 +570,7 @@ export default function OwnerWebPreview({
               handleManualApprovalChange,
               ownerData,
               setOwnerData,
+              handleShopProfileChange,
               staffMembers,
               handleStaffMembersChange,
               handleStaffMemberDeactivate,

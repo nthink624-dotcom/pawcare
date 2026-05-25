@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import { ownerFindLoginIdSchema } from "@/lib/auth/owner-find-login-id";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -24,10 +25,6 @@ function isMissingIdentityHashColumnError(error: { message?: string; code?: stri
     message.includes("ci_hash does not exist") ||
     message.includes("di_hash does not exist")
   );
-}
-
-function normalizePhoneNumber(value: string | null | undefined) {
-  return (value ?? "").replace(/\D/g, "").slice(0, 11);
 }
 
 function pickProfileByIdentity(
@@ -58,12 +55,13 @@ function pickProfileByIdentity(
     return { profile: strongMatches[0], message: null, shouldBackfill: false };
   }
 
-  if (profilesWithStoredIdentity.length > 0) {
+  if (profilesWithStoredIdentity.length > 0 && hasVerifiedIdentityHash) {
     return { profile: null, message: "입력한 정보와 일치하는 계정을 찾지 못했어요.", shouldBackfill: false };
   }
 
   const phoneMatches = profiles.filter(
-    (profile) => normalizePhoneNumber(profile.phone_number) === normalizePhoneNumber(verifiedIdentity.phone_number),
+    (profile) =>
+      normalizeOwnerPhoneNumber(profile.phone_number) === normalizeOwnerPhoneNumber(verifiedIdentity.phone_number),
   );
 
   if (phoneMatches.length > 1) {

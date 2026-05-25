@@ -31,6 +31,7 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
   const visibleServices = services.filter((service) => service.is_active);
   const visibleParkingNotice = settings.show_parking_notice ? settings.parking_notice.trim() : "";
   const visibleNotices = settings.show_notices ? notices : [];
+  const displayAddress = [shop.address, settings.address_detail].filter(Boolean).join(", ");
 
   return (
     <div className="space-y-4">
@@ -52,7 +53,7 @@ export default function CustomerShopInfoContent({ shop, services, showBackLink =
       </section>
 
       <InfoCard title="연락처" value={shop.phone} />
-      <InfoCard title="주소" value={shop.address} />
+      <InfoCard title="주소" value={displayAddress} />
       <InfoCard title="운영시간" value={formatBusinessHours(shop)} />
       <InfoCard title="휴무 안내" value={settings.holiday_notice} />
       <InfoCard title="주차 안내" value={visibleParkingNotice} />

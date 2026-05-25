@@ -69,6 +69,8 @@ type ShopProfileSavePayload = {
     concurrentCapacity: number;
     bookingSlotIntervalMinutes: number;
     bookingSlotOffsetMinutes: number;
+    bookingAvailableStartTime: string;
+    bookingAvailableEndTime: string;
     approvalMode: "manual" | "auto";
     regularClosedDays: number[];
     temporaryClosedDates: string[];
@@ -1303,6 +1305,8 @@ export default function OwnerApp({
           concurrent_capacity: payload.settingsPayload.concurrentCapacity,
           booking_slot_interval_minutes: payload.settingsPayload.bookingSlotIntervalMinutes,
           booking_slot_offset_minutes: payload.settingsPayload.bookingSlotOffsetMinutes,
+          booking_available_start_time: payload.settingsPayload.bookingAvailableStartTime,
+          booking_available_end_time: payload.settingsPayload.bookingAvailableEndTime,
           business_hours: payload.settingsPayload.businessHours,
           customer_page_settings: payload.customerPageSettingsPayload.customerPageSettings,
         },
@@ -1534,6 +1538,8 @@ export default function OwnerApp({
         concurrentCapacity: concurrentCapacityForApprovalMode(nextMode),
         bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
         bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+        bookingAvailableStartTime: data.shop.booking_available_start_time,
+        bookingAvailableEndTime: data.shop.booking_available_end_time,
         approvalMode: nextMode,
         regularClosedDays: data.shop.regular_closed_days,
         temporaryClosedDates: data.shop.temporary_closed_dates,
@@ -1811,10 +1817,10 @@ export default function OwnerApp({
               <button
                 type="button"
                 onClick={() => setIsShopPickerOpen((prev) => !prev)}
-                className="flex max-w-[250px] items-center gap-4 rounded-[18px] bg-transparent py-1 text-left"
+                className="flex w-full max-w-[250px] items-center gap-2 rounded-[18px] bg-transparent py-1 text-left"
               >
                 <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{currentOwnedShop.name}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
@@ -3508,6 +3514,8 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                 concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
                 bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
                 bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+                bookingAvailableStartTime: data.shop.booking_available_start_time,
+                bookingAvailableEndTime: data.shop.booking_available_end_time,
                 approvalMode: data.shop.approval_mode,
                 regularClosedDays: data.shop.regular_closed_days,
                 temporaryClosedDates: data.shop.temporary_closed_dates,

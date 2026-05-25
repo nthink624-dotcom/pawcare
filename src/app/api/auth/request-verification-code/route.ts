@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isValidBirthDate8, normalizeOwnerLoginId } from "@/lib/auth/owner-credentials";
+import { isValidBirthDate8, normalizeOwnerLoginId, normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -19,12 +19,8 @@ const schema = z.object({
   phoneNumber: z.string().optional().default(""),
 });
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
-
 function isValidPhoneNumber(value: string) {
-  return /^01\d{8,9}$/.test(normalizePhoneNumber(value));
+  return /^01\d{8,9}$/.test(normalizeOwnerPhoneNumber(value));
 }
 
 async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>) {
@@ -55,7 +51,7 @@ async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>
     ...input,
     name: data.name,
     birthDate: data.birth_date,
-    phoneNumber: normalizePhoneNumber(data.phone_number),
+    phoneNumber: normalizeOwnerPhoneNumber(data.phone_number),
   };
 }
 
@@ -69,7 +65,7 @@ export async function POST(request: NextRequest) {
     const parsedPayload = schema.parse({
       ...body,
       loginId: normalizeOwnerLoginId(body?.loginId ?? ""),
-      phoneNumber: normalizePhoneNumber(body?.phoneNumber ?? ""),
+      phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
     });
     const payload = await fillDevelopmentProfileForLocalReset(parsedPayload);
 

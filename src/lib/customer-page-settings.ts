@@ -18,6 +18,10 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   show_kakao_inquiry: true,
   font_preset: "soft",
   font_scale: "comfortable",
+  business_category: "애견미용",
+  additional_contact: "",
+  postal_code: "",
+  address_detail: "",
 };
 
 function normalizeColor(value: string | null | undefined) {
@@ -66,5 +70,9 @@ export function normalizeCustomerPageSettings(
     show_kakao_inquiry: settings?.show_kakao_inquiry ?? defaultCustomerPageSettings.show_kakao_inquiry,
     font_preset: normalizeFontPreset(settings?.font_preset),
     font_scale: normalizeFontScale(settings?.font_scale),
+    business_category: normalizeText(settings?.business_category, defaultCustomerPageSettings.business_category || "애견미용"),
+    additional_contact: normalizeOptionalText(settings?.additional_contact),
+    postal_code: normalizeOptionalText(settings?.postal_code),
+    address_detail: normalizeOptionalText(settings?.address_detail),
   };
 }

@@ -6,6 +6,9 @@ import {
   manualPendingHoldCapacity,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
+  normalizeBookingAvailableTime,
+  defaultBookingAvailableStartTime,
+  defaultBookingAvailableEndTime,
 } from "@/lib/booking-slot-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
@@ -58,6 +61,12 @@ export function computeAvailableSlots(params: {
 
   const open = minutesFromTime(hours.open);
   const close = minutesFromTime(hours.close);
+  const bookingStart = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+  );
+  const bookingEnd = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+  );
   const nowMinutes = currentMinutesInTimeZone();
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
@@ -66,9 +75,9 @@ export function computeAvailableSlots(params: {
     shop.booking_slot_offset_minutes,
     slotIntervalMinutes,
   );
-  const firstSlotMinute = alignToSlotPattern(open, slotIntervalMinutes, slotOffsetMinutes);
+  const firstSlotMinute = alignToSlotPattern(Math.max(open, bookingStart), slotIntervalMinutes, slotOffsetMinutes);
 
-  for (let cursor = firstSlotMinute; cursor + durationMinutes <= close; cursor += slotIntervalMinutes) {
+  for (let cursor = firstSlotMinute; cursor <= bookingEnd && cursor + durationMinutes <= close; cursor += slotIntervalMinutes) {
     if (isToday && cursor <= nowMinutes) {
       continue;
     }

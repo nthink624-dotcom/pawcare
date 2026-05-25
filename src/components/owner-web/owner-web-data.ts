@@ -170,10 +170,8 @@ export const weekdayReservations = [
 export const settingsTabs = [
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
-  { key: "policy", label: "예약 정책" },
   { key: "alerts", label: "알림 설정" },
   { key: "billing", label: "결제 설정" },
-  { key: "users", label: "사용자 관리" },
 ] as const;
 
 export type SettingsTabKey = (typeof settingsTabs)[number]["key"];

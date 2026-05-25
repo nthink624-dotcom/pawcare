@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { buildOwnerAuthEmailCandidates } from "@/lib/auth/owner-credentials";
+import {
+  buildOwnerAuthEmail,
+  buildOwnerAuthEmailCandidates,
+  isLegacyOwnerAuthEmail,
+  normalizeOwnerPhoneNumber,
+} from "@/lib/auth/owner-credentials";
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import { ownerPasswordResetSchema } from "@/lib/auth/owner-password-reset";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
@@ -26,10 +31,6 @@ function isMissingIdentityHashColumnError(error: { message?: string; code?: stri
     message.includes("ci_hash does not exist") ||
     message.includes("di_hash does not exist")
   );
-}
-
-function normalizePhoneNumber(value: string | null | undefined) {
-  return (value ?? "").replace(/\D/g, "").slice(0, 11);
 }
 
 export async function POST(request: NextRequest) {
@@ -105,10 +106,14 @@ export async function POST(request: NextRequest) {
       (ciHash && profileData.ci_hash === ciHash) || (diHash && profileData.di_hash === diHash),
     );
     const legacyPhoneMatch =
-      normalizePhoneNumber(profileData.phone_number) === normalizePhoneNumber(verifiedIdentity.phone_number);
+      normalizeOwnerPhoneNumber(profileData.phone_number) === normalizeOwnerPhoneNumber(verifiedIdentity.phone_number);
 
     if (hasStoredIdentityHash) {
-      if (!strongIdentityMatch) {
+      if (hasVerifiedIdentityHash && !strongIdentityMatch) {
+        return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
+      }
+
+      if (!hasVerifiedIdentityHash && !legacyPhoneMatch) {
         return NextResponse.json({ message: "입력한 정보와 일치하는 계정을 찾지 못했어요." }, { status: 404 });
       }
     } else if (!legacyPhoneMatch) {
@@ -121,7 +126,30 @@ export async function POST(request: NextRequest) {
     }
 
     const existingAuthUser = await supabase.auth.admin.getUserById(profileData.user_id);
-    for (const email of buildOwnerAuthEmailCandidates(body.loginId, existingAuthUser.data.user?.email)) {
+    let existingAuthEmail = existingAuthUser.data.user?.email ?? null;
+
+    if (isLegacyOwnerAuthEmail(existingAuthEmail)) {
+      const canonicalEmail = buildOwnerAuthEmail(body.loginId);
+      const updatedAuthUser = await supabase.auth.admin.updateUserById(profileData.user_id, {
+        email: canonicalEmail,
+        email_confirm: true,
+        user_metadata: {
+          ...(existingAuthUser.data.user?.user_metadata ?? {}),
+          login_id: body.loginId,
+        },
+      });
+
+      if (updatedAuthUser.error) {
+        return NextResponse.json(
+          { message: updatedAuthUser.error.message || "로그인 계정 정보를 갱신하지 못했어요." },
+          { status: 400 },
+        );
+      }
+
+      existingAuthEmail = updatedAuthUser.data.user?.email ?? canonicalEmail;
+    }
+
+    for (const email of buildOwnerAuthEmailCandidates(body.loginId, existingAuthEmail)) {
       const currentPasswordCheck = await authClient.auth.signInWithPassword({
         email,
         password: body.password,

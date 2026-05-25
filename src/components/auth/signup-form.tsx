@@ -23,6 +23,7 @@ import {
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
+import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 import {
   getOAuthRedirectOrigin,
   getSocialOAuthProvider,
@@ -756,12 +757,11 @@ export default function SignupForm({
         return;
       }
 
-      const { requestIdentityVerification } = await import("@portone/browser-sdk/v2");
       const identityVerificationId = `pm${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
       const hasPrefilledIdentity =
         fields.name.trim() && isValidBirthDate8(fields.birthDate) && /^01\d{8,9}$/.test(fields.phoneNumber);
 
-      const result = await requestIdentityVerification({
+      const result = await requestPortoneIdentityVerification({
         storeId: env.portoneStoreId,
         channelKey,
         identityVerificationId,

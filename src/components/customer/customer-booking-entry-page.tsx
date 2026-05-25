@@ -141,10 +141,12 @@ export default function CustomerBookingEntryPage({
       ? "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요."
       : savedTagline || "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.";
   const bookingAccentColor = "#7A5A45";
+  const displayAddress = [shop.address, settings.address_detail].filter(Boolean).join(", ");
   const todayWeekday = getTodayWeekdayInSeoul();
   const todayRow = weekRows.find((row) => row.key === todayWeekday) ?? weekRows[0];
   const todayHours = formatHoursRow(todayRow.key, shop.business_hours, shop.regular_closed_days);
-  const operatingStatusLabel = todayHours === "휴무" ? "오늘 휴무" : "영업 중";
+  const isTodayClosed = todayHours === "휴무";
+  const operatingStatusLabel = isTodayClosed ? "오늘 휴무" : "영업 중";
   const dateOptions = useMemo(() => buildEntryDateOptions(shop), [shop]);
   const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url), [settings.hero_image_url]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -157,7 +159,7 @@ export default function CustomerBookingEntryPage({
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  const directionsQuery = useMemo(() => [displayName, shop.address].filter(Boolean).join(" "), [displayName, shop.address]);
+  const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
   const kakaoWebUrl = `https://map.kakao.com/link/search/${encodeURIComponent(directionsQuery)}`;
   const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
@@ -238,7 +240,7 @@ export default function CustomerBookingEntryPage({
     if (typeof window === "undefined") return;
 
     try {
-      await navigator.clipboard.writeText(shop.address);
+      await navigator.clipboard.writeText(displayAddress);
       setAddressCopied(true);
       window.setTimeout(() => setAddressCopied(false), 1600);
     } catch {
@@ -288,15 +290,15 @@ export default function CustomerBookingEntryPage({
           type="button"
           onClick={() => setHoursOpen((value) => !value)}
           aria-expanded={hoursOpen}
-          className="grid h-[58px] w-full grid-cols-[auto_auto_1fr] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left text-[#071923]"
+          className={`grid h-[58px] w-full items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left text-[#071923] ${isTodayClosed ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_auto_1fr]"}`}
         >
           <span className="inline-flex min-w-0 justify-start">
             <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[15px] font-medium text-[#6f6258]">
-              <span className={getDotIndicatorClass(todayHours === "휴무" ? "neutral" : "teal")} />
+              <span className={getDotIndicatorClass(isTodayClosed ? "neutral" : "teal")} />
               <span>{operatingStatusLabel}</span>
             </span>
           </span>
-          <span className="whitespace-nowrap text-center text-[18px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>
+          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[18px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
           <span className="inline-flex min-w-0 justify-end">
             <span className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-3 text-[15px] font-normal text-[#6f6258]">
               전체 보기
@@ -439,7 +441,7 @@ export default function CustomerBookingEntryPage({
             </div>
 
             <div className="rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-4">
-              <p className="text-[14px] leading-6 text-[#6f6258]">{shop.address}</p>
+              <p className="text-[14px] leading-6 text-[#6f6258]">{displayAddress}</p>
               <div className="mt-4 grid grid-cols-2 gap-2.5">
                 <button
                   type="button"

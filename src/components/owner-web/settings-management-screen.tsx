@@ -1,16 +1,19 @@
 ﻿"use client";
 
-import { Check, ChevronDown, ImagePlus } from "lucide-react";
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { cn } from "@/lib/utils";
-import type { Shop } from "@/types/domain";
+import type { ApprovalMode, ReservationPolicySettings, Shop } from "@/types/domain";
 
-type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper";
+type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
 type SettingRow = {
   id: string;
@@ -30,13 +33,54 @@ type SettingsTab = {
   rows: SettingRow[];
 };
 
+type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description"> & {
+  businessCategory: string;
+  additionalContact: string;
+  postalCode: string;
+  addressDetail: string;
+};
+type ShopPolicyPatch = {
+  approvalMode: ApprovalMode;
+  cancelWindow: ReservationPolicySettings["cancel_window"];
+};
+
+function approvalModeLabel(value: ApprovalMode | null | undefined) {
+  return value === "auto" ? "바로 승인" : "직접 승인";
+}
+
+function approvalModeFromLabel(value: string): ApprovalMode {
+  return value === "바로 승인" ? "auto" : "manual";
+}
+
+function cancelWindowLabel(value: ReservationPolicySettings["cancel_window"] | string | null | undefined) {
+  switch (value) {
+    case "none":
+      return "불가";
+    case "1h":
+      return "예약 1시간 전까지";
+    case "6h":
+      return "예약 6시간 전까지";
+    case "24h":
+      return "예약 1일 전까지";
+    case "2h":
+    default:
+      return "예약 2시간 전까지";
+  }
+}
+
+function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel_window"] {
+  if (value === "불가") return "none";
+  if (value === "예약 1시간 전까지") return "1h";
+  if (value === "예약 6시간 전까지") return "6h";
+  if (value === "예약 하루 전까지" || value === "예약 1일 전까지") return "24h";
+  return "2h";
+}
+
 const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
-  { key: "policy", label: "예약 정책" },
   { key: "alerts", label: "알림 설정" },
   { key: "billing", label: "결제 설정" },
-  { key: "users", label: "사용자 관리" },
 ];
 
 const initialSettings: Record<SettingsTabKey, SettingsTab> = {
@@ -44,74 +88,70 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
     key: "shop",
     label: "매장 정보",
     title: "매장 정보",
-    description: "고객 예약 화면과 결제 화면에 노출되는 기본 매장 정보를 관리합니다.",
+    description: "고객에게 보여지는 매장 기본 정보와 예약 정책을 관리하세요.",
     rows: [
       {
         id: "shopName",
         label: "매장명",
-        value: "우유 미용실",
+        value: "매장명",
         description: "고객 예약 화면과 결제 화면에 노출되는 대표 이름",
         control: "text",
       },
       {
+        id: "description",
+        label: "매장 소개",
+        value: "",
+        description: "고객 예약 화면에 보여지는 짧은 소개",
+        control: "text",
+      },
+      {
+        id: "businessCategory",
+        label: "업종",
+        value: "애견미용",
+        description: "고객에게 표시되는 매장 업종",
+        control: "select",
+        options: ["애견미용"],
+      },
+      {
         id: "phone",
         label: "대표 연락처",
-        value: "010-8989-8498",
+        value: "010-0000-0000",
         description: "고객 문의와 예약 확인에 사용하는 번호",
+        control: "text",
+      },
+      {
+        id: "additionalContact",
+        label: "추가 연락처",
+        value: "",
+        description: "선택 입력",
+        control: "text",
+      },
+      {
+        id: "postalCode",
+        label: "우편번호",
+        value: "",
+        description: "주소 검색으로 선택한 우편번호",
         control: "text",
       },
       {
         id: "address",
         label: "주소",
-        value: "서울특별시 동대문구 서울시립대로 26-1 (전농동), 1층",
+        value: "",
         description: "카카오 주소 검색으로 선택한 주소와 상세 주소를 합친 최종 노출 주소",
         control: "address",
       },
-    ],
-  },
-  hours: {
-    key: "hours",
-    label: "운영 시간",
-    title: "운영 시간",
-    description: "예약 가능 시간과 휴무일 기준을 관리합니다.",
-    rows: [
       {
-        id: "businessHours",
-        label: "전체 시간 설정",
-        value: "10:00 - 19:00",
-        description: "월요일부터 토요일까지 한 번에 적용",
-        control: "select",
-        options: ["09:00 - 18:00", "10:00 - 19:00", "11:00 - 20:00", "직접 설정"],
+        id: "addressDetail",
+        label: "상세주소",
+        value: "",
+        description: "건물, 층, 호수 등 상세 위치",
+        control: "text",
       },
-      {
-        id: "closedDay",
-        label: "정기 휴무일",
-        value: "매주 일요일",
-        description: "휴무일은 예약 가능한 날짜에서 자동 제외",
-        control: "select",
-        options: ["없음", "매주 월요일", "매주 일요일", "직접 설정"],
-      },
-      {
-        id: "slotInterval",
-        label: "예약 가능 간격",
-        value: "정각 / 30분",
-        description: "고객 예약 화면 시간 슬롯 간격과 연결",
-        control: "select",
-        options: ["정각만", "정각 / 30분", "15분 단위"],
-      },
-    ],
-  },
-  policy: {
-    key: "policy",
-    label: "예약 정책",
-    title: "예약 정책",
-    description: "승인 방식과 취소 가능 시간을 관리합니다. 동일 시간 예약 수는 승인 방식에 따라 자동 적용됩니다.",
-    rows: [
       {
         id: "slotPolicy",
         label: "동일 시간 예약 규칙",
-        value: "바로 승인 1건 / 직접 승인 대기 2건",
-        description: "확정 예약은 같은 시간에 1건만 가능하고, 직접 승인 모드에서는 승인 대기만 최대 2건까지 받습니다.",
+        value: "바로 승인 1건 / 직접 승인 대기 1건",
+        description: "확정 예약은 같은 시간에 1건만 가능하고, 직접 승인 모드에서는 승인 대기로 접수됩니다.",
         control: "readonly",
       },
       {
@@ -128,7 +168,29 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         value: "예약 2시간 전까지",
         description: "고객이 직접 변경/취소할 수 있는 범위",
         control: "select",
-        options: ["불가", "예약 1시간 전까지", "예약 2시간 전까지", "예약 하루 전까지"],
+        options: ["예약 2시간 전까지", "예약 6시간 전까지", "예약 1일 전까지", "불가"],
+      },
+    ],
+  },
+  hours: {
+    key: "hours",
+    label: "운영 시간",
+    title: "운영 시간",
+    description: "예약 가능 시간과 휴무일 기준을 관리합니다.",
+    rows: [
+      {
+        id: "businessHours",
+        label: "전체 시간 설정",
+        value: "10:00 - 19:00",
+        description: "매장 기본 운영 시간을 오너가 직접 선택",
+        control: "businessHours",
+      },
+      {
+        id: "closedDay",
+        label: "정기 휴무일",
+        value: "일",
+        description: "휴무일은 예약 가능한 날짜에서 자동 제외",
+        control: "closedDays",
       },
     ],
   },
@@ -193,36 +255,6 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       },
     ],
   },
-  users: {
-    key: "users",
-    label: "사용자 관리",
-    title: "사용자 관리",
-    description: "오너 계정과 직원 접근 권한을 관리합니다.",
-    rows: [
-      {
-        id: "ownerAccount",
-        label: "오너 계정",
-        value: "owner@petmanager.co.kr",
-        description: "매장 전체 권한 / 설정 수정 가능",
-        control: "readonly",
-      },
-      {
-        id: "staffCount",
-        label: "서브 직원",
-        value: 2,
-        description: "캘린더 열람, 예약 진행, 완료 처리 권한",
-        control: "stepper",
-        suffix: "명",
-      },
-      {
-        id: "adminLog",
-        label: "관리자 활동 기록",
-        value: "최근 7일 14건",
-        description: "누가 어떤 설정을 바꿨는지 확인하는 로그",
-        control: "readonly",
-      },
-    ],
-  },
 };
 
 function cloneSettings(settings: Record<SettingsTabKey, SettingsTab>) {
@@ -246,8 +278,17 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
       ...settings.shop,
       rows: settings.shop.rows.map((row) => {
         if (row.id === "shopName") return { ...row, value: shop.name };
+        if (row.id === "description") return { ...row, value: shop.description ?? "" };
+        if (row.id === "businessCategory") return { ...row, value: shop.customer_page_settings.business_category || "애견미용" };
         if (row.id === "phone") return { ...row, value: shop.phone };
+        if (row.id === "additionalContact") return { ...row, value: shop.customer_page_settings.additional_contact || "" };
+        if (row.id === "postalCode") return { ...row, value: shop.customer_page_settings.postal_code || "" };
         if (row.id === "address") return { ...row, value: shop.address };
+        if (row.id === "addressDetail") return { ...row, value: shop.customer_page_settings.address_detail || "" };
+        if (row.id === "approvalMode") return { ...row, value: approvalModeLabel(shop.approval_mode) };
+        if (row.id === "cancelWindow") {
+          return { ...row, value: cancelWindowLabel(shop.reservation_policy_settings?.cancel_window) };
+        }
         return row;
       }),
     },
@@ -291,9 +332,55 @@ function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
   return nextSettings;
 }
 
+function readShopProfileFromSettings(settings: Record<SettingsTabKey, SettingsTab>): ShopProfilePatch {
+  const rows = settings.shop.rows;
+  return {
+    name: String(rows.find((row) => row.id === "shopName")?.value ?? "").trim(),
+    phone: String(rows.find((row) => row.id === "phone")?.value ?? "").trim(),
+    address: String(rows.find((row) => row.id === "address")?.value ?? "").trim(),
+    description: String(rows.find((row) => row.id === "description")?.value ?? "").trim(),
+    businessCategory: String(rows.find((row) => row.id === "businessCategory")?.value ?? "").trim(),
+    additionalContact: String(rows.find((row) => row.id === "additionalContact")?.value ?? "").trim(),
+    postalCode: String(rows.find((row) => row.id === "postalCode")?.value ?? "").trim(),
+    addressDetail: String(rows.find((row) => row.id === "addressDetail")?.value ?? "").trim(),
+  };
+}
+
+function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab>): ShopPolicyPatch {
+  const rows = settings.shop.rows;
+  return {
+    approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
+    cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
+  };
+}
+
 function focusEditableControl(rowId: string) {
   const element = document.getElementById(`setting-control-${rowId}`) as HTMLElement | null;
   element?.focus();
+}
+
+const weekdayClosedOptions = ["월", "화", "수", "목", "금", "토", "일"] as const;
+
+function parseBusinessHoursValue(value: SettingRow["value"]) {
+  const text = String(value);
+  const [open = "10:00", close = "19:00"] = text.split("-").map((item) => item.trim());
+  return { open, close };
+}
+
+function parseClosedDayValue(value: SettingRow["value"]) {
+  const text = String(value).trim();
+  if (!text || text === "없음") return [];
+  return text
+    .replaceAll("매주", "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item): item is (typeof weekdayClosedOptions)[number] =>
+      weekdayClosedOptions.includes(item as (typeof weekdayClosedOptions)[number]),
+    );
+}
+
+function formatClosedDayValue(days: string[]) {
+  return days.length > 0 ? days.join(", ") : "없음";
 }
 
 function SettingSelectControl({
@@ -369,10 +456,12 @@ function SettingSelectControl({
 function SettingValueControl({
   row,
   onChange,
+  onCommit,
   onOpenAddressSearch,
 }: {
   row: SettingRow;
   onChange: (value: SettingRow["value"]) => void;
+  onCommit?: (value: SettingRow["value"]) => void;
   onOpenAddressSearch: () => void;
 }) {
   if (row.control === "toggle") {
@@ -415,6 +504,67 @@ function SettingValueControl({
     );
   }
 
+  if (row.control === "businessHours") {
+    const { open, close } = parseBusinessHoursValue(row.value);
+    const updateTime = (next: { open?: string; close?: string }) => {
+      onChange(`${next.open ?? open} - ${next.close ?? close}`);
+    };
+
+    return (
+      <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+        <label className="min-w-[132px]">
+          <span className="mb-1 block text-left text-[12px] font-medium text-[#64748b]">시작</span>
+          <input
+            id={`setting-control-${row.id}`}
+            type="time"
+            value={open}
+            onChange={(event) => updateTime({ open: event.target.value })}
+            className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
+          />
+        </label>
+        <label className="min-w-[132px]">
+          <span className="mb-1 block text-left text-[12px] font-medium text-[#64748b]">종료</span>
+          <input
+            type="time"
+            value={close}
+            onChange={(event) => updateTime({ close: event.target.value })}
+            className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#1f6b5b] focus:ring-2 focus:ring-[#1f6b5b]/10"
+          />
+        </label>
+      </div>
+    );
+  }
+
+  if (row.control === "closedDays") {
+    const closedDays = parseClosedDayValue(row.value);
+    return (
+      <div className="flex max-w-[420px] flex-wrap justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+        {weekdayClosedOptions.map((day) => {
+          const active = closedDays.includes(day);
+          return (
+            <button
+              key={day}
+              id={day === "월" ? `setting-control-${row.id}` : undefined}
+              type="button"
+              onClick={() => {
+                const nextDays = active ? closedDays.filter((item) => item !== day) : [...closedDays, day];
+                onChange(formatClosedDayValue(weekdayClosedOptions.filter((item) => nextDays.includes(item))));
+              }}
+              className={cn(
+                "inline-flex h-10 min-w-12 items-center justify-center rounded-[8px] border px-3 text-[14px] font-medium transition",
+                active
+                  ? "border-[#a04455] bg-[#fff7f8] text-[#8f2438]"
+                  : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
+              )}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   if (row.control === "select") {
     return <SettingSelectControl row={row} onChange={(value) => onChange(value)} />;
   }
@@ -451,6 +601,7 @@ function SettingValueControl({
         id={`setting-control-${row.id}`}
         value={String(row.value)}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onCommit?.(event.target.value)}
         onClick={(event) => event.stopPropagation()}
         className="h-10 w-full min-w-[280px] max-w-[520px] rounded-[8px] border border-transparent bg-transparent px-3 text-right text-[15px] font-medium text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-white focus:border-[#1f6b5b] focus:bg-white"
       />
@@ -460,50 +611,13 @@ function SettingValueControl({
   return <p className="text-[15px] font-medium text-[#111827]">{String(row.value)}</p>;
 }
 
-function ShopProfileImageRow({
-  previewUrl,
-  onChange,
-}: {
-  previewUrl: string;
-  onChange: (file: File) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-6 py-5 transition hover:bg-[#fbfaf8]">
-      <div className="min-w-0 px-1">
-        <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">매장 프로필</p>
-        <p className="mt-2 text-[13px] leading-6 text-[#81796f]">
-          고객 예약 화면에 노출되는 대표 이미지
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
-        <label className="relative inline-flex h-[72px] w-[72px] cursor-pointer overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#1f6b5b] transition hover:border-[#1f6b5b] hover:bg-[#f6fbf9]">
-          {previewUrl ? (
-            <Image src={previewUrl} alt="매장 프로필" width={72} height={72} unoptimized className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center bg-[#eef7f4]">
-              <ImagePlus className="h-6 w-6" />
-            </span>
-          )}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) onChange(file);
-              }}
-            />
-        </label>
-      </div>
-    </div>
-  );
-}
-
 export default function SettingsManagementScreen({
   activeTab: controlledActiveTab,
   onActiveTabChange,
   showTabNavigation = true,
   shop,
+  onShopChange,
+  persistShopProfile = true,
   manualApprovalEnabled,
   onManualApprovalChange,
 }: {
@@ -511,6 +625,8 @@ export default function SettingsManagementScreen({
   onActiveTabChange?: (tab: SettingsTabKey) => void;
   showTabNavigation?: boolean;
   shop?: Shop;
+  onShopChange?: (shop: Shop) => void;
+  persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
 }) {
@@ -518,6 +634,9 @@ export default function SettingsManagementScreen({
   const [draftSettings, setDraftSettings] = useState(() => applyShopToSettings(cloneSettings(initialSettings), shop));
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [shopProfileImage, setShopProfileImage] = useState("");
+  const [saveToastVisible, setSaveToastVisible] = useState(false);
+  const shopSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     try {
@@ -540,18 +659,135 @@ export default function SettingsManagementScreen({
     }
   }, [shop]);
 
+  useEffect(() => {
+    return () => {
+      if (shopSaveTimerRef.current) {
+        clearTimeout(shopSaveTimerRef.current);
+      }
+      if (saveToastTimerRef.current) {
+        clearTimeout(saveToastTimerRef.current);
+      }
+    };
+  }, []);
+
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const approvalModeValue = manualApprovalEnabled === false ? "바로 승인" : "직접 승인";
   const current = useMemo(() => {
     const tab = draftSettings[activeTab];
-    if (activeTab !== "policy" || manualApprovalEnabled === undefined) return tab;
+    if (activeTab !== "shop" || manualApprovalEnabled === undefined) return tab;
     return {
       ...tab,
       rows: tab.rows.map((row) => (row.id === "approvalMode" ? { ...row, value: approvalModeValue } : row)),
     };
   }, [activeTab, approvalModeValue, draftSettings, manualApprovalEnabled]);
 
-  function updateRow(rowId: string, value: SettingRow["value"]) {
+  function showSavedToast() {
+    setSaveToastVisible(true);
+    if (saveToastTimerRef.current) {
+      clearTimeout(saveToastTimerRef.current);
+    }
+    saveToastTimerRef.current = setTimeout(() => {
+      setSaveToastVisible(false);
+      saveToastTimerRef.current = null;
+    }, 1800);
+  }
+
+  function saveShopSettings(
+    settings: Record<SettingsTabKey, SettingsTab>,
+    options: { profile?: boolean; policy?: boolean },
+    immediate = false,
+  ) {
+    if (!shop) return;
+
+    const profilePatch = options.profile ? readShopProfileFromSettings(settings) : {};
+    const policyPatch = options.policy ? readShopPolicyFromSettings(settings) : null;
+    const profileName = "name" in profilePatch && typeof profilePatch.name === "string" ? profilePatch.name : "";
+    const businessCategory =
+      "businessCategory" in profilePatch && typeof profilePatch.businessCategory === "string" ? profilePatch.businessCategory : "";
+    const additionalContact =
+      "additionalContact" in profilePatch && typeof profilePatch.additionalContact === "string" ? profilePatch.additionalContact : "";
+    const postalCode = "postalCode" in profilePatch && typeof profilePatch.postalCode === "string" ? profilePatch.postalCode : "";
+    const addressDetail =
+      "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
+    const optimisticShop: Shop = {
+      ...shop,
+      ...profilePatch,
+      ...(policyPatch
+        ? {
+            approval_mode: policyPatch.approvalMode,
+            concurrent_capacity: concurrentCapacityForApprovalMode(policyPatch.approvalMode),
+            reservation_policy_settings: {
+              ...shop.reservation_policy_settings,
+              cancel_window: policyPatch.cancelWindow,
+              customer_change_enabled: policyPatch.cancelWindow !== "none",
+            },
+          }
+        : {}),
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        shop_name: profileName || shop.customer_page_settings.shop_name,
+        business_category: businessCategory || shop.customer_page_settings.business_category,
+        additional_contact: additionalContact,
+        postal_code: postalCode,
+        address_detail: addressDetail,
+      },
+    };
+    onShopChange?.(optimisticShop);
+
+    if (!persistShopProfile) {
+      showSavedToast();
+      return;
+    }
+
+    if (shopSaveTimerRef.current) {
+      clearTimeout(shopSaveTimerRef.current);
+    }
+
+    const persist = async () => {
+      try {
+        const result = await fetchApiJsonWithAuth<{
+          shop: Pick<
+            Shop,
+            | "id"
+            | "name"
+            | "phone"
+            | "address"
+            | "description"
+            | "approval_mode"
+            | "concurrent_capacity"
+            | "reservation_policy_settings"
+            | "customer_page_settings"
+          >;
+        }>(
+          "/api/owner/shops",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              shopId: shop.id,
+              ...profilePatch,
+              ...(policyPatch ?? {}),
+            }),
+          },
+        );
+        onShopChange?.({ ...optimisticShop, ...result.shop });
+        showSavedToast();
+      } catch (error) {
+        console.error("[OWNER SETTINGS] failed to save shop profile", error);
+      }
+    };
+
+    if (immediate) {
+      void persist();
+      return;
+    }
+
+    shopSaveTimerRef.current = setTimeout(() => {
+      shopSaveTimerRef.current = null;
+      void persist();
+    }, 400);
+  }
+
+  function updateRow(rowId: string, value: SettingRow["value"], saveImmediately = false) {
     if (rowId === "approvalMode" && typeof value === "string") {
       onManualApprovalChange?.(value !== "바로 승인");
     }
@@ -564,6 +800,17 @@ export default function SettingsManagementScreen({
         },
       };
       persistSettings(nextSettings);
+      if (
+        activeTab === "shop" &&
+        ["shopName", "description", "businessCategory", "phone", "additionalContact", "postalCode", "address", "addressDetail"].includes(rowId)
+      ) {
+        if (saveImmediately) {
+          saveShopSettings(nextSettings, { profile: true }, true);
+        }
+      }
+      if (activeTab === "shop" && ["approvalMode", "cancelWindow"].includes(rowId)) {
+        saveShopSettings(nextSettings, { policy: true }, true);
+      }
       return nextSettings;
     });
   }
@@ -578,6 +825,7 @@ export default function SettingsManagementScreen({
         },
       };
       persistSettings(nextSettings);
+      saveShopSettings(nextSettings, { profile: true }, true);
       return nextSettings;
     });
   }
@@ -591,7 +839,7 @@ export default function SettingsManagementScreen({
       updateRow(row.id, !row.value);
       return;
     }
-    if (row.control === "text" || row.control === "select") {
+    if (row.control === "text" || row.control === "select" || row.control === "businessHours" || row.control === "closedDays") {
       focusEditableControl(row.id);
     }
   }
@@ -616,6 +864,8 @@ export default function SettingsManagementScreen({
   }
 
   const addressValue = String(draftSettings.shop.rows.find((row) => row.id === "address")?.value ?? "");
+  const businessHoursRow = current.rows.find((row) => row.id === "businessHours");
+  const closedDayRow = current.rows.find((row) => row.id === "closedDay");
 
   function updateShopProfileImage(file: File) {
     const reader = new FileReader();
@@ -629,6 +879,19 @@ export default function SettingsManagementScreen({
 
   return (
     <div>
+      <div
+        aria-live="polite"
+        className={cn(
+          "fixed right-5 top-[64px] z-50 flex items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[13px] font-semibold text-[#17211f] shadow-[0_12px_28px_rgba(15,23,42,0.14)] transition-all duration-200",
+          saveToastVisible ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0",
+        )}
+      >
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f3ef] text-[#2f7866]">
+          <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </span>
+        저장되었습니다
+      </div>
+
       <div className={cn("grid gap-6", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
           <WebSurface className="p-3">
@@ -651,12 +914,8 @@ export default function SettingsManagementScreen({
           </WebSurface>
         ) : null}
 
-        <WebSurface className="p-6">
-          <div className="border-b border-[#f0e8e1] pb-4">
-            <div>
-              <h3 className="text-[18px] font-semibold text-[#17211f]">{current.title}</h3>
-              <p className="mt-2 text-[14px] leading-6 text-[#7a7269]">{current.description}</p>
-            </div>
+        <div className="min-w-0 space-y-4">
+          <div>
             {activeTab === "alerts" ? (
               <div className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-[#f8fbfa] px-4 py-3">
                 <p className="text-[13px] leading-5 text-[#5f6c66]">
@@ -666,43 +925,62 @@ export default function SettingsManagementScreen({
             ) : null}
           </div>
 
-          <div className="divide-y divide-[#f1e8e0]">
-            {activeTab === "shop" ? (
-              <ShopProfileImageRow previewUrl={shopProfileImage} onChange={updateShopProfileImage} />
-            ) : null}
-            {current.rows.map((row) => (
-              <div
-                key={row.id}
-                role={row.control === "readonly" || row.control === "stepper" ? undefined : "button"}
-                tabIndex={row.control === "readonly" || row.control === "stepper" ? undefined : 0}
-                onClick={() => handleRowClick(row)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    handleRowClick(row);
-                  }
-                }}
-                className={cn(
-                  "flex items-start justify-between gap-6 py-5 transition",
-                  row.control !== "readonly" && "cursor-pointer hover:bg-[#fbfaf8]",
-                )}
-              >
-                <div className="min-w-0 px-1">
-                  <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.label}</p>
-                  {row.description ? <p className="mt-2 text-[13px] leading-6 text-[#81796f]">{row.description}</p> : null}
-                </div>
-                <div className="shrink-0 text-right">
-                  <SettingValueControl
-                    row={row}
-                    onChange={(value) => updateRow(row.id, value)}
-                    onOpenAddressSearch={() => setAddressSheetOpen(true)}
-                  />
-                </div>
+          {activeTab === "hours" && businessHoursRow && closedDayRow ? (
+            <OperatingHoursSettings
+              businessHoursValue={businessHoursRow.value}
+              closedDaysValue={closedDayRow.value}
+              onBusinessHoursChange={(value) => updateRow("businessHours", value)}
+              onClosedDaysChange={(value) => updateRow("closedDay", value)}
+              shop={shop}
+              onShopChange={onShopChange}
+              persistToSupabase={persistShopProfile}
+            />
+          ) : activeTab === "shop" ? (
+            <ShopInfoSettingsPanel
+              rows={current.rows}
+              shopProfileImage={shopProfileImage}
+              onProfileImageChange={updateShopProfileImage}
+              onRowChange={(rowId, value) => updateRow(rowId, value)}
+              onRowCommit={(rowId, value) => updateRow(rowId, value, true)}
+              onOpenAddressSearch={() => setAddressSheetOpen(true)}
+            />
+          ) : (
+            <WebSurface className="p-6">
+              <div className="divide-y divide-[#f1e8e0]">
+                {current.rows.map((row) => (
+                  <div
+                    key={row.id}
+                    role={row.control === "readonly" || row.control === "stepper" ? undefined : "button"}
+                    tabIndex={row.control === "readonly" || row.control === "stepper" ? undefined : 0}
+                    onClick={() => handleRowClick(row)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleRowClick(row);
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center justify-between gap-6 py-4 transition",
+                      row.control !== "readonly" && "cursor-pointer hover:bg-[#fbfaf8]",
+                    )}
+                  >
+                    <div className="min-w-0 px-1">
+                      <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17211f]">{row.label}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <SettingValueControl
+                        row={row}
+                        onChange={(value) => updateRow(row.id, value)}
+                        onCommit={(value) => updateRow(row.id, value, true)}
+                        onOpenAddressSearch={() => setAddressSheetOpen(true)}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-        </WebSurface>
+            </WebSurface>
+          )}
+        </div>
       </div>
 
       {addressSheetOpen ? (

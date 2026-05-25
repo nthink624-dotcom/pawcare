@@ -82,9 +82,11 @@ function buildRuntimeRows(): EnvRow[] {
       note: "브라우저에서 PASS/결제 창을 여는 데 사용됩니다.",
     },
     {
-      name: "NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY",
+      name: "NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY / NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY",
       label: "KCP 본인인증 채널",
-      status: statusFrom(process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY),
+      status: statusFrom(
+        process.env.NEXT_PUBLIC_PORTONE_IDENTITY_KCP_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY,
+      ),
       note: "PASS 본인인증 창을 여는 데 사용됩니다.",
     },
     {

@@ -148,6 +148,8 @@ export async function POST(request: NextRequest) {
       concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
+      booking_available_start_time: "10:00",
+      booking_available_end_time: "17:00",
       approval_mode: "manual",
       notification_settings: defaultShopNotificationSettings,
       created_at: now,

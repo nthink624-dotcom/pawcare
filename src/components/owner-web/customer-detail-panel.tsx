@@ -115,9 +115,12 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
               <span className="mx-2 text-[#94a3b8]">›</span>
               <span className="text-[#334155]">고객 상세</span>
             </button>
-            <div className="mt-5 flex min-w-0 items-end gap-3">
-              <h2 className="truncate text-[28px] font-semibold tracking-[-0.01em] text-[#111827]">{detail.guardian.name}</h2>
-              <span className="mb-1 rounded-[6px] bg-[#eef7f4] px-2 py-1 text-[13px] font-normal text-[#2f7866]">보호자</span>
+            <div className="mt-5 flex min-w-0 items-center gap-3">
+              <h2 className="truncate text-[28px] font-semibold tracking-[-0.01em] text-[#111827]">
+                {detail.guardian.name}
+                {selectedPet ? ` · ${selectedPet.name}` : ""}
+              </h2>
+              <span className="rounded-[6px] bg-[#eef7f4] px-2 py-1 text-[13px] font-normal text-[#2f7866]">보호자</span>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">

@@ -24,7 +24,7 @@ import {
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { createAppointment } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
-import type { Appointment, Guardian, Pet } from "@/types/domain";
+import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
 const customerBookingCreateSchema = z.object({
   shopId: z.string().min(1),
@@ -89,6 +89,38 @@ function canManageAppointment(appointment: Appointment) {
   if (appointment.appointment_date < today) return false;
 
   return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
+}
+
+function cancelWindowMinutes(value: NonNullable<Shop["reservation_policy_settings"]>["cancel_window"] | string | null | undefined) {
+  switch (value) {
+    case "none":
+      return null;
+    case "1h":
+      return 60;
+    case "6h":
+      return 6 * 60;
+    case "24h":
+      return 24 * 60;
+    case "2h":
+    default:
+      return 2 * 60;
+  }
+}
+
+function assertCustomerCanChangeBooking(shop: Shop, appointment: Appointment) {
+  const policy = shop.reservation_policy_settings;
+  const windowMinutes = cancelWindowMinutes(policy?.cancel_window);
+
+  if (policy?.customer_change_enabled === false || windowMinutes === null) {
+    throw new Error("고객 직접 변경/취소가 허용되지 않는 예약입니다. 매장에 문의해 주세요.");
+  }
+
+  const appointmentStartsAt = new Date(appointment.start_at).getTime();
+  const latestCustomerChangeAt = appointmentStartsAt - windowMinutes * 60 * 1000;
+
+  if (Date.now() > latestCustomerChangeAt) {
+    throw new Error("고객 직접 변경/취소 가능 시간이 지났습니다. 매장에 문의해 주세요.");
+  }
 }
 
 function normalizePhone(value: string) {
@@ -683,6 +715,7 @@ export async function updateCustomerBooking(input: unknown) {
   if (!canManageAppointment(appointment)) {
     throw new Error("이미 지난 예약은 변경하거나 취소할 수 없습니다.");
   }
+  assertCustomerCanChangeBooking(bootstrap.shop, appointment);
 
   if (payload.action === "cancel") {
     const nextValues = {

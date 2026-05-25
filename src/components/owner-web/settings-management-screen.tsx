@@ -6,12 +6,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, ReservationPolicySettings, Shop } from "@/types/domain";
+import type { ApprovalMode, ReservationPolicySettings, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -42,6 +44,7 @@ type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description">
 type ShopPolicyPatch = {
   approvalMode: ApprovalMode;
   cancelWindow: ReservationPolicySettings["cancel_window"];
+  pendingHoldLimit: 1 | 2 | 3;
 };
 
 function approvalModeLabel(value: ApprovalMode | null | undefined) {
@@ -49,7 +52,7 @@ function approvalModeLabel(value: ApprovalMode | null | undefined) {
 }
 
 function approvalModeFromLabel(value: string): ApprovalMode {
-  return value === "바로 승인" ? "auto" : "manual";
+  return value === "바로 승인" || value === "auto" ? "auto" : "manual";
 }
 
 function cancelWindowLabel(value: ReservationPolicySettings["cancel_window"] | string | null | undefined) {
@@ -76,11 +79,52 @@ function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel
   return "2h";
 }
 
+function pendingHoldLimitLabel(value: number | null | undefined) {
+  if (value && value >= 3) return "3건 이상 받아두기";
+  return value === 2 ? "2건까지 받아두기" : "1건만 받기";
+}
+
+function pendingHoldLimitFromLabel(value: string | number): 1 | 2 | 3 {
+  if (value === 3 || value === "3" || value === "3건 이상 받아두기") return 3;
+  if (value === 2 || value === "2" || value === "2건까지 받기" || value === "2건까지 받아두기") return 2;
+  return 1;
+}
+
+function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | null | undefined): AlertSettingsDraft {
+  const normalized = normalizeShopNotificationSettings(settings);
+  return {
+    enabled: normalized.enabled,
+    revisitEnabled: normalized.revisit_enabled,
+    bookingConfirmedEnabled: normalized.booking_confirmed_enabled,
+    bookingRejectedEnabled: normalized.booking_rejected_enabled,
+    bookingCancelledEnabled: normalized.booking_cancelled_enabled,
+    bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
+    appointmentReminder10mEnabled: normalized.appointment_reminder_10m_enabled,
+    groomingStartedEnabled: normalized.grooming_started_enabled,
+    groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
+    groomingCompletedEnabled: normalized.grooming_completed_enabled,
+  };
+}
+
+function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotificationSettings {
+  return {
+    enabled: draft.enabled,
+    revisit_enabled: draft.revisitEnabled,
+    booking_confirmed_enabled: draft.bookingConfirmedEnabled,
+    booking_rejected_enabled: draft.bookingRejectedEnabled,
+    booking_cancelled_enabled: draft.bookingCancelledEnabled,
+    booking_rescheduled_enabled: draft.bookingRescheduledEnabled,
+    appointment_reminder_10m_enabled: draft.appointmentReminder10mEnabled,
+    grooming_started_enabled: draft.groomingStartedEnabled,
+    grooming_almost_done_enabled: draft.groomingAlmostDoneEnabled,
+    grooming_completed_enabled: draft.groomingCompletedEnabled,
+  };
+}
+
 const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },
-  { key: "billing", label: "결제 설정" },
 ];
 
 const initialSettings: Record<SettingsTabKey, SettingsTab> = {
@@ -149,7 +193,7 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       },
       {
         id: "slotPolicy",
-        label: "동일 시간 예약 규칙",
+        label: "승인 방식",
         value: "바로 승인 1건 / 직접 승인 대기 1건",
         description: "확정 예약은 같은 시간에 1건만 가능하고, 직접 승인 모드에서는 승인 대기로 접수됩니다.",
         control: "readonly",
@@ -161,6 +205,14 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         description: "예약 요청 후 오너가 직접 확정하는 운영 방식",
         control: "select",
         options: ["직접 승인", "바로 승인"],
+      },
+      {
+        id: "pendingHoldLimit",
+        label: "승인대기 접수 방식",
+        value: "1건만 받기",
+        description: "직접 승인일 때 같은 시간대에 받을 승인대기 예약 수",
+        control: "select",
+        options: ["1건만 받기", "2건까지 받아두기", "3건 이상 받아두기"],
       },
       {
         id: "cancelWindow",
@@ -224,37 +276,6 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       },
     ],
   },
-  billing: {
-    key: "billing",
-    label: "결제 설정",
-    title: "결제 설정",
-    description: "요금제, 정기 결제 수단, 환불 정책을 확인합니다.",
-    rows: [
-      {
-        id: "plan",
-        label: "현재 플랜",
-        value: "스탠다드",
-        description: "월 29,000원 / 직원 2~5명 / 알림톡 1,500건 포함",
-        control: "readonly",
-      },
-      {
-        id: "card",
-        label: "정기 결제 수단",
-        value: "신한카드 **** 1024",
-        description: "등록된 카드 변경과 삭제를 확인",
-        control: "select",
-        options: ["신한카드 **** 1024", "카드 다시 등록"],
-      },
-      {
-        id: "refundPolicy",
-        label: "환불/취소 정책",
-        value: "관리자 승인 필요",
-        description: "운영자 확인 후 수동 취소가 가능한 구조",
-        control: "select",
-        options: ["관리자 승인 필요", "자동 처리 안 함"],
-      },
-    ],
-  },
 };
 
 function cloneSettings(settings: Record<SettingsTabKey, SettingsTab>) {
@@ -286,6 +307,9 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
         if (row.id === "address") return { ...row, value: shop.address };
         if (row.id === "addressDetail") return { ...row, value: shop.customer_page_settings.address_detail || "" };
         if (row.id === "approvalMode") return { ...row, value: approvalModeLabel(shop.approval_mode) };
+        if (row.id === "pendingHoldLimit") {
+          return { ...row, value: pendingHoldLimitLabel(shop.reservation_policy_settings?.pending_hold_limit) };
+        }
         if (row.id === "cancelWindow") {
           return { ...row, value: cancelWindowLabel(shop.reservation_policy_settings?.cancel_window) };
         }
@@ -297,6 +321,12 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
 
 const ownerWebSettingsStorageKey = "petmanager.ownerWeb.settings";
 const ownerWebShopProfileImageStorageKey = "petmanager.ownerWeb.shopProfileImage";
+const ownerWebShopProfileImagesStorageKey = "petmanager.ownerWeb.shopProfileImages";
+
+function normalizeShopProfileImages(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.length > 0).slice(0, 10);
+}
 
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
   const nextSettings = applyShopToSettings(cloneSettings(initialSettings), shop);
@@ -351,6 +381,7 @@ function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab
   return {
     approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
     cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
+    pendingHoldLimit: pendingHoldLimitFromLabel(String(rows.find((row) => row.id === "pendingHoldLimit")?.value ?? "")),
   };
 }
 
@@ -633,14 +664,19 @@ export default function SettingsManagementScreen({
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
   const [draftSettings, setDraftSettings] = useState(() => applyShopToSettings(cloneSettings(initialSettings), shop));
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
-  const [shopProfileImage, setShopProfileImage] = useState("");
-  const [saveToastVisible, setSaveToastVisible] = useState(false);
-  const shopSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [shopProfileImages, setShopProfileImages] = useState<string[]>([]);
+  const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
+  const [savingShopInfo, setSavingShopInfo] = useState(false);
+  const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
+  const [alertSettingsDirty, setAlertSettingsDirty] = useState(false);
+  const [savingAlertSettings, setSavingAlertSettings] = useState(false);
+  const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
+  const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     try {
       const storedSettings = window.localStorage.getItem(ownerWebSettingsStorageKey);
+      const storedProfileImages = window.localStorage.getItem(ownerWebShopProfileImagesStorageKey);
       const storedProfileImage = window.localStorage.getItem(ownerWebShopProfileImageStorageKey);
       const frame = window.requestAnimationFrame(() => {
         if (storedSettings) {
@@ -648,54 +684,39 @@ export default function SettingsManagementScreen({
           setDraftSettings(cloneSettings(nextSettings));
         }
 
-        if (storedProfileImage) {
-          setShopProfileImage(storedProfileImage);
+        if (storedProfileImages) {
+          setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
+        } else if (storedProfileImage) {
+          setShopProfileImages([storedProfileImage]);
         }
       });
+      setIsShopInfoDirty(false);
+      setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
+      setAlertSettingsDirty(false);
       return () => window.cancelAnimationFrame(frame);
     } catch {
       window.localStorage.removeItem(ownerWebSettingsStorageKey);
+      window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
       window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
     }
   }, [shop]);
 
   useEffect(() => {
     return () => {
-      if (shopSaveTimerRef.current) {
-        clearTimeout(shopSaveTimerRef.current);
-      }
-      if (saveToastTimerRef.current) {
-        clearTimeout(saveToastTimerRef.current);
+      if (saveCompleteTimerRef.current) {
+        clearTimeout(saveCompleteTimerRef.current);
       }
     };
   }, []);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
-  const approvalModeValue = manualApprovalEnabled === false ? "바로 승인" : "직접 승인";
   const current = useMemo(() => {
-    const tab = draftSettings[activeTab];
-    if (activeTab !== "shop" || manualApprovalEnabled === undefined) return tab;
-    return {
-      ...tab,
-      rows: tab.rows.map((row) => (row.id === "approvalMode" ? { ...row, value: approvalModeValue } : row)),
-    };
-  }, [activeTab, approvalModeValue, draftSettings, manualApprovalEnabled]);
+    return draftSettings[activeTab];
+  }, [activeTab, draftSettings]);
 
-  function showSavedToast() {
-    setSaveToastVisible(true);
-    if (saveToastTimerRef.current) {
-      clearTimeout(saveToastTimerRef.current);
-    }
-    saveToastTimerRef.current = setTimeout(() => {
-      setSaveToastVisible(false);
-      saveToastTimerRef.current = null;
-    }, 1800);
-  }
-
-  function saveShopSettings(
+  async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
     options: { profile?: boolean; policy?: boolean },
-    immediate = false,
   ) {
     if (!shop) return;
 
@@ -720,6 +741,7 @@ export default function SettingsManagementScreen({
               ...shop.reservation_policy_settings,
               cancel_window: policyPatch.cancelWindow,
               customer_change_enabled: policyPatch.cancelWindow !== "none",
+              pending_hold_limit: policyPatch.pendingHoldLimit,
             },
           }
         : {}),
@@ -735,99 +757,112 @@ export default function SettingsManagementScreen({
     onShopChange?.(optimisticShop);
 
     if (!persistShopProfile) {
-      showSavedToast();
       return;
     }
 
-    if (shopSaveTimerRef.current) {
-      clearTimeout(shopSaveTimerRef.current);
+    const result = await fetchApiJsonWithAuth<{
+      shop: Pick<
+        Shop,
+        | "id"
+        | "name"
+        | "phone"
+        | "address"
+        | "description"
+        | "approval_mode"
+        | "concurrent_capacity"
+        | "reservation_policy_settings"
+        | "customer_page_settings"
+      >;
+    }>(
+      "/api/owner/shops",
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: shop.id,
+          ...profilePatch,
+          ...(policyPatch ?? {}),
+          ...(policyPatch ? { pendingHoldLimit: policyPatch.pendingHoldLimit } : {}),
+        }),
+      },
+    );
+    onShopChange?.({ ...optimisticShop, ...result.shop });
+    if (policyPatch) {
+      onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
     }
-
-    const persist = async () => {
-      try {
-        const result = await fetchApiJsonWithAuth<{
-          shop: Pick<
-            Shop,
-            | "id"
-            | "name"
-            | "phone"
-            | "address"
-            | "description"
-            | "approval_mode"
-            | "concurrent_capacity"
-            | "reservation_policy_settings"
-            | "customer_page_settings"
-          >;
-        }>(
-          "/api/owner/shops",
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              shopId: shop.id,
-              ...profilePatch,
-              ...(policyPatch ?? {}),
-            }),
-          },
-        );
-        onShopChange?.({ ...optimisticShop, ...result.shop });
-        showSavedToast();
-      } catch (error) {
-        console.error("[OWNER SETTINGS] failed to save shop profile", error);
-      }
-    };
-
-    if (immediate) {
-      void persist();
-      return;
-    }
-
-    shopSaveTimerRef.current = setTimeout(() => {
-      shopSaveTimerRef.current = null;
-      void persist();
-    }, 400);
   }
 
-  function updateRow(rowId: string, value: SettingRow["value"], saveImmediately = false) {
-    if (rowId === "approvalMode" && typeof value === "string") {
-      onManualApprovalChange?.(value !== "바로 승인");
-    }
+  function buildSettingsWithRow(
+    settings: Record<SettingsTabKey, SettingsTab>,
+    rowId: string,
+    value: SettingRow["value"],
+  ) {
+    return {
+      ...settings,
+      [activeTab]: {
+        ...settings[activeTab],
+        rows: settings[activeTab].rows.map((row) => (row.id === rowId ? { ...row, value } : row)),
+      },
+    };
+  }
+
+  function updateRow(rowId: string, value: SettingRow["value"]) {
     setDraftSettings((currentSettings) => {
-      const nextSettings = {
-        ...currentSettings,
-        [activeTab]: {
-          ...currentSettings[activeTab],
-          rows: currentSettings[activeTab].rows.map((row) => (row.id === rowId ? { ...row, value } : row)),
-        },
-      };
+      const nextSettings = buildSettingsWithRow(currentSettings, rowId, value);
       persistSettings(nextSettings);
-      if (
-        activeTab === "shop" &&
-        ["shopName", "description", "businessCategory", "phone", "additionalContact", "postalCode", "address", "addressDetail"].includes(rowId)
-      ) {
-        if (saveImmediately) {
-          saveShopSettings(nextSettings, { profile: true }, true);
-        }
-      }
-      if (activeTab === "shop" && ["approvalMode", "cancelWindow"].includes(rowId)) {
-        saveShopSettings(nextSettings, { policy: true }, true);
+      if (activeTab === "shop") {
+        setIsShopInfoDirty(true);
       }
       return nextSettings;
     });
   }
 
-  function updateShopAddress(address: string) {
+  function updateShopAddress(address: string, postalCode: string) {
     setDraftSettings((currentSettings) => {
+      const targetIds = new Set(["address", "postalCode"]);
       const nextSettings = {
         ...currentSettings,
         shop: {
           ...currentSettings.shop,
-          rows: currentSettings.shop.rows.map((row) => (row.id === "address" ? { ...row, value: address } : row)),
+          rows: currentSettings.shop.rows.map((row) => {
+            if (!targetIds.has(row.id)) return row;
+            if (row.id === "address") return { ...row, value: address };
+            return { ...row, value: postalCode };
+          }),
         },
       };
       persistSettings(nextSettings);
-      saveShopSettings(nextSettings, { profile: true }, true);
+      setIsShopInfoDirty(true);
       return nextSettings;
     });
+  }
+
+  function showSaveCompletePopup() {
+    setSaveCompleteVisible(true);
+    if (saveCompleteTimerRef.current) {
+      clearTimeout(saveCompleteTimerRef.current);
+    }
+    saveCompleteTimerRef.current = setTimeout(() => {
+      setSaveCompleteVisible(false);
+      saveCompleteTimerRef.current = null;
+    }, 1400);
+  }
+
+  async function saveShopInfoFromDraft() {
+    if (savingShopInfo) return;
+    if (!isShopInfoDirty) {
+      showSaveCompletePopup();
+      return;
+    }
+    setSavingShopInfo(true);
+    try {
+      await saveShopSettings(draftSettings, { profile: true, policy: true });
+      setIsShopInfoDirty(false);
+      showSaveCompletePopup();
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to save shop profile", error);
+    } finally {
+      setSavingShopInfo(false);
+    }
   }
 
   function handleRowClick(row: SettingRow) {
@@ -844,13 +879,16 @@ export default function SettingsManagementScreen({
     }
   }
 
-  function persistSettings(nextSettings: Record<SettingsTabKey, SettingsTab>, nextShopProfileImage = shopProfileImage) {
+  function persistSettings(nextSettings: Record<SettingsTabKey, SettingsTab>, nextShopProfileImages = shopProfileImages) {
     const settingsToStore = cloneSettings(nextSettings);
+    const profileImagesToStore = normalizeShopProfileImages(nextShopProfileImages);
     try {
       window.localStorage.setItem(ownerWebSettingsStorageKey, JSON.stringify(settingsToStore));
-      if (nextShopProfileImage) {
-        window.localStorage.setItem(ownerWebShopProfileImageStorageKey, nextShopProfileImage);
+      if (profileImagesToStore.length > 0) {
+        window.localStorage.setItem(ownerWebShopProfileImagesStorageKey, JSON.stringify(profileImagesToStore));
+        window.localStorage.setItem(ownerWebShopProfileImageStorageKey, profileImagesToStore[0]);
       } else {
+        window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
         window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
       }
     } catch {
@@ -867,30 +905,112 @@ export default function SettingsManagementScreen({
   const businessHoursRow = current.rows.find((row) => row.id === "businessHours");
   const closedDayRow = current.rows.find((row) => row.id === "closedDay");
 
-  function updateShopProfileImage(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const nextImage = typeof reader.result === "string" ? reader.result : "";
-      setShopProfileImage(nextImage);
-      persistSettings(draftSettings, nextImage);
+  function readImageFileAsDataUrl(file: File) {
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addShopProfileImages(files: FileList | File[]) {
+    const remainingCount = Math.max(10 - shopProfileImages.length, 0);
+    if (remainingCount === 0) return;
+
+    const selectedFiles = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, remainingCount);
+    if (selectedFiles.length === 0) return;
+
+    const imageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
+    if (imageUrls.length === 0) return;
+
+    const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
+    setShopProfileImages(nextImages);
+    persistSettings(draftSettings, nextImages);
+    setIsShopInfoDirty(true);
+  }
+
+  function removeShopProfileImage(index: number) {
+    const nextImages = shopProfileImages.filter((_, imageIndex) => imageIndex !== index);
+    setShopProfileImages(nextImages);
+    persistSettings(draftSettings, nextImages);
+    setIsShopInfoDirty(true);
+  }
+
+  function updateAlertSettings(nextSettings: AlertSettingsDraft) {
+    setAlertSettings(nextSettings);
+    setAlertSettingsDirty(true);
+  }
+
+  async function saveAlertSettingsFromDraft() {
+    if (savingAlertSettings) return;
+    if (!shop) {
+      showSaveCompletePopup();
+      return;
+    }
+
+    const nextNotificationSettings = alertSettingsDraftToShopSettings(alertSettings);
+    const optimisticShop: Shop = {
+      ...shop,
+      notification_settings: nextNotificationSettings,
     };
-    reader.readAsDataURL(file);
+
+    onShopChange?.(optimisticShop);
+
+    if (!alertSettingsDirty || !persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
+      setAlertSettingsDirty(false);
+      showSaveCompletePopup();
+      return;
+    }
+
+    setSavingAlertSettings(true);
+    try {
+      const savedShop = await fetchApiJsonWithAuth<Shop>("/api/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: shop.id,
+          name: shop.name,
+          phone: shop.phone,
+          address: shop.address,
+          description: shop.description,
+          concurrentCapacity: shop.concurrent_capacity,
+          bookingSlotIntervalMinutes: shop.booking_slot_interval_minutes,
+          bookingSlotOffsetMinutes: shop.booking_slot_offset_minutes,
+          bookingAvailableStartTime: shop.booking_available_start_time,
+          bookingAvailableEndTime: shop.booking_available_end_time,
+          approvalMode: shop.approval_mode,
+          regularClosedDays: shop.regular_closed_days,
+          regularClosedCycle: shop.regular_closed_cycle ?? "weekly",
+          regularClosedAnchorDate: shop.regular_closed_anchor_date ?? null,
+          temporaryClosedDates: shop.temporary_closed_dates,
+          businessHours: shop.business_hours,
+          reservationPolicySettings: shop.reservation_policy_settings,
+          notificationSettings: alertSettings,
+        }),
+      });
+      setAlertSettings(buildAlertSettingsDraft(savedShop.notification_settings));
+      setAlertSettingsDirty(false);
+      onShopChange?.(savedShop);
+      showSaveCompletePopup();
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to save notification settings", error);
+    } finally {
+      setSavingAlertSettings(false);
+    }
   }
 
   return (
     <div>
-      <div
-        aria-live="polite"
-        className={cn(
-          "fixed right-5 top-[64px] z-50 flex items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[13px] font-semibold text-[#17211f] shadow-[0_12px_28px_rgba(15,23,42,0.14)] transition-all duration-200",
-          saveToastVisible ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0",
-        )}
-      >
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f3ef] text-[#2f7866]">
-          <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
-        </span>
-        저장되었습니다
-      </div>
+      {saveCompleteVisible ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
+          <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#e6f3ef] text-[#2f7866]">
+              <Check className="h-5 w-5" strokeWidth={2.5} />
+            </span>
+            저장 완료
+          </div>
+        </div>
+      ) : null}
 
       <div className={cn("grid gap-6", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
@@ -915,17 +1035,14 @@ export default function SettingsManagementScreen({
         ) : null}
 
         <div className="min-w-0 space-y-4">
-          <div>
-            {activeTab === "alerts" ? (
-              <div className="mt-4 rounded-[8px] border border-[#dbe2ea] bg-[#f8fbfa] px-4 py-3">
-                <p className="text-[13px] leading-5 text-[#5f6c66]">
-                  알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          {activeTab === "hours" && businessHoursRow && closedDayRow ? (
+          {activeTab === "alerts" ? (
+            <SettingsAlertsPanel
+              value={alertSettings}
+              saving={savingAlertSettings}
+              onChange={updateAlertSettings}
+              onSave={saveAlertSettingsFromDraft}
+            />
+          ) : activeTab === "hours" && businessHoursRow && closedDayRow ? (
             <OperatingHoursSettings
               businessHoursValue={businessHoursRow.value}
               closedDaysValue={closedDayRow.value}
@@ -938,10 +1055,14 @@ export default function SettingsManagementScreen({
           ) : activeTab === "shop" ? (
             <ShopInfoSettingsPanel
               rows={current.rows}
-              shopProfileImage={shopProfileImage}
-              onProfileImageChange={updateShopProfileImage}
+              shopProfileImages={shopProfileImages}
+              editable
+              saving={savingShopInfo}
+              onSave={saveShopInfoFromDraft}
+              onProfileImagesAdd={addShopProfileImages}
+              onProfileImageRemove={removeShopProfileImage}
               onRowChange={(rowId, value) => updateRow(rowId, value)}
-              onRowCommit={(rowId, value) => updateRow(rowId, value, true)}
+              onRowCommit={(rowId, value) => updateRow(rowId, value)}
               onOpenAddressSearch={() => setAddressSheetOpen(true)}
             />
           ) : (
@@ -971,7 +1092,7 @@ export default function SettingsManagementScreen({
                       <SettingValueControl
                         row={row}
                         onChange={(value) => updateRow(row.id, value)}
-                        onCommit={(value) => updateRow(row.id, value, true)}
+                        onCommit={(value) => updateRow(row.id, value)}
                         onOpenAddressSearch={() => setAddressSheetOpen(true)}
                       />
                     </div>
@@ -990,7 +1111,7 @@ export default function SettingsManagementScreen({
           initialQuery={addressValue}
           onClose={() => setAddressSheetOpen(false)}
           onSelect={(selection) => {
-            updateShopAddress(selection.address);
+            updateShopAddress(selection.address, selection.zonecode);
             setAddressSheetOpen(false);
           }}
         />

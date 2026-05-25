@@ -59,20 +59,19 @@ export function ScheduleTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[920px]">
-        <div className="grid grid-cols-[180px_repeat(7,minmax(94px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
+      <div className="min-w-[1080px]">
+        <div className="grid grid-cols-[180px_repeat(7,minmax(116px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
           <div className="px-5 py-3">직원명</div>
           {weekDates.map((day) => (
-            <div key={day.date} className="px-3 py-3 text-center">
+            <div key={day.date} className="whitespace-nowrap px-3 py-3 text-center [word-break:keep-all]">
               {day.label}
             </div>
           ))}
         </div>
         {staff.map((staffMember) => (
-          <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(94px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
+          <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(116px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
               <p className="text-[16px] font-semibold text-[#111827]">{staffMember.name}</p>
-              <p className="mt-1 truncate text-[14px] text-[#64748b]">{staffMember.role}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
@@ -82,12 +81,12 @@ export function ScheduleTable({
                   type="button"
                   onClick={() => onOpenScheduleEditor(staffMember, day)}
                   className={cn(
-                    "relative mx-2 my-3 flex h-9 items-center justify-center overflow-hidden rounded-[8px] border px-2 text-center text-[14px] font-medium transition",
+                    "relative mx-2 my-3 flex h-9 min-w-[82px] items-center justify-center overflow-hidden rounded-[8px] border px-2 text-center text-[14px] font-medium leading-none whitespace-nowrap [word-break:keep-all] transition",
                     getCellTone(cell.status),
                     getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
                   )}
                 >
-                  {cell.label}
+                  <span className="block whitespace-nowrap [word-break:keep-all]">{cell.label}</span>
                 </button>
               );
             })}
@@ -116,7 +115,7 @@ export function StaffList({
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[920px]">
-        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2.5 text-[14px] font-medium text-[#64748b]">
+        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2.5 text-[16px] font-medium text-[#64748b]">
           <span>직원</span>
           <span>연락처</span>
           <span className="text-center">상태</span>
@@ -141,21 +140,20 @@ export function StaffList({
                 )}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[17px] font-semibold text-[#111827]">{staffMember.name}</p>
-                  <p className="mt-1 truncate text-[14px] text-[#64748b]">{staffMember.role}</p>
+                  <p className="truncate text-[16px] font-semibold text-[#111827]">{staffMember.name}</p>
                 </div>
-                <p className="truncate text-[14px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
+                <p className="truncate text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
                 <span
                   className={cn(
-                    "justify-self-center rounded-full px-2.5 py-1 text-[14px] font-medium",
+                    "justify-self-center rounded-full px-2.5 py-1 text-[16px] font-medium",
                     availability === "근무 가능" ? "bg-[#e6f3ef] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]",
                   )}
                 >
                   {availability}
                 </span>
-                <p className="text-center text-[14px] text-[#334155]">{weeklyDays}일</p>
-                <p className="text-center text-[14px] text-[#334155]">{staffMember.todayBookings}건</p>
-                <p className="text-right text-[14px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
+                <p className="text-center text-[16px] text-[#334155]">{weeklyDays}일</p>
+                <p className="text-center text-[16px] text-[#334155]">{staffMember.todayBookings}건</p>
+                <p className="text-right text-[16px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
               </button>
             );
           })}
@@ -191,13 +189,13 @@ export function StaffDetailPanel({
     <WebSurface className="p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[14px] font-semibold tracking-[0.12em] text-[#94a3b8]">직원 상세</p>
-          <h3 className="mt-2 truncate text-[22px] font-semibold text-[#111827]">{selectedStaff.name}</h3>
-          <p className="mt-1 text-[14px] text-[#64748b]">
+          <p className="text-[16px] font-semibold tracking-[0.12em] text-[#94a3b8]">직원 상세</p>
+          <h3 className="mt-2 truncate text-[16px] font-semibold text-[#111827]">{selectedStaff.name}</h3>
+          <p className="mt-1 text-[16px] text-[#64748b]">
             오늘 예약 {selectedStaff.todayBookings}건 · 이번 주 {selectedStaff.weekBookings}건
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-[#e6f3ef] px-2.5 py-1 text-[14px] font-medium text-[#1f6b5b]">{availability}</span>
+        <span className="shrink-0 rounded-full bg-[#e6f3ef] px-2.5 py-1 text-[16px] font-medium text-[#1f6b5b]">{availability}</span>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -206,9 +204,6 @@ export function StaffDetailPanel({
         </Field>
         <Field label="연락처">
           <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
-        </Field>
-        <Field label="역할">
-          <TextInput value={draft.role} onChange={(role) => onDraftChange((current) => ({ ...current, role }))} />
         </Field>
         <Field label="기본 근무 요일">
           <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => ({ ...current, defaultDaysText }))} />
@@ -230,11 +225,11 @@ export function StaffDetailPanel({
           </Field>
         </div>
         <div className="rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
-          <div className="flex items-center justify-between gap-3 text-[14px]">
+          <div className="flex items-center justify-between gap-3 text-[16px]">
             <span className="text-[#64748b]">예정 휴무/연차</span>
             <span className="font-medium text-[#111827]">{getScheduledLeaveCount(selectedStaff, requests)}건</span>
           </div>
-          <div className="mt-2 flex items-center justify-between gap-3 text-[14px]">
+          <div className="mt-2 flex items-center justify-between gap-3 text-[16px]">
             <span className="text-[#64748b]">남은 연차</span>
             <span className="font-medium text-[#111827]">{annualUsage.remaining}일</span>
           </div>
@@ -256,7 +251,7 @@ export function StaffDetailPanel({
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[14px] font-normal text-[#334155]">{label}</span>
+      <span className="text-[16px] font-normal text-[#334155]">{label}</span>
       <div className="mt-2">{children}</div>
     </label>
   );
@@ -269,7 +264,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[14px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
     />
   );
 }
@@ -295,7 +290,7 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
               type="button"
               onClick={() => toggleDay(day.key)}
               className={cn(
-                "h-8 min-w-8 rounded-full border px-2 text-[14px] font-normal transition",
+                "h-8 min-w-8 rounded-full border px-2 text-[16px] font-normal transition",
                 selected ? "border-[#9ccabe] bg-[#edf7f3] text-[#1f6b5b]" : "border-[#d5dde6] bg-white text-[#64748b]",
               )}
               aria-pressed={selected}
@@ -356,7 +351,7 @@ export function CompactInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[14px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
+      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[16px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
     />
   );
 }
@@ -364,7 +359,7 @@ export function CompactInput({
 export function StaffInfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 items-center gap-3 border-b border-[#edf2f7] py-2 last:border-b-0">
-      <span className="shrink-0 text-[14px] text-[#64748b]">{label}</span>
+      <span className="shrink-0 text-[16px] text-[#64748b]">{label}</span>
       <div className="ml-auto flex min-w-0 flex-1 justify-end">{children}</div>
     </div>
   );
@@ -373,7 +368,7 @@ export function StaffInfoRow({ label, children }: { label: string; children: Rea
 export function StaffMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
-      <p className="text-[14px] text-[#64748b]">{label}</p>
+      <p className="text-[16px] text-[#64748b]">{label}</p>
       <p className="mt-0.5 text-[16px] font-medium text-[#111827]">{value}</p>
     </div>
   );
@@ -410,9 +405,6 @@ export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChang
       </Field>
       <Field label="연락처">
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
-      </Field>
-      <Field label="역할">
-        <TextInput value={draft.role} onChange={(role) => onChange({ ...draft, role })} placeholder="예: 미용사 / 목욕" />
       </Field>
       <Field label="기본 근무 요일">
         <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onChange({ ...draft, defaultDaysText })} />

@@ -8,8 +8,10 @@ import {
   normalizeGuardianNotificationSettings,
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
+import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { formatClockTime } from "@/lib/utils";
 import type {
   Appointment,
   BootstrapPayload,
@@ -29,6 +31,7 @@ type BootstrapOptions = {
   allowMock?: boolean;
   includeLanding?: boolean;
   includeNotifications?: boolean;
+  includeGroomingRecords?: boolean;
   appointmentsFrom?: string;
   appointmentsTo?: string;
   groomingRecordsFrom?: string;
@@ -39,19 +42,23 @@ type BootstrapOptions = {
 
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
   if (shopId === "owner-demo") {
-    return buildOwnerDemoBootstrap();
+    const store = buildOwnerDemoBootstrap();
+    store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
+    return store;
   }
 
   const store = normalizeBootstrapNotifications(buildDemoBootstrap());
   store.shop = {
     ...normalizeShopBookingSettings(store.shop),
     id: shopId || store.shop.id,
+    reservation_policy_settings: normalizeReservationPolicySettings(store.shop.reservation_policy_settings),
     customer_page_settings: normalizeCustomerPageSettings(
       store.shop.customer_page_settings,
       store.shop.name,
       store.shop.description,
     ),
   };
+  store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
   return store;
 }
 
@@ -66,6 +73,13 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
     notification_settings: hasNotificationSettings
       ? normalizeGuardianNotificationSettings(guardian.notification_settings)
       : normalizeGuardianNotificationSettings(null),
+  };
+}
+
+function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
+  return {
+    ...appointment,
+    appointment_time: formatClockTime(appointment.appointment_time),
   };
 }
 
@@ -164,6 +178,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const allowMock = options.allowMock ?? true;
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
+  const includeGroomingRecords = options.includeGroomingRecords ?? true;
   const appointmentsFrom = options.appointmentsFrom;
   const appointmentsTo = options.appointmentsTo;
   const groomingRecordsFrom = options.groomingRecordsFrom;
@@ -201,14 +216,16 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     appointmentsQuery = appointmentsQuery.lte("appointment_date", appointmentsTo);
   }
 
-  let groomingRecordsQuery = supabase.from("grooming_records").select("*").eq("shop_id", shopId).order("groomed_at", { ascending: false });
-  if (groomingRecordsFrom) {
+  let groomingRecordsQuery: any = includeGroomingRecords
+    ? supabase.from("grooming_records").select("*").eq("shop_id", shopId).order("groomed_at", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+  if (includeGroomingRecords && groomingRecordsFrom) {
     groomingRecordsQuery = groomingRecordsQuery.gte("groomed_at", `${groomingRecordsFrom}T00:00:00+09:00`);
   }
-  if (groomingRecordsTo) {
+  if (includeGroomingRecords && groomingRecordsTo) {
     groomingRecordsQuery = groomingRecordsQuery.lte("groomed_at", `${groomingRecordsTo}T23:59:59+09:00`);
   }
-  if (groomingRecordLimit && groomingRecordLimit > 0) {
+  if (includeGroomingRecords && groomingRecordLimit && groomingRecordLimit > 0) {
     groomingRecordsQuery = groomingRecordsQuery.limit(groomingRecordLimit);
   }
 
@@ -265,13 +282,28 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       .map((pet) => pet.id),
   );
 
+  const rawShop = shopRes.data as Shop;
+  const normalizedReservationPolicySettings = normalizeReservationPolicySettings(rawShop.reservation_policy_settings);
+  const policyHasRegularClosedCycle = Object.prototype.hasOwnProperty.call(
+    rawShop.reservation_policy_settings ?? {},
+    "regular_closed_cycle",
+  );
   const normalizedShop = {
-    ...normalizeShopBookingSettings(shopRes.data as Shop),
+    ...normalizeShopBookingSettings(rawShop),
+    regular_closed_cycle:
+      policyHasRegularClosedCycle
+        ? normalizedReservationPolicySettings.regular_closed_cycle ?? "weekly"
+        : rawShop.regular_closed_cycle ?? "weekly",
+    regular_closed_anchor_date:
+      policyHasRegularClosedCycle
+        ? normalizedReservationPolicySettings.regular_closed_anchor_date ?? null
+        : rawShop.regular_closed_anchor_date ?? null,
+    reservation_policy_settings: normalizedReservationPolicySettings,
     notification_settings: normalizeShopNotificationSettings((shopRes.data as Shop).notification_settings),
     customer_page_settings: normalizeCustomerPageSettings(
-      (shopRes.data as Shop).customer_page_settings,
-      (shopRes.data as Shop).name,
-      (shopRes.data as Shop).description,
+      rawShop.customer_page_settings,
+      rawShop.name,
+      rawShop.description,
     ),
   };
   const staffMembers = ((staffMembersRes.data ?? []) as StaffMemberRow[]).map(normalizeStaffMember);
@@ -285,9 +317,9 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     services: (servicesRes.data ?? []) as Service[],
     staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop)],
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
-    appointments: ((appointmentsRes.data ?? []) as Appointment[]).filter((appointment) =>
-      activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id),
-    ),
+    appointments: ((appointmentsRes.data ?? []) as Appointment[])
+      .filter((appointment) => activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id))
+      .map(normalizeAppointmentForBootstrap),
     groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
       activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),
     ),

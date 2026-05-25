@@ -3,6 +3,9 @@
 import { computeAvailableSlots } from "@/lib/availability";
 import { getBootstrap } from "@/server/bootstrap";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -32,7 +35,14 @@ export async function GET(request: NextRequest) {
       staffScheduleOverrides: bootstrap.staffScheduleOverrides,
     });
 
-    return NextResponse.json({ slots });
+    return NextResponse.json(
+      { slots },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "예약 가능 시간 조회 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });

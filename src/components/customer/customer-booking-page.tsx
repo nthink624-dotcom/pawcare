@@ -31,6 +31,7 @@ import {
 } from "@/components/customer/customer-booking-flow-ui";
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
+import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
@@ -306,7 +307,7 @@ async function fetchAvailabilitySlots(
   if (options.serviceId) query.set("serviceId", options.serviceId);
   if (options.previewDurationMinutes) query.set("previewDurationMinutes", String(options.previewDurationMinutes));
   if (options.staffId) query.set("staffId", options.staffId);
-  return fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
+  return fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`, { cache: "no-store" });
 }
 
 function buildDateOptions(shop: Shop): DateOption[] {
@@ -318,9 +319,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
   while (options.length < 8 && offset < 45) {
     const date = addDays(todayDate, offset);
     const value = format(date, "yyyy-MM-dd");
-    const weekdayNumber = date.getDay();
-    const hours = shop.business_hours[weekdayNumber];
-    const isClosed = shop.regular_closed_days.includes(weekdayNumber) || shop.temporary_closed_dates.includes(value) || !hours?.enabled;
+    const isClosed = isShopClosedOnDate(shop, value);
 
     if (!isClosed) {
       options.push({
@@ -394,8 +393,8 @@ function StaffPreferenceCards({
   if (staffMembers.length <= 1) return null;
 
   const options = [
-    { id: "", name: "담당 디자이너 없음", role: "가능한 담당자로 배정" },
-    ...staffMembers.map((staff) => ({ id: staff.id, name: staff.name, role: staff.role })),
+    { id: "", name: "담당 디자이너 없음" },
+    ...staffMembers.map((staff) => ({ id: staff.id, name: staff.name })),
   ];
 
   return (
@@ -418,7 +417,6 @@ function StaffPreferenceCards({
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{option.name}</p>
-                  <p className="mt-0.5 truncate text-[13px] tracking-[-0.02em] text-[#8a8074]">{option.role}</p>
                 </div>
                 {active ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" /> : null}
               </div>
@@ -493,9 +491,9 @@ export default function CustomerBookingPage({
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
   const returningVisitUsesCustomService = returningVisit.serviceId === CUSTOM_SERVICE_ID;
   const hasInitialFirstVisitSlot = Boolean(initialDate && initialTime);
-  const shouldSkipFirstVisitDateTimeStep = hasInitialFirstVisitSlot;
-  const displayedFirstVisitStep = shouldSkipFirstVisitDateTimeStep && firstVisitStep > 2 ? firstVisitStep - 1 : firstVisitStep;
-  const firstVisitStepTotal = shouldSkipFirstVisitDateTimeStep ? 3 : 4;
+  const shouldSkipFirstVisitDateTimeStep = false;
+  const displayedFirstVisitStep = firstVisitStep;
+  const firstVisitStepTotal = 4;
   const firstVisitProgress = (displayedFirstVisitStep / firstVisitStepTotal) * 100;
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const isNewPetInputActive = savedPets.length === 0 || !selectedSavedPet;
@@ -621,7 +619,7 @@ export default function CustomerBookingPage({
       }
       setLoadingFirstVisitSlots(true);
       try {
-        const usesPreviewSlots = firstVisitStep < 3 || !firstVisit.serviceId || firstVisit.serviceId === CUSTOM_SERVICE_ID;
+        const usesPreviewSlots = !firstVisit.serviceId || firstVisit.serviceId === CUSTOM_SERVICE_ID;
         const result = await fetchAvailabilitySlots(
           shopId,
           firstVisit.date,
@@ -631,7 +629,7 @@ export default function CustomerBookingPage({
         );
         if (!active) return;
         setFirstVisitSlots(result.slots);
-        if (!hasInitialFirstVisitSlot && !result.slots.includes(firstVisit.timeSlot)) {
+        if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
       } finally {
@@ -741,8 +739,8 @@ export default function CustomerBookingPage({
         firstVisit.extraPets.every((pet) => pet.name.trim()),
     );
     if (step === 1) return basicInfoReady;
-    if (step === 2) return Boolean(firstVisit.date && firstVisit.timeSlot);
-    if (step === 3) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    if (step === 2) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    if (step === 3) return Boolean(firstVisit.date && firstVisit.timeSlot);
     return Boolean(
       basicInfoReady &&
         firstVisit.date &&
@@ -969,9 +967,9 @@ export default function CustomerBookingPage({
                   firstVisitStep === 1
                     ? "예약자 정보"
                     : firstVisitStep === 2
-                      ? "날짜·시간 선택"
+                      ? "서비스 선택"
                       : firstVisitStep === 3
-                        ? "서비스 선택"
+                        ? "날짜·시간 선택"
                         : "최종 확인"
                 }
                 step={displayedFirstVisitStep}
@@ -1099,7 +1097,34 @@ export default function CustomerBookingPage({
                 </StepSection>
               ) : null}
 
-              {firstVisitStep === 2 && !shouldSkipFirstVisitDateTimeStep ? (
+              {firstVisitStep === 2 ? (
+                <StepSection title="">
+                  <ServiceCards
+                    services={services}
+                    selectedServiceId={firstVisit.serviceId}
+                    onSelect={(value) =>
+                      setFirstVisit((prev) => ({
+                        ...prev,
+                        serviceId: value,
+                        customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
+                        timeSlot: prev.serviceId === value ? prev.timeSlot : "",
+                      }))
+                    }
+                    allowCustom
+                  />
+                  {firstVisitUsesCustomService ? (
+                    <BookingFieldCard label="원하는 서비스">
+                      <BookingTextInput
+                        value={firstVisit.customServiceName}
+                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
+                      />
+                    </BookingFieldCard>
+                  ) : null}
+                  <CustomerGroomingPriceGuide />
+                </StepSection>
+              ) : null}
+
+              {firstVisitStep === 3 ? (
                 <StepSection title="">
                   <div className="space-y-2.5">
                     <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">날짜 선택</p>
@@ -1125,32 +1150,6 @@ export default function CustomerBookingPage({
                       </div>
                     ) : null}
                   </div>
-                </StepSection>
-              ) : null}
-
-              {firstVisitStep === 3 ? (
-                <StepSection title="">
-                  <ServiceCards
-                    services={services}
-                    selectedServiceId={firstVisit.serviceId}
-                    onSelect={(value) =>
-                      setFirstVisit((prev) => ({
-                        ...prev,
-                        serviceId: value,
-                        customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
-                      }))
-                    }
-                    allowCustom
-                  />
-                  {firstVisitUsesCustomService ? (
-                    <BookingFieldCard label="원하는 서비스">
-                      <BookingTextInput
-                        value={firstVisit.customServiceName}
-                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
-                      />
-                    </BookingFieldCard>
-                  ) : null}
-                  <CustomerGroomingPriceGuide />
                 </StepSection>
               ) : null}
 

@@ -19,6 +19,7 @@ const updateShopSchema = z.object({
   addressDetail: z.string().trim().max(120).optional(),
   approvalMode: z.enum(["manual", "auto"]).optional(),
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
+  pendingHoldLimit: z.coerce.number().int().min(1).max(2).optional(),
 });
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -146,6 +147,7 @@ export async function PATCH(request: NextRequest) {
           reservation_policy_settings: {
             cancel_window: body.cancelWindow ?? "2h",
             customer_change_enabled: body.cancelWindow !== "none",
+            pending_hold_limit: body.pendingHoldLimit ?? 1,
           },
           customer_page_settings: {
             shop_name: body.name ?? "?곕え 留ㅼ옣",
@@ -182,11 +184,16 @@ export async function PATCH(request: NextRequest) {
       body.postalCode !== undefined ||
       body.addressDetail !== undefined;
 
-    if (Object.keys(updates).length === 0 && body.cancelWindow === undefined && !hasCustomerPageUpdates) {
+    if (
+      Object.keys(updates).length === 0 &&
+      body.cancelWindow === undefined &&
+      body.pendingHoldLimit === undefined &&
+      !hasCustomerPageUpdates
+    ) {
       throw new OwnerApiError("저장할 매장 정보가 없습니다.", 400);
     }
 
-    if (hasCustomerPageUpdates || body.cancelWindow !== undefined) {
+    if (hasCustomerPageUpdates || body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined) {
       const currentShopResult = await admin
         .from("shops")
         .select("customer_page_settings,reservation_policy_settings")
@@ -212,11 +219,16 @@ export async function PATCH(request: NextRequest) {
         };
       }
 
-      if (body.cancelWindow !== undefined) {
+      if (body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined) {
         updates.reservation_policy_settings = {
           ...(currentShopResult.data?.reservation_policy_settings ?? {}),
-          cancel_window: body.cancelWindow,
-          customer_change_enabled: body.cancelWindow !== "none",
+          ...(body.cancelWindow !== undefined
+            ? {
+                cancel_window: body.cancelWindow,
+                customer_change_enabled: body.cancelWindow !== "none",
+              }
+            : {}),
+          ...(body.pendingHoldLimit !== undefined ? { pending_hold_limit: body.pendingHoldLimit } : {}),
         };
       }
     }
@@ -235,7 +247,11 @@ export async function PATCH(request: NextRequest) {
         description: string;
         approval_mode: "manual" | "auto";
         concurrent_capacity: number;
-        reservation_policy_settings: { cancel_window: "none" | "1h" | "2h" | "6h" | "24h"; customer_change_enabled: boolean };
+        reservation_policy_settings: {
+          cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
+          customer_change_enabled: boolean;
+          pending_hold_limit?: 1 | 2;
+        };
         customer_page_settings: Record<string, unknown>;
       }>();
 

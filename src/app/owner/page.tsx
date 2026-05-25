@@ -340,5 +340,5 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerWebPreview initialData={data} />;
+  return <OwnerWebPreview initialData={data} onDataChange={setData} />;
 }

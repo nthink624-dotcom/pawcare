@@ -120,6 +120,7 @@ function getNotificationTypeLabel(type: NotificationType) {
     owner_booking_requested: "오너 알림",
     booking_rejected: "예약 거절",
     booking_cancelled: "예약 취소",
+    booking_time_proposed: "다른 시간 제안",
     booking_rescheduled_confirmed: "예약 변경",
     appointment_reminder_10m: "방문 전 안내",
     grooming_started: "미용 시작",
@@ -778,14 +779,14 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 placeholder="보호자명, 연락처, 반려동물 이름 검색"
               />
             </label>
             <button
               type="button"
               onClick={openNewCustomerModal}
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f7866] px-4 text-[14px] font-semibold text-white transition hover:bg-[#286a5a]"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-semibold text-white transition hover:bg-[#286a5a]"
             >
               <Plus className="h-4 w-4" />
               고객 추가
@@ -809,17 +810,17 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         {deleteMode ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-white px-4 py-3">
             <div>
-            <p className="text-[14px] font-medium text-[#111827]">
+            <p className="text-[16px] font-medium text-[#111827]">
               {selectedDeleteIds.length}명 선택됨
-              <span className="ml-2 text-[13px] font-normal text-[#64748b]">선택한 고객은 삭제 처리됩니다.</span>
+              <span className="ml-2 text-[16px] font-normal text-[#64748b]">선택한 고객은 삭제 처리됩니다.</span>
             </p>
-            {deleteError ? <p className="mt-1 text-[12px] font-medium text-[#b42318]">{deleteError}</p> : null}
+            {deleteError ? <p className="mt-1 text-[16px] font-medium text-[#b42318]">{deleteError}</p> : null}
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
+              <button type="button" onClick={toggleDisplayedCustomerSelection} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc]" disabled={deletingCustomers}>
                 {allDisplayedCustomersSelected ? "선택 해제" : "전체 선택"}
               </button>
-              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
+              <button type="button" onClick={moveSelectedCustomersToDeleted} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#9f3a3a] transition hover:border-[#efcaca] hover:bg-[#fffafa] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]" disabled={selectedDeleteIds.length === 0 || deletingCustomers}>
                 선택 삭제
               </button>
             </div>
@@ -827,12 +828,12 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         ) : null}
 
         {saveError ? (
-          <p className="border-b border-[#f4c7cc] bg-[#fff7f8] px-4 py-2 text-[12px] font-medium text-[#b42318]">
+          <p className="border-b border-[#f4c7cc] bg-[#fff7f8] px-4 py-2 text-[16px] font-medium text-[#b42318]">
             {saveError}
           </p>
         ) : null}
 
-        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[15px] font-medium text-[#64748b]", customerListGridClass)}>
+        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]", customerListGridClass)}>
           <span />
           <button type="button" onClick={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))} className="text-center transition hover:text-[#1f6b5b]">
             보호자명
@@ -858,8 +859,8 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
             ))
           ) : (
             <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
-              <p className="text-[15px] font-medium text-[#111827]">조건에 맞는 고객이 없습니다.</p>
-              <p className="mt-1 text-[13px] text-[#64748b]">검색어를 줄이거나 고객을 추가해 주세요.</p>
+              <p className="text-[16px] font-medium text-[#111827]">조건에 맞는 고객이 없습니다.</p>
+              <p className="mt-1 text-[16px] text-[#64748b]">검색어를 줄이거나 고객을 추가해 주세요.</p>
             </div>
           )}
         </div>
@@ -919,9 +920,9 @@ function NewCustomerModal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
           <div>
-            <p className="text-[13px] font-medium text-[#64748b]">고객 관리</p>
-            <h2 className="mt-1 text-[26px] font-semibold tracking-[-0.02em] text-[#111827]">신규 고객 추가</h2>
-            <p className="mt-1 text-[14px] leading-5 text-[#64748b]">예약 전에 꼭 필요한 정보만 먼저 등록합니다.</p>
+            <p className="text-[16px] font-medium text-[#64748b]">고객 관리</p>
+            <h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">신규 고객 추가</h2>
+            <p className="mt-1 text-[16px] leading-5 text-[#64748b]">예약 전에 꼭 필요한 정보만 먼저 등록합니다.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
             <X className="h-5 w-5" />
@@ -940,7 +941,7 @@ function NewCustomerModal({
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-[16px] font-semibold text-[#111827]">보호자 정보</h3>
                 <div className="flex items-center gap-2">
-                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]">
+                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium text-[#334155]">
                     <input
                       type="checkbox"
                       checked={draft.alertEnabled}
@@ -949,7 +950,7 @@ function NewCustomerModal({
                     />
                     알림 수신
                   </label>
-                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#334155]">
+                  <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium text-[#334155]">
                     <input
                       type="checkbox"
                       checked={draft.needsConsultation}
@@ -962,21 +963,21 @@ function NewCustomerModal({
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">보호자명</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">보호자명</span>
                   <input
                     value={draft.name}
                     onChange={(event) => patchDraft({ name: event.target.value })}
                     placeholder="예: 정유진"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">연락처</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">연락처</span>
                   <input
                     value={draft.phone}
                     onChange={(event) => patchDraft({ phone: formatPhoneNumber(event.target.value) })}
                     placeholder="010-0000-0000"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
               </div>
@@ -986,39 +987,39 @@ function NewCustomerModal({
               <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">반려동물 이름</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">반려동물 이름</span>
                   <input
                     value={draft.petName}
                     onChange={(event) => patchDraft({ petName: event.target.value })}
                     placeholder="예: 우유"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">품종</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">품종</span>
                   <input
                     value={draft.breed}
                     onChange={(event) => patchDraft({ breed: event.target.value })}
                     placeholder="미입력 가능"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">몸무게</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">몸무게</span>
                   <input
                     value={draft.weight}
                     onChange={(event) => patchDraft({ weight: event.target.value })}
                     placeholder="예: 4.8"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] tabular-nums text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[13px] font-medium text-[#64748b]">특이사항</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">특이사항</span>
                   <input
                     value={draft.petNotes}
                     onChange={(event) => patchDraft({ petNotes: event.target.value })}
                     placeholder="피부, 성향, 요청 등"
-                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="mt-1.5 h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
               </div>
@@ -1030,26 +1031,26 @@ function NewCustomerModal({
                 <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
               </div>
               <label className="mt-3 block">
-                <span className="text-[13px] font-medium text-[#64748b]">고객 요청 / 상담 메모</span>
+                <span className="text-[16px] font-medium text-[#64748b]">고객 요청 / 상담 메모</span>
                 <textarea
                   value={draft.memo}
                   onChange={(event) => patchDraft({ memo: event.target.value })}
                   placeholder="예약 전 확인할 고객 요청을 적어주세요."
-                  className="mt-1.5 min-h-[92px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  className="mt-1.5 min-h-[92px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                 />
               </label>
               <label className="mt-3 block">
-                <span className="text-[13px] font-medium text-[#64748b]">작업자 공유 메모</span>
+                <span className="text-[16px] font-medium text-[#64748b]">작업자 공유 메모</span>
                 <textarea
                   value={draft.staffMemo}
                   onChange={(event) => patchDraft({ staffMemo: event.target.value })}
                   placeholder="미용 시 바로 볼 내부 메모입니다."
-                  className="mt-1.5 min-h-[76px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                  className="mt-1.5 min-h-[76px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                 />
               </label>
             </section>
 
-            {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[13px] font-medium text-[#b42318]">{error}</p> : null}
+            {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[16px] font-medium text-[#b42318]">{error}</p> : null}
           </div>
 
           <div className="flex gap-2 border-t border-[#edf2f7] bg-white px-5 py-3.5">
@@ -1057,14 +1058,14 @@ function NewCustomerModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="h-11 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:text-[#94a3b8]"
+              className="h-11 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:text-[#94a3b8]"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-11 flex-[1.6] rounded-[8px] bg-[#2f7866] text-[15px] font-semibold text-white transition hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
+              className="h-11 flex-[1.6] rounded-[8px] bg-[#2f7866] text-[16px] font-semibold text-white transition hover:bg-[#286a5a] disabled:bg-[#94a3b8]"
             >
               {saving ? "추가 중" : "고객 추가"}
             </button>
@@ -1129,13 +1130,13 @@ function CustomerListRow({
         )}
       </span>
       <span className="min-w-0 text-center">
-        <span className="block truncate text-[15px] font-normal text-[#334155]">{row.name}</span>
+        <span className="block truncate text-[16px] font-normal text-[#334155]">{row.name}</span>
       </span>
-      <span className="truncate text-center text-[15px] font-normal text-[#334155]">{row.pets.join(", ")}</span>
-      <span className="truncate text-center text-[15px] font-normal tabular-nums text-[#334155]">{formatPhoneNumber(row.phone)}</span>
-      <span className={cn("truncate text-center text-[15px] font-normal", row.nextBookingDate ? "text-[#334155]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
+      <span className="truncate text-center text-[16px] font-normal text-[#334155]">{row.pets.join(", ")}</span>
+      <span className="truncate text-center text-[16px] font-normal tabular-nums text-[#334155]">{formatPhoneNumber(row.phone)}</span>
+      <span className={cn("truncate text-center text-[16px] font-normal", row.nextBookingDate ? "text-[#334155]" : "text-[#94a3b8]")}>{row.nextBooking}</span>
       <span className="flex min-w-0 justify-center">
-        <span className={cn("inline-flex h-7 items-center rounded-full px-2.5 text-[15px] font-normal", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
+        <span className={cn("inline-flex h-7 items-center rounded-full px-2.5 text-[16px] font-normal", row.alertEnabled ? "bg-[#eef7f4] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]")}>
           {row.alertEnabled ? "수신" : "중지"}
         </span>
       </span>
@@ -1206,19 +1207,19 @@ function CustomerDetailSheet({
               value={customer.name}
               onSave={(value) => updateEditableField("name", value)}
               displayClassName="block w-full text-left"
-              displayTextClassName="text-[28px] font-semibold leading-[34px] tracking-[-0.02em] text-[#111827]"
-              inputClassName="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[28px] font-semibold tracking-[-0.02em] text-[#111827] outline-none focus:border-[#1f6b5b]"
+              displayTextClassName="text-[16px] font-semibold leading-[34px] tracking-[-0.02em] text-[#111827]"
+              inputClassName="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-semibold tracking-[-0.02em] text-[#111827] outline-none focus:border-[#1f6b5b]"
             />
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <EditableText
                 value={formattedPhone}
                 onSave={(value) => updateEditableField("phone", value)}
                 displayClassName="min-w-fit text-left"
-                displayTextClassName="text-[17px] font-medium tabular-nums text-[#334155]"
-                inputClassName="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[17px] font-medium tabular-nums text-[#111827] outline-none focus:border-[#1f6b5b]"
+                displayTextClassName="text-[16px] font-medium tabular-nums text-[#334155]"
+                inputClassName="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium tabular-nums text-[#111827] outline-none focus:border-[#1f6b5b]"
               />
               {visibleTags.map((tag) => (
-                <span key={tag} className={cn("inline-flex h-6 items-center rounded-[6px] px-2.5 text-[12px] font-medium", getCustomerTagClass(tag))}>
+                <span key={tag} className={cn("inline-flex h-6 items-center rounded-[6px] px-2.5 text-[16px] font-medium", getCustomerTagClass(tag))}>
                   {tag}
                 </span>
               ))}
@@ -1232,11 +1233,11 @@ function CustomerDetailSheet({
         <div className="flex-1 overflow-y-auto px-5 py-3.5">
           <section className="relative rounded-[8px] border border-[#dbe2ea] border-l-4 border-l-[#1f6b5b] bg-[#fbfcfd] py-3 pl-4 pr-[112px]">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] font-medium text-[#64748b]">다음 예약</p>
+              <p className="text-[16px] font-medium text-[#64748b]">다음 예약</p>
               <button
                 type="button"
                 onClick={onAddQuickReservation}
-                className="absolute right-4 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+                className="absolute right-4 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium text-[#334155] hover:bg-[#f8fafc]"
               >
                 {customer.nextBookingDate ? "예약 변경" : "예약 추가"}
               </button>
@@ -1245,15 +1246,15 @@ function CustomerDetailSheet({
               value={customer.nextBooking}
               onSave={(value) => updateEditableField("nextBooking", value)}
               displayClassName="mt-1.5 block w-full text-left"
-              displayTextClassName="text-[23px] font-semibold leading-[28px] text-[#111827]"
-              inputClassName="mt-2 h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[22px] font-semibold text-[#111827] outline-none focus:border-[#1f6b5b]"
+              displayTextClassName="text-[16px] font-semibold leading-[28px] text-[#111827]"
+              inputClassName="mt-2 h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-semibold text-[#111827] outline-none focus:border-[#1f6b5b]"
             />
-            <p className="mt-0.5 truncate text-[13px] leading-5 text-[#64748b]">{nextBookingDetail}</p>
+            <p className="mt-0.5 truncate text-[16px] leading-5 text-[#64748b]">{nextBookingDetail}</p>
           </section>
 
           <section className="mt-4 divide-y divide-[#edf2f7] border-y border-[#edf2f7]">
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-start gap-3 py-3">
-              <p className="text-[13px] font-medium text-[#64748b]">반려동물</p>
+              <p className="text-[16px] font-medium text-[#64748b]">반려동물</p>
               <div className="min-w-0 space-y-2">
                 {(customer.petDetails.length > 0
                   ? customer.petDetails
@@ -1272,13 +1273,13 @@ function CustomerDetailSheet({
                         displayTextClassName="text-[16px] font-medium text-[#111827]"
                         inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
                       />
-                      <p className="mt-0.5 truncate text-[13px] font-medium text-[#64748b]">{formatPetProfile(pet)}</p>
+                      <p className="mt-0.5 truncate text-[16px] font-medium text-[#64748b]">{formatPetProfile(pet)}</p>
                     </div>
                     {customer.petDetails.length > 1 ? (
                       <button
                         type="button"
                         onClick={() => void onDeletePet(customer.id, pet.id)}
-                        className="mt-0.5 h-8 rounded-[7px] border border-[#ead9cf] bg-white px-2 text-[12px] font-medium text-[#94624f] hover:bg-[#fffafa]"
+                        className="mt-0.5 h-8 rounded-[7px] border border-[#ead9cf] bg-white px-2 text-[16px] font-medium text-[#94624f] hover:bg-[#fffafa]"
                       >
                         삭제
                       </button>
@@ -1299,16 +1300,16 @@ function CustomerDetailSheet({
                     value={newPetName}
                     onChange={(event) => setNewPetName(event.target.value)}
                     placeholder="반려동물 추가"
-                    className="h-9 min-w-0 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
+                    className="h-9 min-w-0 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
                   />
-                  <button type="submit" className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                  <button type="submit" className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                     추가
                   </button>
                 </form>
               </div>
             </div>
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
-              <p className="text-[13px] font-medium text-[#64748b]">최근 방문</p>
+              <p className="text-[16px] font-medium text-[#64748b]">최근 방문</p>
               <EditableText
                 value={customer.recentVisit}
                 onSave={(value) => updateEditableField("recentVisit", value)}
@@ -1318,7 +1319,7 @@ function CustomerDetailSheet({
               />
             </div>
             <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3 py-3">
-              <p className="text-[13px] font-medium text-[#64748b]">알림</p>
+              <p className="text-[16px] font-medium text-[#64748b]">알림</p>
               <button type="button" onClick={() => void onToggleAlertStatus()} className="w-fit text-left text-[16px] font-medium text-[#111827] hover:text-[#1f6b5b]">
                 {customer.alerts}
               </button>
@@ -1327,36 +1328,36 @@ function CustomerDetailSheet({
 
           {customer.noshowCount >= 2 ? (
             <section className="mt-3 rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-4 py-3">
-              <p className="text-[12px] font-semibold text-[#b42318]">노쇼 주의 고객</p>
-              <p className="mt-1 text-[14px] leading-5 text-[#7f1d1d]">노쇼가 {customer.noshowCount}회 기록되었습니다. 예약 확정 전에 재확인이 필요합니다.</p>
+              <p className="text-[16px] font-semibold text-[#b42318]">노쇼 주의 고객</p>
+              <p className="mt-1 text-[16px] leading-5 text-[#7f1d1d]">노쇼가 {customer.noshowCount}회 기록되었습니다. 예약 확정 전에 재확인이 필요합니다.</p>
             </section>
           ) : null}
 
           <section className="mt-5">
             <div className="flex items-center gap-2">
               <MessageSquareText className="h-4 w-4 text-[#64748b]" />
-              <h3 className="text-[15px] font-semibold text-[#111827]">메모</h3>
+              <h3 className="text-[16px] font-semibold text-[#111827]">메모</h3>
             </div>
             <div className="mt-2 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-              <p className="text-[13px] font-medium text-[#64748b]">고객 메모</p>
+              <p className="text-[16px] font-medium text-[#64748b]">고객 메모</p>
               <EditableText
                 value={customer.memo}
                 onSave={(value) => updateEditableField("memo", value)}
                 multiline
                 displayClassName="mt-1.5 block w-full text-left"
-                displayTextClassName="whitespace-pre-wrap text-[15px] leading-6 text-[#111827]"
-                inputClassName="mt-1.5 min-h-[72px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none focus:border-[#1f6b5b]"
+                displayTextClassName="whitespace-pre-wrap text-[16px] leading-6 text-[#111827]"
+                inputClassName="mt-1.5 min-h-[72px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none focus:border-[#1f6b5b]"
               />
               <div className="my-3 h-px bg-[#edf2f7]" />
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[13px] font-medium text-[#64748b]">작업 메모</p>
-                <span className="text-[11px] font-medium text-[#94a3b8]">스태프 공유</span>
+                <p className="text-[16px] font-medium text-[#64748b]">작업 메모</p>
+                <span className="text-[16px] font-medium text-[#94a3b8]">스태프 공유</span>
               </div>
               <textarea
                 value={staffComment}
                 onChange={(event) => onChangeStaffComment(event.target.value)}
                 placeholder="작업 시 주의할 점을 적어주세요."
-                className="mt-1.5 h-[88px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
+                className="mt-1.5 h-[88px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#1f6b5b]"
               />
             </div>
           </section>
@@ -1365,9 +1366,9 @@ function CustomerDetailSheet({
             <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-[#64748b]" />
-                <h3 className="text-[15px] font-medium text-[#111827]">알림 이력</h3>
+                <h3 className="text-[16px] font-medium text-[#111827]">알림 이력</h3>
               </div>
-              <span className="text-[12px] text-[#94a3b8]">최근 {notifications.length}건</span>
+              <span className="text-[16px] text-[#94a3b8]">최근 {notifications.length}건</span>
             </div>
             {notifications.length > 0 ? (
               <div className="divide-y divide-[#edf2f7]">
@@ -1381,16 +1382,16 @@ function CustomerDetailSheet({
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
                             <span className={cn("h-2 w-2 shrink-0 rounded-full", statusMeta.dotClassName)} />
-                            <p className="truncate text-[14px] font-medium text-[#111827]">{getNotificationTypeLabel(notification.type)}</p>
+                            <p className="truncate text-[16px] font-medium text-[#111827]">{getNotificationTypeLabel(notification.type)}</p>
                           </div>
-                          <p className="mt-1 truncate text-[13px] text-[#64748b]">{notification.message || "발송 메시지 내용이 없습니다."}</p>
-                          {reason ? <p className="mt-1 text-[12px] leading-5 text-[#b42318]">{reason}</p> : null}
+                          <p className="mt-1 truncate text-[16px] text-[#64748b]">{notification.message || "발송 메시지 내용이 없습니다."}</p>
+                          {reason ? <p className="mt-1 text-[16px] leading-5 text-[#b42318]">{reason}</p> : null}
                         </div>
                         <div className="shrink-0 text-right">
-                          <span className={cn("inline-flex h-6 items-center rounded-[6px] border px-2 text-[11px] font-medium", statusMeta.className)}>
+                          <span className={cn("inline-flex h-6 items-center rounded-[6px] border px-2 text-[16px] font-medium", statusMeta.className)}>
                             {statusMeta.label}
                           </span>
-                          <p className="mt-1 text-[12px] tabular-nums text-[#94a3b8]">{deliveredAt}</p>
+                          <p className="mt-1 text-[16px] tabular-nums text-[#94a3b8]">{deliveredAt}</p>
                         </div>
                       </div>
                     </div>
@@ -1398,7 +1399,7 @@ function CustomerDetailSheet({
                 })}
               </div>
             ) : (
-              <div className="px-4 py-4 text-[13px] leading-5 text-[#64748b]">
+              <div className="px-4 py-4 text-[16px] leading-5 text-[#64748b]">
                 아직 이 고객에게 기록된 알림이 없습니다.
               </div>
             )}
@@ -1406,7 +1407,7 @@ function CustomerDetailSheet({
         </div>
 
         <div className="border-t border-[#edf2f7] bg-white px-5 py-3.5">
-          <button type="button" onClick={onToggleDeleteMode} className="inline-flex h-8 items-center gap-1.5 text-[13px] font-medium text-[#94624f] hover:underline">
+          <button type="button" onClick={onToggleDeleteMode} className="inline-flex h-8 items-center gap-1.5 text-[16px] font-medium text-[#94624f] hover:underline">
             <Trash2 className="h-4 w-4" />
             고객 삭제 모드로 이동
           </button>

@@ -179,16 +179,11 @@ export default function ServiceStaffManagementScreen() {
       return;
     }
 
-    if (!staffForm.role.trim()) {
-      setFormError("담당 가능한 서비스를 입력해 주세요.");
-      return;
-    }
-
     setStaff((current) => [
       ...current,
       {
         name: staffForm.name.trim(),
-        role: staffForm.role.trim(),
+        role: "직원",
         hours: `${staffForm.start} - ${staffForm.end}`,
         today: "예약 0건",
       },
@@ -228,7 +223,6 @@ export default function ServiceStaffManagementScreen() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[15px] font-semibold text-[#111827]">{staffMember.name}</p>
-                    <p className="mt-1 text-[13px] text-[#64748b]">{staffMember.role}</p>
                   </div>
                   <span className="rounded-[8px] bg-white px-2.5 py-1 text-[12px] font-medium text-[#2f7866]">{staffMember.today}</span>
                 </div>
@@ -237,7 +231,6 @@ export default function ServiceStaffManagementScreen() {
             ))}
             <div className="grid gap-2 sm:grid-cols-2">
               <GhostButton label="근무표 수정" />
-              <GhostButton label="담당 가능 서비스" />
             </div>
           </div>
         </MiniSection>
@@ -306,9 +299,6 @@ export default function ServiceStaffManagementScreen() {
               <div className="mt-5 space-y-4">
                 <Field label="직원 이름">
                   <TextInput value={staffForm.name} onChange={(name) => setStaffForm((form) => ({ ...form, name }))} placeholder="예: 민서윤" />
-                </Field>
-                <Field label="담당 가능 서비스">
-                  <TextInput value={staffForm.role} onChange={(role) => setStaffForm((form) => ({ ...form, role }))} placeholder="예: 목욕 / 위생 미용" />
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="출근 시간">

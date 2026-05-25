@@ -1,5 +1,6 @@
 ﻿import { randomUUID } from "node:crypto";
 
+import { after } from "next/server";
 import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
@@ -203,6 +204,26 @@ function makePetBase(
     created_at: nowIso(),
     updated_at: nowIso(),
   };
+}
+
+function scheduleCustomerBookingNotification(input: Parameters<typeof dispatchNotification>[0]) {
+  const task = async () => {
+    try {
+      await dispatchNotification(input);
+    } catch (error) {
+      console.log("[customer-bookings] notification dispatch failed", {
+        appointmentId: input.appointmentId ?? null,
+        type: input.type,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
 }
 
 async function findOrCreateMockEntities(payload: z.infer<typeof customerBookingCreateSchema>) {
@@ -538,7 +559,7 @@ export async function createCustomerBooking(input: unknown) {
     source: "customer",
   });
 
-  await dispatchNotification({
+  scheduleCustomerBookingNotification({
     shopId: appointment.shop_id,
     appointmentId: appointment.id,
     guardianId: appointment.guardian_id,
@@ -562,7 +583,7 @@ export async function createCustomerBooking(input: unknown) {
   });
 
   if (appointment.status === "pending") {
-    await dispatchNotification({
+    scheduleCustomerBookingNotification({
       shopId: appointment.shop_id,
       appointmentId: appointment.id,
       guardianId: appointment.guardian_id,
@@ -759,6 +780,9 @@ export async function updateCustomerBooking(input: unknown) {
     services: bootstrap.services,
     appointments: bootstrap.appointments,
     excludeAppointmentId: payload.appointmentId,
+    staffId: appointment.staff_id ?? null,
+    staffMembers: bootstrap.staffMembers,
+    staffScheduleOverrides: bootstrap.staffScheduleOverrides,
   });
 
   if (!availableSlots.includes(payload.appointmentTime)) {

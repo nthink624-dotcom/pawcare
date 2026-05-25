@@ -14,6 +14,8 @@ export type ShopSettingKey =
   | "booking_rejected_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
+  | "appointment_reminder_10m_enabled"
+  | "grooming_started_enabled"
   | "grooming_almost_done_enabled"
   | "grooming_completed_enabled"
   | null;
@@ -25,6 +27,7 @@ export type AlimtalkTemplateAlias =
   | "booking_confirmed"
   | "booking_rejected"
   | "booking_cancelled"
+  | "booking_time_proposed"
   | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
   | "grooming_started"
@@ -38,6 +41,7 @@ export type AlimtalkTemplateConfigKey =
   | "templateBookingConfirmed"
   | "templateBookingRejected"
   | "templateBookingCancelled"
+  | "templateBookingTimeProposed"
   | "templateBookingRescheduledConfirmed"
   | "templateAppointmentReminder10m"
   | "templateGroomingStarted"
@@ -177,6 +181,32 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
       "",
       "예약 링크",
       "#{예약 링크}",
+      "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
+  },
+  {
+    type: "booking_time_proposed",
+    title: "다른 시간 제안",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "오너가 승인대기 예약에서 다른 시간 제안을 직접 발송",
+    dispatchSource: "src/components/owner-web/calendar-management-screen.tsx",
+    templateAlias: "booking_time_proposed",
+    templateConfigKey: "templateBookingTimeProposed",
+    shopSettingKey: "booking_rescheduled_enabled",
+    guardianSettingKey: "enabled",
+    notes: "직접 승인 예약에서 오너가 추천 시간과 안내 문구를 입력해 수동 발송",
+    draftBody: [
+      "[#{매장명}] 다른 예약 시간 안내",
+      "",
+      "#{반려동물명} 보호자님, 신청해주신 예약 시간은 확정이 어려워 가능한 다른 시간을 안내드립니다.",
+      "",
+      "기존 신청: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "#{안내문구}",
+      "",
       "예약 확인 링크",
       "#{예약 확인 링크}",
     ].join("\n"),
@@ -428,7 +458,9 @@ export function shouldSendByShopSettings(
     case "booking_received":
     case "owner_booking_requested":
     case "appointment_reminder_10m":
+      return settings.appointment_reminder_10m_enabled;
     case "grooming_started":
+      return settings.grooming_started_enabled;
     case "birthday_greeting":
       return true;
     case "booking_confirmed":

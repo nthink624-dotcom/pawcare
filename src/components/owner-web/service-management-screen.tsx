@@ -416,7 +416,6 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
     <div className="space-y-5">
       <div>
         <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#0f172a]">미용 요금</p>
-        <p className="mt-1 text-[16px] font-normal text-[#64748b]">고객에게 보이는 미용 요금과 예상 소요 시간을 먼저 관리합니다.</p>
       </div>
 
       <section className="space-y-6">

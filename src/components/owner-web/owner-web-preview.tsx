@@ -4,12 +4,10 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
-  CreditCard,
   Link2,
   LogOut,
   MessageCircle,
   Scissors,
-  Settings,
   Stethoscope,
   Store,
   Users,
@@ -21,7 +19,7 @@ import CalendarManagementScreen from "@/components/owner-web/calendar-management
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
 import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
-import { ownerWebScreenLabels, settingsTabs, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import { ownerWebScreenLabels, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -45,7 +43,9 @@ const screenIcons: Record<OwnerWebScreenKey, typeof CalendarDays> = {
   grooming: Stethoscope,
   services: Scissors,
   staff: Users,
-  settings: Settings,
+  shopInfo: Store,
+  operatingHours: CalendarDays,
+  alerts: Bell,
 };
 
 const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
@@ -117,10 +117,21 @@ function AlimtalkCreditMenu({
   );
 }
 
+function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null {
+  if (screen === "shopInfo") return "shop";
+  if (screen === "operatingHours") return "hours";
+  if (screen === "alerts") return "alerts";
+  return null;
+}
+
+const screenBySettingsTab: Record<SettingsTabKey, OwnerWebScreenKey> = {
+  shop: "shopInfo",
+  hours: "operatingHours",
+  alerts: "alerts",
+};
+
 function renderScreen(
   screen: OwnerWebScreenKey,
-  settingsTab: SettingsTabKey,
-  onSettingsTabChange: (tab: SettingsTabKey) => void,
   manualApprovalEnabled: boolean,
   onManualApprovalChange: (enabled: boolean) => void,
   initialData: BootstrapPayload,
@@ -164,11 +175,12 @@ function renderScreen(
           onStaffScheduleOverridesChange={handleStaffScheduleOverridesChange}
         />
       );
-    case "settings":
+    case "shopInfo":
+    case "operatingHours":
+    case "alerts":
       return (
         <SettingsManagementScreen
-          activeTab={settingsTab}
-          onActiveTabChange={onSettingsTabChange}
+          activeTab={settingsTabForScreen(screen) ?? "shop"}
           showTabNavigation={false}
           shop={initialData.shop}
           onShopChange={onShopChange}
@@ -185,12 +197,13 @@ function renderScreen(
 export default function OwnerWebPreview({
   initialData,
   demoStaffFallback = [],
+  onDataChange,
 }: {
   initialData: BootstrapPayload;
   demoStaffFallback?: OwnerWebStaffMember[];
+  onDataChange?: (data: BootstrapPayload) => void;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabKey>("shop");
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(initialData.shop.approval_mode !== "auto");
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
@@ -331,7 +344,9 @@ export default function OwnerWebPreview({
         }),
       });
       setLiveStaffMembers(response.staffMembers);
+      const nextOwnerData = { ...ownerData, staffMembers: response.staffMembers };
       setOwnerData((current) => ({ ...current, staffMembers: response.staffMembers }));
+      onDataChange?.(nextOwnerData);
     } catch (error) {
       setLiveStaffMembers(previousStaff);
       setOwnerData(previousOwnerData);
@@ -367,6 +382,8 @@ export default function OwnerWebPreview({
           staffId,
         }),
       });
+      const nextOwnerData = { ...ownerData, staffMembers: nextStaff };
+      onDataChange?.(nextOwnerData);
     } catch (error) {
       setLiveStaffMembers(previousStaff);
       setOwnerData(previousOwnerData);
@@ -379,8 +396,7 @@ export default function OwnerWebPreview({
   }
 
   function openSettingsTab(tab: SettingsTabKey) {
-    setActiveSettingsTab(tab);
-    setActiveScreen("settings");
+    setActiveScreen(screenBySettingsTab[tab]);
     setStoreMenuOpen(false);
     setAlimtalkCreditMenuOpen(false);
   }
@@ -419,13 +435,6 @@ export default function OwnerWebPreview({
               setStoreMenuOpen(false);
             }}
           />
-          <a
-            href="/owner/billing?compare=1"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="요금제"
-          >
-            <CreditCard className="h-4 w-4" />
-          </a>
           <button
             type="button"
             onClick={() => openSettingsTab("shop")}
@@ -433,14 +442,6 @@ export default function OwnerWebPreview({
             aria-label="매장 정보"
           >
             <Store className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => openSettingsTab("shop")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="설정"
-          >
-            <Settings className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -471,10 +472,7 @@ export default function OwnerWebPreview({
             {storeMenuOpen ? (
               <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
                 <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                  매장 프로필
-                </button>
-                <button type="button" onClick={() => openSettingsTab("billing")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                  결제 설정
+                  매장 정보
                 </button>
                 <div className="my-1 border-t border-[#edf2f7]" />
                 <button
@@ -517,30 +515,6 @@ export default function OwnerWebPreview({
                           <span className="block text-[14px] font-semibold">{screen.label}</span>
                         </span>
                       </button>
-                      {screen.key === "settings" && active ? (
-                        <div className="ml-[40px] mt-1 space-y-1 border-l border-[#e2e8f0] pl-2.5">
-                          {settingsTabs.map((tab) => {
-                            const tabActive = activeSettingsTab === tab.key;
-                            return (
-                              <button
-                                key={tab.key}
-                                type="button"
-                                onClick={() => {
-                                  setActiveSettingsTab(tab.key);
-                                  handleScreenSelect("settings");
-                                }}
-                                className={cn(
-                                  "flex h-9 w-full items-center justify-between rounded-[8px] px-3 text-left text-[13px] font-medium transition",
-                                  tabActive ? "bg-[#eef7f4] text-[#1f6b5b]" : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#111827]",
-                                )}
-                              >
-                                <span>{tab.label}</span>
-                                {tabActive ? <span className="text-[11px] text-[#2f7866]">선택됨</span> : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
@@ -564,8 +538,6 @@ export default function OwnerWebPreview({
           <div className="p-5">
             {renderScreen(
               activeScreen,
-              activeSettingsTab,
-              setActiveSettingsTab,
               manualApprovalEnabled,
               handleManualApprovalChange,
               ownerData,

@@ -3,23 +3,63 @@
 import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 import {
   confirmedSlotCapacity,
-  manualPendingHoldCapacity,
+  normalizePendingHoldLimit,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
   normalizeBookingAvailableTime,
   defaultBookingAvailableStartTime,
   defaultBookingAvailableEndTime,
 } from "@/lib/booking-slot-settings";
+import { hasBlockedWindowOverlap } from "@/lib/reservation-policy-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
 export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
+
+function getWeekStart(date: Date) {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = next.getDay();
+  next.setDate(next.getDate() - (day === 0 ? 6 : day - 1));
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function isBiweeklyClosedWeek(date: Date, anchorDateKey?: string | null) {
+  if (!anchorDateKey) return true;
+
+  const anchor = new Date(`${anchorDateKey}T00:00:00`);
+  if (!Number.isFinite(anchor.getTime())) return true;
+
+  const diffDays = Math.round((getWeekStart(date).getTime() - getWeekStart(anchor).getTime()) / (24 * 60 * 60 * 1000));
+  return Math.abs(Math.trunc(diffDays / 7)) % 2 === 0;
+}
+
+export function isRegularClosedOnDate(shop: Shop, date: string) {
+  const day = parseISO(`${date}T00:00:00`);
+  const weekday = day.getDay();
+  const policyHasRegularClosedCycle = Object.prototype.hasOwnProperty.call(
+    shop.reservation_policy_settings ?? {},
+    "regular_closed_cycle",
+  );
+  const regularClosedCycle =
+    policyHasRegularClosedCycle
+      ? shop.reservation_policy_settings?.regular_closed_cycle ?? "weekly"
+      : shop.regular_closed_cycle ?? "weekly";
+  const regularClosedAnchorDate =
+    policyHasRegularClosedCycle
+      ? shop.reservation_policy_settings?.regular_closed_anchor_date ?? null
+      : shop.regular_closed_anchor_date ?? null;
+
+  if (!shop.regular_closed_days.includes(weekday)) return false;
+  if (regularClosedCycle !== "biweekly") return true;
+  return isBiweeklyClosedWeek(day, regularClosedAnchorDate);
+}
 
 export function isShopClosedOnDate(shop: Shop, date: string) {
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   const hours = shop.business_hours[weekday];
 
-  if (shop.regular_closed_days.includes(weekday)) return true;
+  if (isRegularClosedOnDate(shop, date)) return true;
   if (shop.temporary_closed_dates.includes(date)) return true;
   if (!hours?.enabled) return true;
 
@@ -76,23 +116,54 @@ export function computeAvailableSlots(params: {
     slotIntervalMinutes,
   );
   const firstSlotMinute = alignToSlotPattern(Math.max(open, bookingStart), slotIntervalMinutes, slotOffsetMinutes);
+  const candidateStartMinutes = new Set<number>();
 
   for (let cursor = firstSlotMinute; cursor <= bookingEnd && cursor + durationMinutes <= close; cursor += slotIntervalMinutes) {
+    candidateStartMinutes.add(cursor);
+  }
+
+  for (const appointment of appointments) {
+    if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
+
+    const appointmentStart = minutesFromTime(appointment.appointment_time);
+    const appointmentDurationMinutes =
+      getAppointmentDurationMinutes(appointment) ??
+      services.find((item) => item.id === appointment.service_id)?.duration_minutes;
+    if (!appointmentDurationMinutes) continue;
+
+    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    if (appointmentEnd < Math.max(open, bookingStart) || appointmentEnd > bookingEnd) continue;
+    if (appointmentEnd + durationMinutes > close) continue;
+
+    candidateStartMinutes.add(appointmentEnd);
+  }
+
+  for (const cursor of Array.from(candidateStartMinutes).sort((a, b) => a - b)) {
     if (isToday && cursor <= nowMinutes) {
       continue;
     }
 
+    if (hasBlockedWindowOverlap(shop.reservation_policy_settings, cursor, cursor + durationMinutes)) {
+      continue;
+    }
+
+    const shopWideSlotAvailable =
+      staffMembers.length > 0
+        ? true
+        : isSlotAvailable({
+            date,
+            startMinute: cursor,
+            durationMinutes,
+            appointments,
+            services,
+            approvalMode: shop.approval_mode,
+            pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
+            excludeAppointmentId,
+          });
+
     if (
-      isSlotAvailable({
-        date,
-        startMinute: cursor,
-        durationMinutes,
-        appointments,
-        services,
-        approvalMode: shop.approval_mode,
-        excludeAppointmentId,
-      })
-      && isStaffSlotAvailable({
+      shopWideSlotAvailable &&
+      isStaffSlotAvailable({
         date,
         startMinute: cursor,
         durationMinutes,
@@ -101,6 +172,8 @@ export function computeAvailableSlots(params: {
         staffScheduleOverrides,
         appointments,
         services,
+        approvalMode: shop.approval_mode,
+        pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
         excludeAppointmentId,
       })
     ) {
@@ -108,6 +181,20 @@ export function computeAvailableSlots(params: {
     }
   }
   return slots;
+}
+
+function isAppointmentEndSlotCandidate(params: {
+  appointment: Appointment;
+  date: string;
+  staffId?: string | null;
+  excludeAppointmentId?: string;
+}) {
+  const { appointment, date, staffId, excludeAppointmentId } = params;
+  if (appointment.id === excludeAppointmentId) return false;
+  if (appointment.appointment_date !== date) return false;
+  if (["cancelled", "rejected", "noshow"].includes(appointment.status)) return false;
+  if (staffId && appointment.staff_id !== staffId) return false;
+  return true;
 }
 
 function isStaffSlotAvailable(params: {
@@ -119,11 +206,24 @@ function isStaffSlotAvailable(params: {
   staffScheduleOverrides: StaffScheduleOverride[];
   appointments: Appointment[];
   services: Service[];
+  approvalMode: Shop["approval_mode"];
+  pendingHoldLimit?: number | null;
   excludeAppointmentId?: string;
 }): boolean {
-  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, approvalMode, pendingHoldLimit, excludeAppointmentId } = params;
   if (!staffId) {
     if (staffMembers.length === 0) return true;
+    const unassignedAvailable = isSlotAvailable({
+      date,
+      startMinute,
+      durationMinutes,
+      appointments: appointments.filter((appointment) => !appointment.staff_id),
+      services,
+      approvalMode,
+      pendingHoldLimit,
+      excludeAppointmentId,
+    });
+    if (!unassignedAvailable) return false;
     return staffMembers.some((staffMember) => isStaffSlotAvailable({ ...params, staffId: staffMember.id }));
   }
 
@@ -157,19 +257,15 @@ function isStaffSlotAvailable(params: {
     if (startMinute < minutesFromTime(staffMember.startTime) || endMinute > minutesFromTime(staffMember.endTime)) return false;
   }
 
-  return !appointments.some((appointment) => {
-    if (appointment.id === excludeAppointmentId) return false;
-    if (appointment.appointment_date !== date) return false;
-    if (appointment.staff_id !== staffId) return false;
-    if (["cancelled", "rejected", "noshow"].includes(appointment.status)) return false;
-
-    const service = services.find((item) => item.id === appointment.service_id);
-    const appointmentDurationMinutes = getAppointmentDurationMinutes(appointment) ?? service?.duration_minutes;
-    if (!appointmentDurationMinutes) return false;
-
-    const appointmentStart = minutesFromTime(appointment.appointment_time);
-    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
-    return appointmentStart < endMinute && startMinute < appointmentEnd;
+  return isSlotAvailable({
+    date,
+    startMinute,
+    durationMinutes,
+    appointments: appointments.filter((appointment) => appointment.staff_id === staffId),
+    services,
+    approvalMode,
+    pendingHoldLimit,
+    excludeAppointmentId,
   });
 }
 
@@ -180,9 +276,10 @@ export function isSlotAvailable(params: {
   appointments: Appointment[];
   services: Service[];
   approvalMode: Shop["approval_mode"];
+  pendingHoldLimit?: number | null;
   excludeAppointmentId?: string;
 }) {
-  const { date, startMinute, durationMinutes, appointments, services, approvalMode, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, appointments, services, approvalMode, pendingHoldLimit, excludeAppointmentId } = params;
   const endMinute = startMinute + durationMinutes;
   const activeAppointments = appointments.filter(
     (appointment) =>
@@ -226,7 +323,7 @@ export function isSlotAvailable(params: {
       return false;
     }
 
-    const allowedHolds = approvalMode === "manual" ? manualPendingHoldCapacity : confirmedSlotCapacity;
+    const allowedHolds = approvalMode === "manual" ? normalizePendingHoldLimit(pendingHoldLimit) : confirmedSlotCapacity;
     if (overlaps.length >= allowedHolds) {
       return false;
     }

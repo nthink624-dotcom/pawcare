@@ -5,6 +5,7 @@ export const KAKAO_POSTCODE_SCRIPT_URL =
 
 export type KakaoPostcodeData = {
   zonecode: string;
+  postcode?: string;
   address: string;
   addressType: "R" | "J";
   userSelectedType: "R" | "J";
@@ -82,7 +83,7 @@ export function buildKakaoPostcodeAddress(data: KakaoPostcodeData) {
   const address = isRoadAddress && extraAddress ? `${selectedAddress} (${extraAddress})` : selectedAddress;
 
   return {
-    zonecode: data.zonecode,
+    zonecode: data.zonecode || data.postcode || "",
     address,
     roadAddress: baseRoadAddress,
     jibunAddress: baseJibunAddress,

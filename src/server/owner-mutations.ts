@@ -1,7 +1,14 @@
 ﻿import { randomUUID } from "node:crypto";
 
-import { computeAvailableSlots, isSlotAvailable } from "@/lib/availability";
-import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { after } from "next/server";
+
+import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
+import {
+  concurrentCapacityForApprovalMode,
+  defaultBookingAvailableEndTime,
+  defaultBookingAvailableStartTime,
+  normalizeBookingAvailableTime,
+} from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import {
   coerceEnabledShopNotificationSettings,
@@ -9,6 +16,7 @@ import {
   normalizeBootstrapNotifications,
   normalizeGuardianNotificationSettings,
 } from "@/lib/notification-settings";
+import { hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
@@ -78,8 +86,11 @@ function ensureAppointmentCanBeConfirmed(params: {
     startMinute: minutesFromTime(appointment.appointment_time),
     durationMinutes: service.duration_minutes,
     approvalMode: shop.approval_mode,
+    pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
     services,
-    appointments,
+    appointments: appointment.staff_id
+      ? appointments.filter((item) => item.staff_id === appointment.staff_id)
+      : appointments,
     excludeAppointmentId: appointment.id,
   });
 
@@ -175,12 +186,26 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
   const startMinute = minutesFromTime(appointmentTime);
   const endMinute = startMinute + durationMinutes;
 
-  if (shop.regular_closed_days.includes(weekday) || shop.temporary_closed_dates.includes(date) || !hours?.enabled) {
+  if (isRegularClosedOnDate(shop, date) || shop.temporary_closed_dates.includes(date) || !hours?.enabled) {
     throw new Error("매장 휴무일에는 예약 시간을 조정할 수 없습니다.");
   }
 
   if (startMinute < minutesFromTime(hours.open) || endMinute > minutesFromTime(hours.close)) {
     throw new Error("예약 시간이 매장 운영시간을 벗어납니다.");
+  }
+
+  const bookingStart = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+  );
+  const bookingEnd = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+  );
+  if (startMinute < bookingStart || startMinute > bookingEnd) {
+    throw new Error("예약 시간이 미용 예약 가능 시간을 벗어납니다.");
+  }
+
+  if (hasBlockedWindowOverlap(shop.reservation_policy_settings, startMinute, endMinute)) {
+    throw new Error("예약 제외 시간에는 예약 시간을 조정할 수 없습니다.");
   }
 
   if (!staffId) return;
@@ -240,6 +265,7 @@ function ensureAppointmentScheduleCanBeActivated(params: {
 
 function hasMissingColumnError(
   error: {
+    code?: string | null;
     message?: string | null;
     details?: string | null;
     hint?: string | null;
@@ -248,7 +274,11 @@ function hasMissingColumnError(
 ) {
   const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
   const needle = column.toLowerCase();
-  return haystack.includes(needle) && (haystack.includes("column") || haystack.includes("schema cache"));
+  const isPostgrestSchemaCacheMiss = error?.code === "PGRST204" || haystack.includes("schema cache");
+  return (
+    haystack.includes(needle) &&
+    (haystack.includes("column") || haystack.includes("could not find") || isPostgrestSchemaCacheMiss)
+  );
 }
 
 function getMutableStore() {
@@ -323,6 +353,22 @@ async function dispatchAppointmentNotificationWithLogs(params: {
   }
 }
 
+function scheduleAppointmentNotificationWithLogs(params: Parameters<typeof dispatchAppointmentNotificationWithLogs>[0]) {
+  const task = async () => {
+    try {
+      await dispatchAppointmentNotificationWithLogs(params);
+    } catch {
+      // dispatchAppointmentNotificationWithLogs already logs the detailed failure.
+    }
+  };
+
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
+}
+
 export async function updateShopSettings(input: unknown) {
   const payload = shopSettingsSchema.parse(input);
   const nextNotificationSettings = {
@@ -332,11 +378,19 @@ export async function updateShopSettings(input: unknown) {
     booking_rejected_enabled: payload.notificationSettings.bookingRejectedEnabled,
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
+    appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
+    grooming_started_enabled: payload.notificationSettings.groomingStartedEnabled,
     grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,
     grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
   };
   const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
   const concurrentCapacity = concurrentCapacityForApprovalMode(payload.approvalMode);
+  const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
+  const normalizedReservationPolicySettings = {
+    ...normalizeReservationPolicySettings(payload.reservationPolicySettings),
+    regular_closed_cycle: payload.regularClosedCycle,
+    regular_closed_anchor_date: regularClosedAnchorDate,
+  };
   const fullUpdatePayload = {
     name: payload.name,
     phone: payload.phone,
@@ -351,6 +405,7 @@ export async function updateShopSettings(input: unknown) {
     regular_closed_days: payload.regularClosedDays,
     temporary_closed_dates: payload.temporaryClosedDates,
     business_hours: payload.businessHours,
+    reservation_policy_settings: normalizedReservationPolicySettings,
     notification_settings: normalizedNotificationSettings,
     updated_at: nowIso(),
   };
@@ -371,8 +426,11 @@ export async function updateShopSettings(input: unknown) {
       booking_available_end_time: payload.bookingAvailableEndTime,
       approval_mode: payload.approvalMode,
       regular_closed_days: payload.regularClosedDays,
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
       temporary_closed_dates: payload.temporaryClosedDates,
       business_hours: Object.fromEntries(Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value])),
+      reservation_policy_settings: normalizedReservationPolicySettings,
       notification_settings: normalizedNotificationSettings,
       updated_at: nowIso(),
     };
@@ -384,32 +442,39 @@ export async function updateShopSettings(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
-  const runShopUpdate = async ({
-    includeBookingSlotSettings,
-    includeNotificationSettings,
-    includeBookingAvailableTimeWindow,
-  }: {
-    includeBookingSlotSettings: boolean;
-    includeNotificationSettings: boolean;
-    includeBookingAvailableTimeWindow: boolean;
-  }) => {
-    const nextPayload: Record<string, unknown> = {
-      ...fullUpdatePayload,
-    };
+    const runShopUpdate = async ({
+      includeBookingSlotSettings,
+      includeNotificationSettings,
+      includeBookingAvailableTimeWindow,
+      includeRegularClosedCycleSettings,
+    }: {
+      includeBookingSlotSettings: boolean;
+      includeNotificationSettings: boolean;
+      includeBookingAvailableTimeWindow: boolean;
+      includeRegularClosedCycleSettings: boolean;
+    }) => {
+      const nextPayload: Record<string, unknown> = {
+        ...fullUpdatePayload,
+      };
 
     if (!includeBookingSlotSettings) {
       delete nextPayload.booking_slot_interval_minutes;
       delete nextPayload.booking_slot_offset_minutes;
     }
 
-    if (!includeBookingAvailableTimeWindow) {
-      delete nextPayload.booking_available_start_time;
-      delete nextPayload.booking_available_end_time;
-    }
+      if (!includeBookingAvailableTimeWindow) {
+        delete nextPayload.booking_available_start_time;
+        delete nextPayload.booking_available_end_time;
+      }
 
-    if (!includeNotificationSettings) {
-      delete nextPayload.notification_settings;
-    }
+      if (!includeRegularClosedCycleSettings) {
+        delete nextPayload.regular_closed_cycle;
+        delete nextPayload.regular_closed_anchor_date;
+      }
+  
+      if (!includeNotificationSettings) {
+        delete nextPayload.notification_settings;
+      }
 
     return supabase
       .from("shops")
@@ -419,51 +484,68 @@ export async function updateShopSettings(input: unknown) {
       .single();
   };
 
-  const { data, error } = await runShopUpdate({
-    includeBookingSlotSettings: true,
-    includeNotificationSettings: true,
-    includeBookingAvailableTimeWindow: true,
-  });
+    const withRegularClosedSettings = (shop: Shop): Shop => ({
+      ...shop,
+      regular_closed_cycle: payload.regularClosedCycle,
+      regular_closed_anchor_date: regularClosedAnchorDate,
+      reservation_policy_settings: {
+        ...normalizeReservationPolicySettings(shop.reservation_policy_settings),
+        regular_closed_cycle: payload.regularClosedCycle,
+        regular_closed_anchor_date: regularClosedAnchorDate,
+      },
+    });
 
-  if (error) {
-    const missingBookingSlotSettings =
-      hasMissingColumnError(error, "booking_slot_interval_minutes") ||
+    const { data, error } = await runShopUpdate({
+      includeBookingSlotSettings: true,
+      includeNotificationSettings: true,
+      includeBookingAvailableTimeWindow: true,
+      includeRegularClosedCycleSettings: false,
+    });
+  
+    if (error) {
+      const missingBookingSlotSettings =
+        hasMissingColumnError(error, "booking_slot_interval_minutes") ||
       hasMissingColumnError(error, "booking_slot_offset_minutes");
-    const missingBookingAvailableTimeWindow =
-      hasMissingColumnError(error, "booking_available_start_time") ||
-      hasMissingColumnError(error, "booking_available_end_time");
-    const missingNotificationSettings = hasMissingColumnError(error, "notification_settings");
-
-    if (missingBookingSlotSettings || missingNotificationSettings || missingBookingAvailableTimeWindow) {
-      let fallback = await runShopUpdate({
-        includeBookingSlotSettings: !missingBookingSlotSettings,
-        includeNotificationSettings: !missingNotificationSettings,
-        includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
-      });
-
-      if (
-        fallback.error &&
-        !missingNotificationSettings &&
+      const missingBookingAvailableTimeWindow =
+        hasMissingColumnError(error, "booking_available_start_time") ||
+        hasMissingColumnError(error, "booking_available_end_time");
+      const missingRegularClosedCycleSettings =
+        hasMissingColumnError(error, "regular_closed_cycle") ||
+        hasMissingColumnError(error, "regular_closed_anchor_date");
+      const missingNotificationSettings = hasMissingColumnError(error, "notification_settings");
+  
+      if (missingBookingSlotSettings || missingNotificationSettings || missingBookingAvailableTimeWindow || missingRegularClosedCycleSettings) {
+        let fallback = await runShopUpdate({
+          includeBookingSlotSettings: !missingBookingSlotSettings,
+          includeNotificationSettings: !missingNotificationSettings,
+          includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
+          includeRegularClosedCycleSettings: !missingRegularClosedCycleSettings,
+        });
+  
+        if (
+          fallback.error &&
+          !missingNotificationSettings &&
         hasMissingColumnError(fallback.error, "notification_settings")
       ) {
-        fallback = await runShopUpdate({
-          includeBookingSlotSettings: !missingBookingSlotSettings,
-          includeNotificationSettings: false,
-          includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
-        });
-      }
+          fallback = await runShopUpdate({
+            includeBookingSlotSettings: !missingBookingSlotSettings,
+            includeNotificationSettings: false,
+            includeBookingAvailableTimeWindow: !missingBookingAvailableTimeWindow,
+            includeRegularClosedCycleSettings: !missingRegularClosedCycleSettings,
+          });
+        }
 
       if (fallback.error) {
         throw new Error(fallback.error.message);
       }
 
-      return fallback.data;
+      return withRegularClosedSettings(fallback.data as Shop);
     }
 
     throw new Error(error.message);
   }
 
-  return data;
+  return withRegularClosedSettings(data as Shop);
 }
 
 export async function upsertService(input: unknown) {
@@ -1000,7 +1082,13 @@ export async function deletePet(input: unknown) {
 
 export async function createAppointment(input: unknown) {
   const payload = appointmentInputSchema.parse(input);
-  const data = await getBootstrap(payload.shopId);
+  const data = await getBootstrap(payload.shopId, {
+    includeLanding: false,
+    includeNotifications: false,
+    includeGroomingRecords: false,
+    appointmentsFrom: payload.appointmentDate,
+    appointmentsTo: payload.appointmentDate,
+  });
   const service = data.services.find((item) => item.id === payload.serviceId);
 
   if (!service) throw new Error("?쒕퉬???뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
@@ -1011,6 +1099,9 @@ export async function createAppointment(input: unknown) {
     shop: data.shop,
     services: data.services,
     appointments: data.appointments,
+    staffId: payload.staffId ?? null,
+    staffMembers: data.staffMembers,
+    staffScheduleOverrides: data.staffScheduleOverrides,
   });
 
   if (!availableSlots.includes(payload.appointmentTime)) {
@@ -1052,7 +1143,7 @@ export async function createAppointment(input: unknown) {
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
     if (appointment.status === "confirmed") {
-      await dispatchAppointmentNotificationWithLogs({
+      scheduleAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
         appointment,
         type: "booking_confirmed",
@@ -1094,7 +1185,7 @@ export async function createAppointment(input: unknown) {
 
       if (fallbackError) throw new Error(fallbackError.message);
       if (appointment.status === "confirmed") {
-        await dispatchAppointmentNotificationWithLogs({
+        scheduleAppointmentNotificationWithLogs({
           shopId: appointment.shop_id,
           appointment,
           type: "booking_confirmed",
@@ -1106,7 +1197,7 @@ export async function createAppointment(input: unknown) {
     throw new Error(error.message);
   }
   if (appointment.status === "confirmed") {
-    await dispatchAppointmentNotificationWithLogs({
+    scheduleAppointmentNotificationWithLogs({
       shopId: appointment.shop_id,
       appointment,
       type: "booking_confirmed",
@@ -1402,6 +1493,9 @@ export async function updateAppointmentDetails(input: unknown) {
       services: data.services,
       appointments: data.appointments,
       excludeAppointmentId: payload.appointmentId,
+      staffId: payload.staffId ?? appointment.staff_id ?? null,
+      staffMembers: data.staffMembers,
+      staffScheduleOverrides: data.staffScheduleOverrides,
     });
 
     if (!availableSlots.includes(payload.appointmentTime)) {

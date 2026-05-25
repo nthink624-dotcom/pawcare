@@ -52,7 +52,7 @@ export function StaffLeaveModal({
           <SoftSelect
             value={draft.staffId}
             onChange={(staffId) => onDraftChange((current) => ({ ...current, staffId }))}
-            options={staff.map((item) => ({ value: item.id, label: item.name, meta: item.role }))}
+            options={staff.map((item) => ({ value: item.id, label: item.name }))}
             align="left"
             buttonClassName="h-10"
           />

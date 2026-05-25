@@ -160,7 +160,7 @@ export default function CustomerBookingManagePanel({
           serviceId: manageForm.serviceId,
           excludeAppointmentId: manageForm.appointmentId,
         });
-        const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`);
+        const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`, { cache: "no-store" });
         if (!active) return;
         setManageSlots(result.slots);
         if (!result.slots.includes(manageForm.timeSlot)) {

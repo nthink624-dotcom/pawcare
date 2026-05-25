@@ -134,7 +134,7 @@ export default function StaffManagementScreen({
               ...item,
               name: draft.name.trim() || item.name,
               phone: draft.phone.trim(),
-              role: draft.role.trim() || item.role,
+              role: "직원",
               defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
               startTime: draft.startTime,
               endTime: draft.endTime,
@@ -159,7 +159,7 @@ export default function StaffManagementScreen({
       id: createStaffId(),
       name: newStaffDraft.name.trim() || "신규 직원",
       phone: newStaffDraft.phone.trim(),
-      role: newStaffDraft.role.trim() || "미용 / 보조",
+      role: "직원",
       defaultDays: nextDays.length > 0 ? nextDays : ["mon", "tue", "wed", "thu", "fri"],
       startTime: newStaffDraft.startTime,
       endTime: newStaffDraft.endTime,
@@ -415,15 +415,15 @@ export default function StaffManagementScreen({
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[20px] font-semibold text-[#111827]">{boardTab === "list" ? "직원 목록" : "주간 근무표"}</h2>
+                  <h2 className="text-[16px] font-semibold text-[#111827]">{boardTab === "list" ? "직원 목록" : "주간 근무표"}</h2>
                   {boardTab === "list" ? (
-                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[14px] font-semibold text-[#2f7866]">
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-semibold text-[#2f7866]">
                       {staff.length}명
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-[14px] text-[#64748b]">
-                  {boardTab === "list" ? "근무 가능 인원과 역할을 관리합니다." : "예약 배정 전 근무 가능 여부를 확인합니다."}
+                <p className="mt-1 text-[16px] text-[#64748b]">
+                  {boardTab === "list" ? "근무 가능 인원을 관리합니다." : "예약 배정 전 근무 가능 여부를 확인합니다."}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -437,7 +437,7 @@ export default function StaffManagementScreen({
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-8 px-3 text-[14px] font-medium text-[#111827]">
+                    <button type="button" onClick={() => setWeekStart(getWeekStart())} className="h-8 px-3 text-[16px] font-medium text-[#111827]">
                       {formatWeekLabel(weekStart)}
                     </button>
                     <button
@@ -455,7 +455,7 @@ export default function StaffManagementScreen({
               </div>
             </div>
 
-            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[14px] text-[#1f6b5b]">{notice}</div> : null}
+            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#1f6b5b]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />

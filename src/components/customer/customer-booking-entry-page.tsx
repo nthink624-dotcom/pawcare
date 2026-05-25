@@ -200,7 +200,7 @@ export default function CustomerBookingEntryPage({
       previewDurationMinutes: "30",
     });
 
-    fetch(`/api/availability?${query.toString()}`)
+    fetch(`/api/availability?${query.toString()}`, { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error("availability failed"))))
       .then((payload: { slots?: string[] }) => {
         if (!active) return;

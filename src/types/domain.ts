@@ -15,6 +15,7 @@ export type NotificationType =
   | "owner_booking_requested"
   | "booking_rejected"
   | "booking_cancelled"
+  | "booking_time_proposed"
   | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
   | "grooming_started"
@@ -50,6 +51,8 @@ export type ShopNotificationSettings = {
   booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
+  appointment_reminder_10m_enabled: boolean;
+  grooming_started_enabled: boolean;
   grooming_almost_done_enabled: boolean;
   grooming_completed_enabled: boolean;
 };
@@ -91,9 +94,20 @@ export type CustomerPageSettings = {
   address_detail?: string;
 };
 
+export type BookingBlockedWindow = {
+  id?: string;
+  start: string;
+  end: string;
+  label?: string;
+};
+
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
+  pending_hold_limit?: 1 | 2 | 3;
+  booking_blocked_windows?: BookingBlockedWindow[];
+  regular_closed_cycle?: "weekly" | "biweekly";
+  regular_closed_anchor_date?: string | null;
 };
 
 export type BusinessHours = Partial<
@@ -116,6 +130,8 @@ export type Shop = {
   description: string;
   business_hours: BusinessHours;
   regular_closed_days: number[];
+  regular_closed_cycle?: "weekly" | "biweekly";
+  regular_closed_anchor_date?: string | null;
   temporary_closed_dates: string[];
   concurrent_capacity: number;
   booking_slot_interval_minutes: number;

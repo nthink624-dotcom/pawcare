@@ -106,60 +106,45 @@ function buildSection({
   };
 }
 
-const defaultWeightBands = ["5kg 이하", "8kg 이하", "10kg 이하", "12kg 이하"];
+const basicWeightBands = ["4kg 이하", "6kg 이하", "8kg 이하"];
+const plusPremiumWeightBands = ["4kg 이하", "6kg 이하", "8kg 이하", "10kg 이하"];
 const removedDefaultItemLabels = new Set(["빡빡이"]);
 
 const defaultGuideSections: ServicePriceGuideSection[] = [
   buildSection({
-    id: "small_dog",
-    title: "소형견",
-    note: "말티, 요키, 시츄, 포메, 토이푸들 등",
-    weightBands: defaultWeightBands,
+    id: "basic",
+    title: "베이직",
+    note: "말티즈, 포메라니안, 토이푸들, 시츄, 요크셔테리어, 치와와, 빠삐용 등",
+    weightBands: basicWeightBands,
     items: [
-      { id: "small_bath", label: "목욕", prices: ["15000", "20000", "25000", "30000"], durations: ["40", "45", "50", "55"] },
-      { id: "small_partial", label: "부분미용", prices: ["15000", "20000", "25000", "30000"], durations: ["35", "40", "45", "50"] },
-      { id: "small_partial_bath", label: "부분+목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["60", "70", "80", "90"] },
-      { id: "small_summer", label: "썸머컷 추가", prices: ["10000", "10000", "20000", "20000"], durations: ["20", "20", "25", "25"] },
-      { id: "small_scissor", label: "전체 가위컷", prices: ["65000", "70000", "75000", "80000"], durations: ["140", "150", "160", "170"] },
+      { id: "basic_hygiene_bath", label: "위생미용+목욕", prices: ["30000", "35000", "40000"], durations: ["60", "70", "80"] },
+      { id: "basic_clipping", label: "클리핑", prices: ["45000", "50000", "55000"], durations: ["90", "100", "110"] },
+      { id: "basic_spotting", label: "스포팅", prices: ["70000", "80000", "90000"], durations: ["120", "140", "160"] },
+      { id: "basic_scissor", label: "가위컷", prices: ["90000", "100000", "110000"], durations: ["150", "170", "190"] },
     ],
   }),
   buildSection({
-    id: "medium_dog",
-    title: "중형견",
-    note: "코카, 슈나, 스피츠, 닥스훈트, 패키니즈, 미니어처푸들, 믹스견 등",
-    weightBands: defaultWeightBands,
+    id: "plus",
+    title: "플러스",
+    note: "미니어처푸들, 말티푸, 스피츠, 슈나우저, 비글, 패키니즈, 믹스견 등",
+    weightBands: plusPremiumWeightBands,
     items: [
-      { id: "medium_bath", label: "목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["45", "50", "60", "70"] },
-      { id: "medium_partial", label: "부분미용", prices: ["20000", "25000", "30000", "35000"], durations: ["40", "45", "50", "55"] },
-      { id: "medium_partial_bath", label: "부분+목욕", prices: ["25000", "30000", "35000", "40000"], durations: ["70", "80", "90", "100"] },
-      { id: "medium_summer", label: "썸머컷 추가", prices: ["10000", "10000", "20000", "20000"], durations: ["20", "20", "25", "25"] },
-      { id: "medium_scissor", label: "전체 가위컷", prices: ["70000", "75000", "80000", "85000"], durations: ["150", "160", "170", "180"] },
+      { id: "plus_hygiene_bath", label: "위생미용+목욕", prices: ["35000", "40000", "45000", "50000"], durations: ["70", "80", "90", "100"] },
+      { id: "plus_clipping", label: "클리핑", prices: ["50000", "55000", "60000", "65000"], durations: ["100", "110", "120", "130"] },
+      { id: "plus_spotting", label: "스포팅", prices: ["80000", "90000", "100000", "110000"], durations: ["140", "160", "180", "200"] },
+      { id: "plus_scissor", label: "가위컷", prices: ["100000", "110000", "120000", "130000"], durations: ["170", "190", "210", "230"] },
     ],
   }),
   buildSection({
-    id: "special_large_dog",
-    title: "특수견/대형견",
-    note: "비숑, 베들링턴, 특수컷, 대형견은 아이 상태와 사이즈에 따라 상담 후 확정",
-    weightBands: defaultWeightBands,
+    id: "premium",
+    title: "프리미엄",
+    note: "비숑프리제, 꼬똥드툴레아, 코카스파니엘, 웰시코기, 베들링턴테리어 등",
+    weightBands: plusPremiumWeightBands,
     items: [
-      { id: "special_bath", label: "목욕", prices: ["30000", "35000", "40000", "45000"], durations: ["60", "70", "80", "90"] },
-      { id: "special_partial", label: "부분미용", prices: ["30000", "35000", "40000", "45000"], durations: ["50", "55", "60", "65"] },
-      { id: "special_partial_bath", label: "부분+목욕", prices: ["35000", "40000", "45000", "50000"], durations: ["90", "100", "110", "120"] },
-      { id: "special_summer", label: "썸머컷 추가", prices: ["15000", "15000", "20000", "25000"], durations: ["25", "25", "30", "35"] },
-      { id: "special_scissor", label: "전체 가위컷", prices: ["85000", "90000", "95000", "100000"], durations: ["170", "180", "190", "210"] },
-    ],
-  }),
-  buildSection({
-    id: "cat",
-    title: "고양이 미용",
-    note: "",
-    weightBands: defaultWeightBands,
-    items: [
-      { id: "cat_short_bath", label: "단모 목욕", prices: ["20000", "25000", "30000", "35000"], durations: ["40", "45", "50", "55"] },
-      { id: "cat_short_cut", label: "단모 미용", prices: ["50000", "55000", "60000", "65000"], durations: ["80", "90", "100", "110"] },
-      { id: "cat_long_bath", label: "장모 목욕", prices: ["30000", "35000", "40000", "45000"], durations: ["50", "55", "60", "70"] },
-      { id: "cat_long_cut", label: "장모 미용", prices: ["55000", "60000", "65000", "70000"], durations: ["90", "100", "110", "120"] },
-      { id: "cat_color", label: "염색", prices: ["10000", "10000", "10000", "10000"], durations: ["20", "20", "20", "20"] },
+      { id: "premium_hygiene_bath", label: "위생미용+목욕", prices: ["40000", "45000", "50000", "55000"], durations: ["80", "90", "100", "110"] },
+      { id: "premium_clipping", label: "클리핑", prices: ["60000", "65000", "70000", "75000"], durations: ["120", "130", "140", "150"] },
+      { id: "premium_spotting", label: "스포팅", prices: ["90000", "100000", "110000", "120000"], durations: ["160", "180", "200", "220"] },
+      { id: "premium_scissor", label: "가위컷", prices: ["110000", "120000", "130000", "140000"], durations: ["190", "210", "230", "250"] },
     ],
   }),
 ];
@@ -217,6 +202,20 @@ function normalizeGuideItems(items: ServicePriceGuideSection["items"]) {
   return items.filter((item) => !removedDefaultItemLabels.has(item.label.trim()));
 }
 
+function isLegacyDefaultGuide(value: unknown[]) {
+  const legacySectionTitles = new Set(["소형견", "중형견", "특수견/대형견", "고양이 미용"]);
+  const legacyItemLabels = new Set(["목욕", "부분미용", "부분+목욕", "썸머컷 추가", "전체 가위컷", "단모 목욕", "단모 미용", "장모 목욕", "장모 미용", "염색"]);
+  return value.some((section) => {
+    if (!section || typeof section !== "object") return false;
+    const source = section as Partial<ServicePriceGuideSection>;
+    if (typeof source.title === "string" && legacySectionTitles.has(source.title.trim())) return true;
+    return Array.isArray(source.items) && source.items.some((item) => {
+      const label = typeof item?.label === "string" ? item.label.trim() : "";
+      return legacyItemLabels.has(label);
+    });
+  });
+}
+
 function cloneSectionsSnapshot(source: ServicePriceGuideSection[]) {
   return source.map((section) => ({
     ...section,
@@ -230,6 +229,7 @@ function cloneSectionsSnapshot(source: ServicePriceGuideSection[]) {
 
 function normalizeSections(value: unknown): ServicePriceGuideSection[] {
   if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
+  if (isLegacyDefaultGuide(value)) return cloneDefaultSections();
 
   return value.map((section, sectionIndex) => {
     const source = section as Partial<ServicePriceGuideSection>;
@@ -244,7 +244,7 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
 
     return {
       id: typeof source.id === "string" && source.id ? source.id : createGuideSectionId(),
-      title: typeof source.title === "string" && source.title.trim() ? source.title.trim() : fallback.title,
+      title: typeof source.title === "string" ? source.title : fallback.title,
       note: typeof source.note === "string" ? source.note : fallback.note,
       weightBands,
       items: sourceItems.map((item, itemIndex) => {
@@ -253,7 +253,7 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
         const cells = typeof sourceItem.cells === "object" && sourceItem.cells ? sourceItem.cells : {};
         return {
           id: typeof sourceItem.id === "string" && sourceItem.id ? sourceItem.id : createGuideItemId(),
-          label: typeof sourceItem.label === "string" && sourceItem.label.trim() ? sourceItem.label.trim() : fallbackItem.label,
+          label: typeof sourceItem.label === "string" ? sourceItem.label : fallbackItem.label,
           cells: Object.fromEntries(
             weightBands.map((band, bandIndex) => {
               const sourceBand = sourceWeightBands[bandIndex] ?? band;
@@ -301,7 +301,7 @@ export function summarizeServicePriceGuide(guide: ServicePriceGuide) {
   const sections = normalized.sections ?? [];
   const rowCount = sections.reduce((total, section) => total + section.weightBands.length, 0);
   const itemCount = sections.reduce((total, section) => total + section.items.length, 0);
-  return `${sections.length}개 구분 · ${rowCount}개 무게 · ${itemCount}개 항목`;
+  return `${sections.length}개 그룹 · ${rowCount}개 무게 · ${itemCount}개 항목`;
 }
 
 export function ServicePriceGuideEditor({
@@ -506,7 +506,7 @@ export function ServicePriceGuideEditor({
       ...sections,
       {
         id: createGuideSectionId(),
-        title: "새 구분",
+        title: "새 그룹",
         note: "",
         weightBands: [nextBand],
         items: [{ id: createGuideItemId(), label: "목욕", cells: { [nextBand]: { price: "", durationMinutes: "" } } }],
@@ -517,7 +517,7 @@ export function ServicePriceGuideEditor({
   function removeSection(sectionId: string) {
     if (sections.length <= 1) return;
     const section = sections.find((item) => item.id === sectionId);
-    setPendingDelete({ kind: "section", sectionId, title: section?.title ?? "구분" });
+    setPendingDelete({ kind: "section", sectionId, title: section?.title ?? "그룹" });
   }
 
   const content = (
@@ -527,7 +527,7 @@ export function ServicePriceGuideEditor({
           {showHeader ? (
             <div>
               <p className="text-[16px] font-semibold text-[#111827]">실제 요금표</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">구분과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
             </div>
           ) : (
             <span />
@@ -559,14 +559,14 @@ export function ServicePriceGuideEditor({
                         type="text"
                         value={section.title}
                         onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[14px] font-semibold text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none focus:border-[#2f7866]"
                       />
                       <input
                         type="text"
                         value={section.note}
                         onChange={(event) => updateSection(section.id, { note: event.target.value })}
                         placeholder="예: 말티, 요키, 시츄"
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[14px] text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                       />
                     </div>
                   </div>
@@ -584,7 +584,7 @@ export function ServicePriceGuideEditor({
                       onClick={() => removeSection(section.id)}
                       disabled={sections.length <= 1}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#e5eaf0] text-[#94a3b8] disabled:opacity-35"
-                      aria-label="요금 구분 삭제"
+                      aria-label="요금 그룹 삭제"
                     >
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                     </button>
@@ -603,7 +603,7 @@ export function ServicePriceGuideEditor({
                     </colgroup>
                     <thead>
                       <tr className="bg-[#f8fafc] text-[#475569]">
-                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">구분</th>
+                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">그룹</th>
                         <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">무게</th>
                         {section.items.map((item) => (
                           <th key={item.id} className="border-b border-r border-[#e5eaf0] px-3 py-3 text-center last:border-r-0">
@@ -612,7 +612,7 @@ export function ServicePriceGuideEditor({
                                 type="text"
                                 value={item.label}
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
-                                className="h-9 min-w-0 flex-1 rounded-[7px] border border-transparent bg-white px-3 text-center text-[16px] font-semibold text-[#334155] outline-none focus:border-[#2f7866]"
+                                className="h-9 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-3 text-center text-[16px] font-semibold text-[#334155] outline-none focus:border-[#2f7866] focus:bg-white"
                               />
                               <button
                                 type="button"
@@ -633,7 +633,7 @@ export function ServicePriceGuideEditor({
                       {section.weightBands.map((band, bandIndex) => (
                         <tr key={`${section.id}-weight-${bandIndex}`}>
                           {bandIndex === 0 ? (
-                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-[#fbfdff] px-4 py-3 text-center align-middle text-[16px] font-semibold text-[#111827]">
+                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-white px-4 py-3 text-center align-middle text-[16px] font-semibold text-[#111827]">
                               {section.title}
                             </td>
                           ) : null}
@@ -642,14 +642,14 @@ export function ServicePriceGuideEditor({
                               type="text"
                               value={band}
                               onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
-                              className="h-11 w-full rounded-[8px] border border-transparent bg-[#f8fafc] px-3 text-center text-[16px] font-medium text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                              className="h-11 w-full rounded-[8px] border border-transparent bg-transparent px-3 text-center text-[16px] font-medium text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
                             />
                           </td>
                           {section.items.map((item) => {
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
                               <td key={item.id} className="border-r border-t border-[#edf2f7] px-3 py-3 last:border-r-0">
-                                <div className="flex h-12 min-w-0 items-center justify-between gap-2 rounded-[8px] bg-[#f8fafc] px-3">
+                                <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-3">
                                   <input
                                     type="text"
                                     inputMode="numeric"
@@ -697,7 +697,7 @@ export function ServicePriceGuideEditor({
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] font-medium text-[#334155]">
               <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
-              구분 추가
+              그룹 추가
             </button>
             {deleteHistory.length > 0 ? (
               <button
@@ -716,7 +716,7 @@ export function ServicePriceGuideEditor({
               value={guide.extraNote}
               onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
               rows={4}
-              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
             />
           </label>
         </div>

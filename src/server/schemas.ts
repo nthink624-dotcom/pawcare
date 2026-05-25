@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const bookingBlockedWindowSchema = z.object({
+  id: z.string().trim().optional(),
+  start: z.string().regex(timePattern),
+  end: z.string().regex(timePattern),
+  label: z.string().trim().max(40).optional().default(""),
+});
 
 export const appointmentInputSchema = z.object({
   shopId: z.string(),
@@ -127,10 +135,12 @@ export const shopSettingsSchema = z.object({
     { message: "지원하지 않는 예약 시간 간격입니다." },
   ),
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
-  bookingAvailableStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("10:00"),
-  bookingAvailableEndTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("17:00"),
+  bookingAvailableStartTime: z.string().regex(timePattern).default("10:00"),
+  bookingAvailableEndTime: z.string().regex(timePattern).default("17:00"),
   approvalMode: z.enum(["manual", "auto"]),
   regularClosedDays: z.array(z.number().min(0).max(6)),
+  regularClosedCycle: z.enum(["weekly", "biweekly"]).default("weekly"),
+  regularClosedAnchorDate: z.string().nullable().optional().default(null),
   temporaryClosedDates: z.array(z.string()),
   businessHours: z.record(
     z.string(),
@@ -140,6 +150,16 @@ export const shopSettingsSchema = z.object({
       enabled: z.boolean(),
     }),
   ),
+  reservationPolicySettings: z
+    .object({
+      cancel_window: z.enum(["none", "1h", "2h", "6h", "24h"]).default("2h"),
+      customer_change_enabled: z.boolean().default(true),
+      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(1),
+      booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
+      regular_closed_cycle: z.enum(["weekly", "biweekly"]).optional(),
+      regular_closed_anchor_date: z.string().nullable().optional(),
+    })
+    .optional(),
   notificationSettings: z.object({
     enabled: z.boolean(),
     revisitEnabled: z.boolean(),
@@ -147,6 +167,8 @@ export const shopSettingsSchema = z.object({
     bookingRejectedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
+    appointmentReminder10mEnabled: z.boolean().default(true),
+    groomingStartedEnabled: z.boolean().default(true),
     groomingAlmostDoneEnabled: z.boolean(),
     groomingCompletedEnabled: z.boolean(),
   }),
@@ -173,6 +195,16 @@ export const shopSettingsSchema = z.object({
       path: ["bookingAvailableEndTime"],
       message: "마지막 미용 예약 시간은 시작 시간보다 늦어야 합니다.",
     });
+  }
+
+  for (const [index, windowItem] of (value.reservationPolicySettings?.booking_blocked_windows ?? []).entries()) {
+    if (windowItem.start >= windowItem.end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reservationPolicySettings", "booking_blocked_windows", index, "end"],
+        message: "예약 제외 종료 시간은 시작 시간보다 늦어야 합니다.",
+      });
+    }
   }
 });
 

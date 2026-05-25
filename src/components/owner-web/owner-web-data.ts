@@ -1,4 +1,4 @@
-﻿export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "settings";
+﻿export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "shopInfo" | "operatingHours" | "alerts";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
@@ -7,7 +7,9 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "customers", label: "고객 관리" },
   { key: "services", label: "미용 요금" },
   { key: "staff", label: "직원 관리" },
-  { key: "settings", label: "설정" },
+  { key: "shopInfo", label: "매장 정보" },
+  { key: "operatingHours", label: "운영 시간" },
+  { key: "alerts", label: "알림 설정" },
 ];
 
 export type ReservationStatus = "승인 대기" | "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";
@@ -171,7 +173,6 @@ export const settingsTabs = [
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },
-  { key: "billing", label: "결제 설정" },
 ] as const;
 
 export type SettingsTabKey = (typeof settingsTabs)[number]["key"];

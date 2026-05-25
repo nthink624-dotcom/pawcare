@@ -505,6 +505,27 @@ function getStaffBookingLayouts<T extends { id: string; start: number; duration:
   return layouts;
 }
 
+function bookingWindowsOverlap(first: Pick<DailyBooking, "start" | "duration">, second: Pick<DailyBooking, "start" | "duration">) {
+  return first.start < second.start + second.duration && second.start < first.start + first.duration;
+}
+
+function getPendingOverlapBookings(booking: DailyBooking, bookings: DailyBooking[]) {
+  if (!isPendingBookingStatus(booking.sourceStatus ?? booking.status)) return [];
+
+  return bookings.filter((item) => {
+    if (item.id === booking.id) return false;
+    if (item.staffKey !== booking.staffKey) return false;
+    if (!isPendingBookingStatus(item.sourceStatus ?? item.status)) return false;
+    return bookingWindowsOverlap(booking, item);
+  });
+}
+
+function getPendingOverlapLabel(booking: DailyBooking, bookings: DailyBooking[]) {
+  const overlaps = getPendingOverlapBookings(booking, bookings);
+  if (overlaps.length === 0) return "";
+  return `겹친 승인대기 ${overlaps.length + 1}건`;
+}
+
 function getBookingLayoutStyle(lane: number, laneCount: number) {
   if (laneCount <= 1) {
     return {
@@ -643,7 +664,7 @@ function appointmentToDailyBooking(
     customer: guardian?.name ?? "보호자 미등록",
     pet: pet?.name ?? "반려동물 미등록",
     service: service?.name ?? "서비스 미등록",
-    staff: staffColumn.role,
+    staff: staffColumn.name,
     status: appointmentStatusLabels[appointment.status],
     date: formatScheduleDateLabel(selectedDate),
     staffKey: staffColumn.key,
@@ -673,7 +694,7 @@ function groomingRecordToDailyBooking(
     customer: guardian?.name ?? "보호자 미등록",
     pet: pet?.name ?? "반려동물 미등록",
     service: service?.name ?? "서비스 미등록",
-    staff: fallbackStaff.role,
+    staff: fallbackStaff.name,
     status: "완료",
     date: formatScheduleDateLabel(selectedDate),
     staffKey: fallbackStaff.key,
@@ -1038,7 +1059,7 @@ function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: Owne
       id: `local-preview-${selectedDate}-${booking.id}`,
       start: placement.start,
       date: formatScheduleDateLabel(selectedDate),
-      staff: placement.staffColumn.role,
+      staff: placement.staffColumn.name,
       staffKey: placement.staffColumn.key,
       staffName: placement.staffColumn.name,
     });
@@ -1148,6 +1169,7 @@ function BookingSidePanel({
   manualApprovalEnabled,
   selectedBooking,
   selectedBookingId,
+  bookings,
   approvalModeBookings,
   onManualApprovalChange,
   onChangeStatus,
@@ -1161,6 +1183,7 @@ function BookingSidePanel({
   manualApprovalEnabled: boolean;
   selectedBooking: DailyBooking | undefined;
   selectedBookingId: string;
+  bookings: DailyBooking[];
   approvalModeBookings: DailyBooking[];
   onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
@@ -1173,6 +1196,7 @@ function BookingSidePanel({
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}-${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
+  const pendingOverlapLabel = selectedBooking ? getPendingOverlapLabel(selectedBooking, bookings) : "";
   const previousTimeRange =
     selectedBooking?.previousStart !== undefined
       ? `${formatHourLabel(selectedBooking.previousStart)}-${formatHourLabel(
@@ -1214,6 +1238,7 @@ function BookingSidePanel({
               finalActionEnabled={finalActionEnabled}
               finalActionStatus={finalActionStatus}
               finalActionLabel={finalActionLabel}
+              pendingOverlapLabel={pendingOverlapLabel}
               onChangeStatus={onChangeStatus}
               onSuggestAlternativeTime={onSuggestAlternativeTime}
             />
@@ -1562,6 +1587,7 @@ function PersistentBookingPanelHero({
   finalActionEnabled,
   finalActionStatus,
   finalActionLabel,
+  pendingOverlapLabel,
   onChangeStatus,
   onSuggestAlternativeTime,
 }: {
@@ -1572,6 +1598,7 @@ function PersistentBookingPanelHero({
   finalActionEnabled: boolean;
   finalActionStatus: string;
   finalActionLabel: string;
+  pendingOverlapLabel: string;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onSuggestAlternativeTime: (bookingId: string) => void;
 }) {
@@ -1587,6 +1614,11 @@ function PersistentBookingPanelHero({
           <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", statusClass)}>
             {isPending ? "승인대기 예약" : "예약 확정"}
           </span>
+          {pendingOverlapLabel ? (
+            <span className="ml-2 inline-flex rounded-full border border-[#e8c67e] bg-[#fffaf0] px-3 py-1.5 text-[13px] font-medium text-[#9a640f]">
+              {pendingOverlapLabel}
+            </span>
+          ) : null}
           <p className="mt-3 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[#111827]">
             오늘 {timeRange} <span className="text-[14px] font-normal text-[#64748b]">(예상)</span>
           </p>
@@ -2161,16 +2193,83 @@ function PhotoStatusDialog({
 
 function AlternativeTimeGuideDialog({
   booking,
+  shopId,
   selectedDate,
   onClose,
 }: {
   booking: DailyBooking;
+  shopId: string;
   selectedDate: string;
   onClose: () => void;
 }) {
   const suggestedStarts = [booking.start + 0.5, booking.start + 1, booking.start + 1.5]
     .filter((start) => start + booking.duration <= scheduleEndHour)
     .slice(0, 3);
+  const [selectedStarts, setSelectedStarts] = useState<number[]>(() => suggestedStarts.slice(0, 2));
+  const [message, setMessage] = useState(timeProposalDefaultMessage);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  const selectedTimeLabels = selectedStarts.map((start) => `${formatHourLabel(start)}-${formatHourLabel(start + booking.duration)}`);
+  const proposalMessage = [
+    `[${booking.pet} 예약 시간 안내]`,
+    "",
+    message.trim(),
+    "",
+    "신청 시간",
+    `${formatScheduleDateLabel(selectedDate)} · ${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`,
+    "",
+    "추천 시간",
+    ...selectedTimeLabels.map((item, index) => `${index + 1}. ${item}`),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  function toggleSuggestedStart(start: number) {
+    setSent(false);
+    setError("");
+    setSelectedStarts((current) => {
+      if (current.includes(start)) return current.filter((item) => item !== start);
+      if (current.length >= 3) return current;
+      return [...current, start].sort((first, second) => first - second);
+    });
+  }
+
+  async function sendProposal() {
+    if (selectedStarts.length === 0) {
+      setError("추천 시간을 1개 이상 선택해 주세요.");
+      return;
+    }
+
+    setSending(true);
+    setSent(false);
+    setError("");
+
+    try {
+      await fetchApiJsonWithAuth("/api/notifications", {
+        method: "POST",
+        body: JSON.stringify({
+          shopId,
+          appointmentId: booking.id,
+          type: "booking_time_proposed",
+          channel: "alimtalk",
+          message: proposalMessage,
+          metadata: {
+            proposalDate: selectedDate,
+            proposalTimes: selectedTimeLabels.join(", "),
+            source: "owner_schedule_board",
+          },
+          force: true,
+        }),
+      });
+      setSent(true);
+    } catch (sendError) {
+      setError(getApiErrorMessage(sendError, "다른 시간 제안 알림톡 발송에 실패했습니다."));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
@@ -2212,9 +2311,15 @@ function AlternativeTimeGuideDialog({
                 <button
                   key={start}
                   type="button"
-                  className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[13px] font-medium tabular-nums text-[#334155] transition hover:bg-[#f8fafc]"
+                  onClick={() => toggleSuggestedStart(start)}
+                  className={cn(
+                    "inline-flex h-11 items-center justify-center rounded-[8px] border px-2 text-[13px] font-medium tabular-nums transition",
+                    selectedStarts.includes(start)
+                      ? "border-[#b98121] bg-[#fff7ed] text-[#9a640f]"
+                      : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
+                  )}
                 >
-                  {formatHourLabel(start)}
+                  {formatHourLabel(start)}-{formatHourLabel(start + booking.duration)}
                 </button>
               ))
             ) : (
@@ -2225,20 +2330,47 @@ function AlternativeTimeGuideDialog({
           </div>
         </div>
 
+        <label className="mt-4 block space-y-1.5">
+          <span className="text-[13px] font-medium text-[#111827]">고객 안내 문구</span>
+          <textarea
+            value={message}
+            onChange={(event) => {
+              setMessage(event.target.value);
+              setSent(false);
+              setError("");
+            }}
+            className="min-h-[120px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+          />
+        </label>
+
+        {error ? (
+          <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
+            {error}
+          </p>
+        ) : null}
+        {sent ? (
+          <p className="mt-3 rounded-[8px] border border-[#d8eadf] bg-[#f3fbf8] px-3 py-2 text-[13px] leading-5 text-[#1f6b5b]">
+            추천 시간 안내 알림톡 발송을 요청했습니다.
+          </p>
+        ) : null}
+
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={onClose}
+            disabled={sending}
             className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
           >
             닫기
           </button>
           <button
             type="button"
-            onClick={onClose}
-            className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[14px] font-medium text-white transition hover:bg-[#185848]"
+            onClick={sendProposal}
+            disabled={sending}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] px-3 text-[14px] font-medium text-white transition hover:bg-[#185848] disabled:cursor-wait disabled:opacity-70"
           >
-            안내 준비
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            알림톡 보내기
           </button>
         </div>
       </div>
@@ -2578,7 +2710,9 @@ function DailyScheduleGrid({
   selectedDate,
   currentHour,
   conflictBookings,
+  selectedStaffKey,
   onSelectBooking,
+  onSelectStaff,
   onMoveBooking,
   onResizeBooking,
 }: {
@@ -2591,7 +2725,9 @@ function DailyScheduleGrid({
   selectedDate: string;
   currentHour: number;
   conflictBookings: DailyBooking[];
+  selectedStaffKey: StaffKey | null;
   onSelectBooking: (id: string) => void;
+  onSelectStaff: (staffKey: StaffKey) => void;
   onMoveBooking: (bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) => void;
   onResizeBooking: (bookingId: string, duration: number) => void;
 }) {
@@ -2738,10 +2874,14 @@ function DailyScheduleGrid({
       event.preventDefault();
       return;
     }
+    const booking = bookings.find((item) => item.id === bookingId);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", bookingId);
     setDraggingBookingId(bookingId);
     onSelectBooking(bookingId);
+    if (booking) {
+      onSelectStaff(booking.staffKey);
+    }
   }
 
   function handleColumnDragOver(event: DragEvent<HTMLElement>) {
@@ -2775,9 +2915,10 @@ function DailyScheduleGrid({
     onMoveBooking(bookingId, {
       staffKey: staffMember.key,
       staffName: staffMember.name,
-      staff: staffMember.role,
+      staff: staffMember.name,
       start: nextStart,
     });
+    onSelectStaff(staffMember.key);
     onSelectBooking(bookingId);
     setDraggingBookingId(null);
   }
@@ -2852,17 +2993,26 @@ function DailyScheduleGrid({
             {scheduleStaff.map((staffMember) => {
               const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
               const activeStatusCount = staffBookings.filter((booking) => isActiveBookingStatus(booking.status)).length;
+              const selectedStaff = selectedStaffKey === staffMember.key;
 
               return (
                 <section
                   key={staffMember.key}
-                  className="min-w-0 rounded-t-[8px] bg-[#f3f4f6] px-3 py-2"
+                  onClick={() => onSelectStaff(staffMember.key)}
+                  className={cn(
+                    "min-w-0 cursor-pointer rounded-t-[8px] border border-b-0 px-3 py-2 transition",
+                    selectedStaff
+                      ? "border-[#b9d1ca] bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+                      : "border-transparent bg-[#f3f4f6] hover:bg-[#eef1f4]",
+                  )}
                   style={{ flex: columnFlexBasis }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-[14px] font-medium text-[#111827]">{staffMember.name}</p>
+                        <p className={cn("truncate text-[14px] font-medium", selectedStaff ? "text-[#1f6b5b]" : "text-[#111827]")}>
+                          {staffMember.name}
+                        </p>
                         <span className="text-[12px] text-[#64748b]">{staffBookings.length}</span>
                       </div>
                     </div>
@@ -2944,13 +3094,16 @@ function DailyScheduleGrid({
                   .filter((booking) => booking.staffKey === staffMember.key)
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(staffBookings);
+                const selectedStaff = selectedStaffKey === staffMember.key;
                 return (
                   <section
                     key={staffMember.key}
+                    onClick={() => onSelectStaff(staffMember.key)}
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, staffMember)}
                     className={cn(
-                      "min-w-0 rounded-b-[8px] bg-[#f3f4f6] p-0 transition",
+                      "min-w-0 cursor-pointer rounded-b-[8px] bg-[#f3f4f6] p-0 transition",
+                      selectedStaff && "ring-1 ring-inset ring-[#2f7866]/20",
                       draggingBookingId && "ring-1 ring-inset ring-[#2f7866]/20",
                     )}
                     style={{ flex: columnFlexBasis }}
@@ -2984,6 +3137,7 @@ function DailyScheduleGrid({
                           const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount);
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
+                          const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
 
                           return (
                             <button
@@ -2997,6 +3151,7 @@ function DailyScheduleGrid({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onSelectBooking(booking.id);
+                                onSelectStaff(booking.staffKey);
                                 setExpandedMicroBookingId(density === "micro" && cardTone !== "pending" ? booking.id : null);
                               }}
                               className={cn(
@@ -3051,6 +3206,11 @@ function DailyScheduleGrid({
                                       <span className={cn("shrink-0 rounded-[6px] border px-1.5 py-0.5 text-[11px] leading-none", statusPillClass)}>
                                         {statusLabel}
                                       </span>
+                                      {pendingOverlapLabel ? (
+                                        <span className="shrink-0 rounded-[6px] border border-[#e8c67e] bg-[#fffaf0] px-1.5 py-0.5 text-[11px] leading-none text-[#9a640f]">
+                                          겹침
+                                        </span>
+                                      ) : null}
                                       <p className="min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
                                         {booking.service}
                                       </p>
@@ -3825,7 +3985,6 @@ function ScheduleCreateDialog({
   const staffOptions = visibleStaff.map((staffMember) => ({
     value: staffMember.key,
     label: staffMember.name,
-    meta: staffMember.role,
   }));
   const selectedService = data.services.find((service) => service.id === form.serviceId);
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
@@ -3840,7 +3999,11 @@ function ScheduleCreateDialog({
         shop: data.shop,
         services: data.services,
         appointments: data.appointments,
-      }).filter((slot) => !hasStaffBookingConflict(dateBookings, "__new-booking__", { staffKey: form.staffKey, start: timeToHour(slot), duration }))
+        staffId: form.staffKey,
+        staffMembers,
+        staffScheduleOverrides: data.staffScheduleOverrides,
+      })
+        .filter((slot) => !hasStaffBookingConflict(dateBookings, "__new-booking__", { staffKey: form.staffKey, start: timeToHour(slot), duration }))
         .filter((slot) => isStaffWorkingWindow(staffMembers, data.staffScheduleOverrides, form.staffKey, form.date, timeToHour(slot), duration))
     : [];
   const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
@@ -4147,6 +4310,7 @@ export default function CalendarManagementScreen({
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
   const [selectedBookingId, setSelectedBookingId] = useState("");
+  const [selectedBoardStaffKey, setSelectedBoardStaffKey] = useState<StaffKey | null>(null);
   const [scheduleStatusHour, setScheduleStatusHour] = useState(() => getCurrentDayHour());
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
@@ -4172,7 +4336,7 @@ export default function CalendarManagementScreen({
         return [
           {
             ...booking,
-            staff: fallbackStaff.role,
+            staff: fallbackStaff.name,
             staffKey: fallbackStaff.key,
             staffName: fallbackStaff.name,
           },
@@ -4296,6 +4460,27 @@ export default function CalendarManagementScreen({
     if (staff !== "전체 직원" && !visibleStaff.some((item) => item.key === staff)) {
       setStaff("전체 직원");
     }
+  }, [staff, visibleStaff]);
+
+  useEffect(() => {
+    if (visibleStaff.length === 0) {
+      setSelectedBoardStaffKey(null);
+      return;
+    }
+
+    if (visibleStaff.length === 1) {
+      setSelectedBoardStaffKey(visibleStaff[0].key);
+      return;
+    }
+
+    if (staff !== "전체 직원") {
+      setSelectedBoardStaffKey(staff);
+      return;
+    }
+
+    setSelectedBoardStaffKey((current) =>
+      current && visibleStaff.some((item) => item.key === current) ? current : null,
+    );
   }, [staff, visibleStaff]);
 
   useEffect(() => {
@@ -4575,7 +4760,8 @@ export default function CalendarManagementScreen({
 
   function handleAddSchedule() {
     const targetStaff =
-      staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
+      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
     setScheduleForm({
       ...buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff),
       staffKey: targetStaff?.key ?? "staff-1",
@@ -4803,7 +4989,9 @@ export default function CalendarManagementScreen({
             selectedDate={selectedDate}
             currentHour={scheduleStatusHour}
             conflictBookings={displayScopedBookings}
+            selectedStaffKey={selectedBoardStaffKey}
             onSelectBooking={setSelectedBookingId}
+            onSelectStaff={setSelectedBoardStaffKey}
             onMoveBooking={handleMoveBooking}
             onResizeBooking={handleResizeBooking}
           />
@@ -4814,6 +5002,7 @@ export default function CalendarManagementScreen({
           manualApprovalEnabled={manualApprovalEnabled}
           selectedBooking={selectedBooking}
           selectedBookingId={selectedBookingId}
+          bookings={displayScopedBookings}
           approvalModeBookings={[]}
           onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
@@ -4834,6 +5023,7 @@ export default function CalendarManagementScreen({
       {alternativeTimeBooking ? (
         <AlternativeTimeGuideDialog
           booking={alternativeTimeBooking}
+          shopId={bootstrapData.shop.id}
           selectedDate={selectedDate}
           onClose={() => setAlternativeTimeBooking(null)}
         />

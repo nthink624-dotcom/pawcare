@@ -7,6 +7,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   booking_rejected_enabled: true,
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
+  appointment_reminder_10m_enabled: true,
+  grooming_started_enabled: true,
   grooming_almost_done_enabled: true,
   grooming_completed_enabled: true,
 };
@@ -41,6 +43,8 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
     settings.booking_rejected_enabled ||
     settings.booking_cancelled_enabled ||
     settings.booking_rescheduled_enabled ||
+    settings.appointment_reminder_10m_enabled ||
+    settings.grooming_started_enabled ||
     settings.grooming_almost_done_enabled ||
     settings.grooming_completed_enabled;
 
@@ -55,6 +59,8 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
     booking_rejected_enabled: true,
     booking_cancelled_enabled: true,
     booking_rescheduled_enabled: true,
+    appointment_reminder_10m_enabled: true,
+    grooming_started_enabled: true,
     grooming_almost_done_enabled: true,
     grooming_completed_enabled: true,
   };

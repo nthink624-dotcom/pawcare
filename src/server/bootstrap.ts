@@ -11,7 +11,7 @@ import {
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { formatClockTime } from "@/lib/utils";
+import { currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type {
   Appointment,
   BootstrapPayload,
@@ -77,8 +77,13 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
 }
 
 function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
+  const today = currentDateInTimeZone();
   return {
     ...appointment,
+    status:
+      appointment.status === "confirmed" && appointment.appointment_date < today
+        ? "completed"
+        : appointment.status,
     appointment_time: formatClockTime(appointment.appointment_time),
   };
 }

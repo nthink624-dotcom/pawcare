@@ -229,16 +229,15 @@ function getTimedBookingStatus(
   if (isPendingBookingStatus(booking.status) || isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
     return booking.status;
   }
+  if (isActiveBookingStatus(booking.status)) return booking.status;
   if (booking.changeAcknowledged && isConfirmedBookingStatus(booking.status)) return booking.status;
 
   const today = currentDateInTimeZone();
-  if (selectedDate < today) return "완료";
-  if (selectedDate > today) return isActiveBookingStatus(booking.status) ? "확정" : booking.status;
+  if (selectedDate < today && isConfirmedBookingStatus(booking.status)) return "완료";
+  if (selectedDate !== today) return booking.status;
 
   const endHour = booking.start + booking.duration;
-  if (currentHour >= endHour) return "완료";
-  if (booking.status === "픽업 준비") return "픽업 준비";
-  if (booking.status === "진행 중" || currentHour >= booking.start) return "진행 중";
+  if (isConfirmedBookingStatus(booking.status) && currentHour >= booking.start && currentHour < endHour) return "진행 중";
   return "확정";
 }
 

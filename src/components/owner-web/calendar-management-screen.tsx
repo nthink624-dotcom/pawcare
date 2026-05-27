@@ -1357,7 +1357,7 @@ function BookingSidePanel({
                 {selectedBooking.customer} 보호자
               </p>
               <p className="mt-0.5 break-keep text-[16px] leading-6 text-[#334155]">
-                {timeRange}
+                예약시간 {timeRange}
               </p>
             </div>
           </div>

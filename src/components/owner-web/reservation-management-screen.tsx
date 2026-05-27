@@ -118,7 +118,7 @@ export default function ReservationManagementScreen() {
           ))}
         </TableShell>
 
-        <DetailPanel title={`${selectedReservation.customer} · ${selectedReservation.pet}`} subtitle={`${selectedReservation.time} / ${selectedReservation.service}`}>
+        <DetailPanel title={`${selectedReservation.customer} · ${selectedReservation.pet}`} subtitle={`예약시간 ${selectedReservation.time} / ${selectedReservation.service}`}>
           <DetailBlock label="예약 상태" value={selectedReservation.status} description={`${selectedReservation.staff} 담당 · ${selectedReservation.channel}`} />
           <DetailBlock label="연락처" value={selectedReservation.phone} description="예약 변경, 픽업 준비, 완료 알림을 바로 보낼 수 있어요." />
           <DetailBlock label="메모" value={selectedReservation.note} description="고객 요청사항과 빠른 전달 메모를 여기서 확인합니다." />

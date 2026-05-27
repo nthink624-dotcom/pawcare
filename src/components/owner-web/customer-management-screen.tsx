@@ -10,7 +10,7 @@ import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
-import { cn, currentDateInTimeZone } from "@/lib/utils";
+import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
 
 type CustomerSort = "recentDesc" | "nameAsc";
@@ -81,6 +81,20 @@ function formatMonthDay(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
+}
+
+function formatMonthDayTime(date: string, time?: string) {
+  return `${formatMonthDay(date)}${time ? ` ${formatClockTime(time)}` : ""}`;
+}
+
+function getTimestampParts(value: string | null | undefined) {
+  if (!value) return { date: "", time: "" };
+  const normalized = value.replace("T", " ");
+  const [datePart = "", timePart = ""] = normalized.split(" ");
+  return {
+    date: datePart.slice(0, 10),
+    time: timePart ? formatClockTime(timePart) : "",
+  };
 }
 
 function normalizeSearch(value: string) {
@@ -204,7 +218,13 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
     const recentCompletedAppointment = [...guardianAppointments]
       .reverse()
       .find((appointment) => appointment.appointment_date < today || appointment.status === "completed");
-    const recentVisitDate = recentRecord?.groomed_at.slice(0, 10) ?? recentCompletedAppointment?.appointment_date ?? null;
+    const recentRecordTime = getTimestampParts(recentRecord?.groomed_at);
+    const recentVisitDate = recentRecordTime.date || recentCompletedAppointment?.appointment_date || null;
+    const recentVisit = recentRecordTime.date
+      ? formatMonthDayTime(recentRecordTime.date, recentRecordTime.time)
+      : recentCompletedAppointment
+        ? formatMonthDayTime(recentCompletedAppointment.appointment_date, recentCompletedAppointment.appointment_time)
+        : "방문 전";
     const petNames = pets.length > 0 ? pets.map((pet) => pet.name) : ["반려동물 없음"];
     const nextBookingService = upcomingAppointment ? (serviceNameById.get(upcomingAppointment.service_id) ?? "서비스 확인") : "예약 없음";
     const alertEnabled = guardian.notification_settings?.enabled !== false;
@@ -233,9 +253,9 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
         grooming_cycle_weeks: pet.grooming_cycle_weeks,
       })),
       tags: tags.length > 0 ? tags : ["일반"],
-      recentVisit: recentVisitDate ? formatMonthDay(recentVisitDate) : "방문 전",
+      recentVisit,
       recentVisitDate,
-      nextBooking: upcomingAppointment ? `${formatMonthDay(upcomingAppointment.appointment_date)} ${upcomingAppointment.appointment_time}` : "예약 없음",
+      nextBooking: upcomingAppointment ? formatMonthDayTime(upcomingAppointment.appointment_date, upcomingAppointment.appointment_time) : "예약 없음",
       nextBookingDate: upcomingAppointment?.appointment_date ?? null,
       nextBookingService,
       memo: guardian.memo?.trim() || pets.map((pet) => pet.notes).filter(Boolean).join(" / ") || "고객 메모가 없습니다.",

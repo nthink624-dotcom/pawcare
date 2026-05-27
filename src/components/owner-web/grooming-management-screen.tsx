@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
-import { cn, currentDateInTimeZone } from "@/lib/utils";
+import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
 type GroomingCalendarRecord = {
@@ -15,11 +15,13 @@ type GroomingCalendarRecord = {
   petId: string;
   appointmentId: string | null;
   pet: string;
+  breed: string;
   customer: string;
   service: string;
   memo: string;
   next: string;
   date: string;
+  time: string;
 };
 
 type ReservationRow = {
@@ -27,6 +29,7 @@ type ReservationRow = {
   guardianId: string;
   petId: string;
   pet: string;
+  breed: string;
   customer: string;
   service: string;
   status: string;
@@ -46,6 +49,7 @@ type DayItem = {
   appointmentId?: string | null;
   groomingRecordId?: string | null;
   pet: string;
+  breed?: string;
   customer: string;
   service: string;
   status: string;
@@ -92,6 +96,7 @@ function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[
       guardianId: appointment.guardian_id,
       petId: appointment.pet_id,
       pet: pet?.name ?? "반려동물 미등록",
+      breed: pet?.breed ?? "품종 미입력",
       customer: guardian?.name ?? "보호자 미등록",
       service: service?.name ?? "서비스 미등록",
       status: appointmentStatusLabels[appointment.status],
@@ -120,17 +125,24 @@ function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarReco
       petId: record.pet_id,
       appointmentId: record.appointment_id,
       pet: pet?.name ?? "반려동물 미등록",
+      breed: pet?.breed ?? "품종 미입력",
       customer: guardian?.name ?? "보호자 미등록",
       service: service?.name ?? "서비스 미등록",
       memo: memoParts.join(" · ") || "작성된 메모가 없습니다.",
       next: "",
       date: record.groomed_at.slice(0, 10),
+      time: getRecordClockTime(record.groomed_at),
     };
   });
 }
 
 function normalizeRecordDate(date: string) {
   return date.replaceAll(".", "-");
+}
+
+function getRecordClockTime(value: string) {
+  const timePart = value.includes("T") ? value.split("T")[1] : value.split(" ")[1];
+  return timePart ? formatClockTime(timePart) : "";
 }
 
 function formatMonthLabel(date: string) {
@@ -181,12 +193,14 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       appointmentId: record.appointmentId,
       groomingRecordId: record.id,
       pet: record.pet,
+      breed: record.breed,
       customer: record.customer,
       service: record.service,
       status: "기록 완료",
       note: record.memo,
       next: record.next,
       date,
+      time: record.time,
     }));
   const recordAppointmentIds = new Set(recordItems.map((record) => record.appointmentId).filter(Boolean));
 
@@ -202,6 +216,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       appointmentId: reservation.id,
       groomingRecordId: null,
       pet: reservation.pet,
+      breed: reservation.breed,
       customer: reservation.customer,
       service: reservation.service,
       status: "기록 완료",
@@ -226,6 +241,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
           appointmentId: reservation.id,
           groomingRecordId: null,
           pet: reservation.pet,
+          breed: reservation.breed,
           customer: reservation.customer,
           service: reservation.service,
           status: reservation.status,
@@ -665,6 +681,8 @@ function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <div className="grid grid-cols-2 gap-2">
             <InfoTile label="구분" value={item.type === "record" ? "기록" : "예약"} />
+            <InfoTile label="품종" value={item.breed ?? "품종 미입력"} />
+            <InfoTile label="경로" value={item.channel ?? (item.type === "record" ? "기록 등록" : "예약")} />
             <InfoTile label="상태" value={item.status} />
             <InfoTile label="서비스" value={item.service} />
             <InfoTile label="담당" value={item.staff ?? "미지정"} />

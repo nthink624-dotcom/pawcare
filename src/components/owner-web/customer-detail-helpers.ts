@@ -108,7 +108,7 @@ export function buildCustomerDetailFromBootstrap(
       latestAppointment: petAppointments[0] ?? null,
       latestGroomingRecord,
       recentGroomingLabel: latestGroomingRecord
-        ? `${formatDate(latestGroomingRecord.groomed_at)} ${service?.name ?? "서비스"}`
+        ? `${formatTimestampDateTime(latestGroomingRecord.groomed_at)} ${service?.name ?? "서비스"}`
         : "기록 없음",
       recentStyleLabel: latestGroomingRecord?.style_notes?.trim() || "최근 스타일 없음",
       nextVisitWindowLabel: buildNextVisitWindow(latestGroomingRecord, pet.grooming_cycle_weeks),
@@ -133,9 +133,9 @@ export function buildCustomerDetailFromBootstrap(
     recentNotifications: notifications.slice(0, 5),
     latestGroomingRecord,
     recentVisitLabel: latestGroomingRecord
-      ? formatDate(latestGroomingRecord.groomed_at)
+      ? formatTimestampDateTime(latestGroomingRecord.groomed_at)
       : recentCompletedAppointment
-        ? formatDate(recentCompletedAppointment.appointment_date)
+        ? formatDateTime(recentCompletedAppointment.appointment_date, recentCompletedAppointment.appointment_time)
         : "방문 기록 없음",
     lastAppointmentStatusLabel: appointments[0] ? getAppointmentStatusMeta(appointments[0].status).label : "예약 없음",
     totalAppointments: appointments.length,
@@ -186,6 +186,13 @@ export function formatDate(value: string | null | undefined) {
 
 export function formatDateTime(date: string, time?: string) {
   return `${formatDate(date)}${time ? ` ${formatClockTime(time)}` : ""}`;
+}
+
+function formatTimestampDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const normalized = value.replace("T", " ");
+  const [datePart = "", timePart = ""] = normalized.split(" ");
+  return formatDateTime(datePart.slice(0, 10), timePart ? formatClockTime(timePart) : undefined);
 }
 
 export function formatMoney(value: number | null | undefined) {

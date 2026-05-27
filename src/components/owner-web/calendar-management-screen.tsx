@@ -1289,7 +1289,6 @@ function BookingSidePanel({
   const phoneLabel = selectedBooking.guardianPhone ? formatPanelPhoneNumber(selectedBooking.guardianPhone) : "연락처 없음";
   const servicePriceLabel =
     typeof selectedBooking.servicePrice === "number" ? `${selectedBooking.servicePrice.toLocaleString()}원` : "가격 정보 없음";
-  const sourceLabel = selectedBooking.source === "customer" ? "고객 예약" : selectedBooking.source === "owner" ? "오너 등록" : "접수 경로 없음";
   const requestText = selectedBooking.memo?.trim() || getBookingRequestText(selectedBooking);
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
   const biteLevelLabel = getPetBiteLevelLabel(biteLevel);
@@ -1348,30 +1347,27 @@ function BookingSidePanel({
             <div className="flex h-[100px] w-[100px] shrink-0 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc]">
               <PawPrint className="h-8 w-8 text-[#94a3b8]" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="flex min-h-[100px] min-w-0 flex-1 flex-col justify-center">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5 leading-none">
-                <p className="min-w-0 truncate text-[18px] leading-[24px] text-[#111827]">{selectedBooking.pet}</p>
-                <span className="shrink-0 rounded-full border border-[#e8ded2] bg-[#fff8ed] px-2 py-0.5 text-[16px] leading-6 text-[#8a5a00]">{breedLabel}</span>
-                <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[16px] leading-6", getPetBiteLevelBadgeClass(biteLevel))}>입질 {biteLevelLabel}</span>
+                <p className="min-w-0 truncate text-[18px] font-semibold leading-[24px] text-[#111827]">{selectedBooking.pet}</p>
+                <span className="h-4 w-px shrink-0 bg-[#dbe2ea]" aria-hidden="true" />
+                <span className="shrink-0 text-[16px] leading-6 text-[#64748b]">{breedLabel}</span>
               </div>
               <p className="mt-1 break-keep text-[16px] leading-6 text-[#334155]">
-                {selectedBooking.customer} 보호자 · {formatPanelDateLabel(selectedDate)} {timeRange}
+                {selectedBooking.customer} 보호자
               </p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <span className="rounded-full border border-[#dbe2ea] bg-white px-2 py-0.5 text-[16px] leading-6 text-[#475569]">{formatDurationLabel(selectedBooking.duration)}</span>
-                <span className={cn("rounded-full border px-2 py-0.5 text-[16px] leading-6", getReservationStatusPillClass(selectedBooking, selectedDate, currentHour))}>
-                  {statusLabel}
-                </span>
-              </div>
+              <p className="mt-0.5 break-keep text-[16px] leading-6 text-[#334155]">
+                {timeRange}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="bg-white px-3.5 pb-3">
-          <section className="mt-3 border-t border-[#edf2f7] py-2.5">
+          <section className="mt-3 border-t border-[#edf2f7] py-2">
             <h4 className="sr-only">예약 정보</h4>
-            <div className="space-y-1.5">
-              <CompactInfoRow leftLabel="경로" leftValue={sourceLabel} rightLabel="미용" rightValue={selectedBooking.service} />
+            <div className="space-y-1">
+              <CompactFullInfoRow label="미용" value={selectedBooking.service} />
               <CompactFullInfoRow label="가격" value={servicePriceLabel} />
               <CompactFullInfoRow label="연락처" value={phoneLabel} />
             </div>
@@ -1807,30 +1803,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CompactInfoRow({
-  leftLabel,
-  leftValue,
-  rightLabel,
-  rightValue,
-}: {
-  leftLabel: string;
-  leftValue: string;
-  rightLabel: string;
-  rightValue: string;
-}) {
-  return (
-    <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)_48px_minmax(0,1fr)] items-center gap-x-2 text-[16px] leading-7">
-      <span className="text-[#64748b]">{leftLabel}</span>
-      <span className="min-w-0 truncate text-[#111827]">{leftValue}</span>
-      <span className="text-[#64748b]">{rightLabel}</span>
-      <span className="min-w-0 truncate text-[#111827]">{rightValue}</span>
-    </div>
-  );
-}
-
 function CompactFullInfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid min-w-0 grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 text-[16px] leading-7">
+    <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-center gap-x-2 text-[16px] leading-6">
       <span className="text-[#64748b]">{label}</span>
       <span className="min-w-0 truncate text-[#111827]">{value}</span>
     </div>

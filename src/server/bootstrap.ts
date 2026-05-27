@@ -11,7 +11,7 @@ import {
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { currentDateInTimeZone, formatClockTime } from "@/lib/utils";
+import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime } from "@/lib/utils";
 import type {
   Appointment,
   BootstrapPayload,
@@ -76,12 +76,27 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
   };
 }
 
-function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
+const autoCompletedAppointmentStatuses = new Set<Appointment["status"]>(["confirmed", "in_progress", "almost_done"]);
+
+function hasAppointmentWindowEnded(appointment: Appointment) {
   const today = currentDateInTimeZone();
+  if (appointment.appointment_date < today) return true;
+  if (appointment.appointment_date > today) return false;
+
+  const endAtTime = new Date(appointment.end_at).getTime();
+  if (!Number.isNaN(endAtTime)) {
+    return endAtTime < Date.now();
+  }
+
+  const endClock = appointment.end_at.includes(":") ? formatClockTime(appointment.end_at) : formatClockTime(appointment.appointment_time);
+  return minutesFromTime(endClock) < currentMinutesInTimeZone();
+}
+
+function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
   return {
     ...appointment,
     status:
-      appointment.status === "confirmed" && appointment.appointment_date < today
+      autoCompletedAppointmentStatuses.has(appointment.status) && hasAppointmentWindowEnded(appointment)
         ? "completed"
         : appointment.status,
     appointment_time: formatClockTime(appointment.appointment_time),

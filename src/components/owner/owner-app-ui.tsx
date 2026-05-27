@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import { SectionHeader as AppSectionHeader } from "@/components/ui/section-header";
+import { Switch } from "@/components/ui/switch";
 
 export function Panel({
   title,
@@ -126,14 +127,7 @@ export function ToggleRow({
         <p className="text-[14px] font-semibold text-[var(--text)]">{label}</p>
         <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{description}</p>
       </div>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-      >
-        <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} />
-      </button>
+      <Switch checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onChange} />
     </label>
   );
 }

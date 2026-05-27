@@ -13,16 +13,46 @@ type OwnerAuthTokenCachePayload = {
   expiresAt: number;
 };
 
+function safeGetItem(storage: Storage | undefined, key: string) {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(storage: Storage | undefined, key: string, value: string) {
+  try {
+    storage?.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeRemoveItem(storage: Storage | undefined, key: string) {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    // Storage can be unavailable or full; auth cleanup must not block login.
+  }
+}
+
 export function writeOwnerAuthHandoff(session: OwnerAuthHandoffSession) {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(OWNER_AUTH_HANDOFF_STORAGE_KEY, JSON.stringify(session));
+  const payload = JSON.stringify(session);
+  if (safeSetItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload)) return;
+  safeSetItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload);
 }
 
 export function consumeOwnerAuthHandoff() {
   if (typeof window === "undefined") return null;
 
-  const raw = window.sessionStorage.getItem(OWNER_AUTH_HANDOFF_STORAGE_KEY);
-  window.sessionStorage.removeItem(OWNER_AUTH_HANDOFF_STORAGE_KEY);
+  const raw =
+    safeGetItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY) ??
+    safeGetItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+  safeRemoveItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+  safeRemoveItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -62,7 +92,9 @@ export function writeOwnerAuthTokenCache(accessToken: string, refreshToken?: str
     ...(refreshToken || existingRefreshToken ? { refreshToken: refreshToken ?? existingRefreshToken ?? undefined } : {}),
   };
 
-  window.localStorage.setItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, JSON.stringify(payload));
+  const serialized = JSON.stringify(payload);
+  if (safeSetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized)) return;
+  safeSetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized);
 }
 
 export function writeOwnerAuthSessionCache(session: OwnerAuthHandoffSession) {
@@ -85,28 +117,28 @@ export function readOwnerAuthTokenCache() {
   if (typeof window === "undefined") return null;
 
   const raw =
-    window.localStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
-    window.sessionStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+    safeGetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
+    safeGetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as { accessToken?: unknown; expiresAt?: unknown };
     if (typeof parsed.accessToken !== "string" || typeof parsed.expiresAt !== "number") {
-      window.localStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-      window.sessionStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
       return null;
     }
 
     if (parsed.expiresAt <= Date.now() + 60_000) {
-      window.localStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-      window.sessionStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+      safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
       return null;
     }
 
     return parsed.accessToken;
   } catch {
-    window.localStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-    window.sessionStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+    safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+    safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
     return null;
   }
 }
@@ -115,8 +147,8 @@ export function readOwnerAuthRefreshTokenCache() {
   if (typeof window === "undefined") return null;
 
   const raw =
-    window.localStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
-    window.sessionStorage.getItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+    safeGetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY) ??
+    safeGetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -130,6 +162,6 @@ export function readOwnerAuthRefreshTokenCache() {
 export function clearOwnerAuthTokenCache() {
   currentOwnerAccessToken = null;
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
-  window.sessionStorage.removeItem(OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+  safeRemoveItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
+  safeRemoveItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY);
 }

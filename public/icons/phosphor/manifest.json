@@ -1,0 +1,97 @@
+﻿[
+    {
+        "id":  "address-book",
+        "name":  "address-book",
+        "path":  "/icons/phosphor/address-book.svg"
+    },
+    {
+        "id":  "bell",
+        "name":  "bell",
+        "path":  "/icons/phosphor/bell.svg"
+    },
+    {
+        "id":  "calendar-dots",
+        "name":  "calendar-dots",
+        "path":  "/icons/phosphor/calendar-dots.svg"
+    },
+    {
+        "id":  "calendar-plus",
+        "name":  "calendar-plus",
+        "path":  "/icons/phosphor/calendar-plus.svg"
+    },
+    {
+        "id":  "clipboard-text",
+        "name":  "clipboard-text",
+        "path":  "/icons/phosphor/clipboard-text.svg"
+    },
+    {
+        "id":  "clock",
+        "name":  "clock",
+        "path":  "/icons/phosphor/clock.svg"
+    },
+    {
+        "id":  "cursor",
+        "name":  "cursor",
+        "path":  "/icons/phosphor/cursor.svg"
+    },
+    {
+        "id":  "cursor-click",
+        "name":  "cursor-click",
+        "path":  "/icons/phosphor/cursor-click.svg"
+    },
+    {
+        "id":  "file-xls",
+        "name":  "file-xls",
+        "path":  "/icons/phosphor/file-xls.svg"
+    },
+    {
+        "id":  "hand-tap",
+        "name":  "hand-tap",
+        "path":  "/icons/phosphor/hand-tap.svg"
+    },
+    {
+        "id":  "line-segments",
+        "name":  "line-segments",
+        "path":  "/icons/phosphor/line-segments.svg"
+    },
+    {
+        "id":  "magnifying-glass",
+        "name":  "magnifying-glass",
+        "path":  "/icons/phosphor/MagnifyingGlass.svg"
+    },
+    {
+        "id":  "list-checks",
+        "name":  "list-checks",
+        "path":  "/icons/phosphor/list-checks.svg"
+    },
+    {
+        "id":  "projector-screen-chart",
+        "name":  "projector-screen-chart",
+        "path":  "/icons/phosphor/projector-screen-chart.svg"
+    },
+    {
+        "id":  "storefront",
+        "name":  "storefront",
+        "path":  "/icons/phosphor/storefront.svg"
+    },
+    {
+        "id":  "user-circle",
+        "name":  "user-circle",
+        "path":  "/icons/phosphor/user-circle.svg"
+    },
+    {
+        "id":  "user-circle-plus",
+        "name":  "user-circle-plus",
+        "path":  "/icons/phosphor/UserCirclePlus.svg"
+    },
+    {
+        "id":  "user-plus",
+        "name":  "user-plus",
+        "path":  "/icons/phosphor/UserPlus.svg"
+    },
+    {
+        "id":  "users",
+        "name":  "users",
+        "path":  "/icons/phosphor/users.svg"
+    }
+]

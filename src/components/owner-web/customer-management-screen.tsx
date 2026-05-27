@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Check, ChevronRight, MessageSquareText, Plus, Search, Trash2, X } from "lucide-react";
+import { Bell, Check, ChevronRight, MessageSquareText, Trash2, X } from "lucide-react";
 
+import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
+import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet } from "@/types/domain";
+import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
 
 type CustomerSort = "recentDesc" | "nameAsc";
 
@@ -17,7 +20,7 @@ type CustomerViewRow = {
   name: string;
   phone: string;
   pets: string[];
-  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "weight" | "notes" | "birthday">>;
+  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "weight" | "notes" | "birthday" | "bite_level" | "grooming_cycle_weeks">>;
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
@@ -226,6 +229,8 @@ function buildCustomerRowsFromBootstrap(data: BootstrapPayload): CustomerViewRow
         weight: pet.weight,
         notes: pet.notes,
         birthday: pet.birthday ?? null,
+        bite_level: normalizePetBiteLevel(pet.bite_level),
+        grooming_cycle_weeks: pet.grooming_cycle_weeks,
       })),
       tags: tags.length > 0 ? tags : ["일반"],
       recentVisit: recentVisitDate ? formatMonthDay(recentVisitDate) : "방문 전",
@@ -270,6 +275,8 @@ function buildLocalMockCustomerRows(): CustomerViewRow[] {
       weight: null,
       notes: "",
       birthday: null,
+      bite_level: "none",
+      grooming_cycle_weeks: 4,
     })),
     searchText: buildSearchText([row.name, row.phone, ...row.pets, ...row.tags]),
   }));
@@ -331,11 +338,12 @@ function getCustomerTagClass(tag: string) {
 }
 
 export default function CustomerManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
+  const [bootstrapData, setBootstrapData] = useState<BootstrapPayload>(() => initialData);
   const initialCustomers = useMemo(() => {
-    const rows = buildCustomerRowsFromBootstrap(initialData);
+    const rows = buildCustomerRowsFromBootstrap(bootstrapData);
     const baseRows = rows.length > 0 ? rows : [];
-    return shouldUseLocalMockCustomers(initialData) ? [...baseRows, ...buildLocalMockCustomerRows()] : baseRows;
-  }, [initialData]);
+    return shouldUseLocalMockCustomers(bootstrapData) ? [...baseRows, ...buildLocalMockCustomerRows()] : baseRows;
+  }, [bootstrapData]);
   const [customers, setCustomers] = useState<CustomerViewRow[]>(() => initialCustomers);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
@@ -350,6 +358,10 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const [newCustomerDraft, setNewCustomerDraft] = useState<NewCustomerDraft>(() => emptyNewCustomerDraft);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
+
+  useEffect(() => {
+    setBootstrapData(initialData);
+  }, [initialData]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -371,8 +383,8 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
 
   const selectedCustomer = customers.find((row) => row.id === selectedCustomerId);
   const selectedCustomerDetail = useMemo(
-    () => (selectedCustomerId ? buildCustomerDetailFromBootstrap(initialData, selectedCustomerId, selectedPetId) : null),
-    [initialData, selectedCustomerId, selectedPetId],
+    () => (selectedCustomerId ? buildCustomerDetailFromBootstrap(bootstrapData, selectedCustomerId, selectedPetId) : null),
+    [bootstrapData, selectedCustomerId, selectedPetId],
   );
   const displayedCustomerIds = useMemo(() => displayedCustomers.map((row) => row.id), [displayedCustomers]);
   const allDisplayedCustomersSelected =
@@ -410,7 +422,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
       name,
       phone,
       pets: [petName],
-      petDetails: [{ id: localPetId, name: petName, breed, weight, notes: petNotes, birthday: null }],
+      petDetails: [{ id: localPetId, name: petName, breed, weight, notes: petNotes, birthday: null, bite_level: "none", grooming_cycle_weeks: 4 }],
       tags: tags.length > 0 ? tags : ["일반"],
       recentVisit: "방문 전",
       recentVisitDate: null,
@@ -460,6 +472,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         weight,
         birthday: null,
         notes: petNotes,
+        biteLevel: "none",
         groomingCycleWeeks: 4,
       });
 
@@ -468,7 +481,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         id: guardian.id,
         name: guardian.name,
         phone: guardian.phone,
-        petDetails: [{ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null }],
+        petDetails: [{ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null, bite_level: normalizePetBiteLevel(pet.bite_level), grooming_cycle_weeks: pet.grooming_cycle_weeks }],
         searchText: buildSearchText([guardian.name, guardian.phone, pet.name, pet.breed, pet.notes, ...nextCustomer.tags]),
       };
 
@@ -646,6 +659,10 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
               name: nextPetNames[index],
               breed: pet.breed || "미입력",
               birthday: pet.birthday ?? null,
+              weight: pet.weight,
+              notes: pet.notes,
+              biteLevel: normalizePetBiteLevel(pet.bite_level),
+              groomingCycleWeeks: pet.grooming_cycle_weeks,
             }),
           ),
         );
@@ -671,7 +688,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
                     ...row,
                     petDetails: [
                       ...row.petDetails,
-                      ...createdPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null })),
+                      ...createdPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null, bite_level: normalizePetBiteLevel(pet.bite_level), grooming_cycle_weeks: pet.grooming_cycle_weeks })),
                     ],
                   }
                 : row,
@@ -690,7 +707,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     const name = petName.trim();
     if (!currentCustomer || !name) return;
     const previousCustomers = customers;
-    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null };
+    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null, bite_level: "none" as const, grooming_cycle_weeks: 4 };
     setSaveError("");
     setCustomers((current) =>
       current.map((row) =>
@@ -715,6 +732,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         breed: "미입력",
         birthday: null,
         notes: "",
+        biteLevel: "none",
         groomingCycleWeeks: 4,
       });
       setCustomers((current) =>
@@ -724,7 +742,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
                 ...row,
                 petDetails: row.petDetails.map((item) =>
                   item.id === tempPet.id
-                    ? { id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null }
+                    ? { id: pet.id, name: pet.name, breed: pet.breed, weight: pet.weight, notes: pet.notes, birthday: pet.birthday ?? null, bite_level: normalizePetBiteLevel(pet.bite_level), grooming_cycle_weeks: pet.grooming_cycle_weeks }
                     : item,
                 ),
               }
@@ -769,13 +787,72 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     }
   }
 
+  async function updatePetBiteLevel(customerId: string, petId: string, biteLevel: PetBiteLevel) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    const targetPet = currentCustomer?.petDetails.find((pet) => pet.id === petId);
+    if (!currentCustomer || !targetPet) return;
+
+    const normalizedBiteLevel = normalizePetBiteLevel(biteLevel);
+    const previousCustomers = customers;
+    const previousBootstrapData = bootstrapData;
+    setSaveError("");
+
+    setCustomers((current) =>
+      current.map((row) => {
+        if (row.id !== customerId) return row;
+        const nextPetDetails = row.petDetails.map((pet) => (pet.id === petId ? { ...pet, bite_level: normalizedBiteLevel } : pet));
+        return {
+          ...row,
+          petDetails: nextPetDetails,
+          searchText: buildSearchText([
+            row.name,
+            row.phone,
+            ...row.pets,
+            ...nextPetDetails.map((pet) => pet.breed),
+            ...nextPetDetails.map((pet) => pet.notes),
+            ...row.tags,
+          ]),
+        };
+      }),
+    );
+
+    setBootstrapData((current) => ({
+      ...current,
+      pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, bite_level: normalizedBiteLevel, updated_at: new Date().toISOString() } : pet)),
+    }));
+
+    if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
+
+    try {
+      const savedPet = await patchOwnerPet({
+        shopId: initialData.shop.id,
+        petId,
+        name: targetPet.name,
+        breed: targetPet.breed || "미입력",
+        birthday: targetPet.birthday ?? null,
+        weight: targetPet.weight ?? null,
+        notes: targetPet.notes ?? "",
+        biteLevel: normalizedBiteLevel,
+      });
+
+      setBootstrapData((current) => ({
+        ...current,
+        pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, ...savedPet, bite_level: normalizePetBiteLevel(savedPet.bite_level) } : pet)),
+      }));
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
+      setSaveError(error instanceof Error ? error.message : "입질 정도 저장에 실패했습니다.");
+    }
+  }
+
   return (
     <div>
       <section className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-        <div className="border-b border-[#dbe2ea] p-4">
+        <div className="border-b border-[#dbe2ea] px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[#64748b] focus-within:border-[#2f7866] focus-within:bg-white">
-              <Search className="h-4 w-4 text-[#94a3b8]" />
+            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#2f7866]">
+              <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -788,7 +865,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
               onClick={openNewCustomerModal}
               className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-semibold text-white transition hover:bg-[#286a5a]"
             >
-              <Plus className="h-4 w-4" />
+              <AssetIcon src="/icons/phosphor/UserCirclePlus.svg" className="h-6 w-6" />
               고객 추가
             </button>
             <button
@@ -802,7 +879,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
                   : "border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]",
               )}
             >
-              <Trash2 className="h-4 w-4" />
+              <BasilIcon name="trash" />
             </button>
           </div>
         </div>
@@ -886,6 +963,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           detail={selectedCustomerDetail}
           selectedPetId={selectedPetId}
           onSelectPet={setSelectedPetId}
+          onUpdatePetBiteLevel={updatePetBiteLevel}
           onClose={() => setDetailSheetOpen(false)}
         />
       ) : null}

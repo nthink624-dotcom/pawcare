@@ -1,0 +1,247 @@
+﻿[
+    {
+        "id":  "misc/exported/icon",
+        "style":  "misc",
+        "category":  "exported",
+        "name":  "icon",
+        "path":  "/icons/basil/misc/exported/icon.svg"
+    },
+    {
+        "id":  "misc/exported/icon-1",
+        "style":  "misc",
+        "category":  "exported",
+        "name":  "icon-1",
+        "path":  "/icons/basil/misc/exported/icon-1.svg"
+    },
+    {
+        "id":  "outline/communication/contacts",
+        "style":  "outline",
+        "category":  "communication",
+        "name":  "contacts",
+        "path":  "/icons/basil/outline/communication/contacts.svg"
+    },
+    {
+        "id":  "outline/communication/share",
+        "style":  "outline",
+        "category":  "communication",
+        "name":  "share",
+        "path":  "/icons/basil/outline/communication/share.svg"
+    },
+    {
+        "id":  "outline/files/copy",
+        "style":  "outline",
+        "category":  "files",
+        "name":  "copy",
+        "path":  "/icons/basil/outline/files/copy.svg"
+    },
+    {
+        "id":  "outline/files/download",
+        "style":  "outline",
+        "category":  "files",
+        "name":  "download",
+        "path":  "/icons/basil/outline/files/download.svg"
+    },
+    {
+        "id":  "outline/files/picture",
+        "style":  "outline",
+        "category":  "files",
+        "name":  "picture",
+        "path":  "/icons/basil/outline/files/picture.svg"
+    },
+    {
+        "id":  "outline/files/upload",
+        "style":  "outline",
+        "category":  "files",
+        "name":  "upload",
+        "path":  "/icons/basil/outline/files/upload.svg"
+    },
+    {
+        "id":  "outline/general/calendar",
+        "style":  "outline",
+        "category":  "general",
+        "name":  "calendar",
+        "path":  "/icons/basil/outline/general/calendar.svg"
+    },
+    {
+        "id":  "outline/general/home",
+        "style":  "outline",
+        "category":  "general",
+        "name":  "home",
+        "path":  "/icons/basil/outline/general/home.svg"
+    },
+    {
+        "id":  "outline/interface/caret-left",
+        "style":  "outline",
+        "category":  "interface",
+        "name":  "caret-left",
+        "path":  "/icons/basil/outline/interface/caret-left.svg"
+    },
+    {
+        "id":  "outline/interface/caret-right",
+        "style":  "outline",
+        "category":  "interface",
+        "name":  "caret-right",
+        "path":  "/icons/basil/outline/interface/caret-right.svg"
+    },
+    {
+        "id":  "outline/interface/search",
+        "style":  "outline",
+        "category":  "interface",
+        "name":  "search",
+        "path":  "/icons/basil/outline/interface/search.svg"
+    },
+    {
+        "id":  "outline/interface/trash",
+        "style":  "outline",
+        "category":  "interface",
+        "name":  "trash",
+        "path":  "/icons/basil/outline/interface/trash.svg"
+    },
+    {
+        "id":  "outline/media/microphone",
+        "style":  "outline",
+        "category":  "media",
+        "name":  "microphone",
+        "path":  "/icons/basil/outline/media/microphone.svg"
+    },
+    {
+        "id":  "outline/media/microphone-off",
+        "style":  "outline",
+        "category":  "media",
+        "name":  "microphone-off",
+        "path":  "/icons/basil/outline/media/microphone-off.svg"
+    },
+    {
+        "id":  "outline/navigation/location",
+        "style":  "outline",
+        "category":  "navigation",
+        "name":  "location",
+        "path":  "/icons/basil/outline/navigation/location.svg"
+    },
+    {
+        "id":  "outline/navigation/map-location",
+        "style":  "outline",
+        "category":  "navigation",
+        "name":  "map-location",
+        "path":  "/icons/basil/outline/navigation/map-location.svg"
+    },
+    {
+        "id":  "outline/status/eye",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "eye",
+        "path":  "/icons/basil/outline/status/eye.svg"
+    },
+    {
+        "id":  "outline/status/eye-closed",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "eye-closed",
+        "path":  "/icons/basil/outline/status/eye-closed.svg"
+    },
+    {
+        "id":  "outline/status/info-circle",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "info-circle",
+        "path":  "/icons/basil/outline/status/info-circle.svg"
+    },
+    {
+        "id":  "outline/status/info-rect",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "info-rect",
+        "path":  "/icons/basil/outline/status/info-rect.svg"
+    },
+    {
+        "id":  "outline/status/info-triangle",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "info-triangle",
+        "path":  "/icons/basil/outline/status/info-triangle.svg"
+    },
+    {
+        "id":  "outline/status/notification-on",
+        "style":  "outline",
+        "category":  "status",
+        "name":  "notification-on",
+        "path":  "/icons/basil/outline/status/notification-on.svg"
+    },
+    {
+        "id":  "solid/brands/google",
+        "style":  "solid",
+        "category":  "brands",
+        "name":  "google",
+        "path":  "/icons/basil/solid/brands/google.svg"
+    },
+    {
+        "id":  "solid/communication/user-plus",
+        "style":  "solid",
+        "category":  "communication",
+        "name":  "user-plus",
+        "path":  "/icons/basil/solid/communication/user-plus.svg"
+    },
+    {
+        "id":  "solid/files/copy",
+        "style":  "solid",
+        "category":  "files",
+        "name":  "copy",
+        "path":  "/icons/basil/solid/files/copy.svg"
+    },
+    {
+        "id":  "solid/files/download",
+        "style":  "solid",
+        "category":  "files",
+        "name":  "download",
+        "path":  "/icons/basil/solid/files/download.svg"
+    },
+    {
+        "id":  "solid/files/upload",
+        "style":  "solid",
+        "category":  "files",
+        "name":  "upload",
+        "path":  "/icons/basil/solid/files/upload.svg"
+    },
+    {
+        "id":  "solid/general/home",
+        "style":  "solid",
+        "category":  "general",
+        "name":  "home",
+        "path":  "/icons/basil/solid/general/home.svg"
+    },
+    {
+        "id":  "solid/media/microphone",
+        "style":  "solid",
+        "category":  "media",
+        "name":  "microphone",
+        "path":  "/icons/basil/solid/media/microphone.svg"
+    },
+    {
+        "id":  "solid/media/microphone-off",
+        "style":  "solid",
+        "category":  "media",
+        "name":  "microphone-off",
+        "path":  "/icons/basil/solid/media/microphone-off.svg"
+    },
+    {
+        "id":  "solid/status/info-circle",
+        "style":  "solid",
+        "category":  "status",
+        "name":  "info-circle",
+        "path":  "/icons/basil/solid/status/info-circle.svg"
+    },
+    {
+        "id":  "solid/status/info-rect",
+        "style":  "solid",
+        "category":  "status",
+        "name":  "info-rect",
+        "path":  "/icons/basil/solid/status/info-rect.svg"
+    },
+    {
+        "id":  "solid/status/notification-on",
+        "style":  "solid",
+        "category":  "status",
+        "name":  "notification-on",
+        "path":  "/icons/basil/solid/status/notification-on.svg"
+    }
+]

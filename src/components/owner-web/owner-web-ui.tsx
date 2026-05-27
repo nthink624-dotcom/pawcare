@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarDays, Check, ChevronDown, Search } from "lucide-react";
-import type { KeyboardEvent } from "react";
+import { CalendarDays, Check, ChevronDown } from "lucide-react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -45,10 +45,10 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex h-12 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 text-[#64748b]">
-      <Search className="h-4 w-4 text-[#94a3b8]" />
+    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
+      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
       <input
-        className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+        className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
         placeholder={placeholder}
       />
     </label>
@@ -177,13 +177,35 @@ export function SoftSelect<T extends string = string>({
   );
 }
 
-export function PrimaryButton({ label, onClick }: { label: string; onClick?: () => void }) {
+export function AssetIcon({ src, className }: { src: string; className?: string }) {
+  return (
+    <span
+      className={cn("inline-block h-5 w-5 shrink-0 bg-current align-middle", className)}
+      style={
+        {
+          WebkitMaskImage: `url(${src})`,
+          maskImage: `url(${src})`,
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+        } as CSSProperties
+      }
+      aria-hidden="true"
+    />
+  );
+}
+
+export function PrimaryButton({ label, onClick, icon }: { label: string; onClick?: () => void; icon?: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
+      className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
     >
+      {icon}
       {label}
     </button>
   );

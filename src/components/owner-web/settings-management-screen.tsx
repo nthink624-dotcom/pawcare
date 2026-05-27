@@ -8,6 +8,7 @@ import OperatingHoursSettings from "@/components/owner-web/operating-hours-setti
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
+import { Switch } from "@/components/ui/switch";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -323,6 +324,7 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
 const ownerWebSettingsStorageKey = "petmanager.ownerWeb.settings";
 const ownerWebShopProfileImageStorageKey = "petmanager.ownerWeb.shopProfileImage";
 const ownerWebShopProfileImagesStorageKey = "petmanager.ownerWeb.shopProfileImages";
+const ownerWebShopProfileImagesStorageLimit = 900_000;
 
 function normalizeShopProfileImages(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -498,25 +500,18 @@ function SettingValueControl({
 }) {
   if (row.control === "toggle") {
     return (
-      <button
-        type="button"
+      <span
         onClick={(event) => {
           event.stopPropagation();
-          onChange(!row.value);
         }}
-        className={cn(
-          "relative inline-flex h-8 w-[58px] shrink-0 items-center rounded-full transition",
-          row.value ? "bg-[#1f6b5b]" : "bg-[#dbe2ea]",
-        )}
-        aria-pressed={Boolean(row.value)}
       >
-        <span
-          className={cn(
-            "absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition",
-            row.value ? "left-7" : "left-1",
-          )}
+        <Switch
+          checked={Boolean(row.value)}
+          size="lg"
+          aria-label={row.label}
+          onCheckedChange={(checked) => onChange(checked)}
         />
-      </button>
+      </span>
     );
   }
 
@@ -669,9 +664,8 @@ export default function SettingsManagementScreen({
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
-  const [alertSettingsDirty, setAlertSettingsDirty] = useState(false);
-  const [savingAlertSettings, setSavingAlertSettings] = useState(false);
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
+  const alertAutoSaveSeqRef = useRef(0);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -697,7 +691,6 @@ export default function SettingsManagementScreen({
       });
       setIsShopInfoDirty(false);
       setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
-      setAlertSettingsDirty(false);
       return () => window.cancelAnimationFrame(frame);
     } catch {
       window.localStorage.removeItem(ownerWebSettingsStorageKey);
@@ -889,10 +882,16 @@ export default function SettingsManagementScreen({
   function persistSettings(nextSettings: Record<SettingsTabKey, SettingsTab>, nextShopProfileImages = shopProfileImages) {
     const settingsToStore = cloneSettings(nextSettings);
     const profileImagesToStore = normalizeShopProfileImages(nextShopProfileImages);
+    const serializedProfileImages = JSON.stringify(profileImagesToStore);
+    const canPersistProfileImages = serializedProfileImages.length <= ownerWebShopProfileImagesStorageLimit;
     try {
+      if (!canPersistProfileImages) {
+        window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
+        window.localStorage.removeItem(ownerWebShopProfileImageStorageKey);
+      }
       window.localStorage.setItem(ownerWebSettingsStorageKey, JSON.stringify(settingsToStore));
-      if (profileImagesToStore.length > 0) {
-        window.localStorage.setItem(ownerWebShopProfileImagesStorageKey, JSON.stringify(profileImagesToStore));
+      if (profileImagesToStore.length > 0 && canPersistProfileImages) {
+        window.localStorage.setItem(ownerWebShopProfileImagesStorageKey, serializedProfileImages);
         window.localStorage.setItem(ownerWebShopProfileImageStorageKey, profileImagesToStore[0]);
       } else {
         window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
@@ -944,19 +943,13 @@ export default function SettingsManagementScreen({
     setIsShopInfoDirty(true);
   }
 
-  function updateAlertSettings(nextSettings: AlertSettingsDraft) {
+  async function updateAlertSettings(nextSettings: AlertSettingsDraft) {
     setAlertSettings(nextSettings);
-    setAlertSettingsDirty(true);
-  }
-
-  async function saveAlertSettingsFromDraft() {
-    if (savingAlertSettings) return;
     if (!shop) {
-      showSaveCompletePopup();
       return;
     }
 
-    const nextNotificationSettings = alertSettingsDraftToShopSettings(alertSettings);
+    const nextNotificationSettings = alertSettingsDraftToShopSettings(nextSettings);
     const optimisticShop: Shop = {
       ...shop,
       notification_settings: nextNotificationSettings,
@@ -964,13 +957,13 @@ export default function SettingsManagementScreen({
 
     onShopChange?.(optimisticShop);
 
-    if (!alertSettingsDirty || !persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setAlertSettingsDirty(false);
-      showSaveCompletePopup();
+    if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
       return;
     }
 
-    setSavingAlertSettings(true);
+    const saveSeq = alertAutoSaveSeqRef.current + 1;
+    alertAutoSaveSeqRef.current = saveSeq;
+
     try {
       const savedShop = await fetchApiJsonWithAuth<Shop>("/api/settings", {
         method: "PATCH",
@@ -992,17 +985,15 @@ export default function SettingsManagementScreen({
           temporaryClosedDates: shop.temporary_closed_dates,
           businessHours: shop.business_hours,
           reservationPolicySettings: shop.reservation_policy_settings,
-          notificationSettings: alertSettings,
+          notificationSettings: nextSettings,
         }),
       });
-      setAlertSettings(buildAlertSettingsDraft(savedShop.notification_settings));
-      setAlertSettingsDirty(false);
-      onShopChange?.(savedShop);
-      showSaveCompletePopup();
+      if (alertAutoSaveSeqRef.current === saveSeq) {
+        setAlertSettings(buildAlertSettingsDraft(savedShop.notification_settings));
+        onShopChange?.(savedShop);
+      }
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save notification settings", error);
-    } finally {
-      setSavingAlertSettings(false);
     }
   }
 
@@ -1045,9 +1036,7 @@ export default function SettingsManagementScreen({
           {activeTab === "alerts" ? (
             <SettingsAlertsPanel
               value={alertSettings}
-              saving={savingAlertSettings}
               onChange={updateAlertSettings}
-              onSave={saveAlertSettingsFromDraft}
             />
           ) : activeTab === "hours" && businessHoursRow && closedDayRow ? (
             <OperatingHoursSettings

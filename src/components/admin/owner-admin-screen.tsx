@@ -170,6 +170,13 @@ const eventLabelMap: Record<AdminOwnerEventType, string> = {
   temporary_password_issued: "임시비밀번호 발급",
 };
 
+function getEventLabel(event: AdminOwnerHistoryItem) {
+  if (event.nextPayload.systemAlertType === "browser_storage_pressure") {
+    return "브라우저 저장소 경고";
+  }
+  return eventLabelMap[event.type];
+}
+
 function getPlanLabel(value: OwnerPlanCode | string | null | undefined) {
   if (!value) return "-";
   return planOptions.find((option) => option.value === value)?.label ?? value;
@@ -247,6 +254,15 @@ function buildDraft(item: AdminOwnerItem): OwnerDraft {
 }
 
 function summarizeEvent(event: AdminOwnerHistoryItem) {
+  if (event.nextPayload.systemAlertType === "browser_storage_pressure") {
+    const usagePercent = typeof event.nextPayload.usagePercent === "number" ? `${event.nextPayload.usagePercent}%` : "확인 필요";
+    const reason =
+      event.nextPayload.reason === "storage_usage_over_80_percent"
+        ? "저장소 사용량 80% 이상"
+        : "브라우저 저장소 쓰기 실패";
+    return `${reason} 감지. 사용량: ${usagePercent}`;
+  }
+
   switch (event.type) {
     case "plan_changed":
       return `${getPlanLabel(
@@ -1006,7 +1022,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         selectedOwner.recentEvents.map((event) => (
                           <div key={event.id} className="rounded-[14px] border border-[#e5ddd2] bg-white px-3 py-3">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-[14px] font-semibold text-[#171411]">{eventLabelMap[event.type]}</p>
+                              <p className="text-[14px] font-semibold text-[#171411]">{getEventLabel(event)}</p>
                               <span className="text-[11px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
                             </div>
                             <p className="mt-1.5 text-[14px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>

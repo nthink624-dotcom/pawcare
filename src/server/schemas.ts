@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const petBiteLevelSchema = z.enum(["none", "watch", "bite", "strong"]).default("none");
 
 const bookingBlockedWindowSchema = z.object({
   id: z.string().trim().optional(),
@@ -43,6 +44,7 @@ export const appointmentEditSchema = z.object({
   memo: z.string().default(""),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   enforceShopCapacity: z.boolean().optional().default(true),
+  allowOutsideShopHours: z.boolean().optional().default(false),
   notifyCustomer: z.boolean().optional().default(true),
   preserveStatus: z.boolean().optional().default(false),
 });
@@ -97,6 +99,7 @@ export const petInputSchema = z.object({
   weight: z.coerce.number().nullable().optional(),
   age: z.coerce.number().nullable().optional(),
   notes: z.string().default(""),
+  biteLevel: petBiteLevelSchema.optional(),
   groomingCycleWeeks: z.coerce.number().min(1).max(52).default(4),
 });
 
@@ -106,6 +109,11 @@ export const petUpdateSchema = z.object({
   name: z.string().trim().min(1),
   breed: z.string().trim().min(1),
   birthday: z.string().nullable().optional(),
+  weight: z.coerce.number().nullable().optional(),
+  age: z.coerce.number().nullable().optional(),
+  notes: z.string().optional(),
+  biteLevel: petBiteLevelSchema.optional(),
+  groomingCycleWeeks: z.coerce.number().min(1).max(52).optional(),
 });
 
 export const petDeleteSchema = z.object({
@@ -227,5 +235,9 @@ export const customerPageSettingsSchema = z.object({
     show_kakao_inquiry: z.boolean(),
     font_preset: z.enum(["soft", "clean", "classic"]),
     font_scale: z.enum(["compact", "comfortable"]),
+    business_category: z.string().default("애견미용"),
+    additional_contact: z.string().default(""),
+    postal_code: z.string().default(""),
+    address_detail: z.string().default(""),
   }),
 });

@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
-import { ToolbarRow, WebSurface } from "@/components/owner-web/owner-web-ui";
-import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
@@ -170,6 +170,7 @@ function moveMonth(date: string, offset: number) {
 }
 
 function buildDayItems(records: GroomingCalendarRecord[], reservations: ReservationRow[], date: string): DayItem[] {
+  const shouldShowReservations = date >= currentDateInTimeZone();
   const recordItems: DayItem[] = records
     .filter((record) => normalizeRecordDate(record.date) === date)
     .map((record) => ({
@@ -187,12 +188,15 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       next: record.next,
       date,
     }));
+  const recordAppointmentIds = new Set(recordItems.map((record) => record.appointmentId).filter(Boolean));
 
-  const reservationItems: DayItem[] = reservations
+  const completedReservationRecordItems: DayItem[] = reservations
     .filter((reservation) => reservation.date === date)
+    .filter((reservation) => reservation.status === "완료")
+    .filter((reservation) => !recordAppointmentIds.has(reservation.id))
     .map((reservation) => ({
       id: reservation.id,
-      type: "reservation" as const,
+      type: "record" as const,
       guardianId: reservation.guardianId,
       petId: reservation.petId,
       appointmentId: reservation.id,
@@ -200,7 +204,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       pet: reservation.pet,
       customer: reservation.customer,
       service: reservation.service,
-      status: reservation.status,
+      status: "기록 완료",
       note: reservation.note,
       time: reservation.time,
       staff: reservation.staff,
@@ -209,7 +213,45 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       date,
     }));
 
-  return [...reservationItems, ...recordItems].sort((first, second) => (first.time ?? "99:99").localeCompare(second.time ?? "99:99"));
+  const reservationItems: DayItem[] = shouldShowReservations
+    ? reservations
+        .filter((reservation) => reservation.date === date)
+        .filter((reservation) => reservation.status !== "완료")
+        .filter((reservation) => !recordAppointmentIds.has(reservation.id))
+        .map((reservation) => ({
+          id: reservation.id,
+          type: "reservation" as const,
+          guardianId: reservation.guardianId,
+          petId: reservation.petId,
+          appointmentId: reservation.id,
+          groomingRecordId: null,
+          pet: reservation.pet,
+          customer: reservation.customer,
+          service: reservation.service,
+          status: reservation.status,
+          note: reservation.note,
+          time: reservation.time,
+          staff: reservation.staff,
+          phone: reservation.phone,
+          channel: reservation.channel,
+          date,
+        }))
+    : [];
+
+  return [...reservationItems, ...completedReservationRecordItems, ...recordItems].sort((first, second) =>
+    (first.time ?? "99:99").localeCompare(second.time ?? "99:99"),
+  );
+}
+
+function matchesCalendarSearch(fields: Array<string | undefined | null>, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+
+  const haystack = fields.filter(Boolean).join(" ").toLowerCase();
+  const queryDigits = query.replace(/\D/g, "");
+  const haystackDigits = haystack.replace(/\D/g, "");
+
+  return haystack.includes(normalizedQuery) || Boolean(queryDigits && haystackDigits.includes(queryDigits));
 }
 
 function getRecordTone(item: DayItem) {
@@ -233,6 +275,7 @@ function getTimeTone(item: DayItem) {
 function getStatusAccent(item: DayItem): StatusIndicatorTone {
   if (item.type === "record") return "slate";
   if (item.status === "승인 대기") return "amber";
+  if (item.status === "취소" || item.status === "거절" || item.status === "노쇼") return "burgundy";
   return "teal";
 }
 
@@ -244,16 +287,17 @@ function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolea
 }
 
 type CalendarStatusIndicator = {
-  key: "pending" | "confirmed" | "changed" | "cancelled";
+  key: "pending" | "confirmed" | "completed" | "changed" | "cancelled";
   label: string;
-  className: string;
+  tone: StatusIndicatorTone;
 };
 
 const calendarStatusIndicators: CalendarStatusIndicator[] = [
-  { key: "confirmed", label: "확정", className: "bg-[#2f7866]" },
-  { key: "pending", label: "승인대기", className: "bg-[#d8a634]" },
-  { key: "cancelled", label: "취소", className: "bg-[#9f3a3a]" },
-  { key: "changed", label: "변경", className: "bg-[#b7791f]" },
+  { key: "confirmed", label: "확정", tone: "teal" },
+  { key: "pending", label: "승인대기", tone: "amber" },
+  { key: "completed", label: "완료", tone: "slate" },
+  { key: "changed", label: "변경", tone: "amber" },
+  { key: "cancelled", label: "취소", tone: "burgundy" },
 ];
 
 function getCalendarStatusCounts(items: DayItem[]) {
@@ -261,10 +305,15 @@ function getCalendarStatusCounts(items: DayItem[]) {
 
   return {
     pending: reservationItems.filter((item) => item.status.includes("승인")).length,
-    confirmed: reservationItems.filter((item) => item.status.includes("확정")).length,
+    confirmed: reservationItems.filter((item) => item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비").length,
+    completed: items.filter((item) => item.type === "record" || item.status.includes("완료")).length,
     changed: reservationItems.filter((item) => item.status.includes("변경")).length,
-    cancelled: reservationItems.filter((item) => item.status.includes("취소")).length,
+    cancelled: reservationItems.filter((item) => item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")).length,
   };
+}
+
+function getCalendarStatusBarClass(tone: StatusIndicatorTone) {
+  return cn("h-[3px] w-3 rounded-full", statusIndicatorBgClass[tone]);
 }
 
 export default function GroomingManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
@@ -289,23 +338,37 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
   }, [initialReservations, records]);
 
   const filteredRecords = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return records.filter((record) => {
-      const haystack = [record.pet, record.customer, record.date, record.service, record.memo, record.next].join(" ").toLowerCase();
-      const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
-      return matchesQuery;
-    });
+    return records.filter((record) => matchesCalendarSearch([record.pet, record.customer, record.date, record.service, record.memo, record.next], query));
   }, [query, records]);
+  const filteredReservations = useMemo(() => {
+    return reservations.filter((reservation) =>
+      matchesCalendarSearch(
+        [
+          reservation.pet,
+          reservation.customer,
+          reservation.service,
+          reservation.status,
+          reservation.note,
+          reservation.date,
+          reservation.time,
+          reservation.staff,
+          reservation.phone,
+          reservation.channel,
+        ],
+        query,
+      ),
+    );
+  }, [query, reservations]);
 
   const monthDates = useMemo(() => getMonthDates(monthAnchor), [monthAnchor]);
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
     for (const date of monthDates) {
       if (!date) continue;
-      map.set(date, buildDayItems(filteredRecords, reservations, date));
+      map.set(date, buildDayItems(filteredRecords, filteredReservations, date));
     }
     return map;
-  }, [filteredRecords, monthDates, reservations]);
+  }, [filteredRecords, filteredReservations, monthDates]);
   const selectedItems = dayItemsByDate.get(selectedDate) ?? [];
 
   function confirmReservation(reservationId: string) {
@@ -341,21 +404,9 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
 
   return (
     <div className="space-y-3">
-      <ToolbarRow>
-        <label className="flex h-9 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
-          <Search className="h-4 w-4 text-[#94a3b8]" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="w-full bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
-            placeholder="반려동물명, 보호자명, 메모 검색"
-          />
-        </label>
-      </ToolbarRow>
-
       <WebSurface className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-5 py-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#e2e8f0] px-5 py-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
@@ -373,23 +424,19 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
             >
               <ChevronRight className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const today = currentDateInTimeZone();
-                setSelectedDate(today);
-                setMonthAnchor(today);
-                setSelectedItem(null);
-              }}
-              className="ml-1 h-8 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc]"
-            >
-              오늘
-            </button>
           </div>
-          <p className="text-[13px] text-[#64748b]">선택한 날짜의 예약과 기록을 오른쪽에서 확인합니다.</p>
+          <label className="flex h-11 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
+            <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+              placeholder="반려동물명, 보호자명, 메모 검색"
+            />
+          </label>
         </div>
 
-        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
+        <div className="grid min-h-0 items-start xl:grid-cols-[minmax(0,1fr)_392px]">
           <section className="min-w-0 bg-[#f1f5f9] xl:border-r xl:border-[#edf2f7]">
             <div className="grid grid-cols-7 border-b border-[#e8eef5] bg-[#fbfcfd]">
               {weekdayLabels.map((label) => (
@@ -411,7 +458,7 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
                 const visibleStatuses = calendarStatusIndicators.filter((indicator) => statusCounts[indicator.key] > 0);
 
                 if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-[82px] rounded-[8px] bg-[#fdfefe]" />;
+                  return <div key={`empty-${index}`} className="min-h-[106px] rounded-[8px] bg-[#fdfefe]" />;
                 }
 
                 return (
@@ -420,7 +467,7 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
                     type="button"
                     onClick={() => openDate(date)}
                     className={cn(
-                      "relative flex min-h-[90px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150",
+                      "relative flex min-h-[112px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150",
                       getCalendarCellTone(active, isToday, hasItems),
                     )}
                     aria-label={`${date} 예약 ${reservationCount}건`}
@@ -446,21 +493,23 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
                         </span>
                       ) : null}
                     </div>
-                    {visibleStatuses.length > 0 || recordCount > 0 ? (
+                    {visibleStatuses.length > 0 ? (
                       <div className="flex items-end justify-between gap-2">
-                        <div className="flex h-5 w-3 flex-col-reverse items-start justify-start gap-0.5">
-                          {visibleStatuses.map((indicator) => (
-                            <span
-                              key={indicator.key}
-                              className={cn("h-[3px] w-3 rounded-full", indicator.className)}
-                              title={`${indicator.label} ${statusCounts[indicator.key]}건`}
-                            />
-                          ))}
+                        <div className="flex h-5 flex-col-reverse items-start justify-start gap-0.5">
+                          {visibleStatuses
+                            .filter((indicator) => indicator.key !== "completed")
+                            .map((indicator) => (
+                              <span
+                                key={indicator.key}
+                                className={getCalendarStatusBarClass(indicator.tone)}
+                                title={`${indicator.label} ${statusCounts[indicator.key]}건`}
+                              />
+                            ))}
                         </div>
-                        {recordCount > 0 ? (
+                        {statusCounts.completed > 0 ? (
                           <span
-                            className="h-[3px] w-3 rounded-full bg-[#a7b3c2]"
-                            title={`기록 ${recordCount}건`}
+                            className={getCalendarStatusBarClass("slate")}
+                            title={`기록 ${statusCounts.completed}건`}
                           />
                         ) : null}
                       </div>
@@ -493,38 +542,26 @@ function GroomingDatePanel({
   onSelectItem: (item: DayItem) => void;
   onConfirmReservation: (reservationId: string) => void;
 }) {
-  const reservationCount = items.filter((item) => item.type === "reservation").length;
-  const recordCount = items.filter((item) => item.type === "record").length;
-  const reservationItems = items.filter((item) => item.type === "reservation");
-  const recordItems = items.filter((item) => item.type === "record");
   const isPastDate = date < currentDateInTimeZone();
+  const visibleItems = isPastDate ? items.filter((item) => item.type === "record") : items;
 
   return (
-    <aside className="flex min-h-[492px] flex-col bg-white">
-      <div className="border-b border-[#edf2f7] px-5 py-4">
-        <h3 className="text-[20px] font-semibold text-[#111827]">{formatFullDate(date)}</h3>
-      </div>
+    <aside className="self-start bg-white">
+      <div className="px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[15px] font-normal text-[#334155]">{formatFullDate(date)}</h3>
+          <span className="text-[13px] text-[#94a3b8]">{visibleItems.length}건</span>
+        </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-2.5">
-        {items.length > 0 ? (
-          <div className="space-y-3">
-            {isPastDate ? (
-              <>
-                <DayItemSection title="기록" count={recordCount} items={recordItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
-                <DayItemSection title="예약" count={reservationCount} items={reservationItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
-              </>
-            ) : (
-              <>
-                <DayItemSection title="예약" count={reservationCount} items={reservationItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
-                <DayItemSection title="기록" count={recordCount} items={recordItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} />
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-8 text-center text-[13px] text-[#94a3b8]">
-            이 날짜에는 예약이나 기록이 없습니다.
-          </div>
-        )}
+        <div className="mt-3">
+          {visibleItems.length > 0 ? (
+            <DayItemSection title="일정" count={visibleItems.length} items={visibleItems} onSelectItem={onSelectItem} onConfirmReservation={onConfirmReservation} hideHeader />
+          ) : (
+            <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-6 text-center text-[13px] text-[#94a3b8]">
+              {isPastDate ? "이 날짜에는 기록이 없습니다." : "이 날짜에는 예약이나 기록이 없습니다."}
+            </div>
+          )}
+        </div>
       </div>
     </aside>
   );
@@ -536,19 +573,23 @@ function DayItemSection({
   items,
   onSelectItem,
   onConfirmReservation,
+  hideHeader = false,
 }: {
   title: string;
   count: number;
   items: DayItem[];
   onSelectItem: (item: DayItem) => void;
   onConfirmReservation: (reservationId: string) => void;
+  hideHeader?: boolean;
 }) {
   return (
     <section>
-      <div className="mb-1.5 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-[#334155]">{title}</p>
-        <span className="text-[12px] text-[#94a3b8]">{count}건</span>
-      </div>
+      {!hideHeader ? (
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-[13px] font-semibold text-[#334155]">{title}</p>
+          <span className="text-[12px] text-[#94a3b8]">{count}건</span>
+        </div>
+      ) : null}
       {items.length > 0 ? (
         <div className="space-y-1">
           {items.map((item) => {
@@ -596,7 +637,7 @@ function DayItemSection({
         </div>
       ) : (
         <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-white px-3 py-3 text-[12px] text-[#94a3b8]">
-          {title === "예약" ? "예약이 없습니다." : "작성된 기록이 없습니다."}
+          표시할 항목이 없습니다.
         </div>
       )}
     </section>

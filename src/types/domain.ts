@@ -28,6 +28,7 @@ export type NotificationType =
 
 export type ChannelType = "alimtalk" | "sms" | "in_app" | "mock";
 export type NotificationStatus = "queued" | "sent" | "failed" | "mocked" | "skipped";
+export type PetBiteLevel = "none" | "watch" | "bite" | "strong";
 export type MediaKind =
   | "grooming_before"
   | "grooming_after"
@@ -168,6 +169,7 @@ export type Pet = {
   weight: number | null;
   age: number | null;
   notes: string;
+  bite_level?: PetBiteLevel;
   birthday: string | null;
   grooming_cycle_weeks: number;
   avatar_seed: string;

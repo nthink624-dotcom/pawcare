@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ActionButton,
-  ApprovalModeInfoButton,
   EmptyState,
   Field,
   HorizontalDragScroll,
@@ -1508,57 +1507,6 @@ export default function OwnerApp({
     });
   }
 
-  async function updateApprovalMode(nextMode: "manual" | "auto") {
-    if (isOwnerDemo) {
-      setData((prev) => ({
-        ...prev,
-        shop: {
-          ...prev.shop,
-          approval_mode: nextMode,
-          concurrent_capacity: concurrentCapacityForApprovalMode(nextMode),
-        },
-        appointments:
-          nextMode === "auto"
-            ? prev.appointments.map((appointment) =>
-                appointment.status === "pending" ? { ...appointment, status: "confirmed" } : appointment,
-              )
-            : prev.appointments,
-      }));
-      return;
-    }
-
-    await mutate("/api/settings", {
-      method: "PATCH",
-      body: JSON.stringify({
-        shopId: data.shop.id,
-        name: data.shop.name,
-        phone: data.shop.phone,
-        address: data.shop.address,
-        description: data.shop.description,
-        concurrentCapacity: concurrentCapacityForApprovalMode(nextMode),
-        bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
-        bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
-        bookingAvailableStartTime: data.shop.booking_available_start_time,
-        bookingAvailableEndTime: data.shop.booking_available_end_time,
-        approvalMode: nextMode,
-        regularClosedDays: data.shop.regular_closed_days,
-        temporaryClosedDates: data.shop.temporary_closed_dates,
-        businessHours: data.shop.business_hours,
-        notificationSettings: {
-          enabled: data.shop.notification_settings.enabled,
-          revisitEnabled: data.shop.notification_settings.revisit_enabled,
-          bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-          bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
-          bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
-          bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
-          groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
-          groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
-        },
-        customerPageSettings: data.shop.customer_page_settings,
-      }),
-    });
-  }
-
   async function sendBirthdayGreeting(pet: Pet) {
     const guardian = guardianMap[pet.guardian_id];
     if (!guardian) return;
@@ -1892,36 +1840,35 @@ export default function OwnerApp({
                 </div>
               </Panel>
             ) : null}
-            <div className="flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-white px-2.5 py-2 shadow-[0_4px_14px_rgba(35,35,31,0.04)]" aria-label="예약 날짜 선택">
+            <div className="flex items-center justify-center gap-2 rounded-[10px] border border-[var(--border)] bg-white px-2 py-1.5 shadow-[0_4px_14px_rgba(35,35,31,0.04)]" aria-label={`예약 날짜 선택: ${homeReservationFullDateLabel}`}>
               <button
                 type="button"
                 onClick={() => moveHomeReservationDate("prev")}
                 disabled={!canMoveHomeReservationBackward}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
                 aria-label="이전 날짜"
               >
-                <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2} />
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
-              <div className="min-w-0 flex-1 text-center">
-                <p className="text-[17px] font-semibold leading-5 tracking-[-0.03em] text-[var(--text)]">{homeReservationDateLabel}</p>
-                <p className="mt-1 text-[12px] font-medium leading-4 tracking-[-0.01em] text-[var(--muted)]">{homeReservationFullDateLabel}</p>
-              </div>
+              <p className="min-w-[64px] text-center text-[16px] font-semibold leading-8 tracking-[-0.02em] text-[var(--text)]">{homeReservationDateLabel}</p>
               <button
                 type="button"
                 onClick={() => moveHomeReservationDate("next")}
                 disabled={!canMoveHomeReservationForward}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[#ece8e2] bg-[#fbfaf7] text-[var(--text)] transition disabled:cursor-not-allowed disabled:opacity-35"
                 aria-label="다음 날짜"
               >
-                <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2} />
+                <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label={ownerHomeCopy.statPending} value={String(filteredHomePendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
-              <StatCard label={ownerHomeCopy.statUpcoming} value={String(filteredHomeActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
-              <StatCard label={ownerHomeCopy.statCompleted} value={String(filteredHomeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
-              <StatCard label={ownerHomeCopy.statCancelChange} value={String(filteredHomeCancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
-            </div>
+            <MobileStatusSummary
+              items={[
+                { label: ownerHomeCopy.statPending, value: filteredHomePendingAppointments.length, tone: "warning", onClick: () => setModal({ type: "stat", kind: "pending" }) },
+                { label: ownerHomeCopy.statUpcoming, value: filteredHomeActionAppointments.length, tone: "accent", onClick: () => setModal({ type: "stat", kind: "today" }) },
+                { label: ownerHomeCopy.statCompleted, value: filteredHomeCompletedHistoryAppointments.length, tone: "neutral", onClick: () => setModal({ type: "stat", kind: "completed" }) },
+                { label: ownerHomeCopy.statCancelChange, value: filteredHomeCancelChangeAppointments.length, tone: "danger", onClick: () => setModal({ type: "stat", kind: "cancel_change" }) },
+              ]}
+            />
             <MobileStaffFilterStrip
               options={homeStaffFilterOptions}
               value={homeStaffFilter}
@@ -1941,7 +1888,6 @@ export default function OwnerApp({
                 serviceMap={serviceMap}
                 staffMap={staffMap}
                 latestNotificationByAppointmentId={latestNotificationByAppointmentId}
-                approvalMode={data.shop.approval_mode}
                 saving={saving}
                 selectedDateKey={homeReservationDate}
                 slideDirection={homeReservationSlideDirection}
@@ -1952,7 +1898,6 @@ export default function OwnerApp({
                 onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
                 onPendingUpdate={(appointmentId, payload) => updateAppointment(appointmentId, payload)}
                 onStatusChange={requestMobileAppointmentStatusChange}
-                onApprovalModeChange={updateApprovalMode}
               />
             </Panel>
           </section>
@@ -2719,34 +2664,39 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
   );
 }
 
-function StatCard({ label, value, tone, onClick }: { label: string; value: string; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }) {
+function MobileStatusSummary({ items }: { items: Array<{ label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }> }) {
   const toneMap = {
     accent: {
-      bar: "before:bg-[#2f7866]",
-      border: "border-[#dbe2ea]",
+      dot: "bg-[#2f7866]",
     },
     warning: {
-      bar: "before:bg-[#b98121]",
-      border: "border-[#dbe2ea]",
+      dot: "bg-[#b98121]",
     },
     danger: {
-      bar: "before:bg-[#a04455]",
-      border: "border-[#dbe2ea]",
+      dot: "bg-[#a04455]",
     },
     neutral: {
-      bar: "before:bg-[#94a3b8]",
-      border: "border-[#dbe2ea]",
+      dot: "bg-[#64748b]",
     },
   } as const;
 
   return (
-    <button
-      onClick={onClick}
-      className={`relative overflow-hidden rounded-[8px] border bg-white px-4 py-3.5 text-left transition before:absolute before:inset-x-0 before:top-0 before:h-[3px] ${toneMap[tone].border} ${toneMap[tone].bar}`}
-    >
-      <p className="relative z-[1] text-[13px] font-medium tracking-[-0.01em] text-[#64748b]">{label}</p>
-      <p className="relative z-[1] mt-3 text-[30px] font-bold leading-none tracking-[-0.05em] text-[#0f172a]">{value}</p>
-    </button>
+    <div className="grid grid-cols-4 overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_4px_14px_rgba(35,35,31,0.03)]">
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={item.onClick}
+          className="min-w-0 border-r border-[#eef2f5] px-2 py-2 text-left last:border-r-0"
+        >
+          <span className="flex items-center gap-1.5 text-[12px] font-medium leading-4 tracking-[-0.02em] text-[#64748b]">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${toneMap[item.tone].dot}`} />
+            <span className="truncate">{item.label}</span>
+          </span>
+          <span className="mt-1 block text-[17px] font-semibold leading-5 tracking-[-0.03em] text-[#0f172a]">{item.value}건</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -4019,7 +3969,7 @@ function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, 
   return <div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, approvalMode, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; approvalMode?: "manual" | "auto"; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -4082,7 +4032,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
     }
   };
 
-  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-1"><h3 className="text-[15px] font-semibold leading-[20px] tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3><ApprovalModeInfoButton /></div>{approvalMode ? <span className="shrink-0 text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} staffMap={staffMap} latestNotificationByAppointmentId={latestNotificationByAppointmentId} onOpenAppointment={onOpenAppointment} /></div></div>;
+  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold leading-[20px] tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3><span className="shrink-0 text-[12px] font-medium text-[#8b6b5d]">{pendingAppointments.length}건</span></div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} staffMap={staffMap} latestNotificationByAppointmentId={latestNotificationByAppointmentId} onOpenAppointment={onOpenAppointment} /></div></div>;
 }
 
 

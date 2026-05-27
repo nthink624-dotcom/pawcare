@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { useState } from "react";
 
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export type AlertSettingsDraft = {
@@ -21,7 +22,6 @@ export type AlertSettingsDraft = {
 type AlertItem = {
   key: keyof AlertSettingsDraft;
   title: string;
-  description: string;
   preview: string;
 };
 
@@ -29,117 +29,147 @@ const alertItems: AlertItem[] = [
   {
     key: "bookingConfirmedEnabled",
     title: "예약 확정",
-    description: "예약이 확정됐을 때 고객에게 보냅니다.",
     preview: "[우유 미용실] 우유 예약이 확정됐어요. 방문 일정: 5월 20일 11:00",
   },
   {
     key: "bookingRejectedEnabled",
     title: "예약 거절",
-    description: "예약을 받을 수 없을 때 사유와 함께 안내합니다.",
     preview: "[우유 미용실] 요청하신 예약은 일정상 확정이 어려워요.",
   },
   {
     key: "bookingCancelledEnabled",
     title: "예약 취소",
-    description: "예약이 취소되었을 때 고객에게 알려줍니다.",
     preview: "[우유 미용실] 예약 취소가 처리됐어요. 다음에 다시 만나요.",
   },
   {
     key: "bookingRescheduledEnabled",
     title: "예약 변경 확정",
-    description: "변경된 예약 시간이 확정되면 보냅니다.",
     preview: "[우유 미용실] 예약 시간이 변경 확정됐어요. 새 일정: 5월 20일 14:00",
   },
   {
     key: "appointmentReminder10mEnabled",
     title: "방문 10분 전",
-    description: "오너가 현장에서 직접 보낼 때 사용합니다.",
     preview: "[우유 미용실] 예약 시간 10분 전이에요. 편하게 방문해 주세요.",
   },
   {
     key: "groomingStartedEnabled",
     title: "미용 시작",
-    description: "미용 시작 상태로 바꿨을 때 보냅니다.",
     preview: "[우유 미용실] 우유 미용을 시작했어요. 예쁘게 진행할게요.",
   },
   {
     key: "groomingAlmostDoneEnabled",
     title: "픽업 안내",
-    description: "미용이 거의 끝났을 때 보호자에게 알려줍니다.",
     preview: "[우유 미용실] 우유 미용이 거의 끝났어요. 픽업 준비 부탁드려요.",
   },
   {
     key: "groomingCompletedEnabled",
     title: "미용 완료",
-    description: "미용 완료와 사진 안내를 보냅니다.",
     preview: "[우유 미용실] 우유 미용이 완료됐어요. 사진을 확인해 주세요.",
   },
   {
     key: "revisitEnabled",
     title: "재방문 안내",
-    description: "고객 상세에서 오너가 직접 보낼 때 사용합니다.",
     preview: "[우유 미용실] 우유 재방문 시기가 가까워졌어요.",
   },
 ];
 
-const alertGroups: Array<{ title: string; description: string; items: AlertItem[] }> = [
+const alertGroups: Array<{ title: string; items: AlertItem[] }> = [
   {
     title: "예약 안내",
-    description: "예약 접수, 변경, 취소 상황에서 보호자에게 보내는 알림입니다.",
     items: alertItems.filter((item) =>
       ["bookingConfirmedEnabled", "bookingRejectedEnabled", "bookingCancelledEnabled", "bookingRescheduledEnabled", "appointmentReminder10mEnabled"].includes(item.key),
     ),
   },
   {
     title: "미용 진행",
-    description: "미용 시작부터 픽업, 완료까지 현장에서 보내는 알림입니다.",
     items: alertItems.filter((item) => ["groomingStartedEnabled", "groomingAlmostDoneEnabled", "groomingCompletedEnabled"].includes(item.key)),
   },
   {
     title: "고객 관리",
-    description: "재방문 안내처럼 고객 상세에서 직접 보내는 알림입니다.",
     items: alertItems.filter((item) => ["revisitEnabled"].includes(item.key)),
   },
 ];
 
-function Toggle({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange: () => void;
-}) {
+function getAlimtalkPreviewMessage(item: AlertItem) {
+  if (item.key === "bookingConfirmedEnabled") {
+    return [
+      "[우유]",
+      "우유 보호자님, 예약이 확정되었어요. 😄",
+      "",
+      "방문 일시: 5/11(월) 10:00",
+      "예약 서비스: 전체 미용",
+      "",
+      "방문 당일 편하게 와 주세요. 기다리고 있겠습니다.",
+      "",
+      "예약 링크",
+      "https://www.petmanager.co.kr/entry/shop-f512d347",
+      "예약 확인 링크",
+      "https://www.petmanager.co.kr/m?s=shop-f512d347",
+    ].join("\n");
+  }
+
+  return [
+    "[우유]",
+    item.preview.replace(/^\[[^\]]+\]\s*/, ""),
+    "",
+    "예약 링크",
+    "https://www.petmanager.co.kr/entry/shop-f512d347",
+    "예약 확인 링크",
+    "https://www.petmanager.co.kr/m?s=shop-f512d347",
+  ].join("\n");
+}
+
+function KakaoAlimtalkPreview({ item }: { item: AlertItem }) {
+  const message = getAlimtalkPreviewMessage(item);
+
   return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={checked}
-      disabled={disabled}
-      onClick={onChange}
-      className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-[#2f7866]" : "bg-[#cbd5e1]",
-      )}
-    >
-      <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition", checked ? "left-6" : "left-1")} />
-    </button>
+    <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[15px] font-semibold text-[#111827]">알림톡 미리보기</p>
+          <p className="mt-1 text-[13px] text-[#64748b]">{item.title}</p>
+        </div>
+        <MessageCircle className="h-4 w-4 text-[#2f7866]" />
+      </div>
+
+      <div className="mt-4 flex justify-center">
+        <div className="w-full max-w-[282px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
+          <div className="flex items-center gap-2">
+            <img src="/images/brand/ododok-petmanager-logo.png" alt="" className="h-9 w-9 rounded-full bg-white object-contain p-1" />
+            <p className="min-w-0 truncate text-[12px] font-medium text-[#0f172a]">오도독상회-펫매니저</p>
+          </div>
+
+          <div className="relative ml-[35px] mt-1 w-[198px] rounded-[2px] bg-white text-[#111827] shadow-sm">
+            <div className="rounded-t-[2px] bg-[#ffe500] px-2.5 py-2 text-[11px] font-semibold leading-none text-[#111827]">알림톡 도착</div>
+            <span className="absolute -right-3 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#3b3328] text-[8px] font-semibold text-white">kakao</span>
+            <div className="px-2.5 py-3 text-[11px] leading-[1.55]">
+              {message.split("\n").map((line, index) => {
+                if (!line) {
+                  return <div key={`${line}-${index}`} className="h-2.5" />;
+                }
+                if (line.startsWith("https://")) {
+                  return (
+                    <p key={line} className="break-all text-[#0066cc] underline underline-offset-2">
+                      {line}
+                    </p>
+                  );
+                }
+                return <p key={`${line}-${index}`}>{line}</p>;
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function SettingsAlertsPanel({
   value,
-  saving,
   onChange,
-  onSave,
 }: {
   value: AlertSettingsDraft;
-  saving?: boolean;
-  onChange: (value: AlertSettingsDraft) => void;
-  onSave: () => void | Promise<void>;
+  onChange: (value: AlertSettingsDraft) => void | Promise<void>;
 }) {
   const [selectedAlertKey, setSelectedAlertKey] = useState<AlertItem["key"]>(alertItems[0].key);
   const previewItem = alertItems.find((item) => item.key === selectedAlertKey) ?? alertItems[0];
@@ -154,25 +184,15 @@ export default function SettingsAlertsPanel({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-[18px] font-semibold text-[#111827]">알림 설정</h3>
-          <p className="mt-1 text-[14px] leading-5 text-[#64748b]">펫매니저 공통 발신 채널로 보내고, 메시지에는 매장명이 표시됩니다.</p>
         </div>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="h-10 rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white transition hover:bg-[#276756] disabled:bg-[#cbd5e1]"
-        >
-          {saving ? "저장 중" : "저장"}
-        </button>
       </div>
 
       <div className="mt-5 rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
-            <p className="mt-1 text-[13px] text-[#64748b]">끄면 고객에게 나가는 알림톡을 전체 중지합니다.</p>
           </div>
-          <Toggle checked={value.enabled} label="알림톡 전체 사용" onChange={() => update("enabled", !value.enabled)} />
+          <Switch checked={value.enabled} aria-label="알림톡 전체 사용" onCheckedChange={(checked) => update("enabled", checked)} />
         </div>
       </div>
 
@@ -183,7 +203,6 @@ export default function SettingsAlertsPanel({
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
                   <p className="text-[15px] font-semibold text-[#111827]">{group.title}</p>
-                  <p className="mt-1 text-[12px] leading-4 text-[#64748b]">{group.description}</p>
                 </div>
                 <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[12px] font-semibold text-[#64748b]">{group.items.length}개</span>
               </div>
@@ -211,10 +230,9 @@ export default function SettingsAlertsPanel({
                     >
                       <span className="min-w-0">
                         <span className="block text-[14px] font-semibold text-[#111827]">{item.title}</span>
-                        <span className="mt-1 block text-[12px] leading-4 text-[#64748b]">{item.description}</span>
                       </span>
                       <span onClick={(event) => event.stopPropagation()}>
-                        <Toggle checked={checked} disabled={!value.enabled} label={`${item.title} 알림`} onChange={() => update(item.key, !checked)} />
+                        <Switch checked={checked} disabled={!value.enabled} aria-label={`${item.title} 알림`} onCheckedChange={(nextChecked) => update(item.key, nextChecked)} />
                       </span>
                     </div>
                   );
@@ -225,26 +243,7 @@ export default function SettingsAlertsPanel({
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Check className="h-4 w-4 text-[#2f7866]" />
-              <p className="text-[15px] font-semibold text-[#111827]">미리보기</p>
-            </div>
-            <p className="text-[13px] font-medium text-[#64748b]">{previewItem.title}</p>
-            <div className="mt-2 rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-3 text-[14px] leading-6 text-[#111827]">
-              {previewItem.preview}
-            </div>
-          </div>
-
-          <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-4">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4 text-[#2f7866]" />
-              <p className="text-[15px] font-semibold text-[#111827]">알림톡 문구 운영 방식</p>
-            </div>
-            <p className="mt-3 text-[13px] leading-5 text-[#475569]">
-              기본 템플릿 문구는 카카오 검수 기준에 맞춰 펫매니저가 관리합니다. 예약 전 안내, 주차 안내, 픽업 안내처럼 템플릿 안에 들어가는 짧은 안내 문구부터 단계적으로 제공합니다.
-            </p>
-          </div>
+          <KakaoAlimtalkPreview item={previewItem} />
         </div>
       </div>
     </section>

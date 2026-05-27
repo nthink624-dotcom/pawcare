@@ -1,9 +1,9 @@
 "use client";
 
-import { Clock, Copy, ExternalLink, Link2, MapPin, MessageCircle, Monitor, Navigation, Phone, Search, Smartphone, Star, Store } from "lucide-react";
+import { Clock, Copy, ExternalLink, Link2, MapPin, MessageCircle, Monitor, Navigation, Phone, Smartphone, Star, Store } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import type { BootstrapPayload } from "@/types/domain";
 
 type CopyTarget = "url" | "message" | "naverUrl" | "naverPost" | "naverDirections";
@@ -130,7 +130,7 @@ export default function BookingLinkManagementScreen({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 shrink-0 text-[#1f6b5b]" />
+                  <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 shrink-0 text-[#1f6b5b]" />
                   <p className="text-[15px] font-semibold text-[#111827]">네이버 플레이스에 노출하기</p>
                 </div>
                 <p className="mt-1 text-[13px] leading-5 text-[#64748b]">

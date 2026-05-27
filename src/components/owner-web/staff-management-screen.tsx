@@ -11,7 +11,7 @@ import {
   StaffScheduleEditModal,
 } from "@/components/owner-web/staff-management-ui";
 import { StaffAddModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
-import { PrimaryButton, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { AssetIcon, PrimaryButton, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
@@ -422,9 +422,6 @@ export default function StaffManagementScreen({
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-[16px] text-[#64748b]">
-                  {boardTab === "list" ? "근무 가능 인원을 관리합니다." : "예약 배정 전 근무 가능 여부를 확인합니다."}
-                </p>
               </div>
               <div className="flex items-center gap-2">
                 {boardTab === "schedule" ? (
@@ -450,7 +447,11 @@ export default function StaffManagementScreen({
                     </button>
                   </>
                 ) : (
-                  <PrimaryButton label="직원 추가" onClick={() => setStaffDialogOpen(true)} />
+                  <PrimaryButton
+                    label="직원 추가"
+                    icon={<AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-6 w-6" />}
+                    onClick={() => setStaffDialogOpen(true)}
+                  />
                 )}
               </div>
             </div>

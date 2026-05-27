@@ -2,24 +2,19 @@
 
 import {
   Bell,
-  CalendarDays,
   ChevronDown,
-  Link2,
   LogOut,
   MessageCircle,
-  Scissors,
-  Stethoscope,
   Store,
-  Users,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
 import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
-import { ownerWebScreenLabels, type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -36,17 +31,50 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
-const screenIcons: Record<OwnerWebScreenKey, typeof CalendarDays> = {
-  schedule: CalendarDays,
-  bookingLink: Link2,
-  customers: Users,
-  grooming: Stethoscope,
-  services: Scissors,
-  staff: Users,
-  shopInfo: Store,
-  operatingHours: CalendarDays,
-  alerts: Bell,
+const screenIconPaths: Record<OwnerWebScreenKey, string> = {
+  schedule: "/icons/phosphor/clipboard-text.svg",
+  bookingLink: "/icons/phosphor/line-segments.svg",
+  grooming: "/icons/phosphor/calendar-dots.svg",
+  customers: "/icons/phosphor/user-circle.svg",
+  services: "/icons/phosphor/projector-screen-chart.svg",
+  staff: "/icons/phosphor/users.svg",
+  shopInfo: "/icons/phosphor/storefront.svg",
+  operatingHours: "/icons/phosphor/clock.svg",
+  alerts: "/icons/phosphor/bell.svg",
 };
+
+const ownerWebNavigationItems: Array<{ key: OwnerWebScreenKey; label: string }> = [
+  { key: "schedule", label: "예약 관리" },
+  { key: "bookingLink", label: "예약 링크" },
+  { key: "grooming", label: "캘린더" },
+  { key: "customers", label: "고객 관리" },
+  { key: "services", label: "미용 요금" },
+  { key: "staff", label: "직원 관리" },
+  { key: "shopInfo", label: "매장 정보" },
+  { key: "operatingHours", label: "운영 시간" },
+  { key: "alerts", label: "알림 설정" },
+];
+
+function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebScreenKey; active: boolean }) {
+  return (
+    <span
+      className={cn("block h-[21px] w-[21px]", active ? "bg-[#1f6b5b]" : "bg-[#64748b]")}
+      style={
+        {
+          WebkitMaskImage: `url(${screenIconPaths[screen]})`,
+          maskImage: `url(${screenIconPaths[screen]})`,
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+        } as CSSProperties
+      }
+      aria-hidden="true"
+    />
+  );
+}
 
 const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
 
@@ -271,7 +299,7 @@ export default function OwnerWebPreview({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (storeMenuRef.current?.contains(target)) return;
-      setStoreMenuOpen(false);
+      if (storeMenuOpen) setStoreMenuOpen(false);
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -426,7 +454,7 @@ export default function OwnerWebPreview({
           </span>
         </div>
 
-        <div className="ml-auto hidden items-center gap-1 lg:flex">
+        <div className="ml-auto hidden items-center gap-2 lg:flex">
           <AlimtalkCreditMenu
             summary={ownerData.alimtalkCreditSummary}
             open={alimtalkCreditMenuOpen}
@@ -458,10 +486,10 @@ export default function OwnerWebPreview({
                 setStoreMenuOpen((current) => !current);
                 setAlimtalkCreditMenuOpen(false);
               }}
-              className="inline-flex h-9 w-full items-center justify-end gap-2 rounded-full px-1.5 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+              className="inline-flex h-9 w-full items-center justify-end gap-3 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
               aria-expanded={storeMenuOpen}
             >
-              <span className="ml-auto flex min-w-0 items-center gap-2">
+              <span className="ml-auto flex min-w-0 items-center gap-3">
                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">
                   {shopInitials}
                 </span>
@@ -491,12 +519,11 @@ export default function OwnerWebPreview({
       </header>
 
       <div className="flex min-h-[calc(100vh-52px)]">
-        <aside className="hidden w-[232px] shrink-0 border-r border-[#dbe2ea] bg-white lg:block">
+        <aside className="hidden w-[184px] shrink-0 border-r border-[#dbe2ea] bg-white lg:block">
           <div className="flex h-full flex-col">
             <nav className="flex-1 overflow-y-auto px-3 py-4">
               <div className="space-y-0.5">
-                {ownerWebScreenLabels.map((screen) => {
-                  const Icon = screenIcons[screen.key];
+                {ownerWebNavigationItems.map((screen) => {
                   const active = activeScreen === screen.key;
                   return (
                     <div key={screen.key}>
@@ -509,10 +536,10 @@ export default function OwnerWebPreview({
                         )}
                       >
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center">
-                          <Icon className={cn("h-[21px] w-[21px]", active ? "text-[#1f6b5b]" : "text-[#64748b]")} strokeWidth={1.75} />
+                          <PhosphorSidebarIcon screen={screen.key} active={active} />
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[14px] font-semibold">{screen.label}</span>
+                          <span className="block text-[16px] font-normal leading-[22px]">{screen.label}</span>
                         </span>
                       </button>
                     </div>
@@ -529,7 +556,7 @@ export default function OwnerWebPreview({
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
               onChange={handleScreenSelect}
-              options={ownerWebScreenLabels.map((screen) => ({ value: screen.key, label: screen.label }))}
+              options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
               align="left"
               className="max-w-[240px]"
               buttonClassName="h-10"

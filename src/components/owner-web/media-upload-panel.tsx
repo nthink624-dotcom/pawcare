@@ -1,8 +1,9 @@
 "use client";
 
-import { Camera, CheckCircle2, ImagePlus, Loader2, RefreshCw, X } from "lucide-react";
+import { Camera, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { BasilIcon } from "@/components/owner-web/basil-icon";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   compressImageForPetmanager,
@@ -484,7 +485,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
                 </>
               ) : (
                 <span className="flex h-full w-full flex-col items-center justify-center text-[13px] font-medium text-[#334155]">
-                  {uploading ? <Loader2 className="mb-1.5 h-5 w-5 animate-spin" /> : <ImagePlus className="mb-1.5 h-5 w-5" />}
+                  {uploading ? <Loader2 className="mb-1.5 h-5 w-5 animate-spin" /> : <BasilIcon name="picture" className="mb-1.5 h-5 w-5" />}
                   {slot.label}
                 </span>
               )}

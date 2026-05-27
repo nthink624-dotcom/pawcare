@@ -1,8 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { BasilIcon } from "@/components/owner-web/basil-icon";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 type ServicePreview = {
@@ -164,21 +166,13 @@ export function ReservationServicesSection<TService extends ServicePreview>({
             />
             <span className="text-[13px] text-[#64748b]">분</span>
           </span>
-          <span className="flex justify-center">
-            <span
-              role="switch"
-              aria-checked={service.visible}
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleVisibility(service);
-              }}
-              className={cn(
-                "inline-flex h-8 min-w-[54px] items-center justify-center rounded-[8px] border px-2 text-[13px] font-semibold",
-                service.visible ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
-              )}
-            >
-              {service.visible ? "노출" : "숨김"}
-            </span>
+          <span className="flex justify-center" onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={service.visible}
+              size="sm"
+              aria-label={`${service.name} 예약 노출`}
+              onCheckedChange={() => onToggleVisibility(service)}
+            />
           </span>
         </div>
       ))}
@@ -271,7 +265,7 @@ function DurationTable({
             className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#94a3b8] hover:bg-[#f8fafc] disabled:opacity-35"
             aria-label="소요시간 항목 삭제"
           >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <BasilIcon name="trash" />
           </button>
         </div>
       ))}
@@ -329,7 +323,7 @@ export function ExtraCostGuideSection() {
             className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#94a3b8] hover:bg-[#f8fafc] disabled:opacity-35"
             aria-label="추가 비용 항목 삭제"
           >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <BasilIcon name="trash" />
           </button>
         </div>
       ))}

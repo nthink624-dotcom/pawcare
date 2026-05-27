@@ -178,30 +178,33 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
   appointmentTime: string;
   durationMinutes: number;
   staffId?: string | null;
+  allowOutsideShopHours?: boolean;
 }) {
-  const { appointment, shop, services, staffMembers, staffScheduleOverrides, appointments, date, appointmentTime, durationMinutes, staffId } = params;
+  const { appointment, shop, services, staffMembers, staffScheduleOverrides, appointments, date, appointmentTime, durationMinutes, staffId, allowOutsideShopHours = false } = params;
   const [year, month, day] = date.split("-").map(Number);
   const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
   const hours = shop.business_hours[weekday];
   const startMinute = minutesFromTime(appointmentTime);
   const endMinute = startMinute + durationMinutes;
 
-  if (isRegularClosedOnDate(shop, date) || shop.temporary_closed_dates.includes(date) || !hours?.enabled) {
+  if (isRegularClosedOnDate(shop, date) || shop.temporary_closed_dates.includes(date)) {
     throw new Error("매장 휴무일에는 예약 시간을 조정할 수 없습니다.");
   }
 
-  if (startMinute < minutesFromTime(hours.open) || endMinute > minutesFromTime(hours.close)) {
+  if (!allowOutsideShopHours && (!hours?.enabled || startMinute < minutesFromTime(hours.open) || endMinute > minutesFromTime(hours.close))) {
     throw new Error("예약 시간이 매장 운영시간을 벗어납니다.");
   }
 
-  const bookingStart = minutesFromTime(
-    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
-  );
-  const bookingEnd = minutesFromTime(
-    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
-  );
-  if (startMinute < bookingStart || startMinute > bookingEnd) {
-    throw new Error("예약 시간이 미용 예약 가능 시간을 벗어납니다.");
+  if (!allowOutsideShopHours) {
+    const bookingStart = minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+    );
+    const bookingEnd = minutesFromTime(
+      normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+    );
+    if (startMinute < bookingStart || startMinute > bookingEnd) {
+      throw new Error("예약 시간이 미용 예약 가능 시간을 벗어납니다.");
+    }
   }
 
   if (hasBlockedWindowOverlap(shop.reservation_policy_settings, startMinute, endMinute)) {
@@ -210,14 +213,16 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
 
   if (!staffId) return;
 
-  ensureStaffAvailableForWindow({
-    staffMembers,
-    staffScheduleOverrides,
-    staffId,
-    date,
-    appointmentTime,
-    durationMinutes,
-  });
+  if (!allowOutsideShopHours) {
+    ensureStaffAvailableForWindow({
+      staffMembers,
+      staffScheduleOverrides,
+      staffId,
+      date,
+      appointmentTime,
+      durationMinutes,
+    });
+  }
 
   const hasConflict = appointments.some((item) => {
     if (item.id === appointment.id) return false;
@@ -974,6 +979,7 @@ export async function createPet(input: unknown) {
     weight: payload.weight ?? null,
     age: payload.age ?? null,
     notes: payload.notes ?? "",
+    bite_level: payload.biteLevel ?? "none",
     birthday: payload.birthday ?? null,
     grooming_cycle_weeks: payload.groomingCycleWeeks,
     avatar_seed: payload.name.trim().slice(0, 1) || "P",
@@ -1012,6 +1018,11 @@ export async function updatePet(input: unknown) {
     pet.name = payload.name;
     pet.breed = payload.breed;
     pet.birthday = payload.birthday ?? null;
+    if (payload.weight !== undefined) pet.weight = payload.weight;
+    if (payload.age !== undefined) pet.age = payload.age;
+    if (payload.notes !== undefined) pet.notes = payload.notes;
+    if (payload.biteLevel !== undefined) pet.bite_level = payload.biteLevel;
+    if (payload.groomingCycleWeeks !== undefined) pet.grooming_cycle_weeks = payload.groomingCycleWeeks;
     pet.updated_at = nowIso();
     setMockStore(store);
     return pet;
@@ -1026,6 +1037,11 @@ export async function updatePet(input: unknown) {
       name: payload.name,
       breed: payload.breed,
       birthday: payload.birthday ?? null,
+      ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
+      ...(payload.age !== undefined ? { age: payload.age } : {}),
+      ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+      ...(payload.biteLevel !== undefined ? { bite_level: payload.biteLevel } : {}),
+      ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
       updated_at: nowIso(),
     })
     .eq("id", payload.petId);
@@ -1513,17 +1529,20 @@ export async function updateAppointmentDetails(input: unknown) {
       appointmentTime: payload.appointmentTime,
       durationMinutes,
       staffId: payload.staffId ?? appointment.staff_id ?? null,
+      allowOutsideShopHours: payload.allowOutsideShopHours,
     });
   }
 
-  ensureStaffAvailableForWindow({
-    staffMembers: data.staffMembers,
-    staffScheduleOverrides: data.staffScheduleOverrides,
-    staffId: payload.staffId ?? appointment.staff_id ?? null,
-    date: payload.appointmentDate,
-    appointmentTime: payload.appointmentTime,
-    durationMinutes,
-  });
+  if (!payload.allowOutsideShopHours) {
+    ensureStaffAvailableForWindow({
+      staffMembers: data.staffMembers,
+      staffScheduleOverrides: data.staffScheduleOverrides,
+      staffId: payload.staffId ?? appointment.staff_id ?? null,
+      date: payload.appointmentDate,
+      appointmentTime: payload.appointmentTime,
+      durationMinutes,
+    });
+  }
 
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
   const nextValues = {

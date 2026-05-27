@@ -414,10 +414,6 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-[20px] font-semibold tracking-[-0.03em] text-[#0f172a]">미용 요금</p>
-      </div>
-
       <section className="space-y-6">
           <div>
             <ServicePriceGuideEditor

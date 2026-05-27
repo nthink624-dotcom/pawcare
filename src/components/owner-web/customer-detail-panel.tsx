@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Copy, Edit3, MoreVertical, Pencil, Sparkles } from "lucide-react";
+import { CalendarPlus, Check, Copy, Edit3, MoreVertical, Pencil, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -18,12 +18,14 @@ import {
 } from "@/components/owner-web/customer-detail-helpers";
 import { cn } from "@/lib/utils";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import type { GuardianNotificationSettings, MediaAsset, MediaKind } from "@/types/domain";
+import { getPetBiteLevelBadgeClass, getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
+import type { GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
 
 type CustomerDetailPanelProps = {
   detail: CustomerDetailModel;
   selectedPetId: string | null;
   onSelectPet: (petId: string) => void;
+  onUpdatePetBiteLevel: (guardianId: string, petId: string, biteLevel: PetBiteLevel) => void;
   onClose: () => void;
 };
 
@@ -40,7 +42,7 @@ type GroomingPhotoSummary = {
 
 const primaryButtonClass = "border-[#2f7866] bg-[#2f7866] text-white shadow-[0_8px_18px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]";
 
-export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet, onClose }: CustomerDetailPanelProps) {
+export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet, onUpdatePetBiteLevel, onClose }: CustomerDetailPanelProps) {
   const [copied, setCopied] = useState(false);
   const [activeAction, setActiveAction] = useState<DetailAction>(null);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -188,6 +190,10 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
                         <Metric label="최근 스타일" value={selectedPet.recentStyleLabel} />
                         <Metric label="다음 추천 방문" value={selectedPet.nextVisitWindowLabel} />
                       </div>
+                      <BiteLevelSelector
+                        value={normalizePetBiteLevel(selectedPet.bite_level)}
+                        onChange={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
+                      />
                     </div>
                   </div>
                 </section>
@@ -305,7 +311,12 @@ function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: Cu
                       {[pet.breed, typeof pet.weight === "number" ? `${pet.weight}kg` : "", pet.age ? `${pet.age}세` : ""].filter(Boolean).join(" · ") || "프로필 미입력"}
                     </p>
                     <p className="mt-1 truncate text-[13px] text-[#64748b]">최근 미용 {pet.recentGroomingLabel}</p>
-                    <p className="mt-1 truncate text-[13px] text-[#8a5b11]">{splitNotes(pet.notes)[0] ?? "주의사항 없음"}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className={cn("rounded-full border px-2 py-0.5 text-[12px] font-medium", getPetBiteLevelBadgeClass(pet.bite_level))}>
+                        입질 {getPetBiteLevelLabel(pet.bite_level)}
+                      </span>
+                      <span className="truncate text-[13px] text-[#8a5b11]">{splitNotes(pet.notes)[0] ?? "주의사항 없음"}</span>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -315,6 +326,51 @@ function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: Cu
           <EmptyState title="반려동물 없음" description="등록된 반려동물이 없습니다." compact />
         )}
       </SectionCard>
+    </div>
+  );
+}
+
+function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange: (value: PetBiteLevel) => void }) {
+  return (
+    <div className="mt-4 border-t border-[#edf2f7] pt-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[14px] font-medium text-[#111827]">입질 정도</p>
+          <p className="mt-0.5 text-[13px] text-[#64748b]">스태프가 예약 상세에서 함께 확인합니다.</p>
+        </div>
+        <span className={cn("rounded-full border px-2.5 py-1 text-[13px] font-medium", getPetBiteLevelBadgeClass(value))}>
+          {getPetBiteLevelLabel(value)}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {petBiteLevelOptions.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex min-h-[72px] flex-col items-start rounded-[8px] border px-3 py-2.5 text-left transition",
+                selected ? "border-[#2f7866] bg-[#f5faf8] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#334155] hover:border-[#b8c8d6]",
+              )}
+            >
+              <span className="flex items-center gap-2 text-[14px] font-medium">
+                <span
+                  className={cn(
+                    "inline-flex h-4 w-4 items-center justify-center rounded-[4px] border",
+                    selected ? "border-[#2f7866] bg-[#2f7866] text-white" : "border-[#cbd5e1] bg-white text-transparent",
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                {option.label}
+              </span>
+              <span className="mt-1.5 text-[12px] leading-4 text-[#64748b]">{option.description}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

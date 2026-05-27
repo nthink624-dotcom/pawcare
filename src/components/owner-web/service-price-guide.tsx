@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
+import { BasilIcon } from "@/components/owner-web/basil-icon";
 import { cn } from "@/lib/utils";
 
 export type ServicePriceGuideCell = {
@@ -526,8 +527,8 @@ export function ServicePriceGuideEditor({
         <div className="flex items-start justify-between gap-4">
           {showHeader ? (
             <div>
-              <p className="text-[16px] font-semibold text-[#111827]">실제 요금표</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
+              <p className="text-[16px] font-normal text-[#111827]">실제 요금표</p>
+              <p className="mt-1 text-[16px] font-normal leading-6 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
             </div>
           ) : (
             <span />
@@ -537,7 +538,7 @@ export function ServicePriceGuideEditor({
               type="button"
               onClick={() => onChange({ ...guide, enabled: !guide.enabled })}
               className={cn(
-                "flex h-8 min-w-[64px] items-center justify-center rounded-[8px] border px-3 text-[13px] font-semibold",
+                "flex h-8 min-w-[64px] items-center justify-center rounded-[8px] border px-3 text-[16px] font-normal",
                 guide.enabled ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
               )}
             >
@@ -548,141 +549,132 @@ export function ServicePriceGuideEditor({
       ) : null}
 
       {guide.enabled ? (
-        <div className={cn("space-y-5", showHeader || showEnabledToggle ? "mt-4" : "")}>
-          <div className="space-y-4">
+        <div className={cn("space-y-4", showHeader || showEnabledToggle ? "mt-4" : "")}>
+          <div className="space-y-3">
             {sections.map((section) => (
               <section key={section.id} className="rounded-[8px] border border-[#dbe2ea] bg-white">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#edf2f7] px-3 py-2">
                   <div className="min-w-[240px] flex-1">
-                    <div className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)]">
+                    <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
                       <input
                         type="text"
                         value={section.title}
                         onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none focus:border-[#2f7866]"
+                        className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
                       />
                       <input
                         type="text"
                         value={section.note}
                         onChange={(event) => updateSection(section.id, { note: event.target.value })}
                         placeholder="예: 말티, 요키, 시츄"
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                        className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                       />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dbe2ea] px-2.5 text-[13px] font-medium text-[#334155]">
-                      <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
+                      <Plus className="h-4 w-4" strokeWidth={1.9} />
                       무게
                     </button>
-                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dbe2ea] px-2.5 text-[13px] font-medium text-[#334155]">
-                      <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
+                      <Plus className="h-4 w-4" strokeWidth={1.9} />
                       항목
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeSection(section.id)}
-                      disabled={sections.length <= 1}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#e5eaf0] text-[#94a3b8] disabled:opacity-35"
-                      aria-label="요금 그룹 삭제"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                     </button>
                   </div>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 128 + 148 + section.items.length * 196 + 40 }}>
+                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 104 + 116 + section.items.length * 176 + 34 }}>
                     <colgroup>
-                      <col className="w-[128px]" />
-                      <col className="w-[148px]" />
+                      <col className="w-[104px]" />
+                      <col className="w-[116px]" />
                       {section.items.map((item) => (
-                        <col key={item.id} className="w-[196px]" />
+                        <col key={item.id} className="w-[176px]" />
                       ))}
-                      <col className="w-10" />
+                      <col className="w-[34px]" />
                     </colgroup>
                     <thead>
                       <tr className="bg-[#f8fafc] text-[#475569]">
-                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">그룹</th>
-                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-4 py-3 text-center font-semibold">무게</th>
+                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-3 py-2 text-center font-normal">그룹</th>
+                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-3 py-2 text-center font-normal">무게</th>
                         {section.items.map((item) => (
-                          <th key={item.id} className="border-b border-r border-[#e5eaf0] px-3 py-3 text-center last:border-r-0">
-                            <div className="flex items-center justify-center gap-2">
+                          <th key={item.id} className="border-b border-r border-[#e5eaf0] px-2 py-2 text-center last:border-r-0">
+                            <div className="flex items-center justify-center gap-1.5">
                               <input
                                 type="text"
                                 value={item.label}
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
-                                className="h-9 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-3 text-center text-[16px] font-semibold text-[#334155] outline-none focus:border-[#2f7866] focus:bg-white"
+                                className="h-7 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#334155] outline-none focus:border-[#2f7866] focus:bg-white"
                               />
                               <button
                                 type="button"
                                 onClick={() => removeItem(section.id, item.id)}
                                 disabled={section.items.length <= 1}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] text-[#94a3b8] hover:bg-[#f1f5f9] disabled:opacity-35"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-[#94a3b8] hover:bg-[#f1f5f9] disabled:opacity-35"
                                 aria-label="요금 항목 삭제"
                               >
-                                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+                                <BasilIcon name="trash" className="h-5 w-5" />
                               </button>
                             </div>
                           </th>
                         ))}
-                        <th className="sticky right-0 z-20 w-10 border-b border-l border-[#d5dde7] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.035)]" />
+                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[#d5dde7] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.035)]" />
                       </tr>
                     </thead>
                     <tbody>
                       {section.weightBands.map((band, bandIndex) => (
                         <tr key={`${section.id}-weight-${bandIndex}`}>
                           {bandIndex === 0 ? (
-                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-white px-4 py-3 text-center align-middle text-[16px] font-semibold text-[#111827]">
+                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-white px-3 py-2 text-center align-middle text-[16px] font-normal text-[#111827]">
                               {section.title}
                             </td>
                           ) : null}
-                          <td className="border-r border-t border-[#edf2f7] px-3 py-3">
+                          <td className="border-r border-t border-[#edf2f7] px-2 py-2">
                             <input
                               type="text"
                               value={band}
                               onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
-                              className="h-11 w-full rounded-[8px] border border-transparent bg-transparent px-3 text-center text-[16px] font-medium text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                              className="h-8 w-full rounded-[8px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
                             />
                           </td>
                           {section.items.map((item) => {
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
-                              <td key={item.id} className="border-r border-t border-[#edf2f7] px-3 py-3 last:border-r-0">
-                                <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-3">
+                              <td key={item.id} className="border-r border-t border-[#edf2f7] px-2 py-2 last:border-r-0">
+                                <div className="flex h-9 min-w-0 items-center justify-between gap-1.5 px-2">
                                   <input
                                     type="text"
                                     inputMode="numeric"
                                     value={formatPriceInput(cell.price)}
                                     onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
                                     placeholder="-"
-                                    className="h-8 min-w-0 flex-1 bg-transparent text-right text-[16px] text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                    className="h-7 min-w-0 flex-1 bg-transparent text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                   />
-                                  <span className="shrink-0 text-[14px] text-[#94a3b8]">/</span>
-                                  <div className="flex shrink-0 items-center gap-1">
+                                  <span className="shrink-0 text-[16px] font-normal text-[#94a3b8]">/</span>
+                                  <div className="flex shrink-0 items-center gap-0.5">
                                     <input
                                       type="text"
                                       inputMode="numeric"
                                       value={cell.durationMinutes}
                                       onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
                                       placeholder="-"
-                                      className="h-8 w-11 bg-transparent text-right text-[16px] text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                      className="h-7 w-10 bg-transparent text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                     />
-                                    <span className="shrink-0 text-[14px] text-[#64748b]">분</span>
+                                    <span className="shrink-0 text-[16px] font-normal text-[#64748b]">분 예상</span>
                                   </div>
                                 </div>
                               </td>
                             );
                           })}
-                          <td className="sticky right-0 z-10 border-l border-t border-[#d5dde7] bg-white px-0 py-3 text-center shadow-[-6px_0_10px_rgba(15,23,42,0.035)]">
+                          <td className="sticky right-0 z-10 border-l border-t border-[#d5dde7] bg-white px-0 py-2 text-center shadow-[-6px_0_10px_rgba(15,23,42,0.035)]">
                             <button
                               type="button"
                               onClick={() => removeWeightBand(section.id, bandIndex)}
                               disabled={section.weightBands.length <= 1}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#334155] disabled:opacity-40"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#334155] disabled:opacity-40"
                               aria-label="무게 구간 삭제"
                             >
-                              <Trash2 className="h-4 w-4" strokeWidth={2} />
+                              <BasilIcon name="trash" className="h-5 w-5" />
                             </button>
                           </td>
                         </tr>
@@ -695,7 +687,7 @@ export function ServicePriceGuideEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[13px] font-medium text-[#334155]">
+            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
               <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
               그룹 추가
             </button>
@@ -703,7 +695,7 @@ export function ServicePriceGuideEditor({
               <button
                 type="button"
                 onClick={restoreLastDelete}
-                className="inline-flex h-9 items-center rounded-[8px] border border-[#c8ded8] bg-[#edf7f3] px-3 text-[13px] font-semibold text-[#2f7866] transition hover:bg-[#e2f1ec]"
+                className="inline-flex h-9 items-center rounded-[8px] border border-[#c8ded8] bg-[#edf7f3] px-3 text-[16px] font-normal text-[#2f7866] transition hover:bg-[#e2f1ec]"
               >
                 삭제 복구 {deleteHistory.length}
               </button>
@@ -711,12 +703,12 @@ export function ServicePriceGuideEditor({
           </div>
 
           <label className="block">
-            <span className="text-[13px] font-semibold text-[#334155]">추가 요금 안내</span>
+            <span className="text-[16px] font-normal text-[#334155]">추가 요금 안내</span>
             <textarea
               value={guide.extraNote}
               onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
               rows={4}
-              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
             />
           </label>
         </div>

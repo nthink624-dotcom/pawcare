@@ -4,6 +4,7 @@ import type React from "react";
 import { ChevronRight } from "lucide-react";
 
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
+import { Switch } from "@/components/ui/switch";
 import { phoneNormalize } from "@/lib/utils";
 import type { BootstrapPayload, Pet } from "@/types/domain";
 
@@ -161,14 +162,7 @@ export function CustomerDetailToggleRow({
         <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
         <p className="mt-0.5 text-[12px] leading-4 text-[#a39d94]">{description}</p>
       </div>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-[26px] w-11 shrink-0 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-      >
-        <span className={`absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-[22px]" : "left-[3px]"}`} />
-      </button>
+      <Switch checked={checked} disabled={disabled} size="md" aria-label={label} onCheckedChange={onChange} />
     </label>
   );
 }
@@ -199,14 +193,14 @@ export function CustomerDetailNotificationItemRow({
         <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{label}</p>
         <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.01em] text-[#938c83]">{description}</p>
       </div>
-      <span
-        aria-hidden="true"
-        className={`relative h-[26px] w-11 shrink-0 rounded-full transition ${
-          active ? "bg-[var(--accent)]" : "bg-[#d8d4ce]"
-        }`}
-      >
-        <span className={`absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition ${active ? "left-[22px]" : "left-[3px]"}`} />
-      </span>
+      <Switch
+        checked={active}
+        disabled={disabled}
+        size="md"
+        aria-label={label}
+        onClick={(event) => event.stopPropagation()}
+        onCheckedChange={(checked) => onChange?.(checked)}
+      />
     </button>
   );
 }

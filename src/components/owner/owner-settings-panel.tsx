@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import { Switch } from "@/components/ui/switch";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -741,13 +742,12 @@ export default function OwnerSettingsPanel({
                   </button>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowParkingNotice(!showParkingNotice)}
-                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                  >
-                    <span className={`absolute top-[2.5px] size-4 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-[14px]" : "left-[2px]"}`} />
-                  </button>
+                  <Switch
+                    checked={showParkingNotice}
+                    size="sm"
+                    aria-label="주차 안내 노출"
+                    onCheckedChange={setShowParkingNotice}
+                  />
                   <InfoTip
                     ariaLabel="주차 안내 노출 설정"
                     size="small"
@@ -776,13 +776,12 @@ export default function OwnerSettingsPanel({
                   </button>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowNotices(!showNotices)}
-                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                  >
-                    <span className={`absolute top-[2.5px] size-4 rounded-full bg-white shadow-sm transition ${showNotices ? "left-[14px]" : "left-[2px]"}`} />
-                  </button>
+                  <Switch
+                    checked={showNotices}
+                    size="sm"
+                    aria-label="예약 전 안내 노출"
+                    onCheckedChange={setShowNotices}
+                  />
                   <InfoTip
                     ariaLabel="예약 전 안내 노출 설정"
                     size="small"
@@ -887,16 +886,6 @@ export default function OwnerSettingsPanel({
         </div>
       </SettingsFieldCard>
 
-      <SettingsFieldCard label="예약 시간 설정">
-        <div className="space-y-2.5">
-          <div className="rounded-[12px] border border-[var(--border)] bg-white px-3 py-3">
-            <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동일 시간 예약 규칙</p>
-            <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
-              바로 승인: 1건만 확정됩니다. 직접 승인: 승인 대기만 최대 2건까지 받아 빈자리를 대비합니다.
-            </p>
-          </div>
-        </div>
-      </SettingsFieldCard>
     </SettingsCard>
   );
 
@@ -1431,19 +1420,19 @@ function BusinessHoursSheet({
 
         <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
           {showClosedToggle ? (
-            <button
-              type="button"
-              onClick={() => onChange({ ...draft, closed: !draft.closed })}
+            <div
               className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
             >
               <div className="min-w-0">
                 <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
                 <p className="mt-1 text-[12px] leading-4 text-[var(--muted)]">이 요일은 고객 예약 화면에서 선택되지 않아요.</p>
               </div>
-              <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${draft.closed ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}>
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${draft.closed ? "left-6" : "left-1"}`} />
-              </span>
-            </button>
+              <Switch
+                checked={draft.closed}
+                aria-label="휴무일로 설정"
+                onCheckedChange={(checked) => onChange({ ...draft, closed: checked })}
+              />
+            </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <SettingsFieldCard label="시작 시간">
@@ -1665,14 +1654,7 @@ function ToggleRow({
       }`}
     >
       <p className="text-[15px] font-normal text-[var(--text)]">{label}</p>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"} disabled:cursor-not-allowed`}
-      >
-        <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} />
-      </button>
+      <Switch checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onChange} />
     </label>
   );
 }

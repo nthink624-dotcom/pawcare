@@ -52,6 +52,9 @@ type OwnerLoginApiResponse = {
 const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
+const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
+const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
+const STORAGE_WARNING_USAGE_RATIO = 0.8;
 
 type FailedLoginState = {
   count: number;
@@ -59,6 +62,75 @@ type FailedLoginState = {
 
 function getFailedLoginStateKey(loginId: string) {
   return `${FAILED_LOGIN_STATE_PREFIX}:${loginId.trim().toLowerCase() || "unknown"}`;
+}
+
+async function reportStoragePressure(loginId: string, payload: { reason: string; usage?: number | null; quota?: number | null; usageRatio?: number | null }) {
+  try {
+    await fetch("/api/auth/storage-health", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        loginId,
+        reason: payload.reason,
+        usage: payload.usage ?? null,
+        quota: payload.quota ?? null,
+        usageRatio: payload.usageRatio ?? null,
+      }),
+    });
+  } catch {
+    // Storage health reporting is operational telemetry; it must never block login.
+  }
+}
+
+async function makeRoomForAuthStorage(loginId: string) {
+  if (typeof window === "undefined") return;
+
+  let reported = false;
+
+  try {
+    if (navigator.storage?.estimate) {
+      const estimate = await navigator.storage.estimate();
+      const usage = typeof estimate.usage === "number" ? estimate.usage : null;
+      const quota = typeof estimate.quota === "number" && estimate.quota > 0 ? estimate.quota : null;
+      const usageRatio = usage != null && quota != null ? usage / quota : null;
+
+      if (usageRatio != null && usageRatio >= STORAGE_WARNING_USAGE_RATIO) {
+        reported = true;
+        await reportStoragePressure(loginId, {
+          reason: "storage_usage_over_80_percent",
+          usage,
+          quota,
+          usageRatio,
+        });
+      }
+    }
+  } catch {
+    // Browser storage estimate may be unavailable in some environments.
+  }
+
+  try {
+    window.localStorage.setItem(STORAGE_HEALTH_CHECK_KEY, "1");
+    window.localStorage.removeItem(STORAGE_HEALTH_CHECK_KEY);
+    return;
+  } catch {
+    if (!reported) {
+      await reportStoragePressure(loginId, {
+        reason: "local_storage_write_failed",
+        usage: null,
+        quota: null,
+        usageRatio: null,
+      });
+    }
+  }
+
+  for (const key of OVERSIZED_PREVIEW_STORAGE_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore unavailable storage and continue with the login flow.
+    }
+  }
 }
 
 function readFailedLoginState(loginId: string): FailedLoginState {
@@ -213,26 +285,34 @@ export default function LoginForm({
       clearFailedLoginState(currentLoginId);
 
       if (result.session?.accessToken && result.session.refreshToken) {
+        await makeRoomForAuthStorage(currentLoginId);
         clearOwnerAuthTokenCache();
         if (supabase) {
-          const sessionResult = await supabase.auth.setSession({
-            access_token: result.session.accessToken,
-            refresh_token: result.session.refreshToken,
-          });
+          try {
+            const sessionResult = await supabase.auth.setSession({
+              access_token: result.session.accessToken,
+              refresh_token: result.session.refreshToken,
+            });
 
-          if (sessionResult.error) {
-            setMessage("로그인 세션을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-            return;
+            if (sessionResult.error) {
+              console.warn("[auth/login] browser Supabase session persistence failed", sessionResult.error.message);
+            }
+          } catch (error) {
+            console.warn("[auth/login] browser Supabase session persistence threw", error);
           }
         }
         writeOwnerAuthHandoff(result.session);
         writeOwnerAuthSessionCache(result.session);
       }
 
-      if (rememberLoginId && currentLoginId) {
-        window.localStorage.setItem(SAVED_LOGIN_ID_KEY, currentLoginId);
-      } else {
-        window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
+      try {
+        if (rememberLoginId && currentLoginId) {
+          window.localStorage.setItem(SAVED_LOGIN_ID_KEY, currentLoginId);
+        } else {
+          window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
+        }
+      } catch {
+        // Remembering the login id is optional and must not block login.
       }
 
       window.location.assign(nextPath);

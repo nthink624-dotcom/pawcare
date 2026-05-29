@@ -93,5 +93,25 @@
         "id":  "users",
         "name":  "users",
         "path":  "/icons/phosphor/users.svg"
+    },
+    {
+        "id":  "warning",
+        "name":  "Warning",
+        "path":  "/icons/phosphor/Warning.svg"
+    },
+    {
+        "id":  "warning-diamond",
+        "name":  "WarningDiamond",
+        "path":  "/icons/phosphor/WarningDiamond.svg"
+    },
+    {
+        "id":  "warning-circle",
+        "name":  "WarningCircle",
+        "path":  "/icons/phosphor/WarningCircle.svg"
+    },
+    {
+        "id":  "warning-octagon",
+        "name":  "WarningOctagon",
+        "path":  "/icons/phosphor/WarningOctagon.svg"
     }
 ]

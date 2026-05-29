@@ -1011,7 +1011,7 @@ export default function SignupForm({
                 <AuthInput
                   value={fields.shopName}
                   onChange={(value) => updateField("shopName", value)}
-                  placeholder="예: 포근한 발바닥 미용실"
+                  placeholder="예: 매장명"
                 />
               </AuthField>
 

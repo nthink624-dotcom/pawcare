@@ -12,6 +12,7 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
+import CustomerBookingPageManagementScreen from "@/components/owner-web/customer-booking-page-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
 import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
@@ -33,6 +34,7 @@ import type { BootstrapPayload } from "@/types/domain";
 
 const screenIconPaths: Record<OwnerWebScreenKey, string> = {
   schedule: "/icons/phosphor/clipboard-text.svg",
+  bookingPageManagement: "/icons/phosphor/storefront.svg",
   bookingLink: "/icons/phosphor/line-segments.svg",
   grooming: "/icons/phosphor/calendar-dots.svg",
   customers: "/icons/phosphor/user-circle.svg",
@@ -45,13 +47,12 @@ const screenIconPaths: Record<OwnerWebScreenKey, string> = {
 
 const ownerWebNavigationItems: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
-  { key: "bookingLink", label: "예약 링크" },
   { key: "grooming", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
+  { key: "bookingLink", label: "예약 링크" },
   { key: "services", label: "미용 요금" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },
-  { key: "operatingHours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },
 ];
 
@@ -184,6 +185,8 @@ function renderScreen(
           onManualApprovalChange={onManualApprovalChange}
         />
       );
+    case "bookingPageManagement":
+      return <CustomerBookingPageManagementScreen initialData={initialData} onDataChange={onDataChange} />;
     case "bookingLink":
       return <BookingLinkManagementScreen initialData={initialData} />;
     case "customers":
@@ -191,7 +194,17 @@ function renderScreen(
     case "grooming":
       return <GroomingManagementScreen initialData={initialData} />;
     case "services":
-      return <ServiceManagementScreen staffMembers={staffMembers} />;
+      return (
+        <ServiceManagementScreen
+          shopId={initialData.shop.id}
+          shop={initialData.shop}
+          initialServices={initialData.services}
+          staffMembers={staffMembers}
+          demoMode={isDemoOwnerWebData(initialData)}
+          onServicesChange={(services) => onDataChange({ ...initialData, services })}
+          onShopChange={onShopChange}
+        />
+      );
     case "staff":
       return (
         <StaffManagementScreen
@@ -211,6 +224,7 @@ function renderScreen(
           activeTab={settingsTabForScreen(screen) ?? "shop"}
           showTabNavigation={false}
           shop={initialData.shop}
+          services={initialData.services}
           onShopChange={onShopChange}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}

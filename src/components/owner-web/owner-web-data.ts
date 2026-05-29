@@ -1,4 +1,14 @@
-﻿export type OwnerWebScreenKey = "schedule" | "bookingLink" | "customers" | "grooming" | "services" | "staff" | "shopInfo" | "operatingHours" | "alerts";
+﻿export type OwnerWebScreenKey =
+  | "schedule"
+  | "bookingPageManagement"
+  | "bookingLink"
+  | "customers"
+  | "grooming"
+  | "services"
+  | "staff"
+  | "shopInfo"
+  | "operatingHours"
+  | "alerts";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
@@ -8,7 +18,6 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "services", label: "미용 요금" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },
-  { key: "operatingHours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },
 ];
 

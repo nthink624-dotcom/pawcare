@@ -12,7 +12,6 @@ import {
   MonitorSmartphone,
   ServerCog,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
   Store,
   type LucideIcon,
@@ -73,14 +72,6 @@ const dashboardItems = [
     title: "오너 데모 보기",
     description: "데모 오너 화면과 기본 예약 플로우를 빠르게 확인합니다.",
     meta: "Demo",
-    group: "shortcut",
-  },
-  {
-    href: "/demo/book",
-    icon: ShoppingBag,
-    title: "고객 예약 페이지 보기",
-    description: "첫 방문, 재방문 예약 흐름과 고객 노출 화면을 확인합니다.",
-    meta: "Booking",
     group: "shortcut",
   },
   {

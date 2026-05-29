@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Check, Copy, Edit3, MoreVertical, Pencil, Sparkles } from "lucide-react";
+import { CalendarPlus, Copy, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   formatDateTime,
   formatDuration,
   formatMoney,
+  formatTimestampTime,
   formatPhoneNumber,
   getAppointmentStatusMeta,
   getNotificationStatusMeta,
@@ -18,7 +19,7 @@ import {
 } from "@/components/owner-web/customer-detail-helpers";
 import { cn } from "@/lib/utils";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { getPetBiteLevelBadgeClass, getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
+import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
 import type { GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
 
 type CustomerDetailPanelProps = {
@@ -36,7 +37,6 @@ type MediaAssetListResponse = {
 };
 
 type GroomingPhotoSummary = {
-  before: MediaAsset | null;
   after: MediaAsset | null;
 };
 
@@ -45,12 +45,15 @@ const primaryButtonClass = "border-[#2f7866] bg-[#2f7866] text-white shadow-[0_8
 export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet, onUpdatePetBiteLevel, onClose }: CustomerDetailPanelProps) {
   const [copied, setCopied] = useState(false);
   const [activeAction, setActiveAction] = useState<DetailAction>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [photoSummaries, setPhotoSummaries] = useState<Record<string, GroomingPhotoSummary>>({});
   const selectedPet = detail.selectedPet;
   const petNotes = splitNotes(selectedPet?.notes);
   const profileInitial = selectedPet?.name.slice(0, 1) || "P";
   const phone = formatPhoneNumber(detail.guardian.phone);
+  const petBreedLabel = selectedPet?.breed || "품종 미입력";
+  const recentGroomingSummary = selectedPet?.recentGroomingLabel === "기록 없음" ? "최근 미용 없음" : selectedPet?.recentGroomingLabel;
+  const petProfileMeta = selectedPet ? `${selectedPet.grooming_cycle_weeks || 4}주 주기 · ${recentGroomingSummary}` : "";
+  const guardianProfileLabel = `${detail.guardian.name} 보호자 · ${phone}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,12 +79,11 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
             return [
               record.id,
               {
-                before: getMediaByKind(assets, "grooming_before"),
                 after: getMediaByKind(assets, "grooming_after"),
               },
             ] as const;
           } catch {
-            return [record.id, { before: null, after: null }] as const;
+            return [record.id, { after: null }] as const;
           }
         }),
       );
@@ -110,42 +112,24 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
         className="relative mx-auto flex h-full max-w-[1440px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f7f8fb] shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#e1e7ef] bg-white px-6 py-5">
-          <div className="min-w-0">
-            <button type="button" onClick={onClose} className="text-[15px] font-normal text-[#2f7866] hover:underline">
-              ← 고객관리
-              <span className="mx-2 text-[#94a3b8]">›</span>
-              <span className="text-[#334155]">고객 상세</span>
-            </button>
-            <div className="mt-5 flex min-w-0 items-center gap-3">
-              <h2 className="truncate text-[28px] font-semibold tracking-[-0.01em] text-[#111827]">
-                {detail.guardian.name}
-                {selectedPet ? ` · ${selectedPet.name}` : ""}
-              </h2>
-              <span className="rounded-[6px] bg-[#eef7f4] px-2 py-1 text-[13px] font-normal text-[#2f7866]">보호자</span>
-            </div>
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#e1e7ef] bg-white px-6 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <h2 className="truncate text-[26px] font-semibold tracking-[-0.01em] text-[#111827]">
+              {detail.guardian.name}
+              {selectedPet ? ` · ${selectedPet.name}` : ""}
+            </h2>
+            <span className="shrink-0 rounded-[6px] bg-[#eef7f4] px-2 py-1 text-[16px] font-normal text-[#2f7866]">보호자</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ActionButton icon={CalendarPlus} label="예약 추가" onClick={() => setActiveAction("reservation")} />
-            <ActionButton icon={Edit3} label="정보 수정" onClick={() => setActiveAction("guardianEdit")} />
-            <div className="relative">
             <button
               type="button"
-              onClick={() => setMoreOpen((current) => !current)}
+              onClick={onClose}
               className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]"
-              aria-label="더보기"
-              aria-expanded={moreOpen}
+              aria-label="닫기"
             >
-              <MoreVertical className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
-            {moreOpen ? (
-              <div className="absolute right-0 top-12 z-10 w-[188px] rounded-[8px] border border-[#dbe2ea] bg-white p-1.5 shadow-[0_14px_32px_rgba(15,23,42,0.16)]">
-                <MenuButton label="전화번호 복사" onClick={() => void copyPhone()} />
-                <MenuButton label="반려동물 추가" onClick={() => setActiveAction("petAdd")} />
-                <MenuButton label="알림 설정 보기" onClick={() => setActiveAction("notificationSettings")} />
-              </div>
-            ) : null}
-            </div>
           </div>
         </header>
 
@@ -160,41 +144,36 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
             {selectedPet ? (
               <div className="space-y-4">
                 <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-5">
-                  <div className="flex items-start gap-5">
-                    <div className="flex h-[128px] w-[128px] shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[#eef7f4] to-[#f6f8f7] text-[48px] font-semibold text-[#2f7866]">
+                  <div className="grid grid-cols-[112px_minmax(0,1fr)_auto] gap-x-5">
+                    <div className="row-span-4 flex h-[112px] w-[112px] shrink-0 items-center justify-center rounded-[8px] bg-[#eef5f2] text-[42px] font-semibold text-[#2f7866]">
                       {profileInitial}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-[30px] font-semibold tracking-[-0.01em] text-[#111827]">{selectedPet.name}</h3>
-                            <Pencil className="h-4 w-4 text-[#2f7866]" />
-                          </div>
-                          <p className="mt-1 text-[16px] text-[#475569]">
-                            {selectedPet.breed || "견종 미입력"} · 성별 미입력 · 중성화 미입력
-                          </p>
-                        </div>
-                        <button type="button" onClick={() => setActiveAction("petEdit")} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc]">
-                          반려동물 정보 수정
-                        </button>
-                      </div>
-                      <div className="mt-5 grid grid-cols-4 gap-3 border-t border-[#edf2f7] pt-4">
-                        <Metric label="몸무게" value={typeof selectedPet.weight === "number" ? `${selectedPet.weight} kg` : "미입력"} />
-                        <Metric label="나이" value={selectedPet.age ? `${selectedPet.age}세` : "미입력"} />
-                        <Metric label="생년월일" value={selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력"} />
-                        <Metric label="미용 주기" value={`${selectedPet.grooming_cycle_weeks || 4}주 간격`} />
-                      </div>
-                      <div className="mt-4 grid grid-cols-3 gap-3 rounded-[8px] bg-[#f3f7f5] px-4 py-3">
-                        <Metric label="최근 미용" value={selectedPet.recentGroomingLabel} />
-                        <Metric label="최근 스타일" value={selectedPet.recentStyleLabel} />
-                        <Metric label="다음 추천 방문" value={selectedPet.nextVisitWindowLabel} />
-                      </div>
-                      <BiteLevelSelector
-                        value={normalizePetBiteLevel(selectedPet.bite_level)}
-                        onChange={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
-                      />
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <h3 className="truncate text-[30px] font-semibold tracking-[-0.01em] text-[#111827]">{selectedPet.name}</h3>
+                      <span className="shrink-0 text-[18px] text-[#94a3b8]">|</span>
+                      <span className="min-w-0 truncate text-[18px] text-[#475569]">{petBreedLabel}</span>
                     </div>
+                    <button type="button" onClick={() => setActiveAction("petEdit")} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#334155] hover:bg-[#f8fafc]">
+                      수정
+                    </button>
+                    <div className="col-start-2 col-end-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-6">
+                      <p className="min-w-0 truncate text-[16px] leading-6 text-[#334155]">{guardianProfileLabel}</p>
+                      <div className="flex shrink-0 items-center gap-6">
+                        <InlinePetInfo label="생년월일" value={selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력"} />
+                        <InlinePetInfo label="미용 주기" value={`${selectedPet.grooming_cycle_weeks || 4}주 간격`} />
+                      </div>
+                    </div>
+                    <p className="col-start-2 col-end-4 min-w-0 truncate text-[16px] leading-6 text-[#475569]">{petProfileMeta}</p>
+                    <div className="col-start-2 col-end-4 flex min-w-0 items-center gap-8">
+                      <InlinePetInfo label="몸무게" value={typeof selectedPet.weight === "number" ? `${selectedPet.weight} kg` : "미입력"} />
+                      <InlinePetInfo label="나이" value={selectedPet.age ? `${selectedPet.age}세` : "미입력"} />
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <BiteLevelSelector
+                      value={normalizePetBiteLevel(selectedPet.bite_level)}
+                      onChange={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
+                    />
                   </div>
                 </section>
 
@@ -221,7 +200,6 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
             detail={detail}
             onClose={() => {
               setActiveAction(null);
-              setMoreOpen(false);
             }}
           />
         ) : null}
@@ -232,16 +210,8 @@ export default function CustomerDetailPanel({ detail, selectedPetId, onSelectPet
 
 function ActionButton({ icon: Icon, label, primary = false, onClick }: { icon: typeof CalendarPlus; label: string; primary?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn("inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[15px] font-medium transition", primary ? primaryButtonClass : "border-[#cfd8e3] bg-white text-[#334155] hover:bg-[#f8fafc]")}>
+    <button type="button" onClick={onClick} className={cn("inline-flex h-11 items-center gap-2 rounded-[8px] border px-4 text-[16px] font-medium transition", primary ? primaryButtonClass : "border-[#cfd8e3] bg-white text-[#334155] hover:bg-[#f8fafc]")}>
       <Icon className="h-4 w-4" />
-      {label}
-    </button>
-  );
-}
-
-function MenuButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="block w-full rounded-[6px] px-3 py-2 text-left text-[14px] text-[#334155] hover:bg-[#f8fafc]">
       {label}
     </button>
   );
@@ -262,28 +232,62 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
 function SummaryCard({ detail, phone, onCopyPhone, copied, onEdit }: { detail: CustomerDetailModel; phone: string; onCopyPhone: () => void; copied: boolean; onEdit: () => void }) {
   return (
     <SectionCard title="보호자 정보" action={<SmallButton label="수정" onClick={onEdit} />}>
-      <div className="space-y-3 px-4 py-4">
-        <InfoRow label="이름" value={detail.guardian.name} />
-        <InfoRow
-          label="전화번호"
-          value={
-            <span className="inline-flex items-center gap-2">
-              <span>{phone}</span>
-              <button type="button" onClick={onCopyPhone} className="rounded-[6px] border border-[#dbe2ea] px-2 py-0.5 text-[12px] text-[#475569] hover:bg-[#f8fafc]">
-                {copied ? "복사됨" : "복사"}
+      <div className="space-y-4 px-4 py-4">
+        <div className="space-y-3">
+          <SummaryField label="이름">
+            <p className="truncate text-[16px] leading-6 text-[#111827]">{detail.guardian.name}</p>
+          </SummaryField>
+          <SummaryField label="전화번호">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-[16px] leading-6 tabular-nums text-[#111827]">{phone}</span>
+              <button
+                type="button"
+                onClick={onCopyPhone}
+                className={cn(
+                  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] border text-[#475569] hover:bg-[#f8fafc]",
+                  copied ? "border-[#2f7866] bg-[#eef7f4] text-[#2f7866]" : "border-[#dbe2ea] bg-white",
+                )}
+                aria-label={copied ? "전화번호 복사됨" : "전화번호 복사"}
+                title={copied ? "복사됨" : "복사"}
+              >
+                <Copy className="h-4 w-4" />
               </button>
-            </span>
-          }
-        />
-        <InfoRow label="메모" value={detail.guardian.memo || "보호자 메모 없음"} alignTop />
+            </div>
+          </SummaryField>
+          <SummaryField label="메모">
+            <p className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2 text-[16px] leading-6 text-[#334155]">
+              {detail.guardian.memo || "보호자 메모 없음"}
+            </p>
+          </SummaryField>
+        </div>
         <div className="h-px bg-[#edf2f7]" />
-        <InfoRow label="재방문 알림" value={<ToggleState enabled={detail.guardian.notification_settings?.revisit_enabled !== false && detail.guardian.notification_settings?.enabled !== false} />} />
-        <InfoRow label="최근 방문일" value={detail.recentVisitLabel} />
-        <InfoRow label="누적 예약 수" value={`${detail.totalAppointments}건`} />
-        <InfoRow label="누적 미용 기록 수" value={`${detail.totalGroomingRecords}건`} />
-        <InfoRow label="마지막 예약 상태" value={detail.lastAppointmentStatusLabel} />
+        <div className="space-y-2">
+          <SummaryStatRow label="재방문 알림" value={<ToggleState enabled={detail.guardian.notification_settings?.revisit_enabled !== false && detail.guardian.notification_settings?.enabled !== false} />} />
+          <SummaryStatRow label="최근 방문일" value={detail.recentVisitLabel} />
+          <SummaryStatRow label="누적 예약 수" value={`${detail.totalAppointments}건`} />
+          <SummaryStatRow label="누적 미용 기록" value={`${detail.totalGroomingRecords}건`} />
+          <SummaryStatRow label="마지막 예약 상태" value={detail.lastAppointmentStatusLabel} />
+        </div>
       </div>
     </SectionCard>
+  );
+}
+
+function SummaryField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-1 text-[16px] leading-5 text-[#64748b]">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function SummaryStatRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 text-[16px] leading-6">
+      <span className="shrink-0 text-[#64748b]">{label}</span>
+      <span className="min-w-0 truncate text-right text-[#111827]">{value}</span>
+    </div>
   );
 }
 
@@ -306,16 +310,16 @@ function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: Cu
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[18px] font-semibold text-[#2f7866]">{pet.name.slice(0, 1)}</div>
                   <div className="min-w-0">
-                    <p className="truncate text-[16px] font-semibold text-[#111827]">{pet.name}</p>
-                    <p className="mt-1 truncate text-[14px] text-[#64748b]">
-                      {[pet.breed, typeof pet.weight === "number" ? `${pet.weight}kg` : "", pet.age ? `${pet.age}세` : ""].filter(Boolean).join(" · ") || "프로필 미입력"}
-                    </p>
-                    <p className="mt-1 truncate text-[13px] text-[#64748b]">최근 미용 {pet.recentGroomingLabel}</p>
-                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className={cn("rounded-full border px-2 py-0.5 text-[12px] font-medium", getPetBiteLevelBadgeClass(pet.bite_level))}>
-                        입질 {getPetBiteLevelLabel(pet.bite_level)}
-                      </span>
-                      <span className="truncate text-[13px] text-[#8a5b11]">{splitNotes(pet.notes)[0] ?? "주의사항 없음"}</span>
+                    <div className="flex min-w-0 items-baseline gap-3">
+                      <p className="shrink-0 truncate text-[16px] font-semibold leading-5 text-[#111827]">{pet.name}</p>
+                      <p className="min-w-0 truncate text-[16px] leading-5 text-[#64748b]">
+                        {[pet.breed, typeof pet.weight === "number" ? `${pet.weight}kg` : "", pet.age ? `${pet.age}세` : ""].filter(Boolean).join(" · ") || "프로필 미입력"}
+                      </p>
+                    </div>
+                    <p className="mt-1 truncate text-[16px] text-[#64748b]">최근 미용 {pet.recentGroomingLabel}</p>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                      <BiteLevelMiniScale value={normalizePetBiteLevel(pet.bite_level)} />
+                      <span className="truncate text-[16px] text-[#8a5b11]">{splitNotes(pet.notes)[0] ?? "주의사항 없음"}</span>
                     </div>
                   </div>
                 </div>
@@ -332,17 +336,12 @@ function PetListCard({ detail, selectedPetId, onSelectPet, onAdd }: { detail: Cu
 
 function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange: (value: PetBiteLevel) => void }) {
   return (
-    <div className="mt-4 border-t border-[#edf2f7] pt-4">
+    <div className="w-full border-t border-[#edf2f7] pt-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[14px] font-medium text-[#111827]">입질 정도</p>
-          <p className="mt-0.5 text-[13px] text-[#64748b]">스태프가 예약 상세에서 함께 확인합니다.</p>
-        </div>
-        <span className={cn("rounded-full border px-2.5 py-1 text-[13px] font-medium", getPetBiteLevelBadgeClass(value))}>
-          {getPetBiteLevelLabel(value)}
-        </span>
+        <p className="text-[16px] font-normal text-[#111827]">입질 정도</p>
+        <span className="text-[16px] text-[#64748b]">{getPetBiteLevelLabel(value)}</span>
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-2">
+      <div className="mt-3 grid grid-cols-5 gap-2">
         {petBiteLevelOptions.map((option) => {
           const selected = option.value === value;
           return (
@@ -351,25 +350,55 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
               type="button"
               onClick={() => onChange(option.value)}
               className={cn(
-                "flex min-h-[72px] flex-col items-start rounded-[8px] border px-3 py-2.5 text-left transition",
-                selected ? "border-[#2f7866] bg-[#f5faf8] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#334155] hover:border-[#b8c8d6]",
+                "h-10 rounded-[8px] border px-2 text-center text-[16px] transition",
+                selected ? "border-[#2f7866] bg-[#f7fbf9] text-[#111827]" : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d6]",
               )}
             >
-              <span className="flex items-center gap-2 text-[14px] font-medium">
-                <span
-                  className={cn(
-                    "inline-flex h-4 w-4 items-center justify-center rounded-[4px] border",
-                    selected ? "border-[#2f7866] bg-[#2f7866] text-white" : "border-[#cbd5e1] bg-white text-transparent",
-                  )}
-                >
-                  <Check className="h-3 w-3" />
-                </span>
-                {option.label}
-              </span>
-              <span className="mt-1.5 text-[12px] leading-4 text-[#64748b]">{option.description}</span>
+              <span className="block truncate leading-10">{option.label}</span>
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function getBiteLevelIndex(value: PetBiteLevel) {
+  const indexByLevel: Record<PetBiteLevel, number> = {
+    none: 0,
+    mild: 1,
+    watch: 2,
+    bite: 3,
+    strong: 4,
+  };
+  return indexByLevel[value];
+}
+
+function getBiteLevelColorClass(index: number) {
+  if (index <= 1) return "bg-[#2f7866]";
+  if (index === 2) return "bg-[#d29a2f]";
+  if (index === 3) return "bg-[#c66a43]";
+  return "bg-[#a04455]";
+}
+
+function BiteLevelBar({ value, active = true }: { value: PetBiteLevel; active?: boolean }) {
+  const activeIndex = getBiteLevelIndex(value);
+  const activeColor = getBiteLevelColorClass(activeIndex);
+  return (
+    <div className="grid min-w-0 grid-cols-5 gap-1.5" aria-label={`입질 ${getPetBiteLevelLabel(value)}`}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <span key={index} className={cn("h-2.5 rounded-full bg-[#e5eaf0]", active && index === activeIndex && activeColor)} />
+      ))}
+    </div>
+  );
+}
+
+function BiteLevelMiniScale({ value }: { value: PetBiteLevel }) {
+  return (
+    <div className="flex min-w-[104px] items-center gap-1.5">
+      <span className="shrink-0 text-[16px] text-[#64748b]">입질</span>
+      <div className="min-w-0 flex-1">
+        <BiteLevelBar value={value} />
       </div>
     </div>
   );
@@ -403,7 +432,7 @@ function NotesCard({ notes }: { notes: string[] }) {
       {notes.length > 0 ? (
         <ul className="space-y-2 px-4 py-4">
           {notes.map((note) => (
-            <li key={note} className="flex gap-2 text-[15px] leading-6 text-[#334155]">
+            <li key={note} className="flex gap-2 text-[16px] leading-6 text-[#334155]">
               <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#b98121]" />
               <span>{note}</span>
             </li>
@@ -426,20 +455,29 @@ function UpcomingAppointmentCard({ detail, onViewAll }: { detail: CustomerDetail
     );
   }
   const meta = getAppointmentStatusMeta(appointment.status);
+  const customerRequest = appointment.memo?.trim() ?? "";
   return (
     <SectionCard title="다가오는 예약" action={<SmallButton label="전체보기" onClick={onViewAll} />}>
       <div className="px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[20px] font-semibold text-[#111827]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</p>
-            <p className="mt-2 text-[15px] text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</p>
+            <p className="mt-2 text-[16px] text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</p>
           </div>
           <Badge className={meta.className}>{meta.label}</Badge>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-[14px] text-[#64748b]">
+        <div className="mt-4 grid grid-cols-2 gap-3 text-[16px] text-[#64748b]">
           <span>예상 소요시간: {formatDuration(getServiceDuration(detail.servicesById, appointment.service_id))}</span>
           <span>담당자: 미지정</span>
         </div>
+        <AppointmentActualTimes appointment={appointment} className="mt-3" />
+        {customerRequest ? (
+          <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-[16px] leading-6 text-[#334155]">
+            <span className="text-[#64748b]">고객 요청사항</span>
+            <span className="mx-2 text-[#cbd5e1]">|</span>
+            {customerRequest}
+          </div>
+        ) : null}
       </div>
     </SectionCard>
   );
@@ -452,11 +490,20 @@ function RecentAppointmentsCard({ detail, onViewAll }: { detail: CustomerDetailM
         <div className="divide-y divide-[#edf2f7]">
           {detail.recentAppointments.map((appointment) => {
             const meta = getAppointmentStatusMeta(appointment.status);
+            const customerRequest = appointment.memo?.trim() ?? "";
             return (
-              <div key={appointment.id} className="grid grid-cols-[1fr_110px_auto] items-center gap-3 px-4 py-3 text-[14px]">
-                <span className="tabular-nums text-[#334155]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</span>
-                <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</span>
-                <Badge className={meta.className}>{meta.label}</Badge>
+              <div key={appointment.id} className="px-4 py-3 text-[16px]">
+                <div className="grid grid-cols-[1fr_110px_auto] items-center gap-3">
+                  <span className="tabular-nums text-[#334155]">{formatDateTime(appointment.appointment_date, appointment.appointment_time)}</span>
+                  <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, appointment.service_id)}</span>
+                  <Badge className={meta.className}>{meta.label}</Badge>
+                </div>
+                {customerRequest ? (
+                  <p className="mt-1 line-clamp-2 text-[16px] leading-6 text-[#64748b]">
+                    고객 요청사항 <span className="mx-1 text-[#cbd5e1]">|</span> {customerRequest}
+                  </p>
+                ) : null}
+                <AppointmentActualTimes appointment={appointment} className="mt-1" compact />
               </div>
             );
           })}
@@ -473,26 +520,29 @@ function GroomingRecordsCard({ detail, photoSummaries }: { detail: CustomerDetai
     <SectionCard title="미용 기록">
       {detail.recentGroomingRecords.length > 0 ? (
         <div className="overflow-hidden">
-          <div className="grid grid-cols-[106px_116px_minmax(0,1fr)_minmax(0,0.9fr)_150px_94px_86px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-[13px] font-medium text-[#64748b]">
+          <div className="grid grid-cols-[106px_116px_minmax(0,1fr)_minmax(0,0.9fr)_150px_94px_118px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-[16px] font-medium text-[#64748b]">
             <span>날짜</span>
             <span>서비스</span>
             <span>스타일</span>
             <span>메모</span>
-            <span>전후 사진</span>
+            <span>완료 사진</span>
             <span>금액</span>
-            <span>소요시간</span>
+            <span>실제 진행</span>
           </div>
           {detail.recentGroomingRecords.map((record) => {
-            const photoSummary = photoSummaries[record.id] ?? { before: null, after: null };
+            const photoSummary = photoSummaries[record.id] ?? { after: null };
+            const linkedAppointment = record.appointment_id
+              ? (detail.appointments.find((appointment) => appointment.id === record.appointment_id) ?? null)
+              : null;
             return (
-              <div key={record.id} className="grid grid-cols-[106px_116px_minmax(0,1fr)_minmax(0,0.9fr)_150px_94px_86px] items-center border-b border-[#edf2f7] px-4 py-3 text-[14px] last:border-b-0">
+              <div key={record.id} className="grid grid-cols-[106px_116px_minmax(0,1fr)_minmax(0,0.9fr)_150px_94px_118px] items-center border-b border-[#edf2f7] px-4 py-3 text-[16px] last:border-b-0">
                 <span className="tabular-nums text-[#334155]">{formatDate(record.groomed_at)}</span>
                 <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, record.service_id)}</span>
                 <span className="truncate text-[#334155]">{record.style_notes || "-"}</span>
                 <span className="truncate text-[#64748b]">{record.memo || "-"}</span>
                 <GroomingPhotoCell summary={photoSummary} />
                 <span className="tabular-nums text-[#334155]">{formatMoney(record.price_paid)}</span>
-                <span className="text-[#64748b]">{formatDuration(getServiceDuration(detail.servicesById, record.service_id))}</span>
+                <ActualGroomingTimeCell appointment={linkedAppointment} fallbackDuration={formatDuration(getServiceDuration(detail.servicesById, record.service_id))} />
               </div>
             );
           })}
@@ -504,19 +554,61 @@ function GroomingRecordsCard({ detail, photoSummaries }: { detail: CustomerDetai
   );
 }
 
+function AppointmentActualTimes({
+  appointment,
+  className,
+  compact = false,
+}: {
+  appointment: CustomerDetailModel["appointments"][number];
+  className?: string;
+  compact?: boolean;
+}) {
+  if (!appointment.actual_started_at && !appointment.actual_completed_at) return null;
+
+  const startedAt = formatTimestampTime(appointment.actual_started_at);
+  const completedAt = formatTimestampTime(appointment.actual_completed_at);
+  const content = `실제 시작 ${startedAt}${appointment.actual_completed_at ? ` · 실제 완료 ${completedAt}` : ""}`;
+
+  return (
+    <p className={cn(className, compact ? "text-[16px]" : "rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[16px]", "tabular-nums text-[#475569]")}>
+      {content}
+    </p>
+  );
+}
+
+function ActualGroomingTimeCell({
+  appointment,
+  fallbackDuration,
+}: {
+  appointment: CustomerDetailModel["appointments"][number] | null;
+  fallbackDuration: string;
+}) {
+  const startedAt = formatTimestampTime(appointment?.actual_started_at);
+  const completedAt = formatTimestampTime(appointment?.actual_completed_at);
+
+  if (startedAt === "-" && completedAt === "-") {
+    return <span className="text-[#64748b]">{fallbackDuration}</span>;
+  }
+
+  return (
+    <span className="space-y-0.5 text-[16px] leading-[1.35] text-[#64748b]">
+      <span className="block tabular-nums">시작 {startedAt}</span>
+      <span className="block tabular-nums">완료 {completedAt}</span>
+    </span>
+  );
+}
+
 function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
-  const hasBefore = Boolean(summary.before);
   const hasAfter = Boolean(summary.after);
-  const expiresAt = summary.before?.expires_at ?? summary.after?.expires_at ?? null;
+  const expiresAt = summary.after?.expires_at ?? null;
 
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap gap-1.5">
-        <PhotoBadge label="전" active={hasBefore} />
-        <PhotoBadge label="후" active={hasAfter} />
+        <PhotoBadge label="완료" active={hasAfter} />
       </div>
-      <p className="mt-1 truncate text-[12px] text-[#64748b]">
-        {hasBefore || hasAfter ? `${expiresAt ? `${formatDate(expiresAt)}까지` : "업로드 후 30일"} 보관` : "전후 사진 없음"}
+      <p className="mt-1 truncate text-[16px] text-[#64748b]">
+        {hasAfter ? `${expiresAt ? `${formatDate(expiresAt)}까지` : "업로드 후 30일"} 보관` : "완료 사진 없음"}
       </p>
     </div>
   );
@@ -524,7 +616,7 @@ function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
 
 function PhotoBadge({ label, active }: { label: string; active: boolean }) {
   return (
-    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[12px] font-medium", active ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
+    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[16px] font-medium", active ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
       {label} 사진
     </span>
   );
@@ -541,11 +633,11 @@ function NotificationHistoryCard({ detail, onViewAll }: { detail: CustomerDetail
               <div key={notification.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-medium text-[#111827]">{notification.template_key ?? notification.type}</p>
-                    <p className="mt-1 text-[13px] text-[#64748b]">
+                    <p className="truncate text-[16px] font-medium text-[#111827]">{notification.template_key ?? notification.type}</p>
+                    <p className="mt-1 text-[16px] text-[#64748b]">
                       {formatDate(notification.sent_at ?? notification.created_at)} · {notification.provider ?? notification.channel}
                     </p>
-                    {notification.fail_reason ? <p className="mt-1 text-[13px] text-[#a04455]">{notification.fail_reason}</p> : null}
+                    {notification.fail_reason ? <p className="mt-1 text-[16px] text-[#a04455]">{notification.fail_reason}</p> : null}
                   </div>
                   <Badge className={meta.className}>{meta.label}</Badge>
                 </div>
@@ -577,10 +669,10 @@ function ActionPanel({ action, detail, onClose }: { action: Exclude<DetailAction
       <section className="w-full max-w-[520px] rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_22px_58px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
           <div>
-            <p className="text-[13px] text-[#64748b]">{detail.guardian.name}{selectedPet ? ` · ${selectedPet.name}` : ""}</p>
+            <p className="text-[16px] text-[#64748b]">{detail.guardian.name}{selectedPet ? ` · ${selectedPet.name}` : ""}</p>
             <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{titleMap[action]}</h3>
           </div>
-          <button type="button" onClick={onClose} className="h-8 rounded-[7px] border border-[#dbe2ea] px-3 text-[13px] text-[#475569] hover:bg-[#f8fafc]">
+          <button type="button" onClick={onClose} className="h-8 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc]">
             닫기
           </button>
         </div>
@@ -601,7 +693,10 @@ function ActionPanel({ action, detail, onClose }: { action: Exclude<DetailAction
             <PanelNotice title="알림 상태" lines={[`전체 알림: ${detail.guardian.notification_settings.enabled !== false ? "ON" : "OFF"}`, `재방문 알림: ${detail.guardian.notification_settings.revisit_enabled !== false ? "ON" : "OFF"}`]} />
           ) : null}
           {action === "appointments" ? (
-            <PanelNotice title="예약" lines={detail.recentAppointments.map((appointment) => `${formatDateTime(appointment.appointment_date, appointment.appointment_time)} · ${getServiceName(detail.servicesById, appointment.service_id)} · ${getAppointmentStatusMeta(appointment.status).label}`)} />
+            <PanelNotice title="예약" lines={detail.recentAppointments.map((appointment) => {
+              const request = appointment.memo?.trim();
+              return `${formatDateTime(appointment.appointment_date, appointment.appointment_time)} · ${getServiceName(detail.servicesById, appointment.service_id)} · ${getAppointmentStatusMeta(appointment.status).label}${request ? ` · 요청: ${request}` : ""}`;
+            })} />
           ) : null}
           {action === "notifications" ? (
             <PanelNotice title="알림/소통 이력" lines={detail.recentNotifications.map((notification) => `${formatDate(notification.sent_at ?? notification.created_at)} · ${notification.template_key ?? notification.type} · ${getNotificationStatusMeta(notification.status).label}`)} />
@@ -615,10 +710,10 @@ function ActionPanel({ action, detail, onClose }: { action: Exclude<DetailAction
 function PanelNotice({ title, lines }: { title: string; lines: string[] }) {
   return (
     <div className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-      <p className="text-[15px] font-semibold text-[#111827]">{title}</p>
+      <p className="text-[16px] font-semibold text-[#111827]">{title}</p>
       <div className="mt-3 space-y-2">
         {(lines.length > 0 ? lines : ["표시할 내용이 없습니다."]).map((line) => (
-          <p key={line} className="text-[14px] leading-5 text-[#475569]">{line}</p>
+          <p key={line} className="text-[16px] leading-5 text-[#475569]">{line}</p>
         ))}
       </div>
     </div>
@@ -627,7 +722,7 @@ function PanelNotice({ title, lines }: { title: string; lines: string[] }) {
 
 function InfoRow({ label, value, alignTop = false }: { label: string; value: React.ReactNode; alignTop?: boolean }) {
   return (
-    <div className={cn("grid grid-cols-[92px_minmax(0,1fr)] gap-3 text-[14px]", alignTop ? "items-start" : "items-center")}>
+    <div className={cn("grid grid-cols-[92px_minmax(0,1fr)] gap-3 text-[16px]", alignTop ? "items-start" : "items-center")}>
       <span className="text-[#64748b]">{label}</span>
       <span className="min-w-0 text-[#111827]">{value}</span>
     </div>
@@ -638,29 +733,29 @@ function getMediaByKind(assets: MediaAsset[], mediaKind: MediaKind) {
   return assets.find((asset) => asset.media_kind === mediaKind) ?? null;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function InlinePetInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[13px] text-[#64748b]">{label}</p>
-      <p className="mt-1 truncate text-[15px] font-medium text-[#111827]">{value}</p>
-    </div>
+    <span className="inline-flex min-w-0 items-center gap-2 text-[16px] leading-6">
+      <span className="text-[#64748b]">{label}</span>
+      <span className="min-w-0 truncate text-[#111827]">{value}</span>
+    </span>
   );
 }
 
 function Badge({ children, className }: { children: React.ReactNode; className: string }) {
-  return <span className={cn("inline-flex h-7 shrink-0 items-center rounded-[6px] border px-2.5 text-[13px] font-medium", className)}>{children}</span>;
+  return <span className={cn("inline-flex h-7 shrink-0 items-center rounded-[6px] border px-2.5 text-[16px] font-medium", className)}>{children}</span>;
 }
 
 function ToggleState({ enabled }: { enabled: boolean }) {
   return (
-    <span className={cn("inline-flex h-6 items-center rounded-full px-2 text-[12px] font-medium", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]")}>
+    <span className={cn("inline-flex h-6 items-center rounded-full px-2 text-[16px] font-medium", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]")}>
       {enabled ? "ON" : "OFF"}
     </span>
   );
 }
 
 function SmallButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="h-8 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] text-[#475569] hover:bg-[#f8fafc]">{label}</button>;
+  return <button type="button" onClick={onClick} className="h-8 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] text-[#475569] hover:bg-[#f8fafc]">{label}</button>;
 }
 
 function EmptyState({ title, description, compact = false }: { title: string; description: string; compact?: boolean }) {
@@ -669,8 +764,8 @@ function EmptyState({ title, description, compact = false }: { title: string; de
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]">
         <Sparkles className="h-4 w-4" />
       </div>
-      <p className="mt-3 text-[15px] font-medium text-[#111827]">{title}</p>
-      <p className="mt-1 text-[14px] leading-5 text-[#64748b]">{description}</p>
+      <p className="mt-3 text-[16px] font-medium text-[#111827]">{title}</p>
+      <p className="mt-1 text-[16px] leading-5 text-[#64748b]">{description}</p>
     </div>
   );
 }

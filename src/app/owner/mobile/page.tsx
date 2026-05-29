@@ -13,6 +13,7 @@ import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription"
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
+import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 
 type OwnedShopSummary = {
   id: string;
@@ -26,6 +27,25 @@ const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 export default function OwnerMobilePage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const requestedOwnerMobilePath =
+    typeof window === "undefined" ? "/owner/mobile" : `${window.location.pathname}${window.location.search}`;
+  const launchPhotoStatusAction = useMemo<OwnerMobileLaunchPhotoStatusAction | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const appointmentId = params.get("appointmentId")?.trim() ?? "";
+    const rawStatusAction = params.get("statusAction")?.trim() ?? "";
+    const statusAction =
+      rawStatusAction === "진행 중"
+        ? "in_progress"
+        : rawStatusAction === "픽업 준비"
+          ? "almost_done"
+          : rawStatusAction === "완료"
+            ? "completed"
+          : rawStatusAction;
+
+    if (!appointmentId || (statusAction !== "in_progress" && statusAction !== "completed")) return null;
+    return { appointmentId, statusAction, autoOpenCamera: true };
+  }, []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [ownedShops, setOwnedShops] = useState<OwnedShopSummary[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
@@ -65,7 +85,7 @@ export default function OwnerMobilePage() {
       const session = await getSessionWithRecovery();
 
       if (!session?.access_token) {
-        router.replace("/login?next=/owner/mobile" as never);
+        router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
         router.refresh();
         return;
       }
@@ -110,7 +130,7 @@ export default function OwnerMobilePage() {
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";
 
         if (nextMessage === "로그인이 필요합니다.") {
-          router.replace("/login?next=/owner/mobile" as never);
+          router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
           router.refresh();
           return;
         }
@@ -120,7 +140,7 @@ export default function OwnerMobilePage() {
           nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
         ) {
           router.replace(
-            `/signup/social?next=${encodeURIComponent("/owner/mobile")}&provider=${encodeURIComponent(provider)}` as never,
+            `/signup/social?next=${encodeURIComponent(requestedOwnerMobilePath)}&provider=${encodeURIComponent(provider)}` as never,
           );
           router.refresh();
           return;
@@ -167,6 +187,7 @@ export default function OwnerMobilePage() {
       subscriptionSummary={subscriptionSummary}
       userEmail={userEmail}
       onSwitchShop={handleSwitchShop}
+      launchPhotoStatusAction={launchPhotoStatusAction}
     />
   );
 }

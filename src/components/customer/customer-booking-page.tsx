@@ -30,9 +30,14 @@ import {
   TimeGrid,
 } from "@/components/customer/customer-booking-flow-ui";
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
+import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-flow";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson } from "@/lib/api";
+import {
+  applyCustomerServiceOverrides,
+  buildCustomerServiceSourceOptions,
+} from "@/lib/customer-service-options";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
@@ -71,6 +76,7 @@ type FirstVisitState = {
   date: string;
   timeSlot: string;
   serviceId: string;
+  customerServiceOptionId: string;
   staffId: string;
   customServiceName: string;
   note: string;
@@ -83,6 +89,7 @@ type ReturningVisitState = {
   date: string;
   timeSlot: string;
   serviceId: string;
+  customerServiceOptionId: string;
   staffId: string;
   customServiceName: string;
   note: string;
@@ -120,6 +127,7 @@ const initialFirstVisitState: FirstVisitState = {
   date: "",
   timeSlot: "",
   serviceId: "",
+  customerServiceOptionId: "",
   staffId: "",
   customServiceName: "",
   note: "",
@@ -132,6 +140,7 @@ const initialReturningVisitState: ReturningVisitState = {
   date: "",
   timeSlot: "",
   serviceId: "",
+  customerServiceOptionId: "",
   staffId: "",
   customServiceName: "",
   note: "",
@@ -178,7 +187,7 @@ function formatBookingPhoneNumber(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 }
 
-function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId: string): FirstVisitState {
+function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId: string, defaultServiceOptionId: string): FirstVisitState {
   return {
     ...initialFirstVisitState,
     ownerName: source.ownerName.trim(),
@@ -187,6 +196,7 @@ function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId:
     breed: "",
     extraPets: [],
     serviceId: defaultServiceId,
+    customerServiceOptionId: defaultServiceOptionId,
   };
 }
 
@@ -259,7 +269,7 @@ function hasBookingProfileContent(source: FirstVisitState) {
   );
 }
 
-function restoreBookingProfile(profile: Partial<BookingProfilePayload>, defaultServiceId: string): FirstVisitState {
+function restoreBookingProfile(profile: Partial<BookingProfilePayload>, defaultServiceId: string, defaultServiceOptionId: string): FirstVisitState {
   const pets = getBookingProfilePets(profile);
   const selectedPet = pets[0];
   return {
@@ -270,6 +280,7 @@ function restoreBookingProfile(profile: Partial<BookingProfilePayload>, defaultS
     breed: "",
     extraPets: [],
     serviceId: defaultServiceId,
+    customerServiceOptionId: defaultServiceOptionId,
   };
 }
 
@@ -437,6 +448,10 @@ export default function CustomerBookingPage({
   initialAccessToken,
   initialDate = "",
   initialTime = "",
+  initialServiceId = "",
+  initialServiceOptionId = "",
+  initialFirstVisitStep = 1,
+  lockFirstVisitStep = false,
   entryHref,
 }: {
   shopId: string;
@@ -449,24 +464,56 @@ export default function CustomerBookingPage({
   initialAccessToken?: string;
   initialDate?: string;
   initialTime?: string;
+  initialServiceId?: string;
+  initialServiceOptionId?: string;
+  initialFirstVisitStep?: FirstVisitStep;
+  lockFirstVisitStep?: boolean;
   entryHref?: string;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
+  const customerServiceOptions = useMemo(
+    () =>
+      applyCustomerServiceOverrides(
+        buildCustomerServiceSourceOptions(
+          services
+            .slice()
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
+        ),
+        initialShop.customer_page_settings.customer_service_overrides,
+      ),
+    [initialShop.customer_page_settings.customer_service_overrides, services],
+  );
+  const initialCustomerServiceOption =
+    customerServiceOptions.find((option) => option.id === initialServiceOptionId) ??
+    customerServiceOptions.find((option) => option.serviceId === initialServiceId) ??
+    customerServiceOptions[0];
+  const initialSelectableServiceId = services.some((service) => service.id === initialCustomerServiceOption?.serviceId)
+    ? initialCustomerServiceOption.serviceId
+    : services.some((service) => service.id === initialServiceId)
+      ? initialServiceId
+      : services[0]?.id || "";
+  const initialSelectableServiceOptionId = initialCustomerServiceOption?.id || "";
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const fixedStaffId = staffMembers.length === 1 ? staffMembers[0].id : "";
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
-  const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(1);
+  const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(initialFirstVisitStep);
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>({
     ...initialFirstVisitState,
     date: initialDate,
     timeSlot: initialTime,
-    serviceId: services[0]?.id || "",
+    serviceId: initialSelectableServiceId,
+    customerServiceOptionId: initialSelectableServiceOptionId,
   });
-  const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({ ...initialReturningVisitState, serviceId: services[0]?.id || "" });
+  const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({
+    ...initialReturningVisitState,
+    serviceId: initialSelectableServiceId,
+    customerServiceOptionId: initialSelectableServiceOptionId,
+  });
   const [returningHistory, setReturningHistory] = useState<ReturningHistory | null>(null);
   const [returningError, setReturningError] = useState<string | null>(null);
   const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
+  const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [returningVisitSlots, setReturningVisitSlots] = useState<string[]>([]);
@@ -478,6 +525,9 @@ export default function CustomerBookingPage({
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);
   const selectedReturningService = services.find((service) => service.id === returningVisit.serviceId);
+  const selectedFirstServiceOption =
+    customerServiceOptions.find((option) => option.id === firstVisit.customerServiceOptionId) ??
+    customerServiceOptions.find((option) => option.serviceId === firstVisit.serviceId);
   const selectedFirstStaffName = firstVisit.staffId
     ? staffMembers.find((staff) => staff.id === firstVisit.staffId)?.name
     : staffMembers.length > 1
@@ -539,12 +589,15 @@ export default function CustomerBookingPage({
       if (rawProfile) {
         try {
           const parsedProfile = JSON.parse(rawProfile) as Partial<BookingProfilePayload>;
-          const defaultServiceId = services[0]?.id || "";
+          const defaultServiceId = initialSelectableServiceId;
+          const defaultServiceOptionId = initialSelectableServiceOptionId;
           setSavedPets(getBookingProfilePets(parsedProfile));
-          const restoredProfile = restoreBookingProfile(parsedProfile, defaultServiceId);
+          const restoredProfile = restoreBookingProfile(parsedProfile, defaultServiceId, defaultServiceOptionId);
           setFirstVisit((prev) => ({
             ...prev,
             ...restoredProfile,
+            serviceId: initialSelectableServiceId || restoredProfile.serviceId,
+            customerServiceOptionId: initialSelectableServiceOptionId || restoredProfile.customerServiceOptionId,
             date: hasInitialSlot ? initialDate : restoredProfile.date,
             timeSlot: hasInitialSlot ? initialTime : restoredProfile.timeSlot,
           }));
@@ -559,13 +612,14 @@ export default function CustomerBookingPage({
 
     try {
       const parsed = JSON.parse(rawDraft) as Partial<FirstVisitDraftPayload>;
-      const nextStep = parsed.step && parsed.step >= 1 && parsed.step <= 4 ? parsed.step : 1;
+      const nextStep = parsed.step && parsed.step >= 1 && parsed.step <= 3 ? parsed.step : 1;
       const draft = parsed.firstVisit;
-      const defaultServiceId = services[0]?.id || "";
+      const defaultServiceId = initialSelectableServiceId;
+      const defaultServiceOptionId = initialSelectableServiceOptionId;
 
       if (draft) {
         setActiveMode("first");
-        setFirstVisitStep(hasInitialSlot ? 1 : nextStep);
+        setFirstVisitStep(initialFirstVisitStep !== 1 ? initialFirstVisitStep : hasInitialSlot ? 1 : nextStep);
         setFirstVisit({
           ...initialFirstVisitState,
           ...draft,
@@ -579,7 +633,8 @@ export default function CustomerBookingPage({
                 breed: "",
               }))
             : [],
-          serviceId: draft.serviceId || defaultServiceId,
+          serviceId: initialSelectableServiceId || draft.serviceId || defaultServiceId,
+          customerServiceOptionId: initialSelectableServiceOptionId || draft.customerServiceOptionId || defaultServiceOptionId,
           date: hasInitialSlot ? initialDate : draft.date ?? "",
           timeSlot: hasInitialSlot ? initialTime : draft.timeSlot ?? "",
           customServiceName: draft.customServiceName ?? "",
@@ -603,7 +658,7 @@ export default function CustomerBookingPage({
     } finally {
       setDraftHydrated(true);
     }
-  }, [draftHydrated, initialDate, initialMode, initialTime, services, shopId]);
+  }, [draftHydrated, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
 
   useEffect(() => {
     if (typeof window === "undefined" || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
@@ -620,12 +675,15 @@ export default function CustomerBookingPage({
       setLoadingFirstVisitSlots(true);
       try {
         const usesPreviewSlots = !firstVisit.serviceId || firstVisit.serviceId === CUSTOM_SERVICE_ID;
+        const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
         const result = await fetchAvailabilitySlots(
           shopId,
           firstVisit.date,
-          usesPreviewSlots
-            ? { previewDurationMinutes: 30, staffId: firstVisit.staffId || null }
-            : { serviceId: firstVisit.serviceId, staffId: firstVisit.staffId || null },
+          {
+            serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
+            previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? (firstVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30) : undefined),
+            staffId: firstVisit.staffId || null,
+          },
         );
         if (!active) return;
         setFirstVisitSlots(result.slots);
@@ -638,7 +696,7 @@ export default function CustomerBookingPage({
     }
     void load();
     return () => { active = false; };
-  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, firstVisit.timeSlot, firstVisitStep, hasInitialFirstVisitSlot, shopId]);
+  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, firstVisit.timeSlot, firstVisitStep, hasInitialFirstVisitSlot, selectedFirstServiceOption?.durationMinutes, shopId]);
 
   useEffect(() => {
     let active = true;
@@ -654,7 +712,7 @@ export default function CustomerBookingPage({
           shopId,
           returningVisit.date,
           usesPreviewSlots
-            ? { previewDurationMinutes: 30, staffId: returningVisit.staffId || null }
+            ? { previewDurationMinutes: returningVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30, staffId: returningVisit.staffId || null }
             : { serviceId: returningVisit.serviceId, staffId: returningVisit.staffId || null },
         );
         if (!active) return;
@@ -738,9 +796,9 @@ export default function CustomerBookingPage({
         firstVisit.petName.trim() &&
         firstVisit.extraPets.every((pet) => pet.name.trim()),
     );
-    if (step === 1) return basicInfoReady;
-    if (step === 2) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
-    if (step === 3) return Boolean(firstVisit.date && firstVisit.timeSlot);
+    if (step === 1) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    if (step === 2) return Boolean(firstVisit.date && firstVisit.timeSlot);
+    if (step === 3) return basicInfoReady;
     return Boolean(
       basicInfoReady &&
         firstVisit.date &&
@@ -754,14 +812,23 @@ export default function CustomerBookingPage({
     if (!getFirstVisitStepValidity(firstVisitStep)) {
       setSubmitFeedback({
         type: "error",
-        title: firstVisitStep === 1 ? "예약자 정보를 확인해 주세요" : "예약 정보를 확인해 주세요",
-        message:
+        title:
           firstVisitStep === 1
-            ? "보호자 이름, 아기 이름, 연락처를 모두 입력하면 다음 단계로 넘어갈 수 있어요."
+            ? "서비스를 선택해 주세요"
+            : firstVisitStep === 2
+              ? "예약 시간을 선택해 주세요"
+              : "예약자 정보를 확인해 주세요",
+        message:
+          firstVisitStep === 3
+            ? "보호자 이름, 연락처, 반려동물 이름을 입력하면 예약 요청을 보낼 수 있어요."
             : "필수 정보를 선택한 뒤 다시 눌러 주세요.",
         action: "dismiss",
       });
       return;
+    }
+
+    if (firstVisitStep === 1 && !firstVisit.date && dateOptions[0]) {
+      setFirstVisit((prev) => ({ ...prev, date: dateOptions[0].value, timeSlot: "" }));
     }
 
     if (firstVisitStep === 1 && shouldSkipFirstVisitDateTimeStep) {
@@ -782,12 +849,13 @@ export default function CustomerBookingPage({
         shopId,
         guardianName: firstVisit.ownerName,
         phone: phoneNormalize(firstVisit.phone),
-      petName: firstVisit.petName,
-      breed: "",
-      extraPets: firstVisit.extraPets
+        petName: firstVisit.petName,
+        breed: "",
+        extraPets: firstVisit.extraPets
           .map((pet) => ({ name: pet.name.trim(), breed: "" }))
           .filter((pet) => pet.name),
         serviceId: firstVisit.serviceId,
+        customerServiceOptionId: selectedFirstServiceOption?.id ?? "",
         staffId: firstVisit.staffId || null,
         customServiceName: firstVisitUsesCustomService ? firstVisit.customServiceName.trim() : "",
         appointmentDate: firstVisit.date,
@@ -795,14 +863,15 @@ export default function CustomerBookingPage({
         memo: firstVisit.note.trim(),
       };
 
-      await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
+      const createdBooking = await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
 
       if (typeof window !== "undefined") {
         const defaultServiceId = services[0]?.id || "";
-        const reusableFirstVisit = buildReusableFirstVisitDraft(firstVisit, defaultServiceId);
+        const defaultServiceOptionId = customerServiceOptions.find((option) => option.serviceId === defaultServiceId)?.id || "";
+        const reusableFirstVisit = buildReusableFirstVisitDraft(firstVisit, defaultServiceId, defaultServiceOptionId);
         const reusableDraft: FirstVisitDraftPayload = {
           version: 1,
           step: 1,
@@ -813,8 +882,8 @@ export default function CustomerBookingPage({
         setSavedPets(saveBookingProfile(reusableFirstVisit, savedPets));
       }
 
-      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
-      setSubmitFeedback({ ...nextFeedback, action: "reset" });
+      setCompletedFirstVisitBooking(createdBooking);
+      setFirstVisitStep(4);
     } catch (error) {
       setSubmitFeedback({
         type: "error",
@@ -945,7 +1014,7 @@ export default function CustomerBookingPage({
       <div
         className="mx-auto min-h-screen w-full max-w-[430px] bg-[var(--background)] pb-28"
         style={{
-          "--background": "#ffffff",
+          "--background": "#fffaf3",
           "--surface": "#fffaf5",
           "--border": "#e7d8c9",
           "--muted": "#8B6A55",
@@ -958,237 +1027,59 @@ export default function CustomerBookingPage({
           "--shadow-soft": "0 12px 28px rgba(139,106,85,0.10)",
         } as CSSProperties}
       >
-        <div className="space-y-3.5 px-4 pt-4">
+        <div className={activeMode === "first" ? "" : "space-y-3.5 px-4 pt-4"}>
           {activeMode === "first" ? (
-            <BookingBottomSheet>
-              <BookingStageCard>
-              <StepHeader
-                title={
-                  firstVisitStep === 1
-                    ? "예약자 정보"
-                    : firstVisitStep === 2
-                      ? "서비스 선택"
-                      : firstVisitStep === 3
-                        ? "날짜·시간 선택"
-                        : "최종 확인"
+            <CustomerFirstVisitFlow
+              shop={initialShop}
+              customerServiceOptions={customerServiceOptions}
+              dateOptions={dateOptions}
+              firstVisit={firstVisit}
+              step={firstVisitStep}
+              selectedService={selectedFirstService}
+              selectedServiceOption={selectedFirstServiceOption}
+              availableSlots={firstVisitSlots}
+              loadingSlots={loadingFirstVisitSlots}
+              submitting={submitting}
+              completedBooking={completedFirstVisitBooking}
+              onBackToEntry={resetView}
+              onStepBack={() => {
+                if (lockFirstVisitStep) return;
+                if (firstVisitStep <= 2) {
+                  resetView();
+                } else {
+                  setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep);
                 }
-                step={displayedFirstVisitStep}
-                total={firstVisitStepTotal}
-                progress={firstVisitProgress}
-                onBack={() => {
-                  if (firstVisitStep === 1) {
-                    resetView();
-                  } else if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 3) {
-                    setFirstVisitStep(1);
-                  } else {
-                    setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep);
-                  }
-                }}
-              />
-
-              {firstVisitStep === 1 ? (
-                <StepSection title="">
-                  <div className="space-y-1">
-                    <BookingFieldCard label="보호자 이름">
-                      <BookingTextInput
-                        value={firstVisit.ownerName}
-                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, ownerName: event.target.value }))}
-                      />
-                    </BookingFieldCard>
-                    <BookingFieldCard label="연락처">
-                      <BookingTextInput
-                        value={firstVisit.phone}
-                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(event.target.value) }))}
-                      />
-                    </BookingFieldCard>
-
-                    {savedPets.length > 0 ? (
-                      <div className="space-y-2 rounded-[12px] border border-[#e5ddd2] bg-[#fffdfa] px-3.5 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[var(--text)]">저장된 아이</p>
-                          <span className="text-[12px] font-medium text-[var(--muted)]">이번 예약할 아이 선택</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {savedPets.map((pet) => {
-                            const active = firstVisit.petName.trim() === pet.name.trim();
-                            return (
-                              <button
-                                key={`${pet.id}-${pet.name}`}
-                                type="button"
-                                onClick={() => selectSavedPet(pet)}
-                                className={`min-h-[54px] rounded-[8px] border px-3 py-2 text-left transition ${
-                                  active
-                                    ? "border-[var(--accent)] bg-[var(--selection-soft)]"
-                                    : "border-[var(--border)] bg-white hover:bg-[var(--selection-soft)]"
-                                }`}
-                              >
-                                <span className="block truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{pet.name}</span>
-                                <span className="mt-0.5 block truncate text-[12px] font-medium text-[var(--muted)]">정보 저장됨</span>
-                              </button>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={startNewPetInput}
-                            className="min-h-[54px] rounded-[8px] border border-dashed border-[var(--border)] bg-white px-3 py-2 text-left text-[14px] font-semibold tracking-[-0.02em] text-[var(--accent)] transition hover:bg-[var(--selection-soft)]"
-                          >
-                            + 새 아이 입력
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {isNewPetInputActive ? (
-                      <>
-                        <BookingFieldCard label="아기 이름">
-                          <BookingTextInput
-                            value={firstVisit.petName}
-                            onChange={(event) => setFirstVisit((prev) => ({ ...prev, petName: event.target.value }))}
-                          />
-                        </BookingFieldCard>
-
-                        {firstVisit.extraPets.map((pet, index) => (
-                          <div key={pet.id} className="space-y-2 rounded-[12px] border border-[#e5ddd2] bg-[#fffdfa] px-3.5 py-2.5">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">아기 {index + 2}</p>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFirstVisit((prev) => ({
-                                    ...prev,
-                                    extraPets: prev.extraPets.filter((item) => item.id !== pet.id),
-                                  }))
-                                }
-                                className="text-[13px] font-medium text-[var(--muted)]"
-                              >
-                                삭제
-                              </button>
-                            </div>
-                            <BookingFieldCard label="아기 이름">
-                              <BookingTextInput
-                                value={pet.name}
-                                onChange={(event) =>
-                                  setFirstVisit((prev) => ({
-                                    ...prev,
-                                    extraPets: prev.extraPets.map((item) =>
-                                      item.id === pet.id ? { ...item, name: event.target.value } : item,
-                                    ),
-                                  }))
-                                }
-                              />
-                            </BookingFieldCard>
-                          </div>
-                        ))}
-
-                        <div className="pt-1.5">
-                          <AddPetButton
-                            disabled={!firstVisit.petName.trim()}
-                            onClick={() =>
-                              setFirstVisit((prev) => ({
-                                ...prev,
-                                extraPets: [...prev.extraPets, createAdditionalPetDraft()],
-                              }))
-                            }
-                          />
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
-                </StepSection>
-              ) : null}
-
-              {firstVisitStep === 2 ? (
-                <StepSection title="">
-                  <ServiceCards
-                    services={services}
-                    selectedServiceId={firstVisit.serviceId}
-                    onSelect={(value) =>
-                      setFirstVisit((prev) => ({
-                        ...prev,
-                        serviceId: value,
-                        customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
-                        timeSlot: prev.serviceId === value ? prev.timeSlot : "",
-                      }))
-                    }
-                    allowCustom
-                  />
-                  {firstVisitUsesCustomService ? (
-                    <BookingFieldCard label="원하는 서비스">
-                      <BookingTextInput
-                        value={firstVisit.customServiceName}
-                        onChange={(event) => setFirstVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
-                      />
-                    </BookingFieldCard>
-                  ) : null}
-                  <CustomerGroomingPriceGuide />
-                </StepSection>
-              ) : null}
-
-              {firstVisitStep === 3 ? (
-                <StepSection title="">
-                  <div className="space-y-2.5">
-                    <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">날짜 선택</p>
-                    <DateGrid
-                      dateOptions={dateOptions}
-                      selectedDate={firstVisit.date}
-                      onSelect={(value) => setFirstVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))}
-                    />
-                    <StaffPreferenceCards
-                      staffMembers={staffMembers}
-                      value={firstVisit.staffId}
-                      onChange={(staffId) => setFirstVisit((prev) => ({ ...prev, staffId, timeSlot: "" }))}
-                    />
-                    {firstVisit.date ? (
-                      <div className="space-y-2">
-                        <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">시간 선택</p>
-                        <TimeGrid
-                          timeSlot={firstVisit.timeSlot}
-                          availableSlots={firstVisitSlots}
-                          loading={loadingFirstVisitSlots}
-                          onSelect={(value) => setFirstVisit((prev) => ({ ...prev, timeSlot: value }))}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                </StepSection>
-              ) : null}
-
-              {firstVisitStep === 4 ? (
-                <StepSection title="">
-                  <SummaryRow label="보호자 이름" value={firstVisit.ownerName} />
-                  <SummaryRow label="연락처" value={firstVisit.phone} />
-                  <SummaryRow label="아기 이름" value={firstVisit.petName} />
-                  {firstVisit.extraPets.filter((pet) => pet.name.trim()).length > 0 ? (
-                    <SummaryRow
-                      label="같이 예약할 아이"
-                      value={firstVisit.extraPets
-                        .filter((pet) => pet.name.trim())
-                        .map((pet) => pet.name.trim())
-                        .join(" / ")}
-                    />
-                  ) : null}
-                  <SummaryRow label="예약 날짜" value={formatDateLabel(firstVisit.date)} />
-                  <SummaryRow label="예약 시간" value={firstVisit.timeSlot} />
-                  <SummaryRow
-                    label="서비스"
-                    value={
-                      firstVisitUsesCustomService
-                        ? `기타 · ${firstVisit.customServiceName || "직접 입력"}`
-                        : selectedFirstService?.name || "선택 안 됨"
-                    }
-                  />
-                  {selectedFirstStaffName ? <SummaryRow label="담당" value={selectedFirstStaffName} /> : null}
-                  <BookingFieldCard label="참고사항">
-                    <BookingTextArea
-                      value={firstVisit.note}
-                      onChange={(event) => setFirstVisit((prev) => ({ ...prev, note: event.target.value }))}
-                      className="min-h-[92px]"
-                    />
-                  </BookingFieldCard>
-                </StepSection>
-              ) : null}
-              </BookingStageCard>
-            </BookingBottomSheet>
+              }}
+              onNext={goToNextFirstVisitStep}
+              onSubmit={submitFirstVisit}
+              onOpenShopInfo={() => setShopInfoOpen(true)}
+              onServiceSelect={(value) => {
+                const selectedOption = customerServiceOptions.find((option) => option.id === value);
+                setFirstVisit((prev) => {
+                  const serviceId = selectedOption?.serviceId ?? value;
+                  return {
+                    ...prev,
+                    serviceId,
+                    customerServiceOptionId: selectedOption?.id ?? "",
+                    customServiceName: serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : "",
+                    timeSlot: prev.serviceId === serviceId && prev.customerServiceOptionId === (selectedOption?.id ?? "") ? prev.timeSlot : "",
+                  };
+                });
+              }}
+              onDateSelect={(value) => setFirstVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))}
+              onTimeSelect={(value) => setFirstVisit((prev) => ({ ...prev, timeSlot: value }))}
+              onOwnerNameChange={(value) => setFirstVisit((prev) => ({ ...prev, ownerName: value }))}
+              onPhoneChange={(value) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(value) }))}
+              onPetNameChange={(value) => setFirstVisit((prev) => ({ ...prev, petName: value }))}
+              onNoteChange={(value) => setFirstVisit((prev) => ({ ...prev, note: value }))}
+              onGoManage={() => {
+                if (completedFirstVisitBooking?.bookingManageUrl) {
+                  window.location.href = completedFirstVisitBooking.bookingManageUrl;
+                  return;
+                }
+                resetView();
+              }}
+            />
           ) : null}
 
           {activeMode === "returning" ? (
@@ -1304,6 +1195,7 @@ export default function CustomerBookingPage({
                 shopId={shopId}
                 shop={initialShop}
                 services={services}
+                staffMembers={staffMembers}
                 initialAccessToken={initialAccessToken}
                 onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView}
               />
@@ -1311,22 +1203,6 @@ export default function CustomerBookingPage({
           ) : null}
         </div>
       </div>
-
-      {activeMode === "first" ? (
-        <BottomBar>
-          <div className="flex items-center gap-3">
-            <SecondaryButton onClick={saveFirstVisitDraft}>
-              임시저장
-            </SecondaryButton>
-            {firstVisitStep < 4 ? (
-              <ActionButton onClick={goToNextFirstVisitStep}>다음</ActionButton>
-            ) : (
-              <ActionButton disabled={submitting || !getFirstVisitStepValidity(4)} onClick={submitFirstVisit}>{submitting ? "예약 신청 중..." : "예약하기"}</ActionButton>
-            )}
-          </div>
-        </BottomBar>
-      ) : null}
-
 
       {submitFeedback ? (
         <FeedbackDialog

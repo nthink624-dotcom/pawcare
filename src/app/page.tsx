@@ -2,10 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import LandingPage from "@/components/landing/landing-page";
 import { env } from "@/lib/env";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
-import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +57,5 @@ export default async function Home({
     }
   }
 
-  const data = await getBootstrap("demo-shop");
-
-  return <LandingPage shop={data.shop} services={data.services.filter((item) => item.is_active)} />;
+  redirect("/login?next=%2Fowner" as never);
 }

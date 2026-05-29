@@ -7,6 +7,7 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
@@ -152,6 +153,10 @@ export async function POST(request: NextRequest) {
       booking_available_end_time: "17:00",
       approval_mode: "manual",
       notification_settings: defaultShopNotificationSettings,
+      customer_page_settings: buildDefaultCustomerPageSettings({
+        shopName: payload.shopName,
+        description: "",
+      }),
       created_at: now,
       updated_at: now,
     });

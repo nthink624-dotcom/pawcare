@@ -3,6 +3,7 @@
 import { Fragment, type HTMLAttributes, type ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import {
@@ -21,7 +22,14 @@ import {
   TableShell,
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
+import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  buildCustomerServiceSourceOptions,
+  normalizeCustomerServiceOverrides,
+  type CustomerServiceDisplayOverrides,
+} from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
+import type { Service, Shop } from "@/types/domain";
 
 type BaseServiceRow = (typeof serviceRows)[number];
 
@@ -47,6 +55,7 @@ type ServiceForm = {
 };
 
 const servicesStorageKey = "petmanager.ownerWeb.services";
+const customerBookingSnapshotServicePrefix = "customer-booking-";
 
 const categoryOptions = ["미용", "목욕", "위생", "옵션"];
 const durationOptions = ["30", "45", "60", "90", "120", "150", "180"];
@@ -117,6 +126,53 @@ function normalizeServices(rows: unknown): ManagedService[] {
   });
 }
 
+function normalizeBootstrapServices(rows: Service[]): ManagedService[] {
+  if (rows.length === 0) return normalizeServices(serviceRows);
+
+  return rows
+    .filter((service) => !service.id.startsWith(customerBookingSnapshotServicePrefix))
+    .map((service, index) => ({
+      id: service.id,
+      name: service.name,
+      category: service.category || inferCategory(service.name),
+      duration: `${service.duration_minutes || 60}분`,
+      price: `${(service.price || 0).toLocaleString("ko-KR")}원`,
+      capacity: service.capacity_label || "동일 시간 1건",
+      staff:
+        service.staff_selection_mode === "unassigned"
+          ? "직원 미지정"
+          : service.staff_selection_mode === "specific"
+            ? "담당 지정"
+            : "전체 직원",
+      visible: service.is_active,
+      description: service.description || "",
+      order: service.sort_order || index + 1,
+      priceGuide: normalizeServicePriceGuide(service.price_guide),
+    }))
+    .sort((left, right) => left.order - right.order);
+}
+
+function managedServicesToDomain(services: ManagedService[], shopId: string): Service[] {
+  const now = new Date(0).toISOString();
+  return services.map((service) => ({
+    id: service.id,
+    shop_id: shopId,
+    name: service.name,
+    price: parsePrice(service.price),
+    price_type: "starting",
+    duration_minutes: parseMinutes(service.duration),
+    is_active: service.visible,
+    category: service.category,
+    description: service.description,
+    sort_order: service.order,
+    capacity_label: service.capacity,
+    staff_selection_mode: staffLabelToSelectionMode(service.staff),
+    price_guide: service.priceGuide,
+    created_at: now,
+    updated_at: now,
+  }));
+}
+
 function buildForm(service: ManagedService): ServiceForm {
   return {
     id: service.id,
@@ -129,6 +185,12 @@ function buildForm(service: ManagedService): ServiceForm {
     description: service.description,
     priceGuide: normalizeServicePriceGuide(service.priceGuide),
   };
+}
+
+function staffLabelToSelectionMode(staff: string): "all" | "unassigned" | "specific" {
+  if (staff === "직원 미지정" || staff === "스태프 미지정") return "unassigned";
+  if (staff === "전체 직원" || staff === "전체 스태프") return "all";
+  return "specific";
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -222,21 +284,55 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
   );
 }
 
-export default function ServiceManagementScreen({ staffMembers = [] }: { staffMembers?: OwnerWebStaffMember[] }) {
-  const [services, setServices] = useState<ManagedService[]>(() => normalizeServices(serviceRows));
+export default function ServiceManagementScreen({
+  shopId,
+  shop,
+  initialServices = [],
+  staffMembers = [],
+  demoMode = false,
+  onServicesChange,
+  onShopChange,
+}: {
+  shopId: string;
+  shop?: Shop;
+  initialServices?: Service[];
+  staffMembers?: OwnerWebStaffMember[];
+  demoMode?: boolean;
+  onServicesChange?: (services: Service[]) => void;
+  onShopChange?: (shop: Shop) => void;
+}) {
+  const initialManagedServices = useMemo(
+    () => (demoMode ? normalizeServices(serviceRows) : normalizeBootstrapServices(initialServices)),
+    [demoMode, initialServices],
+  );
+  const [services, setServices] = useState<ManagedService[]>(() => initialManagedServices);
   const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id ?? "");
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => buildForm(services[0] ?? normalizeServices(serviceRows)[0]));
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
+  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
+    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
+  );
+  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [storageReady, setStorageReady] = useState(false);
   const autosaveTimerRef = useRef<number | null>(null);
+  const customerServiceSaveTimerRef = useRef<number | null>(null);
   const lastSavedSignatureRef = useRef("");
 
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+  const customerServiceOptions = useMemo(
+    () => buildCustomerServiceSourceOptions(managedServicesToDomain(services, shopId)),
+    [services, shopId],
+  );
 
   useEffect(() => {
+    if (!demoMode) {
+      setStorageReady(true);
+      return;
+    }
+
     try {
       const storedServices = window.localStorage.getItem(servicesStorageKey);
       if (storedServices) {
@@ -250,17 +346,47 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
     } finally {
       setStorageReady(true);
     }
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (demoMode) return;
+    const nextServices = normalizeBootstrapServices(initialServices);
+    const nextSelectedId = nextServices.some((service) => service.id === selectedServiceId) ? selectedServiceId : (nextServices[0]?.id ?? "");
+    const nextSelectedService = nextServices.find((service) => service.id === nextSelectedId) ?? nextServices[0];
+    setServices(nextServices);
+    setSelectedServiceId(nextSelectedId);
+    if (nextSelectedService) {
+      const nextForm = buildForm(nextSelectedService);
+      setServiceForm(nextForm);
+      lastSavedSignatureRef.current = getServiceFormSignature(nextForm);
+    }
+  }, [demoMode, initialServices, selectedServiceId]);
+
+  useEffect(() => {
+    if (!storageReady || !demoMode) return;
     window.localStorage.setItem(servicesStorageKey, JSON.stringify(services));
-  }, [services, storageReady]);
+  }, [demoMode, services, storageReady]);
 
   useEffect(() => {
     if (!onlyStaffName) return;
     setServiceForm((form) => (form.staff === onlyStaffName ? form : { ...form, staff: onlyStaffName }));
   }, [onlyStaffName]);
+
+  useEffect(() => {
+    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
+    setCustomerServiceOverrides((current) =>
+      JSON.stringify(current) === JSON.stringify(nextOverrides) ? current : nextOverrides,
+    );
+    setCustomerServiceSaveStatus((current) => (current === "pending" ? current : "saved"));
+  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
+
+  useEffect(() => {
+    return () => {
+      if (customerServiceSaveTimerRef.current) {
+        window.clearTimeout(customerServiceSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!storageReady) return;
@@ -284,7 +410,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
 
     setAutosaveStatus("pending");
     autosaveTimerRef.current = window.setTimeout(() => {
-      saveService({ showError: false });
+      void saveService({ showError: false });
       autosaveTimerRef.current = null;
     }, 500);
 
@@ -332,7 +458,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
     });
   }
 
-  function saveService({ showError = true }: { showError?: boolean } = {}) {
+  async function saveService({ showError = true }: { showError?: boolean } = {}) {
     const draftError = getServiceDraftError(serviceForm);
     if (draftError) {
       if (showError) setFormError(draftError);
@@ -355,6 +481,7 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
       order: serviceForm.id ? (selectedService?.order ?? services.length + 1) : services.length + 1,
     };
 
+    const previousServices = services;
     setServices((current) => {
       const exists = current.some((service) => service.id === nextService.id);
       return exists
@@ -364,9 +491,49 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
     setSelectedServiceId(nextService.id);
     setServiceForm(buildForm(nextService));
     setFormError("");
-    setAutosaveStatus("saved");
-    lastSavedSignatureRef.current = getServiceFormSignature(buildForm(nextService));
-    return true;
+
+    if (demoMode) {
+      setAutosaveStatus("saved");
+      lastSavedSignatureRef.current = getServiceFormSignature(buildForm(nextService));
+      return true;
+    }
+
+    try {
+      const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
+        method: "POST",
+        body: JSON.stringify({
+          shopId,
+          serviceId: nextService.id,
+          name: nextService.name,
+          price: parsePrice(nextService.price),
+          priceType: "starting",
+          durationMinutes: parseMinutes(nextService.duration),
+          isActive: nextService.visible,
+          category: nextService.category,
+          description: nextService.description,
+          sortOrder: nextService.order,
+          capacityLabel: nextService.capacity,
+          staffSelectionMode: staffLabelToSelectionMode(nextService.staff),
+          priceGuide: nextService.priceGuide,
+        }),
+      });
+      const savedManaged = normalizeBootstrapServices([savedService])[0] ?? nextService;
+      setServices((current) => current.map((service) => (service.id === savedManaged.id ? savedManaged : service)));
+      setServiceForm(buildForm(savedManaged));
+      setAutosaveStatus("saved");
+      lastSavedSignatureRef.current = getServiceFormSignature(buildForm(savedManaged));
+      onServicesChange?.(
+        initialServices.some((service) => service.id === savedService.id)
+          ? initialServices.map((service) => (service.id === savedService.id ? savedService : service))
+          : [...initialServices, savedService],
+      );
+      return true;
+    } catch (error) {
+      setServices(previousServices);
+      setFormError(error instanceof Error ? error.message : "서비스 저장 중 문제가 발생했습니다.");
+      setAutosaveStatus("needs-info");
+      return false;
+    }
   }
 
   function updatePriceInput(value: string) {
@@ -375,6 +542,62 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
       ...form,
       price: numericValue ? String(numericValue) : "",
     }));
+  }
+
+  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
+    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
+    setCustomerServiceOverrides(normalizedOverrides);
+
+    if (customerServiceSaveTimerRef.current) {
+      window.clearTimeout(customerServiceSaveTimerRef.current);
+      customerServiceSaveTimerRef.current = null;
+    }
+
+    if (!shop) {
+      setCustomerServiceSaveStatus("idle");
+      return;
+    }
+
+    const optimisticShop: Shop = {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        customer_service_overrides: normalizedOverrides,
+      },
+    };
+    onShopChange?.(optimisticShop);
+
+    if (demoMode) {
+      setCustomerServiceSaveStatus("saved");
+      return;
+    }
+
+    setCustomerServiceSaveStatus("pending");
+    customerServiceSaveTimerRef.current = window.setTimeout(() => {
+      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId,
+          customerServiceOverrides: normalizedOverrides,
+        }),
+      })
+        .then((result) => {
+          onShopChange?.({
+            ...optimisticShop,
+            ...result.shop,
+            customer_page_settings: {
+              ...optimisticShop.customer_page_settings,
+              ...result.shop.customer_page_settings,
+            },
+          });
+          setCustomerServiceSaveStatus("saved");
+        })
+        .catch((error) => {
+          console.error("[OWNER SERVICES] failed to save customer service exposure", error);
+          setCustomerServiceSaveStatus("error");
+        });
+      customerServiceSaveTimerRef.current = null;
+    }, 500);
   }
 
   function toggleVisibility(service: ManagedService) {
@@ -424,6 +647,13 @@ export default function ServiceManagementScreen({ staffMembers = [] }: { staffMe
               showEnabledToggle={false}
             />
           </div>
+
+          <CustomerServiceExposurePanel
+            options={customerServiceOptions}
+            overrides={customerServiceOverrides}
+            saveStatus={customerServiceSaveStatus}
+            onChange={updateCustomerServiceOverrides}
+          />
 
           <div>
             <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#0f172a]">추가금 안내</p>

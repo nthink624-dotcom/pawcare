@@ -17,10 +17,14 @@ export type AlertSettingsDraft = {
   groomingStartedEnabled: boolean;
   groomingAlmostDoneEnabled: boolean;
   groomingCompletedEnabled: boolean;
+  groomingStartWithoutPhotoEnabled: boolean;
+  groomingCompleteWithoutPhotoEnabled: boolean;
 };
 
+type AlertToggleKey = Exclude<keyof AlertSettingsDraft, "groomingStartWithoutPhotoEnabled" | "groomingCompleteWithoutPhotoEnabled">;
+
 type AlertItem = {
-  key: keyof AlertSettingsDraft;
+  key: AlertToggleKey;
   title: string;
   preview: string;
 };
@@ -64,7 +68,7 @@ const alertItems: AlertItem[] = [
   {
     key: "groomingCompletedEnabled",
     title: "미용 완료",
-    preview: "[우유 미용실] 우유 미용이 완료됐어요. 사진을 확인해 주세요.",
+    preview: "[우유 미용실] 우유 미용이 완료됐어요. 편하신 시간에 픽업 부탁드립니다.",
   },
   {
     key: "revisitEnabled",
@@ -174,30 +178,30 @@ export default function SettingsAlertsPanel({
   const [selectedAlertKey, setSelectedAlertKey] = useState<AlertItem["key"]>(alertItems[0].key);
   const previewItem = alertItems.find((item) => item.key === selectedAlertKey) ?? alertItems[0];
 
-  function update(key: keyof AlertSettingsDraft, checked: boolean) {
+  function update(key: AlertItem["key"], checked: boolean) {
     setSelectedAlertKey(key);
     onChange({ ...value, [key]: checked });
   }
 
   return (
     <section className="rounded-[16px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-[18px] font-semibold text-[#111827]">알림 설정</h3>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
-          </div>
-          <Switch checked={value.enabled} aria-label="알림톡 전체 사용" onCheckedChange={(checked) => update("enabled", checked)} />
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
+          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-[#111827]">알림톡 전체 사용</p>
+                <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+                  끄면 예약, 미용 진행, 재방문 안내 알림톡 발송이 전체 중지됩니다.
+                </p>
+              </div>
+              <Switch
+                checked={value.enabled}
+                aria-label="알림톡 전체 사용"
+                onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
+              />
+            </div>
+          </div>
           {alertGroups.map((group) => (
             <div key={group.title} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
               <div className="mb-3 flex items-end justify-between gap-3">

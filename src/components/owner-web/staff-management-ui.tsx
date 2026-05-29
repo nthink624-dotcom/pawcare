@@ -71,7 +71,7 @@ export function ScheduleTable({
         {staff.map((staffMember) => (
           <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(116px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
-              <p className="text-[16px] font-semibold text-[#111827]">{staffMember.name}</p>
+              <p className="text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);

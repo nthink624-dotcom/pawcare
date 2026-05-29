@@ -43,6 +43,8 @@ type ShopNotificationSettingsState = {
   bookingRescheduledEnabled: boolean;
   groomingAlmostDoneEnabled: boolean;
   groomingCompletedEnabled: boolean;
+  groomingStartWithoutPhotoEnabled: boolean;
+  groomingCompleteWithoutPhotoEnabled: boolean;
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
@@ -80,6 +82,8 @@ function mapShopNotificationSettingsState(
     bookingRescheduledEnabled: settings.booking_rescheduled_enabled,
     groomingAlmostDoneEnabled: settings.grooming_almost_done_enabled,
     groomingCompletedEnabled: settings.grooming_completed_enabled,
+    groomingStartWithoutPhotoEnabled: settings.grooming_start_without_photo_enabled,
+    groomingCompleteWithoutPhotoEnabled: settings.grooming_complete_without_photo_enabled,
   };
 }
 

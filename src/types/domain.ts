@@ -28,7 +28,7 @@ export type NotificationType =
 
 export type ChannelType = "alimtalk" | "sms" | "in_app" | "mock";
 export type NotificationStatus = "queued" | "sent" | "failed" | "mocked" | "skipped";
-export type PetBiteLevel = "none" | "watch" | "bite" | "strong";
+export type PetBiteLevel = "none" | "mild" | "watch" | "bite" | "strong";
 export type MediaKind =
   | "grooming_before"
   | "grooming_after"
@@ -56,6 +56,8 @@ export type ShopNotificationSettings = {
   grooming_started_enabled: boolean;
   grooming_almost_done_enabled: boolean;
   grooming_completed_enabled: boolean;
+  grooming_start_without_photo_enabled: boolean;
+  grooming_complete_without_photo_enabled: boolean;
 };
 
 export type GuardianNotificationSettings = {
@@ -93,6 +95,15 @@ export type CustomerPageSettings = {
   additional_contact?: string;
   postal_code?: string;
   address_detail?: string;
+  customer_service_overrides?: Record<
+    string,
+    {
+      visible?: boolean;
+      order?: number;
+      displayName?: string;
+      description?: string;
+    }
+  >;
 };
 
 export type BookingBlockedWindow = {
@@ -185,6 +196,12 @@ export type Service = {
   price_type?: "fixed" | "starting";
   duration_minutes: number;
   is_active: boolean;
+  category?: string;
+  description?: string;
+  sort_order?: number;
+  capacity_label?: string;
+  staff_selection_mode?: "all" | "unassigned" | "specific";
+  price_guide?: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -203,6 +220,8 @@ export type Appointment = {
   rejection_reason: string | null;
   start_at: string;
   end_at: string;
+  actual_started_at?: string | null;
+  actual_completed_at?: string | null;
   source: "owner" | "customer";
   created_at: string;
   updated_at: string;
@@ -219,6 +238,20 @@ export type GroomingRecord = {
   memo: string;
   price_paid: number;
   groomed_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PetStaffNote = {
+  id: string;
+  shop_id: string;
+  guardian_id: string;
+  pet_id: string | null;
+  note: string;
+  note_scope: "staff_shared" | "owner_private";
+  source: "owner_web" | "owner_mobile" | "system";
+  created_by_user_id: string | null;
+  updated_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -408,6 +441,7 @@ export type BootstrapPayload = {
   staffScheduleOverrides?: StaffScheduleOverride[];
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
+  petStaffNotes?: PetStaffNote[];
   notifications: Notification[];
   alimtalkCreditSummary?: AlimtalkCreditSummary | null;
   landingInterests: LandingInterest[];

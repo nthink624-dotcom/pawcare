@@ -72,9 +72,9 @@ type PhotoSendRequestListResponse = {
 };
 
 type UploadSlot = {
-  key: "before" | "after";
+  key: "after";
   label: string;
-  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  mediaKind: Extract<MediaKind, "grooming_after">;
 };
 
 type MediaContext = {
@@ -93,8 +93,7 @@ type PreviewItem = {
 type UploadMessageTone = "info" | "success" | "error";
 
 const uploadSlots: UploadSlot[] = [
-  { key: "before", label: "전", mediaKind: "grooming_before" },
-  { key: "after", label: "후", mediaKind: "grooming_after" },
+  { key: "after", label: "완료 사진", mediaKind: "grooming_after" },
 ];
 
 function buildQuery(context: MediaContext) {
@@ -120,11 +119,11 @@ function getLatestByKind(items: PreviewItem[], mediaKind: MediaKind) {
 }
 
 function getPhotoSendStatusCopy(status: NotificationStatus, failReason?: string | null) {
-  if (status === "sent") return "전후 사진 알림톡 발송 완료";
-  if (status === "failed") return failReason || "전후 사진 전송 실패";
-  if (status === "skipped") return failReason || "전후 사진 전송 제외";
+  if (status === "sent") return "완료 사진 알림톡 발송 완료";
+  if (status === "failed") return failReason || "완료 사진 전송 실패";
+  if (status === "skipped") return failReason || "완료 사진 전송 제외";
   if (failReason) return failReason;
-  return "전후 사진 전송 요청 저장됨";
+  return "완료 사진 전송 요청 저장됨";
 }
 
 async function uploadCompressedFile(params: {
@@ -235,7 +234,6 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
   const [messageTone, setMessageTone] = useState<UploadMessageTone>("info");
   const [sendRequests, setSendRequests] = useState<PhotoSendRequestItem[]>([]);
   const [localPreviews, setLocalPreviews] = useState<Record<UploadSlot["key"], string | null>>({
-    before: null,
     after: null,
   });
   const localPreviewUrlsRef = useRef(localPreviews);
@@ -381,7 +379,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       .filter((id): id is string => Boolean(id));
 
     if (!mediaAssetIds.length) {
-      setMessage("먼저 전후 사진을 저장해 주세요.");
+      setMessage("먼저 완료 사진을 저장해 주세요.");
       return;
     }
 
@@ -414,8 +412,8 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       setMessageTone(notification.status === "sent" ? "success" : "info");
       setMessage(
         notification.status === "sent"
-          ? "전후 사진 알림톡을 발송했습니다."
-          : notification.fail_reason || "전후 사진 전송 요청이 저장됐습니다. 템플릿 승인 후 실제 발송됩니다.",
+          ? "완료 사진 알림톡을 발송했습니다."
+          : notification.fail_reason || "완료 사진 전송 요청이 저장됐습니다. 템플릿 승인 후 실제 발송됩니다.",
       );
       void loadPhotoSendRequests();
     } catch (error) {
@@ -500,7 +498,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
         disabled={sending || Boolean(uploadingSlot)}
         className="mt-3 h-10 w-full rounded-[8px] bg-[var(--accent)] text-[14px] font-semibold text-white transition hover:bg-[#236b5b] disabled:cursor-wait disabled:bg-[#9fbfb5]"
       >
-        {sending ? "전송 요청 저장 중" : "전후 사진 전송 요청 저장"}
+        {sending ? "전송 요청 저장 중" : "완료 사진 전송 요청 저장"}
       </button>
 
       {message ? (
@@ -536,7 +534,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
           <p className="mt-1 text-[12px] leading-4 text-[#64748b]">
             {latestPhotoSendRequest.notification.status === "queued"
               ? "쏘다/카카오 템플릿 승인 후 실제 발송 단계로 전환합니다."
-              : "최근 전후 사진 전송 상태입니다."}
+              : "최근 완료 사진 전송 상태입니다."}
           </p>
         </div>
       ) : null}
@@ -544,7 +542,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       {!loading && items.length === 0 ? (
         <div className="mt-3 flex items-center gap-2 text-[12px] text-[#94a3b8]">
           <Camera className="h-4 w-4" />
-          저장된 전후 사진이 없습니다.
+          저장된 완료 사진이 없습니다.
         </div>
       ) : null}
     </section>

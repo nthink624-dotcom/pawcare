@@ -413,19 +413,8 @@ export default function StaffManagementScreen({
         <div className="min-w-0">
           <WebSurface className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
-              <div>
+              {boardTab === "schedule" ? (
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[16px] font-semibold text-[#111827]">{boardTab === "list" ? "직원 목록" : "주간 근무표"}</h2>
-                  {boardTab === "list" ? (
-                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-semibold text-[#2f7866]">
-                      {staff.length}명
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {boardTab === "schedule" ? (
-                  <>
                     <button
                       type="button"
                       onClick={() => setWeekStart((current) => formatDateShift(current, -7))}
@@ -445,15 +434,22 @@ export default function StaffManagementScreen({
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
-                  </>
-                ) : (
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[16px] font-semibold text-[#111827]">직원 목록</h2>
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-semibold text-[#2f7866]">
+                      {staff.length}명
+                    </span>
+                  </div>
                   <PrimaryButton
                     label="직원 추가"
                     icon={<AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-6 w-6" />}
                     onClick={() => setStaffDialogOpen(true)}
                   />
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#1f6b5b]">{notice}</div> : null}

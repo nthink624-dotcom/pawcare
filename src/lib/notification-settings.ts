@@ -11,6 +11,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   grooming_started_enabled: true,
   grooming_almost_done_enabled: true,
   grooming_completed_enabled: true,
+  grooming_start_without_photo_enabled: false,
+  grooming_complete_without_photo_enabled: false,
 };
 
 export const defaultGuardianNotificationSettings: GuardianNotificationSettings = {

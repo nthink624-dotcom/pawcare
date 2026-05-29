@@ -21,7 +21,7 @@ export default async function DemoBookManagePage({
       initialRecords={data.groomingRecords}
       initialMode="manage"
       initialAccessToken={resolvedSearchParams?.token}
-      entryHref="/demo/book"
+      entryHref="/entry/demo-shop"
     />
   );
 }

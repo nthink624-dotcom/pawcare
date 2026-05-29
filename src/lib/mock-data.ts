@@ -33,7 +33,7 @@ const now = at(today, "09:00");
 
 export const demoShop: Shop = {
   id: "demo-shop",
-  name: "포근한 발바닥 미용실",
+  name: "데모 미용실",
   phone: "02-1234-5678",
   address: "서울 강남구 테헤란로 123",
   description: "소형견 중심의 예약제 그루밍 살롱입니다.",
@@ -65,7 +65,7 @@ export const demoShop: Shop = {
     grooming_completed_enabled: true,
   }),
   customer_page_settings: normalizeCustomerPageSettings({
-    shop_name: "포근한 발바닥 미용실",
+    shop_name: "데모 미용실",
     tagline: "아이 성향에 맞춘 차분한 그루밍 예약을 도와드려요.",
     hero_image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=1200&q=80",
     primary_color: "#1F6B5B",

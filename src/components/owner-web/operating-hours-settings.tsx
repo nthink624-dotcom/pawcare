@@ -279,21 +279,51 @@ function createNextItemId(items: Array<{ id: string }>, prefix: string) {
   return `${prefix}-${index}`;
 }
 
-function ToggleSwitch({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  compact = false,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  compact?: boolean;
+}) {
   return (
     <button
       type="button"
       aria-pressed={checked}
       aria-label={label}
       onClick={onChange}
-      className={cn("relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition", checked ? "bg-[#2f7866]" : "bg-[#cbd5e1]")}
+      className={cn(
+        "relative inline-flex shrink-0 items-center rounded-full transition",
+        compact ? "h-6 w-10" : "h-7 w-12",
+        checked ? "bg-[#2f7866]" : "bg-[#cbd5e1]",
+      )}
     >
-      <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition", checked ? "left-6" : "left-1")} />
+      <span
+        className={cn(
+          "absolute top-1 rounded-full bg-white shadow-sm transition",
+          compact ? "h-4 w-4" : "h-5 w-5",
+          checked ? (compact ? "left-5" : "left-6") : "left-1",
+        )}
+      />
     </button>
   );
 }
 
-function TimeInput({ value, onChange, disabled = false }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
+function TimeInput({
+  value,
+  onChange,
+  disabled = false,
+  compact = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  compact?: boolean;
+}) {
   const [hourText = "10", minuteText = "00"] = value.split(":");
   const hour = Number(hourText);
   const minute = Number(minuteText);
@@ -318,25 +348,36 @@ function TimeInput({ value, onChange, disabled = false }: { value: string; onCha
   }
 
   return (
-    <div className="inline-flex h-10 w-[188px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white transition focus-within:border-[#2f7866] focus-within:ring-[3px] focus-within:ring-[#2f7866]/10">
-      <div className="relative h-full w-[88px] shrink-0 border-r border-[#e2e8f0]">
+    <div
+      className={cn(
+        "inline-flex overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white transition focus-within:border-[#2f7866] focus-within:ring-[3px] focus-within:ring-[#2f7866]/10",
+        compact ? "h-8 w-[146px]" : "h-10 w-[188px]",
+      )}
+    >
+      <div className={cn("relative h-full shrink-0 border-r border-[#e2e8f0]", compact ? "w-[64px]" : "w-[88px]")}>
         <select
           value={period}
           disabled={disabled}
           onChange={(event) => commit(event.target.value, displayValue)}
-          className="h-full w-full appearance-none bg-transparent pl-4 pr-9 text-[16px] font-medium text-[#334155] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
+          className={cn(
+            "h-full w-full appearance-none bg-transparent font-medium text-[#334155] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+            compact ? "pl-2.5 pr-6 text-[14px]" : "pl-4 pr-9 text-[16px]",
+          )}
         >
           <option value="AM">오전</option>
           <option value="PM">오후</option>
         </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]" />
+        <ChevronDown className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#475569]", compact ? "right-2 h-3.5 w-3.5" : "right-3 h-4 w-4")} />
       </div>
       <div className="relative min-w-0 flex-1">
         <select
           value={displayValue}
           disabled={disabled}
           onChange={(event) => commit(period, event.target.value)}
-          className="h-full w-full appearance-none bg-transparent pl-5 pr-9 text-[16px] font-normal text-[#111827] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
+          className={cn(
+            "h-full w-full appearance-none bg-transparent font-normal text-[#111827] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+            compact ? "pl-3 pr-6 text-[14px]" : "pl-5 pr-9 text-[16px]",
+          )}
         >
           {twelveHourTimeOptions.map((option) => (
             <option key={option} value={option}>
@@ -344,7 +385,7 @@ function TimeInput({ value, onChange, disabled = false }: { value: string; onCha
             </option>
           ))}
         </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#111827]" />
+        <ChevronDown className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#111827]", compact ? "right-2 h-3.5 w-3.5" : "right-3 h-4 w-4")} />
       </div>
     </div>
   );
@@ -358,6 +399,7 @@ export default function OperatingHoursSettings({
   shop,
   onShopChange,
   persistToSupabase = false,
+  compact = false,
 }: {
   businessHoursValue: string | boolean | number;
   closedDaysValue: string | boolean | number;
@@ -366,6 +408,7 @@ export default function OperatingHoursSettings({
   shop?: Shop;
   onShopChange?: (shop: Shop) => void;
   persistToSupabase?: boolean;
+  compact?: boolean;
 }) {
   const [businessDays, setBusinessDays] = useState(() => (shop ? createBusinessDaysFromShop(shop) : createInitialBusinessDays(businessHoursValue, closedDaysValue)));
   const [bookingSettings, setBookingSettings] = useState<BookingSettingsState>(() => readInitialBookingSettings(shop));
@@ -465,6 +508,8 @@ export default function OperatingHoursSettings({
             groomingStartedEnabled: nextShop.notification_settings.grooming_started_enabled,
             groomingAlmostDoneEnabled: nextShop.notification_settings.grooming_almost_done_enabled,
             groomingCompletedEnabled: nextShop.notification_settings.grooming_completed_enabled,
+            groomingStartWithoutPhotoEnabled: nextShop.notification_settings.grooming_start_without_photo_enabled,
+            groomingCompleteWithoutPhotoEnabled: nextShop.notification_settings.grooming_complete_without_photo_enabled,
           },
         }),
       });
@@ -564,14 +609,187 @@ export default function OperatingHoursSettings({
     return isBiweeklyClosedDate(dateKey, regularHolidayAnchorDate);
   }
 
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        {saveError ? (
+          <p className="rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[14px] leading-5 text-[#b42318]">
+            {saveError}
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(360px,420px)]">
+          <WebSurface className="border-0 bg-transparent p-0 shadow-none">
+            <div className="overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
+              <div className="grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#fbfcfd] px-2 py-1.5 lg:grid-cols-[104px_minmax(0,1fr)]">
+                <p className="text-[15px] font-semibold text-[#111827]">공통 적용</p>
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
+                  <span className="text-[13px] font-medium text-[#94a3b8]">-</span>
+                  <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
+                  <button
+                    type="button"
+                    onClick={applyBulkTimeToAllDays}
+                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc]"
+                  >
+                    전체 적용
+                  </button>
+                </div>
+              </div>
+              {businessDays.map((day) => (
+                <div key={day.key} className="grid items-center gap-1.5 border-b border-[#edf2f7] px-2 py-1.5 last:border-b-0 lg:grid-cols-[32px_72px_minmax(0,1fr)]">
+                  <span className="text-[15px] font-normal text-[#111827]">{day.shortLabel}</span>
+                  <div className="flex items-center gap-1">
+                    <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
+                    <span className={cn("whitespace-nowrap text-[14px] font-normal", day.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
+                  </div>
+                  {day.enabled ? (
+                    <div className="ml-auto grid items-center gap-1.5 sm:grid-cols-[146px_14px_146px]">
+                      <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
+                      <span className="text-center text-[13px] font-medium text-[#94a3b8]">-</span>
+                      <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
+                    </div>
+                  ) : (
+                    <p className="text-[14px] font-normal text-[#64748b]">예약을 받지 않습니다.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </WebSurface>
+
+          <div className="grid min-w-0 gap-2">
+            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[15px] font-semibold text-[#111827]">정기 휴무일</p>
+                <div className="grid w-[136px] grid-cols-2 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
+                  {regularHolidayCycleOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateRegularHolidayCycle(option.value)}
+                      className={cn(
+                        "h-7 rounded-[7px] text-[13px] font-medium transition",
+                        regularHolidayCycle === option.value ? "bg-white text-[#2f7866] shadow-sm" : "text-[#64748b] hover:bg-white/70",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-7 gap-1">
+                {weekdayLabels.map((day) => {
+                  const active = !businessDays.find((item) => item.key === day.key)?.enabled;
+                  return (
+                    <button
+                      key={day.key}
+                      type="button"
+                      onClick={() => updateBusinessDay(day.key, { enabled: !businessDays.find((item) => item.key === day.key)?.enabled })}
+                      className={cn(
+                        "h-8 rounded-[8px] border text-[14px] font-medium transition",
+                        active ? "border-[#f0a8b4] bg-[#fff7f8] text-[#d43f57]" : "border-[#bad8cd] bg-[#f7fbf9] text-[#2f7866]",
+                      )}
+                    >
+                      {day.shortLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
+              <p className="text-[15px] font-semibold text-[#111827]">임시 휴무일</p>
+              <div className="mt-2 flex gap-1.5">
+                <input
+                  type="date"
+                  value={pendingTemporaryHolidayDate}
+                  onChange={(event) => setPendingTemporaryHolidayDate(event.target.value)}
+                  className="h-8 min-w-0 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] text-[#111827] outline-none focus:border-[#2f7866]"
+                />
+                <button
+                  type="button"
+                  onClick={() => addTemporaryHoliday(pendingTemporaryHolidayDate)}
+                  className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#2f7866] hover:bg-[#f8fafc]"
+                >
+                  추가
+                </button>
+              </div>
+              {bookingSettings.temporaryHolidays.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {bookingSettings.temporaryHolidays.slice(0, 5).map((holiday) => (
+                    <span key={holiday.id} className="inline-flex h-7 items-center gap-1 rounded-full border border-[#dbe2ea] bg-[#fbfcfd] pl-2 pr-1 text-[12px] font-medium text-[#334155]">
+                      {holiday.date.slice(5)}
+                      <button type="button" onClick={() => removeTemporaryHoliday(holiday.id)} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#a04455] hover:bg-[#fff1f3]" aria-label="임시 휴무 삭제">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {bookingSettings.temporaryHolidays.length > 5 ? <span className="h-7 rounded-full bg-[#f8fafc] px-2 text-[12px] leading-7 text-[#64748b]">+{bookingSettings.temporaryHolidays.length - 5}</span> : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[15px] font-semibold text-[#111827]">미용 예약 가능 시간</p>
+                <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-medium text-[#2f7866] hover:bg-[#f8fafc]">
+                  <Plus className="h-3.5 w-3.5" />
+                  제외 시간
+                </button>
+              </div>
+              <div className="mt-2 grid items-center gap-1.5 sm:grid-cols-[146px_14px_146px]">
+                <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact />
+                <span className="text-center text-[13px] font-medium text-[#94a3b8]">-</span>
+                <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact />
+              </div>
+              <div className="relative mt-1.5 w-full">
+                <select
+                  value={bookingSettings.intervalMinutes}
+                  onChange={(event) => updateBookingSetting("intervalMinutes", event.target.value, true)}
+                  className="h-8 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white px-2 pr-7 text-[14px] font-medium text-[#111827] outline-none focus:border-[#2f7866]"
+                >
+                  <option value="15">15분</option>
+                  <option value="30">30분</option>
+                  <option value="60">1시간</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]" />
+              </div>
+
+              {bookingSettings.blockedWindows.length > 0 ? (
+                <div className="mt-2 grid gap-1.5">
+                  {bookingSettings.blockedWindows.map((windowItem) => (
+                    <div key={windowItem.id} className="grid items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
+                      <div className="grid items-center gap-1.5 sm:grid-cols-[1fr_1fr_30px]">
+                        <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
+                        <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
+                        <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <input
+                        value={windowItem.label}
+                        onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
+                        className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-medium text-[#111827] outline-none focus:border-[#2f7866]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div>
+    <div className={cn(compact && "space-y-2")}>
       {saveError ? (
         <p className="mb-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[14px] leading-5 text-[#b42318]">
           {saveError}
         </p>
       ) : null}
-      <div className="mb-3 flex items-center gap-5 border-b border-[#dbe2ea] pb-3">
+      <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
         {[
           { key: "business" as const, label: "매장 운영시간" },
           { key: "booking" as const, label: "미용 예약 가능 시간" },
@@ -581,7 +799,8 @@ export default function OperatingHoursSettings({
             type="button"
             onClick={() => setActiveTab(item.key)}
             className={cn(
-              "h-10 rounded-[8px] px-4 text-[16px] font-medium transition",
+              "rounded-[8px] font-medium transition",
+              compact ? "h-8 px-3 text-[15px]" : "h-10 px-4 text-[16px]",
               activeTab === item.key
                 ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
                 : "text-[#64748b] hover:text-[#111827]",
@@ -593,13 +812,18 @@ export default function OperatingHoursSettings({
       </div>
 
       {activeTab === "business" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <WebSurface className="p-4">
+        <div className={cn("grid", compact ? "gap-3 xl:grid-cols-[minmax(0,1fr)_330px]" : "gap-4 xl:grid-cols-[minmax(0,1fr)_360px]")}>
+          <WebSurface className={cn(compact ? "p-3" : "p-4")}>
             <div className="divide-y divide-[#edf2f7]">
-              <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-5 bg-[#fbfcfd] px-4 py-3.5">
+              <div
+                className={cn(
+                  "grid items-center bg-[#fbfcfd]",
+                  compact ? "grid-cols-[118px_minmax(0,1fr)] gap-3 px-3 py-2" : "grid-cols-[150px_minmax(0,1fr)] gap-5 px-4 py-3.5",
+                )}
+              >
                 <div>
                   <div className="group relative inline-flex items-center gap-1.5">
-                    <p className="whitespace-nowrap text-[16px] font-semibold text-[#111827] [word-break:keep-all]">모든 요일 적용 시간</p>
+                    <p className={cn("whitespace-nowrap font-semibold text-[#111827] [word-break:keep-all]", compact ? "text-[15px]" : "text-[16px]")}>모든 요일 적용 시간</p>
                     <button type="button" className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#2f7866]" aria-label="모든 요일 적용 시간 도움말">
                       <Info className="h-3.5 w-3.5" />
                     </button>
@@ -608,39 +832,48 @@ export default function OperatingHoursSettings({
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} />
-                  <span className="text-center text-[16px] font-semibold text-[#94a3b8]">-</span>
-                  <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} />
+                <div className={cn("flex flex-wrap items-center", compact ? "gap-2" : "gap-3")}>
+                  <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact={compact} />
+                  <span className={cn("text-center font-semibold text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>-</span>
+                  <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact={compact} />
                   <button
                     type="button"
                     onClick={applyBulkTimeToAllDays}
-                    className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-medium text-[#334155] transition hover:border-[#bad8cd] hover:bg-[#f8fafc]"
+                    className={cn(
+                      "rounded-[8px] border border-[#dbe2ea] bg-white font-medium text-[#334155] transition hover:border-[#bad8cd] hover:bg-[#f8fafc]",
+                      compact ? "h-8 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
+                    )}
                   >
                     전체 적용
                   </button>
                 </div>
               </div>
               {businessDays.map((day) => (
-                <div key={day.key} className="grid grid-cols-[110px_160px_minmax(400px,1fr)] items-center gap-5 py-3.5">
-                    <p className="text-[16px] font-normal text-[#111827]">{day.label}</p>
-                  <div className="flex items-center gap-2">
-                    <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} />
-                    <span className={cn("text-[16px] font-normal", day.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>
+                <div
+                  key={day.key}
+                  className={cn(
+                    "grid items-center",
+                    compact ? "grid-cols-[76px_108px_minmax(305px,1fr)] gap-3 py-2" : "grid-cols-[110px_160px_minmax(400px,1fr)] gap-5 py-3.5",
+                  )}
+                >
+                  <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{day.label}</p>
+                  <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
+                    <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact={compact} />
+                    <span className={cn("font-normal", compact ? "text-[15px]" : "text-[16px]", day.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>
                       {day.enabled ? "영업함" : "휴무일"}
                     </span>
                   </div>
-                  <div className="ml-auto grid grid-cols-[188px_24px_188px] items-center gap-3">
+                  <div className={cn("ml-auto grid items-center", compact ? "grid-cols-[146px_16px_146px] gap-2" : "grid-cols-[188px_24px_188px] gap-3")}>
                     {day.enabled ? (
                       <>
-                        <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} />
-                        <span className="text-center text-[16px] font-semibold text-[#94a3b8]">-</span>
-                        <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} />
+                        <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact={compact} />
+                        <span className={cn("text-center font-semibold text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>-</span>
+                        <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact={compact} />
                       </>
                     ) : (
                       <>
                         <span />
-                        <span className="whitespace-nowrap text-center text-[16px] font-normal text-[#64748b] [word-break:keep-all]">휴무</span>
+                        <span className={cn("whitespace-nowrap text-center font-normal text-[#64748b] [word-break:keep-all]", compact ? "text-[15px]" : "text-[16px]")}>휴무</span>
                         <span />
                       </>
                     )}
@@ -650,17 +883,18 @@ export default function OperatingHoursSettings({
             </div>
           </WebSurface>
 
-          <WebSurface className="p-4">
-            <div className="border-b border-[#edf2f7] pb-4">
-              <p className="text-[18px] font-semibold text-[#111827]">정기 휴무일</p>
-              <div className="mt-4 grid grid-cols-2 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
+          <WebSurface className={cn(compact ? "p-3" : "p-4")}>
+            <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
+              <p className={cn("font-semibold text-[#111827]", compact ? "text-[16px]" : "text-[18px]")}>정기 휴무일</p>
+              <div className={cn("grid grid-cols-2 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
                 {regularHolidayCycleOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
                     onClick={() => updateRegularHolidayCycle(option.value)}
                     className={cn(
-                      "h-10 rounded-[8px] text-[16px] font-semibold transition",
+                      "rounded-[8px] font-semibold transition",
+                      compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
                       regularHolidayCycle === option.value
                         ? "bg-white text-[#2f7866] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
                         : "text-[#64748b] hover:bg-white/70 hover:text-[#111827]",
@@ -702,7 +936,7 @@ export default function OperatingHoursSettings({
                 ) : null}
               </div>
             ) : null}
-              <div className="mt-3 grid grid-cols-7 gap-2">
+              <div className={cn("mt-3 grid grid-cols-7", compact ? "gap-1" : "gap-2")}>
                 {weekdayLabels.map((day) => {
                   const active = !businessDays.find((item) => item.key === day.key)?.enabled;
                   return (
@@ -711,7 +945,8 @@ export default function OperatingHoursSettings({
                       type="button"
                       onClick={() => updateBusinessDay(day.key, { enabled: !businessDays.find((item) => item.key === day.key)?.enabled })}
                       className={cn(
-                        "h-10 rounded-[8px] border text-[16px] font-semibold transition",
+                        "rounded-[8px] border font-semibold transition",
+                        compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
                         active
                           ? "border-[#f0a8b4] bg-[#fff7f8] text-[#d43f57] shadow-[0_1px_4px_rgba(212,63,87,0.08)]"
                           : "border-[#bad8cd] bg-[#f7fbf9] text-[#2f7866] hover:border-[#2f7866] hover:bg-[#eef7f4]",
@@ -724,8 +959,8 @@ export default function OperatingHoursSettings({
               </div>
             </div>
 
-            <p className="mt-4 text-[18px] font-semibold text-[#111827]">임시 휴무일 설정</p>
-            <div className="mt-3 p-1">
+            <p className={cn("font-semibold text-[#111827]", compact ? "mt-3 text-[16px]" : "mt-4 text-[18px]")}>임시 휴무일 설정</p>
+            <div className={cn(compact ? "mt-2" : "mt-3 p-1")}>
               <div className="flex items-center justify-between">
                 <button
                   type="button"
@@ -735,7 +970,7 @@ export default function OperatingHoursSettings({
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <p className="text-[16px] font-semibold text-[#111827]">{temporaryHolidayMonthLabel}</p>
+                <p className={cn("font-semibold text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{temporaryHolidayMonthLabel}</p>
                 <button
                   type="button"
                   onClick={() => setTemporaryHolidayMonth((current) => moveMonth(current, 1))}
@@ -745,7 +980,7 @@ export default function OperatingHoursSettings({
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
-              <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[13px] font-semibold text-[#94a3b8]">
+              <div className={cn("grid grid-cols-7 gap-1 text-center font-semibold text-[#94a3b8]", compact ? "mt-2 text-[12px]" : "mt-3 text-[13px]")}>
                 {["일", "월", "화", "수", "목", "금", "토"].map((label) => (
                   <span key={label} className={cn(label === "일" && "text-[#c13f52]")}>
                     {label}
@@ -754,7 +989,7 @@ export default function OperatingHoursSettings({
               </div>
               <div className="mt-1 grid grid-cols-7 gap-1">
                 {temporaryHolidayCalendarCells.map((dateKey, index) => {
-                  if (!dateKey) return <span key={`empty-${index}`} className="h-9" />;
+                  if (!dateKey) return <span key={`empty-${index}`} className={cn(compact ? "h-7" : "h-9")} />;
                   const saved = temporaryHolidayDates.has(dateKey);
                   const regularClosed = isRegularClosedDate(dateKey);
                   const closed = saved || regularClosed;
@@ -766,7 +1001,8 @@ export default function OperatingHoursSettings({
                         if (!saved) setPendingTemporaryHolidayDate(dateKey);
                       }}
                       className={cn(
-                        "h-9 rounded-[8px] text-[15px] font-semibold transition hover:bg-[#f8fafc]",
+                        "rounded-[8px] font-semibold transition hover:bg-[#f8fafc]",
+                        compact ? "h-7 text-[14px]" : "h-9 text-[15px]",
                         closed ? "text-[#c13f52] hover:text-[#ad3146]" : "text-[#334155] hover:text-[#2f7866]",
                       )}
                     >
@@ -820,24 +1056,27 @@ export default function OperatingHoursSettings({
       ) : null}
 
       {activeTab === "booking" ? (
-        <WebSurface className="p-4">
-          <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3">
-            <p className="text-[16px] font-semibold text-[#334155]">예약 가능 시간</p>
-            <div className="flex items-center gap-4">
-              <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} />
+        <WebSurface className={cn(compact ? "p-3" : "p-4")}>
+          <div className={cn("grid items-center", compact ? "grid-cols-[112px_minmax(0,1fr)] gap-2" : "grid-cols-[130px_minmax(0,1fr)] gap-3")}>
+            <p className={cn("font-semibold text-[#334155]", compact ? "text-[15px]" : "text-[16px]")}>예약 가능 시간</p>
+            <div className={cn("flex items-center", compact ? "gap-2" : "gap-4")}>
+              <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact={compact} />
               <span className="text-[#94a3b8]">-</span>
-              <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} />
+              <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact={compact} />
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-[130px_minmax(0,1fr)] items-start gap-3">
-            <p className="pt-2 text-[16px] font-semibold text-[#334155]">예약 간격</p>
+          <div className={cn("grid items-start", compact ? "mt-3 grid-cols-[112px_minmax(0,1fr)] gap-2" : "mt-4 grid-cols-[130px_minmax(0,1fr)] gap-3")}>
+            <p className={cn("font-semibold text-[#334155]", compact ? "pt-1.5 text-[15px]" : "pt-2 text-[16px]")}>예약 간격</p>
             <div className="min-w-0">
-              <div className="relative w-[188px]">
+              <div className={cn("relative", compact ? "w-[146px]" : "w-[188px]")}>
                 <select
                   value={bookingSettings.intervalMinutes}
                   onChange={(event) => updateBookingSetting("intervalMinutes", event.target.value, true)}
-                  className="h-10 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 pr-9 text-[16px] font-semibold text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-[3px] focus:ring-[#2f7866]/10"
+                  className={cn(
+                    "w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white font-semibold text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-[3px] focus:ring-[#2f7866]/10",
+                    compact ? "h-8 px-2.5 pr-8 text-[14px]" : "h-10 px-3 pr-9 text-[16px]",
+                  )}
                 >
                   <option value="15">15분</option>
                   <option value="30">30분</option>
@@ -845,14 +1084,14 @@ export default function OperatingHoursSettings({
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#111827]" />
               </div>
-              <p className="mt-2 text-[16px] leading-6 text-[#64748b]">설정한 예약 가능 시간과 간격은 고객 예약 화면에도 동일하게 보입니다.</p>
+              <p className={cn("mt-2 text-[#64748b]", compact ? "text-[14px] leading-5" : "text-[16px] leading-6")}>설정한 예약 가능 시간과 간격은 고객 예약 화면에도 동일하게 보입니다.</p>
             </div>
           </div>
 
-          <div className="mt-4 border-t border-[#edf2f7] pt-4">
+          <div className={cn("border-t border-[#edf2f7]", compact ? "mt-3 pt-3" : "mt-4 pt-4")}>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[16px] font-semibold text-[#334155]">예약 제외 시간</p>
-              <button type="button" onClick={addBlockedWindow} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#2f7866] hover:bg-[#f8fafc]">
+              <p className={cn("font-semibold text-[#334155]", compact ? "text-[15px]" : "text-[16px]")}>예약 제외 시간</p>
+              <button type="button" onClick={addBlockedWindow} className={cn("inline-flex items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-medium text-[#2f7866] hover:bg-[#f8fafc]", compact ? "h-8 px-2.5 text-[14px]" : "h-9 px-3 text-[16px]")}>
                 <Plus className="h-4 w-4" />
                 시간 추가
               </button>
@@ -860,15 +1099,15 @@ export default function OperatingHoursSettings({
 
             <div className="mt-3 space-y-2">
               {bookingSettings.blockedWindows.map((windowItem) => (
-                <div key={windowItem.id} className="grid grid-cols-[188px_188px_minmax(0,1fr)_36px] items-center gap-3 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-2">
-                  <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} />
-                  <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} />
+                <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[146px_146px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[188px_188px_minmax(0,1fr)_36px] gap-3 p-2")}>
+                  <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact={compact} />
+                  <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact={compact} />
                   <input
                     value={windowItem.label}
                     onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                    className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#111827] outline-none focus:border-[#2f7866]"
+                    className={cn("rounded-[8px] border border-[#dbe2ea] bg-white font-medium text-[#111827] outline-none focus:border-[#2f7866]", compact ? "h-8 px-2.5 text-[14px]" : "h-10 px-3 text-[16px]")}
                   />
-                  <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
+                  <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className={cn("inline-flex items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]", compact ? "h-8 w-8" : "h-9 w-9")} aria-label="예약 제외 시간 삭제">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>

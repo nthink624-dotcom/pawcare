@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-const petBiteLevelSchema = z.enum(["none", "watch", "bite", "strong"]).default("none");
+const petBiteLevelSchema = z.enum(["none", "mild", "watch", "bite", "strong"]).default("none");
 
 const bookingBlockedWindowSchema = z.object({
   id: z.string().trim().optional(),
@@ -31,6 +31,7 @@ export const appointmentStatusSchema = z.object({
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   mediaAssetIds: z.array(z.string()).max(10).optional(),
+  notifyCustomer: z.boolean().optional().default(true),
 });
 
 export const appointmentEditSchema = z.object({
@@ -121,6 +122,14 @@ export const petDeleteSchema = z.object({
   petId: z.string(),
 });
 
+export const petStaffNoteUpsertSchema = z.object({
+  shopId: z.string(),
+  guardianId: z.string(),
+  petId: z.string().nullable().optional(),
+  note: z.string().default(""),
+  userId: z.string().nullable().optional(),
+});
+
 export const serviceInputSchema = z.object({
   shopId: z.string(),
   serviceId: z.string().optional(),
@@ -129,6 +138,12 @@ export const serviceInputSchema = z.object({
   priceType: z.enum(["fixed", "starting"]).default("starting"),
   durationMinutes: z.coerce.number().min(15).max(480),
   isActive: z.boolean().default(true),
+  category: z.string().min(1).default("미용"),
+  description: z.string().default(""),
+  sortOrder: z.coerce.number().int().min(1).default(1),
+  capacityLabel: z.string().default("동일 시간 1건"),
+  staffSelectionMode: z.enum(["all", "unassigned", "specific"]).default("all"),
+  priceGuide: z.unknown().optional(),
 });
 
 export const shopSettingsSchema = z.object({
@@ -179,6 +194,8 @@ export const shopSettingsSchema = z.object({
     groomingStartedEnabled: z.boolean().default(true),
     groomingAlmostDoneEnabled: z.boolean(),
     groomingCompletedEnabled: z.boolean(),
+    groomingStartWithoutPhotoEnabled: z.boolean().default(false),
+    groomingCompleteWithoutPhotoEnabled: z.boolean().default(false),
   }),
 }).superRefine((value, ctx) => {
   if (value.bookingSlotOffsetMinutes >= value.bookingSlotIntervalMinutes) {

@@ -26,7 +26,7 @@ function formatBusinessHours(shop: Shop) {
 
 export default function CustomerShopInfoContent({ shop, services, showBackLink = false, backHref }: Props) {
   const settings = shop.customer_page_settings;
-  const displayName = settings.shop_name?.trim() || shop.name;
+  const displayName = shop.name;
   const notices = settings.notices.filter(Boolean).slice(0, 3);
   const visibleServices = services.filter((service) => service.is_active);
   const visibleParkingNotice = settings.show_parking_notice ? settings.parking_notice.trim() : "";

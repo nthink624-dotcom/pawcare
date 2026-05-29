@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
+import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { hasSupabaseServerEnv, isUnsafeProdSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -116,6 +117,10 @@ export async function POST() {
       booking_available_end_time: "17:00",
       approval_mode: "manual",
       notification_settings: defaultShopNotificationSettings,
+      customer_page_settings: buildDefaultCustomerPageSettings({
+        shopName: DEV_OWNER.shopName,
+        description: "",
+      }),
       created_at: now,
       updated_at: now,
     });
@@ -131,6 +136,10 @@ export async function POST() {
         name: DEV_OWNER.shopName,
         phone: DEV_OWNER.phoneNumber,
         address: DEV_OWNER.shopAddress,
+        customer_page_settings: buildDefaultCustomerPageSettings({
+          shopName: DEV_OWNER.shopName,
+          description: "",
+        }),
         updated_at: now,
       })
       .eq("id", shopId);

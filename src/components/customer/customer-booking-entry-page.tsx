@@ -1,12 +1,18 @@
 ﻿"use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight, Copy, Navigation, Phone, X } from "lucide-react";
+import { ChevronDown, Copy, Navigation, Phone, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
-import type { BusinessHours, Shop } from "@/types/domain";
+import {
+  applyCustomerServiceOverrides,
+  buildCustomerServiceSourceOptions,
+  type CustomerServiceSourceOption,
+} from "@/lib/customer-service-options";
+import { formatServicePrice } from "@/lib/utils";
+import type { BusinessHours, Service, Shop } from "@/types/domain";
 
-const DEFAULT_HERO_IMAGES = [
+export const DEFAULT_HERO_IMAGES = [
   "/images/customer-booking-hero-original.jpg",
 ];
 const visibleDateOptionCount = 4;
@@ -52,6 +58,13 @@ function formatHoursRow(day: number, businessHours: BusinessHours, regularClosed
   return `${hours.open} - ${hours.close}`;
 }
 
+function timeTextToMinutes(value: string | undefined) {
+  if (!value) return null;
+  const [hour, minute] = value.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return hour * 60 + minute;
+}
+
 function getSeoulDateKey() {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Seoul",
@@ -59,6 +72,18 @@ function getSeoulDateKey() {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function getSeoulTimeMinutes() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
 }
 
 function formatDateKey(date: Date) {
@@ -124,17 +149,51 @@ function resolveHeroImages(value: string | undefined) {
   return uploadedImage ? [uploadedImage, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
 }
 
+function getTodayOperatingStatus(
+  shop: Pick<Shop, "business_hours" | "regular_closed_days" | "temporary_closed_dates">,
+  currentMinutes: number,
+) {
+  const todayKey = getSeoulDateKey();
+  const todayWeekday = getTodayWeekdayInSeoul();
+  const hours = shop.business_hours[todayWeekday];
+  const hoursText = formatHoursRow(todayWeekday, shop.business_hours, shop.regular_closed_days);
+  const isClosed =
+    shop.regular_closed_days.includes(todayWeekday) ||
+    shop.temporary_closed_dates.includes(todayKey) ||
+    !hours?.enabled;
+
+  if (isClosed) {
+    return { label: "오늘 휴무", hoursText: "휴무", open: false };
+  }
+
+  const openMinutes = timeTextToMinutes(hours.open);
+  const closeMinutes = timeTextToMinutes(hours.close);
+  if (openMinutes === null || closeMinutes === null) {
+    return { label: "영업시간 확인", hoursText, open: false };
+  }
+
+  if (currentMinutes < openMinutes) {
+    return { label: "영업 전", hoursText, open: false };
+  }
+  if (currentMinutes >= closeMinutes) {
+    return { label: "영업 종료", hoursText, open: false };
+  }
+
+  return { label: "영업 중", hoursText, open: true };
+}
+
 export default function CustomerBookingEntryPage({
   shop,
+  services,
   bookingHref,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
-  services: unknown[];
+  services: Service[];
   bookingHref: string;
   infoHref: string;
 }) {
   const settings = shop.customer_page_settings;
-  const displayName = settings.shop_name?.trim() || shop.name;
+  const displayName = shop.name;
   const savedTagline = settings.tagline?.trim() || "";
   const tagline =
     savedTagline.includes("운영을 돕는") || savedTagline.includes("예약 관리 앱")
@@ -144,20 +203,27 @@ export default function CustomerBookingEntryPage({
   const displayAddress = [shop.address, settings.address_detail].filter(Boolean).join(", ");
   const todayWeekday = getTodayWeekdayInSeoul();
   const todayRow = weekRows.find((row) => row.key === todayWeekday) ?? weekRows[0];
-  const todayHours = formatHoursRow(todayRow.key, shop.business_hours, shop.regular_closed_days);
+  const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
+  const operatingStatus = getTodayOperatingStatus(shop, currentSeoulMinutes);
+  const todayHours = operatingStatus.hoursText;
   const isTodayClosed = todayHours === "휴무";
-  const operatingStatusLabel = isTodayClosed ? "오늘 휴무" : "영업 중";
-  const dateOptions = useMemo(() => buildEntryDateOptions(shop), [shop]);
+  const operatingStatusLabel = operatingStatus.label;
+  const serviceOptions = useMemo(
+    () => applyCustomerServiceOverrides(
+      buildCustomerServiceSourceOptions(
+        services
+          .slice()
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
+      ),
+      settings.customer_service_overrides,
+    ),
+    [services, settings.customer_service_overrides],
+  );
   const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url), [settings.hero_image_url]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
-  const [datePageStartIndex, setDatePageStartIndex] = useState(0);
-  const [selectedDate, setSelectedDate] = useState(() => dateOptions[0]?.value ?? "");
-  const [selectedTime, setSelectedTime] = useState("");
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
@@ -165,14 +231,6 @@ export default function CustomerBookingEntryPage({
   const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
   const kakaoInquiryUrl = settings.kakao_inquiry_url.trim();
   const inquiryHref = kakaoInquiryUrl || `tel:${shop.phone.replace(/[^0-9+]/g, "")}`;
-  const maxDatePageStartIndex = Math.max(0, dateOptions.length - visibleDateOptionCount);
-  const effectiveDatePageStartIndex = Math.min(datePageStartIndex, maxDatePageStartIndex);
-  const visibleDateOptions = useMemo(
-    () => dateOptions.slice(effectiveDatePageStartIndex, effectiveDatePageStartIndex + visibleDateOptionCount),
-    [dateOptions, effectiveDatePageStartIndex],
-  );
-  const canMoveDatePrev = effectiveDatePageStartIndex > 0;
-  const canMoveDateNext = effectiveDatePageStartIndex < maxDatePageStartIndex;
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -183,57 +241,19 @@ export default function CustomerBookingEntryPage({
   }, [heroImages.length]);
 
   useEffect(() => {
-    if (!selectedDate) {
-      return;
-    }
+    const timer = window.setInterval(() => {
+      setCurrentSeoulMinutes(getSeoulTimeMinutes());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-    let active = true;
-    const loadingTimer = window.setTimeout(() => {
-      if (!active) return;
-      setLoadingSlots(true);
-      setSelectedTime("");
-    }, 0);
-
-    const query = new URLSearchParams({
-      shopId: shop.id,
-      date: selectedDate,
-      previewDurationMinutes: "30",
-    });
-
-    fetch(`/api/availability?${query.toString()}`, { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("availability failed"))))
-      .then((payload: { slots?: string[] }) => {
-        if (!active) return;
-        setAvailableSlots(Array.isArray(payload.slots) ? payload.slots : []);
-      })
-      .catch(() => {
-        if (active) setAvailableSlots([]);
-      })
-      .finally(() => {
-        if (active) setLoadingSlots(false);
-      });
-
-    return () => {
-      active = false;
-      window.clearTimeout(loadingTimer);
-    };
-  }, [selectedDate, shop.id]);
-
-  function startBookingWithSlot(timeSlot: string) {
-    setSelectedTime(timeSlot);
-
+  function startBookingWithService(option: CustomerServiceSourceOption) {
     if (typeof window === "undefined") return;
     const nextUrl = new URL(bookingHref, window.location.origin);
-    nextUrl.searchParams.set("date", selectedDate);
-    nextUrl.searchParams.set("time", timeSlot);
+    nextUrl.searchParams.set("serviceId", option.serviceId);
+    nextUrl.searchParams.set("serviceOptionId", option.id);
+    nextUrl.searchParams.set("step", "2");
     window.location.assign(`${nextUrl.pathname}${nextUrl.search}`);
-  }
-
-  function moveDatePage(direction: "prev" | "next") {
-    setDatePageStartIndex((current) => {
-      const nextIndex = direction === "next" ? current + visibleDateOptionCount : current - visibleDateOptionCount;
-      return Math.max(0, Math.min(maxDatePageStartIndex, nextIndex));
-    });
   }
 
   async function handleCopyAddress() {
@@ -249,10 +269,10 @@ export default function CustomerBookingEntryPage({
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-5 pb-10 pt-4">
-      <section className="overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-3 pb-6 pt-3">
+      <section className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <div
-          className="relative aspect-[16/9] overflow-hidden bg-[#efe7dd] text-white"
+          className="relative aspect-[4/3] overflow-hidden bg-[#efe7dd] text-white"
           style={{
             backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[activeHeroIndex]})`,
             backgroundSize: "cover",
@@ -278,11 +298,11 @@ export default function CustomerBookingEntryPage({
         </div>
       </section>
 
-      <section className="mt-3 rounded-[18px] border border-[#e5e7eb] bg-white p-4 shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
-        <div className="px-1 pb-3">
+      <section className="mt-2 rounded-[12px] border border-[#e5e7eb] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
+        <div className="px-0.5 pb-2">
           <div className="min-w-0">
-            <h2 className="truncate text-[24px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
-            <p className="mt-1.5 truncate text-[14px] font-medium tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
+            <h2 className="truncate text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
+            <p className="mt-1 truncate text-[13px] font-medium tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
           </div>
         </div>
 
@@ -290,17 +310,17 @@ export default function CustomerBookingEntryPage({
           type="button"
           onClick={() => setHoursOpen((value) => !value)}
           aria-expanded={hoursOpen}
-          className={`grid h-[58px] w-full items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left text-[#071923] ${isTodayClosed ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_auto_1fr]"}`}
+          className={`grid h-[44px] w-full items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-left text-[#071923] ${isTodayClosed ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_auto_1fr]"}`}
         >
           <span className="inline-flex min-w-0 justify-start">
-            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[15px] font-medium text-[#6f6258]">
-              <span className={getDotIndicatorClass(isTodayClosed ? "neutral" : "teal")} />
+            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-medium text-[#6f6258]">
+              <span className={getDotIndicatorClass(operatingStatus.open ? "teal" : "neutral")} />
               <span>{operatingStatusLabel}</span>
             </span>
           </span>
-          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[18px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
+          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[15px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
           <span className="inline-flex min-w-0 justify-end">
-            <span className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-3 text-[15px] font-normal text-[#6f6258]">
+            <span className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1 text-[13px] font-normal text-[#6f6258]">
               전체 보기
               <ChevronDown className={`h-3.5 w-3.5 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
             </span>
@@ -327,84 +347,45 @@ export default function CustomerBookingEntryPage({
           </div>
         ) : null}
 
-        <div className="mt-3 rounded-[10px] border border-[#e5e7eb] bg-white p-3.5 text-[#071923]">
-          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#26352f]">예약 날짜</p>
-          <div className="mt-2 grid grid-cols-[24px_repeat(4,minmax(0,1fr))_24px] items-stretch gap-1.5">
-            <button
-              type="button"
-              onClick={() => moveDatePage("prev")}
-              disabled={!canMoveDatePrev}
-              className="inline-flex h-[64px] items-center justify-center rounded-[10px] bg-transparent text-[#7a6a5d] transition hover:bg-[#faf7f2] disabled:cursor-not-allowed disabled:opacity-30"
-              aria-label="이전 날짜 보기"
-            >
-              <ChevronLeft className="h-4 w-4" strokeWidth={1.9} />
-            </button>
-            {visibleDateOptions.map((option) => {
-              const active = selectedDate === option.value;
-              return (
+        <div className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white p-2.5 text-[#071923]">
+          <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#26352f]">서비스 선택</p>
+          <div className="mt-2 grid gap-1.5">
+            {serviceOptions.length > 0 ? (
+              serviceOptions.map((service) => (
                 <button
-                  key={option.value}
+                  key={service.id}
                   type="button"
-                  onClick={() => setSelectedDate(option.value)}
-                  className={`h-[64px] rounded-[8px] border px-2 py-2 text-center transition ${
-                    active ? "text-white" : "border-[#e5e7eb] bg-white text-[#3f352d] hover:bg-[#faf7f2]"
-                  }`}
-                  style={active ? { borderColor: bookingAccentColor, backgroundColor: bookingAccentColor } : undefined}
+                  onClick={() => startBookingWithService(service)}
+                  className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:bg-[#faf7f2]"
                 >
-                  <span className={`block text-[11px] ${active ? "text-white/80" : "text-[#7a6a5d]"}`}>{option.weekday}</span>
-                  <span className="mt-0.5 block text-[14px] font-semibold tracking-[-0.03em]">{option.label}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-semibold tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
+                    <span className="mt-0.5 block truncate text-[12px] text-[#7a6a5d]">
+                      {service.description ? `${service.description} · ` : `${service.category || "미용"} · `}
+                      {service.durationMinutes}분
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right text-[14px] font-semibold text-[#7A5A45]">
+                    {formatServicePrice(service.price, service.priceType)}
+                  </span>
                 </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => moveDatePage("next")}
-              disabled={!canMoveDateNext}
-              className="inline-flex h-[64px] items-center justify-center rounded-[10px] bg-transparent text-[#7a6a5d] transition hover:bg-[#faf7f2] disabled:cursor-not-allowed disabled:opacity-30"
-              aria-label="다음 날짜 보기"
-            >
-              <ChevronRight className="h-4 w-4" strokeWidth={1.9} />
-            </button>
-          </div>
-
-          <div className="mt-3">
-            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#26352f]">시간 선택</p>
-            {loadingSlots ? (
-              <p className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-3 text-[13px] text-[#7a6a5d]">
-                가능한 시간을 확인하고 있어요.
-              </p>
-            ) : availableSlots.length > 0 ? (
-              <div className="mt-2 grid max-h-[118px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
-                {availableSlots.map((slot) => {
-                  const active = selectedTime === slot;
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => startBookingWithSlot(slot)}
-                      className={`rounded-[8px] border px-2 py-2 text-[14px] font-medium tracking-[-0.02em] transition ${
-                        active ? "text-white" : "border-[#e5e7eb] bg-white text-[#3f352d] hover:bg-[#faf7f2]"
-                      }`}
-                      style={active ? { borderColor: bookingAccentColor, backgroundColor: bookingAccentColor } : undefined}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
-              </div>
+              ))
             ) : (
-              <p className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-3 text-[13px] text-[#7a6a5d]">
-                선택한 날짜에 가능한 시간이 없어요.
-              </p>
+              <a
+                href={bookingHref}
+                className="flex min-h-[52px] items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[15px] font-semibold text-[#3f352d] hover:bg-[#faf7f2]"
+              >
+                예약하러 가기
+              </a>
             )}
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setDirectionsOpen(true)}
-            className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[15px] font-bold text-[#3f352d] hover:bg-[#faf7f2]"
+            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal text-[#3f352d] hover:bg-[#faf7f2]"
           >
             길찾기
           </button>
@@ -412,7 +393,8 @@ export default function CustomerBookingEntryPage({
             href={inquiryHref}
             target={kakaoInquiryUrl ? "_blank" : undefined}
             rel={kakaoInquiryUrl ? "noreferrer" : undefined}
-            className="flex h-[52px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[15px] font-bold text-[#3f352d] hover:bg-[#faf7f2]"
+            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal text-[#3f352d] hover:bg-[#faf7f2]"
+            style={{ fontWeight: 400 }}
           >
             문의하기
           </a>

@@ -64,7 +64,7 @@ const photoTemplatePreset: RelayTemplateRegisterInput = {
 };
 
 const relayMappingOptions: Array<{ value: NonNullable<RelayTemplateRegisterInput["templateConfigKey"]>; label: string }> = [
-  { value: "templateGroomingCompleted", label: "미용 완료/전후 사진" },
+  { value: "templateGroomingCompleted", label: "미용 완료 사진" },
   { value: "templateGroomingStarted", label: "미용 시작" },
   { value: "templateGroomingAlmostDone", label: "픽업 준비" },
   { value: "templateBookingConfirmed", label: "예약 확정" },
@@ -347,7 +347,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
             onClick={() => setForm((prev) => ({ ...photoTemplatePreset, categoryCode: prev.categoryCode || photoTemplatePreset.categoryCode }))}
             className="h-10 rounded-[6px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-semibold text-[#334155]"
           >
-            전후 사진 예시 불러오기
+            완료 사진 예시 불러오기
           </button>
         </div>
       </div>
@@ -434,7 +434,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="space-y-2">
-          <FieldLabel label="사용할 알림" help="이 템플릿을 펫매니저의 어떤 알림에 사용할지 정합니다. 예를 들어 미용 완료/전후 사진을 선택하면 오너가 미용 후 사진을 보낼 때 이 템플릿이 사용됩니다. 아직 정하지 않았다면 나중에 정하기를 선택하세요." />
+          <FieldLabel label="사용할 알림" help="이 템플릿을 펫매니저의 어떤 알림에 사용할지 정합니다. 예를 들어 미용 완료 사진을 선택하면 오너가 미용 후 사진을 보낼 때 이 템플릿이 사용됩니다. 아직 정하지 않았다면 나중에 정하기를 선택하세요." />
           <select
             value={form.templateConfigKey ?? ""}
             onChange={(event) =>

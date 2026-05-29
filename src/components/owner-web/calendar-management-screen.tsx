@@ -3,7 +3,6 @@
 import {
   AlertTriangle,
   CalendarPlus,
-  Camera,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -20,6 +19,7 @@ import {
   NotebookPen,
   PawPrint,
   Play,
+  QrCode,
   Scissors,
   Send,
   ShieldAlert,
@@ -45,12 +45,12 @@ import {
   getWrapIndicatorClass,
   type StatusIndicatorTone,
 } from "@/components/owner-web/status-indicators";
-import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
+import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
-import { getPetBiteLevelBadgeClass, getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
+import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
-import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
+import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, NotificationType, Pet, PetBiteLevel, PetStaffNote, Service } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type ReservationStatusFilter = "all" | "pending" | "confirmed";
@@ -61,10 +61,14 @@ type OwnerScheduleRangeResponse = Pick<BootstrapPayload, "appointments" | "groom
   from: string;
   to: string;
 };
+type RecentStatusOverride = {
+  status: AppointmentStatus;
+  createdAt: number;
+};
 type PhotoStatusAction = {
   bookingId: string;
-  nextStatus: "진행 중" | "픽업 준비";
-  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  nextStatus: "완료";
+  mediaKind: Extract<MediaKind, "grooming_after">;
   title: string;
   description: string;
   buttonLabel: string;
@@ -73,6 +77,9 @@ type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
 type StaffAssignments = Record<string, StaffKey>;
 const staffWeekdayKeys: OwnerWebWeekdayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const timeWheelHours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+const timeWheelMinutes = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
+const recentStatusOverrideTtlMs = 30_000;
 type ScheduleCreateFormState = {
   customerMode: "new" | "existing";
   petId: string;
@@ -156,6 +163,39 @@ function formatHourLabel(hour: number) {
   return `${String(fullHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+function timeInputToMinutes(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+  return hour * 60 + minute;
+}
+
+function sanitizeTwentyFourHourInput(value: string) {
+  return value.replace(/[^\d:]/g, "").slice(0, 5);
+}
+
+function normalizeTwentyFourHourInput(value: string) {
+  const cleaned = value.trim();
+  const colonMatch = /^(\d{1,2}):(\d{1,2})$/.exec(cleaned);
+  if (colonMatch) {
+    const candidate = `${String(Number(colonMatch[1])).padStart(2, "0")}:${String(Number(colonMatch[2])).padStart(2, "0")}`;
+    return timeInputToMinutes(candidate) === null ? cleaned : candidate;
+  }
+
+  const digits = cleaned.replace(/\D/g, "");
+  const candidate =
+    digits.length === 3
+      ? `0${digits.slice(0, 1)}:${digits.slice(1)}`
+      : digits.length === 4
+        ? `${digits.slice(0, 2)}:${digits.slice(2)}`
+        : cleaned;
+  return timeInputToMinutes(candidate) === null ? cleaned : candidate;
+}
+
 function formatScheduleDateLabel(date = currentDateInTimeZone()) {
   const [year, month, day] = date.split("-").map(Number);
   return `${year}년 ${month}월 ${day}일`;
@@ -187,6 +227,58 @@ function isOutsideShopOperatingHours(shop: BootstrapPayload["shop"], date: strin
   if (!hours?.enabled) return true;
 
   return start < timeToHour(hours.open) || start + duration > timeToHour(hours.close);
+}
+
+function buildOwnerCreateAvailableSlots({
+  shop,
+  date,
+  duration,
+  staffKey,
+  staffMembers,
+  staffScheduleOverrides,
+  bookings,
+}: {
+  shop: BootstrapPayload["shop"];
+  date: string;
+  duration: number;
+  staffKey: StaffKey;
+  staffMembers: OwnerWebStaffMember[];
+  staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"] | undefined;
+  bookings: DailyBooking[];
+}) {
+  if (!staffKey || !Number.isFinite(duration) || duration <= 0 || isShopClosedOnDate(shop, date)) return [];
+
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const hours = shop.business_hours[weekday];
+  if (!hours?.enabled) return [];
+
+  const openMinute = Math.round(timeToHour(hours.open) * 60);
+  const closeMinute = Math.round(timeToHour(hours.close) * 60);
+  const bookingStartMinute = Math.max(
+    openMinute,
+    Math.round(timeToHour(shop.booking_available_start_time || hours.open) * 60),
+  );
+  const bookingEndMinute = Math.min(
+    closeMinute,
+    Math.round(timeToHour(shop.booking_available_end_time || hours.close) * 60),
+  );
+  const durationMinutes = Math.round(duration * 60);
+  const nowMinute = Math.ceil((getCurrentDayHour() * 60) / 15) * 15;
+  const firstMinute = Math.ceil(bookingStartMinute / 15) * 15;
+  const slots: string[] = [];
+
+  for (let cursor = firstMinute; cursor <= bookingEndMinute && cursor + durationMinutes <= closeMinute; cursor += 15) {
+    if (date === currentDateInTimeZone() && cursor <= nowMinute) continue;
+
+    const start = cursor / 60;
+    if (!isStaffWorkingWindow(staffMembers, staffScheduleOverrides, staffKey, date, start, duration)) continue;
+    if (hasStaffBookingConflict(bookings, "__new-booking__", { staffKey, start, duration })) continue;
+
+    slots.push(formatHourLabel(start));
+  }
+
+  return slots;
 }
 
 function minutesBetween(startAt: string, endAt: string) {
@@ -255,9 +347,7 @@ function getTimedBookingStatus(
 }
 
 function canSendCompletionNotice(sourceStatus: string, displayStatus: string) {
-  if (isPendingBookingStatus(sourceStatus) || isChangeBookingStatus(sourceStatus)) return false;
-  if (isCompletedBookingStatus(sourceStatus) || sourceStatus === "픽업 준비") return false;
-  return displayStatus === "진행 중" || displayStatus === "픽업 준비" || displayStatus === "완료";
+  return sourceStatus === "진행 중" && (displayStatus === "진행 중" || displayStatus === "픽업 준비" || displayStatus === "완료");
 }
 
 function normalizeBookingForApprovalMode(booking: DailyBooking, manualApprovalEnabled: boolean): DailyBooking {
@@ -673,6 +763,8 @@ function appointmentToDailyBooking(
     start: timeToHour(appointment.appointment_time),
     duration: Math.max(0.25, durationMinutes / 60),
     lane: 0,
+    guardianId: appointment.guardian_id,
+    petId: appointment.pet_id,
     customer: guardian?.name ?? "보호자 미등록",
     pet: pet?.name ?? "반려동물 미등록",
     service: service?.name ?? "서비스 미등록",
@@ -688,6 +780,7 @@ function appointmentToDailyBooking(
     date: formatScheduleDateLabel(selectedDate),
     staffKey: staffColumn.key,
     staffName: staffColumn.name,
+    serviceId: appointment.service_id,
     memo: appointment.memo,
     source: appointment.source,
   };
@@ -710,6 +803,8 @@ function groomingRecordToDailyBooking(
     start: timeToHour(time),
     duration: Math.max(0.25, (service?.duration_minutes ?? 60) / 60),
     lane: 0,
+    guardianId: record.guardian_id,
+    petId: record.pet_id,
     customer: guardian?.name ?? "보호자 미등록",
     pet: pet?.name ?? "반려동물 미등록",
     service: service?.name ?? "서비스 미등록",
@@ -725,6 +820,7 @@ function groomingRecordToDailyBooking(
     date: formatScheduleDateLabel(selectedDate),
     staffKey: fallbackStaff.key,
     staffName: fallbackStaff.name,
+    serviceId: record.service_id,
     memo: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
   };
 }
@@ -743,6 +839,8 @@ type DailyBooking = {
   start: number;
   duration: number;
   lane: number;
+  guardianId?: string;
+  petId?: string;
   customer: string;
   pet: string;
   service: string;
@@ -759,6 +857,7 @@ type DailyBooking = {
   date: string;
   staffKey: StaffKey;
   staffName: string;
+  serviceId?: string;
   memo?: string;
   source?: "owner" | "customer";
   previousStart?: number;
@@ -1137,8 +1236,63 @@ function getCustomerRequest(bookingId: string) {
   return customerRequestByBookingId[bookingId] || "";
 }
 
-function getCustomerCommentKey(booking: Pick<DailyBooking, "pet" | "customer">) {
+function getCustomerCommentKey(booking: Pick<DailyBooking, "pet" | "customer" | "petId" | "guardianId">) {
+  if (booking.petId) return `pet:${booking.petId}`;
+  if (booking.guardianId) return `guardian:${booking.guardianId}`;
   return `${booking.pet}|${booking.customer}`;
+}
+
+function getStaffCommentValue(comments: Record<string, string>, booking: DailyBooking) {
+  return comments[getCustomerCommentKey(booking)] ?? comments[`${booking.pet}|${booking.customer}`] ?? "";
+}
+
+function buildStaffCommentsFromBootstrap(data: BootstrapPayload) {
+  const comments = { ...initialStaffComments };
+
+  for (const note of data.petStaffNotes ?? []) {
+    const value = note.note?.trim() ?? "";
+    if (note.pet_id) {
+      comments[`pet:${note.pet_id}`] = value;
+      const pet = data.pets.find((item) => item.id === note.pet_id);
+      const guardian = data.guardians.find((item) => item.id === note.guardian_id);
+      if (pet && guardian) comments[`${pet.name}|${guardian.name}`] = value;
+      continue;
+    }
+
+    comments[`guardian:${note.guardian_id}`] = value;
+  }
+
+  return comments;
+}
+
+function upsertPetStaffNoteInBootstrap(data: BootstrapPayload, note: PetStaffNote): BootstrapPayload {
+  const existingNotes = data.petStaffNotes ?? [];
+  return {
+    ...data,
+    petStaffNotes: [
+      ...existingNotes.filter(
+        (item) =>
+          item.id !== note.id &&
+          !(note.pet_id && item.pet_id === note.pet_id) &&
+          !(!note.pet_id && !item.pet_id && item.guardian_id === note.guardian_id),
+      ),
+      note,
+    ],
+  };
+}
+
+function replaceGuardianInBootstrap(data: BootstrapPayload, guardian: Guardian): BootstrapPayload {
+  return {
+    ...data,
+    guardians: data.guardians.map((item) => (item.id === guardian.id ? { ...item, ...guardian } : item)),
+  };
+}
+
+function upsertServiceInBootstrap(data: BootstrapPayload, service: Service): BootstrapPayload {
+  return {
+    ...data,
+    services: [...data.services.filter((item) => item.id !== service.id), service],
+  };
 }
 
 function SummaryStrip({
@@ -1220,6 +1374,8 @@ function BookingSidePanel({
   onAcknowledgeChange,
   staffComments,
   onChangeStaffComment,
+  onSaveBookingPhone,
+  onSaveBookingDetail,
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
@@ -1236,26 +1392,30 @@ function BookingSidePanel({
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
-  onChangeStaffComment: (commentKey: string, value: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
+  onSaveBookingPhone: (booking: DailyBooking, phone: string) => Promise<void>;
+  onSaveBookingDetail: (
+    booking: DailyBooking,
+    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number },
+  ) => Promise<void>;
 }) {
   const timeRange = selectedBooking
-    ? `${formatHourLabel(selectedBooking.start)}-${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
+    ? `${formatHourLabel(selectedBooking.start)} - ${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
   const pendingOverlapLabel = selectedBooking ? getPendingOverlapLabel(selectedBooking, bookings) : "";
   const previousTimeRange =
     selectedBooking?.previousStart !== undefined
-      ? `${formatHourLabel(selectedBooking.previousStart)}-${formatHourLabel(
+      ? `${formatHourLabel(selectedBooking.previousStart)} - ${formatHourLabel(
           selectedBooking.previousStart + (selectedBooking.previousDuration ?? selectedBooking.duration),
         )}`
       : "";
   const commentKey = selectedBooking ? getCustomerCommentKey(selectedBooking) : "";
-  const staffComment = commentKey ? staffComments[commentKey] ?? "" : "";
-  const customerRequest = selectedBooking ? getCustomerRequest(selectedBooking.id) || "요청이 없습니다." : "";
+  const staffComment = selectedBooking ? getStaffCommentValue(staffComments, selectedBooking) : "";
   const sourceStatus = selectedBooking?.sourceStatus ?? selectedBooking?.status ?? "";
   const displayStatus = selectedBooking?.status ?? "";
   const changeEventSelected = selectedBooking ? isChangeBookingStatus(selectedBooking.status) : false;
   const rescheduledEventSelected = selectedBooking ? isRescheduledBookingStatus(selectedBooking.status) : false;
-  const startEnabled = selectedBooking ? canStartGrooming(sourceStatus) && displayStatus === "확정" : false;
+  const startEnabled = selectedBooking ? canStartGrooming(sourceStatus) : false;
   const pickupReadyEnabled = selectedBooking ? canSendCompletionNotice(sourceStatus, displayStatus) : false;
   const finishEnabled = selectedBooking ? sourceStatus === "픽업 준비" || (displayStatus === "완료" && sourceStatus !== "완료") : false;
   const finalActionEnabled = pickupReadyEnabled || finishEnabled;
@@ -1266,12 +1426,69 @@ function BookingSidePanel({
   const [activePanelTab, setActivePanelTab] = useState<"details" | "comments">("details");
   const [notificationSending, setNotificationSending] = useState(false);
   const [notificationNotice, setNotificationNotice] = useState("");
+  const [editableStartTime, setEditableStartTime] = useState("");
+  const [editableEndTime, setEditableEndTime] = useState("");
+  const [editablePhone, setEditablePhone] = useState("");
+  const [editableServiceName, setEditableServiceName] = useState("");
+  const [editablePrice, setEditablePrice] = useState("");
+  const [phoneEditing, setPhoneEditing] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [detailNotice, setDetailNotice] = useState("");
+  const [detailEditMode, setDetailEditMode] = useState<"time" | "service" | "price" | null>(null);
+  const detailNoticeTimerRef = useRef<number | null>(null);
+  const timeEditorRef = useRef<HTMLDivElement | null>(null);
+
+  function showTemporaryDetailNotice(message: string) {
+    if (detailNoticeTimerRef.current !== null) {
+      window.clearTimeout(detailNoticeTimerRef.current);
+    }
+    setDetailNotice(message);
+    detailNoticeTimerRef.current = window.setTimeout(() => {
+      setDetailNotice((current) => (current === message ? "" : current));
+      detailNoticeTimerRef.current = null;
+    }, 2000);
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setActivePanelTab("details"));
     setNotificationNotice("");
-    return () => window.cancelAnimationFrame(frame);
+    setPhoneEditing(false);
+    setDetailEditMode(null);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (detailNoticeTimerRef.current !== null) {
+        window.clearTimeout(detailNoticeTimerRef.current);
+        detailNoticeTimerRef.current = null;
+      }
+    };
   }, [selectedBooking?.id]);
+
+  useEffect(() => {
+    if (!selectedBooking) return;
+    setEditableStartTime(formatHourLabel(selectedBooking.start));
+    setEditableEndTime(formatHourLabel(selectedBooking.start + selectedBooking.duration));
+    setEditablePhone(formatSchedulePhone(selectedBooking.guardianPhone ?? ""));
+    setEditableServiceName(selectedBooking.service);
+    setEditablePrice(
+      typeof selectedBooking.servicePrice === "number"
+        ? selectedBooking.servicePrice.toLocaleString("ko-KR")
+        : "",
+    );
+    setDetailNotice("");
+  }, [selectedBooking?.id, selectedBooking?.start, selectedBooking?.duration, selectedBooking?.guardianPhone, selectedBooking?.service, selectedBooking?.servicePrice]);
+
+  useEffect(() => {
+    if (detailEditMode !== "time") return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (timeEditorRef.current?.contains(event.target as Node)) return;
+      commitTimeEdit();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [detailEditMode, editableStartTime, editableEndTime, editablePhone, editableServiceName, editablePrice]);
 
   if (!selectedBooking) {
     return (
@@ -1286,17 +1503,10 @@ function BookingSidePanel({
   }
 
   const breedLabel = selectedBooking.petBreed || "견종 미입력";
-  const phoneLabel = selectedBooking.guardianPhone ? formatPanelPhoneNumber(selectedBooking.guardianPhone) : "연락처 없음";
-  const servicePriceLabel =
-    typeof selectedBooking.servicePrice === "number" ? `${selectedBooking.servicePrice.toLocaleString()}원` : "가격 정보 없음";
-  const requestText = selectedBooking.memo?.trim() || getBookingRequestText(selectedBooking);
   const biteLevel = normalizePetBiteLevel(selectedBooking.petBiteLevel);
-  const biteLevelLabel = getPetBiteLevelLabel(biteLevel);
-  const previousNotes = (selectedBooking.petNotes?.trim()
-    ? selectedBooking.petNotes.split(/[,\n/]+/).map((item) => item.trim()).filter(Boolean)
-    : ["특이사항 없음"]
-  ).slice(0, 4);
-  const statusLabel = displayStatus || sourceStatus;
+  const rawRequestText = selectedBooking.memo?.trim() || getCustomerRequest(selectedBooking.id);
+  const hasRequestText = Boolean(rawRequestText);
+  const requestText = rawRequestText || "고객 요청사항이 없습니다.";
   const mainAction = isPendingBookingStatus(sourceStatus)
     ? { label: "예약 확정", onClick: () => onChangeStatus(selectedBooking.id, "확정"), enabled: true }
     : startEnabled
@@ -1306,8 +1516,99 @@ function BookingSidePanel({
         : changeEventSelected
           ? { label: "요청 확인", onClick: () => onAcknowledgeChange(selectedBooking.id), enabled: true }
           : { label: isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus) ? "처리 완료" : "처리할 액션 없음", onClick: () => {}, enabled: false };
+  const previousAction =
+    sourceStatus === "진행 중"
+      ? { label: "이전", onClick: () => onChangeStatus(selectedBooking.id, "확정") }
+      : sourceStatus === "픽업 준비"
+        ? { label: "이전", onClick: () => onChangeStatus(selectedBooking.id, "진행 중") }
+        : null;
+  const workflowPending = isPendingBookingStatus(sourceStatus);
+  const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
+  const canResendCurrentNotification = !workflowPending && !changeEventSelected;
+  const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
 
-  async function resendAlimtalk() {
+  async function savePhoneOnBlur() {
+    if (!selectedBooking) return;
+
+    const phone = normalizeSchedulePhone(editablePhone);
+    const currentPhone = normalizeSchedulePhone(selectedBooking.guardianPhone ?? "");
+
+    if (phone === currentPhone) {
+      setPhoneEditing(false);
+      return;
+    }
+
+    if (phone.length < 10) {
+      showTemporaryDetailNotice("연락처를 10자리 이상 입력해 주세요.");
+      setEditablePhone(formatSchedulePhone(selectedBooking.guardianPhone ?? ""));
+      setPhoneEditing(false);
+      return;
+    }
+
+    setPhoneSaving(true);
+    setDetailNotice("");
+    try {
+      await onSaveBookingPhone(selectedBooking, phone);
+      showTemporaryDetailNotice("저장되었습니다.");
+      setPhoneEditing(false);
+    } catch (error) {
+      showTemporaryDetailNotice(getApiErrorMessage(error, "연락처 저장 중 문제가 발생했습니다."));
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
+
+  async function saveEditableDetail(overrides?: { startTime?: string; endTime?: string }) {
+    if (!selectedBooking) return;
+
+    const startTime = overrides?.startTime ?? editableStartTime;
+    const endTime = overrides?.endTime ?? editableEndTime;
+    const startMinutes = timeInputToMinutes(startTime);
+    const endMinutes = timeInputToMinutes(endTime);
+    const phone = normalizeSchedulePhone(editablePhone);
+    const serviceName = editableServiceName.trim();
+    const priceText = editablePrice.replace(/\D/g, "");
+    const price = priceText ? Number(priceText) : NaN;
+
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      showTemporaryDetailNotice("예약 시간을 다시 확인해 주세요.");
+      return;
+    }
+    if (endMinutes - startMinutes < 15) {
+      showTemporaryDetailNotice("예약 시간은 최소 15분 이상으로 입력해 주세요.");
+      return;
+    }
+    if (phone.length < 10) {
+      showTemporaryDetailNotice("연락처를 10자리 이상 입력해 주세요.");
+      return;
+    }
+    if (!serviceName) {
+      showTemporaryDetailNotice("시술명을 입력해 주세요.");
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      showTemporaryDetailNotice("가격을 숫자로 입력해 주세요.");
+      return;
+    }
+
+    setDetailSaving(true);
+    setDetailNotice("");
+    try {
+      await onSaveBookingDetail(selectedBooking, { startTime, endTime, phone, serviceName, price });
+      showTemporaryDetailNotice("저장되었습니다.");
+    } catch (error) {
+      showTemporaryDetailNotice(getApiErrorMessage(error, "예약 상세 저장 중 문제가 발생했습니다."));
+    } finally {
+      setDetailSaving(false);
+    }
+  }
+
+  function commitTimeEdit(overrides?: { startTime?: string; endTime?: string }) {
+    void saveEditableDetail(overrides);
+    setDetailEditMode((current) => (current === "time" ? null : current));
+  }
+
+  async function sendWorkflowAlimtalk(type: NotificationType, successMessage: string) {
     setNotificationSending(true);
     setNotificationNotice("");
     try {
@@ -1316,13 +1617,13 @@ function BookingSidePanel({
         body: JSON.stringify({
           shopId,
           appointmentId: selectedBookingId,
-          type: getAlimtalkResendType(sourceStatus || displayStatus),
+          type,
           channel: "alimtalk",
           force: true,
           metadata: { source: "owner_schedule_detail_panel" },
         }),
       });
-      setNotificationNotice("알림톡 발송 요청이 완료되었습니다.");
+      setNotificationNotice(successMessage);
     } catch (error) {
       setNotificationNotice(getApiErrorMessage(error, "알림톡 발송 중 문제가 발생했습니다."));
     } finally {
@@ -1330,147 +1631,340 @@ function BookingSidePanel({
     }
   }
 
-  return (
-    <aside className="max-h-[calc(100vh-112px)] min-w-0 overflow-y-auto pr-1">
-      <WebSurface className="min-w-0 overflow-hidden">
-        <div className="relative bg-white px-3.5 pt-4">
-          <button
-            type="button"
-            onClick={() => onSelectBooking("")}
-            className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
-            aria-label="예약 상세 닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
+  async function resendAlimtalk() {
+    await sendWorkflowAlimtalk(getAlimtalkResendType(sourceStatus || displayStatus), "알림톡 발송 요청이 완료되었습니다.");
+  }
 
-          <div className="flex items-start gap-3 pr-8">
-            <div className="flex h-[100px] w-[100px] shrink-0 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc]">
-              <PawPrint className="h-8 w-8 text-[#94a3b8]" />
-            </div>
-            <div className="flex min-h-[100px] min-w-0 flex-1 flex-col justify-center">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5 leading-none">
-                <p className="min-w-0 truncate text-[18px] font-semibold leading-[24px] text-[#111827]">{selectedBooking.pet}</p>
-                <span className="h-4 w-px shrink-0 bg-[#dbe2ea]" aria-hidden="true" />
-                <span className="shrink-0 text-[16px] leading-6 text-[#64748b]">{breedLabel}</span>
+  return (
+    <aside className="min-h-0 min-w-0">
+      <WebSurface className="flex h-[calc(100vh-112px)] min-h-[640px] min-w-0 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative bg-white px-3.5 py-3">
+            <div className="flex items-center gap-3">
+              <div className="h-[78px] w-[78px] shrink-0 overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc]">
+                <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
-              <p className="mt-1 break-keep text-[16px] leading-6 text-[#334155]">
-                {selectedBooking.customer} 보호자
-              </p>
-              <p className="mt-0.5 break-keep text-[16px] leading-6 text-[#334155]">
-                예약시간 {timeRange}
-              </p>
+              <div className="min-w-0 flex-1">
+                <div className="grid min-w-0 grid-rows-[24px_24px_24px] items-center gap-y-0.5">
+                  <p className="flex h-6 min-w-0 items-center gap-2 leading-6">
+                    <span className="min-w-0 truncate text-[17px] font-semibold text-[#111827]">{selectedBooking.pet}</span>
+                    <span className="shrink-0 text-[15px] text-[#cbd5e1]">|</span>
+                  <span className="relative top-px min-w-0 truncate text-[16px] text-[#64748b]">{breedLabel}</span>
+                  </p>
+                  <p className="flex h-6 min-w-0 items-center truncate text-[16px] leading-6 text-[#334155]">{selectedBooking.customer} 보호자</p>
+                  <PetBiteLevelScale level={biteLevel} />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white px-3.5 pb-3">
-          <section className="mt-3 border-t border-[#edf2f7] py-2">
-            <h4 className="sr-only">예약 정보</h4>
-            <div className="space-y-1">
-              <CompactFullInfoRow label="미용" value={selectedBooking.service} />
-              <CompactFullInfoRow label="가격" value={servicePriceLabel} />
-              <CompactFullInfoRow label="연락처" value={phoneLabel} />
+          <div className="bg-white px-3.5 pb-3">
+            <section className="border-y border-[#edf2f7] py-2">
+              <div>
+              <CompactEditableInfoRow label="가격">
+                {detailEditMode === "price" ? (
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    value={editablePrice}
+                    disabled={detailSaving}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, "");
+                      setEditablePrice(digits ? Number(digits).toLocaleString("ko-KR") : "");
+                    }}
+                    onBlur={() => {
+                      void saveEditableDetail();
+                      setDetailEditMode((current) => current === "price" ? null : current);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") event.currentTarget.blur();
+                      if (event.key === "Escape") {
+                        setEditablePrice(
+                          typeof selectedBooking.servicePrice === "number"
+                            ? selectedBooking.servicePrice.toLocaleString("ko-KR")
+                            : "",
+                        );
+                        setDetailEditMode(null);
+                      }
+                    }}
+                    className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] text-[#64748b] outline-none transition disabled:opacity-70"
+                    placeholder="0"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailNotice("");
+                      setDetailEditMode("price");
+                    }}
+                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
+                  >
+                    {editablePrice || "0"}
+                  </button>
+                )}
+              </CompactEditableInfoRow>
+              <CompactEditableInfoRow label="시술명">
+                <div className="min-w-0">
+                  {detailEditMode === "service" ? (
+                    <input
+                      autoFocus
+                      value={editableServiceName}
+                      disabled={detailSaving}
+                      onChange={(event) => setEditableServiceName(event.target.value)}
+                      onBlur={() => {
+                        void saveEditableDetail();
+                        setDetailEditMode((current) => current === "service" ? null : current);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") {
+                          setEditableServiceName(selectedBooking.service);
+                          setDetailEditMode(null);
+                        }
+                      }}
+                      className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] text-[#64748b] outline-none transition disabled:opacity-70"
+                      placeholder="시술명"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailNotice("");
+                        setDetailEditMode("service");
+                      }}
+                      className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
+                    >
+                      {editableServiceName || "시술명 없음"}
+                    </button>
+                  )}
+                </div>
+              </CompactEditableInfoRow>
+              <CompactEditableInfoRow label="연락처">
+                {!phoneEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailNotice("");
+                      setPhoneEditing(true);
+                    }}
+                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
+                  >
+                    {editablePhone || "연락처 없음"}
+                  </button>
+                ) : (
+                  <input
+                    autoFocus
+                    type="tel"
+                    inputMode="numeric"
+                    value={editablePhone}
+                    disabled={phoneSaving}
+                    onChange={(event) => setEditablePhone(formatSchedulePhone(event.target.value))}
+                    onBlur={() => void savePhoneOnBlur()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") event.currentTarget.blur();
+                      if (event.key === "Escape") {
+                        setEditablePhone(formatSchedulePhone(selectedBooking.guardianPhone ?? ""));
+                        setPhoneEditing(false);
+                      }
+                    }}
+                    className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] leading-[22px] text-[#64748b] outline-none placeholder:text-[#94a3b8] disabled:opacity-70"
+                    placeholder="010-1234-5678"
+                  />
+                )}
+              </CompactEditableInfoRow>
+              <CompactEditableInfoRow label="예약 시간">
+                {detailEditMode === "time" ? (
+                  <div ref={timeEditorRef} className="grid grid-cols-[82px_10px_82px] items-center gap-1">
+                    <TimeWheelInput
+                      value={editableStartTime}
+                      onChange={setEditableStartTime}
+                      ariaLabel="예약 시작 시간"
+                      editing
+                      onCommit={commitTimeEdit}
+                      onSelectCommit={(startTime) => commitTimeEdit({ startTime })}
+                    />
+                    <span className="text-center text-[14px] text-[#94a3b8]">-</span>
+                    <TimeWheelInput
+                      value={editableEndTime}
+                      onChange={setEditableEndTime}
+                      ariaLabel="예약 종료 시간"
+                      editing
+                      onCommit={commitTimeEdit}
+                      onSelectCommit={(endTime) => commitTimeEdit({ endTime })}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailNotice("");
+                      setDetailEditMode("time");
+                    }}
+                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] tabular-nums text-[#64748b] transition hover:bg-[#f8fafc]"
+                  >
+                    {timeRange}
+                  </button>
+                )}
+              </CompactEditableInfoRow>
+              {detailSaving || detailNotice ? (
+                <p className={cn("min-w-0 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
+                  {detailSaving ? "저장 중입니다." : detailNotice}
+                </p>
+              ) : null}
             </div>
           </section>
 
-          <section className="border-t border-[#edf2f7] py-3">
-            <h4 className="text-[15px] text-[#111827]">고객 요청사항</h4>
-            <div className="mt-2 min-h-[48px] rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-[15px] leading-6 text-[#111827]">
-              {requestText}
+          <section className="py-1.5">
+            <div className="flex min-h-[24px] items-center gap-1.5 text-left">
+              <ClipboardList className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
+              <span className="shrink-0 text-[16px] font-normal text-[#334155]">요청사항</span>
             </div>
-          </section>
-
-          <section className="border-t border-[#edf2f7] py-3">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="text-[15px] text-[#111827]">직원 메모</h4>
-              <span className="text-[13px] text-[#2f7866]">저장됨</span>
-            </div>
-            <textarea
-              value={staffComment}
-              onChange={(event) => onChangeStaffComment(commentKey, event.target.value)}
-              placeholder="직원 메모를 입력해주세요…"
-              className="mt-2 min-h-[76px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[15px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
-            />
-          </section>
-
-          <section className="border-t border-[#edf2f7] py-3">
-            <h4 className="text-[15px] text-[#111827]">이전 방문 특이사항</h4>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {previousNotes.map((item) => (
-                <span key={item} className="rounded-full border border-[#efd9bd] bg-[#fffaf3] px-2.5 py-1 text-[14px] text-[#8a5a00]">
-                  {item}
-                </span>
+            <div
+              className={cn(
+                "mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#334155]",
+                hasRequestText ? "min-h-[86px]" : "min-h-0",
+              )}
+            >
+              {requestText.split("\n").map((line, index) => (
+                <p key={`${line}-${index}`}>{line}</p>
               ))}
             </div>
           </section>
 
-          <section className="border-t border-[#edf2f7] py-3">
-            <h4 className="text-[15px] text-[#111827]">상태 처리</h4>
-            <button
-              type="button"
-              disabled={!mainAction.enabled}
-              onClick={mainAction.onClick}
-              className={cn(
-                "mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] text-[15px] transition",
-                mainAction.enabled ? "bg-[#2f7866] text-white hover:bg-[#286a5a]" : "cursor-not-allowed bg-[#e5e7eb] text-[#94a3b8]",
-              )}
-            >
-              <Play className="h-4 w-4" />
-              {mainAction.label}
-            </button>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => onSuggestAlternativeTime(selectedBooking.id)}
-                className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc]"
-              >
-                시간 변경
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeStatus(selectedBooking.id, isPendingBookingStatus(sourceStatus) ? "거절" : "취소")}
-                className="h-9 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] text-[#b42318] hover:bg-[#fffafa]"
-              >
-                {isPendingBookingStatus(sourceStatus) ? "거절" : "예약 취소"}
-              </button>
+          <section className="py-1.5">
+            <div className="flex min-h-[24px] items-center gap-1.5 text-left">
+              <NotebookPen className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
+              <span className="shrink-0 text-[16px] font-normal text-[#334155]">코멘트</span>
             </div>
+            <textarea
+              value={staffComment}
+              onChange={(event) => onChangeStaffComment(commentKey, event.target.value, selectedBooking)}
+              placeholder="코멘트를 입력해주세요…"
+              className="mt-1.5 min-h-[86px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#111827] outline-none placeholder:text-[#334155] focus:border-[#2f7866]"
+            />
           </section>
-
-          <section className="border-t border-[#edf2f7] pt-3">
-            <h4 className="text-[15px] text-[#111827]">알림 발송 / 사진 / 기록</h4>
-            <div className="mt-2 grid gap-2">
-              <div className="flex items-center justify-between rounded-[8px] border border-[#edf2f7] px-3 py-2">
-                <span className="text-[15px] text-[#334155]">카카오 알림톡</span>
-                <span className="text-[14px] text-[#2f7866]">발송 상태 확인</span>
-              </div>
-              <button
-                type="button"
-                disabled={notificationSending}
-                onClick={() => void resendAlimtalk()}
-                className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-60"
-              >
-                {notificationSending ? "발송 중" : "알림톡 다시 보내기"}
-              </button>
-              {notificationNotice ? <p className="text-[13px] leading-5 text-[#64748b]">{notificationNotice}</p> : null}
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => onChangeStatus(selectedBooking.id, "진행 중")} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc]">
-                  미용 시작 사진
-                </button>
-                <button type="button" onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")} className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc]">
-                  완료 사진
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc]">
-                  미용 기록 연결
-                </button>
-                <button type="button" className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc]">
-                  이전 미용 기록 보기
-                </button>
-              </div>
-            </div>
-          </section>
+          </div>
         </div>
+
+          <section className="shrink-0 bg-white px-3.5 pb-3 pt-2.5">
+            <div className="grid gap-2">
+              {changeEventSelected ? (
+                <button
+                  type="button"
+                  onClick={() => onAcknowledgeChange(selectedBooking.id)}
+                  className="h-10 rounded-[8px] bg-[#2f7866] text-[16px] text-white transition hover:bg-[#286a5a]"
+                >
+                  변경/취소 확인
+                </button>
+              ) : workflowPending ? (
+                <button
+                  type="button"
+                  onClick={() => onChangeStatus(selectedBooking.id, "확정")}
+                  className="h-10 rounded-[8px] bg-[#2f7866] text-[16px] text-white transition hover:bg-[#286a5a]"
+                >
+                  예약 확정
+                </button>
+              ) : sourceStatus === "확정" ? (
+                <button
+                  type="button"
+                  onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
+                  className="h-10 rounded-[8px] bg-[#2f7866] text-[16px] text-white transition hover:bg-[#286a5a]"
+                >
+                  미용 시작
+                </button>
+              ) : sourceStatus === "진행 중" ? (
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
+                    className="h-10 rounded-[8px] bg-[#2f7866] text-[16px] text-white transition hover:bg-[#286a5a]"
+                  >
+                    픽업 준비
+                  </button>
+                  <div className="grid grid-cols-[1fr_3fr] gap-2">
+                    <button
+                      type="button"
+                      onClick={previousAction?.onClick}
+                      className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] text-[#334155] hover:bg-[#f8fafc]"
+                    >
+                      이전
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChangeStatus(selectedBooking.id, "완료")}
+                      className="h-10 rounded-[8px] bg-white text-[16px] text-[#2f7866] ring-1 ring-inset ring-[#b7d8cd] transition hover:bg-[#f7fbfa]"
+                    >
+                      미용 완료
+                    </button>
+                  </div>
+                </div>
+              ) : sourceStatus === "픽업 준비" ? (
+                <div className="grid grid-cols-[1fr_3fr] gap-2">
+                  <button
+                    type="button"
+                    onClick={previousAction?.onClick}
+                    className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] text-[#334155] hover:bg-[#f8fafc]"
+                  >
+                    이전
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeStatus(selectedBooking.id, "완료")}
+                    className="h-10 rounded-[8px] bg-[#2f7866] text-[16px] text-white transition hover:bg-[#286a5a]"
+                  >
+                    미용 완료
+                  </button>
+                </div>
+              ) : workflowCompleted ? (
+                <div className="flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[16px] text-[#64748b]">
+                  처리 완료
+                </div>
+              ) : (
+                <div className="flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] text-[16px] text-[#94a3b8]">
+                  처리할 상태 없음
+                </div>
+              )}
+
+              {!isActiveBookingStatus(sourceStatus) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {previousAction && !changeEventSelected && !workflowCompleted ? (
+                    <button
+                      type="button"
+                      onClick={previousAction.onClick}
+                      className="inline-flex h-10 items-center justify-center rounded-[8px] px-3 text-[15px] text-[#334155] transition hover:bg-[#f8fafc]"
+                    >
+                      이전
+                    </button>
+                  ) : null}
+                  {!workflowCompleted && !changeEventSelected ? (
+                    <button
+                      type="button"
+                      onClick={() => onChangeStatus(selectedBooking.id, workflowPending ? "거절" : "취소")}
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]",
+                        previousAction || sourceStatus === "확정" ? "" : "col-span-2",
+                      )}
+                    >
+                      <X className="h-4 w-4 text-[#64748b]" />
+                      {workflowPending ? "예약 거절" : "예약 취소"}
+                    </button>
+                  ) : null}
+                  {sourceStatus === "확정" && !changeEventSelected ? (
+                    <button
+                      type="button"
+                      disabled={!canSendVisitReminder || notificationSending}
+                      onClick={() => void sendWorkflowAlimtalk("appointment_reminder_10m", "방문 안내 알림톡 발송 요청이 완료되었습니다.")}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4 text-[#64748b]" />
+                      방문 전 알림
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {notificationNotice ? <p className="text-[15px] leading-6 text-[#64748b]">{notificationNotice}</p> : null}
+            </div>
+          </section>
       </WebSurface>
     </aside>
   );
@@ -1661,7 +2155,7 @@ function BookingSidePanel({
                 </div>
                 <textarea
                   value={staffComment}
-                  onChange={(event) => onChangeStaffComment(commentKey, event.target.value)}
+                  onChange={(event) => onChangeStaffComment(commentKey, event.target.value, selectedBooking)}
                   placeholder="전 작업자가 남긴 특징이나 다음 작업 팁을 적어주세요."
                   className="mt-2 h-[190px] w-full resize-none rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2.5 text-[14px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#cfded8] focus:bg-white"
                 />
@@ -1803,11 +2297,290 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getTimeWheelParts(value: string) {
+  const minutes = timeInputToMinutes(normalizeTwentyFourHourInput(value));
+  if (minutes === null) return { hour: "00", minute: "00" };
+  return {
+    hour: String(Math.floor(minutes / 60)).padStart(2, "0"),
+    minute: String(minutes % 60).padStart(2, "0"),
+  };
+}
+
+function getWheelOffsetValue(values: string[], selectedValue: string, offset: number) {
+  const selectedIndex = values.indexOf(selectedValue);
+  const baseIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  return values[(baseIndex + offset + values.length) % values.length];
+}
+
+function TimeWheelInput({
+  value,
+  onChange,
+  ariaLabel,
+  editing = false,
+  onActivate,
+  onCommit,
+  onSelectCommit,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  editing?: boolean;
+  onActivate?: () => void;
+  onCommit?: () => void;
+  onSelectCommit?: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const selected = getTimeWheelParts(value);
+  const active = open || editing;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        onCommit?.();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [onCommit, open]);
+
+  const updateTime = (next: { hour?: string; minute?: string }) => {
+    const hour = next.hour ?? selected.hour;
+    const minute = next.minute ?? selected.minute;
+    const nextValue = `${hour}:${minute}`;
+    onChange(nextValue);
+    return nextValue;
+  };
+
+  const selectAndCommit = (next: { hour?: string; minute?: string }) => {
+    const nextValue = updateTime(next);
+    setOpen(false);
+    onSelectCommit?.(nextValue);
+  };
+
+  useEffect(() => {
+    if (!open || !popupRef.current) return;
+    const popup = popupRef.current;
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (Math.abs(event.deltaY) < 1) return;
+
+      const rect = popup.getBoundingClientRect();
+      const isHourColumn = event.clientX - rect.left < rect.width / 2;
+      const offset = event.deltaY > 0 ? 1 : -1;
+      if (isHourColumn) {
+        updateTime({ hour: getWheelOffsetValue(timeWheelHours, selected.hour, offset) });
+        return;
+      }
+      updateTime({ minute: getWheelOffsetValue(timeWheelMinutes, selected.minute, offset) });
+    };
+
+    popup.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => popup.removeEventListener("wheel", handleNativeWheel);
+  }, [open, selected.hour, selected.minute]);
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => {
+          onActivate?.();
+          if (open) onCommit?.();
+          setOpen((current) => !current);
+        }}
+        className={cn(
+          "h-8 w-full rounded-[7px] border px-2.5 text-left text-[16px] tabular-nums text-[#64748b] outline-none transition",
+          active
+            ? "border-[#2f7866] bg-white shadow-[0_0_0_2px_rgba(47,120,102,0.08)]"
+            : "border-transparent bg-transparent hover:bg-[#f8fafc]",
+        )}
+        aria-label={ariaLabel}
+        aria-expanded={open}
+      >
+        {value || "00:00"}
+      </button>
+      {open ? (
+        <div
+          ref={popupRef}
+          className="absolute left-0 top-0 z-50 w-full overflow-hidden rounded-[7px] border border-[#2f7866] bg-white shadow-[0_10px_28px_rgba(15,23,42,0.12)]"
+        >
+          <div className="relative grid h-[136px] grid-cols-[42px_42px] justify-center gap-1 overflow-hidden bg-white">
+            <div className="pointer-events-none absolute inset-x-1 top-1/2 h-8 -translate-y-1/2 rounded-[6px] bg-[#f1f3f5]" />
+            <div
+              className="pointer-events-none absolute inset-0 z-20"
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.72) 18%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,0.72) 82%, rgba(255,255,255,0.96) 100%)",
+              }}
+            />
+            <WheelTimeColumn
+              values={timeWheelHours}
+              selectedValue={selected.hour}
+              onSelect={(hour, options) => {
+                if (options?.commit) {
+                  selectAndCommit({ hour });
+                  return;
+                }
+                updateTime({ hour });
+              }}
+            />
+            <WheelTimeColumn
+              values={timeWheelMinutes}
+              selectedValue={selected.minute}
+              onSelect={(minute, options) => {
+                if (options?.commit) {
+                  selectAndCommit({ minute });
+                  return;
+                }
+                updateTime({ minute });
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WheelTimeColumn({
+  values,
+  selectedValue,
+  onSelect,
+}: {
+  values: string[];
+  selectedValue: string;
+  onSelect: (value: string, options?: { commit?: boolean }) => void;
+}) {
+  const selectedIndex = values.indexOf(selectedValue);
+  const dragYRef = useRef<number | null>(null);
+  const visibleOffsets = [-2, -1, 0, 1, 2];
+
+  const selectOffset = (offset: number) => {
+    onSelect(getWheelOffsetValue(values, selectedValue, offset));
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragYRef.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (dragYRef.current === null) return;
+    const delta = event.clientY - dragYRef.current;
+    if (Math.abs(delta) < 24) return;
+    selectOffset(delta > 0 ? -1 : 1);
+    dragYRef.current = event.clientY;
+  };
+
+  const handlePointerEnd = () => {
+    dragYRef.current = null;
+  };
+
+  return (
+    <div
+      className="relative z-10 h-[136px] touch-none select-none overflow-hidden [perspective:220px]"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
+    >
+      {visibleOffsets.map((offset) => {
+        const baseIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        const item = values[(baseIndex + offset + values.length) % values.length];
+        const selected = offset === 0;
+        const distance = Math.abs(offset);
+        const rowOffset = offset * 24;
+        const visual =
+          distance === 0
+            ? { fontSize: 16, opacity: 1, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(0deg)`, color: "#111827", fontWeight: 400 }
+            : distance === 1
+              ? { fontSize: 15, opacity: 0.82, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 12}deg)`, color: "#4b5563", fontWeight: 400 }
+              : distance === 2
+                ? { fontSize: 14, opacity: 0.62, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 16}deg)`, color: "#6b7280", fontWeight: 400 }
+                : { fontSize: 13, opacity: 0.42, transform: `translateY(calc(-50% + ${rowOffset}px)) rotateX(${-offset * 20}deg)`, color: "#9aa4b2", fontWeight: 400 };
+        return (
+          <button
+            key={`${item}-${offset}`}
+            type="button"
+            data-selected={selected}
+            onClick={() => {
+              const baseIndex = selectedIndex >= 0 ? selectedIndex : 0;
+              const nextValue = values[(baseIndex + offset + values.length) % values.length];
+              onSelect(nextValue, { commit: true });
+            }}
+            className="absolute inset-x-0 top-1/2 flex h-8 w-full items-center justify-center tabular-nums transition-[color,opacity,transform,font-size] duration-150"
+            style={{ ...visual, transformStyle: "preserve-3d", backfaceVisibility: "hidden" }}
+          >
+            {item}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function CompactFullInfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-center gap-x-2 text-[16px] leading-6">
-      <span className="text-[#64748b]">{label}</span>
-      <span className="min-w-0 truncate text-[#111827]">{value}</span>
+    <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-x-2 text-[16px] leading-6">
+      <span className="pt-1 text-[#334155]">{label}</span>
+      <span className="min-w-0 truncate text-[#64748b]">{value}</span>
+    </div>
+  );
+}
+
+function CompactEditableInfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-x-2 text-[16px] leading-6">
+      <span className="pt-1 text-[#334155]">{label}</span>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function PetBiteLevelScale({ level }: { level: PetBiteLevel }) {
+  const activeIndexByLevel: Record<PetBiteLevel, number> = {
+    none: 0,
+    mild: 1,
+    watch: 2,
+    bite: 3,
+    strong: 4,
+  };
+  const activeIndex = activeIndexByLevel[level];
+  const activeColor =
+    activeIndex <= 1
+      ? "bg-[#2f7866]"
+      : activeIndex <= 2
+        ? "bg-[#d29a2f]"
+        : activeIndex === 3
+          ? "bg-[#c66a43]"
+          : "bg-[#a04455]";
+
+  return (
+    <div className="flex h-6 w-full items-center gap-2" aria-label={`입질 ${getPetBiteLevelLabel(level)}`}>
+      <span className="flex h-6 shrink-0 items-center text-[16px] leading-6 text-[#64748b]">입질</span>
+      <div className="grid min-w-0 flex-1 grid-cols-5 items-center gap-1">
+        {Array.from({ length: 5 }, (_, index) => (
+          <span
+            key={index}
+            className={cn(
+              "h-[7px] rounded-[2px] bg-[#e5eaf0]",
+              index === activeIndex && activeColor,
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1992,7 +2765,7 @@ function ReservationDetailSheet({
   staffComments: Record<string, string>;
   onClose: () => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
-  onChangeStaffComment: (commentKey: string, value: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
 }) {
   const sourceStatus = booking.sourceStatus ?? booking.status;
   const isPending = isPendingBookingStatus(sourceStatus);
@@ -2050,14 +2823,14 @@ function ConfirmedReservationDetail({
   currentHour: number;
   staffComments: Record<string, string>;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
-  onChangeStaffComment: (commentKey: string, value: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
 }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const profile = getPetProfile(booking);
   const visits = getVisitProfile(booking);
   const phone = getGuardianPhone(booking);
   const commentKey = getCustomerCommentKey(booking);
-  const staffComment = staffComments[commentKey] ?? "";
+  const staffComment = getStaffCommentValue(staffComments, booking);
   const sourceStatus = booking.sourceStatus ?? booking.status;
   const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
   const canStart = canStartGrooming(sourceStatus);
@@ -2121,7 +2894,7 @@ function ConfirmedReservationDetail({
         phone={phone}
         staffComment={staffComment}
         onCopyPhone={() => void navigator.clipboard?.writeText(phone)}
-        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value)}
+        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value, booking)}
       />
 
       {cancelOpen ? (
@@ -2148,7 +2921,7 @@ function PendingReservationDetail({
   selectedDate: string;
   staffComments: Record<string, string>;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
-  onChangeStaffComment: (commentKey: string, value: string) => void;
+  onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
 }) {
   const [proposalOpen, setProposalOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -2156,7 +2929,7 @@ function PendingReservationDetail({
   const visits = getVisitProfile(booking);
   const phone = getGuardianPhone(booking);
   const commentKey = getCustomerCommentKey(booking);
-  const staffComment = staffComments[commentKey] ?? "";
+  const staffComment = getStaffCommentValue(staffComments, booking);
   const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
 
   return (
@@ -2197,7 +2970,7 @@ function PendingReservationDetail({
         phone={phone}
         staffComment={staffComment}
         onCopyPhone={() => void navigator.clipboard?.writeText(phone)}
-        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value)}
+        onChangeStaffComment={(value) => onChangeStaffComment(commentKey, value, booking)}
       />
 
       {cancelOpen ? (
@@ -2390,14 +3163,19 @@ function PhotoStatusDialog({
   action,
   onClose,
   onSubmit,
+  onSkip,
 }: {
   action: PhotoStatusAction;
   onClose: () => void;
   onSubmit: (file: File) => Promise<void>;
+  onSkip: () => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
+  const mobileOwnerUrl = typeof window === "undefined" ? mobileOwnerPath : `${window.location.origin}${mobileOwnerPath}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=176x176&margin=12&data=${encodeURIComponent(mobileOwnerUrl)}`;
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
@@ -2415,23 +3193,25 @@ function PhotoStatusDialog({
     }
   }
 
+  async function handleSkip() {
+    if (saving) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      await onSkip();
+    } catch (skipError) {
+      setError(skipError instanceof Error ? skipError.message : "상태 변경 중 문제가 발생했습니다.");
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        className="w-full max-w-[392px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-medium text-[#1f6b5b]">{action.nextStatus === "진행 중" ? "시작 알림" : "픽업 알림"}</p>
-            <h3 className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{action.title}</h3>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
-          </div>
-          <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
         <input
           ref={inputRef}
           type="file"
@@ -2441,16 +3221,18 @@ function PhotoStatusDialog({
           onChange={(event) => void handleFileChange(event)}
         />
 
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => inputRef.current?.click()}
-          className="mt-5 flex min-h-[150px] w-full flex-col items-center justify-center rounded-[10px] border border-dashed border-[#cfd8e3] bg-[#f8fafc] px-4 text-center text-[#334155] transition hover:border-[#7ba99b] hover:bg-[#f3fbf8] disabled:cursor-wait disabled:opacity-70"
-        >
-          {saving ? <Loader2 className="mb-2 h-7 w-7 animate-spin" /> : <Camera className="mb-2 h-7 w-7" />}
-          <span className="text-[15px] font-medium">{saving ? "사진 저장 후 알림 전송 중" : action.buttonLabel}</span>
-          <span className="mt-1 text-[12px] text-[#64748b]">한 장만 선택하면 바로 다음 단계로 진행됩니다.</span>
-        </button>
+        <div className="rounded-[10px] bg-[#fbfcfd] p-4">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-[#2f7866]" />
+            <p className="text-[15px] font-medium text-[#111827]">모바일로 촬영하기</p>
+          </div>
+          <div className="mt-3 flex justify-center rounded-[10px] bg-white p-3">
+            <img src={qrImageUrl} alt="모바일 오너 촬영 QR 코드" className="h-[176px] w-[176px]" />
+          </div>
+          <p className="mt-3 text-center text-[13px] leading-5 text-[#64748b]">
+            휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.
+          </p>
+        </div>
 
         {error ? (
           <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
@@ -2458,24 +3240,34 @@ function PhotoStatusDialog({
           </p>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 space-y-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void handleSkip()}
             disabled={saving}
-            className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[15px] text-white hover:bg-[#185848] disabled:opacity-60"
           >
-            취소
+            {saving ? "처리 중" : "사진 없이 미용 완료"}
           </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={saving}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white hover:bg-[#185848] disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-            사진 선택
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={saving}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+              사진 선택
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+            >
+              취소
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2756,7 +3548,7 @@ function PendingApprovalPanel({
                   {sortedApprovalModeBookings.length > 0 ? (
                     sortedApprovalModeBookings.map((booking) => {
                       const selected = selectedBookingId === booking.id;
-                      const timeRange = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
+                      const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
 
                       return (
                         <button
@@ -3264,8 +4056,8 @@ function DailyScheduleGrid({
   }
 
   return (
-    <div className="bg-white">
-      <div className="flex bg-white">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
+      <div className="flex shrink-0 bg-white">
         <div className="flex w-[64px] shrink-0 items-center justify-center border-r border-[#e2e8f0] bg-[#f8fafc] px-2 pt-2">
           <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-[#f3f4f6] text-[12px] text-[#64748b]">
             시간
@@ -3329,7 +4121,7 @@ function DailyScheduleGrid({
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "max-h-[504px] overflow-y-auto select-none",
+          "min-h-0 flex-1 overflow-y-auto select-none",
           boardPanning && "cursor-grabbing snap-none",
           !boardPanning && scrollable && "cursor-grab",
         )}
@@ -3917,6 +4709,24 @@ async function patchOwnerAppointmentStatus(payload: unknown) {
   }
 }
 
+async function patchOwnerPetStaffNote(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<PetStaffNote>("/api/pet-staff-notes", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<PetStaffNote>("/api/pet-staff-notes", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
 async function fetchOwnerScheduleRange(shopId: string, from: string, to: string) {
   const path = `/api/owner/schedule?${new URLSearchParams({ shopId, from, to }).toString()}`;
   try {
@@ -3952,6 +4762,24 @@ async function postOwnerGuardian(payload: unknown) {
   }
 }
 
+async function patchOwnerGuardian(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Guardian>("/api/guardians", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<Guardian>("/api/guardians", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
 async function postOwnerPet(payload: unknown) {
   try {
     return await fetchApiJsonWithAuth<Pet>("/api/pets", {
@@ -3962,6 +4790,24 @@ async function postOwnerPet(payload: unknown) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("Supabase ?곌껐") || message.includes("濡쒓렇?몄씠 ?꾩슂")) {
       return fetchApiJson<Pet>("/api/pets", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
+async function postOwnerService(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Service>("/api/services", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<Service>("/api/services", {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -4076,6 +4922,10 @@ function replaceAppointmentInBootstrap(data: BootstrapPayload, appointment: Appo
     ...data,
     appointments: data.appointments.map((item) => (item.id === appointment.id ? { ...item, ...appointment } : item)),
   };
+}
+
+function getAppointmentCustomServiceId(appointmentId: string) {
+  return `appointment-${appointmentId}-service`;
 }
 
 function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: OwnerScheduleRangeResponse): BootstrapPayload {
@@ -4280,18 +5130,15 @@ function ScheduleCreateDialog({
       ? bookings
       : buildDailyBookingsFromBootstrap(data, form.date, staffAssignments, visibleStaff);
   const availableSlots = selectedService
-    ? computeAvailableSlots({
-        date: form.date,
-        serviceId: selectedService.id,
+    ? buildOwnerCreateAvailableSlots({
         shop: data.shop,
-        services: data.services,
-        appointments: data.appointments,
-        staffId: form.staffKey,
+        date: form.date,
+        duration,
+        staffKey: form.staffKey,
         staffMembers,
         staffScheduleOverrides: data.staffScheduleOverrides,
+        bookings: dateBookings,
       })
-        .filter((slot) => !hasStaffBookingConflict(dateBookings, "__new-booking__", { staffKey: form.staffKey, start: timeToHour(slot), duration }))
-        .filter((slot) => isStaffWorkingWindow(staffMembers, data.staffScheduleOverrides, form.staffKey, form.date, timeToHour(slot), duration))
     : [];
   const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
   const isCustomerPhoneIncomplete = form.customerMode === "new" && Boolean(form.customerPhone.trim()) && normalizedCustomerPhone.length < 10;
@@ -4599,7 +5446,8 @@ export default function CalendarManagementScreen({
   const [selectedBookingId, setSelectedBookingId] = useState("");
   const [selectedBoardStaffKey, setSelectedBoardStaffKey] = useState<StaffKey | null>(null);
   const [scheduleStatusHour, setScheduleStatusHour] = useState(() => getCurrentDayHour());
-  const [staffComments, setStaffComments] = useState<Record<string, string>>(() => initialStaffComments);
+  const [staffComments, setStaffComments] = useState<Record<string, string>>(() => buildStaffCommentsFromBootstrap(initialData));
+  const staffCommentSaveTimersRef = useRef<Record<string, number>>({});
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
   const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
@@ -4613,6 +5461,8 @@ export default function CalendarManagementScreen({
   const [scheduleError, setScheduleError] = useState("");
   const [boardError, setBoardError] = useState("");
   const [pendingOutOfHoursMove, setPendingOutOfHoursMove] = useState<PendingOutOfHoursMove | null>(null);
+  const statusChangeInFlightRef = useRef(false);
+  const recentStatusOverridesRef = useRef<Record<string, RecentStatusOverride>>({});
   const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
   const staffScopedBookings = useMemo(
     () => {
@@ -4655,6 +5505,30 @@ export default function CalendarManagementScreen({
     [displayScopedBookings, manualApprovalEnabled],
   );
 
+  function applyRecentStatusOverrides(data: BootstrapPayload): BootstrapPayload {
+    const now = Date.now();
+    let changed = false;
+    const appointments = data.appointments.map((appointment) => {
+      const override = recentStatusOverridesRef.current[appointment.id];
+      if (!override) return appointment;
+
+      if (now - override.createdAt > recentStatusOverrideTtlMs) {
+        delete recentStatusOverridesRef.current[appointment.id];
+        return appointment;
+      }
+
+      if (appointment.status === override.status) return appointment;
+
+      changed = true;
+      return {
+        ...appointment,
+        status: override.status,
+      };
+    });
+
+    return changed ? { ...data, appointments } : data;
+  }
+
   useEffect(() => {
     console.log("[OWNER DEBUG] calendar-management-screen", {
       mode: bootstrapData.mode,
@@ -4681,7 +5555,8 @@ export default function CalendarManagementScreen({
   }, [bootstrapData, selectedDate, selectedDateBookingSource, selectedDateBookings, staffMembers.length, visibleStaff]);
 
   useEffect(() => {
-    setBootstrapData(initialData);
+    if (statusChangeInFlightRef.current) return;
+    setBootstrapData(applyRecentStatusOverrides(initialData));
   }, [initialData]);
 
   useEffect(() => {
@@ -4704,6 +5579,7 @@ export default function CalendarManagementScreen({
         (document.visibilityState === "visible" &&
           !scheduleDialogOpen &&
           !scheduleSaving &&
+          !statusChangeInFlightRef.current &&
           !photoStatusAction &&
           !earlyStartBooking);
 
@@ -4711,8 +5587,8 @@ export default function CalendarManagementScreen({
 
       try {
         const range = await fetchOwnerScheduleRange(bootstrapData.shop.id, selectedDate, selectedDate);
-        if (cancelled) return;
-        const nextBootstrapData = replaceScheduleRangeInBootstrap(bootstrapData, range);
+        if (cancelled || statusChangeInFlightRef.current) return;
+        const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(bootstrapData, range));
         setBootstrapData(nextBootstrapData);
         onDataChange?.(nextBootstrapData);
       } catch {
@@ -4784,19 +5660,52 @@ export default function CalendarManagementScreen({
     try {
       const stored = window.localStorage.getItem(staffCommentStorageKey);
       if (stored) {
-        setStaffComments({ ...initialStaffComments, ...(JSON.parse(stored) as Record<string, string>) });
+        setStaffComments((current) => ({ ...current, ...(JSON.parse(stored) as Record<string, string>) }));
       }
     } catch {
       window.localStorage.removeItem(staffCommentStorageKey);
     }
   }, []);
 
-  function handleStaffCommentChange(commentKey: string, value: string) {
+  useEffect(() => {
+    setStaffComments((current) => ({ ...current, ...buildStaffCommentsFromBootstrap(bootstrapData) }));
+  }, [bootstrapData.petStaffNotes]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(staffCommentSaveTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  function handleStaffCommentChange(commentKey: string, value: string, booking?: DailyBooking) {
     setStaffComments((current) => {
       const next = { ...current, [commentKey]: value };
       window.localStorage.setItem(staffCommentStorageKey, JSON.stringify(next));
       return next;
     });
+
+    if (!booking?.guardianId) return;
+
+    const pendingTimer = staffCommentSaveTimersRef.current[commentKey];
+    if (pendingTimer) window.clearTimeout(pendingTimer);
+    staffCommentSaveTimersRef.current[commentKey] = window.setTimeout(() => {
+      void patchOwnerPetStaffNote({
+        shopId: bootstrapData.shop.id,
+        guardianId: booking.guardianId,
+        petId: booking.petId ?? null,
+        note: value,
+      })
+        .then((savedNote) => {
+          setBootstrapData((current) => {
+            const nextData = upsertPetStaffNoteInBootstrap(current, savedNote);
+            onDataChange?.(nextData);
+            return nextData;
+          });
+        })
+        .catch((error) => {
+          setBoardError(getApiErrorMessage(error, "직원 메모 저장 중 문제가 발생했습니다."));
+        });
+    }, 500);
   }
 
   const filteredBookings = displayScopedBookings;
@@ -4849,13 +5758,18 @@ export default function CalendarManagementScreen({
 
   async function refreshScheduleRangeAfterStatusChange(date: string, fallbackData: BootstrapPayload) {
     const range = await fetchOwnerScheduleRange(fallbackData.shop.id, date, date);
-    const nextBootstrapData = replaceScheduleRangeInBootstrap(fallbackData, range);
+    const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(fallbackData, range));
     setBootstrapData(nextBootstrapData);
     onDataChange?.(nextBootstrapData);
     return nextBootstrapData;
   }
 
-  async function persistBookingStatusChange(bookingId: string, nextStatus: string, mediaAssetIds: string[] = []) {
+  async function persistBookingStatusChange(
+    bookingId: string,
+    nextStatus: string,
+    mediaAssetIds: string[] = [],
+    options: { notifyCustomer?: boolean } = {},
+  ) {
     const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
     if (!appointmentStatus) return null;
 
@@ -4863,8 +5777,9 @@ export default function CalendarManagementScreen({
       appointmentId: bookingId,
       status: appointmentStatus,
       mediaAssetIds,
+      notifyCustomer: options.notifyCustomer ?? true,
     });
-    const nextBootstrapData = replaceAppointmentInBootstrap(bootstrapData, updatedAppointment);
+    const nextBootstrapData = applyRecentStatusOverrides(replaceAppointmentInBootstrap(bootstrapData, updatedAppointment));
     setBootstrapData(nextBootstrapData);
     onDataChange?.(nextBootstrapData);
 
@@ -4873,6 +5788,106 @@ export default function CalendarManagementScreen({
     }
 
     return nextBootstrapData;
+  }
+
+  async function persistBookingDetailChange(
+    booking: DailyBooking,
+    values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number },
+  ) {
+    const appointment = bootstrapData.appointments.find((item) => item.id === booking.id);
+    if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+
+    const currentGuardian = bootstrapData.guardians.find((item) => item.id === appointment.guardian_id);
+    const currentService = bootstrapData.services.find((item) => item.id === appointment.service_id);
+    const currentDurationMinutes = Math.max(
+      15,
+      Math.round(minutesBetween(appointment.start_at, appointment.end_at) ?? currentService?.duration_minutes ?? booking.duration * 60),
+    );
+    const startMinutes = timeInputToMinutes(values.startTime);
+    const endMinutes = timeInputToMinutes(values.endTime);
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+      throw new Error("예약 시간을 다시 확인해 주세요.");
+    }
+
+    const durationMinutes = endMinutes - startMinutes;
+    let nextBootstrapData = bootstrapData;
+
+    if (normalizeSchedulePhone(currentGuardian?.phone ?? "") !== values.phone) {
+      const updatedGuardian = await patchOwnerGuardian({
+        shopId: bootstrapData.shop.id,
+        guardianId: appointment.guardian_id,
+        phone: values.phone,
+      });
+      nextBootstrapData = replaceGuardianInBootstrap(nextBootstrapData, updatedGuardian);
+    }
+
+    const currentServiceName = currentService?.name ?? booking.service;
+    const currentServicePrice =
+      typeof currentService?.price === "number"
+        ? currentService.price
+        : typeof booking.servicePrice === "number"
+          ? booking.servicePrice
+          : 0;
+    const serviceChanged = currentServiceName !== values.serviceName || currentServicePrice !== values.price;
+    const timeChanged = appointment.appointment_time.slice(0, 5) !== values.startTime || currentDurationMinutes !== durationMinutes;
+    let nextServiceId = appointment.service_id;
+
+    if (serviceChanged) {
+      const customServiceId = appointment.service_id === getAppointmentCustomServiceId(appointment.id)
+        ? appointment.service_id
+        : getAppointmentCustomServiceId(appointment.id);
+      const updatedService = await postOwnerService({
+        shopId: bootstrapData.shop.id,
+        serviceId: customServiceId,
+        name: values.serviceName,
+        price: values.price,
+        priceType: currentService?.price_type ?? "fixed",
+        durationMinutes,
+        isActive: false,
+      });
+      nextBootstrapData = upsertServiceInBootstrap(nextBootstrapData, updatedService);
+      nextServiceId = customServiceId;
+    }
+
+    if (serviceChanged || timeChanged) {
+      const updatedAppointment = await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+        method: "PATCH",
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          serviceId: nextServiceId,
+          staffId: appointment.staff_id ?? booking.staffKey,
+          appointmentDate: appointment.appointment_date,
+          appointmentTime: values.startTime,
+          durationMinutes,
+          memo: appointment.memo ?? "",
+          enforceShopCapacity: false,
+          allowOutsideShopHours: true,
+          notifyCustomer: false,
+          preserveStatus: true,
+        }),
+      });
+      nextBootstrapData = replaceAppointmentInBootstrap(nextBootstrapData, updatedAppointment);
+    }
+
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+  }
+
+  async function persistBookingPhoneChange(booking: DailyBooking, phone: string) {
+    const appointment = bootstrapData.appointments.find((item) => item.id === booking.id);
+    if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+
+    const currentGuardian = bootstrapData.guardians.find((item) => item.id === appointment.guardian_id);
+    if (normalizeSchedulePhone(currentGuardian?.phone ?? "") === phone) return;
+
+    const updatedGuardian = await patchOwnerGuardian({
+      shopId: bootstrapData.shop.id,
+      guardianId: appointment.guardian_id,
+      phone,
+    });
+    const nextBootstrapData = replaceGuardianInBootstrap(bootstrapData, updatedGuardian);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
   }
 
   async function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
@@ -4938,42 +5953,67 @@ export default function CalendarManagementScreen({
     return selectedDay > todayDay || (selectedDay === todayDay && getCurrentDayHour() < booking.start);
   }
 
-  async function applyBookingStatusChange(bookingId: string, nextStatus: string, mediaAssetIds: string[] = []) {
+  function shouldSkipPhotoStatusChange(nextStatus: string) {
+    const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
+    if (appointmentStatus === "in_progress") return true;
+    if (appointmentStatus === "almost_done") return true;
+    return false;
+  }
+
+  async function applyBookingStatusChange(
+    bookingId: string,
+    nextStatus: string,
+    mediaAssetIds: string[] = [],
+    options: { notifyCustomer?: boolean } = {},
+  ) {
     const previousBookings = bookings;
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
     if (!targetBooking) return;
+    const nextAppointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
 
     const displayStatus = getTimedBookingStatus(targetBooking, selectedDate, getCurrentDayHour());
-    if (nextStatus === "진행 중" && !canStartGrooming(targetBooking.status)) return;
-    if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(targetBooking.status) && !canSendCompletionNotice(targetBooking.status, displayStatus)) return;
-    if (nextStatus === "완료" && targetBooking.status !== "픽업 준비" && displayStatus !== "완료") return;
+    const rollbackToInProgress = nextStatus === "진행 중" && targetBooking.status === "픽업 준비";
+    if (nextStatus === "진행 중" && !canStartGrooming(targetBooking.status) && !rollbackToInProgress) return;
+    if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(targetBooking.status)) return;
+    if (
+      nextStatus === "완료" &&
+      !["확정", "진행 중", "픽업 준비"].includes(targetBooking.status) &&
+      displayStatus !== "완료"
+    ) return;
 
     const nextBooking = { ...targetBooking, status: nextStatus };
     setBoardError("");
+    if (nextAppointmentStatus) {
+      recentStatusOverridesRef.current[bookingId] = {
+        status: nextAppointmentStatus,
+        createdAt: Date.now(),
+      };
+    }
     setBookings((current) =>
       current.map((booking) => (booking.id === bookingId ? nextBooking : booking)),
     );
     setScheduleStatusHour(getCurrentDayHour());
 
+    statusChangeInFlightRef.current = true;
     try {
-      await persistBookingStatusChange(bookingId, nextStatus, mediaAssetIds);
+      await persistBookingStatusChange(bookingId, nextStatus, mediaAssetIds, options);
     } catch (error) {
+      delete recentStatusOverridesRef.current[bookingId];
       setBookings(previousBookings);
       setBoardError(getApiErrorMessage(error, "예약 상태 저장 중 문제가 발생했습니다."));
+    } finally {
+      statusChangeInFlightRef.current = false;
     }
   }
 
-  function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "진행 중" | "픽업 준비") {
+  function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "완료") {
     setPhotoStatusAction({
       bookingId: booking.id,
       nextStatus,
-      mediaKind: nextStatus === "진행 중" ? "grooming_before" : "grooming_after",
-      title: nextStatus === "진행 중" ? "미용 시작 사진" : "미용 완료 사진",
-      description:
-        nextStatus === "진행 중"
-          ? "미용 시작 전 상태를 한 장 촬영하면 시작 알림에 함께 전송됩니다."
-          : "마무리된 모습을 한 장 촬영하면 픽업 준비 알림에 함께 전송됩니다.",
-      buttonLabel: nextStatus === "진행 중" ? "사진 찍고 미용 시작" : "사진 찍고 알림 보내기",
+      mediaKind: "grooming_after",
+      title: "미용 완료 사진",
+      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림에 함께 전송됩니다.",
+      buttonLabel: "사진 찍고 미용 완료",
     });
   }
 
@@ -5005,12 +6045,26 @@ export default function CalendarManagementScreen({
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    const rollback =
+      Boolean(targetBooking) &&
+      ((targetBooking?.status === "진행 중" && nextStatus === "확정") ||
+        (targetBooking?.status === "픽업 준비" && nextStatus === "진행 중"));
+    if (rollback) {
+      void applyBookingStatusChange(bookingId, nextStatus, [], { notifyCustomer: false });
+      return;
+    }
+
     if (targetBooking && nextStatus === "진행 중" && canStartGrooming(targetBooking.status) && isBeforeBookingStart(targetBooking)) {
       setEarlyStartBooking(targetBooking);
       return;
     }
 
-    if (targetBooking && (nextStatus === "진행 중" || nextStatus === "픽업 준비")) {
+    if (targetBooking && shouldSkipPhotoStatusChange(nextStatus)) {
+      void applyBookingStatusChange(bookingId, nextStatus);
+      return;
+    }
+
+    if (targetBooking && nextStatus === "완료") {
       requestPhotoStatusChange(targetBooking, nextStatus);
       return;
     }
@@ -5298,8 +6352,8 @@ export default function CalendarManagementScreen({
         </p>
       ) : null}
 
-      <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-        <WebSurface className="min-w-0 overflow-hidden">
+      <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+        <WebSurface className="flex h-[calc(100vh-112px)] min-h-[640px] min-w-0 flex-col overflow-hidden">
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
@@ -5344,6 +6398,8 @@ export default function CalendarManagementScreen({
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
           onChangeStaffComment={handleStaffCommentChange}
+          onSaveBookingPhone={persistBookingPhoneChange}
+          onSaveBookingDetail={persistBookingDetailChange}
         />
       </div>
       {photoStatusAction ? (
@@ -5351,6 +6407,12 @@ export default function CalendarManagementScreen({
           action={photoStatusAction}
           onClose={() => setPhotoStatusAction(null)}
           onSubmit={handlePhotoStatusFile}
+          onSkip={async () => {
+            const action = photoStatusAction;
+            if (!action) return;
+            setPhotoStatusAction(null);
+            await applyBookingStatusChange(action.bookingId, action.nextStatus);
+          }}
         />
       ) : null}
       {alternativeTimeBooking ? (
@@ -5366,7 +6428,10 @@ export default function CalendarManagementScreen({
           <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.18)]" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-[17px] font-medium text-[#111827]">예약 시간 전입니다</h3>
             <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-              {earlyStartBooking.pet} · {earlyStartBooking.customer} 예약은 {formatHourLabel(earlyStartBooking.start)} 시작입니다. 그래도 미용을 시작할까요?
+              <span className="block">
+                {earlyStartBooking.pet} · {earlyStartBooking.customer} 예약은 {formatHourLabel(earlyStartBooking.start)} 시작입니다.
+              </span>
+              <span className="block">그래도 미용을 시작할까요?</span>
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setEarlyStartBooking(null)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
@@ -5375,7 +6440,7 @@ export default function CalendarManagementScreen({
               <button
                 type="button"
                 onClick={() => {
-                  requestPhotoStatusChange(earlyStartBooking, "진행 중");
+                  void applyBookingStatusChange(earlyStartBooking.id, "진행 중");
                   setEarlyStartBooking(null);
                 }}
                 className="h-10 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white"

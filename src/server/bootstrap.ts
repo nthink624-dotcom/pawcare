@@ -20,6 +20,7 @@ import type {
   LandingFeedback,
   LandingInterest,
   Pet,
+  PetStaffNote,
   Service,
   Shop,
   AlimtalkCreditSummary,
@@ -195,7 +196,6 @@ function isMissingAlimtalkCreditSummaryError(error: { code?: string | null; mess
 }
 
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
-  const allowMock = options.allowMock ?? true;
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
   const includeGroomingRecords = options.includeGroomingRecords ?? true;
@@ -206,19 +206,17 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const groomingRecordLimit = options.groomingRecordLimit;
   const notificationLimit = options.notificationLimit;
 
-  if (!hasSupabaseServerEnv()) {
-    if (!allowMock) {
-      throw new Error("Supabase 서버 설정이 없어 운영 오너 데이터를 불러올 수 없습니다.");
-    }
+  if (shopId === "demo-shop" || shopId === "owner-demo") {
     return buildMockBootstrap(shopId);
+  }
+
+  if (!hasSupabaseServerEnv()) {
+    throw new Error("Supabase 서버 설정이 없어 매장 데이터를 불러올 수 없습니다.");
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    if (!allowMock) {
-      throw new Error("Supabase 서버 연결이 없어 운영 오너 데이터를 불러올 수 없습니다.");
-    }
-    return buildMockBootstrap(shopId);
+    throw new Error("Supabase 서버 연결이 없어 매장 데이터를 불러올 수 없습니다.");
   }
 
   let notificationsQuery: any = includeNotifications
@@ -260,8 +258,13 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     .select("*")
     .eq("shop_id", shopId)
     .maybeSingle();
+  const petStaffNotesQuery = supabase
+    .from("pet_staff_notes")
+    .select("*")
+    .eq("shop_id", shopId)
+    .order("updated_at", { ascending: false });
 
-  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes] =
+  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes] =
     await Promise.all([
       supabase.from("shops").select("*").eq("id", shopId).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
@@ -285,13 +288,11 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       interestsQuery,
       feedbackQuery,
       alimtalkCreditSummaryQuery,
+      petStaffNotesQuery,
     ]);
 
   if (shopRes.error || !shopRes.data) {
-    if (shopId !== "demo-shop" && shopId !== "owner-demo") {
-      throw new Error("매장 정보를 찾을 수 없습니다.");
-    }
-    return buildMockBootstrap(shopId);
+    throw new Error("매장 정보를 찾을 수 없습니다.");
   }
 
   const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map(normalizeGuardianForBootstrap);
@@ -342,6 +343,9 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       .map(normalizeAppointmentForBootstrap),
     groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
       activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),
+    ),
+    petStaffNotes: ((petStaffNotesRes.data ?? []) as PetStaffNote[]).filter((note) =>
+      activeGuardianIds.has(note.guardian_id) && (!note.pet_id || activePetIds.has(note.pet_id)),
     ),
     notifications: ((notificationsRes.data ?? []) as BootstrapPayload["notifications"]).filter((notification) =>
       !notification.guardian_id || activeGuardianIds.has(notification.guardian_id),

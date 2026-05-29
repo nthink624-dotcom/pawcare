@@ -160,7 +160,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
       customer_page_settings: normalizeCustomerPageSettings(
         {
           ...base.shop.customer_page_settings,
-          shop_name: "포근한 발바닥 미용실",
+          shop_name: "데모 미용실",
           tagline: "첫 방문부터 재방문까지 한 번에 이어지는 모바일 예약",
           notices: [
             "첫 방문은 상담 포함으로 여유 있게 예약해 주세요.",
@@ -168,7 +168,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
             "주차는 건물 뒤편 공용 주차장을 이용해 주세요.",
           ],
         },
-        "포근한 발바닥 미용실",
+        "데모 미용실",
         "첫 방문부터 재방문까지 한 번에 이어지는 모바일 예약",
       ),
     },

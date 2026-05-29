@@ -2,6 +2,7 @@ import type { PetBiteLevel } from "@/types/domain";
 
 export const petBiteLevelOptions: Array<{ value: PetBiteLevel; label: string; description: string }> = [
   { value: "none", label: "없음", description: "평소 입질이 거의 없어요." },
+  { value: "mild", label: "낮음", description: "가끔 불편해하지만 제어가 쉬워요." },
   { value: "watch", label: "주의", description: "특정 부위나 상황에서 주의가 필요해요." },
   { value: "bite", label: "입질 있음", description: "미용 중 입질 가능성이 있어요." },
   { value: "strong", label: "강한 입질", description: "반드시 사전 공유가 필요해요." },
@@ -23,5 +24,6 @@ export function getPetBiteLevelBadgeClass(value: unknown) {
   if (level === "strong") return "border-[#e0b5bd] bg-[#fff7f8] text-[#a04455]";
   if (level === "bite") return "border-[#ead1a3] bg-[#fffaf0] text-[#8a5b11]";
   if (level === "watch") return "border-[#eadfd3] bg-[#fffaf5] text-[#8a5b11]";
+  if (level === "mild") return "border-[#d7e8dd] bg-[#f7fbf8] text-[#2f7866]";
   return "border-[#dbe2ea] bg-white text-[#64748b]";
 }

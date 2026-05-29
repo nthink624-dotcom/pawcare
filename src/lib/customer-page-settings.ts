@@ -1,9 +1,10 @@
 ﻿import { decodeUnicodeEscapes } from "@/lib/utils";
+import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import type { CustomerPageSettings } from "@/types/domain";
 
 export const defaultCustomerPageSettings: CustomerPageSettings = {
-  shop_name: "포근한 발바닥 미용실",
-  tagline: "부드럽고 편안한 돌봄으로 아이에게 맞는 미용 시간을 준비해요.",
+  shop_name: "",
+  tagline: "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.",
   hero_image_url: "",
   primary_color: "#1F6B5B",
   notices: ["첫 방문은 상담 포함으로 여유 있게 예약해 주세요.", "대기 시간이 길어질 수 있어 예약 시간 10분 전에 도착해 주세요.", "피부 예민한 아이는 메모에 꼭 남겨 주세요."],
@@ -22,7 +23,25 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   additional_contact: "",
   postal_code: "",
   address_detail: "",
+  customer_service_overrides: {},
 };
+
+export function buildDefaultCustomerPageSettings(input: {
+  shopName: string;
+  description?: string | null;
+}): CustomerPageSettings {
+  const shopName = input.shopName.trim();
+  const description = input.description?.trim() || "";
+
+  return normalizeCustomerPageSettings(
+    {
+      shop_name: shopName,
+      tagline: description || defaultCustomerPageSettings.tagline,
+    },
+    shopName,
+    description || defaultCustomerPageSettings.tagline,
+  );
+}
 
 function normalizeColor(value: string | null | undefined) {
   const trimmed = (value || "").trim();
@@ -74,5 +93,6 @@ export function normalizeCustomerPageSettings(
     additional_contact: normalizeOptionalText(settings?.additional_contact),
     postal_code: normalizeOptionalText(settings?.postal_code),
     address_detail: normalizeOptionalText(settings?.address_detail),
+    customer_service_overrides: normalizeCustomerServiceOverrides(settings?.customer_service_overrides),
   };
 }

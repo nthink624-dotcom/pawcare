@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 export default async function DemoBookInfoPage() {
   const data = await getBootstrap("demo-shop");
 
-  return <ShopInfoPage shop={data.shop} services={data.services} backHref="/demo/book" />;
+  return <ShopInfoPage shop={data.shop} services={data.services} backHref="/entry/demo-shop" />;
 }

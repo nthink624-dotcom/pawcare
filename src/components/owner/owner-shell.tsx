@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { X } from "lucide-react";
 
-import OwnerApp from "@/components/owner/owner-app";
+import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -175,6 +175,7 @@ export default function OwnerShell({
   subscriptionSummary,
   userEmail,
   onSwitchShop,
+  launchPhotoStatusAction = null,
 }: {
   initialData: BootstrapPayload;
   ownedShops: OwnedShopSummary[];
@@ -182,6 +183,7 @@ export default function OwnerShell({
   subscriptionSummary: OwnerSubscriptionSummary | null;
   userEmail: string | null;
   onSwitchShop: (shopId: string) => Promise<void>;
+  launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
 }) {
   const router = useRouter();
   const [supabase] = useState<SupabaseClient | null>(() => getSupabaseBrowserClient());
@@ -280,6 +282,7 @@ export default function OwnerShell({
         onSwitchShop={onSwitchShop}
         loggingOut={loggingOut}
         userEmail={userEmail}
+        launchPhotoStatusAction={launchPhotoStatusAction}
       />
     </div>
   );

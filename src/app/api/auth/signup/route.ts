@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth/owner-credentials";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
+import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
@@ -249,6 +250,10 @@ export async function POST(request: NextRequest) {
       booking_available_end_time: "17:00",
       approval_mode: "manual",
       notification_settings: defaultShopNotificationSettings,
+      customer_page_settings: buildDefaultCustomerPageSettings({
+        shopName: payload.shopName,
+        description: "",
+      }),
       created_at: now,
       updated_at: now,
     };

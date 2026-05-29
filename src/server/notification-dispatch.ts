@@ -475,6 +475,23 @@ function buildNotificationMessage(params: {
   return params.serviceName ? `${params.petName} / ${params.serviceName}` : params.petName;
 }
 
+function buildPhotoLessGroomingCompletedMessage(params: {
+  shopName: string;
+  petName: string;
+  bookingManageUrl: string | null;
+}) {
+  return [
+    `[${params.shopName}]`,
+    `${params.petName} 미용이 완료됐어요.`,
+    "",
+    "오늘도 믿고 맡겨주셔서 감사합니다.",
+    "편하신 시간에 픽업 부탁드립니다.",
+    "",
+    params.bookingManageUrl ? "예약 확인 링크" : "",
+    params.bookingManageUrl ?? "",
+  ].filter(Boolean).join("\n");
+}
+
 function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | undefined) {
   const query = [shopName, shopAddress?.trim()].filter(Boolean).join(" ");
   if (!query) return null;
@@ -621,21 +638,28 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
+  const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
   const message =
     input.message?.trim() ||
-    buildNotificationMessage({
-      type: input.type,
-      shopName: bootstrap.shop.name,
-      shopAddress: bootstrap.shop.address ?? null,
-      appointment,
-      petName: pet?.name ?? "pet",
-      recipientName,
-      serviceName: service?.name ?? null,
-      rejectionReason: appointment?.rejection_reason ?? null,
-      bookingEntryUrl,
-      bookingManageUrl,
-      directionsUrl,
-    });
+    (input.type === "grooming_completed" && mediaAssetIds.length === 0
+      ? buildPhotoLessGroomingCompletedMessage({
+          shopName: bootstrap.shop.name,
+          petName: pet?.name ?? "pet",
+          bookingManageUrl,
+        })
+      : buildNotificationMessage({
+          type: input.type,
+          shopName: bootstrap.shop.name,
+          shopAddress: bootstrap.shop.address ?? null,
+          appointment,
+          petName: pet?.name ?? "pet",
+          recipientName,
+          serviceName: service?.name ?? null,
+          rejectionReason: appointment?.rejection_reason ?? null,
+          bookingEntryUrl,
+          bookingManageUrl,
+          directionsUrl,
+        }));
 
   let status: NotificationStatus = "queued";
   let provider = input.channel === "mock" ? "mock" : bootstrap.mode === "supabase" ? "kakao" : "mock";
@@ -649,7 +673,6 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
   const canSendGuardian = input.force ? true : shouldSendGuardianNotification(guardian, input.type);
   const canSend = canSendShop && canSendGuardian;
-  const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
   const mediaAttachments =
     bootstrap.mode === "supabase" && mediaAssetIds.length > 0
       ? await buildNotificationMediaAttachments({
@@ -726,7 +749,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   } else if (isPhotoAlimtalkRequest && !hasConfiguredPhotoAlimtalkTemplate) {
     status = "queued";
     provider = "pending_template";
-    failReason = "전후 사진 알림톡 템플릿 승인 전입니다. 요청만 저장했습니다.";
+    failReason = "완료 사진 알림톡 템플릿 승인 전입니다. 요청만 저장했습니다.";
     logNotificationSkipped({
       reason: "photo alimtalk template not configured",
       type: input.type,

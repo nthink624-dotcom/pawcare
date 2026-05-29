@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
 import {
+  applyCustomerServiceOverrides,
+  buildCustomerServiceSourceOptions,
+} from "@/lib/customer-service-options";
+import {
   addDate,
   currentDateInTimeZone,
   currentMinutesInTimeZone,
@@ -23,7 +27,7 @@ import {
   verifyBookingAccessToken,
 } from "@/server/booking-access-token";
 import { getMockStore, setMockStore } from "@/server/mock-store";
-import { createAppointment } from "@/server/owner-mutations";
+import { createAppointment, upsertService } from "@/server/owner-mutations";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import type { Appointment, Guardian, Pet, Shop } from "@/types/domain";
 
@@ -43,6 +47,7 @@ const customerBookingCreateSchema = z.object({
     .optional()
     .default([]),
   serviceId: z.string().min(1),
+  customerServiceOptionId: z.string().trim().optional().default(""),
   staffId: z.string().nullable().optional(),
   customServiceName: z.string().trim().optional().default(""),
   appointmentDate: z.string().min(1),
@@ -537,7 +542,38 @@ export async function createCustomerBooking(input: unknown) {
 
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
-  const resolvedServiceId = usesCustomService ? fallbackServiceId : payload.serviceId;
+  const customerServiceOptions = applyCustomerServiceOverrides(
+    buildCustomerServiceSourceOptions(bootstrap.services),
+    bootstrap.shop.customer_page_settings.customer_service_overrides,
+  );
+  const selectedCustomerServiceOption = payload.customerServiceOptionId
+    ? customerServiceOptions.find((option) => option.id === payload.customerServiceOptionId && option.serviceId === payload.serviceId)
+    : null;
+
+  if (payload.customerServiceOptionId && !selectedCustomerServiceOption) {
+    throw new Error("선택한 서비스가 현재 예약 페이지에 노출되어 있지 않습니다.");
+  }
+
+  let resolvedServiceId = usesCustomService ? fallbackServiceId : payload.serviceId;
+  if (!usesCustomService && selectedCustomerServiceOption) {
+    const sourceService = bootstrap.services.find((service) => service.id === selectedCustomerServiceOption.serviceId);
+    const bookingService = await upsertService({
+      shopId: payload.shopId,
+      serviceId: `customer-booking-${randomUUID()}`,
+      name: selectedCustomerServiceOption.name,
+      price: selectedCustomerServiceOption.price,
+      priceType: selectedCustomerServiceOption.priceType,
+      durationMinutes: selectedCustomerServiceOption.durationMinutes,
+      isActive: false,
+      category: selectedCustomerServiceOption.category || sourceService?.category || "미용",
+      description: selectedCustomerServiceOption.description,
+      sortOrder: 10000,
+      capacityLabel: sourceService?.capacity_label ?? "동일 시간 1건",
+      staffSelectionMode: sourceService?.staff_selection_mode ?? "all",
+      priceGuide: {},
+    });
+    resolvedServiceId = bookingService.id;
+  }
 
   if (!resolvedServiceId) {
     throw new Error("예약 가능한 서비스 정보를 찾을 수 없습니다.");
@@ -638,7 +674,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
-    pets: scopedPets.map(({ id, name, guardian_id }) => ({ id, name, guardian_id })),
+    pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
     appointments: scopedAppointments,
     groomingRecords,
   };
@@ -663,7 +699,7 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
 
   return {
     guardians: [{ id: guardian.id, name: guardian.name, phone: guardian.phone }],
-    pets: [{ id: pet.id, name: pet.name, guardian_id: pet.guardian_id }],
+    pets: [{ id: pet.id, name: pet.name, guardian_id: pet.guardian_id, breed: pet.breed }],
     appointments: scopedAppointments,
     groomingRecords,
   };

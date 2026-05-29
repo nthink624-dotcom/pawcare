@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
@@ -10,6 +11,8 @@ import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mo
 const updateShopSchema = z.object({
   shopId: z.string().trim().min(1),
   name: z.string().trim().min(1).max(80).optional(),
+  tagline: z.string().trim().max(120).optional(),
+  heroImageUrl: z.string().trim().max(1_200_000).optional(),
   phone: z.string().trim().min(1).max(30).optional(),
   address: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(500).optional(),
@@ -20,6 +23,7 @@ const updateShopSchema = z.object({
   approvalMode: z.enum(["manual", "auto"]).optional(),
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
   pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional(),
+  customerServiceOverrides: z.unknown().optional(),
 });
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -155,6 +159,10 @@ export async function PATCH(request: NextRequest) {
             additional_contact: body.additionalContact ?? "",
             postal_code: body.postalCode ?? "",
             address_detail: body.addressDetail ?? "",
+            hero_image_url: body.heroImageUrl ?? "",
+            ...(body.customerServiceOverrides !== undefined
+              ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
+              : {}),
           },
         },
       });
@@ -179,10 +187,13 @@ export async function PATCH(request: NextRequest) {
 
     const hasCustomerPageUpdates =
       body.name !== undefined ||
+      body.tagline !== undefined ||
       body.businessCategory !== undefined ||
       body.additionalContact !== undefined ||
       body.postalCode !== undefined ||
-      body.addressDetail !== undefined;
+      body.addressDetail !== undefined ||
+      body.heroImageUrl !== undefined ||
+      body.customerServiceOverrides !== undefined;
 
     if (
       Object.keys(updates).length === 0 &&
@@ -212,10 +223,15 @@ export async function PATCH(request: NextRequest) {
         updates.customer_page_settings = {
           ...(currentShopResult.data?.customer_page_settings ?? {}),
           ...(body.name !== undefined ? { shop_name: body.name } : {}),
+          ...(body.tagline !== undefined ? { tagline: body.tagline } : {}),
           ...(body.businessCategory !== undefined ? { business_category: body.businessCategory } : {}),
           ...(body.additionalContact !== undefined ? { additional_contact: body.additionalContact } : {}),
           ...(body.postalCode !== undefined ? { postal_code: body.postalCode } : {}),
           ...(body.addressDetail !== undefined ? { address_detail: body.addressDetail } : {}),
+          ...(body.heroImageUrl !== undefined ? { hero_image_url: body.heroImageUrl } : {}),
+          ...(body.customerServiceOverrides !== undefined
+            ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
+            : {}),
         };
       }
 

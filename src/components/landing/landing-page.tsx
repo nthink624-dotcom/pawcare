@@ -16,8 +16,6 @@ const CARD_TITLE = "text-[15px] font-bold leading-[1.4] tracking-[-0.02em] text-
 const BODY = "text-[14px] leading-6 text-[#625d56]";
 const PRIMARY_BUTTON =
   "flex h-[54px] items-center justify-center rounded-[18px] bg-[#f3a77f] px-4 text-[16px] font-semibold text-[#1c2320]";
-const SECONDARY_BUTTON =
-  "flex h-[54px] items-center justify-center rounded-[18px] border border-white/18 bg-white/8 px-4 text-[16px] font-semibold text-white";
 const TERTIARY_BUTTON =
   "flex h-[54px] items-center justify-center rounded-[18px] border border-[#d6d0c5] bg-white px-4 text-[16px] font-semibold text-[#1f5b51]";
 
@@ -128,11 +126,6 @@ function HeroSection({
         {canShowDemoLinks ? (
           <Link href="/demo/owner" className={PRIMARY_BUTTON}>
             오너 페이지 미리보기
-          </Link>
-        ) : null}
-        {canShowDemoLinks ? (
-          <Link href="/demo/book" className={SECONDARY_BUTTON}>
-            고객 예약 페이지 미리보기
           </Link>
         ) : null}
         <Link href="/login?next=%2Fowner" replace className={TERTIARY_BUTTON}>

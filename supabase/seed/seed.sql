@@ -1,7 +1,7 @@
 ﻿insert into shops (id, name, phone, address, description, business_hours, regular_closed_days, temporary_closed_dates, concurrent_capacity, approval_mode)
 values (
   'demo-shop',
-  '포근한 발바닥 미용실',
+  '데모 미용실',
   '02-1234-5678',
   '서울 강남구 논현로 123',
   '소형견 중심의 1인 미용샵 운영을 돕는 예약 관리 앱',

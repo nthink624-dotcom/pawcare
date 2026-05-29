@@ -19,6 +19,8 @@ type GroomingCalendarRecord = {
   customer: string;
   service: string;
   memo: string;
+  customerRequest: string;
+  staffComment: string;
   next: string;
   date: string;
   time: string;
@@ -34,6 +36,8 @@ type ReservationRow = {
   service: string;
   status: string;
   note: string;
+  customerRequest: string;
+  staffComment: string;
   date: string;
   time: string;
   staff: string;
@@ -54,6 +58,8 @@ type DayItem = {
   service: string;
   status: string;
   note: string;
+  customerRequest?: string;
+  staffComment?: string;
   date: string;
   next?: string;
   time?: string;
@@ -80,16 +86,20 @@ function buildBootstrapLookup(data: BootstrapPayload) {
     guardianById: new Map(data.guardians.map((guardian) => [guardian.id, guardian])),
     petById: new Map(data.pets.map((pet) => [pet.id, pet])),
     serviceById: new Map(data.services.map((service) => [service.id, service])),
+    appointmentById: new Map(data.appointments.map((appointment) => [appointment.id, appointment])),
+    staffNoteByPetId: new Map((data.petStaffNotes ?? []).filter((note) => note.pet_id).map((note) => [note.pet_id as string, note])),
   };
 }
 
 function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[] {
-  const { guardianById, petById, serviceById } = buildBootstrapLookup(data);
+  const { guardianById, petById, serviceById, staffNoteByPetId } = buildBootstrapLookup(data);
 
   return data.appointments.map((appointment) => {
     const guardian = guardianById.get(appointment.guardian_id);
     const pet = petById.get(appointment.pet_id);
     const service = serviceById.get(appointment.service_id);
+    const customerRequest = appointment.memo?.trim() ?? "";
+    const staffComment = staffNoteByPetId.get(appointment.pet_id)?.note?.trim() ?? "";
 
     return {
       id: appointment.id,
@@ -100,7 +110,9 @@ function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[
       customer: guardian?.name ?? "보호자 미등록",
       service: service?.name ?? "서비스 미등록",
       status: appointmentStatusLabels[appointment.status],
-      note: appointment.memo?.trim() || "요청 메모가 없습니다.",
+      note: customerRequest || "요청 메모가 없습니다.",
+      customerRequest,
+      staffComment,
       date: appointment.appointment_date,
       time: appointment.appointment_time,
       staff: "담당 미배정",
@@ -111,13 +123,16 @@ function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[
 }
 
 function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarRecord[] {
-  const { guardianById, petById, serviceById } = buildBootstrapLookup(data);
+  const { guardianById, petById, serviceById, appointmentById, staffNoteByPetId } = buildBootstrapLookup(data);
 
   return data.groomingRecords.map((record) => {
     const guardian = guardianById.get(record.guardian_id);
     const pet = petById.get(record.pet_id);
     const service = serviceById.get(record.service_id);
-    const memoParts = [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean);
+    const linkedAppointment = record.appointment_id ? appointmentById.get(record.appointment_id) : null;
+    const customerRequest = linkedAppointment?.memo?.trim() || record.style_notes?.trim() || "";
+    const staffComment = staffNoteByPetId.get(record.pet_id)?.note?.trim() || record.memo?.trim() || "";
+    const memoParts = [customerRequest, staffComment].map((item) => item?.trim()).filter(Boolean);
 
     return {
       id: record.id,
@@ -129,6 +144,8 @@ function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarReco
       customer: guardian?.name ?? "보호자 미등록",
       service: service?.name ?? "서비스 미등록",
       memo: memoParts.join(" · ") || "작성된 메모가 없습니다.",
+      customerRequest,
+      staffComment,
       next: "",
       date: record.groomed_at.slice(0, 10),
       time: getRecordClockTime(record.groomed_at),
@@ -198,6 +215,8 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       service: record.service,
       status: "기록 완료",
       note: record.memo,
+      customerRequest: record.customerRequest,
+      staffComment: record.staffComment,
       next: record.next,
       date,
       time: record.time,
@@ -221,6 +240,8 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       service: reservation.service,
       status: "기록 완료",
       note: reservation.note,
+      customerRequest: reservation.customerRequest,
+      staffComment: reservation.staffComment,
       time: reservation.time,
       staff: reservation.staff,
       phone: reservation.phone,
@@ -246,6 +267,8 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
           service: reservation.service,
           status: reservation.status,
           note: reservation.note,
+          customerRequest: reservation.customerRequest,
+          staffComment: reservation.staffComment,
           time: reservation.time,
           staff: reservation.staff,
           phone: reservation.phone,
@@ -354,7 +377,9 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
   }, [initialReservations, records]);
 
   const filteredRecords = useMemo(() => {
-    return records.filter((record) => matchesCalendarSearch([record.pet, record.customer, record.date, record.service, record.memo, record.next], query));
+    return records.filter((record) =>
+      matchesCalendarSearch([record.pet, record.customer, record.date, record.service, record.memo, record.customerRequest, record.staffComment, record.next], query),
+    );
   }, [query, records]);
   const filteredReservations = useMemo(() => {
     return reservations.filter((reservation) =>
@@ -365,6 +390,8 @@ export default function GroomingManagementScreen({ initialData }: { initialData:
           reservation.service,
           reservation.status,
           reservation.note,
+          reservation.customerRequest,
+          reservation.staffComment,
           reservation.date,
           reservation.time,
           reservation.staff,
@@ -660,66 +687,208 @@ function DayItemSection({
   );
 }
 
+/*
 function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
+  const kindLabel = item.type === "record" ? "기록" : "예약";
+  const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
+  const customerRequest = item.customerRequest?.trim() || "고객 요청사항이 없습니다.";
+  const staffComment = item.staffComment?.trim() || "직원 코멘트가 없습니다.";
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
       <aside
         className="ml-auto flex h-full w-full max-w-[430px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f7] px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold tracking-[0.12em] text-[#94a3b8]">{item.type === "record" ? "기록 상세" : "예약 내역"}</p>
-            <h3 className="mt-2 truncate text-[24px] font-semibold text-[#111827]">{item.pet} · {item.customer}</h3>
-            <p className="mt-1 text-[14px] text-[#64748b]">{formatShortDate(item.date)}{item.time ? ` · ${item.time}` : ""}</p>
+        <div className="border-b border-[#edf2f7] px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.pet} · {item.customer}</h3>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#64748b]">
+                <span>{formatShortDate(item.date)}{item.time ? ` · ${item.time}` : ""}</span>
+                <span className="text-[#cbd5e1]">/</span>
+                <span>{kindLabel}</span>
+                <span className="text-[#cbd5e1]">/</span>
+                <span>{item.status}</span>
+              </div>
+            </div>
+            <button type="button" onClick={onClose} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          <div className="grid grid-cols-2 gap-2">
-            <InfoTile label="구분" value={item.type === "record" ? "기록" : "예약"} />
-            <InfoTile label="품종" value={item.breed ?? "품종 미입력"} />
-            <InfoTile label="경로" value={item.channel ?? (item.type === "record" ? "기록 등록" : "예약")} />
-            <InfoTile label="상태" value={item.status} />
-            <InfoTile label="서비스" value={item.service} />
-            <InfoTile label="담당" value={item.staff ?? "미지정"} />
-          </div>
-
-          <section className="mt-5 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-4">
-            <p className="text-[12px] font-semibold text-[#64748b]">{item.type === "record" ? "시술 메모" : "고객 요청"}</p>
-            <p className="mt-2 text-[15px] leading-6 text-[#111827]">{item.note || "요청 내용이 없습니다."}</p>
+          <section className={cn("rounded-[8px] border bg-white p-4", getWrapIndicatorClass(getStatusAccent(item)))}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] text-[#94a3b8]">서비스</p>
+                <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.service}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[13px] text-[#64748b]">
+                {item.staff ?? "담당 미지정"}
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf2f7] pt-3">
+              <RecordMeta label="품종" value={item.breed ?? "품종 미입력"} />
+              <RecordMeta label="경로" value={sourceLabel} />
+            </div>
           </section>
+
+          <RecordMemoCard title="고객 요청사항" value={customerRequest} highlighted />
+          <RecordMemoCard title="직원 코멘트" value={staffComment} />
 
           {item.next ? (
             <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-              <p className="text-[12px] font-semibold text-[#64748b]">다음 체크</p>
-              <p className="mt-2 text-[15px] leading-6 text-[#111827]">{item.next}</p>
+              <p className="text-[14px] text-[#64748b]">다음 체크</p>
+              <p className="mt-2 text-[16px] leading-6 text-[#111827]">{item.next}</p>
             </section>
           ) : null}
 
-          <OwnerMediaUploadPanel
-            context={{
-              shopId,
-              guardianId: item.guardianId,
-              petId: item.petId,
-              appointmentId: item.appointmentId ?? null,
-              groomingRecordId: item.groomingRecordId ?? null,
-            }}
-          />
+          <div className="mt-4">
+            <OwnerMediaUploadPanel
+              context={{
+                shopId,
+                guardianId: item.guardianId,
+                petId: item.petId,
+                appointmentId: item.appointmentId ?? null,
+                groomingRecordId: item.groomingRecordId ?? null,
+              }}
+            />
+          </div>
         </div>
       </aside>
     </div>
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function RecordMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-3">
-      <p className="text-[12px] text-[#94a3b8]">{label}</p>
-      <p className="mt-1 truncate text-[15px] font-semibold text-[#111827]">{value}</p>
+    <div className="min-w-0">
+      <p className="text-[13px] text-[#94a3b8]">{label}</p>
+      <p className="mt-1 truncate text-[16px] text-[#111827]">{value}</p>
     </div>
+  );
+}
+
+function RecordMemoCard({ title, value, highlighted = false }: { title: string; value: string; highlighted?: boolean }) {
+  return (
+    <section
+      className={cn(
+        "mt-3 rounded-[8px] border p-4",
+        highlighted ? "border-[#dbe2ea] bg-[#f8fafc]" : "border-[#dbe2ea] bg-white",
+      )}
+    >
+      <p className="text-[14px] text-[#64748b]">{title}</p>
+      <p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#111827]">{value}</p>
+    </section>
+  );
+}
+*/
+
+function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
+  const kindLabel = item.type === "record" ? "기록" : "예약";
+  const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
+  const customerRequest = item.customerRequest?.trim() || "고객 요청사항이 없습니다.";
+  const staffComment = item.staffComment?.trim() || "직원 코멘트가 없습니다.";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
+      <aside
+        className="ml-auto flex h-full w-full max-w-[430px] flex-col border-l border-[#dbe2ea] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-[#edf2f7] px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">
+                {item.pet} · {item.customer}
+              </h3>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#64748b]">
+                <span>
+                  {formatShortDate(item.date)}
+                  {item.time ? ` · ${item.time}` : ""}
+                </span>
+                <span className="text-[#cbd5e1]">/</span>
+                <span>{kindLabel}</span>
+                <span className="text-[#cbd5e1]">/</span>
+                <span>{item.status}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <section className={cn("rounded-[8px] border bg-white p-4", getWrapIndicatorClass(getStatusAccent(item)))}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] text-[#94a3b8]">서비스</p>
+                <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.service}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[13px] text-[#64748b]">
+                {item.staff ?? "담당 미지정"}
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf2f7] pt-3">
+              <RecordMeta label="품종" value={item.breed ?? "품종 미입력"} />
+              <RecordMeta label="경로" value={sourceLabel} />
+            </div>
+          </section>
+
+          <RecordMemoCard title="고객 요청사항" value={customerRequest} highlighted />
+          <RecordMemoCard title="직원 코멘트" value={staffComment} />
+
+          {item.next ? (
+            <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <p className="text-[14px] text-[#64748b]">다음 체크</p>
+              <p className="mt-2 text-[16px] leading-6 text-[#111827]">{item.next}</p>
+            </section>
+          ) : null}
+
+          <div className="mt-4">
+            <OwnerMediaUploadPanel
+              context={{
+                shopId,
+                guardianId: item.guardianId,
+                petId: item.petId,
+                appointmentId: item.appointmentId ?? null,
+                groomingRecordId: item.groomingRecordId ?? null,
+              }}
+            />
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function RecordMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[13px] text-[#94a3b8]">{label}</p>
+      <p className="mt-1 truncate text-[16px] text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function RecordMemoCard({ title, value, highlighted = false }: { title: string; value: string; highlighted?: boolean }) {
+  return (
+    <section
+      className={cn(
+        "mt-3 rounded-[8px] border p-4",
+        highlighted ? "border-[#dbe2ea] bg-[#f8fafc]" : "border-[#dbe2ea] bg-white",
+      )}
+    >
+      <p className="text-[14px] text-[#64748b]">{title}</p>
+      <p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#111827]">{value}</p>
+    </section>
   );
 }

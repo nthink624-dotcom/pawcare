@@ -4,6 +4,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
@@ -12,9 +13,14 @@ import { Switch } from "@/components/ui/switch";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import {
+  buildCustomerServiceSourceOptions,
+  normalizeCustomerServiceOverrides,
+  type CustomerServiceDisplayOverrides,
+} from "@/lib/customer-service-options";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, ReservationPolicySettings, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { ApprovalMode, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -105,6 +111,8 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     groomingStartedEnabled: normalized.grooming_started_enabled,
     groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
     groomingCompletedEnabled: normalized.grooming_completed_enabled,
+    groomingStartWithoutPhotoEnabled: normalized.grooming_start_without_photo_enabled,
+    groomingCompleteWithoutPhotoEnabled: normalized.grooming_complete_without_photo_enabled,
   };
 }
 
@@ -120,12 +128,13 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     grooming_started_enabled: draft.groomingStartedEnabled,
     grooming_almost_done_enabled: draft.groomingAlmostDoneEnabled,
     grooming_completed_enabled: draft.groomingCompletedEnabled,
+    grooming_start_without_photo_enabled: draft.groomingStartWithoutPhotoEnabled,
+    grooming_complete_without_photo_enabled: draft.groomingCompleteWithoutPhotoEnabled,
   };
 }
 
 const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: "shop", label: "매장 정보" },
-  { key: "hours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },
 ];
 
@@ -643,6 +652,7 @@ export default function SettingsManagementScreen({
   onActiveTabChange,
   showTabNavigation = true,
   shop,
+  services = [],
   onShopChange,
   persistShopProfile = true,
   manualApprovalEnabled,
@@ -652,6 +662,7 @@ export default function SettingsManagementScreen({
   onActiveTabChange?: (tab: SettingsTabKey) => void;
   showTabNavigation?: boolean;
   shop?: Shop;
+  services?: Service[];
   onShopChange?: (shop: Shop) => void;
   persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
@@ -664,8 +675,13 @@ export default function SettingsManagementScreen({
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
+  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
+    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
+  );
+  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
+  const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -687,6 +703,8 @@ export default function SettingsManagementScreen({
           setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
         } else if (storedProfileImage) {
           setShopProfileImages([storedProfileImage]);
+        } else if (shop?.customer_page_settings.hero_image_url) {
+          setShopProfileImages([shop.customer_page_settings.hero_image_url]);
         }
       });
       setIsShopInfoDirty(false);
@@ -704,13 +722,25 @@ export default function SettingsManagementScreen({
       if (saveCompleteTimerRef.current) {
         clearTimeout(saveCompleteTimerRef.current);
       }
+      if (customerServiceSaveTimerRef.current) {
+        clearTimeout(customerServiceSaveTimerRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
+    setCustomerServiceOverrides((currentOverrides) =>
+      JSON.stringify(currentOverrides) === JSON.stringify(nextOverrides) ? currentOverrides : nextOverrides,
+    );
+    setCustomerServiceSaveStatus((currentStatus) => (currentStatus === "pending" ? currentStatus : "saved"));
+  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const current = useMemo(() => {
     return draftSettings[activeTab];
   }, [activeTab, draftSettings]);
+  const customerServiceOptions = useMemo(() => buildCustomerServiceSourceOptions(services), [services]);
 
   async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
@@ -728,6 +758,8 @@ export default function SettingsManagementScreen({
     const postalCode = "postalCode" in profilePatch && typeof profilePatch.postalCode === "string" ? profilePatch.postalCode : "";
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
+    const heroImageUrl = normalizeShopProfileImages(shopProfileImages)[0] ?? "";
+    const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
     const optimisticShop: Shop = {
       ...shop,
       ...profilePatch,
@@ -746,6 +778,8 @@ export default function SettingsManagementScreen({
       customer_page_settings: {
         ...shop.customer_page_settings,
         shop_name: profileName || shop.customer_page_settings.shop_name,
+        tagline,
+        hero_image_url: heroImageUrl,
         business_category: businessCategory || shop.customer_page_settings.business_category,
         additional_contact: additionalContact,
         postal_code: postalCode,
@@ -778,6 +812,8 @@ export default function SettingsManagementScreen({
         body: JSON.stringify({
           shopId: shop.id,
           ...profilePatch,
+          tagline,
+          heroImageUrl,
           ...(policyPatch ?? {}),
           ...(policyPatch ? { pendingHoldLimit: policyPatch.pendingHoldLimit } : {}),
         }),
@@ -787,6 +823,61 @@ export default function SettingsManagementScreen({
     if (policyPatch) {
       onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
     }
+  }
+
+  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
+    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
+    setCustomerServiceOverrides(normalizedOverrides);
+
+    if (customerServiceSaveTimerRef.current) {
+      clearTimeout(customerServiceSaveTimerRef.current);
+      customerServiceSaveTimerRef.current = null;
+    }
+
+    if (!shop) {
+      setCustomerServiceSaveStatus("idle");
+      return;
+    }
+
+    const optimisticShop: Shop = {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        customer_service_overrides: normalizedOverrides,
+      },
+    };
+    onShopChange?.(optimisticShop);
+
+    if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
+      setCustomerServiceSaveStatus("saved");
+      return;
+    }
+
+    setCustomerServiceSaveStatus("pending");
+    customerServiceSaveTimerRef.current = setTimeout(() => {
+      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: shop.id,
+          customerServiceOverrides: normalizedOverrides,
+        }),
+      })
+        .then((result) => {
+          onShopChange?.({
+            ...optimisticShop,
+            customer_page_settings: {
+              ...optimisticShop.customer_page_settings,
+              ...result.shop.customer_page_settings,
+            },
+          });
+          setCustomerServiceSaveStatus("saved");
+        })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to save customer service exposure", error);
+          setCustomerServiceSaveStatus("error");
+        });
+      customerServiceSaveTimerRef.current = null;
+    }, 500);
   }
 
   function buildSettingsWithRow(
@@ -810,6 +901,20 @@ export default function SettingsManagementScreen({
       if (activeTab === "shop") {
         setIsShopInfoDirty(true);
       }
+      return nextSettings;
+    });
+  }
+
+  function updateHoursRow(rowId: string, value: SettingRow["value"]) {
+    setDraftSettings((currentSettings) => {
+      const nextSettings = {
+        ...currentSettings,
+        hours: {
+          ...currentSettings.hours,
+          rows: currentSettings.hours.rows.map((row) => (row.id === rowId ? { ...row, value } : row)),
+        },
+      };
+      persistSettings(nextSettings);
       return nextSettings;
     });
   }
@@ -908,8 +1013,10 @@ export default function SettingsManagementScreen({
   }
 
   const addressValue = String(draftSettings.shop.rows.find((row) => row.id === "address")?.value ?? "");
-  const businessHoursRow = current.rows.find((row) => row.id === "businessHours");
-  const closedDayRow = current.rows.find((row) => row.id === "closedDay");
+  const currentBusinessHoursRow = current.rows.find((row) => row.id === "businessHours");
+  const currentClosedDayRow = current.rows.find((row) => row.id === "closedDay");
+  const businessHoursRow = draftSettings.hours.rows.find((row) => row.id === "businessHours");
+  const closedDayRow = draftSettings.hours.rows.find((row) => row.id === "closedDay");
 
   function readImageFileAsDataUrl(file: File) {
     return new Promise<string>((resolve) => {
@@ -1038,10 +1145,10 @@ export default function SettingsManagementScreen({
               value={alertSettings}
               onChange={updateAlertSettings}
             />
-          ) : activeTab === "hours" && businessHoursRow && closedDayRow ? (
+          ) : activeTab === "hours" && currentBusinessHoursRow && currentClosedDayRow ? (
             <OperatingHoursSettings
-              businessHoursValue={businessHoursRow.value}
-              closedDaysValue={closedDayRow.value}
+              businessHoursValue={currentBusinessHoursRow.value}
+              closedDaysValue={currentClosedDayRow.value}
               onBusinessHoursChange={(value) => updateRow("businessHours", value)}
               onClosedDaysChange={(value) => updateRow("closedDay", value)}
               shop={shop}
@@ -1049,18 +1156,48 @@ export default function SettingsManagementScreen({
               persistToSupabase={persistShopProfile}
             />
           ) : activeTab === "shop" ? (
-            <ShopInfoSettingsPanel
-              rows={current.rows}
-              shopProfileImages={shopProfileImages}
-              editable
-              saving={savingShopInfo}
-              onSave={saveShopInfoFromDraft}
-              onProfileImagesAdd={addShopProfileImages}
-              onProfileImageRemove={removeShopProfileImage}
-              onRowChange={(rowId, value) => updateRow(rowId, value)}
-              onRowCommit={(rowId, value) => updateRow(rowId, value)}
-              onOpenAddressSearch={() => setAddressSheetOpen(true)}
-            />
+            <>
+              <ShopInfoSettingsPanel
+                rows={current.rows}
+                shopProfileImages={shopProfileImages}
+                shop={shop}
+                previewServices={services}
+                businessHoursSummary={String(businessHoursRow?.value ?? "")}
+                closedDaysSummary={String(closedDayRow?.value ?? "")}
+                editable
+                saving={savingShopInfo}
+                onSave={saveShopInfoFromDraft}
+                onProfileImagesAdd={addShopProfileImages}
+                onProfileImageRemove={removeShopProfileImage}
+                onRowChange={(rowId, value) => updateRow(rowId, value)}
+                onRowCommit={(rowId, value) => updateRow(rowId, value)}
+                onOpenAddressSearch={() => setAddressSheetOpen(true)}
+                serviceMenuContent={
+                  customerServiceOptions.length > 0 ? (
+                    <CustomerServiceExposurePanel
+                      options={customerServiceOptions}
+                      overrides={customerServiceOverrides}
+                      saveStatus={customerServiceSaveStatus}
+                      embedded
+                      onChange={updateCustomerServiceOverrides}
+                    />
+                  ) : null
+                }
+              >
+                {businessHoursRow && closedDayRow ? (
+                  <OperatingHoursSettings
+                    businessHoursValue={businessHoursRow.value}
+                    closedDaysValue={closedDayRow.value}
+                    onBusinessHoursChange={(value) => updateHoursRow("businessHours", value)}
+                    onClosedDaysChange={(value) => updateHoursRow("closedDay", value)}
+                    shop={shop}
+                    onShopChange={onShopChange}
+                    persistToSupabase={persistShopProfile}
+                    compact
+                  />
+                ) : null}
+              </ShopInfoSettingsPanel>
+            </>
           ) : (
             <WebSurface className="p-6">
               <div className="divide-y divide-[#f1e8e0]">

@@ -1360,18 +1360,20 @@ function CustomerDetailSheet({
                 ).map((pet, index) => (
                   <div key={pet.id} className="flex min-w-0 items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <EditableText
-                        value={pet.name}
-                        onSave={(value) => {
-                          const nextPets = [...customer.pets];
-                          nextPets[index] = value;
-                          updateEditableField("pets", nextPets.join(", "));
-                        }}
-                        displayClassName="min-w-0 text-left"
-                        displayTextClassName="text-[16px] font-medium text-[#111827]"
-                        inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
-                      />
-                      <p className="mt-0.5 truncate text-[16px] font-medium text-[#64748b]">{formatPetProfile(pet)}</p>
+                      <div className="flex min-w-0 items-baseline gap-3">
+                        <EditableText
+                          value={pet.name}
+                          onSave={(value) => {
+                            const nextPets = [...customer.pets];
+                            nextPets[index] = value;
+                            updateEditableField("pets", nextPets.join(", "));
+                          }}
+                          displayClassName="min-w-0 shrink-0 text-left"
+                          displayTextClassName="text-[16px] font-medium leading-5 text-[#111827]"
+                          inputClassName="h-9 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-2 text-[16px] font-medium text-[#111827] outline-none focus:border-[#1f6b5b]"
+                        />
+                        <p className="min-w-0 truncate text-[16px] font-normal leading-5 text-[#64748b]">{formatPetProfile(pet)}</p>
+                      </div>
                     </div>
                     {customer.petDetails.length > 1 ? (
                       <button

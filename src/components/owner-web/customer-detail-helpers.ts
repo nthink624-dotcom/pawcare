@@ -195,6 +195,22 @@ function formatTimestampDateTime(value: string | null | undefined) {
   return formatDateTime(datePart.slice(0, 10), timePart ? formatClockTime(timePart) : undefined);
 }
 
+export function formatTimestampTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(parsed);
+  }
+  const normalized = value.replace("T", " ");
+  const [, timePart = ""] = normalized.split(" ");
+  return timePart ? formatClockTime(timePart) : "-";
+}
+
 export function formatMoney(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? won(value) : "-";
 }

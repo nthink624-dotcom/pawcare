@@ -83,6 +83,8 @@ type ShopProfileSavePayload = {
       bookingRescheduledEnabled: boolean;
       groomingAlmostDoneEnabled: boolean;
       groomingCompletedEnabled: boolean;
+      groomingStartWithoutPhotoEnabled: boolean;
+      groomingCompleteWithoutPhotoEnabled: boolean;
     };
   };
   customerPageSettingsPayload: {
@@ -120,11 +122,17 @@ type ModalState =
   | null;
 type MobilePhotoStatusAction = {
   appointmentId: string;
-  nextStatus: Extract<AppointmentStatus, "in_progress" | "almost_done">;
-  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">;
+  mediaKind: Extract<MediaKind, "grooming_after">;
   title: string;
   description: string;
   buttonLabel: string;
+  autoOpenCamera?: boolean;
+};
+export type OwnerMobileLaunchPhotoStatusAction = {
+  appointmentId: string;
+  statusAction: Extract<AppointmentStatus, "in_progress" | "completed">;
+  autoOpenCamera?: boolean;
 };
 type AppointmentMediaPreview = {
   item: MediaAssetListItem;
@@ -229,8 +237,6 @@ function getNotificationResultMeta(notification: BootstrapPayload["notifications
 
 function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
   switch (mediaKind) {
-    case "grooming_before":
-      return "시작 사진";
     case "grooming_after":
       return "완료 사진";
     case "grooming_result":
@@ -270,6 +276,7 @@ export default function OwnerApp({
   loggingOut = false,
   userEmail = null,
   subscriptionSummary = null,
+  launchPhotoStatusAction = null,
 }: {
   initialData: BootstrapPayload;
   ownedShops: OwnedShopSummary[];
@@ -280,6 +287,7 @@ export default function OwnerApp({
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
+  launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
 }) {
   const [data, setData] = useState(initialData);
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
@@ -335,6 +343,7 @@ export default function OwnerApp({
   const [petDraftName, setPetDraftName] = useState("");
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const launchedPhotoStatusActionRef = useRef<string | null>(null);
 
   const resizeGuardianMemoTextarea = () => {
     const textarea = guardianMemoTextareaRef.current;
@@ -422,6 +431,39 @@ export default function OwnerApp({
   useEffect(() => {
     setOwnedShopItems(ownedShops);
   }, [ownedShops]);
+
+  useEffect(() => {
+    if (!launchPhotoStatusAction) return;
+    const actionKey = `${data.shop.id}:${launchPhotoStatusAction.appointmentId}:${launchPhotoStatusAction.statusAction}`;
+    if (launchedPhotoStatusActionRef.current === actionKey) return;
+
+    const appointment = data.appointments.find((item) => item.id === launchPhotoStatusAction.appointmentId);
+    if (!appointment) {
+      setError("촬영할 예약 정보를 찾지 못했습니다.");
+      launchedPhotoStatusActionRef.current = actionKey;
+      return;
+    }
+
+    launchedPhotoStatusActionRef.current = actionKey;
+    setModal(null);
+    setActiveTab("home");
+    setTodayDate(appointment.appointment_date);
+    setHomeReservationDate(appointment.appointment_date);
+    setSelectedDate(appointment.appointment_date);
+    if (launchPhotoStatusAction.statusAction === "in_progress") {
+      void updateAppointment(appointment.id, { status: "in_progress" });
+      return;
+    }
+    setMobilePhotoStatusAction({
+      appointmentId: appointment.id,
+      nextStatus: launchPhotoStatusAction.statusAction,
+      mediaKind: "grooming_after",
+      title: "미용 완료 사진",
+      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: "사진 찍고 미용 완료",
+      autoOpenCamera: launchPhotoStatusAction.autoOpenCamera ?? true,
+    });
+  }, [data.appointments, data.shop.id, launchPhotoStatusAction]);
 
   useEffect(() => {
     if (!pendingShopProfileEditId || data.shop.id !== pendingShopProfileEditId) return;
@@ -1070,7 +1112,20 @@ export default function OwnerApp({
   }
 
   function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
-    if (status !== "in_progress" && status !== "almost_done") {
+    if (
+      (status === "in_progress" && data.shop.notification_settings.grooming_start_without_photo_enabled) ||
+      (status === "completed" && data.shop.notification_settings.grooming_complete_without_photo_enabled)
+    ) {
+      void updateAppointment(appointmentId, { status });
+      return;
+    }
+
+    if (status === "in_progress") {
+      void updateAppointment(appointmentId, { status });
+      return;
+    }
+
+    if (status !== "completed") {
       void updateAppointment(appointmentId, { status });
       return;
     }
@@ -1078,18 +1133,26 @@ export default function OwnerApp({
     setMobilePhotoStatusAction({
       appointmentId,
       nextStatus: status,
-      mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
-      title: status === "in_progress" ? "미용 시작 사진" : "미용 완료 사진",
-      description:
-        status === "in_progress"
-          ? "시작 전 상태를 한 장 촬영하면 시작 알림톡에 함께 기록됩니다."
-          : "마무리된 모습을 한 장 촬영하면 픽업 준비 알림톡에 함께 기록됩니다.",
-      buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 픽업 준비",
+      mediaKind: "grooming_after",
+      title: "미용 완료 사진",
+      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: "사진 찍고 미용 완료",
     });
   }
 
   function updateAppointmentWithMobilePhotoGuard(appointmentId: string, payload: AppointmentUpdatePayload) {
-    if (!("mode" in payload) && (payload.status === "in_progress" || payload.status === "almost_done") && !payload.mediaAssetIds?.length) {
+    const isStatusUpdatePayload = "status" in payload;
+    const canSkipPhoto =
+      isStatusUpdatePayload &&
+      payload.status === "completed" && data.shop.notification_settings.grooming_complete_without_photo_enabled;
+
+    if (
+      isStatusUpdatePayload &&
+      !("mode" in payload) &&
+      payload.status === "completed" &&
+      !payload.mediaAssetIds?.length &&
+      !canSkipPhoto
+    ) {
       requestMobileAppointmentStatusChange(appointmentId, payload.status);
       return;
     }
@@ -2783,7 +2846,7 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
         const list = await fetchJson<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${query.toString()}`);
         const previews = await Promise.all(
           list.items
-            .filter((item) => item.mediaAsset.media_kind === "grooming_before" || item.mediaAsset.media_kind === "grooming_after")
+            .filter((item) => item.mediaAsset.media_kind === "grooming_after")
             .map(async (item) => {
               const signedQuery = new URLSearchParams({
                 shopId,
@@ -3479,6 +3542,8 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
                   groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
                   groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
+                  groomingStartWithoutPhotoEnabled: data.shop.notification_settings.grooming_start_without_photo_enabled,
+                  groomingCompleteWithoutPhotoEnabled: data.shop.notification_settings.grooming_complete_without_photo_enabled,
                 },
               },
               customerPageSettingsPayload: {
@@ -3545,7 +3610,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
               className={bareInputClassName}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="예: 포근한 발바닥 미용실"
+              placeholder="예: 매장명"
             />
           </CustomerDetailFieldCard>
 
@@ -4214,6 +4279,15 @@ function MobilePhotoStatusSheet({
   onSubmit: (file: File) => void;
 }) {
   const inputId = `mobile-photo-status-${action.appointmentId}`;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!action.autoOpenCamera || uploading) return;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.click();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [action.appointmentId, action.autoOpenCamera, uploading]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end bg-black/35 px-3 pb-3 pt-10" onClick={onClose}>
@@ -4233,6 +4307,7 @@ function MobilePhotoStatusSheet({
         </div>
 
         <input
+          ref={inputRef}
           id={inputId}
           type="file"
           accept="image/*"

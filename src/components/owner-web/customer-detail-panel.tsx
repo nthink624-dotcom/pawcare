@@ -364,6 +364,7 @@ function PetOverviewSection({
   onSelectPet,
   onAddPet,
   onEditPet,
+  onDeletePet,
   onUpdatePetBiteLevel,
 }: {
   detail: CustomerDetailModel;
@@ -374,6 +375,7 @@ function PetOverviewSection({
   onSelectPet: (petId: string) => void;
   onAddPet: () => void;
   onEditPet: () => void;
+  onDeletePet: () => void;
   onUpdatePetBiteLevel: (biteLevel: PetBiteLevel) => void;
 }) {
   const hasMultiplePets = detail.pets.length > 1;
@@ -392,8 +394,9 @@ function PetOverviewSection({
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-[16px] font-semibold text-[#111827]">반려동물 정보</h3>
         <div className="flex items-center gap-2">
+          <SmallButton label="반려동물 추가" onClick={onAddPet} />
           <SmallButton label="편집" onClick={onEditPet} />
-          <SmallButton label="+ 반려동물 추가" onClick={onAddPet} />
+          <SmallButton label="삭제" onClick={onDeletePet} />
         </div>
       </div>
 

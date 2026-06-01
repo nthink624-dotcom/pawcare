@@ -1326,6 +1326,7 @@ export default function CustomerManagementScreen({
           onUpdateGuardian={(guardianId, patch) => updateCustomer(guardianId, patch)}
           onUpdatePet={updatePetDetail}
           onAddPet={addPet}
+          onDeletePet={removePet}
           onToggleGuardianNotifications={() => toggleAlertStatus()}
           onCreateReservation={openCustomerReservationModal}
           onClose={() => setDetailSheetOpen(false)}

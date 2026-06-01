@@ -1534,7 +1534,9 @@ function BookingSidePanel({
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
   const canResendCurrentNotification = !workflowPending && !changeEventSelected;
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
-  const recentVisitHistory = selectedBooking ? getRecentVisitHistory(bootstrapData, selectedBooking) : [];
+  const recentVisitHistory = selectedBooking
+    ? getRecentVisitHistory(bootstrapData, selectedBooking)
+    : { totalCount: 0, items: [] };
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -1726,11 +1728,16 @@ function BookingSidePanel({
             <div className="flex min-h-[24px] items-center gap-1.5 text-left">
               <History className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
               <span className="shrink-0 text-[16px] font-normal text-[#334155]">최근 방문이력</span>
+              <span className="ml-auto text-[14px] text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
             </div>
             <div className="mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2">
-              {recentVisitHistory.length > 0 ? (
+              {recentVisitHistory.items.length > 0 ? (
                 <div className="divide-y divide-[#edf2f7]">
-                  {recentVisitHistory.map((visit) => (
+                  <div className="flex items-center justify-between gap-2 pb-2 text-[13px] text-[#94a3b8]">
+                    <span>방문일</span>
+                    <span>서비스</span>
+                  </div>
+                  {recentVisitHistory.items.map((visit) => (
                     <div key={visit.id} className="py-2 first:pt-0 last:pb-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="shrink-0 text-[15px] font-normal tabular-nums text-[#7b8794]">{visit.date}</span>
@@ -2105,14 +2112,21 @@ type RecentVisitHistoryItem = {
   note: string;
 };
 
-function getRecentVisitHistory(data: BootstrapPayload, booking: DailyBooking): RecentVisitHistoryItem[] {
-  return data.groomingRecords
+function getRecentVisitHistory(
+  data: BootstrapPayload,
+  booking: DailyBooking,
+): { totalCount: number; items: RecentVisitHistoryItem[] } {
+  const records = data.groomingRecords
     .filter((record) => {
       if (booking.petId && record.pet_id === booking.petId) return true;
       if (booking.guardianId && record.guardian_id === booking.guardianId) return true;
       return false;
     })
-    .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at))
+    .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at));
+
+  return {
+    totalCount: records.length,
+    items: records
     .slice(0, 3)
     .map((record) => {
       const service = data.services.find((item) => item.id === record.service_id);
@@ -2122,7 +2136,8 @@ function getRecentVisitHistory(data: BootstrapPayload, booking: DailyBooking): R
         service: service?.name ?? booking.service,
         note: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
       };
-    });
+    }),
+  };
 }
 
 function getPetProfile(booking: DailyBooking) {

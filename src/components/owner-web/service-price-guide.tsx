@@ -228,6 +228,23 @@ function cloneSectionsSnapshot(source: ServicePriceGuideSection[]) {
   }));
 }
 
+function mergeMissingDefaultItems(
+  sourceItems: ServicePriceGuideSection["items"],
+  fallbackItems: ServicePriceGuideSection["items"],
+) {
+  const seenKeys = new Set(
+    sourceItems.flatMap((item) => [
+      item.id.trim(),
+      item.label.trim(),
+    ]),
+  );
+
+  return [
+    ...sourceItems,
+    ...fallbackItems.filter((item) => !seenKeys.has(item.id.trim()) && !seenKeys.has(item.label.trim())),
+  ];
+}
+
 function normalizeSections(value: unknown): ServicePriceGuideSection[] {
   if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
   if (isLegacyDefaultGuide(value)) return cloneDefaultSections();
@@ -241,7 +258,10 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
       Array.isArray(source.items) && source.items.length > 0
         ? normalizeGuideItems(source.items as ServicePriceGuideSection["items"])
         : fallback.items;
-    const sourceItems = normalizedSourceItems.length > 0 ? normalizedSourceItems : fallback.items;
+    const sourceItems =
+      normalizedSourceItems.length > 0
+        ? mergeMissingDefaultItems(normalizedSourceItems, fallback.items)
+        : fallback.items;
 
     return {
       id: typeof source.id === "string" && source.id ? source.id : createGuideSectionId(),

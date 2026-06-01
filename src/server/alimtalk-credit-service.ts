@@ -190,7 +190,7 @@ export async function getAdminAlimtalkCreditBalances(): Promise<AdminAlimtalkCre
         "shop_id, included_total, included_used, included_remaining, included_period_started_at, included_period_ends_at, purchased_total, purchased_used, purchased_remaining, remaining_total, updated_at",
       )
       .order("updated_at", { ascending: false }),
-    admin.from("shops").select("id, name"),
+    admin.from("shops").select("id, name").order("created_at", { ascending: false }),
   ]);
 
   if (balancesResult.error) {
@@ -200,20 +200,24 @@ export async function getAdminAlimtalkCreditBalances(): Promise<AdminAlimtalkCre
     throw new Error(shopsResult.error.message);
   }
 
-  const shopNameById = new Map((shopsResult.data as ShopRow[]).map((shop) => [shop.id, shop.name]));
+  const balanceByShopId = new Map(((balancesResult.data ?? []) as CreditBalanceRow[]).map((row) => [row.shop_id, row]));
 
-  return ((balancesResult.data ?? []) as CreditBalanceRow[]).map((row) => ({
-    shopId: row.shop_id,
-    shopName: shopNameById.get(row.shop_id) ?? row.shop_id,
-    includedTotal: row.included_total,
-    includedUsed: row.included_used,
-    includedRemaining: row.included_remaining,
-    includedPeriodStartedAt: row.included_period_started_at,
-    includedPeriodEndsAt: row.included_period_ends_at,
-    purchasedTotal: row.purchased_total,
-    purchasedUsed: row.purchased_used,
-    purchasedRemaining: row.purchased_remaining,
-    remainingTotal: row.remaining_total,
-    updatedAt: row.updated_at,
-  }));
+  return ((shopsResult.data ?? []) as ShopRow[]).map((shop) => {
+    const row = balanceByShopId.get(shop.id);
+
+    return {
+      shopId: shop.id,
+      shopName: shop.name,
+      includedTotal: row?.included_total ?? 0,
+      includedUsed: row?.included_used ?? 0,
+      includedRemaining: row?.included_remaining ?? 0,
+      includedPeriodStartedAt: row?.included_period_started_at ?? null,
+      includedPeriodEndsAt: row?.included_period_ends_at ?? null,
+      purchasedTotal: row?.purchased_total ?? 0,
+      purchasedUsed: row?.purchased_used ?? 0,
+      purchasedRemaining: row?.purchased_remaining ?? 0,
+      remainingTotal: row?.remaining_total ?? 0,
+      updatedAt: row?.updated_at ?? "",
+    };
+  });
 }

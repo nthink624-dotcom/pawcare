@@ -13,6 +13,7 @@ const updateShopSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   tagline: z.string().trim().max(120).optional(),
   heroImageUrl: z.string().trim().max(1_200_000).optional(),
+  heroImageUrls: z.array(z.string().trim().max(1_200_000)).max(10).optional(),
   phone: z.string().trim().min(1).max(30).optional(),
   address: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(500).optional(),
@@ -139,6 +140,8 @@ export async function PATCH(request: NextRequest) {
       }
 
       const body = updateShopSchema.parse(await request.json());
+      const heroImageUrls = body.heroImageUrls ?? (body.heroImageUrl ? [body.heroImageUrl] : []);
+      const primaryHeroImageUrl = body.heroImageUrl ?? heroImageUrls[0] ?? "";
       return ownerMobileCorsJson(request, {
         shop: {
           id: body.shopId,
@@ -159,7 +162,8 @@ export async function PATCH(request: NextRequest) {
             additional_contact: body.additionalContact ?? "",
             postal_code: body.postalCode ?? "",
             address_detail: body.addressDetail ?? "",
-            hero_image_url: body.heroImageUrl ?? "",
+            hero_image_url: primaryHeroImageUrl,
+            hero_image_urls: heroImageUrls,
             ...(body.customerServiceOverrides !== undefined
               ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
               : {}),
@@ -169,6 +173,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = updateShopSchema.parse(await request.json());
+    const heroImageUrls =
+      body.heroImageUrls !== undefined ? body.heroImageUrls : body.heroImageUrl !== undefined ? (body.heroImageUrl ? [body.heroImageUrl] : []) : undefined;
+    const primaryHeroImageUrl = body.heroImageUrl !== undefined ? body.heroImageUrl : heroImageUrls?.[0];
     const owner = await requireOwnerShop(request, body.shopId);
     const admin = getSupabaseAdmin();
     if (!admin) {
@@ -193,6 +200,7 @@ export async function PATCH(request: NextRequest) {
       body.postalCode !== undefined ||
       body.addressDetail !== undefined ||
       body.heroImageUrl !== undefined ||
+      body.heroImageUrls !== undefined ||
       body.customerServiceOverrides !== undefined;
 
     if (
@@ -228,7 +236,8 @@ export async function PATCH(request: NextRequest) {
           ...(body.additionalContact !== undefined ? { additional_contact: body.additionalContact } : {}),
           ...(body.postalCode !== undefined ? { postal_code: body.postalCode } : {}),
           ...(body.addressDetail !== undefined ? { address_detail: body.addressDetail } : {}),
-          ...(body.heroImageUrl !== undefined ? { hero_image_url: body.heroImageUrl } : {}),
+          ...(primaryHeroImageUrl !== undefined ? { hero_image_url: primaryHeroImageUrl } : {}),
+          ...(heroImageUrls !== undefined ? { hero_image_urls: heroImageUrls } : {}),
           ...(body.customerServiceOverrides !== undefined
             ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
             : {}),

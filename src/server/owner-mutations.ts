@@ -37,6 +37,7 @@ import {
   petInputSchema,
   petStaffNoteUpsertSchema,
   petUpdateSchema,
+  serviceDeleteSchema,
   serviceInputSchema,
   shopSettingsSchema,
 } from "@/server/schemas";
@@ -44,6 +45,10 @@ import type { Appointment, AppointmentStatus, Guardian, Pet, PetStaffNote, Servi
 
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const scheduleActiveStatuses = ["confirmed", "in_progress", "almost_done"] as const;
+
+function isMissingPetBiteLevelColumn(error: { message?: string; code?: string } | null | undefined) {
+  return Boolean(error?.message?.includes("bite_level") && error.message.includes("schema cache"));
+}
 
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
   const endMinute = minutesFromTime(time) + durationMinutes;
@@ -649,6 +654,37 @@ export async function upsertService(input: unknown) {
   return service;
 }
 
+export async function deleteService(input: unknown) {
+  const payload = serviceDeleteSchema.parse(input);
+
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    const beforeCount = store.services.length;
+    store.services = store.services.filter((item) => !(item.id === payload.serviceId && item.shop_id === payload.shopId));
+    if (store.services.length === beforeCount) {
+      throw new Error("삭제할 서비스 항목을 찾을 수 없습니다.");
+    }
+    setMockStore(store);
+    return { success: true, serviceId: payload.serviceId };
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const { data, error } = await supabase
+    .from("services")
+    .delete()
+    .eq("id", payload.serviceId)
+    .eq("shop_id", payload.shopId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error("삭제할 서비스 항목을 찾을 수 없습니다.");
+
+  return { success: true, serviceId: payload.serviceId };
+}
+
 export async function updateCustomerPageSettings(input: unknown) {
   const payload = customerPageSettingsSchema.parse(input);
   const nextCustomerPageSettings = normalizeCustomerPageSettings(payload.customerPageSettings);
@@ -1047,7 +1083,15 @@ export async function createPet(input: unknown) {
   if (guardian.error) throw new Error("고객 정보를 찾을 수 없습니다.");
 
   const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingPetBiteLevelColumn(error)) {
+      const { bite_level: _biteLevel, ...petWithoutBiteLevel } = pet;
+      const retry = await supabase.from("pets").insert(petWithoutBiteLevel).select("*").single();
+      if (retry.error) throw new Error(retry.error.message);
+      return retry.data;
+    }
+    throw new Error(error.message);
+  }
   return data;
 }
 
@@ -1093,7 +1137,28 @@ export async function updatePet(input: unknown) {
 
   const { data, error } = await updateQuery.select("*").single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingPetBiteLevelColumn(error)) {
+      let retryQuery = supabase
+        .from("pets")
+        .update({
+          name: payload.name,
+          breed: payload.breed,
+          birthday: payload.birthday ?? null,
+          ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
+          ...(payload.age !== undefined ? { age: payload.age } : {}),
+          ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+          ...(payload.groomingCycleWeeks !== undefined ? { grooming_cycle_weeks: payload.groomingCycleWeeks } : {}),
+          updated_at: nowIso(),
+        })
+        .eq("id", payload.petId);
+      if (payload.shopId) retryQuery = retryQuery.eq("shop_id", payload.shopId);
+      const retry = await retryQuery.select("*").single();
+      if (retry.error) throw new Error(retry.error.message);
+      return retry.data;
+    }
+    throw new Error(error.message);
+  }
   return data;
 }
 

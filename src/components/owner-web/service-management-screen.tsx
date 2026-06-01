@@ -3,7 +3,6 @@
 import { Fragment, type HTMLAttributes, type ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import {
@@ -23,11 +22,6 @@ import {
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import {
-  buildCustomerServiceSourceOptions,
-  normalizeCustomerServiceOverrides,
-  type CustomerServiceDisplayOverrides,
-} from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
 import type { Service, Shop } from "@/types/domain";
 
@@ -310,22 +304,13 @@ export default function ServiceManagementScreen({
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => buildForm(services[0] ?? normalizeServices(serviceRows)[0]));
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
-  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
-    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
-  );
-  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [storageReady, setStorageReady] = useState(false);
   const autosaveTimerRef = useRef<number | null>(null);
-  const customerServiceSaveTimerRef = useRef<number | null>(null);
   const lastSavedSignatureRef = useRef("");
 
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
-  const customerServiceOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(managedServicesToDomain(services, shopId)),
-    [services, shopId],
-  );
 
   useEffect(() => {
     if (!demoMode) {
@@ -371,22 +356,6 @@ export default function ServiceManagementScreen({
     if (!onlyStaffName) return;
     setServiceForm((form) => (form.staff === onlyStaffName ? form : { ...form, staff: onlyStaffName }));
   }, [onlyStaffName]);
-
-  useEffect(() => {
-    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
-    setCustomerServiceOverrides((current) =>
-      JSON.stringify(current) === JSON.stringify(nextOverrides) ? current : nextOverrides,
-    );
-    setCustomerServiceSaveStatus((current) => (current === "pending" ? current : "saved"));
-  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
-
-  useEffect(() => {
-    return () => {
-      if (customerServiceSaveTimerRef.current) {
-        window.clearTimeout(customerServiceSaveTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!storageReady) return;
@@ -544,62 +513,6 @@ export default function ServiceManagementScreen({
     }));
   }
 
-  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
-    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
-    setCustomerServiceOverrides(normalizedOverrides);
-
-    if (customerServiceSaveTimerRef.current) {
-      window.clearTimeout(customerServiceSaveTimerRef.current);
-      customerServiceSaveTimerRef.current = null;
-    }
-
-    if (!shop) {
-      setCustomerServiceSaveStatus("idle");
-      return;
-    }
-
-    const optimisticShop: Shop = {
-      ...shop,
-      customer_page_settings: {
-        ...shop.customer_page_settings,
-        customer_service_overrides: normalizedOverrides,
-      },
-    };
-    onShopChange?.(optimisticShop);
-
-    if (demoMode) {
-      setCustomerServiceSaveStatus("saved");
-      return;
-    }
-
-    setCustomerServiceSaveStatus("pending");
-    customerServiceSaveTimerRef.current = window.setTimeout(() => {
-      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
-        method: "PATCH",
-        body: JSON.stringify({
-          shopId,
-          customerServiceOverrides: normalizedOverrides,
-        }),
-      })
-        .then((result) => {
-          onShopChange?.({
-            ...optimisticShop,
-            ...result.shop,
-            customer_page_settings: {
-              ...optimisticShop.customer_page_settings,
-              ...result.shop.customer_page_settings,
-            },
-          });
-          setCustomerServiceSaveStatus("saved");
-        })
-        .catch((error) => {
-          console.error("[OWNER SERVICES] failed to save customer service exposure", error);
-          setCustomerServiceSaveStatus("error");
-        });
-      customerServiceSaveTimerRef.current = null;
-    }, 500);
-  }
-
   function toggleVisibility(service: ManagedService) {
     const nextService = { ...service, visible: !service.visible };
     setServices((current) => current.map((item) => (item.id === service.id ? nextService : item)));
@@ -647,13 +560,6 @@ export default function ServiceManagementScreen({
               showEnabledToggle={false}
             />
           </div>
-
-          <CustomerServiceExposurePanel
-            options={customerServiceOptions}
-            overrides={customerServiceOverrides}
-            saveStatus={customerServiceSaveStatus}
-            onChange={updateCustomerServiceOverrides}
-          />
 
           <div>
             <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#0f172a]">추가금 안내</p>

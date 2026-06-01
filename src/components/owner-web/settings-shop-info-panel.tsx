@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { ImagePlus, Info } from "lucide-react";
 import Image from "next/image";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import CustomerBookingEntryPage, { DEFAULT_HERO_IMAGES } from "@/components/customer/customer-booking-entry-page";
 import { cn } from "@/lib/utils";
@@ -94,6 +94,14 @@ function SelectInput({
         </option>
       ))}
     </select>
+  );
+}
+
+function AlignedFieldLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <span className={cn("w-[92px] whitespace-nowrap text-[16px] font-normal text-[#111827]", className)}>
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -265,12 +273,21 @@ export default function ShopInfoSettingsPanel({
   const address = rowValue(rows, "address");
   const addressDetail = rowValue(rows, "addressDetail");
   const approvalMode = rowValue(rows, "approvalMode");
-  const pendingHoldLimit = rowValue(rows, "pendingHoldLimit") || "2건까지 받아두기";
-  const autoApproval = approvalMode === "바로 승인" || approvalMode === "auto";
+  const pendingHoldLimit = rowValue(rows, "pendingHoldLimit") || "以묐났 ?덉빟 1嫄대쭔 諛쏄린";
+  const autoApproval = approvalMode === "諛붾줈 ?뱀씤" || approvalMode === "auto";
   const manualApproval = !autoApproval;
   const profileImages = shopProfileImages.slice(0, 10);
+  const storedProfileImages = (shop?.customer_page_settings.hero_image_urls ?? []).filter(Boolean).slice(0, 10);
   const mainProfileImage = profileImages[0] ?? "";
-  const displayedProfileImage = mainProfileImage || shop?.customer_page_settings.hero_image_url || DEFAULT_HERO_IMAGES[0];
+  const displayedProfileImage = mainProfileImage || storedProfileImages[0] || shop?.customer_page_settings.hero_image_url || DEFAULT_HERO_IMAGES[0];
+  const carouselProfileImages = useMemo(() => {
+    const sourceImages = profileImages.length > 0 ? profileImages : storedProfileImages.length > 0 ? storedProfileImages : [displayedProfileImage];
+    return sourceImages.filter(Boolean).slice(0, 10);
+  }, [displayedProfileImage, profileImages, storedProfileImages]);
+  const [activeProfileImageIndex, setActiveProfileImageIndex] = useState(0);
+  const profileTouchStartXRef = useRef<number | null>(null);
+  const profileDidSwipeRef = useRef(false);
+  const activeProfileImage = carouselProfileImages[Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0))] || displayedProfileImage;
   const customerPreviewShop = shop
     ? {
         ...shop,
@@ -282,10 +299,31 @@ export default function ShopInfoSettingsPanel({
           ...shop.customer_page_settings,
           tagline: description || shop.customer_page_settings.tagline,
           address_detail: addressDetail || shop.customer_page_settings.address_detail,
-          hero_image_url: mainProfileImage || shop.customer_page_settings.hero_image_url,
+          hero_image_url: activeProfileImage || shop.customer_page_settings.hero_image_url,
+          hero_image_urls: carouselProfileImages,
         },
       }
     : null;
+
+  useEffect(() => {
+    setActiveProfileImageIndex((current) => Math.min(current, Math.max(carouselProfileImages.length - 1, 0)));
+  }, [carouselProfileImages.length]);
+
+  function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
+    profileTouchStartXRef.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleProfileTouchEnd(event: TouchEvent<HTMLButtonElement>) {
+    if (carouselProfileImages.length <= 1 || profileTouchStartXRef.current === null) return;
+    const deltaX = (event.changedTouches[0]?.clientX ?? profileTouchStartXRef.current) - profileTouchStartXRef.current;
+    profileTouchStartXRef.current = null;
+    if (Math.abs(deltaX) < 32) return;
+    profileDidSwipeRef.current = true;
+    setActiveProfileImageIndex((current) => {
+      if (deltaX < 0) return (current + 1) % carouselProfileImages.length;
+      return (current - 1 + carouselProfileImages.length) % carouselProfileImages.length;
+    });
+  }
 
   const profileAction = (
     <button
@@ -307,23 +345,37 @@ export default function ShopInfoSettingsPanel({
               <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">매장 정보 설정</h4>
               {profileAction}
             </div>
-            <div className="rounded-[12px] border border-[#e5e7eb] bg-white">
-              <div className="grid gap-2 p-2 lg:grid-cols-[190px_minmax(0,1fr)]">
-                <div className="min-w-0">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <FieldLabel>대표 사진</FieldLabel>
-                    <span className="text-[13px] text-[#64748b]">{profileImages.length}/10장</span>
-                  </div>
+            <div className="bg-white">
+              <div className="grid items-center gap-4 p-2 lg:grid-cols-[230px_minmax(0,1fr)] xl:gap-6">
+                <div className="flex min-w-0 items-center">
                   <button
                     type="button"
-                    onClick={() => document.getElementById("shop-profile-images-input")?.click()}
+                    onClick={() => {
+                      if (profileDidSwipeRef.current) {
+                        profileDidSwipeRef.current = false;
+                        return;
+                      }
+                      document.getElementById("shop-profile-images-input")?.click();
+                    }}
+                    onTouchStart={handleProfileTouchStart}
+                    onTouchEnd={handleProfileTouchEnd}
                     disabled={!editable}
                     className="group relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] text-[#2f7866] transition hover:border-[#2f7866]"
                   >
-                    {displayedProfileImage ? (
+                    {activeProfileImage ? (
                       <>
-                        <Image src={displayedProfileImage} alt="대표 매장 사진" width={300} height={225} unoptimized className="h-full w-full object-cover" />
-                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-medium text-[#64748b] shadow-sm">기본 이미지</span>
+                        <Image src={activeProfileImage} alt="매장 사진" width={360} height={270} unoptimized className="h-full w-full object-cover" />
+                        <span className="absolute inset-x-0 bottom-2 flex items-center justify-center gap-1.5">
+                          {carouselProfileImages.map((imageUrl, index) => (
+                            <span
+                              key={`${imageUrl}-${index}`}
+                              className={cn(
+                                "h-1.5 rounded-full bg-white shadow-[0_1px_6px_rgba(0,0,0,0.18)] transition-all",
+                                activeProfileImageIndex === index ? "w-5 opacity-95" : "w-1.5 opacity-65",
+                              )}
+                            />
+                          ))}
+                        </span>
                       </>
                     ) : (
                       <span className="flex h-full flex-col items-center justify-center gap-1">
@@ -332,41 +384,6 @@ export default function ShopInfoSettingsPanel({
                       </span>
                     )}
                   </button>
-                  {profileImages.length > 0 ? (
-                    <div className="mt-1.5 grid grid-cols-5 gap-1.5">
-                      {profileImages.slice(0, 4).map((imageUrl, index) => (
-                        <button
-                          key={`${imageUrl}-${index}`}
-                          type="button"
-                          onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                          className="relative aspect-square overflow-hidden rounded-[7px] border border-[#dbe2ea] bg-white"
-                          aria-label={`매장 사진 ${index + 1}`}
-                        >
-                          <Image src={imageUrl} alt={`매장 사진 ${index + 1}`} width={48} height={48} unoptimized className="h-full w-full object-cover" />
-                          {index === 0 ? <span className="absolute inset-x-1 bottom-1 rounded-full bg-white/90 text-[10px] font-medium text-[#2f7866]">대표</span> : null}
-                        </button>
-                      ))}
-                      {profileImages.length > 4 ? (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                          className="aspect-square rounded-[7px] border border-[#dbe2ea] bg-[#f8fafc] text-[12px] font-medium text-[#64748b]"
-                        >
-                          +{profileImages.length - 4}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                          disabled={!editable}
-                          className="flex aspect-square items-center justify-center rounded-[7px] border border-dashed border-[#bad8cd] bg-white text-[#2f7866] disabled:text-[#94a3b8]"
-                          aria-label="사진 추가"
-                        >
-                          <ImagePlus className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
                   <input
                     id="shop-profile-images-input"
                     type="file"
@@ -383,21 +400,20 @@ export default function ShopInfoSettingsPanel({
                   />
                 </div>
 
-                <div className="grid min-w-0 content-start gap-2">
-                  <p className="text-[15px] font-semibold text-[#2f7866]">기본 정보</p>
-                  <div className="grid gap-1.5 xl:grid-cols-[minmax(260px,0.42fr)_minmax(360px,0.58fr)]">
-                    <label className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-1">
-                      <span className="whitespace-nowrap text-[16px] font-normal text-[#111827]">매장명 :</span>
+                <div className="grid min-w-0 content-center gap-2">
+                  <div className="grid gap-1.5 xl:grid-cols-[minmax(260px,0.42fr)_minmax(360px,0.58fr)] xl:gap-6">
+                    <label className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-center gap-3">
+                      <AlignedFieldLabel>매장명</AlignedFieldLabel>
                       <TextInput value={shopName} disabled={!editable} onChange={(value) => onRowChange("shopName", value)} onCommit={(value) => onRowCommit("shopName", value)} />
                     </label>
-                    <label className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-1">
-                      <span className="whitespace-nowrap text-[16px] font-normal text-[#111827]">매장 연락처 :</span>
+                    <label className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
+                      <span className="whitespace-nowrap text-[16px] font-normal text-[#111827]">매장 연락처</span>
                       <TextInput value={phone} disabled={!editable} onChange={(value) => onRowChange("phone", value)} onCommit={(value) => onRowCommit("phone", value)} />
                     </label>
                   </div>
 
-                  <div className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-1">
-                    <span className="whitespace-nowrap text-[16px] font-normal text-[#111827]">주소 / 상세주소 :</span>
+                  <div className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-center gap-3">
+                    <AlignedFieldLabel>매장 주소</AlignedFieldLabel>
                     <div className="grid min-w-0 gap-1.5 lg:grid-cols-[minmax(240px,0.6fr)_minmax(180px,0.4fr)_56px]">
                       <TextInput value={address} disabled={!editable} onChange={(value) => onRowChange("address", value)} onCommit={(value) => onRowCommit("address", value)} />
                       <TextInput value={addressDetail} disabled={!editable} onChange={(value) => onRowChange("addressDetail", value)} onCommit={(value) => onRowCommit("addressDetail", value)} />
@@ -412,8 +428,8 @@ export default function ShopInfoSettingsPanel({
                     </div>
                   </div>
 
-                  <label className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-start gap-1">
-                    <span className="pt-2 text-[16px] font-normal text-[#111827]">매장 소개 :</span>
+                  <label className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-start gap-3">
+                    <AlignedFieldLabel className="pt-2">매장 소개</AlignedFieldLabel>
                     <div className="relative min-w-0">
                       <textarea
                         value={description}
@@ -422,7 +438,7 @@ export default function ShopInfoSettingsPanel({
                         onChange={(event) => onRowChange("description", event.target.value)}
                         onBlur={(event) => onRowCommit("description", event.target.value)}
                         className="mt-0.5 min-h-[58px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 pb-6 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
-                        placeholder="매장을 짧게 소개해 주세요."
+                        placeholder="매장을 짧게 소개해 주세요"
                       />
                       <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#64748b]">{description.length} / 100</span>
                     </div>
@@ -431,53 +447,64 @@ export default function ShopInfoSettingsPanel({
               </div>
 
               <div className="border-t border-[#e5e7eb] px-2 py-2.5">
-                <div className="grid gap-2 lg:grid-cols-[86px_minmax(0,1fr)]">
-                  <p className="text-[15px] font-semibold text-[#2f7866]">예약 정책</p>
-                  <div className="grid gap-1.5">
-                    <div className="grid items-center gap-1 xl:grid-cols-[max-content_minmax(0,1fr)]">
-                      <span className="text-[16px] font-normal text-[#111827]">승인 방식 :</span>
-                      <div className="grid gap-1.5 sm:grid-cols-2">
-                        <OptionCard
-                          selected={autoApproval}
+                <p className="mb-2 text-[16px] font-medium text-[#334155]">예약 정책</p>
+                <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
+                  <span className="pt-2 text-[16px] font-normal text-[#111827]">승인 방식</span>
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    <OptionCard
+                      selected={autoApproval}
+                      disabled={saving}
+                      title="바로 승인"
+                      helpText="고객이 가능한 시간을 선택하면 예약이 즉시 확정됩니다."
+                      compact
+                      onClick={() => onRowCommit("approvalMode", "바로 승인")}
+                    />
+                    <div
+                      className={cn(
+                        "rounded-[8px] border bg-white transition",
+                        manualApproval ? "border-[#2f7866] bg-white" : "border-[#dbe2ea] hover:border-[#bad8cd]",
+                        saving && "opacity-80",
+                      )}
+                    >
+                      <div className={cn("grid items-center gap-2 px-2.5 py-2", manualApproval && "xl:grid-cols-[130px_minmax(210px,1fr)]")}>
+                        <button
+                          type="button"
                           disabled={saving}
-                          title="바로 승인"
-                          helpText="고객이 가능한 시간을 선택하면 예약이 즉시 확정됩니다."
-                          compact
-                          onClick={() => onRowCommit("approvalMode", "바로 승인")}
-                        />
-                        <OptionCard
-                          selected={manualApproval}
-                          disabled={saving}
-                          title="직접 승인"
-                          helpText="고객 예약은 승인 대기로 들어오고, 오너가 확인 후 확정하거나 거절합니다."
-                          compact
                           onClick={() => onRowCommit("approvalMode", "직접 승인")}
-                        />
-                      </div>
-                    </div>
-
-                    {manualApproval ? (
-                      <div className="grid items-center gap-1 xl:grid-cols-[max-content_minmax(220px,320px)]">
-                        <span className="text-[16px] font-normal text-[#111827]">겹치는 예약 설정 :</span>
-                        <div className="min-w-0">
-                          <SelectInput
-                            value={pendingHoldLimit}
-                            options={rowOptions(rows, "pendingHoldLimit").length > 0 ? rowOptions(rows, "pendingHoldLimit") : ["1건만 받기", "2건까지 받아두기", "3건 이상 받아두기"]}
-                            disabled={saving}
-                            onChange={(value) => onRowCommit("pendingHoldLimit", value)}
-                          />
+                          className="flex min-w-0 items-center gap-2 text-left"
+                        >
+                          <span className={cn("h-3.5 w-3.5 shrink-0 rounded-full border", manualApproval ? "border-[#2f7866] bg-[#2f7866] shadow-[inset_0_0_0_3.5px_white]" : "border-[#cbd5e1]")} />
+                          <span className="inline-flex min-w-0 items-center gap-1.5 text-[15px] font-normal leading-5 text-[#111827]">
+                            <span className="truncate">직접 승인</span>
+                            <span className="group relative inline-flex h-6 w-4 shrink-0 items-center justify-center">
+                              <Info className="block h-4 w-4 translate-y-[0.5px] text-[#94a3b8]" aria-hidden="true" />
+                              <span className="pointer-events-none absolute left-1/2 top-6 z-30 w-[240px] -translate-x-1/2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
+                                고객 예약은 승인 대기로 들어오고, 오너가 확인 후 확정하거나 거절합니다.
+                              </span>
+                            </span>
+                          </span>
+                        </button>
+                        {manualApproval ? (
+                          <div className="grid min-w-0 items-center gap-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
+                            <span className="whitespace-nowrap text-[14px] font-normal text-[#64748b]">중복 예약</span>
+                            <SelectInput
+                              value={pendingHoldLimit}
+                              options={rowOptions(rows, "pendingHoldLimit").length > 0 ? rowOptions(rows, "pendingHoldLimit") : ["중복 예약 X", "중복 예약 1건만 받기", "중복 예약 2건 이상 받기"]}
+                              disabled={saving}
+                              onChange={(value) => onRowCommit("pendingHoldLimit", value)}
+                            />
+                          </div>
+                        ) : null}
                         </div>
-                      </div>
-                    ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {children ? (
                 <div className="border-t border-[#e5e7eb] p-2">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[15px] font-semibold text-[#2f7866]">매장 운영시간</p>
-                    <span className="text-[13px] font-medium text-[#64748b]">고객 예약 가능 시간과 함께 관리됩니다.</span>
+                  <div className="mb-2 flex items-center gap-2">
+                    <p className="text-[16px] font-medium text-[#334155]">매장 운영시간</p>
                   </div>
                   {children}
                 </div>
@@ -485,10 +512,6 @@ export default function ShopInfoSettingsPanel({
 
               {serviceMenuContent ? (
                 <div className="border-t border-[#e5e7eb] p-2">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-[15px] font-semibold text-[#2f7866]">서비스 메뉴</p>
-                    <span className="text-[13px] font-medium text-[#64748b]">고객 예약페이지 노출 기준입니다.</span>
-                  </div>
                   {serviceMenuContent}
                 </div>
               ) : null}
@@ -498,20 +521,25 @@ export default function ShopInfoSettingsPanel({
           <aside className="min-w-0 border-t border-[#e5e7eb] pt-3 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
             <div className="xl:sticky xl:top-5">
               <h4 className="mb-2 text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">고객 예페 미리보기</h4>
-              <div className="mx-auto w-[280px] max-w-full rounded-[34px] border-[4px] border-[#111827] bg-white p-[8px] shadow-[0_12px_28px_rgba(15,23,42,0.12)]">
-              <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-[#d7c6b4]" />
-              <div className="h-[600px] overflow-hidden rounded-[24px] bg-white">
-                <div className="pointer-events-none w-[430px] origin-top-left scale-[0.6]">
-                  {customerPreviewShop ? (
-                    <CustomerBookingEntryPage
-                      shop={customerPreviewShop}
-                      services={previewServices}
-                      bookingHref={`/entry/${customerPreviewShop.id}`}
-                      infoHref={`/book/${customerPreviewShop.id}/info`}
-                    />
-                  ) : null}
+              <div className="relative mx-auto h-[530px] w-[260px] max-w-full">
+                <div className="absolute left-[16px] top-[41px] h-[468px] w-[228px] overflow-hidden rounded-[30px] bg-white">
+                  <div className="pointer-events-none h-[883px] w-[430px] origin-top-left" style={{ transform: "scale(0.53)" }}>
+                    {customerPreviewShop ? (
+                      <CustomerBookingEntryPage
+                        shop={customerPreviewShop}
+                        services={previewServices}
+                        bookingHref={`/entry/${customerPreviewShop.id}`}
+                        infoHref={`/book/${customerPreviewShop.id}/info`}
+                      />
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+                <img
+                  src="/images/iphone-14-pro-phone-template.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none"
+                />
               </div>
             </div>
           </aside>
@@ -522,3 +550,4 @@ export default function ShopInfoSettingsPanel({
     </div>
   );
 }
+

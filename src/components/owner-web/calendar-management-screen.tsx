@@ -92,6 +92,12 @@ type ScheduleCreateFormState = {
   time: string;
   memo: string;
 };
+export type OwnerScheduleCreateRequest = {
+  requestId: number;
+  guardianId: string;
+  petId: string | null;
+  date?: string;
+};
 type BoardPanState = {
   pointerId: number;
   startX: number;
@@ -1360,6 +1366,7 @@ function ReservationFilterStrip({
 function BookingSidePanel({
   activeMetric,
   shopId,
+  bootstrapData,
   manualApprovalEnabled,
   selectedBooking,
   selectedBookingId,
@@ -1379,6 +1386,7 @@ function BookingSidePanel({
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
+  bootstrapData: BootstrapPayload;
   manualApprovalEnabled: boolean;
   selectedBooking: DailyBooking | undefined;
   selectedBookingId: string;
@@ -1526,6 +1534,7 @@ function BookingSidePanel({
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
   const canResendCurrentNotification = !workflowPending && !changeEventSelected;
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
+  const recentVisitHistory = selectedBooking ? getRecentVisitHistory(bootstrapData, selectedBooking) : [];
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -1662,149 +1671,18 @@ function BookingSidePanel({
             <section className="border-y border-[#edf2f7] py-2">
               <div>
               <CompactEditableInfoRow label="가격">
-                {detailEditMode === "price" ? (
-                  <input
-                    autoFocus
-                    inputMode="numeric"
-                    value={editablePrice}
-                    disabled={detailSaving}
-                    onChange={(event) => {
-                      const digits = event.target.value.replace(/\D/g, "");
-                      setEditablePrice(digits ? Number(digits).toLocaleString("ko-KR") : "");
-                    }}
-                    onBlur={() => {
-                      void saveEditableDetail();
-                      setDetailEditMode((current) => current === "price" ? null : current);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") event.currentTarget.blur();
-                      if (event.key === "Escape") {
-                        setEditablePrice(
-                          typeof selectedBooking.servicePrice === "number"
-                            ? selectedBooking.servicePrice.toLocaleString("ko-KR")
-                            : "",
-                        );
-                        setDetailEditMode(null);
-                      }
-                    }}
-                    className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] text-[#64748b] outline-none transition disabled:opacity-70"
-                    placeholder="0"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDetailNotice("");
-                      setDetailEditMode("price");
-                    }}
-                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
-                  >
-                    {editablePrice || "0"}
-                  </button>
-                )}
+                <CompactReadonlyValue>{editablePrice || "0"}</CompactReadonlyValue>
               </CompactEditableInfoRow>
               <CompactEditableInfoRow label="시술명">
                 <div className="min-w-0">
-                  {detailEditMode === "service" ? (
-                    <input
-                      autoFocus
-                      value={editableServiceName}
-                      disabled={detailSaving}
-                      onChange={(event) => setEditableServiceName(event.target.value)}
-                      onBlur={() => {
-                        void saveEditableDetail();
-                        setDetailEditMode((current) => current === "service" ? null : current);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") event.currentTarget.blur();
-                        if (event.key === "Escape") {
-                          setEditableServiceName(selectedBooking.service);
-                          setDetailEditMode(null);
-                        }
-                      }}
-                      className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] text-[#64748b] outline-none transition disabled:opacity-70"
-                      placeholder="시술명"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDetailNotice("");
-                        setDetailEditMode("service");
-                      }}
-                      className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
-                    >
-                      {editableServiceName || "시술명 없음"}
-                    </button>
-                  )}
+                  <CompactReadonlyValue>{editableServiceName || "시술명 없음"}</CompactReadonlyValue>
                 </div>
               </CompactEditableInfoRow>
               <CompactEditableInfoRow label="연락처">
-                {!phoneEditing ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDetailNotice("");
-                      setPhoneEditing(true);
-                    }}
-                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] text-[#64748b] transition hover:bg-[#f8fafc]"
-                  >
-                    {editablePhone || "연락처 없음"}
-                  </button>
-                ) : (
-                  <input
-                    autoFocus
-                    type="tel"
-                    inputMode="numeric"
-                    value={editablePhone}
-                    disabled={phoneSaving}
-                    onChange={(event) => setEditablePhone(formatSchedulePhone(event.target.value))}
-                    onBlur={() => void savePhoneOnBlur()}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") event.currentTarget.blur();
-                      if (event.key === "Escape") {
-                        setEditablePhone(formatSchedulePhone(selectedBooking.guardianPhone ?? ""));
-                        setPhoneEditing(false);
-                      }
-                    }}
-                    className="h-8 w-full rounded-[7px] border border-[#2f7866] bg-white px-2.5 text-[16px] leading-[22px] text-[#64748b] outline-none placeholder:text-[#94a3b8] disabled:opacity-70"
-                    placeholder="010-1234-5678"
-                  />
-                )}
+                <CompactReadonlyValue tabular>{editablePhone || "연락처 없음"}</CompactReadonlyValue>
               </CompactEditableInfoRow>
               <CompactEditableInfoRow label="예약 시간">
-                {detailEditMode === "time" ? (
-                  <div ref={timeEditorRef} className="grid grid-cols-[82px_10px_82px] items-center gap-1">
-                    <TimeWheelInput
-                      value={editableStartTime}
-                      onChange={setEditableStartTime}
-                      ariaLabel="예약 시작 시간"
-                      editing
-                      onCommit={commitTimeEdit}
-                      onSelectCommit={(startTime) => commitTimeEdit({ startTime })}
-                    />
-                    <span className="text-center text-[14px] text-[#94a3b8]">-</span>
-                    <TimeWheelInput
-                      value={editableEndTime}
-                      onChange={setEditableEndTime}
-                      ariaLabel="예약 종료 시간"
-                      editing
-                      onCommit={commitTimeEdit}
-                      onSelectCommit={(endTime) => commitTimeEdit({ endTime })}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDetailNotice("");
-                      setDetailEditMode("time");
-                    }}
-                    className="h-8 w-full truncate rounded-[7px] border border-transparent px-2.5 text-left text-[16px] tabular-nums text-[#64748b] transition hover:bg-[#f8fafc]"
-                  >
-                    {timeRange}
-                  </button>
-                )}
+                <CompactReadonlyValue tabular>{timeRange}</CompactReadonlyValue>
               </CompactEditableInfoRow>
               {detailSaving || detailNotice ? (
                 <p className={cn("min-w-0 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
@@ -1837,11 +1715,35 @@ function BookingSidePanel({
               <span className="shrink-0 text-[16px] font-normal text-[#334155]">코멘트</span>
             </div>
             <textarea
-              value={staffComment}
-              onChange={(event) => onChangeStaffComment(commentKey, event.target.value, selectedBooking)}
-              placeholder="코멘트를 입력해주세요…"
-              className="mt-1.5 min-h-[86px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#111827] outline-none placeholder:text-[#334155] focus:border-[#2f7866]"
+              readOnly
+              value={staffComment.trim() ? staffComment : ""}
+              placeholder="공유 코멘트가 없습니다."
+              className="mt-1.5 min-h-[86px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#334155] outline-none placeholder:text-[#64748b]"
             />
+          </section>
+
+          <section className="py-1.5">
+            <div className="flex min-h-[24px] items-center gap-1.5 text-left">
+              <History className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
+              <span className="shrink-0 text-[16px] font-normal text-[#334155]">최근 방문이력</span>
+            </div>
+            <div className="mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2">
+              {recentVisitHistory.length > 0 ? (
+                <div className="divide-y divide-[#edf2f7]">
+                  {recentVisitHistory.map((visit) => (
+                    <div key={visit.id} className="py-2 first:pt-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="shrink-0 text-[15px] font-normal tabular-nums text-[#7b8794]">{visit.date}</span>
+                        <p className="min-w-0 truncate text-right text-[16px] font-medium text-[#334155]">{visit.service}</p>
+                      </div>
+                      {visit.note ? <p className="mt-1 line-clamp-2 text-[14px] leading-5 text-[#64748b]">{visit.note}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[16px] leading-7 text-[#64748b]">방문이력이 없습니다.</p>
+              )}
+            </div>
           </section>
           </div>
         </div>
@@ -2196,6 +2098,33 @@ function formatDurationLabel(duration: number) {
   return `${rest}분`;
 }
 
+type RecentVisitHistoryItem = {
+  id: string;
+  date: string;
+  service: string;
+  note: string;
+};
+
+function getRecentVisitHistory(data: BootstrapPayload, booking: DailyBooking): RecentVisitHistoryItem[] {
+  return data.groomingRecords
+    .filter((record) => {
+      if (booking.petId && record.pet_id === booking.petId) return true;
+      if (booking.guardianId && record.guardian_id === booking.guardianId) return true;
+      return false;
+    })
+    .sort((first, second) => second.groomed_at.localeCompare(first.groomed_at))
+    .slice(0, 3)
+    .map((record) => {
+      const service = data.services.find((item) => item.id === record.service_id);
+      return {
+        id: record.id,
+        date: formatPanelDateLabel(record.groomed_at.slice(0, 10)),
+        service: service?.name ?? booking.service,
+        note: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
+      };
+    });
+}
+
 function getPetProfile(booking: DailyBooking) {
   const biteLevel = normalizePetBiteLevel(booking.petBiteLevel);
   const noteCautions = (booking.petNotes?.trim()
@@ -2546,6 +2475,14 @@ function CompactEditableInfoRow({ label, children }: { label: string; children: 
       <span className="pt-1 text-[#334155]">{label}</span>
       <div className="min-w-0">{children}</div>
     </div>
+  );
+}
+
+function CompactReadonlyValue({ children, tabular = false }: { children: ReactNode; tabular?: boolean }) {
+  return (
+    <span className={cn("flex min-h-8 w-full items-center truncate px-2.5 text-[16px] text-[#64748b]", tabular && "tabular-nums")}>
+      {children}
+    </span>
   );
 }
 
@@ -5412,12 +5349,16 @@ export default function CalendarManagementScreen({
   staffMembers = [],
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
+  createRequest,
+  onCreateRequestHandled,
 }: {
   initialData: BootstrapPayload;
   onDataChange?: (data: BootstrapPayload) => void;
   staffMembers?: OwnerWebStaffMember[];
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
+  createRequest?: OwnerScheduleCreateRequest | null;
+  onCreateRequestHandled?: (requestId: number) => void;
 }) {
   const [bootstrapData, setBootstrapData] = useState(() => initialData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
@@ -5464,6 +5405,29 @@ export default function CalendarManagementScreen({
   const statusChangeInFlightRef = useRef(false);
   const recentStatusOverridesRef = useRef<Record<string, RecentStatusOverride>>({});
   const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
+  useEffect(() => {
+    if (!createRequest) return;
+    const targetDate = createRequest.date ?? selectedDate;
+    const requestedPet =
+      (createRequest.petId ? bootstrapData.pets.find((pet) => pet.id === createRequest.petId) : null) ??
+      bootstrapData.pets.find((pet) => pet.guardian_id === createRequest.guardianId) ??
+      null;
+    const targetStaff =
+      (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
+      (staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0]);
+
+    setSelectedDate(targetDate);
+    setScheduleForm({
+      ...buildDefaultScheduleForm(bootstrapData, visibleStaff, targetDate, staff),
+      customerMode: requestedPet ? "existing" : "new",
+      petId: requestedPet?.id ?? "",
+      staffKey: targetStaff?.key ?? "",
+      date: targetDate,
+    });
+    setScheduleError("");
+    setScheduleDialogOpen(true);
+    onCreateRequestHandled?.(createRequest.requestId);
+  }, [bootstrapData, createRequest, onCreateRequestHandled, selectedBoardStaffKey, selectedDate, staff, visibleStaff]);
   const staffScopedBookings = useMemo(
     () => {
       const visibleStaffKeys = new Set(visibleStaff.map((item) => item.key));
@@ -6384,6 +6348,7 @@ export default function CalendarManagementScreen({
         <BookingSidePanel
           activeMetric={activeMetric}
           shopId={bootstrapData.shop.id}
+          bootstrapData={bootstrapData}
           manualApprovalEnabled={manualApprovalEnabled}
           selectedBooking={selectedBooking}
           selectedBookingId={selectedBookingId}

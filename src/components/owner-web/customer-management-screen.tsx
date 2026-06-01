@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Check, ChevronRight, MessageSquareText, Trash2, X } from "lucide-react";
+import { Bell, CalendarPlus, Check, ChevronRight, MessageSquareText, Trash2, X } from "lucide-react";
 
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
@@ -11,7 +11,7 @@ import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
-import type { BootstrapPayload, Guardian, Notification, NotificationStatus, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
+import type { Appointment, BootstrapPayload, Guardian, MediaAsset, Notification, NotificationStatus, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
 
 type CustomerSort = "recentDesc" | "nameAsc";
 
@@ -48,6 +48,34 @@ type NewCustomerDraft = {
   staffMemo: string;
   alertEnabled: boolean;
   needsConsultation: boolean;
+};
+
+type PetAddInput = {
+  name: string;
+  breed?: string;
+  birthday?: string;
+  weight?: string;
+  biteLevel?: PetBiteLevel;
+  profilePhoto?: File | null;
+};
+
+type CustomerReservationDraft = {
+  guardianId: string;
+  petId: string;
+  serviceId: string;
+  staffId: string;
+  date: string;
+  time: string;
+  memo: string;
+};
+
+type OwnerMediaUploadIntentResponse = {
+  mediaAsset: MediaAsset;
+  upload: {
+    signedUrl: string;
+    method: string;
+    headers: Record<string, string>;
+  };
 };
 
 type GuardianDeleteResult = {
@@ -341,9 +369,65 @@ async function createOwnerPet(payload: unknown) {
   });
 }
 
+async function uploadOwnerPetProfilePhoto({
+  shopId,
+  guardianId,
+  petId,
+  file,
+}: {
+  shopId: string;
+  guardianId: string;
+  petId: string;
+  file: File;
+}) {
+  const intent = await fetchApiJsonWithAuth<OwnerMediaUploadIntentResponse>("/api/owner/media/upload-intents", {
+    method: "POST",
+    body: JSON.stringify({
+      shopId,
+      guardianId,
+      petId,
+      originalFileName: file.name,
+      contentType: file.type || "image/jpeg",
+      byteSize: file.size,
+      mediaKind: "customer_shared",
+      visibility: "private",
+      retentionPolicy: "standard",
+      uploadedFrom: "owner_web",
+      metadata: { role: "pet_profile" },
+    }),
+  });
+
+  const headers = new Headers(intent.upload.headers ?? {});
+  if (!headers.has("content-type")) headers.set("content-type", file.type || "image/jpeg");
+  const uploadResponse = await fetch(intent.upload.signedUrl, {
+    method: intent.upload.method || "PUT",
+    headers,
+    body: file,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error("반려동물 프로필 사진 업로드에 실패했습니다.");
+  }
+
+  await fetchApiJsonWithAuth<{ mediaAsset: MediaAsset }>("/api/owner/media/complete", {
+    method: "POST",
+    body: JSON.stringify({
+      shopId,
+      mediaAssetId: intent.mediaAsset.id,
+      byteSize: file.size,
+    }),
+  });
+}
+
 async function deleteOwnerPet(payload: unknown) {
   return fetchApiJsonWithAuth<{ success: boolean; petId: string }>("/api/pets", {
     method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function postOwnerAppointment(payload: unknown) {
+  return fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -357,7 +441,16 @@ function getCustomerTagClass(tag: string) {
   return "bg-[#f4f0eb] text-[#6d655c]";
 }
 
-export default function CustomerManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
+export default function CustomerManagementScreen({
+  initialData,
+  onCreateReservationForCustomer,
+  onDataChange,
+}: {
+  initialData: BootstrapPayload;
+  onCreateReservationForCustomer?: (params: { guardianId: string; petId: string | null }) => void;
+  onDataChange?: (data: BootstrapPayload) => void;
+}) {
+  void onCreateReservationForCustomer;
   const [bootstrapData, setBootstrapData] = useState<BootstrapPayload>(() => initialData);
   const initialCustomers = useMemo(() => {
     const rows = buildCustomerRowsFromBootstrap(bootstrapData);
@@ -376,6 +469,9 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [newCustomerDraft, setNewCustomerDraft] = useState<NewCustomerDraft>(() => emptyNewCustomerDraft);
+  const [reservationDraft, setReservationDraft] = useState<CustomerReservationDraft | null>(null);
+  const [reservationSaving, setReservationSaving] = useState(false);
+  const [reservationError, setReservationError] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
 
@@ -576,27 +672,79 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     setDetailSheetOpen(true);
   }
 
+  function buildReservationDraft(params?: { guardianId: string; petId: string | null }): CustomerReservationDraft | null {
+    const customer = params ? customers.find((row) => row.id === params.guardianId) : selectedCustomer;
+    if (!customer) return null;
+    const petId = params?.petId ?? customer.petDetails[0]?.id ?? "";
+    const serviceId = bootstrapData.services.find((service) => service.is_active)?.id ?? bootstrapData.services[0]?.id ?? "";
+    const staffId = bootstrapData.staffMembers[0]?.id ?? "";
+    return {
+      guardianId: customer.id,
+      petId,
+      serviceId,
+      staffId,
+      date: currentDateInTimeZone(),
+      time: "",
+      memo: "",
+    };
+  }
+
+  function openCustomerReservationModal(params?: { guardianId: string; petId: string | null }) {
+    const draft = buildReservationDraft(params);
+    if (!draft) return;
+    setReservationError("");
+    setReservationDraft(draft);
+  }
+
   function addQuickReservation() {
-    if (!selectedCustomer) return;
-    setCustomers((current) =>
-      current.map((row) =>
-        row.id === selectedCustomer.id
-          ? {
-              ...row,
-              nextBooking: "오늘 빠른 예약",
-              nextBookingDate: currentDateInTimeZone(),
-              appointmentCount: row.appointmentCount + 1,
-              tags: Array.from(new Set([...row.tags, "예약 있음"])),
-              searchText: buildSearchText([row.name, row.phone, ...row.pets, ...row.tags, "예약 있음"]),
-            }
-          : row,
-      ),
-    );
+    openCustomerReservationModal();
+  }
+
+  async function createCustomerReservation() {
+    if (!reservationDraft || reservationSaving) return;
+    const guardian = bootstrapData.guardians.find((item) => item.id === reservationDraft.guardianId);
+    const pet = bootstrapData.pets.find((item) => item.id === reservationDraft.petId);
+    const service = bootstrapData.services.find((item) => item.id === reservationDraft.serviceId);
+
+    if (!guardian || !pet || !service || !reservationDraft.date || !reservationDraft.time) {
+      setReservationError("반려동물, 서비스, 날짜와 시간을 모두 입력해 주세요.");
+      return;
+    }
+
+    setReservationSaving(true);
+    setReservationError("");
+    try {
+      const appointment = await postOwnerAppointment({
+        shopId: initialData.shop.id,
+        guardianId: guardian.id,
+        petId: pet.id,
+        serviceId: service.id,
+        staffId: reservationDraft.staffId || null,
+        appointmentDate: reservationDraft.date,
+        appointmentTime: reservationDraft.time,
+        memo: reservationDraft.memo,
+        source: "owner",
+      });
+      setBootstrapData((current) => {
+        const nextData = {
+          ...current,
+          appointments: [...current.appointments.filter((item) => item.id !== appointment.id), appointment],
+        };
+        onDataChange?.(nextData);
+        return nextData;
+      });
+      setReservationDraft(null);
+    } catch (error) {
+      setReservationError(error instanceof Error ? error.message : "예약 추가에 실패했습니다.");
+    } finally {
+      setReservationSaving(false);
+    }
   }
 
   async function toggleAlertStatus() {
     if (!selectedCustomer) return;
     const previousCustomers = customers;
+    const previousBootstrapData = bootstrapData;
     const nextAlertEnabled = !selectedCustomer.alertEnabled;
     setSaveError("");
     setCustomers((current) =>
@@ -614,6 +762,20 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         };
       }),
     );
+    setBootstrapData((current) => ({
+      ...current,
+      guardians: current.guardians.map((guardian) =>
+        guardian.id === selectedCustomer.id
+          ? {
+              ...guardian,
+              notification_settings: {
+                ...guardian.notification_settings,
+                enabled: nextAlertEnabled,
+              },
+            }
+          : guardian,
+      ),
+    }));
 
     try {
       if (!isLocalOnlyCustomer(selectedCustomer)) {
@@ -627,6 +789,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
       }
     } catch (error) {
       setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
       setSaveError(error instanceof Error ? error.message : "알림 수신 상태 저장에 실패했습니다.");
     }
   }
@@ -636,6 +799,7 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
     if (!currentCustomer) return;
 
     const previousCustomers = customers;
+    const previousBootstrapData = bootstrapData;
     setSaveError("");
     setCustomers((current) =>
       current.map((row) => {
@@ -656,6 +820,26 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         };
       }),
     );
+    setBootstrapData((current) => ({
+      ...current,
+      guardians: current.guardians.map((guardian) =>
+        guardian.id === customerId
+          ? {
+              ...guardian,
+              name: patch.name ?? guardian.name,
+              phone: patch.phone ?? guardian.phone,
+              memo: patch.memo ?? guardian.memo,
+              updated_at: new Date().toISOString(),
+            }
+          : guardian,
+      ),
+      pets: patch.pets
+        ? current.pets.map((pet) => {
+            const petIndex = currentCustomer.petDetails.findIndex((item) => item.id === pet.id);
+            return petIndex >= 0 && patch.pets?.[petIndex] ? { ...pet, name: patch.pets[petIndex], updated_at: new Date().toISOString() } : pet;
+          })
+        : current.pets,
+    }));
 
     try {
       const guardianPatch: Record<string, unknown> = { guardianId: customerId };
@@ -718,16 +902,108 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
       }
     } catch (error) {
       setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
       setSaveError(error instanceof Error ? error.message : "고객 정보 저장에 실패했습니다.");
     }
   }
 
-  async function addPet(customerId: string, petName: string) {
+  async function updatePetDetail(
+    customerId: string,
+    petId: string,
+    patch: { name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+  ) {
     const currentCustomer = customers.find((row) => row.id === customerId);
-    const name = petName.trim();
+    const targetPet = currentCustomer?.petDetails.find((pet) => pet.id === petId);
+    const name = patch.name.trim();
+    if (!currentCustomer || !targetPet || !name) return;
+
+    const previousCustomers = customers;
+    const previousBootstrapData = bootstrapData;
+    const parsedWeight = Number.parseFloat(patch.weight);
+    const nextWeight = Number.isFinite(parsedWeight) ? parsedWeight : null;
+    const parsedCycle = Number.parseInt(patch.groomingCycleWeeks, 10);
+    const nextCycle = Number.isFinite(parsedCycle) && parsedCycle > 0 ? parsedCycle : 4;
+    const nextPet = {
+      ...targetPet,
+      name,
+      breed: patch.breed.trim(),
+      birthday: patch.birthday.trim() || null,
+      weight: nextWeight,
+      notes: patch.notes,
+      grooming_cycle_weeks: nextCycle,
+    };
+
+    setSaveError("");
+    setCustomers((current) =>
+      current.map((row) => {
+        if (row.id !== customerId) return row;
+        const nextPetDetails = row.petDetails.map((pet) => (pet.id === petId ? nextPet : pet));
+        const nextPets = nextPetDetails.map((pet) => pet.name);
+        return {
+          ...row,
+          pets: nextPets,
+          petDetails: nextPetDetails,
+          searchText: buildSearchText([row.name, row.phone, ...nextPets, ...nextPetDetails.map((pet) => pet.breed), ...nextPetDetails.map((pet) => pet.notes), ...row.tags]),
+        };
+      }),
+    );
+    setBootstrapData((current) => ({
+      ...current,
+      pets: current.pets.map((pet) =>
+        pet.id === petId
+          ? {
+              ...pet,
+              name: nextPet.name,
+              breed: nextPet.breed,
+              birthday: nextPet.birthday,
+              weight: nextPet.weight,
+              notes: nextPet.notes,
+              grooming_cycle_weeks: nextPet.grooming_cycle_weeks,
+              updated_at: new Date().toISOString(),
+            }
+          : pet,
+      ),
+    }));
+
+    if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
+
+    try {
+      const savedPet = await patchOwnerPet({
+        shopId: initialData.shop.id,
+        petId,
+        name: nextPet.name,
+        breed: nextPet.breed || "미입력",
+        birthday: nextPet.birthday,
+        weight: nextPet.weight,
+        notes: nextPet.notes,
+        biteLevel: normalizePetBiteLevel(targetPet.bite_level),
+        groomingCycleWeeks: nextPet.grooming_cycle_weeks,
+      });
+      setBootstrapData((current) => ({
+        ...current,
+        pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, ...savedPet, bite_level: normalizePetBiteLevel(savedPet.bite_level) } : pet)),
+      }));
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
+      setSaveError(error instanceof Error ? error.message : "반려동물 정보 저장에 실패했습니다.");
+      throw error;
+    }
+  }
+
+  async function addPet(customerId: string, petInput: string | PetAddInput) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    const payload = typeof petInput === "string" ? { name: petInput } : petInput;
+    const name = payload.name.trim();
     if (!currentCustomer || !name) return;
     const previousCustomers = customers;
-    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null, bite_level: "none" as const, grooming_cycle_weeks: 4 };
+    const previousBootstrapData = bootstrapData;
+    const breed = payload.breed?.trim() || "미입력";
+    const birthday = payload.birthday?.trim() || null;
+    const parsedWeight = payload.weight?.trim() ? Number(payload.weight.replace(/[^0-9.]/g, "")) : null;
+    const weight = parsedWeight && Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : null;
+    const biteLevel = normalizePetBiteLevel(payload.biteLevel);
+    const tempPet = { id: `local-pet-${Date.now()}`, name, breed: "미입력", weight: null, notes: "", birthday: null, bite_level: biteLevel, grooming_cycle_weeks: 4 };
     setSaveError("");
     setCustomers((current) =>
       current.map((row) =>
@@ -735,26 +1011,67 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
           ? {
               ...row,
               pets: [...row.pets.filter((item) => item !== "반려동물 없음"), name],
-              petDetails: [...row.petDetails, tempPet],
+              petDetails: [...row.petDetails, { ...tempPet, breed, weight, birthday }],
               searchText: buildSearchText([row.name, row.phone, ...row.pets, name, ...row.tags]),
             }
           : row,
       ),
     );
+    setBootstrapData((current) => ({
+      ...current,
+      pets: [
+        ...current.pets,
+        {
+          id: tempPet.id,
+          shop_id: initialData.shop.id,
+          guardian_id: customerId,
+          name: tempPet.name,
+          breed,
+          age: null,
+          birthday,
+          weight,
+          notes: tempPet.notes,
+          avatar_seed: tempPet.name.slice(0, 1) || "P",
+          bite_level: tempPet.bite_level,
+          grooming_cycle_weeks: tempPet.grooming_cycle_weeks,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } satisfies Pet,
+      ],
+    }));
 
     if (isLocalOnlyCustomer(currentCustomer)) return;
 
     try {
-      const pet = await createOwnerPet({
+      let pet = await createOwnerPet({
         shopId: initialData.shop.id,
         guardianId: customerId,
         name,
         breed: "미입력",
         birthday: null,
         notes: "",
-        biteLevel: "none",
+        biteLevel,
         groomingCycleWeeks: 4,
       });
+      pet = await patchOwnerPet({
+        shopId: initialData.shop.id,
+        petId: pet.id,
+        name,
+        breed,
+        birthday,
+        weight,
+        notes: "",
+        biteLevel,
+        groomingCycleWeeks: 4,
+      });
+      if (payload.profilePhoto) {
+        await uploadOwnerPetProfilePhoto({
+          shopId: initialData.shop.id,
+          guardianId: customerId,
+          petId: pet.id,
+          file: payload.profilePhoto,
+        });
+      }
       setCustomers((current) =>
         current.map((row) =>
           row.id === customerId
@@ -769,9 +1086,15 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
             : row,
         ),
       );
+      setBootstrapData((current) => ({
+        ...current,
+        pets: current.pets.map((item) => (item.id === tempPet.id ? { ...item, ...pet, bite_level: normalizePetBiteLevel(pet.bite_level) } : item)),
+      }));
     } catch (error) {
       setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
       setSaveError(error instanceof Error ? error.message : "반려동물 추가에 실패했습니다.");
+      throw error;
     }
   }
 
@@ -978,15 +1301,180 @@ export default function CustomerManagementScreen({ initialData }: { initialData:
         />
       ) : null}
 
+      {reservationDraft ? (
+        <CustomerReservationModal
+          data={bootstrapData}
+          draft={reservationDraft}
+          saving={reservationSaving}
+          error={reservationError}
+          onDraftChange={setReservationDraft}
+          onClose={() => {
+            if (reservationSaving) return;
+            setReservationDraft(null);
+            setReservationError("");
+          }}
+          onSubmit={() => void createCustomerReservation()}
+        />
+      ) : null}
+
       {selectedCustomer && selectedCustomerDetail && detailSheetOpen ? (
         <CustomerDetailPanel
           detail={selectedCustomerDetail}
           selectedPetId={selectedPetId}
           onSelectPet={setSelectedPetId}
           onUpdatePetBiteLevel={updatePetBiteLevel}
+          onUpdateGuardian={(guardianId, patch) => updateCustomer(guardianId, patch)}
+          onUpdatePet={updatePetDetail}
+          onAddPet={addPet}
+          onToggleGuardianNotifications={() => toggleAlertStatus()}
+          onCreateReservation={openCustomerReservationModal}
           onClose={() => setDetailSheetOpen(false)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function CustomerReservationModal({
+  data,
+  draft,
+  saving,
+  error,
+  onDraftChange,
+  onClose,
+  onSubmit,
+}: {
+  data: BootstrapPayload;
+  draft: CustomerReservationDraft;
+  saving: boolean;
+  error: string;
+  onDraftChange: (draft: CustomerReservationDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const guardian = data.guardians.find((item) => item.id === draft.guardianId) ?? null;
+  const pets = data.pets.filter((pet) => pet.guardian_id === draft.guardianId);
+  const selectedPet = pets.find((pet) => pet.id === draft.petId) ?? pets[0] ?? null;
+  const services = data.services.filter((service) => service.is_active);
+  const selectedService = data.services.find((service) => service.id === draft.serviceId) ?? services[0] ?? data.services[0] ?? null;
+
+  function patchDraft(patch: Partial<CustomerReservationDraft>) {
+    onDraftChange({ ...draft, ...patch });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/25 px-4" onClick={onClose}>
+      <section
+        className="w-full max-w-[560px] rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
+          <div className="min-w-0">
+            <p className="truncate text-[16px] text-[#64748b]">
+              {guardian ? `${guardian.name} 보호자 · ${formatPhoneNumber(guardian.phone)}` : "고객 예약"}
+            </p>
+            <h3 className="mt-1 flex items-center gap-2 text-[22px] font-semibold text-[#111827]">
+              <CalendarPlus className="h-5 w-5 text-[#2f7866]" />
+              예약 추가
+            </h3>
+          </div>
+          <button type="button" onClick={onClose} className="h-8 rounded-[7px] border border-[#dbe2ea] px-3 text-[16px] text-[#475569] hover:bg-[#f8fafc]">
+            닫기
+          </button>
+        </div>
+
+        <div className="space-y-3 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-[16px] text-[#64748b]">반려동물</span>
+              <select
+                value={selectedPet?.id ?? ""}
+                onChange={(event) => patchDraft({ petId: event.target.value })}
+                className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+              >
+                {pets.map((pet) => (
+                  <option key={pet.id} value={pet.id}>
+                    {pet.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[16px] text-[#64748b]">담당 직원</span>
+              <select
+                value={draft.staffId}
+                onChange={(event) => patchDraft({ staffId: event.target.value })}
+                className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+              >
+                {data.staffMembers.length === 0 ? <option value="">담당자 없음</option> : null}
+                {data.staffMembers.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-[16px] text-[#64748b]">서비스</span>
+            <select
+              value={selectedService?.id ?? ""}
+              onChange={(event) => patchDraft({ serviceId: event.target.value })}
+              className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+            >
+              {(services.length > 0 ? services : data.services).map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.name} · {service.duration_minutes}분 · {service.price.toLocaleString("ko-KR")}원
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-[16px] text-[#64748b]">예약일</span>
+              <input
+                type="date"
+                value={draft.date}
+                onChange={(event) => patchDraft({ date: event.target.value })}
+                className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[16px] text-[#64748b]">예약 시간</span>
+              <input
+                type="time"
+                step={300}
+                value={draft.time}
+                onChange={(event) => patchDraft({ time: event.target.value })}
+                className="h-11 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-[16px] text-[#64748b]">고객 요청사항</span>
+            <textarea
+              value={draft.memo}
+              onChange={(event) => patchDraft({ memo: event.target.value })}
+              placeholder="예약에 남길 요청사항을 입력해 주세요."
+              className="min-h-[92px] w-full resize-none rounded-[8px] border border-[#cfd8e3] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+            />
+          </label>
+
+          {error ? <p className="rounded-[8px] border border-[#f4c7cc] bg-[#fff7f8] px-3 py-2 text-[16px] text-[#b42318]">{error}</p> : null}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#334155] hover:bg-[#f8fafc]" disabled={saving}>
+              취소
+            </button>
+            <button type="button" onClick={onSubmit} className="h-10 rounded-[8px] bg-[#2f7866] px-5 text-[16px] font-medium text-white hover:bg-[#286a5a] disabled:bg-[#94a3b8]" disabled={saving}>
+              {saving ? "등록 중" : "예약 등록"}
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

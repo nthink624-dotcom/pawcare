@@ -146,6 +146,11 @@ export const serviceInputSchema = z.object({
   priceGuide: z.unknown().optional(),
 });
 
+export const serviceDeleteSchema = z.object({
+  shopId: z.string(),
+  serviceId: z.string(),
+});
+
 export const shopSettingsSchema = z.object({
   shopId: z.string(),
   name: z.string().min(1),

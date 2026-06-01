@@ -92,6 +92,32 @@ const appFieldGroups: Array<{
   },
 ];
 
+type AdminAlimtalkCreditBalance = {
+  shopId: string;
+  shopName: string;
+  includedTotal: number;
+  includedUsed: number;
+  includedRemaining: number;
+  includedPeriodStartedAt: string | null;
+  includedPeriodEndsAt: string | null;
+  purchasedTotal: number;
+  purchasedUsed: number;
+  purchasedRemaining: number;
+  remainingTotal: number;
+  updatedAt: string;
+};
+
+type AdminAlimtalkCreditBalancesResponse = {
+  ok: boolean;
+  balances: AdminAlimtalkCreditBalance[];
+};
+
+type AdminAlimtalkCreditGrantResponse = {
+  ok: boolean;
+  remainingCount: number | null;
+  eventId: string | null;
+};
+
 const ssodaaStatusLabels: Record<string, string> = {
   REG: "등록",
   REQ: "검수 요청",
@@ -176,6 +202,15 @@ function AdminCollapsibleSection({
   );
 }
 
+function CreditStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-4 py-3">
+      <p className="text-[13px] font-semibold text-[#8a8277]">{label}</p>
+      <p className="mt-1 text-[18px] font-semibold text-[#171411]">{value}</p>
+    </div>
+  );
+}
+
 export default function AdminAlimtalkScreen({
   sessionLoginId,
   appConfig,
@@ -195,6 +230,13 @@ export default function AdminAlimtalkScreen({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [creditBalances, setCreditBalances] = useState<AdminAlimtalkCreditBalance[]>([]);
+  const [loadingCredits, setLoadingCredits] = useState(true);
+  const [grantingCredits, setGrantingCredits] = useState(false);
+  const [creditShopId, setCreditShopId] = useState("");
+  const [creditAmount, setCreditAmount] = useState("100");
+  const [creditBucket, setCreditBucket] = useState<"included" | "purchased">("purchased");
+  const [creditReason, setCreditReason] = useState("admin_manual_grant");
 
   async function loadRelayConfig() {
     setLoading(true);
@@ -227,12 +269,33 @@ export default function AdminAlimtalkScreen({
     }
   }
 
+  async function loadCreditBalances() {
+    setLoadingCredits(true);
+    try {
+      const response = await fetchApiJson<AdminAlimtalkCreditBalancesResponse>("/api/admin/alimtalk/credits", {
+        cache: "no-store",
+      });
+      setCreditBalances(response.balances);
+      setCreditShopId((current) => current || response.balances[0]?.shopId || "");
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "알림톡 건수 정보를 불러오지 못했습니다.");
+    } finally {
+      setLoadingCredits(false);
+    }
+  }
+
   useEffect(() => {
     void loadRelayConfig();
     void loadRelayTemplates();
+    void loadCreditBalances();
   }, []);
 
   const hasRelayConfig = Boolean(relayConfig);
+  const selectedCreditBalance = useMemo(
+    () => creditBalances.find((item) => item.shopId === creditShopId) ?? null,
+    [creditBalances, creditShopId],
+  );
   const dirtyCount = useMemo(() => {
     if (!relayConfig) return 0;
     return Object.values(relayConfig).filter((value) => value.trim().length > 0).length;
@@ -266,6 +329,46 @@ export default function AdminAlimtalkScreen({
     setRelayConfig((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  async function handleGrantCredits() {
+    const amount = Number(creditAmount);
+    if (!creditShopId) {
+      setError("알림톡 건수를 증정할 매장을 선택해 주세요.");
+      setMessage(null);
+      return;
+    }
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setError("증정 건수는 1 이상의 정수로 입력해 주세요.");
+      setMessage(null);
+      return;
+    }
+
+    setGrantingCredits(true);
+    try {
+      const selectedShop = creditBalances.find((item) => item.shopId === creditShopId);
+      const response = await fetchApiJson<AdminAlimtalkCreditGrantResponse>("/api/admin/alimtalk/credits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "grant",
+          shopId: creditShopId,
+          amount,
+          creditBucket,
+          reason: creditReason.trim() || "admin_manual_grant",
+        }),
+      });
+      await loadCreditBalances();
+      setMessage(`${selectedShop?.shopName || creditShopId}에 알림톡 ${amount.toLocaleString("ko-KR")}건을 증정했습니다. 남은 건수: ${response.remainingCount?.toLocaleString("ko-KR") ?? "-"}건`);
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "알림톡 건수 증정에 실패했습니다.");
+      setMessage(null);
+    } finally {
+      setGrantingCredits(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-white px-5 py-5 text-[#171411] md:px-8 md:py-7">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5">
@@ -289,6 +392,133 @@ export default function AdminAlimtalkScreen({
               {error}
             </p>
           ) : null}
+        </section>
+
+        <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">크레딧 증정</p>
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">오너 알림톡 건수 수동 증정</h2>
+              <p className="mt-3 max-w-[720px] text-[14px] leading-6 text-[#6f665f]">
+                알림톡은 매장 단위로 차감됩니다. 여기에서 증정한 건수는 선택한 매장의 내부 크레딧 잔액에 바로 반영됩니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadCreditBalances()}
+              disabled={loadingCredits || grantingCredits}
+              className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[6px] border border-[#d8d4ce] bg-white px-4 text-[14px] font-semibold text-[#5c554d] disabled:opacity-60"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              잔액 새로고침
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="rounded-[6px] border border-[#e6e3dd] bg-[#fbfaf8] p-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-[14px] font-semibold text-[#6f665f]">매장 선택</span>
+                  <select
+                    value={creditShopId}
+                    onChange={(event) => setCreditShopId(event.target.value)}
+                    disabled={loadingCredits || grantingCredits || creditBalances.length === 0}
+                    className="h-11 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[15px] text-[#171411] outline-none focus:border-[#1f6b5b] disabled:opacity-60"
+                  >
+                    {creditBalances.length === 0 ? <option value="">매장이 없습니다</option> : null}
+                    {creditBalances.map((balance) => (
+                      <option key={balance.shopId} value={balance.shopId}>
+                        {balance.shopName} · 잔여 {balance.remainingTotal.toLocaleString("ko-KR")}건
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="text-[14px] font-semibold text-[#6f665f]">증정 건수</span>
+                  <input
+                    value={creditAmount}
+                    onChange={(event) => setCreditAmount(event.target.value.replace(/[^\d]/g, ""))}
+                    inputMode="numeric"
+                    placeholder="예: 100"
+                    className="h-11 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[15px] text-[#171411] outline-none focus:border-[#1f6b5b]"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-[14px] font-semibold text-[#6f665f]">크레딧 구분</span>
+                  <select
+                    value={creditBucket}
+                    onChange={(event) => setCreditBucket(event.target.value === "included" ? "included" : "purchased")}
+                    className="h-11 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[15px] text-[#171411] outline-none focus:border-[#1f6b5b]"
+                  >
+                    <option value="purchased">추가 증정 크레딧</option>
+                    <option value="included">플랜 포함 크레딧</option>
+                  </select>
+                </label>
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-[14px] font-semibold text-[#6f665f]">사유</span>
+                  <input
+                    value={creditReason}
+                    onChange={(event) => setCreditReason(event.target.value)}
+                    placeholder="예: admin_manual_grant"
+                    className="h-11 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[15px] text-[#171411] outline-none focus:border-[#1f6b5b]"
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleGrantCredits()}
+                disabled={loadingCredits || grantingCredits || !creditShopId}
+                className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[6px] bg-[#1f6b5b] px-4 text-[15px] font-semibold text-white disabled:opacity-60"
+              >
+                {grantingCredits ? "증정 중..." : "알림톡 건수 증정"}
+              </button>
+            </div>
+
+            <div className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[14px] font-semibold text-[#8a8277]">현재 선택 매장</p>
+                  <h3 className="mt-1 text-[20px] font-semibold text-[#171411]">{selectedCreditBalance?.shopName || "매장을 선택해 주세요"}</h3>
+                </div>
+                <div className="rounded-[6px] border border-[#d8d4ce] bg-white px-3 py-2 text-right">
+                  <p className="text-[13px] text-[#8a8277]">총 잔여</p>
+                  <p className="mt-0.5 text-[20px] font-semibold text-[#1f6b5b]">{(selectedCreditBalance?.remainingTotal ?? 0).toLocaleString("ko-KR")}건</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <CreditStat label="플랜 포함 잔여" value={`${(selectedCreditBalance?.includedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
+                <CreditStat label="추가 증정 잔여" value={`${(selectedCreditBalance?.purchasedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
+                <CreditStat label="플랜 포함 총량" value={`${(selectedCreditBalance?.includedTotal ?? 0).toLocaleString("ko-KR")}건`} />
+                <CreditStat label="추가 증정 총량" value={`${(selectedCreditBalance?.purchasedTotal ?? 0).toLocaleString("ko-KR")}건`} />
+              </div>
+              <div className="mt-4 max-h-[220px] overflow-auto rounded-[6px] border border-[#ece8e2]">
+                {loadingCredits ? (
+                  <p className="px-4 py-5 text-[14px] text-[#7a7268]">잔액을 불러오는 중입니다.</p>
+                ) : (
+                  <table className="w-full min-w-[560px] text-left text-[14px]">
+                    <thead className="bg-[#fbfaf8] text-[#7a7268]">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">매장</th>
+                        <th className="px-3 py-2 font-semibold">총 잔여</th>
+                        <th className="px-3 py-2 font-semibold">포함</th>
+                        <th className="px-3 py-2 font-semibold">추가</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#ece8e2]">
+                      {creditBalances.map((balance) => (
+                        <tr key={balance.shopId} className={balance.shopId === creditShopId ? "bg-[#f0f7f4]" : "bg-white"}>
+                          <td className="px-3 py-2 text-[#171411]">{balance.shopName}</td>
+                          <td className="px-3 py-2 text-[#1f6b5b]">{balance.remainingTotal.toLocaleString("ko-KR")}건</td>
+                          <td className="px-3 py-2 text-[#6f665f]">{balance.includedRemaining.toLocaleString("ko-KR")}건</td>
+                          <td className="px-3 py-2 text-[#6f665f]">{balance.purchasedRemaining.toLocaleString("ko-KR")}건</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
         </section>
 
         <AdminAlimtalkTemplateRegistrationPanel onRegistered={() => void loadRelayTemplates()} />

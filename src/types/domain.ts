@@ -78,6 +78,7 @@ export type CustomerPageSettings = {
   shop_name: string;
   tagline: string;
   hero_image_url: string;
+  hero_image_urls?: string[];
   primary_color: string;
   notices: string[];
   operating_hours_note: string;

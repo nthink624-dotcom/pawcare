@@ -10,7 +10,7 @@ import {
 import Image from "next/image";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 
-import CalendarManagementScreen from "@/components/owner-web/calendar-management-screen";
+import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
 import CustomerBookingPageManagementScreen from "@/components/owner-web/customer-booking-page-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
@@ -29,7 +29,7 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
 const screenIconPaths: Record<OwnerWebScreenKey, string> = {
@@ -169,6 +169,9 @@ function renderScreen(
   staffMembers: OwnerWebStaffMember[],
   onStaffMembersChange: (staff: OwnerWebStaffMember[]) => void | Promise<void>,
   onStaffMemberDeactivate: (staffId: string) => void | Promise<void>,
+  createRequest: OwnerScheduleCreateRequest | null,
+  onCreateRequestHandled: (requestId: number) => void,
+  onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -183,6 +186,8 @@ function renderScreen(
           staffMembers={staffMembers}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
+          createRequest={createRequest}
+          onCreateRequestHandled={onCreateRequestHandled}
         />
       );
     case "bookingPageManagement":
@@ -190,7 +195,7 @@ function renderScreen(
     case "bookingLink":
       return <BookingLinkManagementScreen initialData={initialData} />;
     case "customers":
-      return <CustomerManagementScreen initialData={initialData} />;
+      return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "grooming":
       return <GroomingManagementScreen initialData={initialData} />;
     case "services":
@@ -226,6 +231,7 @@ function renderScreen(
           shop={initialData.shop}
           services={initialData.services}
           onShopChange={onShopChange}
+          onServicesChange={(services: BootstrapPayload["services"]) => onDataChange({ ...initialData, services })}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
@@ -251,6 +257,7 @@ export default function OwnerWebPreview({
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
+  const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
@@ -437,6 +444,19 @@ export default function OwnerWebPreview({
     setActiveScreen(screen);
   }
 
+  function handleCreateReservationForCustomer(params: { guardianId: string; petId: string | null }) {
+    setScheduleCreateRequest({
+      requestId: Date.now(),
+      guardianId: params.guardianId,
+      petId: params.petId,
+      date: currentDateInTimeZone(),
+    });
+  }
+
+  function handleScheduleCreateRequestHandled(requestId: number) {
+    setScheduleCreateRequest((current) => (current?.requestId === requestId ? null : current));
+  }
+
   function openSettingsTab(tab: SettingsTabKey) {
     setActiveScreen(screenBySettingsTab[tab]);
     setStoreMenuOpen(false);
@@ -587,6 +607,9 @@ export default function OwnerWebPreview({
               staffMembers,
               handleStaffMembersChange,
               handleStaffMemberDeactivate,
+              scheduleCreateRequest,
+              handleScheduleCreateRequestHandled,
+              handleCreateReservationForCustomer,
             )}
           </div>
         </main>

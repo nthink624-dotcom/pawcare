@@ -83,7 +83,10 @@ export function buildCustomerServiceSourceOptions(
   for (const service of services) {
     if (!options.includeInactive && !service.is_active) continue;
 
-    for (const section of getPriceGuideSections(service.price_guide)) {
+    const priceGuideSections = getPriceGuideSections(service.price_guide);
+    let hasPriceGuideOption = false;
+
+    for (const section of priceGuideSections) {
       if (!section || typeof section !== "object") continue;
       const source = section as { title?: unknown; weightBands?: unknown; items?: unknown };
       const sectionTitle = limitText(source.title, 60) || service.category || "미용";
@@ -122,10 +125,11 @@ export function buildCustomerServiceSourceOptions(
           priceType: service.price_type ?? "starting",
           order: result.length + 1,
         });
+        hasPriceGuideOption = true;
       }
     }
 
-    if (result.some((option) => option.serviceId === service.id)) continue;
+    if (hasPriceGuideOption || priceGuideSections.length > 0) continue;
 
     result.push({
       id: service.id,

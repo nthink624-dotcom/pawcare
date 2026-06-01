@@ -17,6 +17,7 @@ import {
   buildCustomerServiceSourceOptions,
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
+  type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
@@ -87,14 +88,14 @@ function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel
 }
 
 function pendingHoldLimitLabel(value: number | null | undefined) {
-  if (value && value >= 3) return "3건 이상 받아두기";
-  if (value === 1) return "1건만 받기";
-  return "2건까지 받아두기";
+  if (value && value >= 3) return "중복 예약 2건 이상 받기";
+  if (value === 1) return "중복 예약 X";
+  return "중복 예약 1건만 받기";
 }
 
 function pendingHoldLimitFromLabel(value: string | number): 1 | 2 | 3 {
-  if (value === 3 || value === "3" || value === "3건 이상 받아두기") return 3;
-  if (value === 2 || value === "2" || value === "2건까지 받기" || value === "2건까지 받아두기") return 2;
+  if (value === 3 || value === "3" || value === "3건 이상 받아두기" || value === "중복 예약 2건 이상 받기") return 3;
+  if (value === 2 || value === "2" || value === "2건까지 받기" || value === "2건까지 받아두기" || value === "중복 예약 1건만 받기") return 2;
   return 1;
 }
 
@@ -220,10 +221,10 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       {
         id: "pendingHoldLimit",
         label: "승인대기 접수 방식",
-        value: "2건까지 받아두기",
+        value: "중복 예약 1건만 받기",
         description: "직접 승인일 때 같은 시간대에 받을 승인대기 예약 수",
         control: "select",
-        options: ["1건만 받기", "2건까지 받아두기", "3건 이상 받아두기"],
+        options: ["중복 예약 X", "중복 예약 1건만 받기", "중복 예약 2건 이상 받기"],
       },
       {
         id: "cancelWindow",
@@ -394,6 +395,102 @@ function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab
     approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
     cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
     pendingHoldLimit: pendingHoldLimitFromLabel(String(rows.find((row) => row.id === "pendingHoldLimit")?.value ?? "")),
+  };
+}
+
+function buildServicePayload(shopId: string, service: Service, priceGuide: unknown = service.price_guide) {
+  return {
+    shopId,
+    serviceId: service.id,
+    name: service.name,
+    description: service.description ?? "",
+    price: service.price,
+    priceType: service.price_type ?? "starting",
+    durationMinutes: service.duration_minutes,
+    isActive: service.is_active,
+    category: service.category ?? "미용",
+    sortOrder: service.sort_order ?? 1,
+    capacityLabel: service.capacity_label ?? "동일 시간 1건",
+    staffSelectionMode: service.staff_selection_mode ?? "all",
+    priceGuide,
+  };
+}
+
+function createLocalService(shopId: string, sortOrder: number): Service {
+  const now = new Date().toISOString();
+  return {
+    id: `local-service-${Date.now()}`,
+    shop_id: shopId,
+    name: "새 항목",
+    price: 0,
+    price_type: "starting",
+    duration_minutes: 30,
+    is_active: true,
+    category: "미용",
+    description: "",
+    sort_order: sortOrder,
+    capacity_label: "동일 시간 1건",
+    staff_selection_mode: "all",
+    price_guide: {},
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function optionItemId(option: CustomerServiceSourceOption) {
+  return option.id.includes(":") ? option.id.split(":").slice(1).join(":") : option.id;
+}
+
+function removeOptionFromPriceGuide(priceGuide: unknown, option: CustomerServiceSourceOption) {
+  if (!priceGuide || typeof priceGuide !== "object" || Array.isArray(priceGuide)) return priceGuide;
+  const source = priceGuide as Record<string, unknown>;
+  if (!Array.isArray(source.sections)) return priceGuide;
+  const targetId = optionItemId(option);
+
+  return {
+    ...source,
+    sections: source.sections.map((section) => {
+      if (!section || typeof section !== "object" || Array.isArray(section)) return section;
+      const sectionRecord = section as Record<string, unknown>;
+      if (!Array.isArray(sectionRecord.items)) return section;
+      return {
+        ...sectionRecord,
+        items: sectionRecord.items.filter((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return true;
+          const itemRecord = item as { id?: unknown; label?: unknown };
+          const itemId = String(itemRecord.id ?? itemRecord.label ?? "");
+          const itemLabel = String(itemRecord.label ?? "");
+          return itemId !== targetId && itemLabel !== option.sourceName;
+        }),
+      };
+    }),
+  };
+}
+
+function renameOptionInPriceGuide(priceGuide: unknown, option: CustomerServiceSourceOption, nextName: string) {
+  if (!priceGuide || typeof priceGuide !== "object" || Array.isArray(priceGuide)) return priceGuide;
+  const source = priceGuide as Record<string, unknown>;
+  if (!Array.isArray(source.sections)) return priceGuide;
+  const targetId = optionItemId(option);
+
+  return {
+    ...source,
+    sections: source.sections.map((section) => {
+      if (!section || typeof section !== "object" || Array.isArray(section)) return section;
+      const sectionRecord = section as Record<string, unknown>;
+      if (!Array.isArray(sectionRecord.items)) return section;
+      return {
+        ...sectionRecord,
+        items: sectionRecord.items.map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+          const itemRecord = item as { id?: unknown; label?: unknown };
+          const itemId = String(itemRecord.id ?? itemRecord.label ?? "");
+          const itemLabel = String(itemRecord.label ?? "");
+          if (itemId !== targetId && itemLabel !== option.sourceName) return item;
+          return { ...itemRecord, label: nextName };
+        }),
+      };
+    }),
   };
 }
 
@@ -654,6 +751,7 @@ export default function SettingsManagementScreen({
   shop,
   services = [],
   onShopChange,
+  onServicesChange,
   persistShopProfile = true,
   manualApprovalEnabled,
   onManualApprovalChange,
@@ -664,6 +762,7 @@ export default function SettingsManagementScreen({
   shop?: Shop;
   services?: Service[];
   onShopChange?: (shop: Shop) => void;
+  onServicesChange?: (services: Service[]) => void;
   persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
@@ -678,7 +777,8 @@ export default function SettingsManagementScreen({
   const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
     normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
   );
-  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
+  const [customerServiceActionId, setCustomerServiceActionId] = useState<string | null>(null);
+  const [, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -703,6 +803,8 @@ export default function SettingsManagementScreen({
           setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
         } else if (storedProfileImage) {
           setShopProfileImages([storedProfileImage]);
+        } else if (shop?.customer_page_settings.hero_image_urls?.length) {
+          setShopProfileImages(normalizeShopProfileImages(shop.customer_page_settings.hero_image_urls));
         } else if (shop?.customer_page_settings.hero_image_url) {
           setShopProfileImages([shop.customer_page_settings.hero_image_url]);
         }
@@ -758,7 +860,8 @@ export default function SettingsManagementScreen({
     const postalCode = "postalCode" in profilePatch && typeof profilePatch.postalCode === "string" ? profilePatch.postalCode : "";
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
-    const heroImageUrl = normalizeShopProfileImages(shopProfileImages)[0] ?? "";
+    const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
+    const heroImageUrl = heroImageUrls[0] ?? "";
     const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
     const optimisticShop: Shop = {
       ...shop,
@@ -780,6 +883,7 @@ export default function SettingsManagementScreen({
         shop_name: profileName || shop.customer_page_settings.shop_name,
         tagline,
         hero_image_url: heroImageUrl,
+        hero_image_urls: heroImageUrls,
         business_category: businessCategory || shop.customer_page_settings.business_category,
         additional_contact: additionalContact,
         postal_code: postalCode,
@@ -814,6 +918,7 @@ export default function SettingsManagementScreen({
           ...profilePatch,
           tagline,
           heroImageUrl,
+          heroImageUrls,
           ...(policyPatch ?? {}),
           ...(policyPatch ? { pendingHoldLimit: policyPatch.pendingHoldLimit } : {}),
         }),
@@ -878,6 +983,113 @@ export default function SettingsManagementScreen({
         });
       customerServiceSaveTimerRef.current = null;
     }, 500);
+  }
+
+  async function addCustomerServiceOption() {
+    if (!shop || customerServiceActionId) return;
+
+    const localService = createLocalService(shop.id, services.length + 1);
+    const optimisticServices = [...services, localService];
+    onServicesChange?.(optimisticServices);
+    setCustomerServiceActionId("__add__");
+
+    try {
+      if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
+        return;
+      }
+
+      const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
+        method: "POST",
+        body: JSON.stringify(buildServicePayload(shop.id, localService)),
+      });
+      onServicesChange?.(optimisticServices.map((service) => (service.id === localService.id ? savedService : service)));
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to add customer service", error);
+      onServicesChange?.(services);
+    } finally {
+      setCustomerServiceActionId(null);
+    }
+  }
+
+  async function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
+    if (!shop || customerServiceActionId) return;
+
+    const targetService = services.find((service) => service.id === option.serviceId);
+    if (!targetService) return;
+
+    setCustomerServiceActionId(option.id);
+
+    if (option.id === option.serviceId) {
+      const optimisticServices = services.filter((service) => service.id !== option.serviceId);
+      onServicesChange?.(optimisticServices);
+      try {
+        if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
+          await fetchApiJsonWithAuth<{ success: boolean; serviceId: string }>("/api/services", {
+            method: "DELETE",
+            body: JSON.stringify({ shopId: shop.id, serviceId: option.serviceId }),
+          });
+        }
+      } catch (error) {
+        console.error("[OWNER SETTINGS] failed to delete customer service", error);
+        onServicesChange?.(services);
+      } finally {
+        setCustomerServiceActionId(null);
+      }
+      return;
+    }
+
+    const nextPriceGuide = removeOptionFromPriceGuide(targetService.price_guide, option);
+    const nextService: Service = { ...targetService, price_guide: nextPriceGuide };
+    const optimisticServices = services.map((service) => (service.id === targetService.id ? nextService : service));
+    onServicesChange?.(optimisticServices);
+
+    try {
+      if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
+        const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
+          method: "POST",
+          body: JSON.stringify(buildServicePayload(shop.id, nextService, nextPriceGuide)),
+        });
+        onServicesChange?.(optimisticServices.map((service) => (service.id === savedService.id ? savedService : service)));
+      }
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to delete customer service option", error);
+      onServicesChange?.(services);
+    } finally {
+      setCustomerServiceActionId(null);
+    }
+  }
+
+  async function renameCustomerServiceOption(option: CustomerServiceSourceOption, nextName: string) {
+    if (!shop || customerServiceActionId) return;
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName || trimmedName === option.sourceName) return;
+
+    const targetService = services.find((service) => service.id === option.serviceId);
+    if (!targetService) return;
+
+    setCustomerServiceActionId(option.id);
+
+    const nextPriceGuide = option.id === option.serviceId ? targetService.price_guide : renameOptionInPriceGuide(targetService.price_guide, option, trimmedName);
+    const nextService: Service =
+      option.id === option.serviceId ? { ...targetService, name: trimmedName } : { ...targetService, price_guide: nextPriceGuide };
+    const optimisticServices = services.map((service) => (service.id === targetService.id ? nextService : service));
+    onServicesChange?.(optimisticServices);
+
+    try {
+      if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
+        const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
+          method: "POST",
+          body: JSON.stringify(buildServicePayload(shop.id, nextService, nextPriceGuide)),
+        });
+        onServicesChange?.(optimisticServices.map((service) => (service.id === savedService.id ? savedService : service)));
+      }
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to rename customer service", error);
+      onServicesChange?.(services);
+    } finally {
+      setCustomerServiceActionId(null);
+    }
   }
 
   function buildSettingsWithRow(
@@ -1173,15 +1385,17 @@ export default function SettingsManagementScreen({
                 onRowCommit={(rowId, value) => updateRow(rowId, value)}
                 onOpenAddressSearch={() => setAddressSheetOpen(true)}
                 serviceMenuContent={
-                  customerServiceOptions.length > 0 ? (
-                    <CustomerServiceExposurePanel
-                      options={customerServiceOptions}
-                      overrides={customerServiceOverrides}
-                      saveStatus={customerServiceSaveStatus}
-                      embedded
-                      onChange={updateCustomerServiceOverrides}
-                    />
-                  ) : null
+                  <CustomerServiceExposurePanel
+                    options={customerServiceOptions}
+                    overrides={customerServiceOverrides}
+                    title="서비스 메뉴"
+                    embedded
+                    busyOptionId={customerServiceActionId}
+                    onChange={updateCustomerServiceOverrides}
+                    onAddOption={addCustomerServiceOption}
+                    onDeleteOption={deleteCustomerServiceOption}
+                    onRenameOption={renameCustomerServiceOption}
+                  />
                 }
               >
                 {businessHoursRow && closedDayRow ? (

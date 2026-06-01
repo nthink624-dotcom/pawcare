@@ -1,9 +1,10 @@
 ﻿"use client";
 
 import { ChevronDown, Copy, Navigation, Phone, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
+import { normalizeServicePriceGuide, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
   applyCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
@@ -144,9 +145,29 @@ function openExternalMap(appUrl: string, webUrl: string) {
   window.location.href = appUrl;
 }
 
-function resolveHeroImages(value: string | undefined) {
+function resolveHeroImages(value: string | undefined, values?: string[]) {
+  const uploadedImages = Array.isArray(values)
+    ? values.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0).slice(0, 10)
+    : [];
   const uploadedImage = value?.trim();
+  if (uploadedImages.length > 0) return uploadedImages;
   return uploadedImage ? [uploadedImage, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
+}
+
+function getPriceGuideSections(service: Service): ServicePriceGuideSection[] {
+  const guide = service.price_guide;
+  if (!guide || typeof guide !== "object" || Array.isArray(guide)) return [];
+  const source = guide as { enabled?: unknown; sections?: unknown };
+  if (source.enabled === false || !Array.isArray(source.sections) || source.sections.length === 0) return [];
+  return normalizeServicePriceGuide(guide).sections ?? [];
+}
+
+function formatPriceGuideCell(cell: { price?: string; durationMinutes?: string } | undefined) {
+  const price = Number(String(cell?.price ?? "").replace(/[^0-9]/g, ""));
+  const duration = Number(String(cell?.durationMinutes ?? "").replace(/[^0-9]/g, ""));
+  const priceText = Number.isFinite(price) && price > 0 ? `${price.toLocaleString("ko-KR")}원` : "-";
+  const durationText = Number.isFinite(duration) && duration > 0 ? `${duration}분 예상` : "";
+  return { priceText, durationText };
 }
 
 function getTodayOperatingStatus(
@@ -186,6 +207,7 @@ export default function CustomerBookingEntryPage({
   shop,
   services,
   bookingHref,
+  infoHref,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
   services: Service[];
@@ -219,11 +241,17 @@ export default function CustomerBookingEntryPage({
     ),
     [services, settings.customer_service_overrides],
   );
-  const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url), [settings.hero_image_url]);
+  const priceGuideSections = useMemo(
+    () => services.flatMap((service) => getPriceGuideSections(service).map((section) => ({ serviceId: service.id, serviceName: service.name, section }))),
+    [services],
+  );
+  const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url, settings.hero_image_urls), [settings.hero_image_url, settings.hero_image_urls]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const heroTouchStartXRef = useRef<number | null>(null);
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
@@ -231,6 +259,10 @@ export default function CustomerBookingEntryPage({
   const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
   const kakaoInquiryUrl = settings.kakao_inquiry_url.trim();
   const inquiryHref = kakaoInquiryUrl || `tel:${shop.phone.replace(/[^0-9+]/g, "")}`;
+
+  useEffect(() => {
+    setActiveHeroIndex((current) => Math.min(current, Math.max(heroImages.length - 1, 0)));
+  }, [heroImages.length]);
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -268,11 +300,28 @@ export default function CustomerBookingEntryPage({
     }
   }
 
+  function handleHeroTouchStart(event: TouchEvent<HTMLDivElement>) {
+    heroTouchStartXRef.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleHeroTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (heroImages.length <= 1 || heroTouchStartXRef.current === null) return;
+    const deltaX = (event.changedTouches[0]?.clientX ?? heroTouchStartXRef.current) - heroTouchStartXRef.current;
+    heroTouchStartXRef.current = null;
+    if (Math.abs(deltaX) < 32) return;
+    setActiveHeroIndex((current) => {
+      if (deltaX < 0) return (current + 1) % heroImages.length;
+      return (current - 1 + heroImages.length) % heroImages.length;
+    });
+  }
+
   return (
     <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-3 pb-6 pt-3">
       <section className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <div
-          className="relative aspect-[4/3] overflow-hidden bg-[#efe7dd] text-white"
+          className="relative aspect-[16/9] overflow-hidden bg-[#efe7dd] text-white"
+          onTouchStart={handleHeroTouchStart}
+          onTouchEnd={handleHeroTouchEnd}
           style={{
             backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[activeHeroIndex]})`,
             backgroundSize: "cover",
@@ -302,7 +351,7 @@ export default function CustomerBookingEntryPage({
         <div className="px-0.5 pb-2">
           <div className="min-w-0">
             <h2 className="truncate text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
-            <p className="mt-1 truncate text-[13px] font-medium tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
+            <p className="mt-1 truncate text-[13px] font-normal tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
           </div>
         </div>
 
@@ -313,12 +362,12 @@ export default function CustomerBookingEntryPage({
           className={`grid h-[44px] w-full items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-left text-[#071923] ${isTodayClosed ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_auto_1fr]"}`}
         >
           <span className="inline-flex min-w-0 justify-start">
-            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-medium text-[#6f6258]">
+            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-normal text-[#6f6258]">
               <span className={getDotIndicatorClass(operatingStatus.open ? "teal" : "neutral")} />
               <span>{operatingStatusLabel}</span>
             </span>
           </span>
-          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[15px] font-medium tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
+          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[15px] font-normal tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
           <span className="inline-flex min-w-0 justify-end">
             <span className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1 text-[13px] font-normal text-[#6f6258]">
               전체 보기
@@ -339,7 +388,7 @@ export default function CustomerBookingEntryPage({
                     index !== weekRows.length - 1 ? "border-b border-[#edf0ee]" : ""
                   } ${isToday ? "bg-[#faf7f2]" : "bg-white"}`}
                 >
-                  <span className="font-medium">{row.label}</span>
+                  <span className="font-normal">{row.label}</span>
                   <span className={`text-right ${hoursText === "휴무" ? "text-[#87918c]" : "text-[#26352f]"}`}>{hoursText}</span>
                 </div>
               );
@@ -358,14 +407,12 @@ export default function CustomerBookingEntryPage({
                   onClick={() => startBookingWithService(service)}
                   className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:bg-[#faf7f2]"
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-semibold tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
-                    <span className="mt-0.5 block truncate text-[12px] text-[#7a6a5d]">
-                      {service.description ? `${service.description} · ` : `${service.category || "미용"} · `}
-                      {service.durationMinutes}분
-                    </span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[15px] font-normal tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
+                    <span className="h-3 w-px shrink-0 bg-[#e5e7eb]" aria-hidden="true" />
+                    <span className="shrink-0 text-[12px] font-normal text-[#7a6a5d]">예상 시간 {service.durationMinutes}분</span>
                   </span>
-                  <span className="shrink-0 text-right text-[14px] font-semibold text-[#7A5A45]">
+                  <span className="shrink-0 text-right text-[14px] font-normal text-[#7A5A45]">
                     {formatServicePrice(service.price, service.priceType)}
                   </span>
                 </button>
@@ -373,19 +420,28 @@ export default function CustomerBookingEntryPage({
             ) : (
               <a
                 href={bookingHref}
-                className="flex min-h-[52px] items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[15px] font-semibold text-[#3f352d] hover:bg-[#faf7f2]"
+                className="flex min-h-[52px] items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[15px] font-normal text-[#3f352d] hover:bg-[#faf7f2]"
               >
                 예약하러 가기
               </a>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => setPriceSheetOpen(true)}
+            className="mt-2 flex h-[38px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
+            style={{ fontSize: 14, fontWeight: 400 }}
+          >
+            요금표 전체보기
+          </button>
         </div>
 
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setDirectionsOpen(true)}
-            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal text-[#3f352d] hover:bg-[#faf7f2]"
+            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
+            style={{ fontSize: 16, fontWeight: 400 }}
           >
             길찾기
           </button>
@@ -393,13 +449,87 @@ export default function CustomerBookingEntryPage({
             href={inquiryHref}
             target={kakaoInquiryUrl ? "_blank" : undefined}
             rel={kakaoInquiryUrl ? "noreferrer" : undefined}
-            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal text-[#3f352d] hover:bg-[#faf7f2]"
-            style={{ fontWeight: 400 }}
+            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
+            style={{ fontSize: 16, fontWeight: 400 }}
           >
             문의하기
           </a>
         </div>
       </section>
+
+      {priceSheetOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 px-4" onClick={() => setPriceSheetOpen(false)}>
+          <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[18px] bg-white" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#e5e7eb]" />
+            <div className="flex items-start justify-between gap-4 px-4 pb-3 pt-4">
+              <div>
+                <p className="text-[16px] font-normal text-[#7A5A45]">미용 요금</p>
+                <h3 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#071923]">요금표 전체보기</h3>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[#7a5a45]"
+                onClick={() => setPriceSheetOpen(false)}
+                aria-label="요금표 닫기"
+              >
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(82vh-88px)] overflow-y-auto px-4 pb-5">
+              {priceGuideSections.length > 0 ? (
+                <div className="space-y-3">
+                  {priceGuideSections.map(({ serviceId, serviceName, section }) => (
+                    <section key={`${serviceId}-${section.id}`} className="overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
+                      <div className="border-b border-[#edf0ee] bg-[#fffdf9] px-3 py-2.5">
+                        <p className="text-[16px] font-normal text-[#2b241f]">{section.title || serviceName}</p>
+                        {section.note ? <p className="mt-1 text-[16px] font-normal leading-6 text-[#7a6a5d]">{section.note}</p> : null}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-[560px] w-full border-collapse text-center">
+                          <thead>
+                            <tr className="bg-[#fbfaf8] text-[16px] font-normal text-[#7a6a5d]">
+                              <th className="w-[96px] border-b border-r border-[#edf0ee] px-3 py-2 text-center font-normal">무게</th>
+                              {section.items.map((item) => (
+                                <th key={item.id} className="border-b border-r border-[#edf0ee] px-3 py-2 text-center font-normal last:border-r-0">
+                                  {item.label}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.weightBands.map((band) => (
+                              <tr key={band} className="text-[16px] text-[#2b241f]">
+                                <td className="border-b border-r border-[#edf0ee] px-3 py-2 text-center text-[#6f6258]">{band}</td>
+                                {section.items.map((item) => {
+                                  const { priceText, durationText } = formatPriceGuideCell(item.cells[band]);
+                                  return (
+                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#edf0ee] px-3 py-2 text-center last:border-r-0">
+                                      <span className="block whitespace-nowrap text-[16px] font-normal text-[#2b241f]">{priceText}</span>
+                                      {durationText ? <span className="mt-0.5 block whitespace-nowrap text-[16px] font-normal text-[#7a6a5d]">{durationText}</span> : null}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[10px] border border-[#e5e7eb] bg-white">
+                  <a href={infoHref} className="flex h-14 items-center justify-center text-[16px] font-normal text-[#3f352d]">
+                    등록된 전체 요금표가 없습니다.
+                  </a>
+                </div>
+              )}
+              <p className="mt-3 text-[16px] leading-6 text-[#7a6a5d]">실제 요금은 아이 상태와 털엉킴, 기장, 피부 상태에 따라 매장에서 최종 안내드릴 수 있어요.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {directionsOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 px-4" onClick={() => setDirectionsOpen(false)}>
@@ -407,7 +537,7 @@ export default function CustomerBookingEntryPage({
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#e5e7eb]" />
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-bold" style={{ color: bookingAccentColor }}>
+                <p className="text-[13px] font-normal" style={{ color: bookingAccentColor }}>
                   길찾기
                 </p>
                 <h3 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#071923]">{displayName}</h3>
@@ -428,14 +558,14 @@ export default function CustomerBookingEntryPage({
                 <button
                   type="button"
                   onClick={handleCopyAddress}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-medium text-[#26352f] hover:bg-[#faf7f2]"
+                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-normal text-[#26352f] hover:bg-[#faf7f2]"
                 >
                   <Copy className="h-4 w-4" strokeWidth={1.9} />
                   {addressCopied ? "복사 완료" : "주소 복사"}
                 </button>
                 <a
                   href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-medium text-[#26352f] hover:bg-[#faf7f2]"
+                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[14px] font-normal text-[#26352f] hover:bg-[#faf7f2]"
                 >
                   <Phone className="h-4 w-4" strokeWidth={1.9} />
                   전화하기
@@ -481,9 +611,9 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f3ebe2] text-[#7a5a45]">
           <Navigation className="h-4.5 w-4.5" strokeWidth={2} />
         </span>
-        <span className="text-[15px] font-medium tracking-[-0.02em] text-[#26352f]">{label}</span>
+        <span className="text-[15px] font-normal tracking-[-0.02em] text-[#26352f]">{label}</span>
       </span>
-      <span className="text-[13px] font-medium text-[#7a6a5d]">열기</span>
+      <span className="text-[13px] font-normal text-[#7a6a5d]">열기</span>
     </button>
   );
 }

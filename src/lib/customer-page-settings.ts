@@ -6,6 +6,7 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   shop_name: "",
   tagline: "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.",
   hero_image_url: "",
+  hero_image_urls: [],
   primary_color: "#1F6B5B",
   notices: ["첫 방문은 상담 포함으로 여유 있게 예약해 주세요.", "대기 시간이 길어질 수 있어 예약 시간 10분 전에 도착해 주세요.", "피부 예민한 아이는 메모에 꼭 남겨 주세요."],
   operating_hours_note: "월-토 10:00 - 19:00, 일요일 휴무",
@@ -65,15 +66,25 @@ function normalizeOptionalText(value: string | null | undefined) {
   return decodeUnicodeEscapes(value).trim();
 }
 
+function normalizeHeroImageUrls(settings: Partial<CustomerPageSettings> | null | undefined) {
+  const imageUrls = Array.isArray(settings?.hero_image_urls)
+    ? settings.hero_image_urls.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0)
+    : [];
+  const singleImageUrl = settings?.hero_image_url?.trim() || "";
+  return (imageUrls.length > 0 ? imageUrls : singleImageUrl ? [singleImageUrl] : []).slice(0, 10);
+}
+
 export function normalizeCustomerPageSettings(
   settings: Partial<CustomerPageSettings> | null | undefined,
   fallbackName?: string,
   fallbackTagline?: string,
 ): CustomerPageSettings {
+  const heroImageUrls = normalizeHeroImageUrls(settings);
   return {
     shop_name: normalizeText(settings?.shop_name, fallbackName || defaultCustomerPageSettings.shop_name),
     tagline: normalizeText(settings?.tagline, fallbackTagline || defaultCustomerPageSettings.tagline),
-    hero_image_url: settings?.hero_image_url?.trim() || "",
+    hero_image_url: heroImageUrls[0] || "",
+    hero_image_urls: heroImageUrls,
     primary_color: normalizeColor(settings?.primary_color),
     notices: settings?.notices
       ? Array.from({ length: 3 }, (_, index) => normalizeOptionalText(settings.notices?.[index]))

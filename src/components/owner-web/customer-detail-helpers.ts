@@ -116,7 +116,7 @@ export function buildCustomerDetailFromBootstrap(
   });
   const selectedPet = pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null;
   const upcomingAppointment = getUpcomingAppointment(selectedPet?.appointments ?? appointments);
-  const latestGroomingRecord = selectedPet?.latestGroomingRecord ?? groomingRecords[0] ?? null;
+  const latestGroomingRecord = groomingRecords[0] ?? selectedPet?.latestGroomingRecord ?? null;
   const recentCompletedAppointment = appointments.find((appointment) => appointment.status === "completed");
 
   return {
@@ -129,7 +129,7 @@ export function buildCustomerDetailFromBootstrap(
     selectedPet,
     upcomingAppointment,
     recentAppointments: appointments.slice(0, 5),
-    recentGroomingRecords: (selectedPet?.groomingRecords ?? groomingRecords).slice(0, 5),
+    recentGroomingRecords: groomingRecords.slice(0, 5),
     recentNotifications: notifications.slice(0, 5),
     latestGroomingRecord,
     recentVisitLabel: latestGroomingRecord

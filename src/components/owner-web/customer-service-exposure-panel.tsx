@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
 import {
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
@@ -7,22 +10,17 @@ import {
 } from "@/lib/customer-service-options";
 import { cn, formatServicePrice } from "@/lib/utils";
 
-type SaveStatus = "idle" | "pending" | "saved" | "error";
-
 type CustomerServiceExposurePanelProps = {
   options: CustomerServiceSourceOption[];
   overrides: CustomerServiceDisplayOverrides;
-  saveStatus: SaveStatus;
+  title?: string;
   embedded?: boolean;
+  busyOptionId?: string | null;
   onChange: (overrides: CustomerServiceDisplayOverrides) => void;
+  onAddOption?: () => void | Promise<void>;
+  onDeleteOption?: (option: CustomerServiceSourceOption) => void | Promise<void>;
+  onRenameOption?: (option: CustomerServiceSourceOption, nextName: string) => void | Promise<void>;
 };
-
-function getStatusLabel(status: SaveStatus) {
-  if (status === "pending") return "저장 중";
-  if (status === "saved") return "저장됨";
-  if (status === "error") return "저장 실패";
-  return "자동 저장";
-}
 
 function getOptionRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
   return options
@@ -33,7 +31,6 @@ function getOptionRows(options: CustomerServiceSourceOption[], overrides: Custom
         visible: override?.visible ?? true,
         order: override?.order ?? option.order,
         displayName: override?.displayName ?? option.sourceName,
-        description: override?.description ?? option.description,
       };
     })
     .sort((left, right) => left.order - right.order || left.option.sourceName.localeCompare(right.option.sourceName, "ko"));
@@ -52,12 +49,25 @@ function cleanOverride(option: CustomerServiceSourceOption, override: CustomerSe
 export default function CustomerServiceExposurePanel({
   options,
   overrides,
-  saveStatus,
+  title,
   embedded = false,
+  busyOptionId = null,
   onChange,
+  onAddOption,
+  onDeleteOption,
 }: CustomerServiceExposurePanelProps) {
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
   const rows = getOptionRows(options, normalizedOverrides);
+  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+  const canDelete = Boolean(onDeleteOption);
+  const rowGridClass = canDelete
+    ? "grid-cols-[72px_minmax(120px,0.72fr)_minmax(220px,1.28fr)_86px_112px_40px]"
+    : "grid-cols-[72px_minmax(120px,0.72fr)_minmax(220px,1.28fr)_86px_112px]";
+
+  useEffect(() => {
+    const optionIds = new Set(options.map((option) => option.id));
+    setDraftNames((current) => Object.fromEntries(Object.entries(current).filter(([optionId]) => optionIds.has(optionId))));
+  }, [options]);
 
   function updateOverride(option: CustomerServiceSourceOption, patch: CustomerServiceDisplayOverrides[string]) {
     const nextOverride = cleanOverride(option, {
@@ -96,84 +106,133 @@ export default function CustomerServiceExposurePanel({
     onChange(nextOverrides);
   }
 
-  if (options.length === 0) {
-    return null;
-  }
-
   return (
     <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-4", embedded && "border-0 bg-transparent p-0")}>
-      <div className={cn("mb-3 flex items-center justify-between gap-3", embedded && "mb-2")}>
-        <div>
-          <p className={cn("text-[16px] font-normal text-[#111827]", embedded && "sr-only")}>고객 예약 페이지 노출</p>
-          <p className="text-[13px] font-normal text-[#64748b]">미용요금 항목을 기준으로 고객에게 보일 이름, 설명, 순서, 노출 여부를 정리합니다.</p>
+      {title || onAddOption ? (
+        <div className="mb-2 flex items-center justify-between gap-3">
+          {title ? <p className="text-[16px] font-medium text-[#334155]">{title}</p> : <span />}
+          {onAddOption ? (
+          <button
+            type="button"
+            onClick={() => void onAddOption()}
+            disabled={busyOptionId === "__add__"}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[16px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Plus className="h-4 w-4" />
+            항목 추가
+          </button>
+          ) : null}
         </div>
-        <span className="shrink-0 rounded-[8px] border border-[#dbe2ea] px-3 py-1.5 text-[13px] font-normal text-[#64748b]">
-          {getStatusLabel(saveStatus)}
-        </span>
-      </div>
+      ) : null}
 
-      <div className="divide-y divide-[#edf2f7]">
-        {rows.map((row, index) => (
-          <div key={row.option.id} className="grid gap-3 py-3 lg:grid-cols-[88px_minmax(0,1fr)_92px] lg:items-center">
-            <button
-              type="button"
-              onClick={() => updateOverride(row.option, { visible: !row.visible })}
-              className={`h-9 rounded-[8px] border px-3 text-[15px] font-normal transition ${
-                row.visible
-                  ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]"
-                  : "border-[#dbe2ea] bg-white text-[#64748b]"
-              }`}
-            >
-              {row.visible ? "노출" : "숨김"}
-            </button>
-
-            <div className="grid gap-2 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)]">
-              <label className="block">
-                <span className="sr-only">고객 표시명</span>
-                <input
-                  value={row.displayName}
-                  onChange={(event) => updateOverride(row.option, { displayName: event.target.value })}
-                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
-                />
-                <span className="mt-1 block truncate text-[13px] font-normal text-[#64748b]">
-                  원본 {row.option.sourceName} · {row.option.durationMinutes}분 · {formatServicePrice(row.option.price, row.option.priceType)}
-                </span>
-              </label>
-              <label className="block">
-                <span className="sr-only">짧은 설명</span>
-                <input
-                  value={row.description}
-                  onChange={(event) => updateOverride(row.option, { description: event.target.value })}
-                  placeholder="예: 목욕과 기본 정리"
-                  className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
-                />
-                <span className="mt-1 block text-[13px] font-normal text-[#64748b]">{row.option.category}</span>
-              </label>
+      {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <div className={cn("min-w-[920px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[860px]")}>
+            <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[13px] font-normal text-[#64748b]", rowGridClass)}>
+              <span>순서</span>
+              <span>고객 노출명</span>
+              <span>미용요금 연결</span>
+              <span className="text-right">예상 시간</span>
+              <span className="text-right">시작 가격</span>
+              {canDelete ? <span className="text-center">삭제</span> : null}
             </div>
 
-            <div className="flex gap-1.5 lg:justify-end">
-              <button
-                type="button"
-                onClick={() => moveOption(index, -1)}
-                disabled={index === 0}
-                className="h-9 w-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] disabled:opacity-35"
-                aria-label="위로 이동"
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                onClick={() => moveOption(index, 1)}
-                disabled={index === rows.length - 1}
-                className="h-9 w-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] disabled:opacity-35"
-                aria-label="아래로 이동"
-              >
-                ↓
-              </button>
+            <div className="divide-y divide-[#edf2f7]">
+              {rows.map((row, index) => {
+                const rowBusy = busyOptionId === row.option.id;
+                return (
+                  <div
+                    key={row.option.id}
+                    className={cn("grid items-center gap-2 px-2 py-2", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-6 text-center text-[14px] font-normal tabular-nums text-[#64748b]">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+                        <button
+                          type="button"
+                          onClick={() => moveOption(index, -1)}
+                          disabled={index === 0}
+                          className="inline-flex h-8 w-8 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
+                          aria-label="위로 이동"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <span className="w-px bg-[#edf2f7]" />
+                        <button
+                          type="button"
+                          onClick={() => moveOption(index, 1)}
+                          disabled={index === rows.length - 1}
+                          className="inline-flex h-8 w-8 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
+                          aria-label="아래로 이동"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <label className="block min-w-0">
+                      <span className="sr-only">고객 노출명</span>
+                      <input
+                        value={draftNames[row.option.id] ?? row.displayName}
+                        onChange={(event) => {
+                          const nextName = event.target.value;
+                          setDraftNames((current) => ({ ...current, [row.option.id]: nextName }));
+                          if (nextName.trim()) {
+                            updateOverride(row.option, { displayName: nextName });
+                          }
+                        }}
+                        onBlur={(event) => {
+                          const nextName = event.target.value.trim();
+                          setDraftNames((current) => {
+                            const next = { ...current };
+                            delete next[row.option.id];
+                            return next;
+                          });
+                          updateOverride(row.option, { displayName: nextName || row.option.sourceName });
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
+                      />
+                    </label>
+
+                    <div className="flex h-9 min-w-0 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[15px] font-normal text-[#334155]">
+                      <span className="truncate">{row.option.sourceName}</span>
+                    </div>
+
+                    <div className="flex h-9 items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal tabular-nums text-[#334155]">
+                      {row.option.durationMinutes}분
+                    </div>
+                    <div className="flex h-9 items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal tabular-nums text-[#334155]">
+                      {formatServicePrice(row.option.price, row.option.priceType)}
+                    </div>
+                    {onDeleteOption ? (
+                      <button
+                        type="button"
+                        onClick={() => void onDeleteOption(row.option)}
+                        disabled={rowBusy}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:cursor-not-allowed disabled:opacity-35"
+                        aria-label={`${row.displayName} 삭제`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="rounded-[10px] border border-dashed border-[#dbe2ea] bg-[#fbfcfd] px-4 py-5 text-center text-[16px] font-normal text-[#64748b]">
+          등록된 항목이 없습니다.
+        </div>
+      )}
     </section>
   );
 }

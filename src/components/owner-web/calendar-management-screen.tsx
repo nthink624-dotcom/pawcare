@@ -1701,8 +1701,8 @@ function BookingSidePanel({
             </div>
             <div
               className={cn(
-                "mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#334155]",
-                hasRequestText ? "min-h-[86px]" : "min-h-0",
+                "mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] px-3 py-2.5 text-[16px] leading-7 text-[#334155]",
+                hasRequestText ? "min-h-[78px]" : "min-h-[48px]",
               )}
             >
               {requestText.split("\n").map((line, index) => (
@@ -1716,12 +1716,13 @@ function BookingSidePanel({
               <NotebookPen className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
               <span className="shrink-0 text-[16px] font-normal text-[#334155]">코멘트</span>
             </div>
-            <textarea
-              readOnly
-              value={staffComment.trim() ? staffComment : ""}
-              placeholder="공유 코멘트가 없습니다."
-              className="mt-1.5 min-h-[86px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-7 text-[#334155] outline-none placeholder:text-[#64748b]"
-            />
+            <div className="mt-1.5 min-h-[78px] rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] px-3 py-2.5 text-[16px] leading-7 text-[#334155]">
+              {staffComment.trim() ? (
+                staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
+              ) : (
+                <p className="text-[#64748b]">공유 코멘트가 없습니다.</p>
+              )}
+            </div>
           </section>
 
           <section className="py-1.5">
@@ -1732,18 +1733,15 @@ function BookingSidePanel({
             </div>
             <div className="mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2">
               {recentVisitHistory.items.length > 0 ? (
-                <div className="divide-y divide-[#edf2f7]">
-                  <div className="flex items-center justify-between gap-2 pb-2 text-[13px] text-[#94a3b8]">
+                <div>
+                  <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3 border-b border-[#edf2f7] pb-2 text-[13px] text-[#94a3b8]">
                     <span>방문일</span>
-                    <span>서비스</span>
+                    <span className="text-right">서비스</span>
                   </div>
                   {recentVisitHistory.items.map((visit) => (
-                    <div key={visit.id} className="py-2 first:pt-0 last:pb-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="shrink-0 text-[15px] font-normal tabular-nums text-[#7b8794]">{visit.date}</span>
-                        <p className="min-w-0 truncate text-right text-[16px] font-medium text-[#334155]">{visit.service}</p>
-                      </div>
-                      {visit.note ? <p className="mt-1 line-clamp-2 text-[14px] leading-5 text-[#64748b]">{visit.note}</p> : null}
+                    <div key={visit.id} className="grid grid-cols-[92px_minmax(0,1fr)] gap-3 border-b border-[#edf2f7] py-2.5 last:border-b-0 last:pb-0">
+                      <span className="shrink-0 text-[16px] font-normal tabular-nums text-[#0f172a]">{visit.date}</span>
+                      <p className="min-w-0 truncate text-right text-[16px] font-normal text-[#64748b]">{visit.service}</p>
                     </div>
                   ))}
                 </div>

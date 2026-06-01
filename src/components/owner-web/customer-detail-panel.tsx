@@ -34,6 +34,7 @@ type CustomerDetailPanelProps = {
     patch: { name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
   ) => void | Promise<void>;
   onAddPet: (guardianId: string, payload: PetAddPayload) => void | Promise<void>;
+  onDeletePet: (guardianId: string, petId: string) => void | Promise<void>;
   onToggleGuardianNotifications: (guardianId: string) => void | Promise<void>;
   onCreateReservation: (params: { guardianId: string; petId: string | null }) => void;
   onClose: () => void;
@@ -68,6 +69,7 @@ export default function CustomerDetailPanel({
   onUpdateGuardian,
   onUpdatePet,
   onAddPet,
+  onDeletePet,
   onToggleGuardianNotifications,
   onCreateReservation,
   onClose,
@@ -211,6 +213,7 @@ export default function CustomerDetailPanel({
                   onSelectPet={onSelectPet}
                   onAddPet={() => setActiveAction("petAdd")}
                   onEditPet={() => setActiveAction("petEdit")}
+                  onDeletePet={() => void onDeletePet(detail.guardian.id, selectedPet.id)}
                   onUpdatePetBiteLevel={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
                 />
 
@@ -1188,7 +1191,7 @@ function FormField({
 
 function PetProfilePhotoField({ previewUrl, fileName, onChange }: { previewUrl: string; fileName: string; onChange: (file: File | null) => void }) {
   return (
-    <div className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+    <div className="bg-transparent">
       <p className="mb-2 text-[16px] text-[#64748b]">프로필 사진</p>
       <div className="flex items-center gap-3">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white text-[#94a3b8]">

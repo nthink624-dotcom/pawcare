@@ -11,7 +11,18 @@ import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
-import type { Appointment, BootstrapPayload, Guardian, MediaAsset, Notification, NotificationStatus, NotificationType, Pet, PetBiteLevel } from "@/types/domain";
+import type {
+  Appointment,
+  BootstrapPayload,
+  Guardian,
+  GuardianNotificationSettings,
+  MediaAsset,
+  Notification,
+  NotificationStatus,
+  NotificationType,
+  Pet,
+  PetBiteLevel,
+} from "@/types/domain";
 
 type CustomerSort = "recentDesc" | "nameAsc";
 
@@ -794,6 +805,60 @@ export default function CustomerManagementScreen({
     }
   }
 
+  async function updateGuardianNotificationSettings(customerId: string, patch: Partial<GuardianNotificationSettings>) {
+    const currentCustomer = customers.find((row) => row.id === customerId);
+    if (!currentCustomer) return;
+
+    const previousCustomers = customers;
+    const previousBootstrapData = bootstrapData;
+    const nextAlertEnabled = typeof patch.enabled === "boolean" ? patch.enabled : currentCustomer.alertEnabled;
+    setSaveError("");
+    setCustomers((current) =>
+      current.map((row) => {
+        if (row.id !== customerId) return row;
+        const tags = row.tags
+          .filter((tag) => tag !== "알림 수신" && tag !== "알림 중지")
+          .concat(nextAlertEnabled ? "알림 수신" : "알림 중지");
+        return {
+          ...row,
+          alertEnabled: nextAlertEnabled,
+          alerts: nextAlertEnabled ? "알림 수신 중" : "알림 중지",
+          tags,
+          searchText: buildSearchText([row.name, row.phone, ...row.pets, ...tags]),
+        };
+      }),
+    );
+    setBootstrapData((current) => ({
+      ...current,
+      guardians: current.guardians.map((guardian) =>
+        guardian.id === customerId
+          ? {
+              ...guardian,
+              notification_settings: {
+                ...guardian.notification_settings,
+                ...patch,
+              },
+              updated_at: new Date().toISOString(),
+            }
+          : guardian,
+      ),
+    }));
+
+    try {
+      if (!isLocalOnlyCustomer(currentCustomer)) {
+        await patchOwnerGuardian({
+          shopId: initialData.shop.id,
+          guardianId: customerId,
+          notificationSettings: patch,
+        });
+      }
+    } catch (error) {
+      setCustomers(previousCustomers);
+      setBootstrapData(previousBootstrapData);
+      setSaveError(error instanceof Error ? error.message : "알림 설정 저장에 실패했습니다.");
+    }
+  }
+
   async function updateCustomer(customerId: string, patch: Partial<Pick<CustomerViewRow, "name" | "phone" | "pets" | "recentVisit" | "nextBooking" | "memo">>) {
     const currentCustomer = customers.find((row) => row.id === customerId);
     if (!currentCustomer) return;
@@ -947,23 +1012,27 @@ export default function CustomerManagementScreen({
         };
       }),
     );
-    setBootstrapData((current) => ({
-      ...current,
-      pets: current.pets.map((pet) =>
-        pet.id === petId
-          ? {
-              ...pet,
-              name: nextPet.name,
-              breed: nextPet.breed,
-              birthday: nextPet.birthday,
-              weight: nextPet.weight,
-              notes: nextPet.notes,
-              grooming_cycle_weeks: nextPet.grooming_cycle_weeks,
-              updated_at: new Date().toISOString(),
-            }
-          : pet,
-      ),
-    }));
+    setBootstrapData((current) => {
+      const nextData = {
+        ...current,
+        pets: current.pets.map((pet) =>
+          pet.id === petId
+            ? {
+                ...pet,
+                name: nextPet.name,
+                breed: nextPet.breed,
+                birthday: nextPet.birthday,
+                weight: nextPet.weight,
+                notes: nextPet.notes,
+                grooming_cycle_weeks: nextPet.grooming_cycle_weeks,
+                updated_at: new Date().toISOString(),
+              }
+            : pet,
+        ),
+      };
+      onDataChange?.(nextData);
+      return nextData;
+    });
 
     if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
 
@@ -979,10 +1048,22 @@ export default function CustomerManagementScreen({
         biteLevel: normalizePetBiteLevel(targetPet.bite_level),
         groomingCycleWeeks: nextPet.grooming_cycle_weeks,
       });
-      setBootstrapData((current) => ({
-        ...current,
-        pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, ...savedPet, bite_level: normalizePetBiteLevel(savedPet.bite_level) } : pet)),
-      }));
+      setBootstrapData((current) => {
+        const nextData = {
+          ...current,
+          pets: current.pets.map((pet) =>
+            pet.id === petId
+              ? {
+                  ...pet,
+                  ...savedPet,
+                  bite_level: savedPet.bite_level === undefined ? normalizePetBiteLevel(targetPet.bite_level) : normalizePetBiteLevel(savedPet.bite_level),
+                }
+              : pet,
+          ),
+        };
+        onDataChange?.(nextData);
+        return nextData;
+      });
     } catch (error) {
       setCustomers(previousCustomers);
       setBootstrapData(previousBootstrapData);
@@ -1159,10 +1240,14 @@ export default function CustomerManagementScreen({
       }),
     );
 
-    setBootstrapData((current) => ({
-      ...current,
-      pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, bite_level: normalizedBiteLevel, updated_at: new Date().toISOString() } : pet)),
-    }));
+    setBootstrapData((current) => {
+      const nextData = {
+        ...current,
+        pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, bite_level: normalizedBiteLevel, updated_at: new Date().toISOString() } : pet)),
+      };
+      onDataChange?.(nextData);
+      return nextData;
+    });
 
     if (isLocalOnlyCustomer(currentCustomer) || petId.startsWith("local-pet-") || petId.startsWith("mock-pet-")) return;
 
@@ -1178,10 +1263,22 @@ export default function CustomerManagementScreen({
         biteLevel: normalizedBiteLevel,
       });
 
-      setBootstrapData((current) => ({
-        ...current,
-        pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, ...savedPet, bite_level: normalizePetBiteLevel(savedPet.bite_level) } : pet)),
-      }));
+      setBootstrapData((current) => {
+        const nextData = {
+          ...current,
+          pets: current.pets.map((pet) =>
+            pet.id === petId
+              ? {
+                  ...pet,
+                  ...savedPet,
+                  bite_level: savedPet.bite_level === undefined ? normalizedBiteLevel : normalizePetBiteLevel(savedPet.bite_level),
+                }
+              : pet,
+          ),
+        };
+        onDataChange?.(nextData);
+        return nextData;
+      });
     } catch (error) {
       setCustomers(previousCustomers);
       setBootstrapData(previousBootstrapData);
@@ -1328,6 +1425,7 @@ export default function CustomerManagementScreen({
           onAddPet={addPet}
           onDeletePet={removePet}
           onToggleGuardianNotifications={() => toggleAlertStatus()}
+          onUpdateGuardianNotificationSettings={updateGuardianNotificationSettings}
           onCreateReservation={openCustomerReservationModal}
           onClose={() => setDetailSheetOpen(false)}
         />

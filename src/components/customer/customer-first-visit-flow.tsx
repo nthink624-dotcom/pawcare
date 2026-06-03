@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -319,7 +318,6 @@ export default function CustomerFirstVisitFlow({
   onNoteChange: (value: string) => void;
   onGoManage: () => void;
 }) {
-  const [showOptional, setShowOptional] = useState(false);
   const [showAllTimes, setShowAllTimes] = useState(false);
   const visibleDates = dateOptions.slice(0, 7);
   const visibleSlots = useMemo(() => {
@@ -450,16 +448,11 @@ export default function CustomerFirstVisitFlow({
       {step === 2 ? (
         <>
           <BookingStepHeader title={getShopDisplayName(shop)} subtitle="추천 가능한 시간" step={2} onBack={onStepBack} />
-          <section className="mt-3 rounded-[18px] border border-[#eadbc9] bg-white px-4 py-3 shadow-[0_14px_32px_rgba(139,94,60,0.08)]">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#fff2e4] text-[#8B5E3C]">
-                <Scissors className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-[16px] font-semibold text-[#2b241f]">{serviceSummaryName}</p>
-                <p className="mt-1 text-[13px] font-semibold text-[#8B5E3C]">예상 소요시간 {serviceSummaryDuration}</p>
-                <p className="mt-1 text-[13px] text-[#8b7767]">여유 있는 시간대로 추천해드려요.</p>
-              </div>
+          <section className="mt-3 rounded-[14px] border border-[#eadbc9] bg-white px-3.5 py-3 shadow-[0_10px_24px_rgba(139,94,60,0.06)]">
+            <div className="flex min-w-0 items-center gap-2 text-[15px] tracking-[-0.02em]">
+              <span className="truncate font-semibold text-[#2b241f]">{serviceSummaryName}</span>
+              <span className="h-3.5 w-px shrink-0 bg-[#eadbc9]" aria-hidden="true" />
+              <span className="shrink-0 font-medium text-[#8B5E3C]">예상 소요시간 {serviceSummaryDuration}</span>
             </div>
           </section>
 
@@ -523,7 +516,7 @@ export default function CustomerFirstVisitFlow({
               className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#eadbc9] bg-white text-[14px] font-semibold text-[#8B5E3C]"
             >
               <CalendarDays className="h-4 w-4" />
-              다른 날짜/시간 보기
+              전체 시간 보기
               <ChevronRight className={cn("h-4 w-4 transition", showAllTimes ? "rotate-90" : "")} />
             </button>
             <div className="mt-3 rounded-[14px] border border-[#eadbc9] bg-[#fff8ef] px-3 py-3">
@@ -555,29 +548,18 @@ export default function CustomerFirstVisitFlow({
               <CustomerInput icon={PawPrint} label="반려동물 이름" value={firstVisit.petName} placeholder="반려동물 이름을 입력해주세요" onChange={onPetNameChange} />
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-[16px] border border-[#eadbc9] bg-white shadow-[0_10px_24px_rgba(139,94,60,0.06)]">
-              <button
-                type="button"
-                onClick={() => setShowOptional((current) => !current)}
-                className="flex w-full items-center justify-between px-3.5 py-3 text-left"
-              >
-                <span>
-                  <span className="block text-[15px] font-semibold text-[#2b241f]">선택사항</span>
-                  <span className="mt-0.5 block text-[12px] text-[#8b7767]">필요 시 요청사항을 남겨주세요.</span>
-                </span>
-                <ChevronDown className={cn("h-4 w-4 text-[#8B5E3C] transition", showOptional ? "rotate-180" : "")} />
-              </button>
-              {showOptional ? (
-                <div className="border-t border-[#eadbc9] px-3.5 py-3">
-                  <textarea
-                    value={firstVisit.note}
-                    onChange={(event) => onNoteChange(event.target.value.slice(0, 200))}
-                    placeholder="예: 털이 많이 엉켜 있어요, 겁이 많아요, 얼굴은 짧게 해주세요."
-                    className="min-h-[98px] w-full resize-none rounded-[12px] border border-[#eadbc9] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#8B5E3C]"
-                  />
-                  <p className="mt-1 text-right text-[11px] text-[#a8988a]">{firstVisit.note.length}/200</p>
-                </div>
-              ) : null}
+            <div className="mt-3 rounded-[16px] border border-[#eadbc9] bg-white px-3.5 py-3 shadow-[0_10px_24px_rgba(139,94,60,0.06)]">
+              <div>
+                <span className="block text-[15px] font-semibold text-[#2b241f]">선택사항</span>
+                <span className="mt-0.5 block text-[12px] text-[#8b7767]">필요 시 요청사항을 남겨주세요.</span>
+              </div>
+              <textarea
+                value={firstVisit.note}
+                onChange={(event) => onNoteChange(event.target.value.slice(0, 200))}
+                placeholder="예: 털이 많이 엉켜 있어요, 겁이 많아요, 얼굴은 짧게 해주세요."
+                className="mt-3 min-h-[98px] w-full resize-none rounded-[12px] border border-[#eadbc9] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#8B5E3C]"
+              />
+              <p className="mt-1 text-right text-[11px] text-[#a8988a]">{firstVisit.note.length}/200</p>
             </div>
           </section>
           <FooterActions

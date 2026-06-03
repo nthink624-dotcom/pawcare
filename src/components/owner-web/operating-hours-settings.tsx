@@ -439,7 +439,8 @@ export default function OperatingHoursSettings({
 
   const temporaryHolidayDates = useMemo(() => new Set(bookingSettings.temporaryHolidays.map((holiday) => holiday.date)), [bookingSettings.temporaryHolidays]);
   const temporaryHolidayCalendarCells = getMonthCalendarCells(temporaryHolidayMonth);
-  const temporaryHolidayMonthLabel = temporaryHolidayMonth.replace("-", "년 ") + "월";
+  const [temporaryHolidayYear, temporaryHolidayMonthNumber] = temporaryHolidayMonth.split("-");
+  const temporaryHolidayMonthLabel = `${temporaryHolidayYear.slice(-2)}년 ${temporaryHolidayMonthNumber}월`;
   const regularClosedWeekdays = useMemo(() => new Set(createRegularClosedDaysPayload(businessDays)), [businessDays]);
 
   function buildNextShop(nextDays: BusinessDay[], nextSettings: BookingSettingsState, cycle = regularHolidayCycle, anchorDate = regularHolidayAnchorDate) {

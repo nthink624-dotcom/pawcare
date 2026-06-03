@@ -24,6 +24,10 @@ type OwnedShopSummary = {
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 
+function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
+  return summary.status === "expired" || summary.status === "past_due";
+}
+
 export default function OwnerMobilePage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -115,10 +119,15 @@ export default function OwnerMobilePage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
-        const [bootstrap, subscription] = await Promise.all([
-          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-        ]);
+        const subscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" });
+
+        if (shouldBlockOwnerAccessBySubscription(subscription)) {
+          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
+          router.refresh();
+          return;
+        }
+
+        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`);
 
         if (!active) return;
         setOwnedShops(shops);
@@ -131,6 +140,12 @@ export default function OwnerMobilePage() {
 
         if (nextMessage === "로그인이 필요합니다.") {
           router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
+          router.refresh();
+          return;
+        }
+
+        if (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인")) {
+          router.replace("/owner/billing?compare=1" as never);
           router.refresh();
           return;
         }

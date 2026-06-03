@@ -180,8 +180,12 @@ export function formatPhoneNumber(value: string) {
 export function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
-  return `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")}`;
+  if (Number.isNaN(parsed.getTime())) {
+    const fallback = value.slice(0, 10);
+    const match = fallback.match(/^(\d{4})[-.](\d{2})[-.](\d{2})$/);
+    return match ? `${match[1].slice(-2)}.${match[2]}.${match[3]}` : fallback;
+  }
+  return `${String(parsed.getFullYear()).slice(-2)}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")}`;
 }
 
 export function formatDateTime(date: string, time?: string) {

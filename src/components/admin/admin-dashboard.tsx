@@ -97,12 +97,6 @@ const groupLabels: Record<(typeof dashboardItems)[number]["group"], string> = {
   shortcut: "바로가기",
 };
 
-const groupDescriptions: Record<(typeof dashboardItems)[number]["group"], string> = {
-  primary: "계정, 결제, 메시지처럼 운영자가 바로 처리하는 작업입니다.",
-  system: "운영 서버와 연동 상태를 확인합니다.",
-  shortcut: "실제 서비스 화면을 빠르게 열어 확인합니다.",
-};
-
 export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: string }) {
   const router = useRouter();
   const [account, setAccount] = useState<AdminDashboardAccount | null>(null);
@@ -162,29 +156,26 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   ];
 
   return (
-    <main className="min-h-screen bg-[#f5f8f7] px-5 py-5 text-[#0f172a] md:px-8">
-      <div className="mx-auto w-full max-w-[1440px]">
-        <header className="rounded-[14px] border border-[#dbe7e2] bg-white px-5 py-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+    <main className="min-h-screen bg-[#f7f8f6] px-5 py-5 text-[16px] text-[#172033] md:px-8">
+      <div className="mx-auto w-full max-w-[1440px] rounded-[16px] border border-[#dfe7e2] bg-white p-5 shadow-[0_10px_30px_rgba(23,32,51,0.05)]">
+        <header className="px-1 py-1">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#eaf5f1] px-3 py-1 text-[14px] font-semibold text-[#1f6b5b]">
-                <Sparkles className="h-3.5 w-3.5" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#edf6f2] px-3 py-1 text-[16px] text-[#1f6b5b]">
+                <Sparkles className="h-4 w-4" />
                 PetManager Admin
               </div>
-              <h1 className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-[#0f172a]">운영 콘솔</h1>
-              <p className="mt-2 max-w-[620px] text-[16px] leading-6 text-[#64748b]">
-                오늘 확인할 운영 상태를 먼저 보고, 필요한 관리자 작업으로 바로 이동합니다.
-              </p>
+              <h1 className="mt-3 text-[32px] tracking-[-0.03em] text-[#0f172a]">운영 콘솔</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-[10px] border border-[#dbe7e2] bg-[#fbfefd] px-4 py-2 text-right">
-                <p className="text-[14px] font-medium text-[#64748b]">현재 운영 계정</p>
-                <p className="mt-0.5 text-[16px] font-semibold text-[#0f172a]">{currentAccount.fullName}</p>
+              <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-4 py-2 text-right">
+                <p className="text-[16px] text-[#64748b]">현재 운영 계정</p>
+                <p className="mt-0.5 text-[18px] text-[#0f172a]">{currentAccount.fullName}</p>
               </div>
               <button
                 type="button"
                 onClick={() => void handleLogout()}
-                className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d0d8e3] bg-white px-4 text-[16px] font-semibold text-[#334155] transition hover:border-[#b8c4d2] hover:bg-[#f8fafc]"
+                className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d0d8e3] bg-white px-4 text-[16px] text-[#334155] transition hover:border-[#b8c4d2] hover:bg-[#f8fafc]"
               >
                 <DoorOpen className="h-4 w-4" />
                 로그아웃
@@ -197,40 +188,36 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
               icon={CheckCircle2}
               label="운영 상태"
               value={currentAccount.isActive ? "정상" : "확인 필요"}
-              description={currentAccount.isActive ? "관리자 계정이 활성화되어 있습니다." : "계정 상태를 확인해 주세요."}
               tone={currentAccount.isActive ? "ok" : "warning"}
             />
             <StatusTile
               icon={Activity}
               label="처리 대기"
               value="0건"
-              description="현재 콘솔에서 즉시 처리할 알림은 없습니다."
               tone="neutral"
             />
             <StatusTile
               icon={MessageSquareText}
               label="알림 연동"
               value="점검 가능"
-              description="템플릿과 relay 상태를 바로 확인할 수 있습니다."
               tone="neutral"
             />
             <StatusTile
               icon={ShieldCheck}
               label="권한"
               value={currentAccount.isSuperAdmin ? "Super Admin" : "Admin"}
-              description={`로그인 ID ${currentAccount.loginId}`}
               tone="neutral"
             />
           </div>
         </header>
 
         {message ? (
-          <p className="mt-4 rounded-[4px] border border-[#efcaca] bg-[#fff5f5] px-4 py-3 text-[14px] leading-6 text-[#b42318]">
+          <p className="mt-4 rounded-[8px] border border-[#efcaca] bg-[#fff7f7] px-4 py-3 text-[16px] leading-6 text-[#b42318]">
             {message}
           </p>
         ) : null}
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="mt-5 grid gap-5 border-t border-[#edf2f7] pt-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               {primaryItems.map((item) => (
@@ -238,13 +225,12 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
               ))}
             </div>
 
-            <div className="overflow-hidden rounded-[14px] border border-[#dbe7e2] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
+            <div className="overflow-hidden rounded-[14px] border border-[#dfe7e2] bg-white shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
               <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
                 <div>
-                  <h2 className="text-[18px] font-semibold text-[#0f172a]">운영 작업</h2>
-                  <p className="mt-1 text-[14px] text-[#64748b]">작업 성격별로 필요한 메뉴만 빠르게 찾습니다.</p>
+                  <h2 className="text-[20px] text-[#0f172a]">운영 작업</h2>
                 </div>
-                <span className="rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[14px] font-semibold text-[#475569]">
+                <span className="rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-3 py-1 text-[16px] text-[#475569]">
                   {dashboardItems.length}개
                 </span>
               </div>
@@ -254,10 +240,9 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
                   <section key={key} className="px-5 py-4">
                     <div className="mb-3 flex items-end justify-between gap-3">
                       <div>
-                        <h3 className="text-[16px] font-semibold text-[#0f172a]">{groupLabels[key]}</h3>
-                        <p className="mt-0.5 text-[14px] text-[#94a3b8]">{groupDescriptions[key]}</p>
+                        <h3 className="text-[18px] text-[#0f172a]">{groupLabels[key]}</h3>
                       </div>
-                      <span className="text-[14px] font-semibold text-[#94a3b8]">{items.length}개</span>
+                      <span className="text-[16px] text-[#94a3b8]">{items.length}개</span>
                     </div>
                     <div className="grid gap-2">
                       {items.map((item) => (
@@ -271,15 +256,15 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-[14px] border border-[#dbe7e2] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
               <div className="flex items-start gap-3 border-b border-[#edf2f7] pb-4">
-                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e6f3ef] text-[16px] font-bold text-[#1f6b5b]">
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#edf6f2] text-[18px] text-[#1f6b5b]">
                   {currentAccount.fullName.slice(0, 1)}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[14px] font-semibold uppercase tracking-[0.1em] text-[#94a3b8]">Account</p>
-                  <h2 className="mt-1 truncate text-[20px] font-semibold text-[#0f172a]">{currentAccount.fullName}</h2>
-                  <p className="mt-1 text-[14px] text-[#64748b]">{currentAccount.email}</p>
+                  <p className="text-[16px] uppercase tracking-[0.08em] text-[#94a3b8]">Account</p>
+                  <h2 className="mt-1 truncate text-[22px] text-[#0f172a]">{currentAccount.fullName}</h2>
+                  <p className="mt-1 text-[16px] text-[#64748b]">{currentAccount.email}</p>
                 </div>
               </div>
 
@@ -291,23 +276,16 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
               </dl>
             </div>
 
-            <div className="rounded-[14px] border border-[#dbe7e2] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-[#1f6b5b]" />
-                <h2 className="text-[16px] font-semibold text-[#0f172a]">오늘 확인할 것</h2>
+                <h2 className="text-[18px] text-[#0f172a]">오늘 확인할 것</h2>
               </div>
               <div className="mt-4 space-y-3">
-                <CheckItem title="운영 환경" body="배포 후 본인인증, Supabase, 알림톡 값을 점검하세요." href="/admin/env" />
-                <CheckItem title="오너 계정" body="결제 복구나 임시비밀번호 발급 전 대상 매장을 확인하세요." href="/owner/admin" />
-                <CheckItem title="알림톡" body="템플릿 수정 후 실제 발송 진단을 확인하세요." href="/admin/alimtalk" />
+                <CheckItem title="운영 환경" href="/admin/env" />
+                <CheckItem title="오너 계정" href="/owner/admin" />
+                <CheckItem title="알림톡" href="/admin/alimtalk" />
               </div>
-            </div>
-
-            <div className="rounded-[14px] border border-[#dbe7e2] bg-[#fbfefd] px-5 py-4">
-              <p className="text-[14px] font-semibold text-[#0f172a]">운영 기준</p>
-              <p className="mt-2 text-[14px] leading-5 text-[#64748b]">
-                계정 변경, 결제 복구, 임시비밀번호 발급은 운영 데이터에 직접 반영됩니다. 변경 전 대상 계정을 한 번 더 확인해 주세요.
-              </p>
             </div>
           </aside>
         </section>
@@ -320,13 +298,11 @@ function StatusTile({
   icon: Icon,
   label,
   value,
-  description,
   tone,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
-  description: string;
   tone: "ok" | "warning" | "neutral";
 }) {
   const toneClass =
@@ -337,15 +313,14 @@ function StatusTile({
         : "border-[#dbe2ea] bg-white text-[#64748b]";
 
   return (
-    <div className="rounded-[12px] border border-[#dbe7e2] bg-white px-4 py-3">
+    <div className="rounded-[12px] border border-[#dfe7e2] bg-white px-4 py-4">
       <div className="flex items-center gap-2">
         <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${toneClass}`}>
           <Icon className="h-4 w-4" />
         </span>
-        <p className="text-[14px] font-medium text-[#64748b]">{label}</p>
+        <p className="text-[16px] text-[#64748b]">{label}</p>
       </div>
-      <p className="mt-3 truncate text-[18px] font-semibold tracking-[-0.03em] text-[#0f172a]">{value}</p>
-      <p className="mt-1 truncate text-[14px] text-[#94a3b8]">{description}</p>
+      <p className="mt-3 truncate text-[22px] tracking-[-0.02em] text-[#0f172a]">{value}</p>
     </div>
   );
 }
@@ -354,29 +329,26 @@ function PrimaryActionCard({
   href,
   icon: Icon,
   title,
-  description,
   meta,
 }: {
   href: string;
   icon: LucideIcon;
   title: string;
-  description: string;
   meta: string;
 }) {
   return (
     <a
       href={href}
-      className="group rounded-[14px] border border-[#dbe7e2] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-[#b9d5cc] hover:shadow-[0_16px_38px_rgba(15,23,42,0.08)]"
+      className="group rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)] transition hover:-translate-y-0.5 hover:border-[#b9d5cc] hover:shadow-[0_12px_28px_rgba(23,32,51,0.07)]"
     >
       <div className="flex items-start justify-between gap-4">
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eaf5f1] text-[#1f6b5b]">
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#edf6f2] text-[#1f6b5b]">
           <Icon className="h-5 w-5" />
         </span>
-        <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[14px] font-semibold text-[#64748b]">{meta}</span>
+        <span className="rounded-full bg-[#f1f5f9] px-3 py-1 text-[16px] text-[#64748b]">{meta}</span>
       </div>
-      <h2 className="mt-4 text-[18px] font-semibold tracking-[-0.03em] text-[#0f172a]">{title}</h2>
-      <p className="mt-2 line-clamp-2 text-[14px] leading-5 text-[#64748b]">{description}</p>
-      <div className="mt-4 inline-flex items-center gap-1 text-[14px] font-semibold text-[#1f6b5b]">
+      <h2 className="mt-4 text-[20px] tracking-[-0.02em] text-[#0f172a]">{title}</h2>
+      <div className="mt-5 inline-flex items-center gap-1 text-[16px] text-[#1f6b5b]">
         열기
         <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
       </div>
@@ -388,42 +360,38 @@ function DashboardRow({
   href,
   icon: Icon,
   title,
-  description,
   meta,
 }: {
   href: string;
   icon: LucideIcon;
   title: string;
-  description: string;
   meta: string;
 }) {
   return (
-    <a href={href} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[10px] border border-transparent px-3 py-3 transition hover:border-[#dbe7e2] hover:bg-[#f8fafc]">
+    <a href={href} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[10px] border border-transparent px-3 py-3 transition hover:border-[#dfe7e2] hover:bg-[#f8fafc]">
       <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1f5f9] text-[#1f6b5b]">
         <Icon className="h-[17px] w-[17px]" />
       </span>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate text-[16px] font-semibold text-[#0f172a]">{title}</p>
-          <span className="hidden rounded-full bg-[#eef2f6] px-2 py-0.5 text-[11px] font-semibold text-[#64748b] sm:inline-flex">
+          <p className="truncate text-[16px] text-[#0f172a]">{title}</p>
+          <span className="hidden rounded-full bg-[#eef2f6] px-2.5 py-0.5 text-[16px] text-[#64748b] sm:inline-flex">
             {meta}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-[14px] text-[#64748b]">{description}</p>
       </div>
       <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
     </a>
   );
 }
 
-function CheckItem({ title, body, href }: { title: string; body: string; href: string }) {
+function CheckItem({ title, href }: { title: string; href: string }) {
   return (
-    <a href={href} className="block rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3 transition hover:border-[#dbe7e2] hover:bg-white">
+    <a href={href} className="block rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3 transition hover:border-[#dfe7e2] hover:bg-white">
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-[#1f6b5b]" />
-        <p className="text-[14px] font-semibold text-[#0f172a]">{title}</p>
+        <p className="text-[16px] text-[#0f172a]">{title}</p>
       </div>
-      <p className="mt-1 line-clamp-2 text-[14px] leading-5 text-[#64748b]">{body}</p>
     </a>
   );
 }
@@ -431,8 +399,8 @@ function CheckItem({ title, body, href }: { title: string; body: string; href: s
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <dt className="shrink-0 text-[14px] font-medium text-[#64748b]">{label}</dt>
-      <dd className="min-w-0 truncate text-right text-[14px] font-semibold text-[#0f172a]">{value}</dd>
+      <dt className="shrink-0 text-[16px] text-[#64748b]">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-[16px] text-[#0f172a]">{value}</dd>
     </div>
   );
 }

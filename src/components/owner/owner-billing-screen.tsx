@@ -19,7 +19,8 @@ import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
   if (!iso) return "-";
-  return iso.slice(0, 10).replace(/-/g, ".");
+  const datePart = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
 }
 
 function formatServiceEndDate(summary: OwnerSubscriptionSummary) {

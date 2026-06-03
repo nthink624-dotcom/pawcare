@@ -123,10 +123,11 @@ type ModalState =
 type MobilePhotoStatusAction = {
   appointmentId: string;
   nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">;
-  mediaKind: Extract<MediaKind, "grooming_after">;
+  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
   title: string;
   description: string;
   buttonLabel: string;
+  skipLabel: string;
   autoOpenCamera?: boolean;
 };
 export type OwnerMobileLaunchPhotoStatusAction = {
@@ -237,6 +238,8 @@ function getNotificationResultMeta(notification: BootstrapPayload["notifications
 
 function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
   switch (mediaKind) {
+    case "grooming_before":
+      return "미용 전 사진";
     case "grooming_after":
       return "완료 사진";
     case "grooming_result":
@@ -450,17 +453,17 @@ export default function OwnerApp({
     setTodayDate(appointment.appointment_date);
     setHomeReservationDate(appointment.appointment_date);
     setSelectedDate(appointment.appointment_date);
-    if (launchPhotoStatusAction.statusAction === "in_progress") {
-      void updateAppointment(appointment.id, { status: "in_progress" });
-      return;
-    }
     setMobilePhotoStatusAction({
       appointmentId: appointment.id,
       nextStatus: launchPhotoStatusAction.statusAction,
-      mediaKind: "grooming_after",
-      title: "미용 완료 사진",
-      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
-      buttonLabel: "사진 찍고 미용 완료",
+      mediaKind: launchPhotoStatusAction.statusAction === "in_progress" ? "grooming_before" : "grooming_after",
+      title: launchPhotoStatusAction.statusAction === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+      description:
+        launchPhotoStatusAction.statusAction === "in_progress"
+          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
+          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
+      skipLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
       autoOpenCamera: launchPhotoStatusAction.autoOpenCamera ?? true,
     });
   }, [data.appointments, data.shop.id, launchPhotoStatusAction]);
@@ -643,7 +646,7 @@ export default function OwnerApp({
   const homeReservationFullDateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric",
+        year: "2-digit",
         month: "long",
         day: "numeric",
         weekday: "short",
@@ -797,7 +800,7 @@ export default function OwnerApp({
 
   const visitCalendarMonth = visitCalendarMonthCursor;
   const visitCalendarMonthStart = visitCalendarMonth + "-01";
-  const visitCalendarMonthLabel = String(Number(visitCalendarMonth.slice(0, 4))) + "년 " + String(Number(visitCalendarMonth.slice(5, 7))) + "월";
+  const visitCalendarMonthLabel = visitCalendarMonth.slice(2, 4) + "년 " + String(Number(visitCalendarMonth.slice(5, 7))) + "월";
   const dateHeaderFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" });
   const dateRangeFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" });
   const selectedVisitDateHeader = isSelectedVisitRange ? dateRangeFormatter.format(new Date(selectedVisitStart + "T00:00:00")) + " ~ " + dateRangeFormatter.format(new Date(selectedVisitEnd + "T00:00:00")) : dateHeaderFormatter.format(new Date(selectedVisitDate + "T00:00:00"));
@@ -1113,15 +1116,23 @@ export default function OwnerApp({
 
   function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
     if (
-      (status === "in_progress" && data.shop.notification_settings.grooming_start_without_photo_enabled) ||
-      (status === "completed" && data.shop.notification_settings.grooming_complete_without_photo_enabled)
+      status === "completed" &&
+      data.shop.notification_settings.grooming_complete_without_photo_enabled
     ) {
       void updateAppointment(appointmentId, { status });
       return;
     }
 
     if (status === "in_progress") {
-      void updateAppointment(appointmentId, { status });
+      setMobilePhotoStatusAction({
+        appointmentId,
+        nextStatus: status,
+        mediaKind: "grooming_before",
+        title: "미용 전 사진",
+        description: "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요.",
+        buttonLabel: "사진 찍고 미용 시작",
+        skipLabel: "사진 없이 미용 시작",
+      });
       return;
     }
 
@@ -1137,6 +1148,7 @@ export default function OwnerApp({
       title: "미용 완료 사진",
       description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
       buttonLabel: "사진 찍고 미용 완료",
+      skipLabel: "사진 없이 미용 완료",
     });
   }
 
@@ -2594,6 +2606,12 @@ export default function OwnerApp({
           uploading={mobilePhotoUploading || saving}
           onClose={() => {
             if (!mobilePhotoUploading) setMobilePhotoStatusAction(null);
+          }}
+          onSkip={() => {
+            const action = mobilePhotoStatusAction;
+            if (!action) return;
+            setMobilePhotoStatusAction(null);
+            void updateAppointment(action.appointmentId, { status: action.nextStatus });
           }}
           onSubmit={handleMobilePhotoStatusFile}
         />
@@ -4271,11 +4289,13 @@ function MobilePhotoStatusSheet({
   action,
   uploading,
   onClose,
+  onSkip,
   onSubmit,
 }: {
   action: MobilePhotoStatusAction;
   uploading: boolean;
   onClose: () => void;
+  onSkip: () => void;
   onSubmit: (file: File) => void;
 }) {
   const inputId = `mobile-photo-status-${action.appointmentId}`;
@@ -4320,7 +4340,7 @@ function MobilePhotoStatusSheet({
             if (file) onSubmit(file);
           }}
         />
-        <div className="mt-5 grid grid-cols-[0.72fr_1fr] gap-2">
+        <div className="mt-5 grid gap-2">
           <ActionButton variant="ghost" onClick={onClose} disabled={uploading}>
             취소
           </ActionButton>
@@ -4332,6 +4352,14 @@ function MobilePhotoStatusSheet({
           >
             {uploading ? "업로드 중" : action.buttonLabel}
           </label>
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={uploading}
+            className="h-[48px] rounded-[16px] border border-[var(--border)] bg-white px-4 text-[15px] font-medium text-[var(--muted)] transition active:scale-[0.99] disabled:opacity-60"
+          >
+            {action.skipLabel}
+          </button>
         </div>
       </div>
     </div>

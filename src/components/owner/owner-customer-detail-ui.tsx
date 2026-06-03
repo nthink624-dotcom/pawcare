@@ -373,7 +373,7 @@ export function NotificationHistoryRow({ notification, pet }: { notification: Bo
   const parsed = new Date(timestamp);
   const timeLabel = Number.isNaN(parsed.getTime())
     ? timestamp
-    : `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+    : `${String(parsed.getFullYear()).slice(-2)}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
   const displayMessage = stripNotificationLinks(notification.message);
   const actionLabel = getNotificationActionLabel(notification.type);
   const actionUrl = extractNotificationManageUrl(notification);

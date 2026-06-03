@@ -177,30 +177,19 @@ function getTodayOperatingStatus(
   const todayKey = getSeoulDateKey();
   const todayWeekday = getTodayWeekdayInSeoul();
   const hours = shop.business_hours[todayWeekday];
-  const hoursText = formatHoursRow(todayWeekday, shop.business_hours, shop.regular_closed_days);
   const isClosed =
     shop.regular_closed_days.includes(todayWeekday) ||
     shop.temporary_closed_dates.includes(todayKey) ||
     !hours?.enabled;
 
-  if (isClosed) {
-    return { label: "오늘 휴무", hoursText: "휴무", open: false };
-  }
+  if (isClosed) return { label: "휴무", open: false };
 
   const openMinutes = timeTextToMinutes(hours.open);
   const closeMinutes = timeTextToMinutes(hours.close);
-  if (openMinutes === null || closeMinutes === null) {
-    return { label: "영업시간 확인", hoursText, open: false };
-  }
-
-  if (currentMinutes < openMinutes) {
-    return { label: "영업 전", hoursText, open: false };
-  }
-  if (currentMinutes >= closeMinutes) {
-    return { label: "영업 종료", hoursText, open: false };
-  }
-
-  return { label: "영업 중", hoursText, open: true };
+  if (openMinutes === null || closeMinutes === null) return { label: "영업시간 확인", open: false };
+  if (currentMinutes < openMinutes) return { label: "영업 전", open: false };
+  if (currentMinutes >= closeMinutes) return { label: "영업 종료", open: false };
+  return { label: "영업 중", open: true };
 }
 
 export default function CustomerBookingEntryPage({
@@ -227,9 +216,6 @@ export default function CustomerBookingEntryPage({
   const todayRow = weekRows.find((row) => row.key === todayWeekday) ?? weekRows[0];
   const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
   const operatingStatus = getTodayOperatingStatus(shop, currentSeoulMinutes);
-  const todayHours = operatingStatus.hoursText;
-  const isTodayClosed = todayHours === "휴무";
-  const operatingStatusLabel = operatingStatus.label;
   const serviceOptions = useMemo(
     () => applyCustomerServiceOverrides(
       buildCustomerServiceSourceOptions(
@@ -350,34 +336,25 @@ export default function CustomerBookingEntryPage({
       <section className="mt-2 rounded-[12px] border border-[#e5e7eb] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <div className="px-0.5 pb-2">
           <div className="min-w-0">
-            <h2 className="truncate text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <h2 className="truncate text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
+              <button
+                type="button"
+                onClick={() => setHoursOpen((value) => !value)}
+                aria-expanded={hoursOpen}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-1 text-[13px] font-normal text-[#6f6258] transition hover:bg-[#faf7f2]"
+              >
+                <span className={getDotIndicatorClass(operatingStatus.open ? "teal" : "neutral")} aria-hidden="true" />
+                {operatingStatus.label}
+                <ChevronDown className={`h-3.5 w-3.5 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
+              </button>
+            </div>
             <p className="mt-1 truncate text-[13px] font-normal tracking-[-0.02em] text-[#7a6a5d]">{tagline}</p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setHoursOpen((value) => !value)}
-          aria-expanded={hoursOpen}
-          className={`grid h-[44px] w-full items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-left text-[#071923] ${isTodayClosed ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_auto_1fr]"}`}
-        >
-          <span className="inline-flex min-w-0 justify-start">
-            <span className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-normal text-[#6f6258]">
-              <span className={getDotIndicatorClass(operatingStatus.open ? "teal" : "neutral")} />
-              <span>{operatingStatusLabel}</span>
-            </span>
-          </span>
-          {isTodayClosed ? null : <span className="whitespace-nowrap text-center text-[15px] font-normal tracking-[-0.03em] text-[#6f6258]">{todayHours}</span>}
-          <span className="inline-flex min-w-0 justify-end">
-            <span className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full bg-transparent px-1 text-[13px] font-normal text-[#6f6258]">
-              전체 보기
-              <ChevronDown className={`h-3.5 w-3.5 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
-            </span>
-          </span>
-        </button>
-
         {hoursOpen ? (
-          <div className="mt-3 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white text-[#26352f]">
+          <div className="mt-1 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white text-[#26352f]">
             {weekRows.map((row, index) => {
               const hoursText = formatHoursRow(row.key, shop.business_hours, shop.regular_closed_days);
               const isToday = row.key === todayWeekday;
@@ -408,11 +385,11 @@ export default function CustomerBookingEntryPage({
                   className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:bg-[#faf7f2]"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[15px] font-normal tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
+                    <span className="truncate text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
                     <span className="h-3 w-px shrink-0 bg-[#e5e7eb]" aria-hidden="true" />
-                    <span className="shrink-0 text-[12px] font-normal text-[#7a6a5d]">예상 시간 {service.durationMinutes}분</span>
+                    <span className="shrink-0 text-[14px] font-normal text-[#7a6a5d]">{service.durationMinutes}분 예상</span>
                   </span>
-                  <span className="shrink-0 text-right text-[14px] font-normal text-[#7A5A45]">
+                  <span className="shrink-0 text-right text-[16px] font-normal text-[#7A5A45]">
                     {formatServicePrice(service.price, service.priceType)}
                   </span>
                 </button>
@@ -429,8 +406,8 @@ export default function CustomerBookingEntryPage({
           <button
             type="button"
             onClick={() => setPriceSheetOpen(true)}
-            className="mt-2 flex h-[38px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[14px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
-            style={{ fontSize: 14, fontWeight: 400 }}
+            className="mt-2 flex h-[38px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
+            style={{ fontSize: 16, fontWeight: 400 }}
           >
             요금표 전체보기
           </button>

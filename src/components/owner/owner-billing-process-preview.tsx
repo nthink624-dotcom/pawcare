@@ -12,7 +12,7 @@ import { won } from "@/lib/utils";
 const PREVIEW_BASE_DATE = new Date("2026-05-04T10:00:00+09:00");
 
 function formatDate(date: Date) {
-  const year = date.getFullYear();
+  const year = String(date.getFullYear()).slice(-2);
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}.${month}.${day}`;

@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
-import { getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
@@ -17,6 +17,7 @@ type GroomingCalendarRecord = {
   pet: string;
   breed: string;
   customer: string;
+  phone: string;
   service: string;
   memo: string;
   customerRequest: string;
@@ -24,6 +25,13 @@ type GroomingCalendarRecord = {
   next: string;
   date: string;
   time: string;
+  staff: string;
+  eventReceivedAt?: string | null;
+  reservationConfirmedAt?: string | null;
+  groomingStartedAt?: string | null;
+  pickupReadyAt?: string | null;
+  recordCreatedAt?: string | null;
+  recordCompletedAt?: string | null;
 };
 
 type ReservationRow = {
@@ -43,6 +51,13 @@ type ReservationRow = {
   staff: string;
   phone: string;
   channel: string;
+  eventReceivedAt?: string | null;
+  eventUpdatedAt?: string | null;
+  reservationConfirmedAt?: string | null;
+  groomingStartedAt?: string | null;
+  pickupReadyAt?: string | null;
+  groomingCompletedAt?: string | null;
+  actualCompletedAt?: string | null;
 };
 
 type DayItem = {
@@ -66,6 +81,15 @@ type DayItem = {
   staff?: string;
   phone?: string;
   channel?: string;
+  eventReceivedAt?: string | null;
+  eventUpdatedAt?: string | null;
+  reservationConfirmedAt?: string | null;
+  groomingStartedAt?: string | null;
+  pickupReadyAt?: string | null;
+  groomingCompletedAt?: string | null;
+  recordCreatedAt?: string | null;
+  recordCompletedAt?: string | null;
+  actualCompletedAt?: string | null;
 };
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -82,73 +106,126 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
 };
 
 function buildBootstrapLookup(data: BootstrapPayload) {
+  const notificationsByAppointmentId = new Map<string, BootstrapPayload["notifications"]>();
+  for (const notification of data.notifications ?? []) {
+    if (!notification.appointment_id) continue;
+    const current = notificationsByAppointmentId.get(notification.appointment_id) ?? [];
+    current.push(notification);
+    notificationsByAppointmentId.set(notification.appointment_id, current);
+  }
+
   return {
     guardianById: new Map(data.guardians.map((guardian) => [guardian.id, guardian])),
     petById: new Map(data.pets.map((pet) => [pet.id, pet])),
     serviceById: new Map(data.services.map((service) => [service.id, service])),
     appointmentById: new Map(data.appointments.map((appointment) => [appointment.id, appointment])),
+    staffById: new Map(data.staffMembers.map((staff) => [staff.id, staff])),
     staffNoteByPetId: new Map((data.petStaffNotes ?? []).filter((note) => note.pet_id).map((note) => [note.pet_id as string, note])),
+    notificationsByAppointmentId,
   };
 }
 
+function displayText(value: string | null | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+function formatRecordPhone(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "연락처 미입력";
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return trimmed;
+}
+
+function getNotificationEventTime(notifications: BootstrapPayload["notifications"] | undefined, type: string) {
+  return (notifications ?? [])
+    .filter((notification) => notification.type === type)
+    .map((notification) => notification.sent_at ?? notification.created_at)
+    .filter((value): value is string => Boolean(value))
+    .sort((first, second) => first.localeCompare(second))[0] ?? null;
+}
+
 function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[] {
-  const { guardianById, petById, serviceById, staffNoteByPetId } = buildBootstrapLookup(data);
+  const { guardianById, petById, serviceById, staffById, staffNoteByPetId, notificationsByAppointmentId } = buildBootstrapLookup(data);
 
   return data.appointments.map((appointment) => {
     const guardian = guardianById.get(appointment.guardian_id);
     const pet = petById.get(appointment.pet_id);
     const service = serviceById.get(appointment.service_id);
+    const staff = appointment.staff_id ? staffById.get(appointment.staff_id) : null;
     const customerRequest = appointment.memo?.trim() ?? "";
     const staffComment = staffNoteByPetId.get(appointment.pet_id)?.note?.trim() ?? "";
+    const notifications = notificationsByAppointmentId.get(appointment.id);
 
     return {
       id: appointment.id,
       guardianId: appointment.guardian_id,
       petId: appointment.pet_id,
-      pet: pet?.name ?? "반려동물 미등록",
-      breed: pet?.breed ?? "품종 미입력",
-      customer: guardian?.name ?? "보호자 미등록",
-      service: service?.name ?? "서비스 미등록",
+      pet: displayText(pet?.name, "반려동물 미등록"),
+      breed: displayText(pet?.breed, "품종 미입력"),
+      customer: displayText(guardian?.name, "보호자 미등록"),
+      phone: guardian?.phone ?? "",
+      service: displayText(service?.name, "서비스 미등록"),
       status: appointmentStatusLabels[appointment.status],
       note: customerRequest || "요청 메모가 없습니다.",
       customerRequest,
       staffComment,
       date: appointment.appointment_date,
       time: appointment.appointment_time,
-      staff: "담당 미배정",
-      phone: guardian?.phone ?? "",
+      staff: displayText(staff?.name, "담당 미지정"),
       channel: appointment.source === "customer" ? "고객 예약" : "오너 등록",
+      eventReceivedAt: appointment.created_at,
+      eventUpdatedAt: appointment.updated_at,
+      reservationConfirmedAt: getNotificationEventTime(notifications, "booking_confirmed"),
+      groomingStartedAt: appointment.actual_started_at ?? getNotificationEventTime(notifications, "grooming_started"),
+      pickupReadyAt: getNotificationEventTime(notifications, "grooming_almost_done"),
+      groomingCompletedAt: appointment.actual_completed_at ?? getNotificationEventTime(notifications, "grooming_completed"),
+      actualCompletedAt: appointment.actual_completed_at,
     };
   });
 }
 
 function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarRecord[] {
-  const { guardianById, petById, serviceById, appointmentById, staffNoteByPetId } = buildBootstrapLookup(data);
+  const { guardianById, petById, serviceById, appointmentById, staffById, staffNoteByPetId, notificationsByAppointmentId } = buildBootstrapLookup(data);
 
   return data.groomingRecords.map((record) => {
-    const guardian = guardianById.get(record.guardian_id);
-    const pet = petById.get(record.pet_id);
-    const service = serviceById.get(record.service_id);
     const linkedAppointment = record.appointment_id ? appointmentById.get(record.appointment_id) : null;
+    const guardian = guardianById.get(record.guardian_id) ?? (linkedAppointment ? guardianById.get(linkedAppointment.guardian_id) : undefined);
+    const pet = petById.get(record.pet_id) ?? (linkedAppointment ? petById.get(linkedAppointment.pet_id) : undefined);
+    const service = serviceById.get(record.service_id) ?? (linkedAppointment ? serviceById.get(linkedAppointment.service_id) : undefined);
+    const staff = linkedAppointment?.staff_id ? staffById.get(linkedAppointment.staff_id) : null;
+    const staffNotePetId = pet?.id ?? linkedAppointment?.pet_id ?? record.pet_id;
     const customerRequest = linkedAppointment?.memo?.trim() || record.style_notes?.trim() || "";
-    const staffComment = staffNoteByPetId.get(record.pet_id)?.note?.trim() || record.memo?.trim() || "";
+    const staffComment = staffNoteByPetId.get(staffNotePetId)?.note?.trim() || record.memo?.trim() || "";
     const memoParts = [customerRequest, staffComment].map((item) => item?.trim()).filter(Boolean);
+    const notifications = linkedAppointment ? notificationsByAppointmentId.get(linkedAppointment.id) : undefined;
 
     return {
       id: record.id,
-      guardianId: record.guardian_id,
-      petId: record.pet_id,
+      guardianId: guardian?.id ?? linkedAppointment?.guardian_id ?? record.guardian_id,
+      petId: pet?.id ?? linkedAppointment?.pet_id ?? record.pet_id,
       appointmentId: record.appointment_id,
-      pet: pet?.name ?? "반려동물 미등록",
-      breed: pet?.breed ?? "품종 미입력",
-      customer: guardian?.name ?? "보호자 미등록",
-      service: service?.name ?? "서비스 미등록",
+      pet: displayText(pet?.name, "반려동물 미등록"),
+      breed: displayText(pet?.breed, "품종 미입력"),
+      customer: displayText(guardian?.name, "보호자 미등록"),
+      phone: guardian?.phone ?? "",
+      service: displayText(service?.name, "서비스 미등록"),
       memo: memoParts.join(" · ") || "작성된 메모가 없습니다.",
       customerRequest,
       staffComment,
       next: "",
       date: record.groomed_at.slice(0, 10),
       time: getRecordClockTime(record.groomed_at),
+      staff: displayText(staff?.name, "담당 미지정"),
+      eventReceivedAt: linkedAppointment?.created_at ?? null,
+      reservationConfirmedAt: getNotificationEventTime(notifications, "booking_confirmed"),
+      groomingStartedAt: linkedAppointment?.actual_started_at ?? getNotificationEventTime(notifications, "grooming_started"),
+      pickupReadyAt: getNotificationEventTime(notifications, "grooming_almost_done"),
+      recordCreatedAt: record.created_at,
+      recordCompletedAt: linkedAppointment?.actual_completed_at ?? getNotificationEventTime(notifications, "grooming_completed") ?? record.updated_at ?? record.groomed_at,
     };
   });
 }
@@ -164,7 +241,7 @@ function getRecordClockTime(value: string) {
 
 function formatMonthLabel(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
+  return `${String(parsed.getFullYear()).slice(-2)}년 ${parsed.getMonth() + 1}월`;
 }
 
 function formatShortDate(date: string) {
@@ -174,7 +251,31 @@ function formatShortDate(date: string) {
 
 function formatFullDate(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekdayLabels[parsed.getDay()]}요일`;
+  return `${String(parsed.getFullYear()).slice(-2)}년 ${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekdayLabels[parsed.getDay()]}요일`;
+}
+
+function formatHistoryTimestamp(value?: string | null) {
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(parsed);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${getPart("month")}.${getPart("day")} (${getPart("weekday")}) ${getPart("hour").padStart(2, "0")}:${getPart("minute").padStart(2, "0")}`;
+}
+
+function formatHistoryFallback(date: string, time?: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  return `${parsed.getMonth() + 1}.${parsed.getDate()} (${weekdayLabels[parsed.getDay()]}) ${time || "-"}`;
 }
 
 function getMonthDates(monthAnchor: string) {
@@ -212,6 +313,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       pet: record.pet,
       breed: record.breed,
       customer: record.customer,
+      phone: record.phone,
       service: record.service,
       status: "기록 완료",
       note: record.memo,
@@ -220,6 +322,13 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       next: record.next,
       date,
       time: record.time,
+      staff: record.staff,
+      eventReceivedAt: record.eventReceivedAt,
+      reservationConfirmedAt: record.reservationConfirmedAt,
+      groomingStartedAt: record.groomingStartedAt,
+      pickupReadyAt: record.pickupReadyAt,
+      recordCreatedAt: record.recordCreatedAt,
+      recordCompletedAt: record.recordCompletedAt,
     }));
   const recordAppointmentIds = new Set(recordItems.map((record) => record.appointmentId).filter(Boolean));
 
@@ -246,6 +355,14 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       staff: reservation.staff,
       phone: reservation.phone,
       channel: reservation.channel,
+      eventReceivedAt: reservation.eventReceivedAt,
+      eventUpdatedAt: reservation.eventUpdatedAt,
+      reservationConfirmedAt: reservation.reservationConfirmedAt,
+      groomingStartedAt: reservation.groomingStartedAt,
+      pickupReadyAt: reservation.pickupReadyAt,
+      groomingCompletedAt: reservation.groomingCompletedAt,
+      actualCompletedAt: reservation.actualCompletedAt,
+      recordCompletedAt: reservation.actualCompletedAt ?? reservation.eventUpdatedAt,
       date,
     }));
 
@@ -273,6 +390,13 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
           staff: reservation.staff,
           phone: reservation.phone,
           channel: reservation.channel,
+          eventReceivedAt: reservation.eventReceivedAt,
+          eventUpdatedAt: reservation.eventUpdatedAt,
+          reservationConfirmedAt: reservation.reservationConfirmedAt,
+          groomingStartedAt: reservation.groomingStartedAt,
+          pickupReadyAt: reservation.pickupReadyAt,
+          groomingCompletedAt: reservation.groomingCompletedAt,
+          actualCompletedAt: reservation.actualCompletedAt,
           date,
         }))
     : [];
@@ -355,7 +479,7 @@ function getCalendarStatusBarClass(tone: StatusIndicatorTone) {
   return cn("h-[3px] w-3 rounded-full", statusIndicatorBgClass[tone]);
 }
 
-export default function GroomingManagementScreen({ initialData }: { initialData: BootstrapPayload }) {
+export default function CalendarRecordsScreen({ initialData }: { initialData: BootstrapPayload }) {
   const records = useMemo(() => buildRecordsFromBootstrap(initialData), [initialData]);
   const initialReservations = useMemo(() => buildReservationsFromBootstrap(initialData), [initialData]);
   const [reservations, setReservations] = useState<ReservationRow[]>(() => initialReservations);
@@ -689,10 +813,13 @@ function DayItemSection({
 
 /*
 function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
-  const kindLabel = item.type === "record" ? "기록" : "예약";
   const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
+  const hasCustomerRequest = Boolean(item.customerRequest?.trim());
+  const hasStaffComment = Boolean(item.staffComment?.trim());
   const customerRequest = item.customerRequest?.trim() || "고객 요청사항이 없습니다.";
   const staffComment = item.staffComment?.trim() || "직원 코멘트가 없습니다.";
+  const staffLabel = item.staff?.trim() || "담당 미지정";
+  const isUnassignedStaff = staffLabel === "담당 미지정" || staffLabel === "담당 미배정";
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
@@ -771,6 +898,57 @@ function RecordMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
+function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: string }) {
+  return (
+    <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] text-[#64748b]">기록 히스토리</p>
+        <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass[getStatusAccent(item)])} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+        <RecordMeta label="날짜" value={formatFullDate(item.date)} />
+        <RecordMeta label="시간" value={item.time ?? "-"} />
+        <RecordMeta label="상태" value={item.status} />
+        <RecordMeta label="경로" value={sourceLabel} />
+      </div>
+    </section>
+  );
+}
+
+function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: string }) {
+  return (
+    <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] text-[#64748b]">기록 히스토리</p>
+        <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass(getStatusAccent(item)))} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+        <RecordMeta label="날짜" value={formatFullDate(item.date)} />
+        <RecordMeta label="시간" value={item.time ?? "-"} />
+        <RecordMeta label="상태" value={item.status} />
+        <RecordMeta label="경로" value={sourceLabel} />
+      </div>
+    </section>
+  );
+}
+
+function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: string }) {
+  return (
+    <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] text-[#64748b]">기록 히스토리</p>
+        <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass(getStatusAccent(item)))} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+        <RecordMeta label="날짜" value={formatFullDate(item.date)} />
+        <RecordMeta label="시간" value={item.time ?? "-"} />
+        <RecordMeta label="상태" value={item.status} />
+        <RecordMeta label="경로" value={sourceLabel} />
+      </div>
+    </section>
+  );
+}
+
 function RecordMemoCard({ title, value, highlighted = false }: { title: string; value: string; highlighted?: boolean }) {
   return (
     <section
@@ -787,10 +965,13 @@ function RecordMemoCard({ title, value, highlighted = false }: { title: string; 
 */
 
 function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
-  const kindLabel = item.type === "record" ? "기록" : "예약";
   const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
+  const hasCustomerRequest = Boolean(item.customerRequest?.trim());
+  const hasStaffComment = Boolean(item.staffComment?.trim());
   const customerRequest = item.customerRequest?.trim() || "고객 요청사항이 없습니다.";
   const staffComment = item.staffComment?.trim() || "직원 코멘트가 없습니다.";
+  const staffLabel = item.staff?.trim() || "담당 미지정";
+  const isUnassignedStaff = staffLabel === "담당 미지정" || staffLabel === "담당 미배정";
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/20" onClick={onClose}>
@@ -801,19 +982,17 @@ function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: 
         <div className="border-b border-[#edf2f7] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">
-                {item.pet} · {item.customer}
-              </h3>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#64748b]">
-                <span>
-                  {formatShortDate(item.date)}
-                  {item.time ? ` · ${item.time}` : ""}
-                </span>
-                <span className="text-[#cbd5e1]">/</span>
-                <span>{kindLabel}</span>
-                <span className="text-[#cbd5e1]">/</span>
-                <span>{item.status}</span>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.pet}</h3>
+                {item.breed ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d7eadf] bg-[#f2faf6] px-2 py-0.5 text-[15px] text-[#2f7866]">
+                    <PawPrint className="h-3.5 w-3.5" />
+                    {item.breed}
+                  </span>
+                ) : null}
               </div>
+              <p className="mt-1 text-[16px] text-[#334155]">{item.customer}</p>
+              <p className="mt-0.5 text-[15px] text-[#64748b]">{formatRecordPhone(item.phone)}</p>
             </div>
             <button
               type="button"
@@ -827,28 +1006,31 @@ function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: 
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          <section className={cn("rounded-[8px] border bg-white p-4", getWrapIndicatorClass(getStatusAccent(item)))}>
-            <div className="flex items-start justify-between gap-3">
+          <section className={cn("rounded-[8px] border bg-white px-3 py-2.5", getWrapIndicatorClass(getStatusAccent(item)))}>
+            <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[14px] text-[#94a3b8]">서비스</p>
-                <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{item.service}</p>
+                <p className="text-[15px] leading-5 text-[#64748b]">서비스</p>
+                <p className="truncate text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">{item.service}</p>
               </div>
-              <span className="shrink-0 rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-1 text-[13px] text-[#64748b]">
-                {item.staff ?? "담당 미지정"}
+              <span
+                className={cn(
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[12px]",
+                  isUnassignedStaff ? "border-[#f0c27a] bg-[#fffaf0] text-[#9a5b12]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+                )}
+              >
+                {staffLabel}
               </span>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf2f7] pt-3">
-              <RecordMeta label="품종" value={item.breed ?? "품종 미입력"} />
-              <RecordMeta label="경로" value={sourceLabel} />
             </div>
           </section>
 
-          <RecordMemoCard title="고객 요청사항" value={customerRequest} highlighted />
-          <RecordMemoCard title="직원 코멘트" value={staffComment} />
+          <RecordMemoCard title="고객 요청사항" value={customerRequest} empty={!hasCustomerRequest} highlighted />
+          <RecordMemoCard title="직원 코멘트" value={staffComment} empty={!hasStaffComment} />
+
+          <RecordHistoryCard item={item} sourceLabel={sourceLabel} />
 
           {item.next ? (
             <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-              <p className="text-[14px] text-[#64748b]">다음 체크</p>
+              <p className="text-[15px] text-[#64748b]">다음 체크</p>
               <p className="mt-2 text-[16px] leading-6 text-[#111827]">{item.next}</p>
             </section>
           ) : null}
@@ -873,22 +1055,146 @@ function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: 
 function RecordMeta({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[13px] text-[#94a3b8]">{label}</p>
+      <p className="text-[15px] text-[#64748b]">{label}</p>
       <p className="mt-1 truncate text-[16px] text-[#111827]">{value}</p>
     </div>
   );
 }
 
-function RecordMemoCard({ title, value, highlighted = false }: { title: string; value: string; highlighted?: boolean }) {
+function RecordMemoCard({ title, value, empty = false, highlighted = false }: { title: string; value: string; empty?: boolean; highlighted?: boolean }) {
   return (
     <section
       className={cn(
-        "mt-3 rounded-[8px] border p-4",
+        "mt-3 rounded-[8px] border",
+        empty ? "px-3 py-2.5" : "p-4",
         highlighted ? "border-[#dbe2ea] bg-[#f8fafc]" : "border-[#dbe2ea] bg-white",
       )}
     >
-      <p className="text-[14px] text-[#64748b]">{title}</p>
-      <p className="mt-2 whitespace-pre-wrap text-[16px] leading-6 text-[#111827]">{value}</p>
+      <p className="text-[15px] text-[#64748b]">{title}</p>
+      <p className={cn("whitespace-pre-wrap", empty ? "mt-1 text-[15px] leading-5 text-[#64748b]" : "mt-2 text-[16px] leading-6 text-[#111827]")}>{value}</p>
+    </section>
+  );
+}
+
+type RecordHistoryTimelineItem = {
+  key: string;
+  title: string;
+  description: string;
+  time: string;
+  hasTime: boolean;
+  dotClassName: string;
+};
+
+function historyTime(value?: string | null) {
+  const formatted = formatHistoryTimestamp(value);
+  return {
+    time: formatted || "시간 기록 없음",
+    hasTime: Boolean(formatted),
+  };
+}
+
+function buildRecordHistoryTimeline(item: DayItem, sourceLabel: string): RecordHistoryTimelineItem[] {
+  const reservationTime = historyTime(item.eventReceivedAt);
+  const confirmedTime = historyTime(item.reservationConfirmedAt);
+  const groomingStartedTime = historyTime(item.groomingStartedAt);
+  const pickupReadyTime = historyTime(item.pickupReadyAt);
+  const groomingCompletedTime = historyTime(item.recordCompletedAt ?? item.groomingCompletedAt ?? item.actualCompletedAt);
+  const shouldShowConfirmed = item.type === "record" || !item.status.includes("승인");
+  const shouldShowGroomingStarted = item.type === "record" || item.status === "진행 중" || item.status === "픽업 준비" || item.status === "완료";
+  const shouldShowPickupReady = Boolean(item.pickupReadyAt) || item.status === "픽업 준비";
+  const shouldShowCompleted = item.type === "record" || item.status === "완료";
+  const items: RecordHistoryTimelineItem[] = [];
+
+  items.push({
+    key: "reservation-created",
+    title: "예약 접수",
+    description: `${sourceLabel}으로 예약이 접수되었습니다.`,
+    ...reservationTime,
+    dotClassName: "bg-[#b98121]",
+  });
+
+  if (shouldShowConfirmed) {
+    items.push({
+      key: "reservation-confirmed",
+      title: "예약 확정",
+      description: "예약이 확정되었습니다.",
+      ...confirmedTime,
+      dotClassName: "bg-[#2f7866]",
+    });
+  }
+
+  if (shouldShowGroomingStarted) {
+    items.push({
+      key: "grooming-started",
+      title: "미용 시작",
+      description: "미용이 시작되었습니다.",
+      ...groomingStartedTime,
+      dotClassName: "bg-[#2563eb]",
+    });
+  }
+
+  if (shouldShowPickupReady) {
+    items.push({
+      key: "pickup-ready",
+      title: "픽업 준비중",
+      description: "보호자에게 픽업 준비를 안내했습니다.",
+      ...pickupReadyTime,
+      dotClassName: "bg-[#7c3aed]",
+    });
+  }
+
+  if (shouldShowCompleted) {
+    items.push({
+      key: "grooming-completed",
+      title: "미용 완료",
+      description: "미용이 완료되었습니다.",
+      ...groomingCompletedTime,
+      dotClassName: "bg-[#64748b]",
+    });
+  }
+
+  return items;
+}
+
+function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const historyItems = buildRecordHistoryTimeline(item, sourceLabel);
+  const lastItem = historyItems[historyItems.length - 1];
+
+  return (
+    <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+        aria-expanded={open}
+      >
+        <span className={cn("h-2 w-2 rounded-full", statusIndicatorBgClass[getStatusAccent(item)])} aria-hidden="true" />
+        <span className="text-[15px] text-[#334155]">기록 히스토리</span>
+        {lastItem ? <span className="ml-auto truncate text-right text-[12px] text-[#64748b]">{lastItem.title} · {lastItem.time}</span> : null}
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#94a3b8] transition", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <div className="border-t border-[#edf2f7] px-3 py-2">
+          <div className="space-y-0 pl-0.5">
+            {historyItems.map((historyItem, index) => (
+              <div key={historyItem.key} className="relative grid grid-cols-[18px_minmax(0,1fr)] gap-2 py-2 first:pt-0 last:pb-0">
+                {index < historyItems.length - 1 ? <span className="absolute left-[5px] top-[18px] h-[calc(100%-8px)] w-px bg-[#e2e8f0]" aria-hidden="true" /> : null}
+                <span className={cn("relative z-10 mt-2 h-2 w-2 rounded-full", historyItem.dotClassName)} aria-hidden="true" />
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <p className="truncate text-[15px] text-[#111827]">{historyItem.title}</p>
+                    <span className={cn("ml-auto shrink-0 text-[12px] tabular-nums", historyItem.hasTime ? "text-[#64748b]" : "text-[#94a3b8]")}>
+                      {historyItem.time}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[13px] text-[#64748b]">{historyItem.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

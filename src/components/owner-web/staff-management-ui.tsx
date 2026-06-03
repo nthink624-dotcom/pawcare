@@ -115,7 +115,7 @@ export function StaffList({
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[920px]">
-        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2.5 text-[16px] font-medium text-[#64748b]">
+        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
           <span>직원</span>
           <span>연락처</span>
           <span className="text-center">상태</span>
@@ -136,16 +136,16 @@ export function StaffList({
                 onClick={() => onSelect(staffMember)}
                 className={cn(
                   "grid w-full grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
-                  active ? "bg-[#f6fbf9]" : "bg-white hover:bg-[#f8fafc]",
+                  active ? "bg-white" : "bg-white hover:bg-white",
                 )}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[16px] font-semibold text-[#111827]">{staffMember.name}</p>
+                  <p className="truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
                 </div>
                 <p className="truncate text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
                 <span
                   className={cn(
-                    "justify-self-center rounded-full px-2.5 py-1 text-[16px] font-medium",
+                    "justify-self-center rounded-full px-2.5 py-1 text-[16px] font-normal",
                     availability === "근무 가능" ? "bg-[#e6f3ef] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]",
                   )}
                 >
@@ -171,7 +171,7 @@ export function StaffDetailPanel({
   onDraftChange,
   onSave,
   onOpenLeaveDialog,
-  onDeactivate,
+  onOpenAnnualGrantDialog,
 }: {
   selectedStaff: StaffMember;
   draft: StaffDraft;
@@ -180,25 +180,22 @@ export function StaffDetailPanel({
   onDraftChange: (updater: (current: StaffDraft) => StaffDraft) => void;
   onSave: () => void;
   onOpenLeaveDialog: () => void;
-  onDeactivate: () => void;
+  onOpenAnnualGrantDialog: () => void;
 }) {
   const annualUsage = getAnnualLeaveUsage(selectedStaff, requests);
-  const availability = getStaffAvailability(selectedStaff, requests, overrides);
 
   return (
-    <WebSurface className="p-5">
+    <WebSurface className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[16px] font-semibold tracking-[0.12em] text-[#94a3b8]">직원 상세</p>
-          <h3 className="mt-2 truncate text-[16px] font-semibold text-[#111827]">{selectedStaff.name}</h3>
+          <h3 className="truncate text-[16px] font-normal text-[#111827]">{selectedStaff.name}</h3>
           <p className="mt-1 text-[16px] text-[#64748b]">
             오늘 예약 {selectedStaff.todayBookings}건 · 이번 주 {selectedStaff.weekBookings}건
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-[#e6f3ef] px-2.5 py-1 text-[16px] font-medium text-[#1f6b5b]">{availability}</span>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-4 space-y-2.5">
         <Field label="직원명">
           <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
         </Field>
@@ -224,25 +221,31 @@ export function StaffDetailPanel({
             <TextInput value={draft.annualRemain} onChange={(annualRemain) => onDraftChange((current) => ({ ...current, annualRemain }))} type="number" />
           </Field>
         </div>
-        <div className="rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
+        <div className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-3">
           <div className="flex items-center justify-between gap-3 text-[16px]">
             <span className="text-[#64748b]">예정 휴무/연차</span>
-            <span className="font-medium text-[#111827]">{getScheduledLeaveCount(selectedStaff, requests)}건</span>
+            <span className="font-normal text-[#111827]">{getScheduledLeaveCount(selectedStaff, requests)}건</span>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3 text-[16px]">
             <span className="text-[#64748b]">남은 연차</span>
-            <span className="font-medium text-[#111827]">{annualUsage.remaining}일</span>
+            <span className="font-normal text-[#111827]">{annualUsage.remaining}일</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={() => onDraftChange(() => buildDraft(selectedStaff))} />
-        <PrimaryButton label="저장" onClick={onSave} />
+        <button
+          type="button"
+          onClick={onSave}
+          className="inline-flex h-[40px] items-center justify-center rounded-[8px] bg-[#2f7866] px-4 text-[14px] font-medium text-white"
+        >
+          저장
+        </button>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <GhostButton label="휴무/연차 등록" onClick={onOpenLeaveDialog} />
-        <GhostButton label="직원 비활성화" onClick={onDeactivate} />
+        <GhostButton label="연차 일괄 부여" onClick={onOpenAnnualGrantDialog} />
       </div>
     </WebSurface>
   );
@@ -264,7 +267,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
     />
   );
 }
@@ -325,7 +328,8 @@ export function TimeSelect({
       options={options}
       align={align}
       className={className}
-      buttonClassName={cn("h-9 bg-[#f8fafc] px-2", buttonClassName)}
+      buttonClassName={cn("h-9 bg-white px-2", buttonClassName)}
+      valueClassName="text-[16px] font-normal"
       menuClassName="max-h-[180px] overflow-y-auto overscroll-contain"
     />
   );
@@ -369,7 +373,7 @@ export function StaffMetric({ label, value }: { label: string; value: string }) 
   return (
     <div className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
       <p className="text-[16px] text-[#64748b]">{label}</p>
-      <p className="mt-0.5 text-[16px] font-medium text-[#111827]">{value}</p>
+      <p className="mt-0.5 text-[16px] font-normal text-[#111827]">{value}</p>
     </div>
   );
 }

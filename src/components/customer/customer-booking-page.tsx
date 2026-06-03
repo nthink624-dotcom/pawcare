@@ -350,7 +350,7 @@ function formatVisitedAt(value: string) {
   if (!value) return "방문 기록 없음";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return format(parsed, "yyyy.MM.dd", { locale: ko });
+  return format(parsed, "yy.MM.dd", { locale: ko });
 }
 
 function formatDateLabel(value: string) {
@@ -553,6 +553,11 @@ export default function CustomerBookingPage({
       setFirstVisitStep(3);
     }
   }, [firstVisitStep, shouldSkipFirstVisitDateTimeStep]);
+
+  useEffect(() => {
+    if (activeMode !== "first" || firstVisitStep !== 2 || firstVisit.date || !dateOptions[0]) return;
+    setFirstVisit((prev) => (prev.date ? prev : { ...prev, date: dateOptions[0].value, timeSlot: "" }));
+  }, [activeMode, dateOptions, firstVisit.date, firstVisitStep]);
 
   useEffect(() => {
     const validStaffIds = new Set(staffMembers.map((staff) => staff.id));

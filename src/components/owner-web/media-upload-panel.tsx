@@ -72,9 +72,9 @@ type PhotoSendRequestListResponse = {
 };
 
 type UploadSlot = {
-  key: "after";
+  key: "before" | "after";
   label: string;
-  mediaKind: Extract<MediaKind, "grooming_after">;
+  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
 };
 
 type MediaContext = {
@@ -93,6 +93,7 @@ type PreviewItem = {
 type UploadMessageTone = "info" | "success" | "error";
 
 const uploadSlots: UploadSlot[] = [
+  { key: "before", label: "미용 전 사진", mediaKind: "grooming_before" },
   { key: "after", label: "완료 사진", mediaKind: "grooming_after" },
 ];
 
@@ -124,6 +125,10 @@ function getPhotoSendStatusCopy(status: NotificationStatus, failReason?: string 
   if (status === "skipped") return failReason || "완료 사진 전송 제외";
   if (failReason) return failReason;
   return "완료 사진 전송 요청 저장됨";
+}
+
+function isAlimtalkCreditEmptyReason(reason?: string | null) {
+  return reason?.includes("알림톡 잔여 건수가 없습니다") ?? false;
 }
 
 async function uploadCompressedFile(params: {
@@ -234,6 +239,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
   const [messageTone, setMessageTone] = useState<UploadMessageTone>("info");
   const [sendRequests, setSendRequests] = useState<PhotoSendRequestItem[]>([]);
   const [localPreviews, setLocalPreviews] = useState<Record<UploadSlot["key"], string | null>>({
+    before: null,
     after: null,
   });
   const localPreviewUrlsRef = useRef(localPreviews);
@@ -375,6 +381,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
 
   async function sendPhotoAlimtalk() {
     const mediaAssetIds = uploadSlots
+      .filter((slot) => slot.key === "after")
       .map((slot) => previewsBySlot[slot.key]?.mediaAsset.id)
       .filter((id): id is string => Boolean(id));
 
@@ -424,14 +431,14 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
     }
   }
 
-  const latestPhotoSendRequest = sendRequests[0] ?? null;
+  const latestPhotoSendRequest =
+    sendRequests.find((request) => !isAlimtalkCreditEmptyReason(request.notification.fail_reason)) ?? null;
 
   return (
     <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[13px] font-semibold text-[#334155]">사진</p>
-          <p className="mt-1 text-[12px] leading-4 text-[#64748b]">촬영한 사진은 압축해서 저장합니다.</p>
         </div>
         <button
           type="button"
@@ -542,7 +549,7 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       {!loading && items.length === 0 ? (
         <div className="mt-3 flex items-center gap-2 text-[12px] text-[#94a3b8]">
           <Camera className="h-4 w-4" />
-          저장된 완료 사진이 없습니다.
+          저장된 사진이 없습니다.
         </div>
       ) : null}
     </section>

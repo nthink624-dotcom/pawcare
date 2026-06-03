@@ -205,13 +205,14 @@ function getRecentPaymentStatusMeta(value: AdminOwnerPaymentStatus) {
 
 function formatDateLabel(value: string | null) {
   if (!value) return "-";
-  return value.slice(0, 10).replace(/-/g, ".");
+  const datePart = value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
 }
 
 function formatDateTimeLabel(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${String(date.getFullYear()).slice(-2)}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function toDateInputValue(value: string | null) {
@@ -550,13 +551,13 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f4ef] px-6 py-6 text-[#171411] md:px-8">
+    <main className="min-h-screen bg-[#f7f8f6] px-6 py-6 text-[#172033] md:px-8">
       <div className="mx-auto w-full max-w-[1560px]">
         <div className="mb-5 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => router.push("/admin" as never)}
-            className="inline-flex h-[42px] items-center gap-2 rounded-full border border-[#ddd6cb] bg-white px-4 text-[14px] font-semibold text-[#171411]"
+            className="inline-flex h-[42px] items-center gap-2 rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]"
           >
             <ChevronLeft className="h-4 w-4" />
             관리자 메인으로
@@ -564,31 +565,31 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
           <button
             type="button"
             onClick={() => void logoutAdmin()}
-            className="inline-flex h-[42px] items-center rounded-full border border-[#ddd6cb] bg-white px-4 text-[14px] font-semibold text-[#171411]"
+            className="inline-flex h-[42px] items-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]"
           >
             관리자 로그아웃
           </button>
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-          <section className="rounded-[28px] border border-[#e8dfd3] bg-white shadow-[0_14px_36px_rgba(23,20,17,0.05)]">
-            <div className="border-b border-[#eee7dc] px-6 py-5">
+          <section className="overflow-hidden rounded-[16px] border border-[#dfe7e2] bg-white shadow-[0_10px_30px_rgba(23,32,51,0.05)]">
+            <div className="border-b border-[#edf2f7] px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[14px] font-semibold tracking-[0.04em] text-[#1f6b5b]">운영자 모드</p>
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${adminSurfaceTone}`}>
+                    <p className="text-[16px] text-[#1f6b5b]">운영자 모드</p>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[16px] ${adminSurfaceTone}`}>
                       {adminSurfaceLabel}
                     </span>
                   </div>
-                  <h1 className="mt-2 text-[30px] font-bold tracking-[-0.04em] text-[#171411]">오너 계정 관리</h1>
+                  <h1 className="mt-2 text-[30px] tracking-[-0.03em] text-[#0f172a]">오너 계정 관리</h1>
                   <p className="mt-2 text-[16px] leading-6 text-[#6f665f]">
                     오너 이름, 상호명, 전화번호, 매장명으로 빠르게 찾고 플랜과 서비스 기간을 바로 조정하세요.
                   </p>
                 </div>
-                <div className="rounded-[18px] border border-[#e5ddd2] bg-[#fcfbf8] px-4 py-3 text-right">
-                  <p className="text-[11px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 운영자 계정</p>
-                  <p className="mt-1 text-[16px] font-semibold text-[#171411]">{adminId}</p>
+                <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-4 py-3 text-right">
+                  <p className="text-[16px] text-[#64748b]">현재 운영자 계정</p>
+                  <p className="mt-1 text-[17px] text-[#0f172a]">{adminId}</p>
                 </div>
               </div>
 
@@ -599,27 +600,27 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="오너 이름, 상호명, 전화번호, 매장명, 로그인 계정으로 검색"
-                    className="h-[46px] w-full rounded-[14px] border border-[#ddd4c8] bg-[#fcfbf8] pl-11 pr-4 text-[16px] text-[#171411] outline-none placeholder:text-[#a2978a]"
+                    className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white pl-11 pr-4 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
-                <div className="inline-flex h-[46px] items-center rounded-[14px] border border-[#ddd4c8] bg-[#fcfbf8] px-4 text-[14px] font-medium text-[#5e564f]">
+                <div className="inline-flex h-[46px] items-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#475569]">
                   총 {filteredOwners.length}명
                 </div>
               </div>
 
               {error ? (
-                <p className="mt-4 rounded-[14px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[14px] leading-6 text-[#b54b4b]">
+                <p className="mt-4 rounded-[14px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[16px] leading-6 text-[#b54b4b]">
                   {error}
                 </p>
               ) : null}
               {notice ? (
-                <p className="mt-4 rounded-[14px] border border-[#d7e7e1] bg-[#f4faf7] px-4 py-3 text-[14px] leading-6 text-[#1f6b5b]">
+                <p className="mt-4 rounded-[14px] border border-[#d7e7e1] bg-[#f4faf7] px-4 py-3 text-[16px] leading-6 text-[#1f6b5b]">
                   {notice}
                 </p>
               ) : null}
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(180px,0.95fr)_170px_140px] border-b border-[#eee7dc] bg-[#fcfbf8] px-6 py-3 text-[14px] font-semibold text-[#8a8277]">
+            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(180px,0.95fr)_170px_140px] border-b border-[#edf2f7] bg-[#fbfcfd] px-6 py-3 text-[16px] text-[#64748b]">
               <span>오너 / 매장</span>
               <span>로그인 수단</span>
               <span>전화번호</span>
@@ -647,25 +648,25 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         <div className="flex items-center gap-2">
                           <p className="truncate text-[16px] font-semibold text-[#171411]">{item.ownerName}</p>
                           {item.suspended ? (
-                            <span className="rounded-full bg-[#fff2f2] px-2 py-0.5 text-[10px] font-semibold text-[#b54b4b]">정지</span>
+                            <span className="rounded-full bg-[#fff2f2] px-2 py-0.5 text-[16px] font-semibold text-[#b54b4b]">정지</span>
                           ) : null}
                         </div>
-                        <p className="mt-1 truncate text-[14px] font-medium text-[#36302b]">{item.shopName}</p>
-                        <p className="mt-1 truncate text-[14px] text-[#8a8277]">{item.shopAddress}</p>
+                        <p className="mt-1 truncate text-[16px] font-medium text-[#36302b]">{item.shopName}</p>
+                        <p className="mt-1 truncate text-[16px] text-[#8a8277]">{item.shopAddress}</p>
                       </div>
 
                       <div className="flex flex-wrap gap-1.5">
                         {item.loginMethods.map((method) => (
-                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${loginMethodToneMap[method]}`}>
+                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2.5 py-1 text-[16px] font-semibold ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
                       </div>
 
-                      <div className="text-[14px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
+                      <div className="text-[16px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
 
                       <div>
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusToneMap[item.status]}`}>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[16px] font-semibold ${statusToneMap[item.status]}`}>
                           {statusOptions.find((option) => option.value === item.status)?.label ?? item.status}
                         </span>
                       </div>
@@ -676,32 +677,30 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             </div>
           </section>
 
-          <section className="sticky top-6 self-start overflow-hidden rounded-[28px] border border-[#e8dfd3] bg-white shadow-[0_14px_36px_rgba(23,20,17,0.05)] xl:max-h-[calc(100vh-48px)]">
+          <section className="sticky top-6 self-start overflow-hidden rounded-[16px] border border-[#dfe7e2] bg-white shadow-[0_10px_30px_rgba(23,32,51,0.05)] xl:max-h-[calc(100vh-48px)]">
             {selectedOwner && selectedDraft ? (
               <>
-                <div className="border-b border-[#eee7dc] px-5 py-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-                          <Store className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-[19px] font-semibold tracking-[-0.02em] text-[#171411]">{selectedOwner.ownerName}</p>
-                          <p className="mt-0.5 text-[14px] text-[#6f665f]">{selectedOwner.shopName}</p>
-                        </div>
+                <div className="border-b border-[#edf2f7] px-4 py-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
+                        <Store className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-[18px] text-[#0f172a]">{selectedOwner.ownerName}</p>
+                        <p className="mt-0.5 truncate text-[16px] text-[#64748b]">{selectedOwner.shopName}</p>
                       </div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusToneMap[selectedOwner.status]}`}>
+                    <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[16px] ${statusToneMap[selectedOwner.status]}`}>
                       {statusOptions.find((option) => option.value === selectedOwner.status)?.label ?? selectedOwner.status}
                     </span>
                   </div>
 
-                  <div className="mt-4 space-y-3 rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
+                  <div className="mt-3 space-y-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-3">
                     <DetailRow label="로그인 수단">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {selectedOwner.loginMethods.map((method) => (
-                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${loginMethodToneMap[method]}`}>
+                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 text-[16px] ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
@@ -808,12 +807,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     </ActionButton>
                   </div>
 
-                  <div className="sticky top-0 z-10 -mx-5 border-y border-[#eee7dc] bg-white/96 px-5 py-3 backdrop-blur">
+                  <div className="sticky top-0 z-10 -mx-5 border-y border-[#edf2f7] bg-white/96 px-5 py-3 backdrop-blur">
                     <button
                       type="button"
                       onClick={() => void saveOwner(selectedOwner)}
                       disabled={savingUserId === selectedOwner.userId}
-                      className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[16px] font-semibold text-white disabled:opacity-50"
+                      className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50"
                     >
                       {savingUserId === selectedOwner.userId ? (
                         <span className="inline-flex items-center gap-2">
@@ -826,14 +825,14 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     </button>
                   </div>
 
-                  <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
+                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff4f1] text-[#b54b4b]">
                         <ShieldAlert className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[16px] font-semibold text-[#171411]">계정 정지 / 정지 해제</p>
-                        <p className="mt-1 text-[14px] leading-5 text-[#6f665f]">
+                        <p className="text-[16px] text-[#0f172a]">계정 정지 / 정지 해제</p>
+                        <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
                           정지는 결제와 별개로 오너 로그인과 운영 기능을 임시 차단하는 기능입니다. 분쟁, 정책 위반, 테스트 계정 잠금 같은 경우에만 쓰는 운영자 전용 기능이에요.
                         </p>
                       </div>
@@ -852,7 +851,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                             },
                           }))
                         }
-                        className="inline-flex h-[40px] items-center justify-center rounded-[12px] border border-[#f0d1d1] bg-[#fff7f7] px-3 text-[14px] font-semibold text-[#b54b4b]"
+                        className="inline-flex h-[40px] items-center justify-center rounded-[10px] border border-[#f0d1d1] bg-[#fff7f7] px-3 text-[16px] text-[#b54b4b]"
                       >
                         계정 정지
                       </button>
@@ -864,7 +863,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                             [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspended: false, suspensionReason: "" },
                           }))
                         }
-                        className="inline-flex h-[40px] items-center justify-center rounded-[12px] border border-[#d7e7e1] bg-[#f4faf7] px-3 text-[14px] font-semibold text-[#1f6b5b]"
+                        className="inline-flex h-[40px] items-center justify-center rounded-[10px] border border-[#d7e7e1] bg-[#f4faf7] px-3 text-[16px] text-[#1f6b5b]"
                       >
                         정지 해제
                       </button>
@@ -872,7 +871,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
                     {selectedDraft.suspended ? (
                       <label className="mt-3 block">
-                        <span className="mb-1.5 block text-[14px] font-semibold text-[#6f665f]">정지 사유</span>
+                        <span className="mb-1.5 block text-[16px] text-[#64748b]">정지 사유</span>
                         <textarea
                           value={selectedDraft.suspensionReason}
                           onChange={(event) =>
@@ -881,31 +880,31 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                               [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspensionReason: event.target.value },
                             }))
                           }
-                          className="min-h-[88px] w-full rounded-[14px] border border-[#ddd4c8] bg-white px-3 py-3 text-[16px] text-[#171411] outline-none placeholder:text-[#a2978a]"
+                          className="min-h-[88px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-3 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                           placeholder="왜 계정을 정지했는지 운영 메모를 남겨 주세요."
                         />
                       </label>
                     ) : null}
                   </div>
 
-                  <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
+                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
                         <RotateCcw className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[16px] font-semibold text-[#171411]">결제 내역 / 취소</p>
-                        <p className="mt-1 text-[14px] leading-5 text-[#6f665f]">
+                        <p className="text-[16px] text-[#0f172a]">결제 내역 / 취소</p>
+                        <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
                           결제된 건을 확인하고, 필요한 건만 선택해서 취소할 수 있습니다.
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-[14px] border border-[#e5ddd2] bg-white px-4 py-3">
+                    <div className="mt-4 rounded-[10px] border border-[#edf2f7] bg-white px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[#171411]">등록 결제수단 복구</p>
-                          <p className="mt-1 text-[14px] leading-5 text-[#6f665f]">
+                          <p className="text-[16px] text-[#0f172a]">등록 결제수단 복구</p>
+                          <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
                             {selectedOwner.paymentMethodExists
                               ? `${selectedOwner.paymentMethodLabel ?? "등록된 카드"} 정보를 지우고, 오너가 배포 서버에서 새 카드를 다시 등록할 수 있게 합니다.`
                               : "현재 등록된 카드가 없어서 초기화할 결제수단이 없습니다."}
@@ -915,7 +914,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                           type="button"
                           onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
                           disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
-                          className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#d8d1c5] bg-[#f8f5ef] px-3 text-[14px] font-semibold text-[#5e564f] disabled:opacity-50"
+                          className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#475569] disabled:opacity-50"
                         >
                           {resettingPaymentMethodUserId === selectedOwner.userId ? (
                             <span className="inline-flex items-center gap-2">
@@ -930,7 +929,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     </div>
 
                     <label className="mt-4 block">
-                      <span className="mb-1.5 block text-[14px] font-semibold text-[#6f665f]">취소 사유</span>
+                      <span className="mb-1.5 block text-[16px] text-[#64748b]">취소 사유</span>
                       <textarea
                         value={refundReasons[selectedOwner.userId] ?? ""}
                         onChange={(event) =>
@@ -939,34 +938,34 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                             [selectedOwner.userId]: event.target.value,
                           }))
                         }
-                        className="min-h-[72px] w-full rounded-[14px] border border-[#ddd4c8] bg-white px-3 py-3 text-[16px] text-[#171411] outline-none placeholder:text-[#a2978a]"
+                        className="min-h-[72px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-3 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                         placeholder="예: 중복 결제 확인, 고객 요청 환불"
                       />
                     </label>
 
                     <div className="mt-4 space-y-2.5">
                       {selectedOwner.recentPayments.length === 0 ? (
-                        <p className="rounded-[14px] border border-[#e5ddd2] bg-white px-3 py-3 text-[14px] leading-5 text-[#8a8277]">
+                        <p className="rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3 text-[16px] leading-5 text-[#64748b]">
                           확인된 결제 내역이 아직 없습니다.
                         </p>
                       ) : (
                         selectedOwner.recentPayments.map((payment) => (
-                          <div key={payment.paymentId} className="rounded-[16px] border border-[#e5ddd2] bg-white px-4 py-3.5 shadow-[0_1px_0_rgba(31,22,17,0.02)]">
+                          <div key={payment.paymentId} className="rounded-[10px] border border-[#edf2f7] bg-white px-4 py-3.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[16px] font-semibold text-[#171411]">
+                                <p className="text-[16px] text-[#0f172a]">
                                   {payment.planCode ? planOptions.find((option) => option.value === payment.planCode)?.label ?? payment.planCode : "플랜 정보 없음"}
                                 </p>
-                                <p className="mt-1 text-[14px] font-medium text-[#5f574f]">
+                                <p className="mt-1 text-[16px] text-[#475569]">
                                   {payment.amount !== null ? `${payment.amount.toLocaleString("ko-KR")}원` : "금액 확인 필요"}
                                 </p>
-                                <p className="mt-2 text-[11px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
-                                <p className="mt-1 break-all rounded-[10px] bg-[#faf7f2] px-2.5 py-2 text-[11px] font-medium text-[#7b7269]">
+                                <p className="mt-2 text-[16px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
+                                <p className="mt-1 break-all rounded-[8px] bg-[#f8fafc] px-2.5 py-2 text-[16px] text-[#64748b]">
                                   결제 번호 · {payment.paymentId}
                                 </p>
                               </div>
                               <span
-                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getRecentPaymentStatusMeta(payment.status).tone}`}
+                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[16px] ${getRecentPaymentStatusMeta(payment.status).tone}`}
                               >
                                 {getRecentPaymentStatusMeta(payment.status).label}
                               </span>
@@ -976,7 +975,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                                 type="button"
                                 onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
                                 disabled={refundingPaymentId === payment.paymentId}
-                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[12px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[14px] font-semibold text-[#b45d3c] disabled:opacity-50"
+                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[16px] text-[#b45d3c] disabled:opacity-50"
                               >
                                 {refundingPaymentId === payment.paymentId ? (
                                   <span className="inline-flex items-center gap-2">
@@ -998,7 +997,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     type="button"
                     onClick={() => void saveOwner(selectedOwner)}
                     disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[16px] font-semibold text-white disabled:opacity-50 xl:hidden"
+                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50 xl:hidden"
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
@@ -1010,23 +1009,23 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     )}
                   </button>
 
-                  <div className="rounded-[18px] border border-[#ebe5dc] bg-[#fcfbf8] p-4">
+                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[16px] font-semibold text-[#171411]">최근 변경 이력</h3>
-                      <span className="text-[11px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
+                      <h3 className="text-[16px] text-[#0f172a]">최근 변경 이력</h3>
+                      <span className="text-[16px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
                     </div>
                     <div className="mt-3 space-y-2">
                       {selectedOwner.recentEvents.length === 0 ? (
-                        <p className="text-[14px] leading-5 text-[#8a8277]">아직 기록된 변경 이력이 없습니다.</p>
+                        <p className="text-[16px] leading-5 text-[#8a8277]">아직 기록된 변경 이력이 없습니다.</p>
                       ) : (
                         selectedOwner.recentEvents.map((event) => (
-                          <div key={event.id} className="rounded-[14px] border border-[#e5ddd2] bg-white px-3 py-3">
+                          <div key={event.id} className="rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-[14px] font-semibold text-[#171411]">{getEventLabel(event)}</p>
-                              <span className="text-[11px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
+                              <p className="text-[16px] text-[#0f172a]">{getEventLabel(event)}</p>
+                              <span className="text-[16px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
                             </div>
-                            <p className="mt-1.5 text-[14px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>
-                            <p className="mt-1 text-[11px] font-medium text-[#8a8277]">{event.adminEmail}</p>
+                            <p className="mt-1.5 text-[16px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>
+                            <p className="mt-1 text-[16px] font-medium text-[#8a8277]">{event.adminEmail}</p>
                           </div>
                         ))
                       )}
@@ -1034,20 +1033,20 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   </div>
                 </div>
 
-                <div className="hidden border-t border-[#eee7dc] bg-white px-5 py-4 xl:block">
+                <div className="hidden border-t border-[#edf2f7] bg-white px-5 py-4 xl:block">
                   <button
                     type="button"
                     onClick={() => void saveOwner(selectedOwner)}
                     disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[14px] bg-[#1f6b5b] px-4 text-[16px] font-semibold text-white disabled:opacity-50"
+                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50"
                   >
                     {savingUserId === selectedOwner.userId ? (
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        ?€??欷?..
+                        저장 중...
                       </span>
                     ) : (
-                      "氤€瓴届偓???€??"
+                      "변경사항 저장"
                     )}
                   </button>
                 </div>
@@ -1064,9 +1063,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
 function DetailRow({ label, value, children, mono = false }: { label: string; value?: string; children?: ReactNode; mono?: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <span className="shrink-0 text-[11px] font-semibold tracking-[0.04em] text-[#8a8277]">{label}</span>
-      <div className={`min-w-0 text-right text-[14px] text-[#171411] ${mono ? "font-mono" : "font-medium"}`}>{children ?? value ?? "-"}</div>
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2">
+      <span className="text-[16px] text-[#64748b]">{label}</span>
+      <div className={`min-w-0 truncate text-right text-[16px] text-[#0f172a] ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
     </div>
   );
 }
@@ -1074,8 +1073,8 @@ function DetailRow({ label, value, children, mono = false }: { label: string; va
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[14px] font-semibold text-[#6f665f]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[14px] border border-[#ddd4c8] bg-[#fcfbf8] px-3 text-[16px] text-[#171411] outline-none">
+      <span className="mb-1.5 block text-[16px] text-[#64748b]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] outline-none focus:border-[#2f7866]">
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -1089,16 +1088,17 @@ function SelectField({ label, value, onChange, options }: { label: string; value
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[14px] font-semibold text-[#6f665f]">{label}</span>
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[14px] border border-[#ddd4c8] bg-[#fcfbf8] px-3 text-[16px] text-[#171411] outline-none" />
+      <span className="mb-1.5 block text-[16px] text-[#64748b]">{label}</span>
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] outline-none focus:border-[#2f7866]" />
     </label>
   );
 }
 
 function ActionButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex h-[38px] items-center justify-center rounded-[12px] border border-[#ddd4c8] bg-white px-3 text-[14px] font-semibold text-[#171411]">
+    <button type="button" onClick={onClick} className="inline-flex h-[38px] items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]">
       {children}
     </button>
   );
 }
+

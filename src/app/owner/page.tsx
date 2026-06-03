@@ -18,6 +18,7 @@ import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
 } from "@/lib/auth/social-auth";
+import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -78,6 +79,10 @@ function getOwnerLoadErrorMessage(error: unknown) {
   }
 
   return "오너 화면을 불러오지 못했습니다.";
+}
+
+function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
+  return summary.status === "expired" || summary.status === "past_due";
 }
 
 function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -233,6 +238,17 @@ export default function OwnerPage() {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
 
+        const subscription = await withOwnerLoadTimeout(
+          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+          "구독 정보를 확인하는 중 지연되고 있습니다. 잠시 후 다시 시도해 주세요.",
+        );
+
+        if (shouldBlockOwnerAccessBySubscription(subscription)) {
+          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
+          router.refresh();
+          return;
+        }
+
         const bootstrap = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
           "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
@@ -259,6 +275,12 @@ export default function OwnerPage() {
         if (nextMessage === "로그인이 필요합니다.") {
           clearOwnerAuthTokenCache();
           router.replace("/login" as never);
+          router.refresh();
+          return;
+        }
+
+        if (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인")) {
+          router.replace("/owner/billing?compare=1" as never);
           router.refresh();
           return;
         }

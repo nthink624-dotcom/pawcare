@@ -124,7 +124,7 @@ function formatVisitedAt(value: string) {
   if (!value) return "방문 기록 없음";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return format(parsed, "yyyy.MM.dd", { locale: ko });
+  return format(parsed, "yy.MM.dd", { locale: ko });
 }
 
 function getCustomerActionLabel(status: Appointment["status"]) {

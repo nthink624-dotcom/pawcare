@@ -354,12 +354,14 @@ export default function OwnerSettingsPanel({
     setTimeEditorTarget(null);
   }
 
-  const closedDateMonthLabel = `${Number(closedDateMonthCursor.slice(0, 4))}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
+  const closedDateMonthLabel = `${closedDateMonthCursor.slice(2, 4)}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
   const subscriptionEndDate = useMemo(() => {
     if (!subscriptionSummary) return "-";
 
     const serviceEndsAt = subscriptionSummary.currentPeriodEndsAt ?? subscriptionSummary.trialEndsAt;
-    return serviceEndsAt ? serviceEndsAt.slice(0, 10).replace(/-/g, ".") : "-";
+    if (!serviceEndsAt) return "-";
+    const datePart = serviceEndsAt.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
   }, [subscriptionSummary]);
 
   const closedDateMonthCells = useMemo(() => {

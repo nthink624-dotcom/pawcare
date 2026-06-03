@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
+import { getOwnerSubscriptionSummary, OwnerBillingError } from "@/server/owner-billing";
 
 export class OwnerApiError extends Error {
   constructor(
@@ -14,6 +15,10 @@ export class OwnerApiError extends Error {
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
+}
+
+function isBlockedSubscriptionStatus(status: string) {
+  return status === "expired" || status === "past_due";
 }
 
 export async function requireOwnerShop(request: NextRequest, requestedShopId?: string) {
@@ -67,8 +72,36 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     throw new OwnerApiError("다른 매장 데이터에는 접근할 수 없습니다.", 403);
   }
 
+  const resolvedShopId = requestedShopId || ownedShopIds[0];
+
+  try {
+    const subscription = await getOwnerSubscriptionSummary(
+      {
+        id: user.id,
+        email: user.email ?? null,
+        created_at: user.created_at ?? null,
+        user_metadata: user.user_metadata ?? null,
+      },
+      resolvedShopId,
+    );
+
+    if (isBlockedSubscriptionStatus(subscription.status)) {
+      throw new OwnerApiError("서비스 이용 기간이 만료되었습니다. 결제 정보를 확인해 주세요.", 402);
+    }
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      throw error;
+    }
+
+    if (error instanceof OwnerBillingError) {
+      throw new OwnerApiError(error.message, error.status);
+    }
+
+    throw error;
+  }
+
   return {
-    shopId: requestedShopId || ownedShopIds[0],
+    shopId: resolvedShopId,
     userId: user.id,
   };
 }

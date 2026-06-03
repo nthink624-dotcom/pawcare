@@ -3,7 +3,7 @@
   | "bookingPageManagement"
   | "bookingLink"
   | "customers"
-  | "grooming"
+  | "calendarRecords"
   | "services"
   | "staff"
   | "shopInfo"
@@ -13,7 +13,7 @@
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
   { key: "bookingLink", label: "예약 링크" },
-  { key: "grooming", label: "캘린더" },
+  { key: "calendarRecords", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
   { key: "services", label: "미용 요금" },
   { key: "staff", label: "직원 관리" },

@@ -14,7 +14,7 @@ import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/com
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
 import CustomerBookingPageManagementScreen from "@/components/owner-web/customer-booking-page-management-screen";
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
-import GroomingManagementScreen from "@/components/owner-web/grooming-management-screen";
+import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import {
   demoOwnerWebStaffStorageKey,
@@ -36,7 +36,7 @@ const screenIconPaths: Record<OwnerWebScreenKey, string> = {
   schedule: "/icons/phosphor/clipboard-text.svg",
   bookingPageManagement: "/icons/phosphor/storefront.svg",
   bookingLink: "/icons/phosphor/line-segments.svg",
-  grooming: "/icons/phosphor/calendar-dots.svg",
+  calendarRecords: "/icons/phosphor/calendar-dots.svg",
   customers: "/icons/phosphor/user-circle.svg",
   services: "/icons/phosphor/projector-screen-chart.svg",
   staff: "/icons/phosphor/users.svg",
@@ -47,7 +47,7 @@ const screenIconPaths: Record<OwnerWebScreenKey, string> = {
 
 const ownerWebNavigationItems: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
-  { key: "grooming", label: "캘린더" },
+  { key: "calendarRecords", label: "캘린더" },
   { key: "customers", label: "고객 관리" },
   { key: "bookingLink", label: "예약 링크" },
   { key: "services", label: "미용 요금" },
@@ -168,7 +168,6 @@ function renderScreen(
   onShopChange: (shop: BootstrapPayload["shop"]) => void,
   staffMembers: OwnerWebStaffMember[],
   onStaffMembersChange: (staff: OwnerWebStaffMember[]) => void | Promise<void>,
-  onStaffMemberDeactivate: (staffId: string) => void | Promise<void>,
   createRequest: OwnerScheduleCreateRequest | null,
   onCreateRequestHandled: (requestId: number) => void,
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
@@ -196,8 +195,8 @@ function renderScreen(
       return <BookingLinkManagementScreen initialData={initialData} />;
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
-    case "grooming":
-      return <GroomingManagementScreen initialData={initialData} />;
+    case "calendarRecords":
+      return <CalendarRecordsScreen initialData={initialData} />;
     case "services":
       return (
         <ServiceManagementScreen
@@ -217,7 +216,6 @@ function renderScreen(
           staffMembers={staffMembers}
           staffScheduleOverrides={initialData.staffScheduleOverrides ?? []}
           onStaffMembersChange={onStaffMembersChange}
-          onStaffMemberDeactivate={onStaffMemberDeactivate}
           onStaffScheduleOverridesChange={handleStaffScheduleOverridesChange}
         />
       );
@@ -403,43 +401,6 @@ export default function OwnerWebPreview({
     }
   }
 
-  async function handleStaffMemberDeactivate(staffId: string) {
-    const nextStaff = staffMembers.filter((staffMember) => staffMember.id !== staffId);
-    if (nextStaff.length === staffMembers.length) {
-      return;
-    }
-
-    if (demoMode) {
-      setDemoStaffMembers(nextStaff);
-      try {
-        window.localStorage.setItem(demoOwnerWebStaffStorageKey, JSON.stringify(nextStaff));
-      } catch {
-        // Keep the shared staff list active in memory even if local storage is blocked.
-      }
-      return;
-    }
-
-    const previousStaff = liveStaffMembers;
-    const previousOwnerData = ownerData;
-    setLiveStaffMembers(nextStaff);
-    setOwnerData((current) => ({ ...current, staffMembers: nextStaff }));
-    try {
-      await fetchApiJsonWithAuth<{ ok: boolean }>("/api/staff-members", {
-        method: "DELETE",
-        body: JSON.stringify({
-          shopId: ownerData.shop.id,
-          staffId,
-        }),
-      });
-      const nextOwnerData = { ...ownerData, staffMembers: nextStaff };
-      onDataChange?.(nextOwnerData);
-    } catch (error) {
-      setLiveStaffMembers(previousStaff);
-      setOwnerData(previousOwnerData);
-      throw error;
-    }
-  }
-
   function handleScreenSelect(screen: OwnerWebScreenKey) {
     setActiveScreen(screen);
   }
@@ -606,7 +567,6 @@ export default function OwnerWebPreview({
               handleShopProfileChange,
               staffMembers,
               handleStaffMembersChange,
-              handleStaffMemberDeactivate,
               scheduleCreateRequest,
               handleScheduleCreateRequestHandled,
               handleCreateReservationForCustomer,

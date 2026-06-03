@@ -10,8 +10,8 @@ import {
   StaffList,
   StaffScheduleEditModal,
 } from "@/components/owner-web/staff-management-ui";
-import { StaffAddModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
-import { AssetIcon, PrimaryButton, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
+import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
@@ -42,7 +42,6 @@ type Props = {
   staffMembers?: StaffMember[];
   staffScheduleOverrides?: BootstrapStaffScheduleOverride[];
   onStaffMembersChange?: (staff: StaffMember[]) => void | Promise<void>;
-  onStaffMemberDeactivate?: (staffId: string) => void | Promise<void>;
   onStaffScheduleOverridesChange?: (overrides: BootstrapStaffScheduleOverride[]) => void;
 };
 
@@ -55,7 +54,6 @@ export default function StaffManagementScreen({
   staffMembers,
   staffScheduleOverrides = [],
   onStaffMembersChange,
-  onStaffMemberDeactivate,
   onStaffScheduleOverridesChange,
 }: Props) {
   const isDemoShop = shopId === "demo-shop" || shopId === "owner-demo";
@@ -69,9 +67,11 @@ export default function StaffManagementScreen({
   const [boardTab, setBoardTab] = useState<StaffBoardTab>("schedule");
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [annualGrantDialogOpen, setAnnualGrantDialogOpen] = useState(false);
   const [draft, setDraft] = useState<StaffDraft>(() => (initialStaff ? buildDraft(initialStaff) : emptyStaffDraft));
   const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>({ ...emptyStaffDraft, defaultDaysText: "월, 화, 수, 목, 금", regularOff: "토, 일" });
   const [leaveDraft, setLeaveDraft] = useState({ staffId: initialStaff?.id ?? "", date: currentDateInTimeZone(), type: "휴무" as LeaveType, period: "오전" as "오전" | "오후", reason: "" });
+  const [annualGrantDraft, setAnnualGrantDraft] = useState({ days: "15" });
   const [scheduleEditDraft, setScheduleEditDraft] = useState<ScheduleEditDraft | null>(null);
   const [defaultScheduleOpen, setDefaultScheduleOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -178,33 +178,6 @@ export default function StaffManagementScreen({
     setNotice("직원를 추가했습니다.");
   }
 
-  async function deactivateSelectedStaff() {
-    if (!selectedStaff) return;
-    if (staff.length <= 1) {
-      setNotice("최소 1명의 활성 직원는 남아 있어야 합니다.");
-      return;
-    }
-    if (typeof window !== "undefined" && !window.confirm(`${selectedStaff.name} 직원를 비활성화할까요?`)) {
-      return;
-    }
-
-    const nextStaff = staff.filter((item) => item.id !== selectedStaff.id);
-    try {
-      if (onStaffMemberDeactivate) {
-        await onStaffMemberDeactivate(selectedStaff.id);
-      } else {
-        setLocalStaff(nextStaff);
-      }
-      const nextSelectedStaff = nextStaff[0];
-      if (nextSelectedStaff) {
-        selectStaff(nextSelectedStaff);
-      }
-      setNotice("직원를 비활성화했습니다.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "직원를 비활성화하지 못했습니다.");
-    }
-  }
-
   function selectStaff(staffMember: StaffMember) {
     setSelectedStaffId(staffMember.id);
     setDraft(buildDraft(staffMember));
@@ -231,7 +204,7 @@ export default function StaffManagementScreen({
       staffId: leaveDraft.staffId,
       date: leaveDraft.date,
       type: leaveDraft.type,
-      reason: leaveDraft.reason.trim() || "사유 없음",
+      reason: "",
       status: "승인대기",
       period: leaveDraft.type === "반차" ? leaveDraft.period : undefined,
     };
@@ -243,7 +216,7 @@ export default function StaffManagementScreen({
       startTime: "10:00",
       endTime: "19:00",
       period: nextRequest.type === "반차" ? nextRequest.period ?? "오전" : undefined,
-      reason: nextRequest.reason,
+      reason: "",
     };
     const previousOverrides = scheduleOverrides;
     const optimisticOverrides = replaceLocalOverride(previousOverrides, nextOverride);
@@ -262,7 +235,7 @@ export default function StaffManagementScreen({
             startTime: null,
             endTime: null,
             period: nextOverride.status === "half" ? nextOverride.period : null,
-            reason: nextOverride.reason,
+            reason: "",
           }),
         });
         const persistedOverride = scheduleOverrideFromBootstrap(response.override);
@@ -278,6 +251,26 @@ export default function StaffManagementScreen({
       setScheduleOverrides(previousOverrides);
       emitScheduleOverrides(previousOverrides);
       setNotice(error instanceof Error ? error.message : "휴무/연차 일정을 저장하지 못했습니다.");
+    }
+  }
+
+  async function grantAnnualLeaveToAllStaff() {
+    const days = Number(annualGrantDraft.days);
+    if (!Number.isFinite(days) || days < 0) {
+      setNotice("부여할 연차 일수를 확인해 주세요.");
+      return;
+    }
+
+    const saved = await updateStaffMembers((current) =>
+      current.map((item) => ({
+        ...item,
+        annualRemain: Math.floor(days),
+      })),
+    );
+    if (saved) {
+      setAnnualGrantDialogOpen(false);
+      if (selectedStaff) setDraft(buildDraft({ ...selectedStaff, annualRemain: Math.floor(days) }));
+      setNotice(`직원 ${staff.length}명에게 연차 ${Math.floor(days)}일을 일괄 부여했습니다.`);
     }
   }
 
@@ -412,7 +405,7 @@ export default function StaffManagementScreen({
       <div className={cn("grid gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
         <div className="min-w-0">
           <WebSurface className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
+            <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-2.5">
               {boardTab === "schedule" ? (
                 <div className="flex items-center gap-2">
                     <button
@@ -438,16 +431,19 @@ export default function StaffManagementScreen({
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-[16px] font-semibold text-[#111827]">직원 목록</h2>
-                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-semibold text-[#2f7866]">
+                    <h2 className="text-[16px] font-normal text-[#111827]">직원 목록</h2>
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-normal text-[#2f7866]">
                       {staff.length}명
                     </span>
                   </div>
-                  <PrimaryButton
-                    label="직원 추가"
-                    icon={<AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-6 w-6" />}
+                  <button
+                    type="button"
                     onClick={() => setStaffDialogOpen(true)}
-                  />
+                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-normal text-white"
+                  >
+                    <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-5 w-5" />
+                    직원 추가
+                  </button>
                 </>
               )}
             </div>
@@ -478,7 +474,7 @@ export default function StaffManagementScreen({
             onDraftChange={setDraft}
             onSave={saveStaff}
             onOpenLeaveDialog={() => setLeaveDialogOpen(true)}
-            onDeactivate={deactivateSelectedStaff}
+            onOpenAnnualGrantDialog={() => setAnnualGrantDialogOpen(true)}
           />
         ) : null}
       </div>
@@ -487,6 +483,16 @@ export default function StaffManagementScreen({
 
       {leaveDialogOpen ? (
         <StaffLeaveModal staff={staff} draft={leaveDraft} onDraftChange={setLeaveDraft} onClose={() => setLeaveDialogOpen(false)} onSave={addLeaveRequest} />
+      ) : null}
+
+      {annualGrantDialogOpen ? (
+        <StaffAnnualLeaveGrantModal
+          staffCount={staff.length}
+          draft={annualGrantDraft}
+          onDraftChange={setAnnualGrantDraft}
+          onClose={() => setAnnualGrantDialogOpen(false)}
+          onSave={grantAnnualLeaveToAllStaff}
+        />
       ) : null}
 
       {scheduleEditDraft ? (

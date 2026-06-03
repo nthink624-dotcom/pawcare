@@ -10,6 +10,24 @@ type LeaveDraft = {
   reason: string;
 };
 
+type AnnualLeaveGrantDraft = {
+  days: string;
+};
+
+function StaffModalActionButton({ label, onClick, primary = false }: { label: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={primary
+        ? "h-12 rounded-[8px] bg-[#2f7866] text-[16px] font-normal text-white"
+        : "h-12 rounded-[8px] border border-[#dbe2ea] bg-white text-[16px] font-normal text-[#334155]"}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function StaffAddModal({
   draft,
   onDraftChange,
@@ -55,6 +73,7 @@ export function StaffLeaveModal({
             options={staff.map((item) => ({ value: item.id, label: item.name }))}
             align="left"
             buttonClassName="h-10"
+            valueClassName="text-[16px] font-normal"
           />
         </Field>
         <Field label="요청 날짜">
@@ -71,6 +90,7 @@ export function StaffLeaveModal({
             ]}
             align="left"
             buttonClassName="h-10"
+            valueClassName="text-[16px] font-normal"
           />
         </Field>
         {draft.type === "반차" ? (
@@ -84,16 +104,43 @@ export function StaffLeaveModal({
               ]}
               align="left"
               buttonClassName="h-10"
+              valueClassName="text-[16px] font-normal"
             />
           </Field>
         ) : null}
-        <Field label="사유">
-          <TextInput value={draft.reason} onChange={(reason) => onDraftChange((current) => ({ ...current, reason }))} placeholder="예: 개인 일정" />
-        </Field>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-2">
-        <GhostButton label="취소" onClick={onClose} />
-        <PrimaryButton label="등록" onClick={onSave} />
+        <StaffModalActionButton label="취소" onClick={onClose} />
+        <StaffModalActionButton label="등록" onClick={onSave} primary />
+      </div>
+    </StaffModal>
+  );
+}
+
+export function StaffAnnualLeaveGrantModal({
+  staffCount,
+  draft,
+  onDraftChange,
+  onClose,
+  onSave,
+}: {
+  staffCount: number;
+  draft: AnnualLeaveGrantDraft;
+  onDraftChange: (draft: AnnualLeaveGrantDraft) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <StaffModal title="연차 일괄 부여" onClose={onClose}>
+      <div className="space-y-3 text-[16px]">
+        <Field label="부여 연차">
+          <TextInput type="number" value={draft.days} onChange={(days) => onDraftChange({ ...draft, days })} placeholder="예: 15" />
+        </Field>
+        <p className="text-[16px] leading-6 text-[#64748b]">활성 직원 {staffCount}명에게 같은 연차 잔여일을 적용합니다.</p>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <StaffModalActionButton label="취소" onClick={onClose} />
+        <StaffModalActionButton label="일괄 부여" onClick={onSave} primary />
       </div>
     </StaffModal>
   );

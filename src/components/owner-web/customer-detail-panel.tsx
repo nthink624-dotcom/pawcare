@@ -36,6 +36,7 @@ type CustomerDetailPanelProps = {
   onAddPet: (guardianId: string, payload: PetAddPayload) => void | Promise<void>;
   onDeletePet: (guardianId: string, petId: string) => void | Promise<void>;
   onToggleGuardianNotifications: (guardianId: string) => void | Promise<void>;
+  onUpdateGuardianNotificationSettings: (guardianId: string, patch: Partial<GuardianNotificationSettings>) => void | Promise<void>;
   onCreateReservation: (params: { guardianId: string; petId: string | null }) => void;
   onClose: () => void;
 };
@@ -56,6 +57,7 @@ type MediaAssetListResponse = {
 };
 
 type GroomingPhotoSummary = {
+  before: MediaAsset | null;
   after: MediaAsset | null;
 };
 
@@ -71,6 +73,7 @@ export default function CustomerDetailPanel({
   onAddPet,
   onDeletePet,
   onToggleGuardianNotifications,
+  onUpdateGuardianNotificationSettings,
   onCreateReservation,
   onClose,
 }: CustomerDetailPanelProps) {
@@ -135,11 +138,12 @@ export default function CustomerDetailPanel({
             return [
               record.id,
               {
+                before: getMediaByKind(assets, "grooming_before"),
                 after: getMediaByKind(assets, "grooming_after"),
               },
             ] as const;
           } catch {
-            return [record.id, { after: null }] as const;
+            return [record.id, { before: null, after: null }] as const;
           }
         }),
       );
@@ -198,7 +202,16 @@ export default function CustomerDetailPanel({
               onEdit={() => setActiveAction("guardianEdit")}
               onUpdateGuardian={saveGuardianPatch}
             />
-            <NotificationSettingsCard settings={detail.guardian.notification_settings} onEdit={() => setActiveAction("notificationSettings")} />
+            <NotificationSettingsCard
+              detail={detail}
+              onEdit={() => setActiveAction("notificationSettings")}
+              onToggle={(key, checked) =>
+                onUpdateGuardianNotificationSettings(detail.guardian.id, {
+                  [key]: checked,
+                  ...(checked ? { enabled: true } : {}),
+                })
+              }
+            />
           </aside>
 
           <main className="min-h-0 overflow-y-auto px-4 py-4">
@@ -215,6 +228,7 @@ export default function CustomerDetailPanel({
                   onEditPet={() => setActiveAction("petEdit")}
                   onDeletePet={() => void onDeletePet(detail.guardian.id, selectedPet.id)}
                   onUpdatePetBiteLevel={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
+                  onSavePetNotes={(notes) => savePetPatch({ notes })}
                 />
 
                 <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} />
@@ -366,6 +380,7 @@ function PetOverviewSection({
   onEditPet,
   onDeletePet,
   onUpdatePetBiteLevel,
+  onSavePetNotes,
 }: {
   detail: CustomerDetailModel;
   selectedPet: NonNullable<CustomerDetailModel["selectedPet"]>;
@@ -377,17 +392,21 @@ function PetOverviewSection({
   onEditPet: () => void;
   onDeletePet: () => void;
   onUpdatePetBiteLevel: (biteLevel: PetBiteLevel) => void;
+  onSavePetNotes: (notes: string) => void | Promise<void>;
 }) {
   const hasMultiplePets = detail.pets.length > 1;
   const birthdayLabel = selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력";
   const fullAgeLabel = selectedPet.birthday ? calculateFullAgeLabel(selectedPet.birthday) : "";
   const weightLabel = typeof selectedPet.weight === "number" ? `${selectedPet.weight}kg` : "미입력";
-  const cautionItems = buildPetInfoItems(splitNotes(selectedPet.notes), "주의사항을 입력해 주세요.");
-  const styleItems = buildPetInfoItems(
-    splitNotes(selectedPet.latestGroomingRecord?.style_notes || selectedPet.recentStyleLabel).filter((item) => !item.includes("최근 스타일 없음")),
-    "미용 스타일을 입력해 주세요.",
-  );
-  const memoItems = buildPetInfoItems(splitNotes(selectedPet.latestGroomingRecord?.memo || detail.guardian.memo || ""), "메모를 입력해 주세요.");
+  const petInfo = parsePetInfoNotes(selectedPet.notes);
+  const styleFallback = splitNotes(selectedPet.latestGroomingRecord?.style_notes || selectedPet.recentStyleLabel)
+    .filter((item) => !item.includes("최근 스타일 없음"))
+    .join("\n");
+  const memoFallback = splitNotes(selectedPet.latestGroomingRecord?.memo || detail.guardian.memo || "").join("\n");
+
+  function savePetInfo(field: PetInfoField, value: string) {
+    return onSavePetNotes(buildPetInfoNotes(selectedPet.notes, { ...petInfo, [field]: value }));
+  }
 
   return (
     <section className="relative rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
@@ -443,11 +462,11 @@ function PetOverviewSection({
               </>
             ) : null}
           </div>
-          <div className="mt-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[15px] leading-6">
-            <span className="text-[#64748b]">중성화</span>
-            <span className="truncate text-[#111827]">미입력</span>
-            <span className="text-[#64748b]">생년월일</span>
-            <span className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[#111827]">
+          <div className="mt-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1 leading-6">
+            <span className="text-[17px] text-[#64748b]">몸무게</span>
+            <span className="truncate text-[17px] text-[#111827]">{weightLabel}</span>
+            <span className="text-[17px] text-[#64748b]">생년월일</span>
+            <span className="flex min-w-0 items-center gap-2 whitespace-nowrap text-[17px] text-[#111827]">
               <span>{birthdayLabel}</span>
               {fullAgeLabel ? (
                 <>
@@ -456,22 +475,37 @@ function PetOverviewSection({
                 </>
               ) : null}
             </span>
-            <span className="text-[#64748b]">몸무게</span>
-            <span className="truncate text-[#111827]">{weightLabel}</span>
+            <span className="text-[16px] text-[#64748b]">중성화</span>
+            <span className="truncate text-[16px] text-[#111827]">미입력</span>
           </div>
         </div>
 
         <div className="grid min-w-0 grid-cols-3 divide-x divide-[#e5e7eb] border-l border-[#e5e7eb]">
-          <PetInfoColumn title="특징 / 주의사항" items={cautionItems} />
-          <PetInfoColumn title="미용 스타일 선호" items={styleItems} />
-          <PetInfoColumn title="메모" items={memoItems} />
+          <PetInfoColumn
+            title="특징 / 주의사항"
+            value={petInfo.caution}
+            placeholder="주의사항을 입력해 주세요."
+            onCommit={(value) => savePetInfo("caution", value)}
+          />
+          <PetInfoColumn
+            title="미용 스타일 선호"
+            value={petInfo.style || styleFallback}
+            placeholder="미용 스타일을 입력해 주세요."
+            onCommit={(value) => savePetInfo("style", value)}
+          />
+          <PetInfoColumn
+            title="메모"
+            value={petInfo.memo || memoFallback}
+            placeholder="메모를 입력해 주세요."
+            onCommit={(value) => savePetInfo("memo", value)}
+          />
         </div>
 
       </div>
 
       <div className="mt-3">
         <BiteLevelSelector value={normalizePetBiteLevel(selectedPet.bite_level)} onChange={onUpdatePetBiteLevel} />
-        <CustomerQuickFacts detail={detail} selectedPet={selectedPet} />
+        <CustomerQuickFacts detail={detail} />
       </div>
     </section>
   );
@@ -491,25 +525,79 @@ function PetAvatar({ name, size, initial }: { name: string; size: "sm" | "lg"; i
   );
 }
 
-function PetInfoColumn({ title, items }: { title: string; items: string[] }) {
+function PetInfoColumn({
+  title,
+  value,
+  placeholder,
+  onCommit,
+}: {
+  title: string;
+  value: string;
+  placeholder: string;
+  onCommit: (value: string) => void | Promise<void>;
+}) {
   return (
-    <div className="min-w-0 px-4">
-      <p className="mb-2 text-[15px] font-semibold leading-5 text-[#111827]">{title}</p>
-      <ul className="space-y-1.5">
-        {items.map((item) => (
-          <li key={item} className="flex gap-2 text-[15px] leading-6 text-[#334155]">
-            <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-[#334155]" />
-            <span className="line-clamp-2">{item}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="min-w-0 px-4 pt-0.5">
+      <p className="mb-1 text-[15px] font-semibold leading-5 text-[#111827]">{title}</p>
+      <InlineEditableText
+        value={value}
+        placeholder={placeholder}
+        ariaLabel={`${title} 수정`}
+        multiline
+        className="min-h-[48px] w-full px-0 py-0 text-[15px] leading-6 text-[#334155]"
+        inputClassName="text-[15px]"
+        onCommit={onCommit}
+      />
     </div>
   );
 }
 
-function buildPetInfoItems(items: string[], fallback: string) {
-  const filtered = items.map((item) => item.trim()).filter(Boolean);
-  return filtered.length > 0 ? filtered.slice(0, 3) : [fallback];
+type PetInfoField = "caution" | "style" | "memo";
+
+function parsePetInfoNotes(notes: string | null | undefined): Record<PetInfoField, string> {
+  const sections: Record<PetInfoField, string[]> = {
+    caution: [],
+    style: [],
+    memo: [],
+  };
+  let currentField: PetInfoField = "caution";
+
+  for (const rawLine of (notes ?? "").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const matched = line.match(/^(특징|주의사항|미용\s*스타일|스타일|메모)\s*[:：]\s*(.*)$/);
+    if (matched) {
+      const label = matched[1].replace(/\s/g, "");
+      currentField = label.includes("스타일") ? "style" : label.includes("메모") ? "memo" : "caution";
+      if (matched[2]) sections[currentField].push(matched[2]);
+      continue;
+    }
+
+    sections[currentField].push(line);
+  }
+
+  return {
+    caution: sections.caution.join("\n"),
+    style: sections.style.join("\n"),
+    memo: sections.memo.join("\n"),
+  };
+}
+
+function buildPetInfoNotes(previousNotes: string | null | undefined, nextInfo: Record<PetInfoField, string>) {
+  const parsed = parsePetInfoNotes(previousNotes);
+  const merged = { ...parsed, ...nextInfo };
+  return [
+    ["특징", merged.caution],
+    ["미용 스타일", merged.style],
+    ["메모", merged.memo],
+  ]
+    .map(([label, value]) => {
+      const trimmed = String(value ?? "").trim();
+      return trimmed ? `${label}: ${trimmed}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildPetSummary(pet: Pick<NonNullable<CustomerDetailModel["selectedPet"]>, "breed" | "age" | "weight">) {
@@ -643,41 +731,119 @@ function BiteLevelMiniScale({ value }: { value: PetBiteLevel }) {
   );
 }
 
-function NotificationSettingsCard({ settings, onEdit }: { settings: GuardianNotificationSettings; onEdit: () => void }) {
+type GuardianNotificationSettingKey = keyof GuardianNotificationSettings;
+
+function NotificationSettingsCard({
+  detail,
+  onEdit,
+  onToggle,
+}: {
+  detail: CustomerDetailModel;
+  onEdit: () => void;
+  onToggle: (key: GuardianNotificationSettingKey, checked: boolean) => void;
+}) {
+  const settings = detail.guardian.notification_settings;
   const enabled = settings.enabled !== false;
-  const items = [
-    ["예약 알림", enabled && settings.booking_confirmed_enabled !== false],
-    ["미용 시작 알림", enabled && settings.grooming_started_enabled !== false],
-    ["미용 완료 알림", enabled && settings.grooming_completed_enabled !== false],
-    ["재방문 알림", enabled && settings.revisit_enabled !== false],
-  ] as const;
+  const notificationGroups: Array<{
+    title: string;
+    items: Array<{ label: string; key: GuardianNotificationSettingKey; enabled: boolean }>;
+  }> = [
+    {
+      title: "예약",
+      items: [
+        { label: "확정", key: "booking_confirmed_enabled", enabled: settings.booking_confirmed_enabled !== false },
+        { label: "거절", key: "booking_rejected_enabled", enabled: settings.booking_rejected_enabled !== false },
+        { label: "취소", key: "booking_cancelled_enabled", enabled: settings.booking_cancelled_enabled !== false },
+        { label: "변경", key: "booking_rescheduled_enabled", enabled: settings.booking_rescheduled_enabled !== false },
+      ],
+    },
+    {
+      title: "미용",
+      items: [
+        { label: "시작", key: "grooming_started_enabled", enabled: settings.grooming_started_enabled !== false },
+        { label: "픽업", key: "grooming_almost_done_enabled", enabled: settings.grooming_almost_done_enabled !== false },
+        { label: "완료", key: "grooming_completed_enabled", enabled: settings.grooming_completed_enabled !== false },
+      ],
+    },
+    {
+      title: "관리",
+      items: [
+        { label: "방문전", key: "appointment_reminder_10m_enabled", enabled: settings.appointment_reminder_10m_enabled !== false },
+        { label: "재방문", key: "revisit_enabled", enabled: settings.revisit_enabled !== false },
+        { label: "생일", key: "birthday_greeting_enabled", enabled: settings.birthday_greeting_enabled !== false },
+      ],
+    },
+  ];
+  const allItems = notificationGroups.flatMap((group) => group.items);
+  const enabledCount = enabled ? allItems.filter((item) => item.enabled).length : 0;
 
   return (
     <div className="mt-4">
-      <SectionCard title="알림 설정" action={<SmallButton label="수정" onClick={onEdit} />}>
-        <div className="space-y-3 px-4 py-4">
-          {items.map(([label, itemEnabled]) => (
-            <InfoRow key={label} label={label} value={<ToggleState enabled={itemEnabled} />} />
+      <SectionCard title="알림 설정" action={<SmallButton label="관리" onClick={onEdit} />}>
+        <div className="space-y-3 px-3.5 py-3">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-left hover:border-[#b8c8d6]"
+          >
+            <span className="min-w-0">
+              <span className="block text-[16px] text-[#64748b]">보호자 알림</span>
+              <span className="mt-0.5 block truncate text-[16px] text-[#111827]">{enabled ? `${enabledCount}개 항목 수신 중` : "전체 알림 중지"}</span>
+            </span>
+            <ToggleState enabled={enabled} />
+          </button>
+
+          {notificationGroups.map((group) => (
+            <div key={group.title} className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
+              <p className="text-[16px] text-[#64748b]">{group.title}</p>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {group.items.map((item) => (
+                  <NotificationSettingChip
+                    key={item.key}
+                    label={item.label}
+                    enabled={enabled && item.enabled}
+                    onClick={() => onToggle(item.key, !(settings[item.key] !== false))}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
+
         </div>
       </SectionCard>
     </div>
   );
 }
 
-function CustomerQuickFacts({ detail, selectedPet }: { detail: CustomerDetailModel; selectedPet: NonNullable<CustomerDetailModel["selectedPet"]> }) {
+function NotificationSettingChip({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={enabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border px-1 text-[16px] transition-colors",
+        enabled
+          ? "border-[#cfe4dc] bg-[#f4faf7] text-[#2f7866] hover:border-[#9dc8ba]"
+          : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8] hover:border-[#cbd5e1] hover:text-[#64748b]",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CustomerQuickFacts({ detail }: { detail: CustomerDetailModel }) {
   const appointment = detail.upcomingAppointment;
   const nextAppointmentLabel = appointment ? formatDateTime(appointment.appointment_date, appointment.appointment_time) : "예정 없음";
-  const biteLevel = getPetBiteLevelLabel(normalizePetBiteLevel(selectedPet.bite_level));
   const items: Array<readonly [string, string]> = [
     ["최근 방문", detail.recentVisitLabel],
     ["다가오는 예약", nextAppointmentLabel],
   ];
-  if (normalizePetBiteLevel(selectedPet.bite_level) !== "none") items.push(["입질", biteLevel]);
   items.push(["누적 예약", `${detail.totalAppointments}건`]);
 
   return (
-    <div className="mt-3 grid grid-cols-4 gap-2 border-t border-[#edf2f7] pt-3">
+    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#edf2f7] pt-3">
       {items.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-2">
           <p className="text-[16px] leading-5 text-[#64748b]">{label}</p>
@@ -834,25 +1000,25 @@ function GroomingRecordsCard({ detail, photoSummaries }: { detail: CustomerDetai
     <SectionCard title="미용 기록">
       {detail.recentGroomingRecords.length > 0 ? (
         <div className="overflow-hidden">
-          <div className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-[16px] font-medium text-[#64748b]">
+          <div className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]">
             <span>날짜</span>
             <span>반려동물</span>
             <span>서비스</span>
             <span>스타일</span>
             <span>메모</span>
-            <span>완료 사진</span>
+            <span>사진</span>
             <span>금액</span>
             <span>실제 진행</span>
           </div>
           {detail.recentGroomingRecords.map((record) => {
-            const photoSummary = photoSummaries[record.id] ?? { after: null };
+            const photoSummary = photoSummaries[record.id] ?? { before: null, after: null };
             const linkedAppointment = record.appointment_id
               ? (detail.appointments.find((appointment) => appointment.id === record.appointment_id) ?? null)
               : null;
             const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
             return (
-              <div key={record.id} className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] items-center border-b border-[#edf2f7] px-4 py-3 text-[16px] last:border-b-0">
-                <span className="tabular-nums text-[#334155]">{formatDate(record.groomed_at)}</span>
+              <div key={record.id} className="grid min-h-[88px] grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] last:border-b-0">
+                <span className="truncate tabular-nums text-[#334155]">{formatDate(record.groomed_at)}</span>
                 <span className="truncate text-[#334155]">{petName}</span>
                 <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, record.service_id)}</span>
                 <span className="truncate text-[#334155]">{record.style_notes || "-"}</span>
@@ -904,11 +1070,11 @@ function ActualGroomingTimeCell({
   const completedAt = formatTimestampTime(appointment?.actual_completed_at);
 
   if (startedAt === "-" && completedAt === "-") {
-    return <span className="text-[#64748b]">{fallbackDuration}</span>;
+    return <span className="block text-center text-[#64748b]">{fallbackDuration}</span>;
   }
 
   return (
-    <span className="space-y-0.5 text-[16px] leading-[1.35] text-[#64748b]">
+    <span className="block space-y-0.5 text-center text-[16px] leading-[1.35] text-[#64748b]">
       <span className="block tabular-nums">시작 {startedAt}</span>
       <span className="block tabular-nums">완료 {completedAt}</span>
     </span>
@@ -916,16 +1082,21 @@ function ActualGroomingTimeCell({
 }
 
 function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
+  const hasBefore = Boolean(summary.before);
   const hasAfter = Boolean(summary.after);
-  const expiresAt = summary.after?.expires_at ?? null;
+  const expiresAt = summary.after?.expires_at ?? summary.before?.expires_at ?? null;
+  const storedLabel = [hasBefore ? "미용 전" : "", hasAfter ? "완료" : ""].filter(Boolean).join(" · ");
 
   return (
-    <div className="min-w-0">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex min-w-0 flex-col items-center justify-center text-center">
+      <div className="flex flex-wrap justify-center gap-1.5">
+        <PhotoBadge label="미용 전" active={hasBefore} />
         <PhotoBadge label="완료" active={hasAfter} />
       </div>
       <p className="mt-1 truncate text-[16px] text-[#64748b]">
-        {hasAfter ? `${expiresAt ? `${formatDate(expiresAt)}까지` : "업로드 후 30일"} 보관` : "완료 사진 대기"}
+        {storedLabel
+          ? `${storedLabel} 사진 보관${expiresAt ? ` · ${formatDate(expiresAt)}까지` : ""}`
+          : "등록된 미용 전 사진이 없습니다."}
       </p>
     </div>
   );
@@ -1082,10 +1253,9 @@ function ActionPanel({
               >
                 <FormField label="이름" value={petDraft.name} onChange={(value) => setPetDraft((current) => ({ ...current, name: value }))} />
                 <FormField label="품종" value={petDraft.breed} onChange={(value) => setPetDraft((current) => ({ ...current, breed: value }))} />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <FormField label="생년월일" value={petDraft.birthday} onChange={(value) => setPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
                   <FormField label="몸무게" value={petDraft.weight} onChange={(value) => setPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
-                  <FormField label="미용 주기" value={petDraft.groomingCycleWeeks} onChange={(value) => setPetDraft((current) => ({ ...current, groomingCycleWeeks: value }))} placeholder="주" />
                 </div>
                 <FormField label="주의사항 / 메모" value={petDraft.notes} onChange={(value) => setPetDraft((current) => ({ ...current, notes: value }))} multiline />
                 <ActionPanelFooter saving={saving} error={error} />

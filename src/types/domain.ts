@@ -98,14 +98,15 @@ export type CustomerPageSettings = {
   address_detail?: string;
   customer_service_overrides?: Record<
     string,
-    {
-      visible?: boolean;
-      order?: number;
-      displayName?: string;
-      description?: string;
-    }
-  >;
-};
+      {
+        visible?: boolean;
+        order?: number;
+        displayName?: string;
+        description?: string;
+        linkedOptionId?: string;
+      }
+    >;
+  };
 
 export type BookingBlockedWindow = {
   id?: string;

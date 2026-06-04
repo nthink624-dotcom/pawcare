@@ -1084,8 +1084,6 @@ function ActualGroomingTimeCell({
 function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
   const hasBefore = Boolean(summary.before);
   const hasAfter = Boolean(summary.after);
-  const expiresAt = summary.after?.expires_at ?? summary.before?.expires_at ?? null;
-  const storedLabel = [hasBefore ? "미용 전" : "", hasAfter ? "완료" : ""].filter(Boolean).join(" · ");
 
   return (
     <div className="flex min-w-0 flex-col items-center justify-center text-center">
@@ -1093,11 +1091,6 @@ function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
         <PhotoBadge label="미용 전" active={hasBefore} />
         <PhotoBadge label="완료" active={hasAfter} />
       </div>
-      <p className="mt-1 truncate text-[16px] text-[#64748b]">
-        {storedLabel
-          ? `${storedLabel} 사진 보관${expiresAt ? ` · ${formatDate(expiresAt)}까지` : ""}`
-          : "등록된 미용 전 사진이 없습니다."}
-      </p>
     </div>
   );
 }
@@ -1553,7 +1546,7 @@ function Badge({ children, className }: { children: React.ReactNode; className: 
 
 function ToggleState({ enabled }: { enabled: boolean }) {
   return (
-    <span className={cn("inline-flex h-6 items-center rounded-full px-2 text-[16px] font-medium", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#64748b]")}>
+    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[16px] font-medium", enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
       {enabled ? "ON" : "OFF"}
     </span>
   );

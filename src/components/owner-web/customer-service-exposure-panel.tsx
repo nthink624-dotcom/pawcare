@@ -17,9 +17,11 @@ type CustomerServiceExposurePanelProps = {
   embedded?: boolean;
   busyOptionId?: string | null;
   onChange: (overrides: CustomerServiceDisplayOverrides) => void;
+  connectionOptions?: CustomerServiceSourceOption[];
   onAddOption?: () => void | Promise<void>;
   onDeleteOption?: (option: CustomerServiceSourceOption) => void | Promise<void>;
   onRenameOption?: (option: CustomerServiceSourceOption, nextName: string) => void | Promise<void>;
+  onRelinkOption?: (option: CustomerServiceSourceOption, nextOptionId: string) => void | Promise<void>;
 };
 
 function getOptionRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
@@ -28,7 +30,7 @@ function getOptionRows(options: CustomerServiceSourceOption[], overrides: Custom
       const override = overrides[option.id];
       return {
         option,
-        visible: override?.visible ?? true,
+        visible: true,
         order: override?.order ?? option.order,
         displayName: override?.displayName ?? option.sourceName,
       };
@@ -46,6 +48,10 @@ function cleanOverride(option: CustomerServiceSourceOption, override: CustomerSe
   return next;
 }
 
+function getOptionSelectLabel(option: CustomerServiceSourceOption) {
+  return `${option.sourceName} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
+}
+
 export default function CustomerServiceExposurePanel({
   options,
   overrides,
@@ -53,11 +59,14 @@ export default function CustomerServiceExposurePanel({
   embedded = false,
   busyOptionId = null,
   onChange,
+  connectionOptions,
   onAddOption,
   onDeleteOption,
+  onRelinkOption,
 }: CustomerServiceExposurePanelProps) {
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
   const rows = getOptionRows(options, normalizedOverrides);
+  const priceGuideOptions = connectionOptions ?? options;
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
   const canDelete = Boolean(onDeleteOption);
   const rowGridClass = canDelete
@@ -72,6 +81,7 @@ export default function CustomerServiceExposurePanel({
   function updateOverride(option: CustomerServiceSourceOption, patch: CustomerServiceDisplayOverrides[string]) {
     const nextOverride = cleanOverride(option, {
       ...(normalizedOverrides[option.id] ?? {}),
+      linkedOptionId: option.linkedOptionId,
       ...patch,
     });
     const nextOverrides = { ...normalizedOverrides };
@@ -128,7 +138,7 @@ export default function CustomerServiceExposurePanel({
       {rows.length > 0 ? (
         <div className="overflow-x-auto">
           <div className={cn("min-w-[920px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[860px]")}>
-            <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[13px] font-normal text-[#64748b]", rowGridClass)}>
+            <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[16px] font-normal text-[#64748b]", rowGridClass)}>
               <span>순서</span>
               <span>고객 노출명</span>
               <span>미용요금 연결</span>
@@ -146,7 +156,7 @@ export default function CustomerServiceExposurePanel({
                     className={cn("grid items-center gap-2 px-2 py-2", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="w-6 text-center text-[14px] font-normal tabular-nums text-[#64748b]">
+                      <span className="w-6 text-center text-[16px] font-normal tabular-nums text-[#64748b]">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <div className="inline-flex overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
@@ -201,9 +211,21 @@ export default function CustomerServiceExposurePanel({
                       />
                     </label>
 
-                    <div className="flex h-9 min-w-0 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[15px] font-normal text-[#334155]">
-                      <span className="truncate">{row.option.sourceName}</span>
-                    </div>
+                    <label className="block min-w-0">
+                      <span className="sr-only">미용요금 연결</span>
+                      <select
+                        value={row.option.linkedOptionId ?? row.option.id}
+                        onChange={(event) => void onRelinkOption?.(row.option, event.target.value)}
+                        disabled={!onRelinkOption || rowBusy}
+                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
+                      >
+                        {priceGuideOptions.map((option) => (
+                          <option key={option.id} value={option.linkedOptionId ?? option.id}>
+                            {getOptionSelectLabel(option)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
                     <div className="flex h-9 items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal tabular-nums text-[#334155]">
                       {row.option.durationMinutes}분

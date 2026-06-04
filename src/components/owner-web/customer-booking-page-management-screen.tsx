@@ -108,9 +108,12 @@ function fileToDataUrl(file: File) {
 }
 
 function getCustomerServiceRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
+  const hasConfiguredOverrides = Object.keys(overrides).length > 0;
   return options
-    .map((option) => {
+    .flatMap((option) => {
       const override = overrides[option.id];
+      const hasOverride = Object.prototype.hasOwnProperty.call(overrides, option.id);
+      if (hasConfiguredOverrides && (!hasOverride || override?.visible === false)) return [];
       return {
         option,
         visible: override?.visible ?? true,
@@ -179,7 +182,7 @@ export default function CustomerBookingPageManagementScreen({
     [services],
   );
   const customerServiceOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(sortCustomerPageServices(services)),
+    () => buildCustomerServiceSourceOptions(sortCustomerPageServices(services), { priceGuideOnly: true }),
     [services],
   );
   const customerServiceOverrides = useMemo(

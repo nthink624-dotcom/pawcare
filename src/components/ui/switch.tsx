@@ -40,9 +40,9 @@ export const Switch = React.forwardRef<React.ElementRef<typeof BaseSwitch.Root>,
       checked={checked}
       disabled={disabled}
       className={cn(
-        "relative inline-flex shrink-0 items-center rounded-full border transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7866]",
+        "relative inline-flex translate-y-px shrink-0 items-center rounded-full border align-middle transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7866]",
         rootSizeClasses[size],
-        checked ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-white",
+        checked ? "border-[#2f7866] bg-[#2f7866]" : "border-[#d6dee8] bg-[#f1f5f9]",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}

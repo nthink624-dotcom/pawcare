@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronDown, ChevronLeft, ChevronRight, Info, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -70,18 +71,8 @@ const regularHolidayCycleOptions: Array<{ value: RegularHolidayCycle; label: str
 
 const bookingSettingsStorageKey = "petmanager.ownerWeb.operatingHours";
 
-const timeOptions = Array.from({ length: 96 }, (_, index) => {
-  const hours = Math.floor(index / 4);
-  const minutes = (index % 4) * 15;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-});
-
-const twelveHourTimeOptions = Array.from({ length: 48 }, (_, index) => {
-  const hours = Math.floor(index / 4);
-  const minutes = (index % 4) * 15;
-  const displayHour = hours === 0 ? 12 : hours;
-  return `${String(displayHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-});
+const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+const minuteOptions = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
 function formatDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -297,9 +288,9 @@ function ToggleSwitch({
       aria-label={label}
       onClick={onChange}
       className={cn(
-        "relative inline-flex shrink-0 items-center rounded-full transition",
+        "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition",
         compact ? "h-6 w-10" : "h-7 w-12",
-        checked ? "bg-[#2f7866]" : "bg-[#cbd5e1]",
+        checked ? "bg-[#2f7866]" : "bg-[#f1f5f9] ring-1 ring-inset ring-[#d6dee8]",
       )}
     >
       <span
@@ -310,6 +301,134 @@ function ToggleSwitch({
         )}
       />
     </button>
+  );
+}
+
+function getWheelOption(options: string[], value: string, offset: number) {
+  const currentIndex = Math.max(0, options.indexOf(value));
+  const nextIndex = (currentIndex + offset + options.length) % options.length;
+  return options[nextIndex] ?? value;
+}
+
+function TimeWheelColumn({
+  value,
+  options,
+  onChange,
+  disabled = false,
+  compact = false,
+  ariaLabel,
+  getLabel = (option) => option,
+}: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  compact?: boolean;
+  ariaLabel: string;
+  getLabel?: (option: string) => string;
+}) {
+  const wheelRef = useRef<HTMLDivElement | null>(null);
+  const previousValue = getWheelOption(options, value, -1);
+  const farPreviousValue = getWheelOption(options, value, -2);
+  const nextValue = getWheelOption(options, value, 1);
+  const farNextValue = getWheelOption(options, value, 2);
+
+  function move(offset: number) {
+    if (disabled) return;
+    onChange(getWheelOption(options, value, offset));
+  }
+
+  useEffect(() => {
+    const element = wheelRef.current;
+    if (!element || disabled) return;
+
+    function handleNativeWheel(event: WheelEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      move(event.deltaY > 0 ? 1 : -1);
+    }
+
+    element.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleNativeWheel);
+  }, [disabled, options, value]);
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      move(-1);
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      move(1);
+    }
+  }
+
+  return (
+    <div
+      ref={wheelRef}
+      role="spinbutton"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={ariaLabel}
+      aria-valuetext={getLabel(value)}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "group flex min-w-0 flex-1 select-none flex-col items-center justify-center rounded-[8px] outline-none transition focus:bg-[#f8fafc] focus:ring-[2px] focus:ring-[#2f7866]/12",
+        disabled && "pointer-events-none text-[#94a3b8]",
+      )}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => move(-2)}
+        className={cn(
+          "w-full text-center font-normal text-[#c3cad4] transition hover:text-[#64748b]",
+          compact ? "h-4 text-[12px] leading-4" : "h-5 text-[14px] leading-5",
+        )}
+      >
+        {getLabel(farPreviousValue)}
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => move(-1)}
+        className={cn(
+          "w-full text-center font-normal text-[#a8b0bd] transition hover:text-[#64748b]",
+          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[15px] leading-6",
+        )}
+      >
+        {getLabel(previousValue)}
+      </button>
+      <div
+        className={cn(
+          "relative flex w-full items-center justify-center border-y border-[#dbe2ea] bg-[#f8fafc] text-center font-normal text-[#111827]",
+          compact ? "h-7 text-[16px]" : "h-8 text-[18px]",
+        )}
+      >
+        {getLabel(value)}
+      </div>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => move(1)}
+        className={cn(
+          "w-full text-center font-normal text-[#a8b0bd] transition hover:text-[#64748b]",
+          compact ? "h-5 text-[13px] leading-5" : "h-6 text-[15px] leading-6",
+        )}
+      >
+        {getLabel(nextValue)}
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => move(2)}
+        className={cn(
+          "w-full text-center font-normal text-[#c3cad4] transition hover:text-[#64748b]",
+          compact ? "h-4 text-[12px] leading-4" : "h-5 text-[14px] leading-5",
+        )}
+      >
+        {getLabel(farNextValue)}
+      </button>
+    </div>
   );
 }
 
@@ -325,68 +444,103 @@ function TimeInput({
   compact?: boolean;
 }) {
   const [hourText = "10", minuteText = "00"] = value.split(":");
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  const period = hour < 12 ? "AM" : "PM";
-  const displayHour = hour % 12 || 12;
-  const displayValue = `${String(displayHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const popoverWidth = compact ? 228 : 256;
+  const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
+  const displayHourValue = hourOptions.includes(hourText) ? hourText : "10";
+  const displayMinuteValue = minuteOptions.includes(minuteText) ? minuteText : "00";
+  const displayValue = `${displayHourValue}:${displayMinuteValue}`;
 
-  function commit(nextPeriod: string, nextDisplayValue: string) {
-    const [displayHourText = "12", displayMinuteText = "00"] = nextDisplayValue.split(":");
-    const parsedDisplayHour = Number(displayHourText);
-    const parsedMinute = Number(displayMinuteText);
-    const nextHour =
-      nextPeriod === "AM"
-        ? parsedDisplayHour === 12
-          ? 0
-          : parsedDisplayHour
-        : parsedDisplayHour === 12
-          ? 12
-          : parsedDisplayHour + 12;
-    const nextValue = `${String(nextHour).padStart(2, "0")}:${String(parsedMinute).padStart(2, "0")}`;
-    if (timeOptions.includes(nextValue)) onChange(nextValue);
+  function updatePopoverPosition() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const viewportPadding = 8;
+    const left = Math.min(
+      Math.max(viewportPadding, rect.right - popoverWidth),
+      window.innerWidth - popoverWidth - viewportPadding,
+    );
+    setPopoverPosition({
+      left,
+      top: rect.bottom + 6,
+    });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    updatePopoverPosition();
+
+    function handleDocumentMouseDown(event: MouseEvent) {
+      if (!pickerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentMouseDown);
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [open, popoverWidth]);
+
+  function commit(nextDisplayHour: string, nextDisplayMinute: string) {
+    const nextValue = `${nextDisplayHour}:${nextDisplayMinute}`;
+    onChange(nextValue);
   }
 
   return (
-    <div
-      className={cn(
-        "inline-flex overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white transition focus-within:border-[#2f7866] focus-within:ring-[3px] focus-within:ring-[#2f7866]/10",
-        compact ? "h-8 w-[146px]" : "h-10 w-[188px]",
-      )}
-    >
-      <div className={cn("relative h-full shrink-0 border-r border-[#e2e8f0]", compact ? "w-[64px]" : "w-[88px]")}>
-        <select
-          value={period}
-          disabled={disabled}
-          onChange={(event) => commit(event.target.value, displayValue)}
+    <div ref={pickerRef} className="relative inline-block">
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled}
+        aria-label="시간 선택"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) updatePopoverPosition();
+          setOpen((current) => !current);
+        }}
+        className={cn(
+          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#2f7866] focus:ring-[3px] focus:ring-[#2f7866]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+          compact ? "h-8 w-[96px] px-2.5 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
+        )}
+      >
+        <span>{displayValue}</span>
+        <ChevronDown className={cn("text-[#64748b]", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+      </button>
+
+      {open ? (
+        <div
           className={cn(
-            "h-full w-full appearance-none bg-transparent font-normal text-[#334155] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-            compact ? "pl-2.5 pr-6 text-[14px]" : "pl-4 pr-9 text-[16px]",
+            "fixed z-[120] rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_16px_36px_rgba(15,23,42,0.14)]",
           )}
+          style={{ left: popoverPosition.left, top: popoverPosition.top, width: popoverWidth }}
         >
-          <option value="AM">오전</option>
-          <option value="PM">오후</option>
-        </select>
-        <ChevronDown className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#475569]", compact ? "right-2 h-3.5 w-3.5" : "right-3 h-4 w-4")} />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <select
-          value={displayValue}
-          disabled={disabled}
-          onChange={(event) => commit(period, event.target.value)}
-          className={cn(
-            "h-full w-full appearance-none bg-transparent font-normal text-[#111827] outline-none disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-            compact ? "pl-3 pr-6 text-[14px]" : "pl-5 pr-9 text-[16px]",
-          )}
-        >
-          {twelveHourTimeOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#111827]", compact ? "right-2 h-3.5 w-3.5" : "right-3 h-4 w-4")} />
-      </div>
+          <div className={cn("flex items-center", compact ? "gap-4" : "gap-5")}>
+            <TimeWheelColumn
+              value={displayHourValue}
+              disabled={disabled}
+              compact={compact}
+              options={hourOptions}
+              onChange={(nextDisplayHour) => commit(nextDisplayHour, displayMinuteValue)}
+              ariaLabel="시 조정"
+            />
+            <span className={cn("shrink-0 text-center font-normal text-[#111827]", compact ? "w-3 text-[16px]" : "w-4 text-[18px]")}>:</span>
+            <TimeWheelColumn
+              value={displayMinuteValue}
+              disabled={disabled}
+              compact={compact}
+              options={minuteOptions}
+              onChange={(nextDisplayMinute) => commit(displayHourValue, nextDisplayMinute)}
+              ariaLabel="분 조정"
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

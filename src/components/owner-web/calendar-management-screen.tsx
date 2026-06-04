@@ -2930,8 +2930,9 @@ function PhotoStatusDialog({
 
         <div className="mb-4">
           <h3 className="text-[18px] font-medium text-[#111827]">{action.title}</h3>
-          <p className="mt-1 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
-          <p className="mt-1 text-[13px] leading-5 text-[#64748b]">사진 첨부는 선택사항입니다.</p>
+          {action.description ? (
+            <p className="mt-1 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
+          ) : null}
         </div>
 
         <div className="rounded-[10px] bg-[#fbfcfd] p-4">
@@ -3835,7 +3836,7 @@ export default function CalendarManagementScreen({
       nextStatus: "진행 중",
       mediaKind: "grooming_before",
       title: "미용 전 사진",
-      description: "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요.",
+      description: "",
       buttonLabel: "사진 선택",
       skipLabel: "사진 없이 미용 시작",
       mobileDescription: "휴대폰으로 QR을 스캔해 미용 전 상태를 촬영하고 미용을 시작하세요.",
@@ -3885,7 +3886,7 @@ export default function CalendarManagementScreen({
     }
 
     if (targetBooking && nextStatus === "진행 중" && canStartGrooming(targetBooking.status)) {
-      requestBeforePhotoStatusChange(targetBooking);
+      void applyBookingStatusChange(bookingId, nextStatus);
       return;
     }
 
@@ -4286,7 +4287,7 @@ export default function CalendarManagementScreen({
               <button
                 type="button"
                 onClick={() => {
-                  requestBeforePhotoStatusChange(earlyStartBooking);
+                  void applyBookingStatusChange(earlyStartBooking.id, "진행 중");
                   setEarlyStartBooking(null);
                 }}
                 className="h-10 rounded-[8px] bg-[#1f6b5b] text-[14px] font-medium text-white"

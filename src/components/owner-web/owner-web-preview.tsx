@@ -481,17 +481,15 @@ export default function OwnerWebPreview({
                 setStoreMenuOpen((current) => !current);
                 setAlimtalkCreditMenuOpen(false);
               }}
-              className="inline-flex h-9 w-full items-center justify-end gap-3 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
-              aria-expanded={storeMenuOpen}
-            >
-              <span className="ml-auto flex min-w-0 items-center gap-3">
+              className="grid h-9 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+                aria-expanded={storeMenuOpen}
+              >
                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
-              </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
-            </button>
+                <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
+              </button>
             {storeMenuOpen ? (
               <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
                 <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
@@ -514,7 +512,7 @@ export default function OwnerWebPreview({
       </header>
 
       <div className="flex min-h-[calc(100vh-52px)]">
-        <aside className="hidden w-[184px] shrink-0 border-r border-[#dbe2ea] bg-white lg:block">
+        <aside className="sticky top-[52px] hidden h-[calc(100vh-52px)] w-[184px] shrink-0 self-start border-r border-[#dbe2ea] bg-white lg:block">
           <div className="flex h-full flex-col">
             <nav className="flex-1 overflow-y-auto px-3 py-4">
               <div className="space-y-0.5">

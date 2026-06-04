@@ -204,7 +204,7 @@ export default function SettingsAlertsPanel({
           </div>
           {alertGroups.map((group) => (
             <div key={group.title} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
-              <div className="mb-3 flex items-end justify-between gap-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[15px] font-semibold text-[#111827]">{group.title}</p>
                 </div>
@@ -227,13 +227,13 @@ export default function SettingsAlertsPanel({
                         }
                       }}
                       className={cn(
-                        "flex cursor-pointer items-start justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
+                        "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
                         selected ? "border-[#2f7866] shadow-[0_6px_16px_rgba(47,120,102,0.08)]" : checked ? "border-[#b9d8cc]" : "border-[#dbe2ea]",
                         value.enabled ? "hover:border-[#2f7866]" : "opacity-55",
                       )}
                     >
                       <span className="min-w-0">
-                        <span className="block text-[14px] font-semibold text-[#111827]">{item.title}</span>
+                        <span className="block text-[14px] font-normal text-[#111827]">{item.title}</span>
                       </span>
                       <span onClick={(event) => event.stopPropagation()}>
                         <Switch checked={checked} disabled={!value.enabled} aria-label={`${item.title} 알림`} onCheckedChange={(nextChecked) => update(item.key, nextChecked)} />

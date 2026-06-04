@@ -15,6 +15,13 @@ import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeF
 
 export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
 
+const slotBlockingAppointmentStatuses = new Set<Appointment["status"]>([
+  "pending",
+  "confirmed",
+  "in_progress",
+  "almost_done",
+]);
+
 function getWeekStart(date: Date) {
   const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const day = next.getDay();
@@ -284,7 +291,7 @@ export function isSlotAvailable(params: {
   const activeAppointments = appointments.filter(
     (appointment) =>
       appointment.appointment_date === date &&
-      !["cancelled", "rejected", "noshow"].includes(appointment.status) &&
+      slotBlockingAppointmentStatuses.has(appointment.status) &&
       appointment.id !== excludeAppointmentId,
   );
 

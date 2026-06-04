@@ -543,7 +543,7 @@ export async function createCustomerBooking(input: unknown) {
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
   const customerServiceOptions = applyCustomerServiceOverrides(
-    buildCustomerServiceSourceOptions(bootstrap.services),
+    buildCustomerServiceSourceOptions(bootstrap.services, { priceGuideOnly: true }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   const selectedCustomerServiceOption = payload.customerServiceOptionId

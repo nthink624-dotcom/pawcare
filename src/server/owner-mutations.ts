@@ -20,7 +20,7 @@ import {
 import { hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { addDate, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
+import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
 import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
@@ -98,9 +98,18 @@ function ensureAppointmentCanBeConfirmed(params: {
     throw new Error("서비스 정보를 찾을 수 없어 승인할 수 없습니다.");
   }
 
+  const today = currentDateInTimeZone();
+  const appointmentStartMinute = minutesFromTime(appointment.appointment_time);
+  if (
+    appointment.appointment_date < today ||
+    (appointment.appointment_date === today && appointmentStartMinute <= currentMinutesInTimeZone())
+  ) {
+    throw new Error("이미 지난 예약 시간입니다. 시간을 변경한 뒤 확정해 주세요.");
+  }
+
   const available = isSlotAvailable({
     date: appointment.appointment_date,
-    startMinute: minutesFromTime(appointment.appointment_time),
+    startMinute: appointmentStartMinute,
     durationMinutes: service.duration_minutes,
     approvalMode: shop.approval_mode,
     pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
@@ -1516,7 +1525,6 @@ export async function updateAppointmentStatus(input: unknown) {
         shopId: appointment.shop_id,
         appointment,
         type: "grooming_almost_done",
-        skipIfExists: statusMediaAssetIds.length === 0,
         mediaAssetIds: statusMediaAssetIds,
       });
     }
@@ -1693,7 +1701,6 @@ export async function updateAppointmentStatus(input: unknown) {
       shopId: resolvedAppointment.shop_id,
       appointment: resolvedAppointment,
       type: "grooming_almost_done",
-      skipIfExists: statusMediaAssetIds.length === 0,
       mediaAssetIds: statusMediaAssetIds,
     });
   }

@@ -23,6 +23,12 @@ export type ServicePriceGuideSection = {
   }>;
 };
 
+export type ServicePriceGuideExtraFee = {
+  id: string;
+  label: string;
+  price: string;
+};
+
 export type ServicePriceGuide = {
   enabled: boolean;
   weightBands: string[];
@@ -34,6 +40,7 @@ export type ServicePriceGuide = {
   }>;
   sections?: ServicePriceGuideSection[];
   extraNote: string;
+  extraFees: ServicePriceGuideExtraFee[];
 };
 
 type DeleteTarget =
@@ -47,12 +54,24 @@ const defaultExtraNote = [
   "미용 시간은 아이 상태와 현장 상담에 따라 달라질 수 있어요.",
 ].join("\n");
 
+const defaultExtraFees: ServicePriceGuideExtraFee[] = [
+  { id: "face_cut", label: "기본 얼굴컷", price: "5,000" },
+  { id: "nail", label: "발톱컷", price: "10,000" },
+  { id: "matting_fee", label: "털엉킴", price: "5,000~" },
+  { id: "manner_fee", label: "매너 추가", price: "5,000" },
+  { id: "coat_length_fee", label: "모량/기장 추가", price: "5,000" },
+];
+
 function createGuideItemId() {
   return `price_item_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function createGuideSectionId() {
   return `price_section_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createExtraFeeId() {
+  return `extra_fee_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function normalizePriceText(value: string) {
@@ -161,6 +180,32 @@ function cloneDefaultSections() {
       ),
     })),
   }));
+}
+
+function cloneDefaultExtraFees() {
+  return defaultExtraFees.map((fee) => ({ ...fee }));
+}
+
+function normalizeExtraFees(value: unknown): ServicePriceGuideExtraFee[] {
+  if (!Array.isArray(value)) return cloneDefaultExtraFees();
+
+  const rows = value
+    .map((row, index) => {
+      if (!row || typeof row !== "object") return null;
+      const source = row as Partial<ServicePriceGuideExtraFee>;
+      const fallback = defaultExtraFees[index];
+      const label = typeof source.label === "string" ? source.label.trim() : "";
+      const price = typeof source.price === "string" ? source.price.trim() : "";
+
+      return {
+        id: typeof source.id === "string" && source.id ? source.id : createExtraFeeId(),
+        label: label || fallback?.label || `추가 비용 ${index + 1}`,
+        price: price || fallback?.price || "",
+      };
+    })
+    .filter((row): row is ServicePriceGuideExtraFee => Boolean(row));
+
+  return rows.length > 0 ? rows : cloneDefaultExtraFees();
 }
 
 function legacyItemsFromSections(sections: ServicePriceGuideSection[]) {
@@ -295,6 +340,7 @@ export function buildDefaultServicePriceGuide(): ServicePriceGuide {
     items: legacyItemsFromSections(sections),
     sections,
     extraNote: defaultExtraNote,
+    extraFees: cloneDefaultExtraFees(),
   };
 }
 
@@ -313,6 +359,7 @@ export function normalizeServicePriceGuide(value: unknown): ServicePriceGuide {
       typeof source.extraNote === "string" && source.extraNote.trim()
         ? source.extraNote.trim()
         : fallback.extraNote,
+    extraFees: normalizeExtraFees(source.extraFees),
   };
 }
 
@@ -350,6 +397,22 @@ export function ServicePriceGuideEditor({
       weightBands: [...(nextSections[0]?.weightBands ?? [])],
       items: legacyItemsFromSections(nextSections),
     });
+  }
+
+  function updateExtraFees(nextExtraFees: ServicePriceGuideExtraFee[]) {
+    onChange({ ...guide, extraFees: nextExtraFees });
+  }
+
+  function updateExtraFee(rowId: string, patch: Partial<ServicePriceGuideExtraFee>) {
+    updateExtraFees(guide.extraFees.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+  }
+
+  function addExtraFee() {
+    updateExtraFees([...guide.extraFees, { id: createExtraFeeId(), label: "", price: "" }]);
+  }
+
+  function removeExtraFee(rowId: string) {
+    updateExtraFees(guide.extraFees.filter((row) => row.id !== rowId));
   }
 
   function commitDelete(nextSections: ServicePriceGuideSection[]) {
@@ -731,6 +794,58 @@ export function ServicePriceGuideEditor({
               className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
             />
           </label>
+
+          <section className="rounded-[8px] border border-[#dbe2ea] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-3 py-2">
+              <p className="text-[16px] font-normal text-[#334155]">추가 비용</p>
+              <button
+                type="button"
+                onClick={addExtraFee}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#334155] transition hover:bg-[#f8fafc]"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
+                항목 추가
+              </button>
+            </div>
+            <div className="space-y-2 p-3">
+              {guide.extraFees.length > 0 ? (
+                guide.extraFees.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_160px_32px] items-center gap-2">
+                    <input
+                      type="text"
+                      value={row.label}
+                      onChange={(event) => updateExtraFee(row.id, { label: event.target.value })}
+                      placeholder="예: 털엉킴"
+                      className="h-10 min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={row.price}
+                      onChange={(event) => updateExtraFee(row.id, { price: event.target.value })}
+                      placeholder="예: 5,000~"
+                      className="h-10 min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraFee(row.id)}
+                      className="inline-flex h-10 w-8 items-center justify-center rounded-[8px] text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#334155]"
+                      aria-label="추가 비용 삭제"
+                    >
+                      <BasilIcon name="trash" className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <button
+                  type="button"
+                  onClick={addExtraFee}
+                  className="flex h-11 w-full items-center justify-center rounded-[8px] border border-dashed border-[#dbe2ea] text-[16px] font-normal text-[#64748b] transition hover:bg-[#f8fafc]"
+                >
+                  추가 비용 항목을 입력해 주세요.
+                </button>
+              )}
+            </div>
+          </section>
         </div>
       ) : null}
 

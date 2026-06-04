@@ -156,26 +156,26 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f8f6] px-5 py-5 text-[16px] text-[#172033] md:px-8">
-      <div className="mx-auto w-full max-w-[1440px] rounded-[16px] border border-[#dfe7e2] bg-white p-5 shadow-[0_10px_30px_rgba(23,32,51,0.05)]">
-        <header className="px-1 py-1">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#edf6f2] px-3 py-1 text-[16px] text-[#1f6b5b]">
+    <main className="min-h-screen bg-[#f7f8f6] px-4 py-4 text-[16px] text-[#172033] md:px-6">
+      <div className="mx-auto w-full max-w-[1440px] rounded-[14px] border border-[#dfe7e2] bg-white p-4 shadow-[0_8px_24px_rgba(23,32,51,0.045)]">
+        <header>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#edf6f2] px-3 py-1 text-[15px] text-[#1f6b5b]">
                 <Sparkles className="h-4 w-4" />
                 PetManager Admin
               </div>
-              <h1 className="mt-3 text-[32px] tracking-[-0.03em] text-[#0f172a]">운영 콘솔</h1>
+              <h1 className="text-[28px] tracking-[-0.03em] text-[#0f172a]">운영 콘솔</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-4 py-2 text-right">
-                <p className="text-[16px] text-[#64748b]">현재 운영 계정</p>
-                <p className="mt-0.5 text-[18px] text-[#0f172a]">{currentAccount.fullName}</p>
+              <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-3 py-1.5 text-right">
+                <p className="text-[14px] text-[#64748b]">현재 운영 계정</p>
+                <p className="text-[16px] text-[#0f172a]">{currentAccount.fullName}</p>
               </div>
               <button
                 type="button"
                 onClick={() => void handleLogout()}
-                className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#d0d8e3] bg-white px-4 text-[16px] text-[#334155] transition hover:border-[#b8c4d2] hover:bg-[#f8fafc]"
+                className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#d0d8e3] bg-white px-3.5 text-[15px] text-[#334155] transition hover:border-[#b8c4d2] hover:bg-[#f8fafc]"
               >
                 <DoorOpen className="h-4 w-4" />
                 로그아웃
@@ -183,7 +183,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <div className="mt-3 grid gap-2 md:grid-cols-4">
             <StatusTile
               icon={CheckCircle2}
               label="운영 상태"
@@ -212,39 +212,39 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
         </header>
 
         {message ? (
-          <p className="mt-4 rounded-[8px] border border-[#efcaca] bg-[#fff7f7] px-4 py-3 text-[16px] leading-6 text-[#b42318]">
+          <p className="mt-3 rounded-[8px] border border-[#efcaca] bg-[#fff7f7] px-3 py-2 text-[15px] leading-6 text-[#b42318]">
             {message}
           </p>
         ) : null}
 
-        <section className="mt-5 grid gap-5 border-t border-[#edf2f7] pt-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+        <section className="mt-4 grid gap-4 border-t border-[#edf2f7] pt-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-3">
+            <div className="grid gap-2 md:grid-cols-2">
               {primaryItems.map((item) => (
                 <PrimaryActionCard key={item.href} {...item} />
               ))}
             </div>
 
-            <div className="overflow-hidden rounded-[14px] border border-[#dfe7e2] bg-white shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
-              <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-4">
+            <div className="overflow-hidden rounded-[12px] border border-[#dfe7e2] bg-white shadow-[0_6px_18px_rgba(23,32,51,0.035)]">
+              <div className="flex items-center justify-between border-b border-[#edf2f7] px-4 py-3">
                 <div>
-                  <h2 className="text-[20px] text-[#0f172a]">운영 작업</h2>
+                  <h2 className="text-[18px] text-[#0f172a]">운영 작업</h2>
                 </div>
-                <span className="rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-3 py-1 text-[16px] text-[#475569]">
+                <span className="rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-0.5 text-[15px] text-[#475569]">
                   {dashboardItems.length}개
                 </span>
               </div>
 
               <div className="divide-y divide-[#edf2f7]">
                 {groupedItems.map(({ key, items }) => (
-                  <section key={key} className="px-5 py-4">
-                    <div className="mb-3 flex items-end justify-between gap-3">
+                  <section key={key} className="px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-[18px] text-[#0f172a]">{groupLabels[key]}</h3>
+                        <h3 className="text-[16px] text-[#0f172a]">{groupLabels[key]}</h3>
                       </div>
-                      <span className="text-[16px] text-[#94a3b8]">{items.length}개</span>
+                      <span className="text-[14px] text-[#94a3b8]">{items.length}개</span>
                     </div>
-                    <div className="grid gap-2">
+                    <div className="grid gap-1.5">
                       {items.map((item) => (
                         <DashboardRow key={item.href} {...item} />
                       ))}
@@ -255,20 +255,20 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             </div>
           </div>
 
-          <aside className="space-y-4">
-            <div className="rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
-              <div className="flex items-start gap-3 border-b border-[#edf2f7] pb-4">
-                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#edf6f2] text-[18px] text-[#1f6b5b]">
+          <aside className="space-y-3">
+            <div className="rounded-[12px] border border-[#dfe7e2] bg-white p-4 shadow-[0_6px_18px_rgba(23,32,51,0.035)]">
+              <div className="flex items-start gap-3 border-b border-[#edf2f7] pb-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#edf6f2] text-[17px] text-[#1f6b5b]">
                   {currentAccount.fullName.slice(0, 1)}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[16px] uppercase tracking-[0.08em] text-[#94a3b8]">Account</p>
-                  <h2 className="mt-1 truncate text-[22px] text-[#0f172a]">{currentAccount.fullName}</h2>
-                  <p className="mt-1 text-[16px] text-[#64748b]">{currentAccount.email}</p>
+                  <p className="text-[13px] uppercase tracking-[0.08em] text-[#94a3b8]">Account</p>
+                  <h2 className="mt-0.5 truncate text-[19px] text-[#0f172a]">{currentAccount.fullName}</h2>
+                  <p className="mt-0.5 text-[15px] text-[#64748b]">{currentAccount.email}</p>
                 </div>
               </div>
 
-              <dl className="mt-4 space-y-3">
+              <dl className="mt-3 space-y-2">
                 <InfoRow label="아이디" value={currentAccount.loginId} />
                 <InfoRow label="연락처" value={currentAccount.phoneNumber || "-"} />
                 <InfoRow label="상태" value={currentAccount.isActive ? "활성" : "비활성"} />
@@ -276,12 +276,12 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
               </dl>
             </div>
 
-            <div className="rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)]">
+            <div className="rounded-[12px] border border-[#dfe7e2] bg-white p-4 shadow-[0_6px_18px_rgba(23,32,51,0.035)]">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-[#1f6b5b]" />
-                <h2 className="text-[18px] text-[#0f172a]">오늘 확인할 것</h2>
+                <h2 className="text-[17px] text-[#0f172a]">오늘 확인할 것</h2>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-2">
                 <CheckItem title="운영 환경" href="/admin/env" />
                 <CheckItem title="오너 계정" href="/owner/admin" />
                 <CheckItem title="알림톡" href="/admin/alimtalk" />
@@ -313,14 +313,14 @@ function StatusTile({
         : "border-[#dbe2ea] bg-white text-[#64748b]";
 
   return (
-    <div className="rounded-[12px] border border-[#dfe7e2] bg-white px-4 py-4">
+    <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-3 py-3">
       <div className="flex items-center gap-2">
-        <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${toneClass}`}>
-          <Icon className="h-4 w-4" />
+        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${toneClass}`}>
+          <Icon className="h-3.5 w-3.5" />
         </span>
-        <p className="text-[16px] text-[#64748b]">{label}</p>
+        <p className="text-[15px] text-[#64748b]">{label}</p>
       </div>
-      <p className="mt-3 truncate text-[22px] tracking-[-0.02em] text-[#0f172a]">{value}</p>
+      <p className="mt-2 truncate text-[19px] tracking-[-0.02em] text-[#0f172a]">{value}</p>
     </div>
   );
 }
@@ -339,18 +339,22 @@ function PrimaryActionCard({
   return (
     <a
       href={href}
-      className="group rounded-[14px] border border-[#dfe7e2] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,51,0.04)] transition hover:-translate-y-0.5 hover:border-[#b9d5cc] hover:shadow-[0_12px_28px_rgba(23,32,51,0.07)]"
+      className="group rounded-[12px] border border-[#dfe7e2] bg-white px-4 py-3 shadow-[0_6px_18px_rgba(23,32,51,0.035)] transition hover:-translate-y-0.5 hover:border-[#b9d5cc] hover:shadow-[0_10px_24px_rgba(23,32,51,0.06)]"
     >
-      <div className="flex items-start justify-between gap-4">
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#edf6f2] text-[#1f6b5b]">
-          <Icon className="h-5 w-5" />
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#edf6f2] text-[#1f6b5b]">
+          <Icon className="h-[18px] w-[18px]" />
         </span>
-        <span className="rounded-full bg-[#f1f5f9] px-3 py-1 text-[16px] text-[#64748b]">{meta}</span>
-      </div>
-      <h2 className="mt-4 text-[20px] tracking-[-0.02em] text-[#0f172a]">{title}</h2>
-      <div className="mt-5 inline-flex items-center gap-1 text-[16px] text-[#1f6b5b]">
-        열기
-        <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-[18px] tracking-[-0.02em] text-[#0f172a]">{title}</h2>
+            <span className="hidden shrink-0 rounded-full bg-[#f1f5f9] px-2 py-0.5 text-[14px] text-[#64748b] sm:inline-flex">{meta}</span>
+          </div>
+          <div className="mt-1 inline-flex items-center gap-1 text-[15px] text-[#1f6b5b]">
+            열기
+            <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+          </div>
+        </div>
       </div>
     </a>
   );
@@ -368,14 +372,14 @@ function DashboardRow({
   meta: string;
 }) {
   return (
-    <a href={href} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[10px] border border-transparent px-3 py-3 transition hover:border-[#dfe7e2] hover:bg-[#f8fafc]">
-      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1f5f9] text-[#1f6b5b]">
-        <Icon className="h-[17px] w-[17px]" />
+    <a href={href} className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[9px] border border-transparent px-2.5 py-2 transition hover:border-[#dfe7e2] hover:bg-[#f8fafc]">
+      <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#f1f5f9] text-[#1f6b5b]">
+        <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate text-[16px] text-[#0f172a]">{title}</p>
-          <span className="hidden rounded-full bg-[#eef2f6] px-2.5 py-0.5 text-[16px] text-[#64748b] sm:inline-flex">
+          <p className="truncate text-[15px] text-[#0f172a]">{title}</p>
+          <span className="hidden rounded-full bg-[#eef2f6] px-2 py-0.5 text-[13px] text-[#64748b] sm:inline-flex">
             {meta}
           </span>
         </div>
@@ -387,10 +391,10 @@ function DashboardRow({
 
 function CheckItem({ title, href }: { title: string; href: string }) {
   return (
-    <a href={href} className="block rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3 transition hover:border-[#dfe7e2] hover:bg-white">
+    <a href={href} className="block rounded-[9px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-2.5 transition hover:border-[#dfe7e2] hover:bg-white">
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-[#1f6b5b]" />
-        <p className="text-[16px] text-[#0f172a]">{title}</p>
+        <p className="text-[15px] text-[#0f172a]">{title}</p>
       </div>
     </a>
   );
@@ -399,8 +403,8 @@ function CheckItem({ title, href }: { title: string; href: string }) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <dt className="shrink-0 text-[16px] text-[#64748b]">{label}</dt>
-      <dd className="min-w-0 truncate text-right text-[16px] text-[#0f172a]">{value}</dd>
+      <dt className="shrink-0 text-[15px] text-[#64748b]">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-[15px] text-[#0f172a]">{value}</dd>
     </div>
   );
 }

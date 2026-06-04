@@ -332,7 +332,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
     const value = format(date, "yyyy-MM-dd");
     const isClosed = isShopClosedOnDate(shop, value);
 
-    if (!isClosed) {
+    if (!isClosed || offset === 0) {
       options.push({
         value,
         label: value === today ? "오늘" : format(date, "M/d"),
@@ -351,6 +351,10 @@ function formatVisitedAt(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return format(parsed, "yy.MM.dd", { locale: ko });
+}
+
+function getDefaultDateOptionValue(dateOptions: DateOption[]) {
+  return dateOptions.find((option) => option.label === "오늘")?.value ?? dateOptions[0]?.value ?? "";
 }
 
 function formatDateLabel(value: string) {
@@ -496,11 +500,12 @@ export default function CustomerBookingPage({
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
   const fixedStaffId = staffMembers.length === 1 ? staffMembers[0].id : "";
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
+  const defaultFirstVisitDate = getDefaultDateOptionValue(dateOptions);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(initialFirstVisitStep);
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>({
     ...initialFirstVisitState,
-    date: initialDate,
+    date: initialDate || (initialMode === "first" && initialFirstVisitStep === 2 ? defaultFirstVisitDate : ""),
     timeSlot: initialTime,
     serviceId: initialSelectableServiceId,
     customerServiceOptionId: initialSelectableServiceOptionId,
@@ -547,6 +552,7 @@ export default function CustomerBookingPage({
   const firstVisitProgress = (displayedFirstVisitStep / firstVisitStepTotal) * 100;
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const isNewPetInputActive = savedPets.length === 0 || !selectedSavedPet;
+  const firstVisitDateOptionValues = useMemo(() => new Set(dateOptions.map((option) => option.value)), [dateOptions]);
 
   useEffect(() => {
     if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 2) {
@@ -555,9 +561,13 @@ export default function CustomerBookingPage({
   }, [firstVisitStep, shouldSkipFirstVisitDateTimeStep]);
 
   useEffect(() => {
-    if (activeMode !== "first" || firstVisitStep !== 2 || firstVisit.date || !dateOptions[0]) return;
-    setFirstVisit((prev) => (prev.date ? prev : { ...prev, date: dateOptions[0].value, timeSlot: "" }));
-  }, [activeMode, dateOptions, firstVisit.date, firstVisitStep]);
+    if (activeMode !== "first" || firstVisitStep !== 2 || !defaultFirstVisitDate) return;
+    if (firstVisit.date && firstVisitDateOptionValues.has(firstVisit.date)) return;
+    setFirstVisit((prev) => {
+      if (prev.date && firstVisitDateOptionValues.has(prev.date)) return prev;
+      return { ...prev, date: defaultFirstVisitDate, timeSlot: "" };
+    });
+  }, [activeMode, defaultFirstVisitDate, firstVisit.date, firstVisitDateOptionValues, firstVisitStep]);
 
   useEffect(() => {
     const validStaffIds = new Set(staffMembers.map((staff) => staff.id));
@@ -603,7 +613,7 @@ export default function CustomerBookingPage({
             ...restoredProfile,
             serviceId: initialSelectableServiceId || restoredProfile.serviceId,
             customerServiceOptionId: initialSelectableServiceOptionId || restoredProfile.customerServiceOptionId,
-            date: hasInitialSlot ? initialDate : restoredProfile.date,
+            date: hasInitialSlot ? initialDate : restoredProfile.date || defaultFirstVisitDate,
             timeSlot: hasInitialSlot ? initialTime : restoredProfile.timeSlot,
           }));
         } catch {
@@ -640,7 +650,7 @@ export default function CustomerBookingPage({
             : [],
           serviceId: initialSelectableServiceId || draft.serviceId || defaultServiceId,
           customerServiceOptionId: initialSelectableServiceOptionId || draft.customerServiceOptionId || defaultServiceOptionId,
-          date: hasInitialSlot ? initialDate : draft.date ?? "",
+          date: hasInitialSlot ? initialDate : draft.date || defaultFirstVisitDate,
           timeSlot: hasInitialSlot ? initialTime : draft.timeSlot ?? "",
           customServiceName: draft.customServiceName ?? "",
           note: draft.note ?? "",
@@ -663,7 +673,7 @@ export default function CustomerBookingPage({
     } finally {
       setDraftHydrated(true);
     }
-  }, [draftHydrated, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
+  }, [defaultFirstVisitDate, draftHydrated, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
 
   useEffect(() => {
     if (typeof window === "undefined" || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
@@ -833,7 +843,7 @@ export default function CustomerBookingPage({
     }
 
     if (firstVisitStep === 1 && !firstVisit.date && dateOptions[0]) {
-      setFirstVisit((prev) => ({ ...prev, date: dateOptions[0].value, timeSlot: "" }));
+      setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
     }
 
     if (firstVisitStep === 1 && shouldSkipFirstVisitDateTimeStep) {
@@ -1038,6 +1048,7 @@ export default function CustomerBookingPage({
               shop={initialShop}
               customerServiceOptions={customerServiceOptions}
               dateOptions={dateOptions}
+              staffMembers={staffMembers}
               firstVisit={firstVisit}
               step={firstVisitStep}
               selectedService={selectedFirstService}
@@ -1071,6 +1082,7 @@ export default function CustomerBookingPage({
                   };
                 });
               }}
+              onStaffSelect={(staffId) => setFirstVisit((prev) => ({ ...prev, staffId, timeSlot: prev.staffId === staffId ? prev.timeSlot : "" }))}
               onDateSelect={(value) => setFirstVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))}
               onTimeSelect={(value) => setFirstVisit((prev) => ({ ...prev, timeSlot: value }))}
               onOwnerNameChange={(value) => setFirstVisit((prev) => ({ ...prev, ownerName: value }))}

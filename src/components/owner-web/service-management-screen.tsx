@@ -12,9 +12,6 @@ import {
   type ServicePriceGuide,
 } from "@/components/owner-web/service-price-guide";
 import {
-  ExtraCostGuideSection,
-} from "@/components/owner-web/service-policy-guides";
-import {
   GhostButton,
   SoftSelect,
   TableRow,
@@ -560,14 +557,6 @@ export default function ServiceManagementScreen({
               showEnabledToggle={false}
             />
           </div>
-
-          <div>
-            <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#0f172a]">추가금 안내</p>
-            <p className="mt-1 text-[14px] font-normal text-[#64748b]">털엉킴, 매너, 기장처럼 현장에서 보정되는 비용 기준입니다.</p>
-            <div className="mt-3">
-              <ExtraCostGuideSection />
-            </div>
-          </div>
       </section>
 
       {formError ? <p className="text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
@@ -721,7 +710,7 @@ export default function ServiceManagementScreen({
                 )}
               >
                 <span>{serviceForm.visible ? "노출 중" : "숨김"}</span>
-                <span className={cn("h-5 w-9 rounded-full p-0.5 transition", serviceForm.visible ? "bg-[#2f7866]" : "bg-[#cbd5e1]")}>
+                <span className={cn("h-5 w-9 translate-y-px rounded-full p-0.5 transition", serviceForm.visible ? "bg-[#2f7866]" : "bg-[#f1f5f9] ring-1 ring-inset ring-[#d6dee8]")}>
                   <span className={cn("block h-4 w-4 rounded-full bg-white transition", serviceForm.visible ? "translate-x-4" : "translate-x-0")} />
                 </span>
               </button>

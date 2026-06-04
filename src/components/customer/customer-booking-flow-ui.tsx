@@ -241,23 +241,24 @@ export function DateGrid({
   selectedDate: string;
   onSelect: (value: string) => void;
 }) {
+  const visibleDateOptions = dateOptions.slice(0, 5);
   return (
-    <div className="grid grid-cols-4 gap-1.5">
-      {dateOptions.map((option) => {
+    <div className="grid grid-cols-5 gap-px overflow-hidden rounded-[14px] border border-[#f0e3d6] bg-[#f0e3d6]">
+      {visibleDateOptions.map((option) => {
         const active = selectedDate === option.value;
         return (
           <button
             key={option.value}
             type="button"
             onClick={() => onSelect(option.value)}
-            className={`rounded-[8px] border px-2 py-2.5 text-center transition ${
+            className={`min-h-[58px] px-1 py-2 text-center transition ${
               active
-                ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(139,106,85,0.16)]"
-                : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[var(--selection-soft)]"
+                ? "bg-[var(--accent)] text-white"
+                : "bg-white text-[var(--text)] hover:bg-[var(--selection-soft)]"
             }`}
           >
-            <span className={`block text-[12px] ${active ? "text-white/80" : "text-[var(--muted)]"}`}>{option.weekday}</span>
-            <span className="mt-1 block text-[16px] font-semibold tracking-[-0.03em]">{option.label}</span>
+            <span className={`block text-[16px] font-normal leading-5 ${active ? "text-white/85" : "text-[var(--muted)]"}`}>{option.weekday}</span>
+            <span className={`mt-1 block text-[16px] leading-5 tracking-[-0.03em] ${active ? "font-medium" : "font-normal"}`}>{option.label}</span>
           </button>
         );
       })}
@@ -277,13 +278,13 @@ export function TimeGrid({
   onSelect: (value: string) => void;
 }) {
   if (loading) {
-    return <div className="rounded-[8px] border border-[var(--border)] bg-white px-4 py-4 text-[14px] text-[var(--muted)]">가능한 시간을 확인하고 있어요.</div>;
+    return <div className="rounded-[12px] border border-[var(--border)] bg-[#fbfcfd] px-4 py-5 text-[16px] text-[var(--muted)]">가능한 시간을 확인하고 있어요.</div>;
   }
   if (availableSlots.length === 0) {
-    return <div className="rounded-[8px] border border-[var(--border)] bg-white px-4 py-4 text-[14px] text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div>;
+    return <div className="rounded-[12px] border border-[var(--border)] bg-[#fbfcfd] px-4 py-5 text-[16px] text-[var(--muted)]">선택한 날짜에 가능한 시간이 없어요.</div>;
   }
   return (
-    <div className="grid grid-cols-3 gap-1.5">
+    <div className="grid grid-cols-3 gap-2 min-[390px]:grid-cols-4">
       {availableSlots.map((slot) => {
         const active = timeSlot === slot;
         return (
@@ -291,10 +292,10 @@ export function TimeGrid({
             key={slot}
             type="button"
             onClick={() => onSelect(slot)}
-            className={`rounded-[8px] border px-2 py-2.5 text-[15px] font-medium tracking-[-0.02em] transition ${
+            className={`h-10 rounded-[14px] border text-[16px] font-normal tracking-[-0.02em] shadow-[inset_0_-1px_0_rgba(15,23,42,0.03)] transition ${
               active
-                ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(139,106,85,0.16)]"
-                : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[var(--selection-soft)]"
+                ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_16px_rgba(139,106,85,0.18)]"
+                : "border-[#e8edf2] bg-[#f8fafc] text-[#344054] hover:border-[#d9e1ea] hover:bg-white"
             }`}
           >
             {slot}
@@ -431,7 +432,7 @@ export function ReservationSlotPicker({
         <DateGrid dateOptions={dateOptions} selectedDate={date} onSelect={onDateChange} />
       </div>
       <div className="space-y-2">
-        <p className="text-[13px] font-medium text-[var(--muted)]">시간 선택</p>
+        <p className="text-[16px] font-normal text-[var(--text)]">선택 가능한 시간</p>
         <TimeGrid timeSlot={timeSlot} availableSlots={availableSlots} loading={loading} onSelect={onTimeChange} />
       </div>
     </div>

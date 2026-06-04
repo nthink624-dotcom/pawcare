@@ -14,6 +14,8 @@ import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import {
+  applyCustomerServiceOverrides,
+  buildCustomerServiceMenuConnectionOptions,
   buildCustomerServiceSourceOptions,
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
@@ -416,29 +418,37 @@ function buildServicePayload(shopId: string, service: Service, priceGuide: unkno
   };
 }
 
-function createLocalService(shopId: string, sortOrder: number): Service {
-  const now = new Date().toISOString();
+function optionItemId(option: CustomerServiceSourceOption) {
+  return option.id.includes(":") ? option.id.split(":").slice(1).join(":") : option.id;
+}
+
+function buildCustomerServiceOverrideBaseline(
+  options: CustomerServiceSourceOption[],
+  overrides: CustomerServiceDisplayOverrides,
+) {
+  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
+
+  const baseline = Object.fromEntries(
+    options.map((option) => [
+      option.id,
+      {
+        visible: true,
+        order: option.order,
+        displayName: option.sourceName,
+        description: option.description,
+        linkedOptionId: option.linkedOptionId ?? option.id,
+      },
+    ]),
+  ) satisfies CustomerServiceDisplayOverrides;
+
   return {
-    id: `local-service-${Date.now()}`,
-    shop_id: shopId,
-    name: "새 항목",
-    price: 0,
-    price_type: "starting",
-    duration_minutes: 30,
-    is_active: true,
-    category: "미용",
-    description: "",
-    sort_order: sortOrder,
-    capacity_label: "동일 시간 1건",
-    staff_selection_mode: "all",
-    price_guide: {},
-    created_at: now,
-    updated_at: now,
+    ...baseline,
+    ...normalizedOverrides,
   };
 }
 
-function optionItemId(option: CustomerServiceSourceOption) {
-  return option.id.includes(":") ? option.id.split(":").slice(1).join(":") : option.id;
+function createCustomerServiceMenuRowId() {
+  return `menu-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function removeOptionFromPriceGuide(priceGuide: unknown, option: CustomerServiceSourceOption) {
@@ -842,7 +852,15 @@ export default function SettingsManagementScreen({
   const current = useMemo(() => {
     return draftSettings[activeTab];
   }, [activeTab, draftSettings]);
-  const customerServiceOptions = useMemo(() => buildCustomerServiceSourceOptions(services), [services]);
+  const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(services, { priceGuideOnly: true }), [services]);
+  const customerServiceConnectionOptions = useMemo(
+    () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
+    [rawCustomerServiceConnectionOptions],
+  );
+  const customerServiceOptions = useMemo(
+    () => applyCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
+    [rawCustomerServiceConnectionOptions, customerServiceOverrides],
+  );
 
   async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
@@ -985,111 +1003,88 @@ export default function SettingsManagementScreen({
     }, 500);
   }
 
-  async function addCustomerServiceOption() {
+  function addCustomerServiceOption() {
     if (!shop || customerServiceActionId) return;
 
-    const localService = createLocalService(shop.id, services.length + 1);
-    const optimisticServices = [...services, localService];
-    onServicesChange?.(optimisticServices);
-    setCustomerServiceActionId("__add__");
+    const defaultConnectionOption = customerServiceConnectionOptions[0];
+    if (!defaultConnectionOption) return;
 
-    try {
-      if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-        return;
-      }
-
-      const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
-        method: "POST",
-        body: JSON.stringify(buildServicePayload(shop.id, localService)),
-      });
-      onServicesChange?.(optimisticServices.map((service) => (service.id === localService.id ? savedService : service)));
-    } catch (error) {
-      console.error("[OWNER SETTINGS] failed to add customer service", error);
-      onServicesChange?.(services);
-    } finally {
-      setCustomerServiceActionId(null);
-    }
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    const rowId = createCustomerServiceMenuRowId();
+    const nextOrder =
+      Math.max(
+        0,
+        ...customerServiceOptions.map((option) => baselineOverrides[option.id]?.order ?? option.order),
+      ) + 1;
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [rowId]: {
+        visible: true,
+        order: nextOrder,
+        displayName: defaultConnectionOption.sourceName,
+        description: defaultConnectionOption.description,
+        linkedOptionId: defaultConnectionOption.linkedOptionId ?? defaultConnectionOption.id,
+      },
+    });
   }
 
-  async function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
+  function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
     if (!shop || customerServiceActionId) return;
 
-    const targetService = services.find((service) => service.id === option.serviceId);
-    if (!targetService) return;
-
-    setCustomerServiceActionId(option.id);
-
-    if (option.id === option.serviceId) {
-      const optimisticServices = services.filter((service) => service.id !== option.serviceId);
-      onServicesChange?.(optimisticServices);
-      try {
-        if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
-          await fetchApiJsonWithAuth<{ success: boolean; serviceId: string }>("/api/services", {
-            method: "DELETE",
-            body: JSON.stringify({ shopId: shop.id, serviceId: option.serviceId }),
-          });
-        }
-      } catch (error) {
-        console.error("[OWNER SETTINGS] failed to delete customer service", error);
-        onServicesChange?.(services);
-      } finally {
-        setCustomerServiceActionId(null);
-      }
-      return;
-    }
-
-    const nextPriceGuide = removeOptionFromPriceGuide(targetService.price_guide, option);
-    const nextService: Service = { ...targetService, price_guide: nextPriceGuide };
-    const optimisticServices = services.map((service) => (service.id === targetService.id ? nextService : service));
-    onServicesChange?.(optimisticServices);
-
-    try {
-      if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
-        const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
-          method: "POST",
-          body: JSON.stringify(buildServicePayload(shop.id, nextService, nextPriceGuide)),
-        });
-        onServicesChange?.(optimisticServices.map((service) => (service.id === savedService.id ? savedService : service)));
-      }
-    } catch (error) {
-      console.error("[OWNER SETTINGS] failed to delete customer service option", error);
-      onServicesChange?.(services);
-    } finally {
-      setCustomerServiceActionId(null);
-    }
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [option.id]: {
+        ...(baselineOverrides[option.id] ?? {}),
+        visible: false,
+        order: baselineOverrides[option.id]?.order ?? option.order,
+        displayName: baselineOverrides[option.id]?.displayName ?? option.sourceName,
+        description: baselineOverrides[option.id]?.description ?? option.description,
+      },
+    });
   }
 
-  async function renameCustomerServiceOption(option: CustomerServiceSourceOption, nextName: string) {
+  function renameCustomerServiceOption(option: CustomerServiceSourceOption, nextName: string) {
     if (!shop || customerServiceActionId) return;
 
     const trimmedName = nextName.trim();
     if (!trimmedName || trimmedName === option.sourceName) return;
 
-    const targetService = services.find((service) => service.id === option.serviceId);
-    if (!targetService) return;
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [option.id]: {
+        ...(baselineOverrides[option.id] ?? {}),
+        visible: true,
+        order: baselineOverrides[option.id]?.order ?? option.order,
+        displayName: trimmedName,
+        description: baselineOverrides[option.id]?.description ?? option.description,
+        linkedOptionId: baselineOverrides[option.id]?.linkedOptionId ?? option.linkedOptionId ?? option.id,
+      },
+    });
+  }
 
-    setCustomerServiceActionId(option.id);
+  function relinkCustomerServiceOption(option: CustomerServiceSourceOption, nextOptionId: string) {
+    if (!nextOptionId) return;
 
-    const nextPriceGuide = option.id === option.serviceId ? targetService.price_guide : renameOptionInPriceGuide(targetService.price_guide, option, trimmedName);
-    const nextService: Service =
-      option.id === option.serviceId ? { ...targetService, name: trimmedName } : { ...targetService, price_guide: nextPriceGuide };
-    const optimisticServices = services.map((service) => (service.id === targetService.id ? nextService : service));
-    onServicesChange?.(optimisticServices);
+    const nextOption = rawCustomerServiceConnectionOptions.find((item) => item.id === nextOptionId);
+    if (!nextOption) return;
 
-    try {
-      if (persistShopProfile && shop.id !== "demo-shop" && shop.id !== "owner-demo") {
-        const savedService = await fetchApiJsonWithAuth<Service>("/api/services", {
-          method: "POST",
-          body: JSON.stringify(buildServicePayload(shop.id, nextService, nextPriceGuide)),
-        });
-        onServicesChange?.(optimisticServices.map((service) => (service.id === savedService.id ? savedService : service)));
-      }
-    } catch (error) {
-      console.error("[OWNER SETTINGS] failed to rename customer service", error);
-      onServicesChange?.(services);
-    } finally {
-      setCustomerServiceActionId(null);
-    }
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    const currentOverride = baselineOverrides[option.id] ?? {};
+    const shouldUseNextName = !currentOverride.displayName || currentOverride.displayName === option.sourceName;
+
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [option.id]: {
+        ...currentOverride,
+        visible: true,
+        displayName: shouldUseNextName ? nextOption.sourceName : currentOverride.displayName,
+        description: currentOverride.description ?? option.description,
+        order: currentOverride.order ?? option.order,
+        linkedOptionId: nextOption.id,
+      },
+    });
   }
 
   function buildSettingsWithRow(
@@ -1392,9 +1387,11 @@ export default function SettingsManagementScreen({
                     embedded
                     busyOptionId={customerServiceActionId}
                     onChange={updateCustomerServiceOverrides}
+                    connectionOptions={customerServiceConnectionOptions}
                     onAddOption={addCustomerServiceOption}
                     onDeleteOption={deleteCustomerServiceOption}
                     onRenameOption={renameCustomerServiceOption}
+                    onRelinkOption={relinkCustomerServiceOption}
                   />
                 }
               >

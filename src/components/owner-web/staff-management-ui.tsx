@@ -13,6 +13,7 @@ import {
   getCellIndicatorTone,
   getCellTone,
   getScheduledLeaveCount,
+  getStaffRank,
   getStaffAvailability,
   getWeeklyWorkDays,
   parseWeekdayText,
@@ -114,9 +115,11 @@ export function StaffList({
 }) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[920px]">
-        <div className="grid grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
-          <span>직원</span>
+      <div className="min-w-[1180px]">
+        <div className="grid grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
+          <span>직원명</span>
+          <span>예명</span>
+          <span>직급</span>
           <span>연락처</span>
           <span className="text-center">상태</span>
           <span className="text-center">주간 근무</span>
@@ -135,13 +138,15 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full grid-cols-[minmax(150px,1.1fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
+                  "grid w-full grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
                   active ? "bg-white" : "bg-white hover:bg-white",
                 )}
               >
                 <div className="min-w-0">
                   <p className="truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
                 </div>
+                <p className="truncate text-[16px] text-[#334155]">{staffMember.displayName?.trim() || "-"}</p>
+                <p className="truncate text-[16px] text-[#334155]">{staffMember.position?.trim() || getStaffRank(staffMember.role) || "-"}</p>
                 <p className="truncate text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
                 <span
                   className={cn(
@@ -190,7 +195,9 @@ export function StaffDetailPanel({
         <div className="min-w-0">
           <h3 className="truncate text-[16px] font-normal text-[#111827]">{selectedStaff.name}</h3>
           <p className="mt-1 text-[16px] text-[#64748b]">
-            오늘 예약 {selectedStaff.todayBookings}건 · 이번 주 {selectedStaff.weekBookings}건
+            {(selectedStaff.displayName?.trim() || selectedStaff.position?.trim())
+              ? `${selectedStaff.displayName?.trim() || "예명 없음"} · ${selectedStaff.position?.trim() || getStaffRank(selectedStaff.role)}`
+              : `오늘 예약 ${selectedStaff.todayBookings}건 · 이번 주 ${selectedStaff.weekBookings}건`}
           </p>
         </div>
       </div>
@@ -199,6 +206,14 @@ export function StaffDetailPanel({
         <Field label="직원명">
           <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
         </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="예명">
+            <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 우진" />
+          </Field>
+          <Field label="직급">
+            <TextInput value={draft.position} onChange={(position) => onDraftChange((current) => ({ ...current, position }))} placeholder="예: 원장, 디자이너" />
+          </Field>
+        </div>
         <Field label="연락처">
           <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
         </Field>
@@ -407,6 +422,14 @@ export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChang
       <Field label="직원명">
         <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
       </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="예명">
+          <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 수현" />
+        </Field>
+        <Field label="직급">
+          <TextInput value={draft.position} onChange={(position) => onChange({ ...draft, position })} placeholder="예: 디자이너" />
+        </Field>
+      </div>
       <Field label="연락처">
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>

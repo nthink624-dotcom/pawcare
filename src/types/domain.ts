@@ -261,8 +261,10 @@ export type PetStaffNote = {
 export type BootstrapStaffMember = {
   id: string;
   name: string;
+  displayName?: string;
   phone: string;
   role: string;
+  position?: string;
   defaultDays: Array<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun">;
   startTime: string;
   endTime: string;

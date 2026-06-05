@@ -222,7 +222,13 @@ function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOp
 }
 
 export function buildCustomerServiceMenuConnectionOptions(options: CustomerServiceSourceOption[]) {
-  return buildDefaultCustomerServiceMenuOptions(options);
+  return [...options].sort(
+    (left, right) =>
+      left.category.localeCompare(right.category, "ko") ||
+      left.sourceName.localeCompare(right.sourceName, "ko") ||
+      left.durationMinutes - right.durationMinutes ||
+      left.price - right.price,
+  );
 }
 
 export function applyCustomerServiceOverrides(

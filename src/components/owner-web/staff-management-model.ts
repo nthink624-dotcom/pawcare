@@ -56,8 +56,10 @@ export type ScheduleEditDraft = {
 
 export type StaffDraft = {
   name: string;
+  displayName: string;
   phone: string;
   role: string;
+  position: string;
   defaultDaysText: string;
   startTime: string;
   endTime: string;
@@ -67,8 +69,10 @@ export type StaffDraft = {
 
 export const emptyStaffDraft: StaffDraft = {
   name: "",
+  displayName: "",
   phone: "",
   role: "",
+  position: "",
   defaultDaysText: "",
   startTime: "10:00",
   endTime: "19:00",
@@ -246,8 +250,10 @@ export function getRequestTone(status: LeaveStatus) {
 export function buildDraft(staff: StaffMember): StaffDraft {
   return {
     name: staff.name,
+    displayName: staff.displayName ?? "",
     phone: staff.phone,
     role: staff.role,
+    position: staff.position ?? getStaffRank(staff.role),
     defaultDaysText: staff.defaultDays.map((key) => weekdayColumns.find((day) => day.key === key)?.label).filter(Boolean).join(", "),
     startTime: staff.startTime,
     endTime: staff.endTime,

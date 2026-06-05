@@ -125,8 +125,10 @@ function splitActiveGuardians(guardians: Guardian[]) {
 type StaffMemberRow = {
   id: string;
   name: string;
+  display_name?: string | null;
   phone: string | null;
   role: string;
+  position?: string | null;
   default_days: BootstrapStaffMember["defaultDays"] | null;
   start_time: string;
   end_time: string;
@@ -148,8 +150,10 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
   return {
     id: row.id,
     name: row.name,
+    displayName: row.display_name?.trim() || row.name,
     phone: row.phone ?? "",
     role: row.role,
+    position: row.position?.trim() || row.role.split(/[/.|]/)[0]?.trim() || "직원",
     defaultDays: row.default_days?.length ? row.default_days : ["mon", "tue", "wed", "thu", "fri", "sat"],
     startTime: normalizeTime(row.start_time),
     endTime: normalizeTime(row.end_time),
@@ -164,8 +168,10 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
   return {
     id: `${shop.id}-staff-owner`,
     name: "원장",
+    displayName: "원장",
     phone: shop.phone ?? "",
     role: "원장 / 전체 미용",
+    position: "원장",
     defaultDays: defaultOwnerStaffDays,
     startTime: "10:00",
     endTime: "19:00",
@@ -192,6 +198,15 @@ function isMissingAlimtalkCreditSummaryError(error: { code?: string | null; mess
     error?.code === "PGRST205" ||
     message.includes("shop_alimtalk_credit_summaries") ||
     message.includes("schema cache")
+  );
+}
+
+function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "PGRST204" &&
+    message.includes("staff_members") &&
+    (message.includes("display_name") || message.includes("position") || message.includes("schema cache"))
   );
 }
 
@@ -272,7 +287,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
       supabase
         .from("staff_members")
-        .select("id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain")
+        .select("id,name,display_name,phone,role,position,default_days,start_time,end_time,regular_off,annual_remain")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("sort_order")
@@ -293,6 +308,18 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
 
   if (shopRes.error || !shopRes.data) {
     throw new Error("매장 정보를 찾을 수 없습니다.");
+  }
+
+  let staffMemberRows = (staffMembersRes.data ?? []) as StaffMemberRow[];
+  if (staffMembersRes.error && isMissingStaffProfileColumnsError(staffMembersRes.error)) {
+    const legacyStaffMembersRes = await supabase
+      .from("staff_members")
+      .select("id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain")
+      .eq("shop_id", shopId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("created_at");
+    staffMemberRows = (legacyStaffMembersRes.data ?? []) as StaffMemberRow[];
   }
 
   const normalizedGuardians = ((guardiansRes.data ?? []) as Guardian[]).map(normalizeGuardianForBootstrap);
@@ -327,7 +354,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       rawShop.description,
     ),
   };
-  const staffMembers = ((staffMembersRes.data ?? []) as StaffMemberRow[]).map(normalizeStaffMember);
+  const staffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
 
   return normalizeBootstrapNotifications({
     mode: "supabase",

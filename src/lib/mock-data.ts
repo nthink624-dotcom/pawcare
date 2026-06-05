@@ -96,8 +96,10 @@ export const demoStaffMembers: BootstrapStaffMember[] = [
   {
     id: "demo-shop-staff-owner",
     name: "원장",
+    displayName: "원장",
     phone: demoShop.phone,
     role: "원장 / 전체 미용",
+    position: "원장",
     defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     startTime: "10:00",
     endTime: "19:00",

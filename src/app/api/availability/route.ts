@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
-import { computeAvailableSlots } from "@/lib/availability";
+import { computeAvailableSlots, computeRecommendedAvailableSlots } from "@/lib/availability";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +34,17 @@ export async function GET(request: NextRequest) {
       staffMembers: bootstrap.staffMembers,
       staffScheduleOverrides: bootstrap.staffScheduleOverrides,
     });
+    const recommendedSlots = computeRecommendedAvailableSlots({
+      date,
+      availableSlots: slots,
+      appointments: bootstrap.appointments,
+      services: bootstrap.services,
+      excludeAppointmentId,
+      staffId: staffId || null,
+    });
 
     return NextResponse.json(
-      { slots },
+      { slots, recommendedSlots },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",

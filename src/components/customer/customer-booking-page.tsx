@@ -51,7 +51,7 @@ type LookupPayload = {
   pets: Array<{ id: string; name: string; guardian_id: string }>;
 };
 
-type AvailabilityPayload = { slots: string[] };
+type AvailabilityPayload = { slots: string[]; recommendedSlots?: string[] };
 
 type DateOption = {
   value: string;
@@ -327,7 +327,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
   const todayDate = parseISO(`${today}T00:00:00`);
   let offset = 0;
 
-  while (options.length < 8 && offset < 45) {
+  while (offset < 45) {
     const date = addDays(todayDate, offset);
     const value = format(date, "yyyy-MM-dd");
     const isClosed = isShopClosedOnDate(shop, value);
@@ -521,6 +521,7 @@ export default function CustomerBookingPage({
   const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
+  const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
   const [returningVisitSlots, setReturningVisitSlots] = useState<string[]>([]);
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
   const [loadingReturningVisitSlots, setLoadingReturningVisitSlots] = useState(false);
@@ -685,6 +686,7 @@ export default function CustomerBookingPage({
     async function load() {
       if (!firstVisit.date) {
         setFirstVisitSlots([]);
+        setFirstVisitRecommendedSlots([]);
         return;
       }
       setLoadingFirstVisitSlots(true);
@@ -702,6 +704,7 @@ export default function CustomerBookingPage({
         );
         if (!active) return;
         setFirstVisitSlots(result.slots);
+        setFirstVisitRecommendedSlots(result.recommendedSlots ?? []);
         if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
@@ -1027,19 +1030,19 @@ export default function CustomerBookingPage({
   return (
     <>
       <div
-        className="mx-auto min-h-screen w-full max-w-[430px] bg-[var(--background)] pb-28"
+        className="mx-auto w-full max-w-[430px] bg-[var(--background)]"
         style={{
-          "--background": "#fffaf3",
-          "--surface": "#fffaf5",
-          "--border": "#e7d8c9",
-          "--muted": "#8B6A55",
+          "--background": "#ffffff",
+          "--surface": "#fffaf8",
+          "--border": "#FFE1B0",
+          "--muted": "#8B6F4D",
           "--text": "#2b241f",
-          "--accent": "#8B6A55",
-          "--accent-soft": "#efe4d8",
-          "--selection-soft": "rgba(139,106,85,0.10)",
-          "--cta": "#1F7A68",
-          "--cta-hover": "#176855",
-          "--shadow-soft": "0 12px 28px rgba(139,106,85,0.10)",
+          "--accent": "#F5A623",
+          "--accent-soft": "#FFF6E6",
+          "--selection-soft": "rgba(245,166,35,0.10)",
+          "--cta": "#F5A623",
+          "--cta-hover": "#E99718",
+          "--shadow-soft": "none",
         } as CSSProperties}
       >
         <div className={activeMode === "first" ? "" : "space-y-3.5 px-4 pt-4"}>
@@ -1054,6 +1057,7 @@ export default function CustomerBookingPage({
               selectedService={selectedFirstService}
               selectedServiceOption={selectedFirstServiceOption}
               availableSlots={firstVisitSlots}
+              recommendedSlots={firstVisitRecommendedSlots}
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}

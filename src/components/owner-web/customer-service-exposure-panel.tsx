@@ -49,7 +49,7 @@ function cleanOverride(option: CustomerServiceSourceOption, override: CustomerSe
 }
 
 function getOptionSelectLabel(option: CustomerServiceSourceOption) {
-  return `${option.sourceName} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
+  return `${option.category} / ${option.sourceName} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
 }
 
 export default function CustomerServiceExposurePanel({
@@ -70,8 +70,8 @@ export default function CustomerServiceExposurePanel({
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
   const canDelete = Boolean(onDeleteOption);
   const rowGridClass = canDelete
-    ? "grid-cols-[72px_minmax(120px,0.72fr)_minmax(220px,1.28fr)_86px_112px_40px]"
-    : "grid-cols-[72px_minmax(120px,0.72fr)_minmax(220px,1.28fr)_86px_112px]";
+    ? "grid-cols-[72px_minmax(150px,0.72fr)_minmax(260px,1.28fr)_86px_112px_40px]"
+    : "grid-cols-[72px_minmax(150px,0.72fr)_minmax(260px,1.28fr)_86px_112px]";
 
   useEffect(() => {
     const optionIds = new Set(options.map((option) => option.id));
@@ -122,22 +122,22 @@ export default function CustomerServiceExposurePanel({
         <div className="mb-2 flex items-center justify-between gap-3">
           {title ? <p className="text-[16px] font-medium text-[#334155]">{title}</p> : <span />}
           {onAddOption ? (
-          <button
-            type="button"
-            onClick={() => void onAddOption()}
-            disabled={busyOptionId === "__add__"}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[16px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <Plus className="h-4 w-4" />
-            항목 추가
-          </button>
+            <button
+              type="button"
+              onClick={() => void onAddOption()}
+              disabled={busyOptionId === "__add__"}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[16px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Plus className="h-4 w-4" />
+              항목 추가
+            </button>
           ) : null}
         </div>
       ) : null}
 
       {rows.length > 0 ? (
         <div className="overflow-x-auto">
-          <div className={cn("min-w-[920px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[860px]")}>
+          <div className={cn("min-w-[1120px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[1060px]")}>
             <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[16px] font-normal text-[#64748b]", rowGridClass)}>
               <span>순서</span>
               <span>고객 노출명</span>
@@ -207,7 +207,8 @@ export default function CustomerServiceExposurePanel({
                             event.currentTarget.blur();
                           }
                         }}
-                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
+                        disabled={rowBusy}
+                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
                       />
                     </label>
 

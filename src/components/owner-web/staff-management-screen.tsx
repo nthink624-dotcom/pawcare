@@ -133,8 +133,10 @@ export default function StaffManagementScreen({
           ? {
               ...item,
               name: draft.name.trim() || item.name,
+              displayName: draft.displayName.trim(),
               phone: draft.phone.trim(),
-              role: "직원",
+              role: draft.role.trim() || item.role || "직원",
+              position: draft.position.trim() || item.position || "직원",
               defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
               startTime: draft.startTime,
               endTime: draft.endTime,
@@ -158,8 +160,10 @@ export default function StaffManagementScreen({
     const nextStaff: StaffMember = {
       id: createStaffId(),
       name: newStaffDraft.name.trim() || "신규 직원",
+      displayName: newStaffDraft.displayName.trim(),
       phone: newStaffDraft.phone.trim(),
-      role: "직원",
+      role: newStaffDraft.role.trim() || newStaffDraft.position.trim() || "직원",
+      position: newStaffDraft.position.trim() || "직원",
       defaultDays: nextDays.length > 0 ? nextDays : ["mon", "tue", "wed", "thu", "fri"],
       startTime: newStaffDraft.startTime,
       endTime: newStaffDraft.endTime,

@@ -12,8 +12,10 @@ const weekdaySchema = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const staffMemberSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1),
+  displayName: z.string().trim().default(""),
   phone: z.string().trim().default(""),
   role: z.string().trim().optional().transform((value) => value || "직원"),
+  position: z.string().trim().optional().transform((value) => value || "직원"),
   defaultDays: z.array(weekdaySchema).default(["mon", "tue", "wed", "thu", "fri", "sat"]),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -39,8 +41,10 @@ const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 type StaffMemberDbRow = {
   id: string;
   name: string;
+  display_name?: string | null;
   phone: string | null;
   role: string;
+  position?: string | null;
   default_days: string[] | null;
   start_time: string;
   end_time: string;
@@ -48,12 +52,27 @@ type StaffMemberDbRow = {
   annual_remain: number | null;
 };
 
+const staffMembersProfileSelect =
+  "id,name,display_name,phone,role,position,default_days,start_time,end_time,regular_off,annual_remain";
+const staffMembersLegacySelect = "id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain";
+
+function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "PGRST204" &&
+    message.includes("staff_members") &&
+    (message.includes("display_name") || message.includes("position") || message.includes("schema cache"))
+  );
+}
+
 function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): BootstrapStaffMember {
   return {
     id: row.id,
     name: row.name,
+    displayName: row.displayName,
     phone: row.phone,
     role: row.role,
+    position: row.position,
     defaultDays: row.defaultDays,
     startTime: row.startTime,
     endTime: row.endTime,
@@ -68,8 +87,10 @@ function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMemb
   return {
     id: row.id,
     name: row.name,
+    displayName: row.display_name?.trim() || row.name,
     phone: row.phone ?? "",
     role: row.role,
+    position: row.position?.trim() || row.role.split(/[/.|]/)[0]?.trim() || "직원",
     defaultDays: (row.default_days ?? ["mon", "tue", "wed", "thu", "fri", "sat"]) as BootstrapStaffMember["defaultDays"],
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
@@ -86,14 +107,30 @@ async function loadActiveStaffMembers(
 ) {
   const result = await supabase
     .from("staff_members")
-    .select("id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain")
+    .select(staffMembersProfileSelect)
     .eq("shop_id", shopId)
     .eq("is_active", true)
     .order("sort_order")
     .order("created_at");
 
   if (result.error) {
-    throw new OwnerApiError(result.error.message, 500);
+    if (!isMissingStaffProfileColumnsError(result.error)) {
+      throw new OwnerApiError(result.error.message, 500);
+    }
+
+    const legacyResult = await supabase
+      .from("staff_members")
+      .select(staffMembersLegacySelect)
+      .eq("shop_id", shopId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("created_at");
+
+    if (legacyResult.error) {
+      throw new OwnerApiError(legacyResult.error.message, 500);
+    }
+
+    return ((legacyResult.data ?? []) as StaffMemberDbRow[]).map(toBootstrapStaffMemberFromDb);
   }
 
   return ((result.data ?? []) as StaffMemberDbRow[]).map(toBootstrapStaffMemberFromDb);
@@ -330,8 +367,10 @@ export async function PATCH(request: NextRequest) {
       id: staffMember.id,
       shop_id: owner.shopId,
       name: staffMember.name,
+      display_name: staffMember.displayName,
       phone: staffMember.phone,
       role: staffMember.role,
+      position: staffMember.position,
       default_days: staffMember.defaultDays,
       start_time: staffMember.startTime,
       end_time: staffMember.endTime,
@@ -345,7 +384,15 @@ export async function PATCH(request: NextRequest) {
     if (rows.length > 0) {
       const upsertResult = await supabase.from("staff_members").upsert(rows, { onConflict: "id" });
       if (upsertResult.error) {
-        throw new OwnerApiError(upsertResult.error.message, 500);
+        if (!isMissingStaffProfileColumnsError(upsertResult.error)) {
+          throw new OwnerApiError(upsertResult.error.message, 500);
+        }
+
+        const legacyRows = rows.map(({ display_name: _displayName, position: _position, ...row }) => row);
+        const legacyUpsertResult = await supabase.from("staff_members").upsert(legacyRows, { onConflict: "id" });
+        if (legacyUpsertResult.error) {
+          throw new OwnerApiError(legacyUpsertResult.error.message, 500);
+        }
       }
     }
 

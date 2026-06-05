@@ -190,6 +190,39 @@ export function computeAvailableSlots(params: {
   return slots;
 }
 
+export function computeRecommendedAvailableSlots(params: {
+  date: string;
+  availableSlots: string[];
+  appointments: Appointment[];
+  services: Service[];
+  excludeAppointmentId?: string;
+  staffId?: string | null;
+}) {
+  const { date, availableSlots, appointments, services, excludeAppointmentId, staffId } = params;
+  const availableSlotSet = new Set(availableSlots);
+  const recommendedSlotMinutes = new Set<number>();
+
+  for (const appointment of appointments) {
+    if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
+
+    const appointmentStart = minutesFromTime(appointment.appointment_time);
+    const appointmentDurationMinutes =
+      getAppointmentDurationMinutes(appointment) ??
+      services.find((item) => item.id === appointment.service_id)?.duration_minutes;
+    if (!appointmentDurationMinutes) continue;
+
+    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    const appointmentEndSlot = timeFromMinutes(appointmentEnd);
+    if (availableSlotSet.has(appointmentEndSlot)) {
+      recommendedSlotMinutes.add(appointmentEnd);
+    }
+  }
+
+  return Array.from(recommendedSlotMinutes)
+    .sort((a, b) => a - b)
+    .map((minute) => timeFromMinutes(minute));
+}
+
 function isAppointmentEndSlotCandidate(params: {
   appointment: Appointment;
   date: string;

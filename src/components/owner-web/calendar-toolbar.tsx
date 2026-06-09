@@ -102,7 +102,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={onAddSchedule}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[14px] font-medium text-white transition hover:bg-[#185848]"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#5570F1] px-4 text-[14px] font-medium text-white transition hover:bg-[#4962d6]"
           >
             <CalendarPlus className="h-4 w-4" />
             예약 추가

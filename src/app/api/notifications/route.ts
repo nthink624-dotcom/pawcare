@@ -30,9 +30,17 @@ export async function POST(request: NextRequest) {
     const type = (body?.type as NotificationType | undefined) ?? "booking_confirmed";
     const channel = (body?.channel as ChannelType | undefined) ?? "alimtalk";
     const message = typeof body?.message === "string" ? body.message.trim() : "";
+    const hasLinkedRecipient = Boolean(body?.appointmentId || body?.guardianId || body?.petId);
 
-    if (!message && !body?.appointmentId && !body?.guardianId && !body?.petId) {
+    if (!message && !hasLinkedRecipient) {
       return NextResponse.json({ message: "알림 내용을 입력해 주세요." }, { status: 400 });
+    }
+
+    if (channel !== "in_app" && !hasLinkedRecipient) {
+      return NextResponse.json(
+        { message: "알림톡은 예약, 고객, 반려동물 정보와 연결된 수신자에게만 보낼 수 있습니다. 임의 번호 발송은 차단했어요." },
+        { status: 400 },
+      );
     }
 
     const result = await dispatchNotification({
@@ -54,7 +62,7 @@ export async function POST(request: NextRequest) {
       metadata: body?.metadata ?? null,
       mediaAssetIds: normalizeMediaAssetIds(body?.mediaAssetIds),
       scheduledAt: body?.scheduledAt ?? null,
-      force: body?.force === true || body?.status === "sent" || !hasSupabaseServerEnv(),
+      force: !hasSupabaseServerEnv(),
       skipIfExists: body?.skipIfExists === true,
     });
 

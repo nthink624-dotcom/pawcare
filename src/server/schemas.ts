@@ -22,6 +22,8 @@ export const appointmentInputSchema = z.object({
   appointmentTime: z.string(),
   memo: z.string().default(""),
   source: z.enum(["owner", "customer"]).default("customer"),
+  visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
 });
 
 export const appointmentStatusSchema = z.object({
@@ -43,6 +45,8 @@ export const appointmentEditSchema = z.object({
   appointmentTime: z.string(),
   durationMinutes: z.coerce.number().min(15).max(24 * 60).optional(),
   memo: z.string().default(""),
+  visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   enforceShopCapacity: z.boolean().optional().default(true),
   allowOutsideShopHours: z.boolean().optional().default(false),
@@ -196,8 +200,10 @@ export const shopSettingsSchema = z.object({
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
     appointmentReminder10mEnabled: z.boolean().default(true),
+    visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).default(10),
     groomingStartedEnabled: z.boolean().default(true),
     groomingAlmostDoneEnabled: z.boolean(),
+    pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).default(5),
     groomingCompletedEnabled: z.boolean(),
     groomingStartWithoutPhotoEnabled: z.boolean().default(false),
     groomingCompleteWithoutPhotoEnabled: z.boolean().default(false),

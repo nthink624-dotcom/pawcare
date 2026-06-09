@@ -525,12 +525,11 @@ export default function ShopInfoSettingsPanel({
                 <div className="absolute left-[16px] top-[41px] h-[468px] w-[228px] overflow-hidden rounded-[30px] bg-white">
                   <div className="pointer-events-none h-[883px] w-[430px] origin-top-left" style={{ transform: "scale(0.53)" }}>
                     {customerPreviewShop ? (
-                      <CustomerBookingEntryPage
-                        shop={customerPreviewShop}
-                        services={previewServices}
-                        bookingHref={`/entry/${customerPreviewShop.id}`}
-                        infoHref={`/book/${customerPreviewShop.id}/info`}
-                      />
+                        <CustomerBookingEntryPage
+                          shop={customerPreviewShop}
+                          services={previewServices}
+                          infoHref={`/book/${customerPreviewShop.id}/info`}
+                        />
                     ) : null}
                   </div>
                 </div>

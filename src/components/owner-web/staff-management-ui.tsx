@@ -1,8 +1,10 @@
 ﻿import type { ReactNode } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, ImagePlus, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
 import { cn } from "@/lib/utils";
 import {
   applyScheduleToCell,
@@ -45,6 +47,75 @@ function formatStaffPhone(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 }
 
+function getStaffInitial(name: string) {
+  return name.trim().slice(0, 1) || "스";
+}
+
+function StaffAvatar({ name, imageUrl, size = "md" }: { name: string; imageUrl?: string; size?: "sm" | "md" | "lg" }) {
+  const sizeClass = size === "lg" ? "h-16 w-16 text-[22px]" : size === "sm" ? "h-10 w-10 text-[16px]" : "h-12 w-12 text-[18px]";
+
+  return (
+    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc] text-[#2f7866]", sizeClass)}>
+      {imageUrl ? <img src={imageUrl} alt={`${name || "스태프"} 프로필`} className="h-full w-full object-cover" /> : getStaffInitial(name)}
+    </span>
+  );
+}
+
+function StaffPhotoField({
+  name,
+  value,
+  title = "프로필",
+  subtitle = "",
+  onChange,
+}: {
+  name: string;
+  value: string;
+  title?: string;
+  subtitle?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <label className="group relative flex h-[92px] w-[112px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[12px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#2f7866]/15">
+        <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#2f7866]">
+          {value ? (
+            <img src={value} alt={`${name || "스태프"} 프로필`} className="h-full w-full rounded-full object-cover" />
+          ) : (
+            <ImagePlus className="h-5 w-5" strokeWidth={1.8} />
+          )}
+          {value ? (
+            <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#2f7866] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
+              <ImagePlus className="h-3 w-3" strokeWidth={1.9} />
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-1.5 max-w-full truncate text-[15px] font-normal leading-[17px]">{title}</span>
+        {subtitle ? <span className="mt-0.5 max-w-full truncate text-[12px] leading-[14px] text-[#64748b]">{subtitle}</span> : null}
+        <span className="pointer-events-none absolute inset-0 rounded-[12px] bg-black/0 transition group-hover:bg-black/[0.025]" />
+        <input
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          aria-label="프로필 사진 변경"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => onChange(typeof reader.result === "string" ? reader.result : "");
+            reader.readAsDataURL(file);
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+      {value ? (
+        <button type="button" onClick={() => onChange("")} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]" aria-label="프로필 사진 삭제">
+          <X className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function ScheduleTable({
   staff,
   weekDates,
@@ -60,9 +131,9 @@ export function ScheduleTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[1080px]">
-        <div className="grid grid-cols-[180px_repeat(7,minmax(116px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
-          <div className="px-5 py-3">직원명</div>
+      <div className="min-w-[1240px]">
+        <div className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] border-b border-[#edf2f7] bg-[#f8fafc] text-[14px] text-[#64748b]">
+          <div className="px-5 py-3">이름</div>
           {weekDates.map((day) => (
             <div key={day.date} className="whitespace-nowrap px-3 py-3 text-center [word-break:keep-all]">
               {day.label}
@@ -70,24 +141,34 @@ export function ScheduleTable({
           ))}
         </div>
         {staff.map((staffMember) => (
-          <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(116px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
+          <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
               <p className="text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
+              const staffTone = getStaffChipTone(staffMember.id);
               return (
                 <button
                   key={`${staffMember.id}-${day.date}`}
                   type="button"
                   onClick={() => onOpenScheduleEditor(staffMember, day)}
                   className={cn(
-                    "relative mx-2 my-3 flex h-9 min-w-[82px] items-center justify-center overflow-hidden rounded-[8px] border px-2 text-center text-[14px] font-medium leading-none whitespace-nowrap [word-break:keep-all] transition",
+                    "relative mx-2 my-3 flex h-9 min-w-[130px] items-center justify-between gap-2 overflow-hidden rounded-[8px] border bg-white px-2.5 text-left text-[14px] font-medium leading-none whitespace-nowrap [word-break:keep-all] transition hover:bg-[#f8fafc]",
                     getCellTone(cell.status),
                     getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
                   )}
+                  style={
+                    {
+                      borderColor: staffTone.border,
+                      "--pm-wrap-indicator-color": staffTone.border,
+                    } as any
+                  }
                 >
-                  <span className="block whitespace-nowrap [word-break:keep-all]">{cell.label}</span>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap font-normal [word-break:keep-all]" style={{ color: staffTone.text }}>
+                    {staffMember.name}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap font-normal tabular-nums text-[#64748b] [word-break:keep-all]">{cell.label}</span>
                 </button>
               );
             })}
@@ -116,10 +197,10 @@ export function StaffList({
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[1180px]">
-        <div className="grid grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
-          <span>직원명</span>
-          <span>예명</span>
-          <span>직급</span>
+        <div className="grid grid-cols-[minmax(180px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
+          <span>이름</span>
+          <span>고객에게 노출할 이름</span>
+          <span>직함</span>
           <span>연락처</span>
           <span className="text-center">상태</span>
           <span className="text-center">주간 근무</span>
@@ -138,15 +219,16 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full grid-cols-[minmax(140px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
+                  "grid w-full grid-cols-[minmax(180px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
                   active ? "bg-white" : "bg-white hover:bg-white",
                 )}
               >
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="sm" />
                   <p className="truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
                 </div>
-                <p className="truncate text-[16px] text-[#334155]">{staffMember.displayName?.trim() || "-"}</p>
-                <p className="truncate text-[16px] text-[#334155]">{staffMember.position?.trim() || getStaffRank(staffMember.role) || "-"}</p>
+                <p className="truncate text-[16px] text-[#334155]">{getStaffCustomerName(staffMember) || "-"}</p>
+                <p className="truncate text-[16px] text-[#334155]">{getStaffCustomerTitle(staffMember) || "-"}</p>
                 <p className="truncate text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
                 <span
                   className={cn(
@@ -188,32 +270,35 @@ export function StaffDetailPanel({
   onOpenAnnualGrantDialog: () => void;
 }) {
   const annualUsage = getAnnualLeaveUsage(selectedStaff, requests);
+  const internalName = draft.name.trim() || selectedStaff.name;
+  const customerVisibleName = draft.displayName.trim() || internalName;
+  const positionName = draft.position.trim() || getStaffRank(selectedStaff.role);
+  const profileSubtitle = [draft.titlePrefix.trim(), positionName].filter(Boolean).join(" ");
 
   return (
-    <WebSurface className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-[16px] font-normal text-[#111827]">{selectedStaff.name}</h3>
-          <p className="mt-1 text-[16px] text-[#64748b]">
-            {(selectedStaff.displayName?.trim() || selectedStaff.position?.trim())
-              ? `${selectedStaff.displayName?.trim() || "예명 없음"} · ${selectedStaff.position?.trim() || getStaffRank(selectedStaff.role)}`
-              : `오늘 예약 ${selectedStaff.todayBookings}건 · 이번 주 ${selectedStaff.weekBookings}건`}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-2.5">
-        <Field label="직원명">
-          <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
+    <WebSurface className="p-3">
+      <div className="space-y-2">
+        <StaffPhotoField
+          name={customerVisibleName}
+          value={draft.profileImageUrl}
+          title={customerVisibleName}
+          subtitle={profileSubtitle}
+          onChange={(profileImageUrl) => onDraftChange((current) => ({ ...current, profileImageUrl }))}
+        />
+        <Field label="고객에게 노출할 이름">
+          <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 진" />
         </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="예명">
-            <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 우진" />
+          <Field label="대표/실장">
+            <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onDraftChange((current) => ({ ...current, titlePrefix }))} placeholder="선택 입력" />
           </Field>
-          <Field label="직급">
-            <TextInput value={draft.position} onChange={(position) => onDraftChange((current) => ({ ...current, position }))} placeholder="예: 원장, 디자이너" />
+          <Field label="역할">
+            <TextInput value={draft.position} onChange={(position) => onDraftChange((current) => ({ ...current, position }))} placeholder="예: 디자이너" />
           </Field>
         </div>
+        <Field label="이름">
+          <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
+        </Field>
         <Field label="연락처">
           <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
         </Field>
@@ -248,7 +333,7 @@ export function StaffDetailPanel({
         </div>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={() => onDraftChange(() => buildDraft(selectedStaff))} />
         <button
           type="button"
@@ -270,7 +355,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   return (
     <label className="block">
       <span className="text-[16px] font-normal text-[#334155]">{label}</span>
-      <div className="mt-2">{children}</div>
+      <div className="mt-1.5">{children}</div>
     </label>
   );
 }
@@ -282,7 +367,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
     />
   );
 }
@@ -395,9 +480,9 @@ export function StaffMetric({ label, value }: { label: string; value: string }) 
 
 export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardTab; onChange: (tab: StaffBoardTab) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-[#dbe2ea] pb-2">
+    <div className="flex flex-wrap items-center gap-3 pb-2">
       {[
-        { key: "schedule" as StaffBoardTab, label: "주간 근무표" },
+        { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
         { key: "list" as StaffBoardTab, label: "직원 목록" },
       ].map((tab) => (
         <button
@@ -417,16 +502,23 @@ export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardT
 }
 
 export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChange: (draft: StaffDraft) => void }) {
+  const displayName = draft.displayName.trim() || draft.name.trim() || "프로필";
+  const title = [draft.titlePrefix.trim(), draft.position.trim()].filter(Boolean).join(" ");
+
   return (
     <div className="space-y-3">
-      <Field label="직원명">
+      <StaffPhotoField name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
+      <Field label="이름">
         <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
       </Field>
+      <Field label="고객에게 노출할 이름">
+        <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 진" />
+      </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="예명">
-          <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 수현" />
+        <Field label="대표/실장">
+          <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onChange({ ...draft, titlePrefix })} placeholder="선택 입력" />
         </Field>
-        <Field label="직급">
+        <Field label="역할">
           <TextInput value={draft.position} onChange={(position) => onChange({ ...draft, position })} placeholder="예: 디자이너" />
         </Field>
       </div>

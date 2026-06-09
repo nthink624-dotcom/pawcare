@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import {
   normalizeCustomerServiceOverrides,
@@ -23,6 +22,10 @@ type CustomerServiceExposurePanelProps = {
   onRenameOption?: (option: CustomerServiceSourceOption, nextName: string) => void | Promise<void>;
   onRelinkOption?: (option: CustomerServiceSourceOption, nextOptionId: string) => void | Promise<void>;
 };
+
+function getLinkedOptionId(option: CustomerServiceSourceOption) {
+  return option.linkedOptionId ?? option.id;
+}
 
 function getOptionRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
   return options
@@ -52,6 +55,27 @@ function getOptionSelectLabel(option: CustomerServiceSourceOption) {
   return `${option.category} / ${option.sourceName} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
 }
 
+function buildGroupedSelectOptions(options: CustomerServiceSourceOption[]) {
+  return options.flatMap((option, index) => {
+    const previousOption = options[index - 1];
+    const shouldShowDivider = !previousOption || previousOption.category !== option.category;
+    const optionElement = (
+      <option key={option.id} value={getLinkedOptionId(option)}>
+        {getOptionSelectLabel(option)}
+      </option>
+    );
+
+    if (!shouldShowDivider) return [optionElement];
+
+    return [
+      <option key={`divider-${option.category}-${index}`} disabled value={`__divider-${option.category}-${index}`}>
+        ── {option.category} ──
+      </option>,
+      optionElement,
+    ];
+  });
+}
+
 export default function CustomerServiceExposurePanel({
   options,
   overrides,
@@ -67,31 +91,11 @@ export default function CustomerServiceExposurePanel({
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
   const rows = getOptionRows(options, normalizedOverrides);
   const priceGuideOptions = connectionOptions ?? options;
-  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+  const usedLinkedOptionIds = new Set(rows.map((row) => getLinkedOptionId(row.option)));
   const canDelete = Boolean(onDeleteOption);
   const rowGridClass = canDelete
-    ? "grid-cols-[72px_minmax(150px,0.72fr)_minmax(260px,1.28fr)_86px_112px_40px]"
-    : "grid-cols-[72px_minmax(150px,0.72fr)_minmax(260px,1.28fr)_86px_112px]";
-
-  useEffect(() => {
-    const optionIds = new Set(options.map((option) => option.id));
-    setDraftNames((current) => Object.fromEntries(Object.entries(current).filter(([optionId]) => optionIds.has(optionId))));
-  }, [options]);
-
-  function updateOverride(option: CustomerServiceSourceOption, patch: CustomerServiceDisplayOverrides[string]) {
-    const nextOverride = cleanOverride(option, {
-      ...(normalizedOverrides[option.id] ?? {}),
-      linkedOptionId: option.linkedOptionId,
-      ...patch,
-    });
-    const nextOverrides = { ...normalizedOverrides };
-    if (Object.keys(nextOverride).length > 0) {
-      nextOverrides[option.id] = nextOverride;
-    } else {
-      delete nextOverrides[option.id];
-    }
-    onChange(nextOverrides);
-  }
+    ? "grid-cols-[82px_minmax(520px,1fr)_104px_140px_56px]"
+    : "grid-cols-[82px_minmax(520px,1fr)_104px_140px]";
 
   function moveOption(index: number, direction: -1 | 1) {
     const targetIndex = index + direction;
@@ -140,8 +144,7 @@ export default function CustomerServiceExposurePanel({
           <div className={cn("min-w-[1120px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[1060px]")}>
             <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[16px] font-normal text-[#64748b]", rowGridClass)}>
               <span>순서</span>
-              <span>고객 노출명</span>
-              <span>미용요금 연결</span>
+              <span>노출할 서비스</span>
               <span className="text-right">예상 시간</span>
               <span className="text-right">시작 가격</span>
               {canDelete ? <span className="text-center">삭제</span> : null}
@@ -150,6 +153,11 @@ export default function CustomerServiceExposurePanel({
             <div className="divide-y divide-[#edf2f7]">
               {rows.map((row, index) => {
                 const rowBusy = busyOptionId === row.option.id;
+                const currentLinkedOptionId = getLinkedOptionId(row.option);
+                const selectableOptions = priceGuideOptions.filter((option) => {
+                  const linkedOptionId = getLinkedOptionId(option);
+                  return linkedOptionId === currentLinkedOptionId || !usedLinkedOptionIds.has(linkedOptionId);
+                });
                 return (
                   <div
                     key={row.option.id}
@@ -183,48 +191,14 @@ export default function CustomerServiceExposurePanel({
                     </div>
 
                     <label className="block min-w-0">
-                      <span className="sr-only">고객 노출명</span>
-                      <input
-                        value={draftNames[row.option.id] ?? row.displayName}
-                        onChange={(event) => {
-                          const nextName = event.target.value;
-                          setDraftNames((current) => ({ ...current, [row.option.id]: nextName }));
-                          if (nextName.trim()) {
-                            updateOverride(row.option, { displayName: nextName });
-                          }
-                        }}
-                        onBlur={(event) => {
-                          const nextName = event.target.value.trim();
-                          setDraftNames((current) => {
-                            const next = { ...current };
-                            delete next[row.option.id];
-                            return next;
-                          });
-                          updateOverride(row.option, { displayName: nextName || row.option.sourceName });
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        disabled={rowBusy}
-                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
-                      />
-                    </label>
-
-                    <label className="block min-w-0">
-                      <span className="sr-only">미용요금 연결</span>
+                      <span className="sr-only">노출할 서비스</span>
                       <select
-                        value={row.option.linkedOptionId ?? row.option.id}
+                        value={currentLinkedOptionId}
                         onChange={(event) => void onRelinkOption?.(row.option, event.target.value)}
                         disabled={!onRelinkOption || rowBusy}
                         className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
                       >
-                        {priceGuideOptions.map((option) => (
-                          <option key={option.id} value={option.linkedOptionId ?? option.id}>
-                            {getOptionSelectLabel(option)}
-                          </option>
-                        ))}
+                        {buildGroupedSelectOptions(selectableOptions)}
                       </select>
                     </label>
 

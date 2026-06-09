@@ -7,6 +7,8 @@ type BookingAccessPayload = {
   shopId: string;
   guardianId: string;
   petId: string;
+  appointmentId?: string;
+  action?: "reschedule";
   issuedAt: number;
   expiresAt: number;
 };
@@ -32,11 +34,13 @@ function encodeCompactPayload(payload: BookingAccessPayload) {
     payload.petId,
     payload.issuedAt.toString(36),
     payload.expiresAt.toString(36),
+    payload.appointmentId ?? "",
+    payload.action ?? "",
   ].join("~");
 }
 
 function decodeCompactPayload(encodedPayload: string): BookingAccessPayload | null {
-  const [shopId, guardianId, petId, issuedAt, expiresAt] = encodedPayload.split("~");
+  const [shopId, guardianId, petId, issuedAt, expiresAt, appointmentId = "", action = ""] = encodedPayload.split("~");
   if (!shopId || !guardianId || !petId || !issuedAt || !expiresAt) {
     return null;
   }
@@ -53,6 +57,8 @@ function decodeCompactPayload(encodedPayload: string): BookingAccessPayload | nu
     petId,
     issuedAt: issuedAtNumber,
     expiresAt: expiresAtNumber,
+    ...(appointmentId ? { appointmentId } : {}),
+    ...(action === "reschedule" ? { action } : {}),
   };
 }
 
@@ -79,6 +85,8 @@ export function createBookingAccessToken(input: {
   shopId: string;
   guardianId: string;
   petId: string;
+  appointmentId?: string;
+  action?: "reschedule";
   expiresInHours?: number;
 }) {
   const issuedAt = Date.now();
@@ -87,6 +95,8 @@ export function createBookingAccessToken(input: {
     shopId: input.shopId,
     guardianId: input.guardianId,
     petId: input.petId,
+    appointmentId: input.appointmentId,
+    action: input.action,
     issuedAt,
     expiresAt,
   };
@@ -125,6 +135,14 @@ export function verifyBookingAccessToken(token: string) {
 
   const payload = decodePayload(encodedPayload);
   if (!payload.shopId || !payload.guardianId || !payload.petId) {
+    throw new Error("Invalid booking access link.");
+  }
+
+  if (payload.action && payload.action !== "reschedule") {
+    throw new Error("Invalid booking access link.");
+  }
+
+  if (payload.action === "reschedule" && !payload.appointmentId) {
     throw new Error("Invalid booking access link.");
   }
 

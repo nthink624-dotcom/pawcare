@@ -13,8 +13,10 @@ const staffMemberSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1),
   displayName: z.string().trim().default(""),
+  profileImageUrl: z.string().trim().default(""),
   phone: z.string().trim().default(""),
   role: z.string().trim().optional().transform((value) => value || "직원"),
+  titlePrefix: z.string().trim().default(""),
   position: z.string().trim().optional().transform((value) => value || "직원"),
   defaultDays: z.array(weekdaySchema).default(["mon", "tue", "wed", "thu", "fri", "sat"]),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -42,8 +44,10 @@ type StaffMemberDbRow = {
   id: string;
   name: string;
   display_name?: string | null;
+  profile_image_url?: string | null;
   phone: string | null;
   role: string;
+  title_prefix?: string | null;
   position?: string | null;
   default_days: string[] | null;
   start_time: string;
@@ -53,15 +57,19 @@ type StaffMemberDbRow = {
 };
 
 const staffMembersProfileSelect =
-  "id,name,display_name,phone,role,position,default_days,start_time,end_time,regular_off,annual_remain";
+  "id,name,display_name,profile_image_url,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
 const staffMembersLegacySelect = "id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain";
 
 function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
   return (
-    error?.code === "PGRST204" &&
+    (error?.code === "PGRST204" || error?.code === "42703") &&
     message.includes("staff_members") &&
-    (message.includes("display_name") || message.includes("position") || message.includes("schema cache"))
+    (message.includes("display_name") ||
+      message.includes("profile_image_url") ||
+      message.includes("title_prefix") ||
+      message.includes("position") ||
+      message.includes("schema cache"))
   );
 }
 
@@ -70,8 +78,10 @@ function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): Bootstr
     id: row.id,
     name: row.name,
     displayName: row.displayName,
+    profileImageUrl: row.profileImageUrl,
     phone: row.phone,
     role: row.role,
+    titlePrefix: row.titlePrefix,
     position: row.position,
     defaultDays: row.defaultDays,
     startTime: row.startTime,
@@ -88,8 +98,10 @@ function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMemb
     id: row.id,
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
+    profileImageUrl: row.profile_image_url?.trim() || "",
     phone: row.phone ?? "",
     role: row.role,
+    titlePrefix: row.title_prefix?.trim() || "",
     position: row.position?.trim() || row.role.split(/[/.|]/)[0]?.trim() || "직원",
     defaultDays: (row.default_days ?? ["mon", "tue", "wed", "thu", "fri", "sat"]) as BootstrapStaffMember["defaultDays"],
     startTime: row.start_time.slice(0, 5),
@@ -368,8 +380,10 @@ export async function PATCH(request: NextRequest) {
       shop_id: owner.shopId,
       name: staffMember.name,
       display_name: staffMember.displayName,
+      profile_image_url: staffMember.profileImageUrl,
       phone: staffMember.phone,
       role: staffMember.role,
+      title_prefix: staffMember.titlePrefix,
       position: staffMember.position,
       default_days: staffMember.defaultDays,
       start_time: staffMember.startTime,
@@ -388,7 +402,7 @@ export async function PATCH(request: NextRequest) {
           throw new OwnerApiError(upsertResult.error.message, 500);
         }
 
-        const legacyRows = rows.map(({ display_name: _displayName, position: _position, ...row }) => row);
+        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, title_prefix: _titlePrefix, position: _position, ...row }) => row);
         const legacyUpsertResult = await supabase.from("staff_members").upsert(legacyRows, { onConflict: "id" });
         if (legacyUpsertResult.error) {
           throw new OwnerApiError(legacyUpsertResult.error.message, 500);

@@ -27,6 +27,13 @@ export type RelaySsodaaTemplateDetail = {
   templateContent: string | null;
   inspectionStatus: string | null;
   serviceStatus: string | null;
+  buttons: Array<{
+    type: string | null;
+    name: string | null;
+    linkMobile: string | null;
+    linkPc: string | null;
+  }>;
+  rawKeys: string[];
 };
 
 export type RelaySsodaaTemplateItem = {

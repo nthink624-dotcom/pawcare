@@ -750,12 +750,11 @@ export default function CustomerBookingPageManagementScreen({
               <div className="sticky top-0 z-20 flex h-7 items-center justify-center bg-white/95 backdrop-blur">
                 <span className="h-1.5 w-12 rounded-full bg-[#d8d1c8]" />
               </div>
-              <CustomerBookingEntryPage
-                shop={previewShop}
-                services={previewServices}
-                bookingHref={`/entry/${shop.id}`}
-                infoHref={`/book/${shop.id}/info`}
-              />
+                <CustomerBookingEntryPage
+                  shop={previewShop}
+                  services={previewServices}
+                  infoHref={`/book/${shop.id}/info`}
+                />
             </div>
           </div>
         </div>

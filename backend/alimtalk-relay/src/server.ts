@@ -290,6 +290,15 @@ type SsodaaTemplateDetail = {
   templateContent: string | null;
   inspectionStatus: string | null;
   serviceStatus: string | null;
+  buttons: SsodaaTemplateButton[];
+  rawKeys: string[];
+};
+
+type SsodaaTemplateButton = {
+  type: string | null;
+  name: string | null;
+  linkMobile: string | null;
+  linkPc: string | null;
 };
 
 type SsodaaTemplateCategory = {
@@ -358,6 +367,141 @@ function findNestedStringValue(value: unknown, keys: string[], depth = 0): strin
   return null;
 }
 
+function coerceArrayCandidate(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value;
+
+  const parsed = coerceJsonLikeBody(value);
+  if (Array.isArray(parsed)) return parsed;
+
+  const record = asRecord(parsed);
+  if (!record) return null;
+
+  const hasButtonShape = Boolean(
+    getStringValue(record, [
+      "name",
+      "buttonName",
+      "button_name",
+      "btnName",
+      "linkMo",
+      "link_mo",
+      "linkMobile",
+      "mobileUrl",
+      "mobile_url",
+      "linkPc",
+      "link_pc",
+      "pcUrl",
+      "pc_url",
+    ]),
+  );
+
+  return hasButtonShape ? [record] : null;
+}
+
+function findNestedArrayValue(value: unknown, keys: string[], depth = 0): unknown[] | null {
+  if (depth > 6) return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedArrayValue(item, keys, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const record = asRecord(value);
+  if (!record) return null;
+
+  for (const key of keys) {
+    const found = coerceArrayCandidate(record[key]);
+    if (found) return found;
+  }
+
+  for (const nested of Object.values(record)) {
+    const found = findNestedArrayValue(nested, keys, depth + 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function getNestedKeySummary(value: unknown, depth = 0, prefix = "", keys = new Set<string>()) {
+  if (depth > 3 || keys.size >= 80) return keys;
+
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 3)) {
+      getNestedKeySummary(item, depth + 1, prefix, keys);
+    }
+    return keys;
+  }
+
+  const record = asRecord(value);
+  if (!record) return keys;
+
+  for (const [key, nested] of Object.entries(record)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    keys.add(path);
+    if (keys.size >= 80) return keys;
+    getNestedKeySummary(nested, depth + 1, path, keys);
+  }
+
+  return keys;
+}
+
+function normalizeSsodaaTemplateButtons(
+  detailRecord: Record<string, unknown> | null,
+  listRecord?: Record<string, unknown> | null,
+) {
+  const buttonKeys = [
+    "buttons",
+    "button",
+    "templateButtons",
+    "template_buttons",
+    "templateButton",
+    "template_button",
+    "buttonList",
+    "button_list",
+    "btnList",
+    "btn_list",
+  ];
+  const sourceButtons = findNestedArrayValue(detailRecord, buttonKeys) ?? findNestedArrayValue(listRecord, buttonKeys) ?? [];
+
+  return sourceButtons
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) return null;
+
+      const button = {
+        type: getStringValue(record, ["type", "buttonType", "button_type", "btnType", "btn_type", "linkType", "link_type"]),
+        name: getStringValue(record, ["name", "buttonName", "button_name", "btnName", "btn_name"]),
+        linkMobile: getStringValue(record, [
+          "linkMobile",
+          "link_mobile",
+          "linkMo",
+          "link_mo",
+          "mobileUrl",
+          "mobile_url",
+          "urlMobile",
+          "url_mobile",
+          "mobileLink",
+          "mobile_link",
+        ]),
+        linkPc: getStringValue(record, [
+          "linkPc",
+          "link_pc",
+          "pcUrl",
+          "pc_url",
+          "urlPc",
+          "url_pc",
+          "pcLink",
+          "pc_link",
+        ]),
+      } satisfies SsodaaTemplateButton;
+
+      return button.type || button.name || button.linkMobile || button.linkPc ? button : null;
+    })
+    .filter((button): button is SsodaaTemplateButton => Boolean(button));
+}
+
 function extractTemplateRecords(value: unknown, depth = 0): Record<string, unknown>[] {
   if (depth > 6) return [];
 
@@ -403,12 +547,17 @@ function normalizeSsodaaTemplateDetail(
 
   return {
     templateCode: pick(["templateCode", "template_code", "templtCode", "templt_code"]) ?? templateCode,
-    templateName: pick(["templateName", "template_name", "templtName", "templt_name", "name"]),
+    templateName: pick(["templateName", "template_name", "templtName", "templt_name", "templateTitle", "template_title", "name"]),
     templateContent: pickDeep([
       "templateContent",
       "template_content",
       "templtContent",
       "templt_content",
+      "tmpltContent",
+      "tmplt_content",
+      "templateBody",
+      "template_body",
+      "body",
       "template",
       "msgBody",
       "msg_body",
@@ -440,6 +589,10 @@ function normalizeSsodaaTemplateDetail(
       "template_status",
       "templt_status",
     ]),
+    buttons: normalizeSsodaaTemplateButtons(detailRecord, listRecord),
+    rawKeys: Array.from(
+      new Set([...getNestedKeySummary(detailRecord), ...getNestedKeySummary(listRecord)]),
+    ).slice(0, 80),
   } satisfies SsodaaTemplateDetail;
 }
 
@@ -780,11 +933,15 @@ async function buildSsodaaTemplateCatalog() {
           ) ?? null;
         const detailFromList = listRecord ? normalizeSsodaaTemplateDetail(configuredCode, listRecord) : null;
         const detailFromApi = await fetchSsodaaTemplateDetail(configuredCode);
-        const detail = normalizeSsodaaTemplateDetail(
-          configuredCode,
-          detailFromApi as unknown as Record<string, unknown>,
-          detailFromList as unknown as Record<string, unknown> | null,
-        );
+        const detail = {
+          templateCode: detailFromApi.templateCode || detailFromList?.templateCode || configuredCode,
+          templateName: detailFromApi.templateName ?? detailFromList?.templateName ?? null,
+          templateContent: detailFromApi.templateContent ?? detailFromList?.templateContent ?? null,
+          inspectionStatus: detailFromApi.inspectionStatus ?? detailFromList?.inspectionStatus ?? null,
+          serviceStatus: detailFromApi.serviceStatus ?? detailFromList?.serviceStatus ?? null,
+          buttons: detailFromApi.buttons.length ? detailFromApi.buttons : detailFromList?.buttons ?? [],
+          rawKeys: Array.from(new Set([...detailFromApi.rawKeys, ...(detailFromList?.rawKeys ?? [])])),
+        } satisfies SsodaaTemplateDetail;
         return {
           alias,
           configuredCode,

@@ -14,6 +14,10 @@ type LookupPayload = {
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
   pets: Array<{ id: string; name: string; guardian_id: string; breed?: string }>;
+  access?: {
+    appointmentId?: string | null;
+    action?: "reschedule" | null;
+  };
 };
 
 type AvailabilityPayload = { slots: string[] };
@@ -274,9 +278,35 @@ export default function CustomerBookingManagePanel({
         if (guardian) setLookupGuardianName(guardian.name);
         if (guardian?.phone) setLookupPhone(guardian.phone);
         if (pet) setLookupPetName(pet.name);
+        setFeedback(null);
+
+        const directRescheduleAppointment =
+          result.access?.action === "reschedule" && result.access.appointmentId
+            ? result.appointments.find((appointment) => appointment.id === result.access?.appointmentId) ?? null
+            : null;
+
+        if (directRescheduleAppointment && canManageAppointment(directRescheduleAppointment)) {
+          setOpenAppointmentId(directRescheduleAppointment.id);
+          setManageForm({
+            appointmentId: directRescheduleAppointment.id,
+            serviceId: directRescheduleAppointment.service_id,
+            date: directRescheduleAppointment.appointment_date,
+            timeSlot: directRescheduleAppointment.appointment_time,
+            note: directRescheduleAppointment.memo,
+          });
+          return;
+        }
+
         setOpenAppointmentId(null);
         setManageForm(null);
-        setFeedback(null);
+
+        if (result.access?.action === "reschedule") {
+          setFeedback({
+            type: "error",
+            title: "예약 시간을 변경할 수 없어요",
+            message: "변경 가능한 예약이 아니어서 매장에 문의해 주세요.",
+          });
+        }
       } catch (error) {
         if (!active) return;
         setLookupError(error instanceof Error ? error.message : "예약 정보를 불러오지 못했어요.");

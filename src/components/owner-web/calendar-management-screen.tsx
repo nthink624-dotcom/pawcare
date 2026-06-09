@@ -101,6 +101,8 @@ const staffWeekdayKeys: OwnerWebWeekdayKey[] = ["sun", "mon", "tue", "wed", "thu
 const timeWheelHours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
 const timeWheelMinutes = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 const recentStatusOverrideTtlMs = 30_000;
+const visitReminderOffsetOptions = [10, 20, 30, 60] as const;
+const pickupReadyEtaOptions = [5, 10, 15, 20] as const;
 type ScheduleCreateFormState = {
   customerMode: "new" | "existing";
   petId: string;
@@ -795,6 +797,8 @@ function appointmentToDailyBooking(
     staffName: staffColumn.name,
     serviceId: appointment.service_id,
     memo: appointment.memo,
+    visitReminderOffsetMinutes: appointment.visit_reminder_offset_minutes ?? 10,
+    pickupReadyEtaMinutes: appointment.pickup_ready_eta_minutes ?? 5,
     source: appointment.source,
   };
 }
@@ -872,6 +876,8 @@ type DailyBooking = {
   staffName: string;
   serviceId?: string;
   memo?: string;
+  visitReminderOffsetMinutes?: number;
+  pickupReadyEtaMinutes?: number;
   source?: "owner" | "customer";
   previousStart?: number;
   previousDuration?: number;
@@ -1328,6 +1334,7 @@ function BookingSidePanel({
   onChangeStaffComment,
   onSaveBookingPhone,
   onSaveBookingDetail,
+  onSaveNotificationTiming,
 }: {
   activeMetric: SummaryMetricKey;
   shopId: string;
@@ -1350,6 +1357,10 @@ function BookingSidePanel({
   onSaveBookingDetail: (
     booking: DailyBooking,
     values: { startTime: string; endTime: string; phone: string; serviceName: string; price: number },
+  ) => Promise<void>;
+  onSaveNotificationTiming: (
+    booking: DailyBooking,
+    values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
   ) => Promise<void>;
 }) {
   const timeRange = selectedBooking
@@ -1387,6 +1398,8 @@ function BookingSidePanel({
   const [phoneEditing, setPhoneEditing] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
+  const [timingSaving, setTimingSaving] = useState(false);
+  const [timingPickerOpen, setTimingPickerOpen] = useState<"visit" | "pickup" | null>(null);
   const [detailNotice, setDetailNotice] = useState("");
   const [detailEditMode, setDetailEditMode] = useState<"time" | "service" | "price" | null>(null);
   const detailNoticeTimerRef = useRef<number | null>(null);
@@ -1408,6 +1421,7 @@ function BookingSidePanel({
     setNotificationNotice("");
     setPhoneEditing(false);
     setDetailEditMode(null);
+    setTimingPickerOpen(null);
     return () => {
       window.cancelAnimationFrame(frame);
       if (detailNoticeTimerRef.current !== null) {
@@ -1479,10 +1493,19 @@ function BookingSidePanel({
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
   const canResendCurrentNotification = !workflowPending && !changeEventSelected;
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
+  const showWorkflowFooter = !workflowCompleted;
+  const showVisitReminderTiming = sourceStatus === "확정" && !workflowPending && !changeEventSelected && !rescheduledEventSelected;
+  const showPickupReadyTiming =
+    (sourceStatus === "진행 중" || sourceStatus === "픽업 준비") &&
+    !workflowPending &&
+    !changeEventSelected &&
+    !rescheduledEventSelected;
+  const showNotificationTimingPanel = showVisitReminderTiming || showPickupReadyTiming;
   const recentVisitHistory = selectedBooking
     ? getRecentVisitHistory(bootstrapData, selectedBooking)
     : { totalCount: 0, items: [] };
   const panelStatusBadgeLabel = workflowCompleted ? "기록 완료" : displayStatus || sourceStatus;
+  const maskedPanelPhone = maskPanelPhoneNumber(editablePhone || selectedBooking.guardianPhone || "");
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -1588,6 +1611,21 @@ function BookingSidePanel({
     }
   }
 
+  async function saveNotificationTiming(values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number }) {
+    if (!selectedBooking || timingSaving) return;
+    setTimingSaving(true);
+    setNotificationNotice("");
+    try {
+      await onSaveNotificationTiming(selectedBooking, values);
+      setTimingPickerOpen(null);
+      showTemporaryDetailNotice("저장되었습니다.");
+    } catch (error) {
+      showTemporaryDetailNotice(getApiErrorMessage(error, "알림 시간을 저장하지 못했습니다."));
+    } finally {
+      setTimingSaving(false);
+    }
+  }
+
   async function resendAlimtalk() {
     await sendWorkflowAlimtalk(getAlimtalkResendType(sourceStatus || displayStatus), "알림톡 발송 요청이 완료되었습니다.");
   }
@@ -1597,8 +1635,8 @@ function BookingSidePanel({
       <WebSurface className="flex h-[calc(100vh-112px)] min-h-[640px] min-w-0 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="relative bg-white px-3.5 py-3">
-            <div className="flex items-center gap-3 rounded-[8px] border border-[#e2e8f0] bg-white p-2.5">
-              <div className="h-[74px] w-[74px] shrink-0 overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc]">
+            <div className="flex items-center gap-3 rounded-[8px] border border-[#e2e8f0] bg-white p-3">
+              <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc]">
                 <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
               <div className="min-w-0 flex-1">
@@ -1611,37 +1649,27 @@ function BookingSidePanel({
                   <p className="flex h-[22px] min-w-0 items-center truncate text-[16px] leading-[22px] text-[#334155]">{selectedBooking.customer} 보호자</p>
                   <p className="flex h-[22px] min-w-0 items-center gap-1.5 truncate text-[15px] leading-[22px] text-[#64748b]">
                     <Phone className="h-3.5 w-3.5 shrink-0 text-[#64748b]" />
-                    <span className="truncate tabular-nums">{editablePhone || "연락처 없음"}</span>
+                    <span className="truncate tabular-nums">{maskedPanelPhone}</span>
                   </p>
                 </div>
               </div>
-              <span className="ml-auto shrink-0 rounded-full bg-[#eefaf5] px-2.5 py-1 text-[12px] text-[#2f7866]">
+              <span className="ml-auto shrink-0 rounded-full bg-[#eefaf5] px-3 py-1.5 text-[13px] text-[#2f7866]">
                 {panelStatusBadgeLabel}
               </span>
             </div>
           </div>
 
           <div className="bg-white px-3.5 pb-3">
-            <section className="rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <ClipboardList className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
-                <span className="text-[16px] font-normal text-[#334155]">서비스 내역</span>
-              </div>
-              <div>
-                <CompactEditableInfoRow label="시술명">
-                  <div className="min-w-0">
-                    <CompactReadonlyValue>{editableServiceName || "시술명 없음"}</CompactReadonlyValue>
-                  </div>
-                </CompactEditableInfoRow>
-                <CompactEditableInfoRow label="가격">
-                  <CompactReadonlyValue>{editablePrice || "0"}</CompactReadonlyValue>
-                </CompactEditableInfoRow>
-                <CompactEditableInfoRow label="예약 시간">
-                  <CompactReadonlyValue tabular>{timeRange}</CompactReadonlyValue>
-                </CompactEditableInfoRow>
-                <CompactEditableInfoRow label="담당자">
-                  <CompactReadonlyValue>{selectedBooking.staffName || selectedBooking.staff || "담당 미지정"}</CompactReadonlyValue>
-                </CompactEditableInfoRow>
+            <div className="flex min-h-[24px] items-center gap-1.5 text-left">
+              <ClipboardList className="h-[18px] w-[18px] shrink-0 text-[#334155]" />
+              <span className="text-[16px] font-normal text-[#334155]">서비스 내역</span>
+            </div>
+            <section className="mt-1.5 rounded-[8px] border border-[#dbe2ea] bg-white p-3">
+              <div className="space-y-1.5">
+                <BookingDetailInfoRow label="시술명" value={editableServiceName || "시술명 없음"} />
+                <BookingDetailInfoRow label="가격" value={editablePrice || "0"} tabular />
+                <BookingDetailInfoRow label="예약 시간" value={timeRange} tabular />
+                <BookingDetailInfoRow label="담당자" value={selectedBooking.staffName || selectedBooking.staff || "담당 미지정"} />
                 {detailSaving || detailNotice ? (
                   <p className={cn("min-w-0 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
                     {detailSaving ? "저장 중입니다." : detailNotice}
@@ -1709,7 +1737,80 @@ function BookingSidePanel({
           </div>
         </div>
 
+          {showWorkflowFooter ? (
           <section className="shrink-0 bg-white px-3.5 pb-3 pt-2.5">
+            {showNotificationTimingPanel ? (
+              <div className="mb-2 rounded-[8px] bg-[#f8fafc] px-3 py-2">
+                <div className="grid gap-2">
+                  {showVisitReminderTiming ? (
+                    <div className="relative flex items-center justify-between gap-3">
+                      <span className="text-[15px] text-[#475569]">방문 전 알림</span>
+                      <button
+                        type="button"
+                        disabled={timingSaving}
+                        onClick={() => setTimingPickerOpen((current) => (current === "visit" ? null : "visit"))}
+                        className="inline-flex h-9 min-w-[96px] items-center justify-center rounded-[8px] border border-[#2f7866] bg-white px-3 text-[15px] text-[#2f7866] transition hover:bg-[#f7fbfa]"
+                      >
+                        {selectedBooking.visitReminderOffsetMinutes ?? 10}분 전
+                      </button>
+                      {timingPickerOpen === "visit" ? (
+                        <div className="absolute right-0 top-10 z-20 grid w-[120px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white p-1 shadow-[0_10px_28px_rgba(15,23,42,0.14)]">
+                          {visitReminderOffsetOptions.map((minutes) => (
+                            <button
+                              key={minutes}
+                              type="button"
+                              disabled={timingSaving}
+                              onClick={() => void saveNotificationTiming({ visitReminderOffsetMinutes: minutes })}
+                              className={cn(
+                                "h-9 rounded-[6px] px-3 text-left text-[15px] transition hover:bg-[#f8fafc]",
+                                (selectedBooking.visitReminderOffsetMinutes ?? 10) === minutes
+                                  ? "text-[#2f7866]"
+                                  : "text-[#334155]",
+                              )}
+                            >
+                              {minutes}분 전
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {showPickupReadyTiming ? (
+                    <div className="relative flex items-center justify-between gap-3">
+                      <span className="text-[15px] text-[#475569]">픽업 안내</span>
+                      <button
+                        type="button"
+                        disabled={timingSaving}
+                        onClick={() => setTimingPickerOpen((current) => (current === "pickup" ? null : "pickup"))}
+                        className="inline-flex h-9 min-w-[96px] items-center justify-center rounded-[8px] border border-[#2f7866] bg-white px-3 text-[15px] text-[#2f7866] transition hover:bg-[#f7fbfa]"
+                      >
+                        {selectedBooking.pickupReadyEtaMinutes ?? 5}분 후
+                      </button>
+                      {timingPickerOpen === "pickup" ? (
+                        <div className="absolute right-0 top-10 z-20 grid w-[120px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white p-1 shadow-[0_10px_28px_rgba(15,23,42,0.14)]">
+                          {pickupReadyEtaOptions.map((minutes) => (
+                            <button
+                              key={minutes}
+                              type="button"
+                              disabled={timingSaving}
+                              onClick={() => void saveNotificationTiming({ pickupReadyEtaMinutes: minutes })}
+                              className={cn(
+                                "h-9 rounded-[6px] px-3 text-left text-[15px] transition hover:bg-[#f8fafc]",
+                                (selectedBooking.pickupReadyEtaMinutes ?? 5) === minutes
+                                  ? "text-[#2f7866]"
+                                  : "text-[#334155]",
+                              )}
+                            >
+                              {minutes}분 후
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-2">
               {changeEventSelected ? (
                 <button
@@ -1828,6 +1929,7 @@ function BookingSidePanel({
               {notificationNotice ? <p className="text-[15px] leading-6 text-[#64748b]">{notificationNotice}</p> : null}
             </div>
           </section>
+          ) : null}
       </WebSurface>
     </aside>
   );
@@ -1937,6 +2039,15 @@ function formatPanelPhoneNumber(value: string) {
   if (digits.length === 10 && digits.startsWith("02")) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
   if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return value;
+}
+
+function maskPanelPhoneNumber(value: string) {
+  const formatted = formatPanelPhoneNumber(value);
+  const digits = formatted.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 8)}...`;
+  }
+  return formatted || "연락처 없음";
 }
 
 function getBookingRequestText(booking: DailyBooking) {
@@ -2243,6 +2354,23 @@ function CompactEditableInfoRow({ label, children }: { label: string; children: 
     <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-x-2 text-[16px] leading-6">
       <span className="pt-1 text-[#334155]">{label}</span>
       <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function BookingDetailInfoRow({
+  label,
+  value,
+  tabular = false,
+}: {
+  label: string;
+  value: ReactNode;
+  tabular?: boolean;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-2 text-[16px] leading-7">
+      <span className="text-[#0f172a]">{label}</span>
+      <span className={cn("min-w-0 truncate text-[#64748b]", tabular && "tabular-nums")}>{value}</span>
     </div>
   );
 }
@@ -3702,6 +3830,53 @@ export default function CalendarManagementScreen({
     onDataChange?.(nextBootstrapData);
   }
 
+  async function persistBookingNotificationTiming(
+    booking: DailyBooking,
+    values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number },
+  ) {
+    const appointment = bootstrapData.appointments.find((item) => item.id === booking.id);
+    if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
+
+    const updatedAppointment = await fetchApiJsonWithAuth<Appointment>("/api/appointments", {
+      method: "PATCH",
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        shopId: bootstrapData.shop.id,
+        serviceId: appointment.service_id,
+        staffId: appointment.staff_id ?? booking.staffKey,
+        appointmentDate: appointment.appointment_date,
+        appointmentTime: appointment.appointment_time.slice(0, 5),
+        durationMinutes: Math.round(minutesBetween(appointment.start_at, appointment.end_at) ?? booking.duration * 60),
+        memo: appointment.memo ?? "",
+        visitReminderOffsetMinutes:
+          values.visitReminderOffsetMinutes ?? appointment.visit_reminder_offset_minutes ?? 10,
+        pickupReadyEtaMinutes:
+          values.pickupReadyEtaMinutes ?? appointment.pickup_ready_eta_minutes ?? 5,
+        enforceShopCapacity: false,
+        allowOutsideShopHours: true,
+        notifyCustomer: false,
+        preserveStatus: true,
+      }),
+    });
+
+    const nextBootstrapData = replaceAppointmentInBootstrap(bootstrapData, updatedAppointment);
+    setBootstrapData(nextBootstrapData);
+    onDataChange?.(nextBootstrapData);
+    setBookings((current) =>
+      current.map((item) =>
+        item.id === booking.id
+          ? {
+              ...item,
+              visitReminderOffsetMinutes:
+                updatedAppointment.visit_reminder_offset_minutes ?? values.visitReminderOffsetMinutes ?? 10,
+              pickupReadyEtaMinutes:
+                updatedAppointment.pickup_ready_eta_minutes ?? values.pickupReadyEtaMinutes ?? 5,
+            }
+          : item,
+      ),
+    );
+  }
+
   async function handleMoveBooking(bookingId: string, next: { staffKey: StaffKey; staffName: string; staff: string; start: number }) {
     const previousBookings = bookings;
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
@@ -4193,9 +4368,42 @@ export default function CalendarManagementScreen({
         </div>
       ) : null}
       {boardError ? (
-        <p className="rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] text-[#b42318]">
-          {boardError}
-        </p>
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/25 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedule-board-error-title"
+          onClick={() => setBoardError("")}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[12px] border border-[#ead6dc] bg-white p-5 shadow-[0_22px_70px_rgba(15,23,42,0.22)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 id="schedule-board-error-title" className="text-[18px] font-semibold text-[#111827]">
+                  처리할 수 없어요
+                </h3>
+                <p className="mt-2 text-[16px] leading-7 text-[#475569]">{boardError}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="닫기"
+                onClick={() => setBoardError("")}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBoardError("")}
+              className="mt-5 h-11 w-full rounded-[8px] bg-[#2f7866] text-[16px] font-medium text-white transition hover:bg-[#286a5a]"
+            >
+              확인
+            </button>
+          </div>
+        </div>
       ) : null}
 
       <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
@@ -4247,6 +4455,7 @@ export default function CalendarManagementScreen({
           onChangeStaffComment={handleStaffCommentChange}
           onSaveBookingPhone={persistBookingPhoneChange}
           onSaveBookingDetail={persistBookingDetailChange}
+          onSaveNotificationTiming={persistBookingNotificationTiming}
         />
       </div>
       {photoStatusAction ? (

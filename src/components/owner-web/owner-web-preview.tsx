@@ -59,7 +59,7 @@ const ownerWebNavigationItems: Array<{ key: OwnerWebScreenKey; label: string }> 
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebScreenKey; active: boolean }) {
   return (
     <span
-      className={cn("block h-[21px] w-[21px]", active ? "bg-[#1f6b5b]" : "bg-[#64748b]")}
+      className={cn("block h-[21px] w-[21px]", active ? "bg-white" : "bg-[#53545C]")}
       style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,
@@ -111,7 +111,7 @@ function AlimtalkCreditMenu({
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
         aria-label="알림톡 잔여 건수"
         aria-expanded={open}
       >
@@ -440,9 +440,9 @@ export default function OwnerWebPreview({
   }
 
   return (
-    <div className="min-h-screen bg-white text-[#111827]">
-      <header className="sticky top-0 z-40 flex h-[52px] items-center gap-3 border-b border-[#dbe2ea] bg-white px-4 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-        <div className="flex min-w-[250px] items-center gap-3">
+    <div className="min-h-screen bg-[#f6f7fb] text-[#111827] lg:h-screen lg:overflow-hidden">
+      <header className="sticky top-0 z-40 flex h-[64px] items-center gap-3 border-b border-[#dbe2ea] bg-white px-5 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.03)] lg:hidden">
+        <div className="flex min-w-[250px] items-center gap-3 lg:hidden">
           <Image src="/images/brand/ododok-petmanager-logo.png" alt="펫매니저" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
           <span className="font-['SUIT_Variable','Pretendard_Variable','Pretendard',sans-serif] text-[24px] font-extrabold tracking-[-0.02em] text-[#146757]">
             펫매니저
@@ -474,17 +474,17 @@ export default function OwnerWebPreview({
           >
             <Bell className="h-4 w-4" />
           </button>
-          <div ref={storeMenuRef} className="relative w-[218px]">
+          <div ref={storeMenuRef} className="relative w-[168px]">
             <button
               type="button"
               onClick={() => {
                 setStoreMenuOpen((current) => !current);
                 setAlimtalkCreditMenuOpen(false);
               }}
-              className="grid h-9 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+              className="grid h-9 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
                 aria-expanded={storeMenuOpen}
               >
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e6f3ef] text-[11px] font-bold text-[#1f6b5b]">
+                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[11px] font-bold text-[#475569]">
                   {shopInitials}
                 </span>
                 <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
@@ -511,11 +511,17 @@ export default function OwnerWebPreview({
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-52px)]">
-        <aside className="sticky top-[52px] hidden h-[calc(100vh-52px)] w-[184px] shrink-0 self-start border-r border-[#dbe2ea] bg-white lg:block">
+      <div className="flex min-h-[calc(100vh-64px)] lg:ml-[216px] lg:h-screen lg:min-h-0 lg:px-4 lg:pb-4 lg:pl-0 lg:pt-2">
+        <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[216px] shrink-0 self-start bg-[#f6f7fb] lg:block">
           <div className="flex h-full flex-col">
-            <nav className="flex-1 overflow-y-auto px-3 py-4">
-              <div className="space-y-0.5">
+            <div className="flex h-[62px] items-center gap-2 px-4">
+              <Image src="/images/brand/ododok-petmanager-logo.png" alt="펫매니저" width={34} height={34} className="h-[34px] w-[34px] shrink-0 object-contain" />
+              <span className="font-['SUIT_Variable','Pretendard_Variable','Pretendard',sans-serif] text-[20px] font-extrabold tracking-[-0.02em] text-[#45464E]">
+                펫매니저
+              </span>
+            </div>
+            <nav className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
+              <div className="space-y-1">
                 {ownerWebNavigationItems.map((screen) => {
                   const active = activeScreen === screen.key;
                   return (
@@ -524,11 +530,11 @@ export default function OwnerWebPreview({
                         type="button"
                         onClick={() => handleScreenSelect(screen.key)}
                         className={cn(
-                          "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left transition",
-                          active ? "bg-[#f8fafc] text-[#111827]" : "text-[#475569] hover:bg-[#f8fafc]",
+                          "flex h-[42px] w-full items-center gap-2.5 rounded-[9px] px-3.5 text-left transition",
+                          active ? "bg-[#5570F1] text-white shadow-[0_10px_24px_rgba(85,112,241,0.18)]" : "text-[#53545C] hover:bg-[#f7f8fb]",
                         )}
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                           <PhosphorSidebarIcon screen={screen.key} active={active} />
                         </span>
                         <span className="min-w-0">
@@ -540,11 +546,83 @@ export default function OwnerWebPreview({
                 })}
               </div>
             </nav>
-
+            <div className="px-4 pb-4">
+              <button
+                type="button"
+                onClick={() => openSettingsTab("alerts")}
+                className="flex h-10 w-full items-center gap-2.5 rounded-[10px] bg-[#5E6366]/10 px-3.5 text-left text-[16px] font-normal text-[#1C1D22] transition hover:bg-[#5E6366]/15"
+              >
+                <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={2} />
+                <span className="min-w-0 truncate">문의하기</span>
+              </button>
+            </div>
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 lg:flex lg:h-[calc(100vh-24px)] lg:min-h-0 lg:flex-col lg:gap-1.5 lg:overflow-hidden">
+          <div className="hidden h-8 shrink-0 items-center gap-2 bg-transparent px-4 lg:flex">
+            <div className="ml-auto flex items-center gap-2">
+              <AlimtalkCreditMenu
+                summary={ownerData.alimtalkCreditSummary}
+                open={alimtalkCreditMenuOpen}
+                onToggle={() => {
+                  setAlimtalkCreditMenuOpen((current) => !current);
+                  setStoreMenuOpen(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => openSettingsTab("shop")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+                aria-label="매장 정보"
+              >
+                <Store className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => openSettingsTab("alerts")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
+                aria-label="알림"
+              >
+                <Bell className="h-4 w-4" />
+              </button>
+              <div ref={storeMenuRef} className="relative w-[168px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoreMenuOpen((current) => !current);
+                    setAlimtalkCreditMenuOpen(false);
+                  }}
+                  className="grid h-8 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
+                  aria-expanded={storeMenuOpen}
+                >
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[10px] font-bold text-[#475569]">
+                    {shopInitials}
+                  </span>
+                  <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
+                </button>
+                {storeMenuOpen ? (
+                  <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+                    <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                      매장 정보
+                    </button>
+                    <div className="my-1 border-t border-[#edf2f7]" />
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#b45309] hover:bg-[#fffaf0] disabled:opacity-60"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      {loggingOut ? "로그아웃 중..." : "로그아웃"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 lg:min-h-0 lg:overflow-hidden lg:rounded-[18px] lg:border lg:border-[#dbe2ea] lg:bg-white lg:shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
           <div className="border-b border-[#dbe2ea] bg-white px-5 py-3 lg:hidden">
             <SoftSelect<OwnerWebScreenKey>
               value={activeScreen}
@@ -555,7 +633,7 @@ export default function OwnerWebPreview({
               buttonClassName="h-10"
             />
           </div>
-          <div className="p-5">
+          <div className="p-5 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
             {renderScreen(
               activeScreen,
               manualApprovalEnabled,
@@ -569,6 +647,7 @@ export default function OwnerWebPreview({
               handleScheduleCreateRequestHandled,
               handleCreateReservationForCustomer,
             )}
+          </div>
           </div>
         </main>
       </div>

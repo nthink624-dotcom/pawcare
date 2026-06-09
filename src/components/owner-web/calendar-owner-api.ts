@@ -272,6 +272,8 @@ export function buildLocalOwnerAppointment(params: {
     rejection_reason: null,
     start_at: `${params.appointmentDate}T${params.appointmentTime}:00+09:00`,
     end_at: `${endDate}T${formatHourLabel((endMinute % (24 * 60)) / 60)}:00+09:00`,
+    visit_reminder_offset_minutes: 10,
+    pickup_ready_eta_minutes: 5,
     source: "owner",
     created_at: now,
     updated_at: now,

@@ -702,6 +702,10 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     pets: [{ id: pet.id, name: pet.name, guardian_id: pet.guardian_id, breed: pet.breed }],
     appointments: scopedAppointments,
     groomingRecords,
+    access: {
+      appointmentId: payload.appointmentId ?? null,
+      action: payload.action ?? null,
+    },
   };
 }
 

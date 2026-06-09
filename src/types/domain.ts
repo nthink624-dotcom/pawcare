@@ -53,8 +53,10 @@ export type ShopNotificationSettings = {
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
   appointment_reminder_10m_enabled: boolean;
+  visit_reminder_offset_minutes: number;
   grooming_started_enabled: boolean;
   grooming_almost_done_enabled: boolean;
+  pickup_ready_eta_minutes: number;
   grooming_completed_enabled: boolean;
   grooming_start_without_photo_enabled: boolean;
   grooming_complete_without_photo_enabled: boolean;
@@ -224,6 +226,8 @@ export type Appointment = {
   end_at: string;
   actual_started_at?: string | null;
   actual_completed_at?: string | null;
+  visit_reminder_offset_minutes?: number;
+  pickup_ready_eta_minutes?: number;
   source: "owner" | "customer";
   created_at: string;
   updated_at: string;
@@ -262,8 +266,10 @@ export type BootstrapStaffMember = {
   id: string;
   name: string;
   displayName?: string;
+  profileImageUrl?: string;
   phone: string;
   role: string;
+  titlePrefix?: string;
   position?: string;
   defaultDays: Array<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun">;
   startTime: string;

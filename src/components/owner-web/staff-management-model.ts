@@ -6,7 +6,7 @@ import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/
 export type StaffStatus = "work" | "off" | "annual" | "half" | "pending";
 export type LeaveType = "휴무" | "연차" | "반차";
 export type LeaveStatus = "승인대기" | "승인" | "거절";
-export type StaffBoardTab = "schedule" | "list";
+export type StaffBoardTab = "schedule" | "monthly" | "list";
 export type WeekdayKey = OwnerWebWeekdayKey;
 export type StaffMember = OwnerWebStaffMember;
 
@@ -57,8 +57,10 @@ export type ScheduleEditDraft = {
 export type StaffDraft = {
   name: string;
   displayName: string;
+  profileImageUrl: string;
   phone: string;
   role: string;
+  titlePrefix: string;
   position: string;
   defaultDaysText: string;
   startTime: string;
@@ -70,8 +72,10 @@ export type StaffDraft = {
 export const emptyStaffDraft: StaffDraft = {
   name: "",
   displayName: "",
+  profileImageUrl: "",
   phone: "",
   role: "",
+  titlePrefix: "",
   position: "",
   defaultDaysText: "",
   startTime: "10:00",
@@ -154,6 +158,46 @@ export function getWeekStart(date = currentDateInTimeZone()) {
 
 export function getWeekDates(weekStart: string) {
   return weekdayColumns.map((day, index) => ({ ...day, date: addDays(weekStart, index) }));
+}
+
+export function getMonthStart(date = currentDateInTimeZone()) {
+  const parsed = parseDate(date);
+  parsed.setDate(1);
+  return formatDateKey(parsed);
+}
+
+export function formatMonthShift(date: string, months: number) {
+  const parsed = parseDate(date);
+  parsed.setMonth(parsed.getMonth() + months, 1);
+  return formatDateKey(parsed);
+}
+
+export function formatMonthLabel(monthStart: string) {
+  const parsed = parseDate(monthStart);
+  return `${parsed.getFullYear()}년 ${parsed.getMonth() + 1}월`;
+}
+
+export function getMonthCalendarDates(monthStart: string) {
+  const firstDate = parseDate(monthStart);
+  const firstDayOffset = firstDate.getDay() === 0 ? 6 : firstDate.getDay() - 1;
+  const gridStart = addDays(monthStart, -firstDayOffset);
+  const currentMonth = firstDate.getMonth();
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = addDays(gridStart, index);
+    const parsed = parseDate(date);
+    const weekdayIndex = parsed.getDay() === 0 ? 6 : parsed.getDay() - 1;
+    const weekday = weekdayColumns[weekdayIndex];
+
+    return {
+      key: weekday.key,
+      label: weekday.label,
+      date,
+      dayNumber: parsed.getDate(),
+      isCurrentMonth: parsed.getMonth() === currentMonth,
+      isToday: date === currentDateInTimeZone(),
+    };
+  });
 }
 
 export function formatShortDate(date: string) {
@@ -251,8 +295,10 @@ export function buildDraft(staff: StaffMember): StaffDraft {
   return {
     name: staff.name,
     displayName: staff.displayName ?? "",
+    profileImageUrl: staff.profileImageUrl ?? "",
     phone: staff.phone,
     role: staff.role,
+    titlePrefix: staff.titlePrefix ?? "",
     position: staff.position ?? getStaffRank(staff.role),
     defaultDaysText: staff.defaultDays.map((key) => weekdayColumns.find((day) => day.key === key)?.label).filter(Boolean).join(", "),
     startTime: staff.startTime,

@@ -8,7 +8,6 @@ import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type Servic
 import {
   applyCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
-  type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
 import { formatServicePrice } from "@/lib/utils";
 import type { BusinessHours, Service, Shop } from "@/types/domain";
@@ -255,12 +254,10 @@ function getTodayOperatingStatus(
 export default function CustomerBookingEntryPage({
   shop,
   services,
-  bookingHref,
   infoHref,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
   services: Service[];
-  bookingHref: string;
   infoHref: string;
 }) {
   const settings = shop.customer_page_settings;
@@ -306,6 +303,12 @@ export default function CustomerBookingEntryPage({
   const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
   const kakaoInquiryUrl = settings.kakao_inquiry_url.trim();
   const inquiryHref = kakaoInquiryUrl || `tel:${shop.phone.replace(/[^0-9+]/g, "")}`;
+  const bookingHref = (serviceId?: string, serviceOptionId?: string) => {
+    const href = new URL(`/book/${encodeURIComponent(shop.id)}`, "http://localhost");
+    if (serviceId) href.searchParams.set("serviceId", serviceId);
+    if (serviceOptionId) href.searchParams.set("serviceOptionId", serviceOptionId);
+    return `${href.pathname}${href.search}`;
+  };
 
   useEffect(() => {
     setActiveHeroIndex((current) => Math.min(current, Math.max(heroImages.length - 1, 0)));
@@ -325,15 +328,6 @@ export default function CustomerBookingEntryPage({
     }, 60_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  function startBookingWithService(option: CustomerServiceSourceOption) {
-    if (typeof window === "undefined") return;
-    const nextUrl = new URL(bookingHref, window.location.origin);
-    nextUrl.searchParams.set("serviceId", option.serviceId);
-    nextUrl.searchParams.set("serviceOptionId", option.id);
-    nextUrl.searchParams.set("step", "2");
-    window.location.assign(`${nextUrl.pathname}${nextUrl.search}`);
-  }
 
   function toggleBreedGuide(key: string) {
     setExpandedBreedGuideKeys((keys) => (keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key]));
@@ -440,11 +434,10 @@ export default function CustomerBookingEntryPage({
         <div className="mt-2 text-[#071923]">
           <div className="grid gap-1.5">
             {serviceOptions.map((service) => (
-                <button
+                <a
                   key={service.id}
-                  type="button"
-                  onClick={() => startBookingWithService(service)}
-                  className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:bg-[#faf7f2]"
+                  href={bookingHref(service.serviceId, service.id)}
+                  className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:border-[#d8c8b8] hover:bg-[#fffdf9]"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
@@ -454,7 +447,7 @@ export default function CustomerBookingEntryPage({
                   <span className="shrink-0 text-right text-[16px] font-normal text-[#7A5A45]">
                     {formatServicePrice(service.price, service.priceType)}
                   </span>
-                </button>
+                </a>
               ))}
           </div>
           {priceGuideExtraFeeGroups.length > 0 ? (
@@ -469,7 +462,7 @@ export default function CustomerBookingEntryPage({
                   자세히
                 </button>
               </div>
-              <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
+              <div className="no-scrollbar mt-1.5 flex gap-1.5 overflow-x-auto">
                 {priceGuideExtraFeeGroups[0].extraFees.slice(0, 5).map((fee) => (
                   <span
                     key={fee.id}

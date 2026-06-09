@@ -8,8 +8,10 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
   appointment_reminder_10m_enabled: true,
+  visit_reminder_offset_minutes: 10,
   grooming_started_enabled: true,
   grooming_almost_done_enabled: true,
+  pickup_ready_eta_minutes: 5,
   grooming_completed_enabled: true,
   grooming_start_without_photo_enabled: false,
   grooming_complete_without_photo_enabled: false,
@@ -29,10 +31,21 @@ export const defaultGuardianNotificationSettings: GuardianNotificationSettings =
   birthday_greeting_enabled: true,
 };
 
+function normalizeMinuteValue(value: unknown, fallback: number) {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.round(parsed), 0), 180);
+}
+
 export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {
   return {
     ...defaultShopNotificationSettings,
     ...(settings ?? {}),
+    visit_reminder_offset_minutes: normalizeMinuteValue(
+      settings?.visit_reminder_offset_minutes,
+      defaultShopNotificationSettings.visit_reminder_offset_minutes,
+    ),
+    pickup_ready_eta_minutes: normalizeMinuteValue(settings?.pickup_ready_eta_minutes, defaultShopNotificationSettings.pickup_ready_eta_minutes),
   };
 }
 

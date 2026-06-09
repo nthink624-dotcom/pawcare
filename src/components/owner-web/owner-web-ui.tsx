@@ -128,14 +128,14 @@ export function SoftSelect<T extends string = string>({
         onClick={() => setOpen((current) => !current)}
         className={cn(
           "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-left transition",
-          "hover:border-[#b9ccc5] hover:bg-[#fbfdfc] focus:outline-none focus:ring-[3px] focus:ring-[#1f6b5b]/10 disabled:cursor-not-allowed disabled:opacity-60",
-          open && "border-[#1f6b5b] bg-[#fbfdfc]",
+          "hover:border-[#cbd5e1] hover:bg-[#f8fafc] focus:outline-none focus:ring-[3px] focus:ring-[#cbd5e1]/45 disabled:cursor-not-allowed disabled:opacity-60",
+          open && "border-[#cbd5e1] bg-white",
           buttonClassName,
         )}
       >
         {label ? <span className={cn("text-[12px] text-[#64748b]", labelClassName)}>{label}</span> : <span />}
         <span className={cn("truncate text-right text-[14px] font-medium text-[#111827]", valueClassName)}>{selectedOption?.label ?? ""}</span>
-        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180 text-[#1f6b5b]")} />
+        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180")} />
       </button>
       {open ? (
         <div
@@ -162,7 +162,7 @@ export function SoftSelect<T extends string = string>({
                 }}
                 className={cn(
                   "flex h-9 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
-                  selected ? "bg-[#e9f6f1] font-semibold text-[#0f6b5a]" : "text-[#1f2937] hover:bg-[#f8fafc]",
+                  selected ? "bg-[#f1f5f9] font-semibold text-[#111827]" : "text-[#1f2937] hover:bg-[#f8fafc]",
                   option.disabled && "cursor-not-allowed opacity-45",
                 )}
               >

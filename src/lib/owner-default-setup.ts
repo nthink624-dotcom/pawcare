@@ -51,6 +51,7 @@ export function buildDefaultOwnerStaffMembers(params: {
       shop_id: shopId,
       name: "원장",
       display_name: "원장",
+      title_prefix: "",
       phone: ownerPhone?.trim() || "",
       role: "원장 / 전체 미용",
       position: "원장",

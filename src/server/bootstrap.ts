@@ -96,6 +96,8 @@ function hasAppointmentWindowEnded(appointment: Appointment) {
 function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
   return {
     ...appointment,
+    visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? 10,
+    pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? 5,
     status:
       autoCompletedAppointmentStatuses.has(appointment.status) && hasAppointmentWindowEnded(appointment)
         ? "completed"
@@ -126,8 +128,10 @@ type StaffMemberRow = {
   id: string;
   name: string;
   display_name?: string | null;
+  profile_image_url?: string | null;
   phone: string | null;
   role: string;
+  title_prefix?: string | null;
   position?: string | null;
   default_days: BootstrapStaffMember["defaultDays"] | null;
   start_time: string;
@@ -151,8 +155,10 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     id: row.id,
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
+    profileImageUrl: row.profile_image_url?.trim() || "",
     phone: row.phone ?? "",
     role: row.role,
+    titlePrefix: row.title_prefix?.trim() || "",
     position: row.position?.trim() || row.role.split(/[/.|]/)[0]?.trim() || "직원",
     defaultDays: row.default_days?.length ? row.default_days : ["mon", "tue", "wed", "thu", "fri", "sat"],
     startTime: normalizeTime(row.start_time),
@@ -169,6 +175,7 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
     id: `${shop.id}-staff-owner`,
     name: "원장",
     displayName: "원장",
+    profileImageUrl: "",
     phone: shop.phone ?? "",
     role: "원장 / 전체 미용",
     position: "원장",
@@ -204,9 +211,13 @@ function isMissingAlimtalkCreditSummaryError(error: { code?: string | null; mess
 function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
   const message = error?.message?.toLowerCase() ?? "";
   return (
-    error?.code === "PGRST204" &&
+    (error?.code === "PGRST204" || error?.code === "42703") &&
     message.includes("staff_members") &&
-    (message.includes("display_name") || message.includes("position") || message.includes("schema cache"))
+    (message.includes("display_name") ||
+      message.includes("profile_image_url") ||
+      message.includes("title_prefix") ||
+      message.includes("position") ||
+      message.includes("schema cache"))
   );
 }
 
@@ -287,7 +298,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
       supabase
         .from("staff_members")
-        .select("id,name,display_name,phone,role,position,default_days,start_time,end_time,regular_off,annual_remain")
+        .select("id,name,display_name,profile_image_url,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("sort_order")

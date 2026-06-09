@@ -38,6 +38,7 @@ import {
   applyCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
@@ -396,6 +397,10 @@ function createAdditionalPetDraft(): AdditionalPetDraft {
   };
 }
 
+function getStaffInitial(name: string) {
+  return name.trim().slice(0, 1) || "스";
+}
+
 function StaffPreferenceCards({
   staffMembers,
   value,
@@ -408,8 +413,13 @@ function StaffPreferenceCards({
   if (staffMembers.length <= 1) return null;
 
   const options = [
-    { id: "", name: "담당 디자이너 없음" },
-    ...staffMembers.map((staff) => ({ id: staff.id, name: staff.name })),
+    { id: "", name: "담당 디자이너 없음", title: "", profileImageUrl: "" },
+    ...staffMembers.map((staff) => ({
+      id: staff.id,
+      name: getStaffCustomerName(staff),
+      title: getStaffCustomerTitle(staff),
+      profileImageUrl: staff.profileImageUrl ?? "",
+    })),
   ];
 
   return (
@@ -430,8 +440,20 @@ function StaffPreferenceCards({
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{option.name}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f8fafc] text-[16px] text-[var(--accent)]">
+                    {option.profileImageUrl ? (
+                      <img src={option.profileImageUrl} alt={`${option.name} 프로필`} className="h-full w-full object-cover" />
+                    ) : option.id ? (
+                      getStaffInitial(option.name)
+                    ) : (
+                      "?"
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{option.name}</p>
+                    {option.title ? <p className="mt-0.5 truncate text-[12px] leading-[14px] text-[var(--muted)]">{option.title}</p> : null}
+                  </div>
                 </div>
                 {active ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" /> : null}
               </div>
@@ -505,7 +527,7 @@ export default function CustomerBookingPage({
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(initialFirstVisitStep);
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>({
     ...initialFirstVisitState,
-    date: initialDate || (initialMode === "first" && initialFirstVisitStep === 2 ? defaultFirstVisitDate : ""),
+    date: initialDate || (initialMode === "first" && initialFirstVisitStep === 3 ? defaultFirstVisitDate : ""),
     timeSlot: initialTime,
     serviceId: initialSelectableServiceId,
     customerServiceOptionId: initialSelectableServiceOptionId,
@@ -535,15 +557,23 @@ export default function CustomerBookingPage({
     customerServiceOptions.find((option) => option.id === firstVisit.customerServiceOptionId) ??
     customerServiceOptions.find((option) => option.serviceId === firstVisit.serviceId);
   const selectedFirstStaffName = firstVisit.staffId
-    ? staffMembers.find((staff) => staff.id === firstVisit.staffId)?.name
+    ? staffMembers.find((staff) => staff.id === firstVisit.staffId)
+      ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!)
+      : undefined
     : staffMembers.length > 1
       ? "담당 디자이너 없음"
-      : staffMembers[0]?.name;
+      : staffMembers[0]
+        ? getStaffCustomerName(staffMembers[0])
+        : undefined;
   const selectedReturningStaffName = returningVisit.staffId
-    ? staffMembers.find((staff) => staff.id === returningVisit.staffId)?.name
+    ? staffMembers.find((staff) => staff.id === returningVisit.staffId)
+      ? getStaffCustomerName(staffMembers.find((staff) => staff.id === returningVisit.staffId)!)
+      : undefined
     : staffMembers.length > 1
       ? "담당 디자이너 없음"
-      : staffMembers[0]?.name;
+      : staffMembers[0]
+        ? getStaffCustomerName(staffMembers[0])
+        : undefined;
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
   const returningVisitUsesCustomService = returningVisit.serviceId === CUSTOM_SERVICE_ID;
   const hasInitialFirstVisitSlot = Boolean(initialDate && initialTime);
@@ -556,13 +586,13 @@ export default function CustomerBookingPage({
   const firstVisitDateOptionValues = useMemo(() => new Set(dateOptions.map((option) => option.value)), [dateOptions]);
 
   useEffect(() => {
-    if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 2) {
-      setFirstVisitStep(3);
+    if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 3) {
+      setFirstVisitStep(4);
     }
   }, [firstVisitStep, shouldSkipFirstVisitDateTimeStep]);
 
   useEffect(() => {
-    if (activeMode !== "first" || firstVisitStep !== 2 || !defaultFirstVisitDate) return;
+    if (activeMode !== "first" || firstVisitStep !== 3 || !defaultFirstVisitDate) return;
     if (firstVisit.date && firstVisitDateOptionValues.has(firstVisit.date)) return;
     setFirstVisit((prev) => {
       if (prev.date && firstVisitDateOptionValues.has(prev.date)) return prev;
@@ -814,9 +844,9 @@ export default function CustomerBookingPage({
         firstVisit.petName.trim() &&
         firstVisit.extraPets.every((pet) => pet.name.trim()),
     );
-    if (step === 1) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
-    if (step === 2) return Boolean(firstVisit.date && firstVisit.timeSlot);
-    if (step === 3) return basicInfoReady;
+    if (step === 1) return basicInfoReady;
+    if (step === 2) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
+    if (step === 3) return Boolean(firstVisit.date && firstVisit.timeSlot);
     return Boolean(
       basicInfoReady &&
         firstVisit.date &&
@@ -832,12 +862,12 @@ export default function CustomerBookingPage({
         type: "error",
         title:
           firstVisitStep === 1
-            ? "서비스를 선택해 주세요"
+            ? "예약자 정보를 확인해 주세요"
             : firstVisitStep === 2
-              ? "예약 시간을 선택해 주세요"
-              : "예약자 정보를 확인해 주세요",
+              ? "서비스를 선택해 주세요"
+              : "예약 시간을 선택해 주세요",
         message:
-          firstVisitStep === 3
+          firstVisitStep === 1
             ? "보호자 이름, 연락처, 반려동물 이름을 입력하면 예약 요청을 보낼 수 있어요."
             : "필수 정보를 선택한 뒤 다시 눌러 주세요.",
         action: "dismiss",
@@ -845,12 +875,12 @@ export default function CustomerBookingPage({
       return;
     }
 
-    if (firstVisitStep === 1 && !firstVisit.date && dateOptions[0]) {
+    if (firstVisitStep === 2 && !firstVisit.date && dateOptions[0]) {
       setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
     }
 
-    if (firstVisitStep === 1 && shouldSkipFirstVisitDateTimeStep) {
-      setFirstVisitStep(3);
+    if (firstVisitStep === 2 && shouldSkipFirstVisitDateTimeStep) {
+      setFirstVisitStep(4);
       return;
     }
 
@@ -1064,7 +1094,7 @@ export default function CustomerBookingPage({
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;
-                if (firstVisitStep <= 2) {
+                if (firstVisitStep <= 1) {
                   resetView();
                 } else {
                   setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep);

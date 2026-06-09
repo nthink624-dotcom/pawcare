@@ -4,6 +4,7 @@ import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +62,10 @@ function isActiveBookingStatus(status: string) {
 
 function isPendingBookingStatus(status: string) {
   return status === "승인 대기";
+}
+
+function getStaffInitial(name: string) {
+  return name.trim().slice(0, 1) || "?";
 }
 
 function isCompletedBookingStatus(status: string) {
@@ -477,8 +482,8 @@ export function DailyScheduleGrid({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
       <div className="flex shrink-0 bg-white">
-        <div className="flex w-[64px] shrink-0 items-center justify-center border-r border-[#e2e8f0] bg-[#f8fafc] px-2 pt-2">
-          <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-[#f3f4f6] text-[12px] text-[#64748b]">
+        <div className="flex w-[64px] shrink-0 items-center justify-center border-r border-[#edf2f7] bg-white px-2 pt-2">
+          <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-white text-[12px] text-[#64748b]">
             시간
           </span>
         </div>
@@ -488,40 +493,55 @@ export function DailyScheduleGrid({
           className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-4" style={scheduleTrackStyle}>
-            {scheduleStaff.map((staffMember) => {
+            {scheduleStaff.map((staffMember, staffIndex) => {
               const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
-              const activeStatusCount = staffBookings.filter((booking) => isActiveBookingStatus(booking.status)).length;
+              const pendingStatusCount = staffBookings.filter((booking) => isPendingBookingStatus(booking.status)).length;
               const selectedStaff = selectedStaffKey === staffMember.key;
+              const staffTone = getStaffChipTone(staffMember.key, staffIndex);
 
               return (
                 <section
                   key={staffMember.key}
                   onClick={() => onSelectStaff(staffMember.key)}
                   className={cn(
-                    "min-w-0 cursor-pointer rounded-t-[8px] border border-b-0 px-3 py-2 transition",
-                    selectedStaff
-                      ? "border-[#b9d1ca] bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]"
-                      : "border-transparent bg-[#f3f4f6] hover:bg-[#eef1f4]",
+                    "min-w-[136px] cursor-pointer rounded-t-[8px] border border-b-0 px-3 py-2.5 transition hover:brightness-[0.98]",
+                    selectedStaff && "shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-inset ring-white/45",
                   )}
-                  style={{ flex: columnFlexBasis }}
+                  style={{
+                    flex: columnFlexBasis,
+                    borderColor: staffTone.selectedBackground,
+                    backgroundColor: staffTone.selectedBackground,
+                  }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={cn("truncate text-[14px] font-medium", selectedStaff ? "text-[#1f6b5b]" : "text-[#111827]")}>
-                          {staffMember.name}
-                        </p>
-                        <span className="text-[12px] text-[#64748b]">{staffBookings.length}</span>
-                      </div>
-                    </div>
+                  <div className="grid min-h-[50px] grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5">
                     <span
-                      className={cn(
-                        "rounded-full px-2 py-1 text-[11px]",
-                        activeStatusCount > 0 ? "bg-[#e6f3ef] text-[#1f6b5b]" : "bg-white text-[#94a3b8]",
-                      )}
+                      className="flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full border text-[14px] font-medium"
+                      style={{
+                        borderColor: "rgba(255,255,255,0.72)",
+                        backgroundColor: "rgba(255,255,255,0.18)",
+                        color: "#ffffff",
+                      }}
                     >
-                      {activeStatusCount > 0 ? "진행" : "대기"}
+                      {staffMember.profileImageUrl ? (
+                        <img src={staffMember.profileImageUrl} alt={`${staffMember.name} 프로필`} className="h-full w-full object-cover" />
+                      ) : (
+                        getStaffInitial(staffMember.name)
+                      )}
                     </span>
+                    <div className="min-w-0">
+                      <p
+                        className="min-w-0 truncate text-[14px] font-medium leading-[18px]"
+                        style={{ color: "#ffffff" }}
+                      >
+                        {staffMember.name}
+                      </p>
+                      <p
+                        className="mt-0.5 min-w-0 truncate text-[12px] leading-[16px]"
+                        style={{ color: "rgba(255,255,255,0.84)" }}
+                      >
+                        예약 {staffBookings.length}건 · 대기 {pendingStatusCount}건
+                      </p>
+                    </div>
                   </div>
                 </section>
               );
@@ -546,14 +566,14 @@ export function DailyScheduleGrid({
         )}
       >
         <div className="flex">
-          <div className="w-[64px] shrink-0 border-r border-[#e2e8f0] bg-[#f8fafc] px-2">
+          <div className="w-[64px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
               {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
                 <div
                   key={`time-rail-line-${index}`}
                   className={cn(
                     "absolute left-0 right-0 border-t",
-                    index % 4 === 0 ? "border-[#dbe2ea]" : "border-[#e9eef4]",
+                    index % 4 === 0 ? "border-[#e5eaf0]" : "border-[#f2f5f8]",
                   )}
                   style={{ top: scheduleBodyInsetY + index * quarterSlotHeight }}
                 />
@@ -564,9 +584,9 @@ export function DailyScheduleGrid({
                   className="absolute inset-x-0 flex items-center gap-1 text-[12px] leading-none text-[#64748b]"
                   style={{ top: scheduleBodyInsetY + (Number(hour.slice(0, 2)) - scheduleStartHour) * pixelsPerHour, transform: "translateY(-50%)" }}
                 >
-                  <span className="h-px flex-1 bg-[#dbe2ea]" aria-hidden="true" />
-                  <span className="shrink-0 bg-[#f8fafc] px-1">{hour}</span>
-                  <span className="h-px flex-1 bg-[#dbe2ea]" aria-hidden="true" />
+                  <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
+                  <span className="shrink-0 bg-white px-1">{hour}</span>
+                  <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
                 </div>
               ))}
             </div>
@@ -580,19 +600,20 @@ export function DailyScheduleGrid({
           >
             <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4" style={scheduleTrackStyle}>
               {scheduleStaff.length === 0 ? (
-                <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-[#f8fafc]">
+                <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
                     <p className="text-[14px] font-medium text-[#111827]">등록된 직원가 없습니다.</p>
                     <p className="mt-1 text-[13px] text-[#64748b]">아직 오늘 예약이 없습니다.</p>
                   </div>
                 </section>
               ) : null}
-              {scheduleStaff.map((staffMember) => {
+              {scheduleStaff.map((staffMember, staffIndex) => {
                 const staffBookings = displayedVisibleBookings
                   .filter((booking) => booking.staffKey === staffMember.key)
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(staffBookings);
                 const selectedStaff = selectedStaffKey === staffMember.key;
+                const staffTone = getStaffChipTone(staffMember.key, staffIndex);
                 return (
                   <section
                     key={staffMember.key}
@@ -600,11 +621,11 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, staffMember)}
                     className={cn(
-                      "min-w-0 cursor-pointer rounded-b-[8px] bg-[#f3f4f6] p-0 transition",
-                      selectedStaff && "ring-1 ring-inset ring-[#2f7866]/20",
-                      draggingBookingId && "ring-1 ring-inset ring-[#2f7866]/20",
+                      "min-w-0 cursor-pointer rounded-b-[8px] border border-t-0 bg-white p-0 transition",
+                      selectedStaff && "ring-1 ring-inset ring-[#cfd8e3]",
+                      draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
-                    style={{ flex: columnFlexBasis }}
+                    style={{ flex: columnFlexBasis, borderColor: staffTone.border }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
                       {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
@@ -612,13 +633,13 @@ export function DailyScheduleGrid({
                           key={`${staffMember.key}-line-${index}`}
                           className={cn(
                             "absolute left-0 right-0 border-t",
-                            index % 4 === 0 ? "border-white" : "border-white/55",
+                            index % 4 === 0 ? "border-[#edf2f7]" : "border-[#f6f8fa]",
                           )}
                           style={{ top: scheduleBodyInsetY + index * quarterSlotHeight }}
                         />
                       ))}
                       {staffBookings.length === 0 ? (
-                        <div className="rounded-[8px] border border-dashed border-[#d1d5db] bg-white/60 px-3 py-4 text-center text-[12px] text-[#94a3b8]">
+                        <div className="rounded-[8px] border border-dashed border-[#e5eaf0] bg-white px-3 py-4 text-center text-[12px] text-[#94a3b8]">
                           예약 없음
                         </div>
                       ) : (

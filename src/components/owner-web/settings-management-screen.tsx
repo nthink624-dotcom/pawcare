@@ -111,8 +111,10 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     bookingCancelledEnabled: normalized.booking_cancelled_enabled,
     bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
     appointmentReminder10mEnabled: normalized.appointment_reminder_10m_enabled,
+    visitReminderOffsetMinutes: normalized.visit_reminder_offset_minutes,
     groomingStartedEnabled: normalized.grooming_started_enabled,
     groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
+    pickupReadyEtaMinutes: normalized.pickup_ready_eta_minutes,
     groomingCompletedEnabled: normalized.grooming_completed_enabled,
     groomingStartWithoutPhotoEnabled: normalized.grooming_start_without_photo_enabled,
     groomingCompleteWithoutPhotoEnabled: normalized.grooming_complete_without_photo_enabled,
@@ -128,8 +130,10 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     booking_cancelled_enabled: draft.bookingCancelledEnabled,
     booking_rescheduled_enabled: draft.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: draft.appointmentReminder10mEnabled,
+    visit_reminder_offset_minutes: draft.visitReminderOffsetMinutes,
     grooming_started_enabled: draft.groomingStartedEnabled,
     grooming_almost_done_enabled: draft.groomingAlmostDoneEnabled,
+    pickup_ready_eta_minutes: draft.pickupReadyEtaMinutes,
     grooming_completed_enabled: draft.groomingCompletedEnabled,
     grooming_start_without_photo_enabled: draft.groomingStartWithoutPhotoEnabled,
     grooming_complete_without_photo_enabled: draft.groomingCompleteWithoutPhotoEnabled,
@@ -1006,7 +1010,8 @@ export default function SettingsManagementScreen({
   function addCustomerServiceOption() {
     if (!shop || customerServiceActionId) return;
 
-    const defaultConnectionOption = customerServiceConnectionOptions[0];
+    const usedConnectionOptionIds = new Set(customerServiceOptions.map((option) => option.linkedOptionId ?? option.id));
+    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionIds.has(option.linkedOptionId ?? option.id));
     if (!defaultConnectionOption) return;
 
     const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
@@ -1072,14 +1077,13 @@ export default function SettingsManagementScreen({
 
     const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
     const currentOverride = baselineOverrides[option.id] ?? {};
-    const shouldUseNextName = !currentOverride.displayName || currentOverride.displayName === option.sourceName;
 
     updateCustomerServiceOverrides({
       ...baselineOverrides,
       [option.id]: {
         ...currentOverride,
         visible: true,
-        displayName: shouldUseNextName ? nextOption.sourceName : currentOverride.displayName,
+        displayName: nextOption.sourceName,
         description: currentOverride.description ?? option.description,
         order: currentOverride.order ?? option.order,
         linkedOptionId: nextOption.id,

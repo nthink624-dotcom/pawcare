@@ -17,6 +17,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
 import { cn, formatServicePrice } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
 
@@ -212,6 +214,35 @@ function StepSectionBlock({ children, className }: { children: ReactNode; classN
   return <section className={cn("px-1", className)}>{children}</section>;
 }
 
+function ShopIntroBlock({ shop, onOpenShopInfo }: { shop: Shop; onOpenShopInfo: () => void }) {
+  return (
+    <section className="mt-2">
+      <div className="h-[148px] overflow-hidden rounded-[16px] bg-[#FFE1B0]">
+        <img src={getHeroImage(shop)} alt={`${getShopDisplayName(shop)} 매장 이미지`} className="h-full w-full object-cover" />
+      </div>
+      <div className="px-1 py-3">
+        <h1 className="text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{getShopDisplayName(shop)}</h1>
+        <p className="mt-1 text-[16px] leading-6 tracking-[-0.02em] text-[#8B6F4D]">{getShopTagline(shop)}</p>
+        <button
+          type="button"
+          onClick={onOpenShopInfo}
+          className="mt-3 flex w-full items-center justify-between rounded-[14px] border border-[#FFE1B0] bg-[#FFF9EC] px-3 py-2.5"
+        >
+          <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2f7866]">
+            <span className="h-2 w-2 rounded-full bg-[#2f7866]" />
+            영업 정보
+            <span className="font-medium text-[#2b241f]">{getTodayHours(shop)}</span>
+          </span>
+          <span className="flex items-center gap-1 text-[16px] font-semibold text-[#C46A00]">
+            전체 보기
+            <ChevronRight className="h-3.5 w-3.5" />
+          </span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function FooterActions({
   primaryLabel,
   secondaryLabel = "이전",
@@ -364,8 +395,14 @@ function StaffPicker({
 
   const selectedId = selectedStaffId;
   const options = [
-    ...(staffMembers.length > 1 ? [{ id: "", name: "빠른 선택", initial: "?" }] : []),
-    ...staffMembers.map((staff) => ({ id: staff.id, name: staff.name, initial: getStaffInitial(staff.name) })),
+    ...(staffMembers.length > 1 ? [{ id: "", name: "빠른 선택", initial: "?", profileImageUrl: "" }] : []),
+    ...staffMembers.map((staff) => ({
+      id: staff.id,
+      name: getStaffCustomerName(staff),
+      title: getStaffCustomerTitle(staff),
+      initial: getStaffInitial(getStaffCustomerName(staff)),
+      profileImageUrl: staff.profileImageUrl ?? "",
+    })),
   ];
 
   return (
@@ -377,29 +414,49 @@ function StaffPicker({
           staffMembers.length === 1 ? "justify-center overflow-visible" : "overflow-x-auto",
         )}
       >
-        {options.map((staff) => {
+        {options.map((staff, staffIndex) => {
           const active = selectedId === staff.id;
+          const staffTone = getStaffChipTone(staff.id, staff.id ? staffIndex : undefined);
           return (
             <button
               key={staff.id || "unknown-staff"}
               type="button"
               onClick={() => onStaffSelect(staff.id)}
               className={cn(
-                "relative flex h-[108px] w-24 shrink-0 flex-col items-center justify-center rounded-[14px] border bg-white px-2 text-center text-[16px] font-normal tracking-[-0.02em] transition",
-                active
-                  ? "border-[#F5A623] bg-white text-[#111111]"
-                  : "border-[#dbe2ea] text-[#344054] hover:border-[#c8d2dc] hover:bg-[#f8fafc]",
+                "relative flex h-[126px] w-[112px] shrink-0 flex-col items-center justify-center rounded-[14px] border bg-white px-2.5 text-center text-[16px] font-normal tracking-[-0.02em] transition",
+                "hover:brightness-[0.98]",
               )}
+              style={{
+                borderColor: staffTone.border,
+                backgroundColor: active ? staffTone.selectedBackground : staffTone.background,
+                color: active ? "#ffffff" : staffTone.text,
+              }}
             >
               <span
                 className={cn(
                   "flex h-12 w-12 items-center justify-center rounded-full border",
-                  active ? "border-white/80 bg-white/95" : "border-[#edf0ee] bg-[#f8fafc]",
                 )}
+                style={{
+                  borderColor: active ? "rgba(255,255,255,0.74)" : staffTone.border,
+                  backgroundColor: active ? "rgba(255,255,255,0.18)" : "#ffffff",
+                }}
               >
-                {staff.id ? <UserRound className="h-7 w-7 text-[#98a2b3]" strokeWidth={1.8} /> : <span className="text-[20px] text-[#6b7280]">?</span>}
+                {staff.profileImageUrl ? (
+                  <img src={staff.profileImageUrl} alt={`${staff.name} 프로필`} className="h-full w-full rounded-full object-cover" />
+                ) : staff.id ? (
+                  <UserRound className="h-7 w-7 text-[#98a2b3]" strokeWidth={1.8} />
+                ) : (
+                  <span className="text-[20px] text-[#6b7280]">?</span>
+                )}
               </span>
-              <span className="mt-2 max-w-full truncate text-[16px] font-normal leading-[18px]">{staff.name}</span>
+              <span className="mt-2 max-w-full overflow-hidden text-[16px] font-normal leading-[18px] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                {staff.name}
+              </span>
+              {"title" in staff && staff.title ? (
+                <span className="mt-0.5 max-w-full truncate text-[14px] leading-[16px]" style={{ color: active ? "rgba(255,255,255,0.78)" : staffTone.mutedText }}>
+                  {staff.title}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -497,7 +554,7 @@ export default function CustomerFirstVisitFlow({
     firstVisit.serviceId === CUSTOM_SERVICE_ID ? "90분~120분" : formatDurationRange(selectedServiceOption?.durationMinutes ?? selectedService?.duration_minutes ?? 90);
 
   useEffect(() => {
-    if (step !== 2 || firstVisit.date || !defaultDateValue) return;
+    if (step !== 3 || firstVisit.date || !defaultDateValue) return;
     onDateSelect(defaultDateValue);
   }, [defaultDateValue, firstVisit.date, onDateSelect, step]);
 
@@ -570,35 +627,10 @@ export default function CustomerFirstVisitFlow({
 
   return (
     <BookingShell>
-      {step === 1 ? (
+      {step === 2 ? (
         <>
-          <TopStepChip step={1} label="서비스 선택" />
-          <section>
-            <div className="h-[168px] overflow-hidden rounded-[18px] bg-[#FFE1B0]">
-              <img src={getHeroImage(shop)} alt={`${getShopDisplayName(shop)} 대표 이미지`} className="h-full w-full object-cover" />
-            </div>
-            <div className="px-1 py-3">
-              <h1 className="text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{getShopDisplayName(shop)}</h1>
-              <p className="mt-1 text-[16px] leading-6 tracking-[-0.02em] text-[#8B6F4D]">{getShopTagline(shop)}</p>
-              <button
-                type="button"
-                onClick={onOpenShopInfo}
-                className="mt-3 flex w-full items-center justify-between rounded-[14px] border border-[#FFE1B0] bg-[#FFF9EC] px-3 py-2.5"
-              >
-                <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2f7866]">
-                  <span className="h-2 w-2 rounded-full bg-[#2f7866]" />
-                  영업 중
-                  <span className="font-medium text-[#2b241f]">{getTodayHours(shop)}</span>
-                </span>
-                <span className="flex items-center gap-1 text-[16px] font-semibold text-[#C46A00]">
-                  전체 보기
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </span>
-              </button>
-            </div>
-          </section>
-
-          <section className="mt-4">
+          <TopStepChip step={2} label="원하는 서비스 선택" />
+          <section className="mt-3">
             <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#2b241f]">어떤 서비스를 원하시나요?</h2>
             <div className="mt-2 grid gap-2">
               {customerServiceOptions.map((service) => {
@@ -625,14 +657,19 @@ export default function CustomerFirstVisitFlow({
               />
             </div>
           </section>
-          <FooterActions single primaryLabel="다음 단계로" primaryDisabled={!firstVisit.serviceId} onPrimary={onNext} />
+          <FooterActions
+            primaryLabel="다음"
+            primaryDisabled={!firstVisit.serviceId}
+            onPrimary={onNext}
+            onSecondary={onStepBack}
+          />
         </>
       ) : null}
 
-      {step === 2 ? (
+      {step === 3 ? (
         <>
           <StepBodyCard>
-            <PlainStepHeader title="시간 선택" step={2} onBack={onStepBack} />
+            <PlainStepHeader title="디자이너/날짜 선택" step={3} onBack={onStepBack} />
             <StaffPicker staffMembers={staffMembers} selectedStaffId={firstVisit.staffId} onStaffSelect={onStaffSelect} />
 
             <StepSectionBlock className="mt-4">
@@ -766,9 +803,10 @@ export default function CustomerFirstVisitFlow({
             </StepSectionBlock>
           </StepBodyCard>
           <FooterActions
-            primaryLabel="다음"
+            primaryLabel="예약 요청"
             primaryDisabled={!firstVisit.date || !firstVisit.timeSlot}
-            onPrimary={onNext}
+            submitting={submitting}
+            onPrimary={onSubmit}
             onSecondary={onStepBack}
             summaryTitle={serviceSummaryName}
             summarySubtitle={`예상 ${serviceSummaryDuration}`}
@@ -776,10 +814,11 @@ export default function CustomerFirstVisitFlow({
         </>
       ) : null}
 
-      {step === 3 ? (
+      {step === 1 ? (
         <>
           <StepBodyCard>
-            <PlainStepHeader title="예약자 정보" step={3} onBack={onStepBack} />
+            <PlainStepHeader title="예약자 정보" step={1} onBack={onStepBack} />
+            <ShopIntroBlock shop={shop} onOpenShopInfo={onOpenShopInfo} />
             <p className="text-[16px] leading-6 tracking-[-0.02em] text-[#8B6F4D]">
               예약 확인 및 안내를 위해 필요한 정보만 입력해주세요.
             </p>
@@ -840,10 +879,9 @@ export default function CustomerFirstVisitFlow({
           </StepBodyCard>
           <FooterActions
             primaryLabel="다음"
-            submitting={submitting}
             primaryDisabled={!firstVisit.ownerName.trim() || !firstVisit.phone.trim() || !firstVisit.petName.trim()}
-            onPrimary={onSubmit}
-            onSecondary={onStepBack}
+            onPrimary={onNext}
+            single
           />
         </>
       ) : null}

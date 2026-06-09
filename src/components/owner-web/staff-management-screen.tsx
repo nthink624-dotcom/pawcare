@@ -11,6 +11,7 @@ import {
   StaffScheduleEditModal,
 } from "@/components/owner-web/staff-management-ui";
 import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
+import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
@@ -20,7 +21,10 @@ import {
   buildDraft,
   emptyStaffDraft,
   formatWeekLabel,
+  formatMonthLabel,
+  formatMonthShift,
   formatWeekdayKeys,
+  getMonthStart,
   getWeekDates,
   getWeekStart,
   initialRequests,
@@ -63,8 +67,9 @@ export default function StaffManagementScreen({
   const [requests, setRequests] = useState<LeaveRequest[]>(() => (isDemoShop ? initialRequests : []));
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>(() => staffScheduleOverrides.map(scheduleOverrideFromBootstrap));
   const [weekStart, setWeekStart] = useState(getWeekStart());
+  const [monthStart, setMonthStart] = useState(getMonthStart());
   const [selectedStaffId, setSelectedStaffId] = useState(initialStaff?.id ?? "");
-  const [boardTab, setBoardTab] = useState<StaffBoardTab>("schedule");
+  const [boardTab, setBoardTab] = useState<StaffBoardTab>("monthly");
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [annualGrantDialogOpen, setAnnualGrantDialogOpen] = useState(false);
@@ -134,8 +139,10 @@ export default function StaffManagementScreen({
               ...item,
               name: draft.name.trim() || item.name,
               displayName: draft.displayName.trim(),
+              profileImageUrl: draft.profileImageUrl.trim(),
               phone: draft.phone.trim(),
               role: draft.role.trim() || item.role || "직원",
+              titlePrefix: draft.titlePrefix.trim(),
               position: draft.position.trim() || item.position || "직원",
               defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
               startTime: draft.startTime,
@@ -161,8 +168,10 @@ export default function StaffManagementScreen({
       id: createStaffId(),
       name: newStaffDraft.name.trim() || "신규 직원",
       displayName: newStaffDraft.displayName.trim(),
+      profileImageUrl: newStaffDraft.profileImageUrl.trim(),
       phone: newStaffDraft.phone.trim(),
       role: newStaffDraft.role.trim() || newStaffDraft.position.trim() || "직원",
+      titlePrefix: newStaffDraft.titlePrefix.trim(),
       position: newStaffDraft.position.trim() || "직원",
       defaultDays: nextDays.length > 0 ? nextDays : ["mon", "tue", "wed", "thu", "fri"],
       startTime: newStaffDraft.startTime,
@@ -409,6 +418,7 @@ export default function StaffManagementScreen({
       <div className={cn("grid gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
         <div className="min-w-0">
           <WebSurface className="overflow-hidden">
+            {boardTab !== "monthly" ? (
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-2.5">
               {boardTab === "schedule" ? (
                 <div className="flex items-center gap-2">
@@ -451,11 +461,24 @@ export default function StaffManagementScreen({
                 </>
               )}
             </div>
+            ) : null}
 
             {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#1f6b5b]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />
+            ) : boardTab === "monthly" ? (
+              <StaffMonthlySchedule
+                staff={staff}
+                monthStart={monthStart}
+                monthLabel={formatMonthLabel(monthStart)}
+                requests={requests}
+                overrides={scheduleOverrides}
+                onPreviousMonth={() => setMonthStart((current) => formatMonthShift(current, -1))}
+                onNextMonth={() => setMonthStart((current) => formatMonthShift(current, 1))}
+                onCurrentMonth={() => setMonthStart(getMonthStart())}
+                onOpenScheduleEditor={openScheduleEditor}
+              />
             ) : (
               <StaffList
                 staff={staff}

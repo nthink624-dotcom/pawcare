@@ -45,7 +45,7 @@ const relayFieldGroups: Array<{
       { key: "templateBookingRejected", label: "예약 거절", placeholder: "booking_rejected" },
       { key: "templateBookingCancelled", label: "예약 취소", placeholder: "booking_cancelled" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정", placeholder: "booking_rescheduled_confirmed" },
-      { key: "templateAppointmentReminder10m", label: "방문 10분 전", placeholder: "appointment_reminder_10m" },
+      { key: "templateAppointmentReminder10m", label: "방문 전 알림", placeholder: "appointment_reminder_10m" },
       { key: "templateGroomingStarted", label: "미용 시작", placeholder: "grooming_started" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비", placeholder: "grooming_almost_done" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진", placeholder: "grooming_completed_photo" },
@@ -82,7 +82,7 @@ const appFieldGroups: Array<{
       { key: "templateBookingRejected", label: "예약 거절" },
       { key: "templateBookingCancelled", label: "예약 취소" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
-      { key: "templateAppointmentReminder10m", label: "방문 10분 전" },
+      { key: "templateAppointmentReminder10m", label: "방문 전 알림" },
       { key: "templateGroomingStarted", label: "미용 시작" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진" },
@@ -738,6 +738,37 @@ export default function AdminAlimtalkScreen({
                         <pre className="mt-3 whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[14px] leading-6 text-[#171411]">
                           {relayItem?.detail?.templateContent || relayItem?.error || "쏘다 등록 본문을 아직 불러오지 못했습니다."}
                         </pre>
+                        <div className="mt-3 rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4">
+                          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">등록 버튼</p>
+                          {relayItem?.detail?.buttons?.length ? (
+                            <div className="mt-3 space-y-3">
+                              {relayItem.detail.buttons.map((button, index) => (
+                                <div
+                                  key={`${button.name ?? "button"}-${index}`}
+                                  className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-3 py-3 text-[14px] leading-6 text-[#6f665f]"
+                                >
+                                  <p>
+                                    버튼명: <span className="text-[#171411]">{button.name || "-"}</span>
+                                    <span className="ml-3 text-[#8a8277]">유형 {button.type || "-"}</span>
+                                  </p>
+                                  <p className="break-all">
+                                    모바일 URL: <span className="text-[#171411]">{button.linkMobile || "-"}</span>
+                                  </p>
+                                  <p className="break-all">
+                                    PC URL: <span className="text-[#171411]">{button.linkPc || button.linkMobile || "-"}</span>
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-[14px] leading-6 text-[#8a8277]">쏘다 등록 버튼 정보를 아직 불러오지 못했습니다.</p>
+                          )}
+                        </div>
+                        {relayItem?.detail?.rawKeys?.length ? (
+                          <p className="mt-2 text-[12px] leading-5 text-[#9b938a]">
+                            쏘다 응답 필드: {relayItem.detail.rawKeys.slice(0, 18).join(", ")}
+                          </p>
+                        ) : null}
                       </section>
                     </div>
                   </article>

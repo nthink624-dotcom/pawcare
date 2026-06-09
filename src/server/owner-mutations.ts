@@ -45,6 +45,8 @@ import type { Appointment, AppointmentStatus, Guardian, Pet, PetStaffNote, Servi
 
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const scheduleActiveStatuses = ["confirmed", "in_progress", "almost_done"] as const;
+const defaultVisitReminderOffsetMinutes = 10;
+const defaultPickupReadyEtaMinutes = 5;
 
 function isMissingPetBiteLevelColumn(error: { message?: string; code?: string } | null | undefined) {
   return Boolean(error?.message?.includes("bite_level") && error.message.includes("schema cache"));
@@ -83,6 +85,58 @@ function assertPhotoRequirementForAppointmentStatus(params: {
 }) {
   if (params.mediaAssetIds.length > 0) return;
 
+}
+
+function getAppointmentStatusLabel(status: AppointmentStatus) {
+  const labels: Record<AppointmentStatus, string> = {
+    pending: "승인 대기",
+    confirmed: "예약 확정",
+    in_progress: "미용 시작",
+    almost_done: "픽업 준비",
+    completed: "완료",
+    cancelled: "취소",
+    rejected: "거절",
+    noshow: "노쇼",
+  };
+  return labels[status] ?? status;
+}
+
+function assertAppointmentStatusIsNotRepeated(params: {
+  previousStatus: AppointmentStatus;
+  nextStatus: AppointmentStatus;
+}) {
+  if (params.previousStatus !== params.nextStatus) return;
+
+  const label = getAppointmentStatusLabel(params.nextStatus);
+  throw new Error(`이미 '${label}' 상태입니다. 같은 상태 버튼은 두 번 이상 처리하거나 알림을 다시 보낼 수 없어요.`);
+}
+
+function normalizeAppointmentTimeForCompare(value: string | null | undefined) {
+  return (value ?? "").slice(0, 5);
+}
+
+function hasNotificationRelevantAppointmentDetailChange(params: {
+  appointment: Appointment;
+  serviceId: string;
+  staffId: string | null | undefined;
+  appointmentDate: string;
+  appointmentTime: string;
+  durationMinutes: number;
+  visitReminderOffsetMinutes?: number;
+  pickupReadyEtaMinutes?: number;
+}) {
+  const currentDuration = getAppointmentDurationMinutes(params.appointment, []);
+  return (
+    params.appointment.service_id !== params.serviceId ||
+    (params.appointment.staff_id ?? null) !== (params.staffId ?? null) ||
+    params.appointment.appointment_date !== params.appointmentDate ||
+    normalizeAppointmentTimeForCompare(params.appointment.appointment_time) !== normalizeAppointmentTimeForCompare(params.appointmentTime) ||
+    (currentDuration !== null && currentDuration !== params.durationMinutes) ||
+    (typeof params.visitReminderOffsetMinutes === "number" &&
+      params.appointment.visit_reminder_offset_minutes !== params.visitReminderOffsetMinutes) ||
+    (typeof params.pickupReadyEtaMinutes === "number" &&
+      params.appointment.pickup_ready_eta_minutes !== params.pickupReadyEtaMinutes)
+  );
 }
 
 function ensureAppointmentCanBeConfirmed(params: {
@@ -410,8 +464,10 @@ export async function updateShopSettings(input: unknown) {
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
+    visit_reminder_offset_minutes: payload.notificationSettings.visitReminderOffsetMinutes,
     grooming_started_enabled: payload.notificationSettings.groomingStartedEnabled,
     grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,
+    pickup_ready_eta_minutes: payload.notificationSettings.pickupReadyEtaMinutes,
     grooming_completed_enabled: payload.notificationSettings.groomingCompletedEnabled,
     grooming_start_without_photo_enabled: payload.notificationSettings.groomingStartWithoutPhotoEnabled,
     grooming_complete_without_photo_enabled: payload.notificationSettings.groomingCompleteWithoutPhotoEnabled,
@@ -1332,6 +1388,7 @@ export async function createAppointment(input: unknown) {
 
   const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+  const shopNotificationSettings = normalizeShopNotificationSettings(data.shop.notification_settings);
   const appointment: Appointment = {
     id: randomUUID(),
     shop_id: payload.shopId,
@@ -1346,6 +1403,10 @@ export async function createAppointment(input: unknown) {
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
+    visit_reminder_offset_minutes:
+      payload.visitReminderOffsetMinutes ?? shopNotificationSettings.visit_reminder_offset_minutes ?? defaultVisitReminderOffsetMinutes,
+    pickup_ready_eta_minutes:
+      payload.pickupReadyEtaMinutes ?? shopNotificationSettings.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
     source: payload.source,
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -1371,8 +1432,10 @@ export async function createAppointment(input: unknown) {
   if (error) {
     const missingRejectionReason = hasMissingColumnError(error, "rejection_reason");
     const missingStaffId = hasMissingColumnError(error, "staff_id");
+    const missingVisitReminderOffset = hasMissingColumnError(error, "visit_reminder_offset_minutes");
+    const missingPickupReadyEta = hasMissingColumnError(error, "pickup_ready_eta_minutes");
 
-    if (missingRejectionReason || missingStaffId) {
+    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta) {
       const fallbackPayload: Record<string, unknown> = {
         id: appointment.id,
         shop_id: appointment.shop_id,
@@ -1392,6 +1455,12 @@ export async function createAppointment(input: unknown) {
 
       if (!missingStaffId) {
         fallbackPayload.staff_id = appointment.staff_id ?? null;
+      }
+      if (!missingVisitReminderOffset) {
+        fallbackPayload.visit_reminder_offset_minutes = appointment.visit_reminder_offset_minutes;
+      }
+      if (!missingPickupReadyEta) {
+        fallbackPayload.pickup_ready_eta_minutes = appointment.pickup_ready_eta_minutes;
       }
 
       const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);
@@ -1432,6 +1501,11 @@ export async function updateAppointmentStatus(input: unknown) {
     const store = getMutableStore();
     const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
     if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+
+    assertAppointmentStatusIsNotRepeated({
+      previousStatus: appointment.status,
+      nextStatus: payload.status,
+    });
 
     assertPhotoRequirementForAppointmentStatus({
       status: payload.status,
@@ -1542,33 +1616,39 @@ export async function updateAppointmentStatus(input: unknown) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
 
-  if (activatesSchedule) {
-    const { data: appointmentToConfirm, error: appointmentError } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("id", payload.appointmentId)
-      .single();
+  const { data: currentAppointment, error: appointmentError } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", payload.appointmentId)
+    .single();
 
-    if (appointmentError) throw new Error(appointmentError.message);
+  if (appointmentError) throw new Error(appointmentError.message);
 
-    const bootstrap = await getBootstrap(appointmentToConfirm.shop_id);
-    assertPhotoRequirementForAppointmentStatus({
-      status: payload.status,
-      previousStatus: appointmentToConfirm.status,
-      mediaAssetIds: statusMediaAssetIds,
+  assertAppointmentStatusIsNotRepeated({
+    previousStatus: currentAppointment.status,
+    nextStatus: payload.status,
+  });
+
+  const bootstrap = await getBootstrap(currentAppointment.shop_id);
+  assertPhotoRequirementForAppointmentStatus({
+    status: payload.status,
+    previousStatus: currentAppointment.status,
+    mediaAssetIds: statusMediaAssetIds,
+    shop: bootstrap.shop,
+  });
+
+  if (payload.status === "confirmed") {
+    ensureAppointmentCanBeConfirmed({
+      appointment: currentAppointment,
       shop: bootstrap.shop,
+      services: bootstrap.services,
+      appointments: bootstrap.appointments,
     });
+  }
 
-    if (payload.status === "confirmed") {
-      ensureAppointmentCanBeConfirmed({
-        appointment: appointmentToConfirm,
-        shop: bootstrap.shop,
-        services: bootstrap.services,
-        appointments: bootstrap.appointments,
-      });
-    }
+  if (activatesSchedule) {
     ensureAppointmentScheduleCanBeActivated({
-      appointment: appointmentToConfirm,
+      appointment: currentAppointment,
       shop: bootstrap.shop,
       services: bootstrap.services,
       staffMembers: bootstrap.staffMembers,
@@ -1593,6 +1673,7 @@ export async function updateAppointmentStatus(input: unknown) {
     .from("appointments")
     .update(appointmentUpdate)
     .eq("id", payload.appointmentId)
+    .neq("status", payload.status)
     .select("*")
     .single();
 
@@ -1611,6 +1692,7 @@ export async function updateAppointmentStatus(input: unknown) {
           updated_at: statusChangedAt,
         })
         .eq("id", payload.appointmentId)
+        .neq("status", payload.status)
         .select("*")
         .single();
 
@@ -1620,6 +1702,9 @@ export async function updateAppointmentStatus(input: unknown) {
         rejection_reason: rejectionReason,
       };
     } else {
+      if (error.code === "PGRST116" || error.message.includes("JSON object requested")) {
+        throw new Error(`이미 '${getAppointmentStatusLabel(payload.status)}' 상태로 처리되었습니다. 같은 상태 알림은 반복 발송할 수 없어요.`);
+      }
       throw new Error(error.message);
     }
   }
@@ -1733,6 +1818,20 @@ export async function updateAppointmentDetails(input: unknown) {
   const service = data.services.find((item) => item.id === payload.serviceId);
   if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
   const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
+  const notificationRelevantDetailsChanged = hasNotificationRelevantAppointmentDetailChange({
+    appointment,
+    serviceId: payload.serviceId,
+    staffId: payload.staffId ?? appointment.staff_id ?? null,
+    appointmentDate: payload.appointmentDate,
+    appointmentTime: payload.appointmentTime,
+    durationMinutes,
+    visitReminderOffsetMinutes: payload.visitReminderOffsetMinutes,
+    pickupReadyEtaMinutes: payload.pickupReadyEtaMinutes,
+  });
+
+  if (payload.notifyCustomer && !notificationRelevantDetailsChanged) {
+    throw new Error("예약 날짜, 시간, 서비스, 담당자 등 고객에게 안내할 변경 사항이 없습니다. 같은 변경 완료 알림은 반복 발송할 수 없어요.");
+  }
 
   if (payload.enforceShopCapacity) {
     const availableSlots = computeAvailableSlots({
@@ -1789,6 +1888,10 @@ export async function updateAppointmentDetails(input: unknown) {
     rejection_reason: payload.preserveStatus ? appointment.rejection_reason : null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
+    visit_reminder_offset_minutes:
+      payload.visitReminderOffsetMinutes ?? appointment.visit_reminder_offset_minutes ?? defaultVisitReminderOffsetMinutes,
+    pickup_ready_eta_minutes:
+      payload.pickupReadyEtaMinutes ?? appointment.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
     updated_at: nowIso(),
   };
 
@@ -1828,10 +1931,27 @@ export async function updateAppointmentDetails(input: unknown) {
   if (error) {
     const missingRejectionReason = hasMissingColumnError(error, "rejection_reason");
     const missingStaffId = hasMissingColumnError(error, "staff_id");
+    const missingVisitReminderOffset = hasMissingColumnError(error, "visit_reminder_offset_minutes");
+    const missingPickupReadyEta = hasMissingColumnError(error, "pickup_ready_eta_minutes");
 
-    if (missingRejectionReason || missingStaffId) {
-      const { rejection_reason: _ignored, staff_id: _ignoredStaffId, ...fallbackValues } = nextValues;
-      const nextFallbackValues = missingStaffId ? fallbackValues : { ...fallbackValues, staff_id: nextValues.staff_id };
+    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta) {
+      const {
+        rejection_reason: _ignored,
+        staff_id: _ignoredStaffId,
+        visit_reminder_offset_minutes: _ignoredVisitReminderOffset,
+        pickup_ready_eta_minutes: _ignoredPickupReadyEta,
+        ...fallbackValues
+      } = nextValues;
+      const nextFallbackValues: Record<string, unknown> = { ...fallbackValues };
+      if (!missingStaffId) {
+        nextFallbackValues.staff_id = nextValues.staff_id;
+      }
+      if (!missingVisitReminderOffset) {
+        nextFallbackValues.visit_reminder_offset_minutes = nextValues.visit_reminder_offset_minutes;
+      }
+      if (!missingPickupReadyEta) {
+        nextFallbackValues.pickup_ready_eta_minutes = nextValues.pickup_ready_eta_minutes;
+      }
       const fallback = await supabase
         .from("appointments")
         .update(nextFallbackValues)
@@ -1843,6 +1963,8 @@ export async function updateAppointmentDetails(input: unknown) {
       resolvedAppointment = {
         ...fallback.data,
         rejection_reason: null,
+        visit_reminder_offset_minutes: nextValues.visit_reminder_offset_minutes,
+        pickup_ready_eta_minutes: nextValues.pickup_ready_eta_minutes,
       };
     } else {
       throw new Error(error.message);

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
@@ -60,6 +60,25 @@ type DispatchNotificationResult = {
   alreadyExists: boolean;
 };
 
+const abuseHandledStatuses = new Set<NotificationStatus>(["queued", "sent", "mocked"]);
+
+const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
+  "booking_received",
+  "booking_confirmed",
+  "owner_booking_requested",
+  "booking_rejected",
+  "booking_cancelled",
+  "appointment_reminder_10m",
+  "grooming_started",
+  "grooming_almost_done",
+  "grooming_completed",
+]);
+
+const snapshotAppointmentNotificationTypes = new Set<NotificationType>([
+  "booking_rescheduled_confirmed",
+  "booking_time_proposed",
+]);
+
 function normalizePhone(value: string) {
   return phoneNormalize(value).slice(0, 11);
 }
@@ -79,6 +98,124 @@ function logNotificationSkipped(params: {
     type: params.type,
     appointmentId: params.appointmentId ?? null,
   });
+}
+
+function getNotificationMetadata(item: Notification) {
+  return item.metadata ?? {};
+}
+
+function getAppointmentSnapshotKey(appointment: Appointment | null) {
+  if (!appointment) return "no-appointment";
+  return [
+    appointment.appointment_date,
+    appointment.appointment_time,
+    appointment.service_id,
+    appointment.staff_id ?? "no-staff",
+  ].join("|");
+}
+
+function getMessageFingerprint(message: string) {
+  return createHash("sha256").update(message.trim().replace(/\s+/g, " ")).digest("hex").slice(0, 16);
+}
+
+function buildAbuseDedupeKey(params: {
+  type: NotificationType;
+  appointment: Appointment | null;
+  guardianId: string | null;
+  petId: string | null;
+  recipientPhone: string;
+  message: string;
+  scheduledAt: string | null;
+}) {
+  const appointmentId = params.appointment?.id ?? null;
+  if (appointmentId && oneShotAppointmentNotificationTypes.has(params.type)) {
+    return `appointment:${appointmentId}:type:${params.type}`;
+  }
+
+  if (appointmentId && snapshotAppointmentNotificationTypes.has(params.type)) {
+    return `appointment:${appointmentId}:type:${params.type}:snapshot:${getAppointmentSnapshotKey(params.appointment)}`;
+  }
+
+  if (appointmentId) {
+    return `appointment:${appointmentId}:type:${params.type}:scheduled:${params.scheduledAt ?? "now"}`;
+  }
+
+  const recipientKey = params.guardianId || params.petId || params.recipientPhone;
+  if (!recipientKey || !params.message.trim()) return null;
+  return `manual:${params.type}:recipient:${recipientKey}:message:${getMessageFingerprint(params.message)}`;
+}
+
+function getDuplicateBlockMessage(type: NotificationType) {
+  switch (type) {
+    case "grooming_started":
+      return "이미 이 예약의 미용 시작 알림을 보냈거나 발송 대기 중입니다. 미용 시작은 예약 건당 한 번만 보낼 수 있어요.";
+    case "grooming_almost_done":
+      return "이미 이 예약의 픽업 준비 알림을 보냈거나 발송 대기 중입니다. 픽업 준비 알림은 예약 건당 한 번만 보낼 수 있어요.";
+    case "grooming_completed":
+      return "이미 이 예약의 미용 완료 알림을 보냈거나 발송 대기 중입니다. 완료 알림은 예약 건당 한 번만 보낼 수 있어요.";
+    case "booking_confirmed":
+      return "이미 이 예약의 확정 알림을 보냈거나 발송 대기 중입니다. 같은 예약 확정 알림은 반복 발송할 수 없어요.";
+    case "booking_rescheduled_confirmed":
+      return "이미 같은 예약 일정으로 변경 완료 알림을 보냈거나 발송 대기 중입니다. 일정이 실제로 바뀐 경우에만 다시 보낼 수 있어요.";
+    case "booking_rejected":
+      return "이미 이 예약의 거절 알림을 보냈거나 발송 대기 중입니다.";
+    case "booking_cancelled":
+      return "이미 이 예약의 취소 알림을 보냈거나 발송 대기 중입니다.";
+    default:
+      return "이미 같은 예약/고객/내용의 알림을 보냈거나 발송 대기 중입니다. 중복 발송은 차단했어요.";
+  }
+}
+
+function evaluateNotificationAbusePolicy(params: {
+  notifications: Notification[];
+  type: NotificationType;
+  appointment: Appointment | null;
+  guardianId: string | null;
+  petId: string | null;
+  recipientPhone: string;
+  message: string;
+  scheduledAt: string | null;
+}) {
+  const dedupeKey = buildAbuseDedupeKey({
+    type: params.type,
+    appointment: params.appointment,
+    guardianId: params.guardianId,
+    petId: params.petId,
+    recipientPhone: params.recipientPhone,
+    message: params.message,
+    scheduledAt: params.scheduledAt,
+  });
+
+  if (!dedupeKey) {
+    return { blocked: false, dedupeKey: null, reason: null, existingNotificationId: null };
+  }
+
+  const duplicate: Notification | undefined = params.notifications.find((item) => {
+    if (!abuseHandledStatuses.has(item.status)) return false;
+    const metadata = getNotificationMetadata(item);
+    if (metadata.abuseDedupeKey === dedupeKey) return true;
+
+    const appointmentId = params.appointment?.id ?? null;
+    if (!appointmentId || item.type !== params.type) return false;
+    if ((item.appointment_id ?? null) !== appointmentId) return false;
+
+    if (snapshotAppointmentNotificationTypes.has(params.type)) {
+      return metadata.appointmentSnapshotKey === getAppointmentSnapshotKey(params.appointment);
+    }
+
+    return oneShotAppointmentNotificationTypes.has(params.type);
+  });
+
+  if (!duplicate) {
+    return { blocked: false, dedupeKey, reason: null, existingNotificationId: null };
+  }
+
+  return {
+    blocked: true,
+    dedupeKey,
+    reason: getDuplicateBlockMessage(params.type),
+    existingNotificationId: duplicate.id,
+  };
 }
 
 function getTemplateKey(type: NotificationType) {
@@ -405,6 +542,7 @@ function buildOwnerBookingRequestedMessage(params: {
 
 function buildNotificationTemplateValues(params: {
   appointment: Appointment | null;
+  bookingAccessToken: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
@@ -418,6 +556,9 @@ function buildNotificationTemplateValues(params: {
     params.appointment
       ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
+  const visitReminderOffsetMinutes = params.appointment?.visit_reminder_offset_minutes ?? 10;
+  const pickupReadyEtaMinutes = params.appointment?.pickup_ready_eta_minutes ?? 5;
+  const pickupGuide = `약 ${pickupReadyEtaMinutes}분 뒤 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.`;
 
   return {
     매장명: params.shopName,
@@ -429,7 +570,17 @@ function buildNotificationTemplateValues(params: {
     "예약 링크": params.bookingEntryUrl ?? "",
     "예약 확인 링크": params.bookingManageUrl ?? "",
     예약관리링크: params.bookingManageUrl ?? "",
+    예약시간변경링크: params.bookingManageUrl ?? "",
+    예약시간변경토큰: params.bookingAccessToken ?? "",
+    bookingRescheduleToken: params.bookingAccessToken ?? "",
+    bookingRescheduleUrl: params.bookingManageUrl ?? "",
     길찾기링크: params.directionsUrl ?? "",
+    방문전알림분: String(visitReminderOffsetMinutes),
+    방문전알림안내: `예약 시간 ${visitReminderOffsetMinutes}분 전 안내드립니다.`,
+    픽업예상분: String(pickupReadyEtaMinutes),
+    픽업안내: pickupGuide,
+    pickupReadyEtaMinutes: String(pickupReadyEtaMinutes),
+    pickupGuide,
   };
 }
 
@@ -442,6 +593,7 @@ function buildNotificationMessage(params: {
   serviceName: string | null;
   shopAddress: string | null;
   rejectionReason: string | null;
+  bookingAccessToken: string | null;
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
@@ -450,6 +602,7 @@ function buildNotificationMessage(params: {
     params.type,
     buildNotificationTemplateValues({
       appointment: params.appointment,
+      bookingAccessToken: params.bookingAccessToken,
       bookingEntryUrl: params.bookingEntryUrl,
       bookingManageUrl: params.bookingManageUrl,
       directionsUrl: params.directionsUrl,
@@ -504,6 +657,18 @@ function buildNotificationButtons(params: {
   directionsUrl: string | null;
   hasMediaAttachments: boolean;
 }): AlimtalkButton[] {
+  if (params.type === "booking_time_proposed") {
+    if (!params.bookingManageUrl) return [];
+    return [
+      {
+        type: "WL",
+        name: "예약 시간 변경",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      },
+    ];
+  }
+
   if (params.type === "booking_confirmed" || params.type === "booking_cancelled") {
     const buttons: AlimtalkButton[] = [];
     if (params.bookingManageUrl) {
@@ -626,12 +791,16 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const templateKey = resolveAlimtalkTemplateKey(templateAlias);
   const templateType = input.templateType ?? "alimtalk";
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
+  const isBookingTimeProposal = input.type === "booking_time_proposed";
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
           shopId: input.shopId,
           guardianId: guardian.id,
           petId: pet.id,
+          appointmentId: isBookingTimeProposal ? appointment?.id ?? input.appointmentId ?? undefined : undefined,
+          action: isBookingTimeProposal ? "reschedule" : undefined,
+          expiresInHours: isBookingTimeProposal ? 24 * 14 : undefined,
         })
       : null;
   const bookingEntryUrl = buildBookingEntryUrl(input.shopId);
@@ -656,10 +825,21 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           recipientName,
           serviceName: service?.name ?? null,
           rejectionReason: appointment?.rejection_reason ?? null,
+          bookingAccessToken,
           bookingEntryUrl,
           bookingManageUrl,
           directionsUrl,
         }));
+  const abusePolicy = evaluateNotificationAbusePolicy({
+    notifications: bootstrap.notifications,
+    type: input.type,
+    appointment,
+    guardianId: input.guardianId ?? guardian?.id ?? null,
+    petId: input.petId ?? pet?.id ?? null,
+    recipientPhone,
+    message,
+    scheduledAt: input.scheduledAt ?? null,
+  });
 
   let status: NotificationStatus = "queued";
   let provider = input.channel === "mock" ? "mock" : bootstrap.mode === "supabase" ? "kakao" : "mock";
@@ -722,7 +902,15 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     });
   }
 
-  if (!canSend) {
+  if (abusePolicy.blocked) {
+    status = "skipped";
+    failReason = abusePolicy.reason;
+    logNotificationSkipped({
+      reason: "duplicate notification abuse guard",
+      type: input.type,
+      appointmentId: input.appointmentId ?? appointment?.id ?? null,
+    });
+  } else if (!canSend) {
     status = "skipped";
     failReason = !canSendShop
       ? "Notification disabled by shop settings."
@@ -868,6 +1056,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     scheduled_at: scheduledAt,
     metadata: {
       ...(input.metadata ?? {}),
+      abuseDedupeKey: abusePolicy.dedupeKey,
+      abusePolicyVersion: "2026-06-07",
+      duplicateOfNotificationId: abusePolicy.existingNotificationId,
+      appointmentSnapshotKey: getAppointmentSnapshotKey(appointment),
       recipientName,
       serviceName: service?.name ?? null,
       bookingEntryUrl,

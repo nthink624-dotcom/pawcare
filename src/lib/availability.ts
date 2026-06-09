@@ -10,6 +10,7 @@ import {
   defaultBookingAvailableStartTime,
   defaultBookingAvailableEndTime,
 } from "@/lib/booking-slot-settings";
+import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { hasBlockedWindowOverlap } from "@/lib/reservation-policy-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
@@ -64,7 +65,7 @@ export function isRegularClosedOnDate(shop: Shop, date: string) {
 export function isShopClosedOnDate(shop: Shop, date: string) {
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
-  const hours = shop.business_hours[weekday];
+  const hours = getBusinessHoursForWeekday(shop, weekday);
 
   if (isRegularClosedOnDate(shop, date)) return true;
   if (shop.temporary_closed_dates.includes(date)) return true;
@@ -100,7 +101,7 @@ export function computeAvailableSlots(params: {
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   if (isShopClosedOnDate(shop, date)) return [];
-  const hours = shop.business_hours[weekday];
+  const hours = getBusinessHoursForWeekday(shop, weekday);
   if (!hours?.enabled) return [];
   const service = serviceId ? services.find((item) => item.id === serviceId) : null;
   const durationMinutes = durationMinutesOverride ?? service?.duration_minutes;

@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
@@ -34,6 +35,7 @@ type FirstVisitForm = {
   ownerName: string;
   phone: string;
   petName: string;
+  breed: string;
   date: string;
   timeSlot: string;
   staffId: string;
@@ -49,24 +51,33 @@ type BookingCompletion = {
 };
 
 const CUSTOM_SERVICE_ID = "__custom__";
+const popularBreedChips = ["말티즈", "푸들", "포메라니안", "비숑", "시츄", "믹스", "치와와", "말티푸", "요크셔테리어"];
 
 function getHeroImage(shop: Shop) {
-  return shop.customer_page_settings?.hero_image_url || "/images/customer-booking-hero-retriever-bath.jpg";
+  const heroImages = shop.customer_page_settings?.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ?? [];
+  return heroImages[0] || shop.customer_page_settings?.hero_image_url || "/images/customer-booking-hero-original.jpg";
 }
 
 function getShopDisplayName(shop: Shop) {
   return shop.name;
 }
 
-function getShopTagline(shop: Shop) {
-  return shop.customer_page_settings?.tagline?.trim() || shop.description || "아이 성향에 맞춘 차분한 그루밍을 도와드려요.";
-}
-
-function getTodayHours(shop: Shop) {
+function getTodayOperatingLabel(shop: Shop) {
   const today = new Date().getDay();
-  const hours = shop.business_hours?.[today];
+  const hours = getBusinessHoursForWeekday(shop, today);
   if (!hours?.enabled) return "휴무";
-  return `${hours.open.slice(0, 5)} - ${hours.close.slice(0, 5)}`;
+
+  const [openHour, openMinute] = hours.open.slice(0, 5).split(":").map(Number);
+  const [closeHour, closeMinute] = hours.close.slice(0, 5).split(":").map(Number);
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const openMinutes = openHour * 60 + openMinute;
+  const closeMinutes = closeHour * 60 + closeMinute;
+
+  if (!Number.isFinite(openMinutes) || !Number.isFinite(closeMinutes)) return "영업 정보";
+  if (nowMinutes < openMinutes) return "영업 전";
+  if (nowMinutes >= closeMinutes) return "영업 종료";
+  return "영업 중";
 }
 
 function formatDurationRange(minutes: number) {
@@ -150,15 +161,6 @@ function BookingShell({ children }: { children: ReactNode }) {
   return <div className="bg-white px-3 pb-[94px] pt-0 text-[#2b241f]">{children}</div>;
 }
 
-function TopStepChip({ step, label }: { step: number; label: string }) {
-  return (
-    <div className="mb-2 flex items-center justify-center gap-2 text-[16px] font-semibold tracking-[-0.02em] text-[#2b241f]">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F5A623] text-[16px] text-white">{step}</span>
-      {label}
-    </div>
-  );
-}
-
 function BookingStepHeader({ title, subtitle, step, onBack }: { title: string; subtitle: string; step: FirstVisitStep; onBack: () => void }) {
   return (
     <div className="rounded-[18px] border border-[#FFE1B0] bg-white px-4 py-3">
@@ -184,22 +186,34 @@ function BookingStepHeader({ title, subtitle, step, onBack }: { title: string; s
   );
 }
 
-function PlainStepHeader({ title, step, onBack }: { title: string; step: FirstVisitStep; onBack: () => void }) {
+function PlainStepHeader({
+  title,
+  step,
+  onBack,
+  showBack = true,
+}: {
+  title: string;
+  step: FirstVisitStep;
+  onBack: () => void;
+  showBack?: boolean;
+}) {
   return (
-    <header className="sticky top-0 z-20 -mx-3 bg-white px-4 pb-2 pt-3">
-      <div className="relative flex min-h-11 items-center justify-center">
-        <button
-          type="button"
-          onClick={onBack}
-          className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-[#2b241f] transition hover:bg-[#FFF9EC]"
-          aria-label="이전"
-        >
-          <ChevronLeft className="h-6 w-6" strokeWidth={1.9} />
-        </button>
-        <h2 className="text-[22px] font-normal tracking-[-0.03em] text-[#2b241f]">{title}</h2>
+    <header className="sticky top-0 z-20 -mx-3 bg-white px-4 pb-1.5 pt-1">
+      <div className="relative flex min-h-9 items-center justify-center">
+        {showBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#2b241f] transition hover:bg-[#FFF9EC]"
+            aria-label="이전"
+          >
+            <ChevronLeft className="h-5 w-5" strokeWidth={1.9} />
+          </button>
+        ) : null}
+        <h2 className="text-[21px] font-normal tracking-[-0.03em] text-[#2b241f]">{title}</h2>
         <span className="absolute right-1 text-[16px] font-normal text-[#8B6F4D]">{step}/4</span>
       </div>
-      <div className="mt-2 h-1.5 rounded-full bg-[#FFE1B0]">
+      <div className="mt-1 h-1.5 rounded-full bg-[#FFE1B0]">
         <div className="h-full rounded-full bg-[#F5A623]" style={{ width: `${(step / 4) * 100}%` }} />
       </div>
     </header>
@@ -215,29 +229,28 @@ function StepSectionBlock({ children, className }: { children: ReactNode; classN
 }
 
 function ShopIntroBlock({ shop, onOpenShopInfo }: { shop: Shop; onOpenShopInfo: () => void }) {
+  const operatingLabel = getTodayOperatingLabel(shop);
+  const isOpen = operatingLabel === "영업 중";
+
   return (
     <section className="mt-2">
-      <div className="h-[148px] overflow-hidden rounded-[16px] bg-[#FFE1B0]">
-        <img src={getHeroImage(shop)} alt={`${getShopDisplayName(shop)} 매장 이미지`} className="h-full w-full object-cover" />
+      <div className="aspect-[16/9] overflow-hidden rounded-[14px] bg-[#FFF6E6]">
+        <img src={getHeroImage(shop)} alt={`${getShopDisplayName(shop)} 매장 이미지`} className="h-full w-full object-cover object-center" />
       </div>
       <div className="px-1 py-3">
-        <h1 className="text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{getShopDisplayName(shop)}</h1>
-        <p className="mt-1 text-[16px] leading-6 tracking-[-0.02em] text-[#8B6F4D]">{getShopTagline(shop)}</p>
-        <button
-          type="button"
-          onClick={onOpenShopInfo}
-          className="mt-3 flex w-full items-center justify-between rounded-[14px] border border-[#FFE1B0] bg-[#FFF9EC] px-3 py-2.5"
-        >
-          <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2f7866]">
-            <span className="h-2 w-2 rounded-full bg-[#2f7866]" />
-            영업 정보
-            <span className="font-medium text-[#2b241f]">{getTodayHours(shop)}</span>
-          </span>
-          <span className="flex items-center gap-1 text-[16px] font-semibold text-[#C46A00]">
-            전체 보기
-            <ChevronRight className="h-3.5 w-3.5" />
-          </span>
-        </button>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-[21px] font-medium tracking-[-0.04em] text-[#2b241f]">{getShopDisplayName(shop)}</h1>
+          <button
+            type="button"
+            onClick={onOpenShopInfo}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[16px] font-normal text-[#2f7866]"
+            aria-label="전체 영업시간 보기"
+          >
+            <span className={cn("h-2 w-2 rounded-full", isOpen ? "bg-[#2f7866]" : "bg-[#b9c3cf]")} />
+            {operatingLabel}
+            <ChevronRight className="h-3.5 w-3.5 text-[#C46A00]" />
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -301,14 +314,12 @@ function FooterActions({
 
 function ServiceOptionCard({
   title,
-  description,
   duration,
   price,
   active,
   onClick,
 }: {
   title: string;
-  description: string;
   duration: string;
   price: string;
   active: boolean;
@@ -329,19 +340,13 @@ function ServiceOptionCard({
           <Icon className="h-5 w-5" strokeWidth={1.9} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[16px] font-semibold tracking-[-0.03em] text-[#2b241f]">{title}</span>
-          <span className="mt-0.5 block truncate text-[16px] font-medium tracking-[-0.02em] text-[#8B6F4D]">{description}</span>
+          <span className="block text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{title}</span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="block text-[16px] font-semibold text-[#C46A00]">{duration}</span>
-          <span className="mt-0.5 block text-[16px] font-semibold text-[#C46A00]">{price}</span>
+          <span className="block text-[16px] font-normal text-[#C46A00]">{duration}</span>
+          <span className="mt-0.5 block text-[16px] font-normal text-[#C46A00]">{price}</span>
         </span>
       </div>
-      {active ? (
-        <span className="absolute right-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#F5A623] text-white">
-          <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
-        </span>
-      ) : null}
     </button>
   );
 }
@@ -491,6 +496,7 @@ export default function CustomerFirstVisitFlow({
   onOwnerNameChange,
   onPhoneChange,
   onPetNameChange,
+  onBreedChange,
   onNoteChange,
   onGoManage,
 }: {
@@ -519,10 +525,12 @@ export default function CustomerFirstVisitFlow({
   onOwnerNameChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
   onPetNameChange: (value: string) => void;
+  onBreedChange: (value: string) => void;
   onNoteChange: (value: string) => void;
   onGoManage: () => void;
 }) {
   const dateScrollerRef = useRef<HTMLDivElement | null>(null);
+  const breedInputRef = useRef<HTMLInputElement | null>(null);
   const [allTimesExpanded, setAllTimesExpanded] = useState(false);
   const recommendedSlots = useMemo(() => {
     const selectedSlot = firstVisit.timeSlot && availableSlots.includes(firstVisit.timeSlot) ? firstVisit.timeSlot : "";
@@ -580,7 +588,7 @@ export default function CustomerFirstVisitFlow({
     return (
       <BookingShell>
         <PlainStepHeader title="최종 확인" step={4} onBack={onStepBack} />
-        <section className="mt-1 px-1 py-4 text-center">
+        <section className="mt-1 px-1 pb-36 pt-4 text-center">
           <div className="relative mx-auto h-28 w-36">
             {["left-2 top-4 bg-[#F5A623]", "right-3 top-6 bg-[#FFD28A]", "left-8 bottom-5 bg-[#D97706]", "right-8 bottom-4 bg-[#FFE1B0]"].map((className) => (
               <span key={className} className={cn("absolute h-2 w-1.5 rotate-45 rounded-sm", className)} />
@@ -604,7 +612,7 @@ export default function CustomerFirstVisitFlow({
             <SummaryLine label="서비스" value={serviceSummaryName} />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="hidden">
             <button
               type="button"
               onClick={onGoManage}
@@ -621,6 +629,24 @@ export default function CustomerFirstVisitFlow({
             </button>
           </div>
         </section>
+        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px] border-t border-[#FFE1B0] bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3">
+          <div className="grid gap-2">
+            <button
+              type="button"
+              onClick={onGoManage}
+              className="h-12 rounded-[10px] bg-[#F5A623] text-[16px] font-normal tracking-[-0.02em] text-white transition hover:bg-[#E99718]"
+            >
+              예약 내역 보기
+            </button>
+            <button
+              type="button"
+              onClick={onBackToEntry}
+              className="h-12 rounded-[10px] border border-[#F5A623] bg-white text-[16px] font-normal tracking-[-0.02em] text-[#C46A00]"
+            >
+              추가 예약하기
+            </button>
+          </div>
+        </div>
       </BookingShell>
     );
   }
@@ -629,17 +655,15 @@ export default function CustomerFirstVisitFlow({
     <BookingShell>
       {step === 2 ? (
         <>
-          <TopStepChip step={2} label="원하는 서비스 선택" />
-          <section className="mt-3">
-            <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#2b241f]">어떤 서비스를 원하시나요?</h2>
+          <section className="pt-3">
+            <h2 className="text-center text-[18px] font-normal tracking-[-0.03em] text-[#2b241f]">원하는 서비스 선택</h2>
+            <p className="mt-5 text-[17px] font-normal tracking-[-0.03em] text-[#2b241f]">어떤 서비스를 원하시나요?</p>
             <div className="mt-2 grid gap-2">
               {customerServiceOptions.map((service) => {
-                const meta = service.description ? { description: service.description } : getServiceMeta(service.name);
                 return (
                   <ServiceOptionCard
                     key={service.id}
                     title={service.name}
-                    description={meta.description}
                     duration={formatDurationRange(service.durationMinutes)}
                     price={formatServicePrice(service.price, service.priceType)}
                     active={firstVisit.customerServiceOptionId === service.id}
@@ -647,14 +671,11 @@ export default function CustomerFirstVisitFlow({
                   />
                 );
               })}
-              <ServiceOptionCard
-                title="상담 후 결정"
-                description="원하는 스타일 상담 후 결정"
-                duration="90분~120분"
-                price="가격 미정"
-                active={firstVisit.serviceId === CUSTOM_SERVICE_ID}
-                onClick={() => onServiceSelect(CUSTOM_SERVICE_ID)}
-              />
+              {customerServiceOptions.length === 0 ? (
+                <div className="rounded-[12px] border border-[#FFE1B0] bg-white px-3 py-6 text-center text-[16px] font-normal text-[#8B6F4D]">
+                  노출 중인 서비스가 없습니다.
+                </div>
+              ) : null}
             </div>
           </section>
           <FooterActions
@@ -815,31 +836,28 @@ export default function CustomerFirstVisitFlow({
       ) : null}
 
       {step === 1 ? (
-        <>
-          <StepBodyCard>
-            <PlainStepHeader title="예약자 정보" step={1} onBack={onStepBack} />
+          <>
+            <StepBodyCard>
+            <PlainStepHeader title="예약자 정보" step={1} onBack={onStepBack} showBack={false} />
             <ShopIntroBlock shop={shop} onOpenShopInfo={onOpenShopInfo} />
-            <p className="text-[16px] leading-6 tracking-[-0.02em] text-[#8B6F4D]">
-              예약 확인 및 안내를 위해 필요한 정보만 입력해주세요.
-            </p>
 
-            <div className="mt-4 divide-y divide-[#FFE1B0] border-y border-[#FFE1B0]">
-              <label className="block py-4">
-                <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2b241f]">
-                  <UserRound className="h-5 w-5 text-[#D97706]" strokeWidth={1.9} />
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
+                  <UserRound className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
                   보호자 이름
                 </span>
                 <input
                   value={firstVisit.ownerName}
                   onChange={(event) => onOwnerNameChange(event.target.value)}
-                  placeholder="이름을 입력해주세요"
-                  className="mt-3 h-12 w-full rounded-[12px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+                  placeholder="이름"
+                  className="mt-2 h-11 w-full rounded-[10px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
                 />
               </label>
 
-              <label className="block py-4">
-                <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2b241f]">
-                  <Phone className="h-5 w-5 text-[#D97706]" strokeWidth={1.9} />
+              <label className="block">
+                <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
+                  <Phone className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
                   연락처
                 </span>
                 <input
@@ -847,39 +865,83 @@ export default function CustomerFirstVisitFlow({
                   inputMode="tel"
                   onChange={(event) => onPhoneChange(event.target.value)}
                   placeholder="010-1234-5678"
-                  className="mt-3 h-12 w-full rounded-[12px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+                  className="mt-2 h-11 w-full rounded-[10px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
                 />
               </label>
 
-              <label className="block py-4">
-                <span className="flex items-center gap-2 text-[16px] font-semibold text-[#2b241f]">
-                  <PawPrint className="h-5 w-5 text-[#D97706]" strokeWidth={1.9} />
+              <label className="block">
+                <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
+                  <PawPrint className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
                   반려동물 이름
                 </span>
                 <input
                   value={firstVisit.petName}
                   onChange={(event) => onPetNameChange(event.target.value)}
-                  placeholder="반려동물 이름을 입력해주세요"
-                  className="mt-3 h-12 w-full rounded-[12px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+                  placeholder="아이 이름"
+                  className="mt-2 h-11 w-full rounded-[10px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
+                  <Sparkles className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
+                  품종
+                </span>
+                <input
+                  ref={breedInputRef}
+                  value={firstVisit.breed}
+                  onChange={(event) => onBreedChange(event.target.value)}
+                  placeholder="품종을 직접 입력해 주세요"
+                  className="mt-2 h-11 w-full rounded-[10px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
                 />
               </label>
             </div>
 
-            <div className="pt-4">
-              <span className="block text-[16px] font-semibold text-[#2b241f]">선택사항</span>
-              <span className="mt-1 block text-[16px] text-[#8B6F4D]">필요 시 요청사항을 남겨주세요.</span>
+            <div className="mt-2">
+              <p className="mb-1.5 text-[16px] font-normal text-[#8B6F4D]">자주 선택하는 품종</p>
+              <div className="flex flex-wrap gap-1.5">
+                {popularBreedChips.map((breed) => {
+                  const active = firstVisit.breed.trim() === breed;
+                  return (
+                    <button
+                      key={breed}
+                      type="button"
+                      onClick={() => onBreedChange(breed)}
+                      className={cn(
+                        "h-9 rounded-full border px-3 text-[16px] font-normal transition",
+                        active
+                          ? "border-[#F5A623] bg-[#FFF6E6] text-[#C46A00]"
+                          : "border-[#FFE1B0] bg-white text-[#8B6F4D] hover:border-[#F5A623]",
+                      )}
+                    >
+                      {breed}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => breedInputRef.current?.focus()}
+                  className="h-9 rounded-full border border-[#FFE1B0] bg-white px-3 text-[16px] font-normal text-[#C46A00] transition hover:border-[#F5A623]"
+                >
+                  직접 입력
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-3">
+              <span className="block text-[16px] font-medium text-[#2b241f]">요청사항 <span className="font-normal text-[#8B6F4D]">(선택)</span></span>
               <textarea
                 value={firstVisit.note}
                 onChange={(event) => onNoteChange(event.target.value.slice(0, 200))}
-                placeholder="예: 털이 많이 엉켜 있어요, 겁이 많아요, 얼굴은 짧게 해주세요."
-                className="mt-3 min-h-[112px] w-full resize-none rounded-[12px] border border-[#FFE1B0] bg-white px-3 py-3 text-[16px] leading-6 text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+                placeholder="특이사항이 있으면 남겨주세요"
+                className="mt-2 min-h-[82px] w-full resize-none rounded-[10px] border border-[#FFE1B0] bg-white px-3 py-2.5 text-[16px] leading-6 text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
               />
               <p className="mt-1 text-right text-[16px] text-[#a8988a]">{firstVisit.note.length}/200</p>
             </div>
           </StepBodyCard>
           <FooterActions
             primaryLabel="다음"
-            primaryDisabled={!firstVisit.ownerName.trim() || !firstVisit.phone.trim() || !firstVisit.petName.trim()}
+            primaryDisabled={!firstVisit.ownerName.trim() || !firstVisit.phone.trim() || !firstVisit.petName.trim() || !firstVisit.breed.trim()}
             onPrimary={onNext}
             single
           />

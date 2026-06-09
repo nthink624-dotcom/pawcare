@@ -53,6 +53,16 @@ function createMenuOptionId(label: string) {
   return `menu:${normalizeOptionLabelKey(label)}`;
 }
 
+function getPriceGuideItemGroupKey(option: CustomerServiceSourceOption) {
+  const rawItemId = option.id.includes(":") ? option.id.split(":").pop() ?? "" : "";
+  const semanticItemId = rawItemId.replace(/^(?:basic|plus|premium|default)_/, "");
+  if (["clipping", "hygiene_bath", "spotting", "scissor"].includes(semanticItemId)) {
+    return `price-guide:${semanticItemId}`;
+  }
+
+  return `label:${normalizeOptionLabelKey(option.sourceName)}`;
+}
+
 const defaultGroomingMenuItems = [
   { id: "default_hygiene_bath", label: "위생미용+목욕", durationMinutes: 60, price: 30000 },
   { id: "default_clipping", label: "클리핑", durationMinutes: 90, price: 45000 },
@@ -203,7 +213,7 @@ function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOp
   const groupedOptions = new Map<string, CustomerServiceSourceOption>();
 
   for (const option of options) {
-    const key = normalizeOptionLabelKey(option.sourceName);
+    const key = getPriceGuideItemGroupKey(option);
     const existing = groupedOptions.get(key);
     if (!existing || option.price < existing.price || (option.price === existing.price && option.durationMinutes < existing.durationMinutes)) {
       groupedOptions.set(key, option);
@@ -286,4 +296,40 @@ export function applyCustomerServiceOverrides(
   }
 
   return rows.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"));
+}
+
+export function applyConfiguredCustomerServiceOverrides(
+  options: CustomerServiceSourceOption[],
+  overrides: unknown,
+): CustomerServiceSourceOption[] {
+  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
+  const optionById = new Map(options.map((option) => [option.id, option]));
+  const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
+  const defaultRowById = new Map(defaultRows.map((option) => [option.id, option]));
+
+  return Object.entries(normalizedOverrides)
+    .flatMap(([rowId, override]) => {
+      if (override.visible === false) return [];
+
+      const defaultRow = defaultRowById.get(rowId);
+      const linkedOption =
+        optionById.get(override.linkedOptionId ?? "") ??
+        optionById.get(defaultRow?.linkedOptionId ?? "") ??
+        optionById.get(rowId);
+
+      if (!linkedOption) return [];
+
+      return [
+        {
+          ...linkedOption,
+          id: rowId,
+          name: override.displayName || defaultRow?.sourceName || linkedOption.sourceName,
+          sourceName: override.displayName || defaultRow?.sourceName || linkedOption.sourceName,
+          description: override.description ?? defaultRow?.description ?? linkedOption.description,
+          order: override.order ?? defaultRow?.order ?? linkedOption.order,
+          linkedOptionId: linkedOption.id,
+        },
+      ];
+    })
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"));
 }

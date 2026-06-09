@@ -9,6 +9,7 @@ import {
   defaultBookingAvailableStartTime,
   normalizeBookingAvailableTime,
 } from "@/lib/booking-slot-settings";
+import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import {
   coerceEnabledShopNotificationSettings,
@@ -263,7 +264,7 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
   const { appointment, shop, services, staffMembers, staffScheduleOverrides, appointments, date, appointmentTime, durationMinutes, staffId, allowOutsideShopHours = false } = params;
   const [year, month, day] = date.split("-").map(Number);
   const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
-  const hours = shop.business_hours[weekday];
+  const hours = getBusinessHoursForWeekday(shop, weekday);
   const startMinute = minutesFromTime(appointmentTime);
   const endMinute = startMinute + durationMinutes;
 

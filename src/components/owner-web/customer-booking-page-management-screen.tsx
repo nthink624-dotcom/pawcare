@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, Clock, Eye, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
@@ -163,8 +163,9 @@ export default function CustomerBookingPageManagementScreen({
 
   const businessHours = useMemo(() => formatBusinessHours(shop), [shop]);
   const heroImageUrl = shop.customer_page_settings.hero_image_url.trim();
-  const heroDisplayImageUrl = heroImageUrl || "/images/customer-booking-hero-original.jpg";
-  const isUsingDefaultHeroImage = !heroImageUrl;
+  const heroImages = shop.customer_page_settings.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ?? [];
+  const heroDisplayImageUrl = heroImages[0] || heroImageUrl || "/images/customer-booking-hero-original.jpg";
+  const isUsingDefaultHeroImage = !heroImages[0] && !heroImageUrl;
   const previewShop = useMemo(
     () => ({
       ...shop,
@@ -750,10 +751,10 @@ export default function CustomerBookingPageManagementScreen({
               <div className="sticky top-0 z-20 flex h-7 items-center justify-center bg-white/95 backdrop-blur">
                 <span className="h-1.5 w-12 rounded-full bg-[#d8d1c8]" />
               </div>
-                <CustomerBookingEntryPage
+                <CustomerFirstVisitPreview
                   shop={previewShop}
                   services={previewServices}
-                  infoHref={`/book/${shop.id}/info`}
+                  staffMembers={initialData.staffMembers}
                 />
             </div>
           </div>

@@ -221,9 +221,11 @@ export default function CustomerBookingManagePanel({
     [staffMembers],
   );
   const sortedAppointments = useMemo(
-    () => [...(lookupResult?.appointments || [])].sort((a, b) => `${a.appointment_date} ${a.appointment_time}`.localeCompare(`${b.appointment_date} ${b.appointment_time}`)),
+    () => [...(lookupResult?.appointments || [])].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`)),
     [lookupResult?.appointments],
   );
+  const visibleAppointments = useMemo(() => sortedAppointments.filter(canManageAppointment), [sortedAppointments]);
+  const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
   const selectedService = services.find((service) => service.id === manageForm?.serviceId);
 
   useEffect(() => {
@@ -300,6 +302,10 @@ export default function CustomerBookingManagePanel({
         setOpenAppointmentId(null);
         setManageForm(null);
 
+        if (!result.appointments.some(canManageAppointment)) {
+          setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
+        }
+
         if (result.access?.action === "reschedule") {
           setFeedback({
             type: "error",
@@ -328,8 +334,8 @@ export default function CustomerBookingManagePanel({
       setOpenAppointmentId(null);
       setManageForm(null);
       setFeedback(null);
-      if (result.appointments.length === 0 && result.groomingRecords.length === 0) {
-        setLookupError("입력한 정보와 일치하는 예약이 없어요.");
+      if (!result.appointments.some(canManageAppointment)) {
+        setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
       }
     } catch (error) {
       setLookupError(error instanceof Error ? error.message : "조회에 실패했어요.");
@@ -435,30 +441,18 @@ export default function CustomerBookingManagePanel({
 
   return (
     <>
-      <section className="rounded-[24px] bg-white px-4 py-4 shadow-[0_14px_32px_rgba(139,106,85,0.08)]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#8b7767]">예약 내역</p>
-            <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.05em] text-[#111827]">
-              {lookupPetName && lookupGuardianName ? `${lookupPetName} · ${lookupGuardianName}` : "예약 확인"}
-            </h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-              예약 상태와 요청사항을 한눈에 확인할 수 있어요.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
-            aria-label="닫기"
-          >
-            <X className="h-5 w-5" strokeWidth={1.9} />
-          </button>
-        </div>
-      </section>
-
       {showLookupForm ? (
         <section className="rounded-[24px] bg-white p-4 shadow-[0_14px_32px_rgba(139,106,85,0.08)]">
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" strokeWidth={1.9} />
+            </button>
+          </div>
           <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#111827]">예약 조회</h2>
           <div className="mt-4 space-y-2.5">
             <input
@@ -499,7 +493,17 @@ export default function CustomerBookingManagePanel({
 
       {lookupResult ? (
         <section className="space-y-3">
-          {sortedAppointments.map((appointment) => {
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+              aria-label="닫기"
+            >
+              <X className="h-5 w-5" strokeWidth={1.9} />
+            </button>
+          </div>
+          {latestAppointments.map((appointment) => {
             const pet = petMap[appointment.pet_id];
             const service = services.find((item) => item.id === appointment.service_id);
             const staffName = appointment.staff_id ? staffMap[appointment.staff_id] : "";
@@ -541,21 +545,10 @@ export default function CustomerBookingManagePanel({
                     {staffName ? <ManageInfoRow label="담당" value={staffName} /> : null}
                   </div>
 
-                  <div className="mt-3">
-                    <ProgressTracker status={appointment.status} />
-                  </div>
-
                   <div className="mt-3 rounded-[16px] border border-[#e2e8f0] bg-white px-4 py-3">
                     <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#64748b]">고객 요청사항</p>
                     <p className="mt-2 whitespace-pre-wrap text-[15px] leading-6 text-[#111827]">
                       {appointment.memo?.trim() || "등록된 요청사항이 없습니다."}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 rounded-[16px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-3">
-                    <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#64748b]">사진</p>
-                    <p className="mt-1 text-[14px] leading-5 text-[#64748b]">
-                      완료 사진이 등록되면 이곳에서 확인할 수 있어요.
                     </p>
                   </div>
 
@@ -675,13 +668,6 @@ export default function CustomerBookingManagePanel({
             );
           })}
 
-          {lookupResult.groomingRecords.slice(0, 2).map((record) => (
-            <div key={record.id} className="rounded-[20px] border border-[#dbe2ea] bg-white px-4 py-4">
-              <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#111827]">지난 방문 기록</p>
-              <p className="mt-2 text-[13px] text-[#64748b]">{formatVisitedAt(record.groomed_at)}</p>
-              <p className="mt-2 text-[13px] leading-6 text-[#64748b]">{record.style_notes || "스타일 메모 없음"}</p>
-            </div>
-          ))}
         </section>
       ) : null}
     </>

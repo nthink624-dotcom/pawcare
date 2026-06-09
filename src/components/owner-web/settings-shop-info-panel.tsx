@@ -4,7 +4,7 @@ import { ImagePlus, Info } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
-import CustomerBookingEntryPage, { DEFAULT_HERO_IMAGES } from "@/components/customer/customer-booking-entry-page";
+import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
 import { cn } from "@/lib/utils";
 import type { Service, Shop } from "@/types/domain";
 
@@ -14,6 +14,8 @@ export type ShopInfoSettingRow = {
   value: string | boolean | number;
   options?: string[];
 };
+
+const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -279,7 +281,7 @@ export default function ShopInfoSettingsPanel({
   const profileImages = shopProfileImages.slice(0, 10);
   const storedProfileImages = (shop?.customer_page_settings.hero_image_urls ?? []).filter(Boolean).slice(0, 10);
   const mainProfileImage = profileImages[0] ?? "";
-  const displayedProfileImage = mainProfileImage || storedProfileImages[0] || shop?.customer_page_settings.hero_image_url || DEFAULT_HERO_IMAGES[0];
+  const displayedProfileImage = mainProfileImage || storedProfileImages[0] || shop?.customer_page_settings.hero_image_url || DEFAULT_SHOP_PROFILE_IMAGE;
   const carouselProfileImages = useMemo(() => {
     const sourceImages = profileImages.length > 0 ? profileImages : storedProfileImages.length > 0 ? storedProfileImages : [displayedProfileImage];
     return sourceImages.filter(Boolean).slice(0, 10);
@@ -525,10 +527,9 @@ export default function ShopInfoSettingsPanel({
                 <div className="absolute left-[16px] top-[41px] h-[468px] w-[228px] overflow-hidden rounded-[30px] bg-white">
                   <div className="pointer-events-none h-[883px] w-[430px] origin-top-left" style={{ transform: "scale(0.53)" }}>
                     {customerPreviewShop ? (
-                        <CustomerBookingEntryPage
+                        <CustomerFirstVisitPreview
                           shop={customerPreviewShop}
                           services={previewServices}
-                          infoHref={`/book/${customerPreviewShop.id}/info`}
                         />
                     ) : null}
                   </div>

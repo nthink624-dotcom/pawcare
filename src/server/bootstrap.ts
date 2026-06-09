@@ -1,4 +1,5 @@
 import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
+import { normalizeBusinessHours } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { buildDemoBootstrap } from "@/lib/mock-data";
 import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
@@ -52,6 +53,7 @@ function buildMockBootstrap(shopId?: string): BootstrapPayload {
   store.shop = {
     ...normalizeShopBookingSettings(store.shop),
     id: shopId || store.shop.id,
+    business_hours: normalizeBusinessHours(store.shop.business_hours),
     reservation_policy_settings: normalizeReservationPolicySettings(store.shop.reservation_policy_settings),
     customer_page_settings: normalizeCustomerPageSettings(
       store.shop.customer_page_settings,
@@ -349,6 +351,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   );
   const normalizedShop = {
     ...normalizeShopBookingSettings(rawShop),
+    business_hours: normalizeBusinessHours(rawShop.business_hours),
     regular_closed_cycle:
       policyHasRegularClosedCycle
         ? normalizedReservationPolicySettings.regular_closed_cycle ?? "weekly"

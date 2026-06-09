@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isValidBusinessHoursRange } from "@/lib/business-hours";
+
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const petBiteLevelSchema = z.enum(["none", "mild", "watch", "bite", "strong"]).default("none");
@@ -177,8 +179,8 @@ export const shopSettingsSchema = z.object({
   businessHours: z.record(
     z.string(),
     z.object({
-      open: z.string(),
-      close: z.string(),
+      open: z.string().regex(timePattern),
+      close: z.string().regex(timePattern),
       enabled: z.boolean(),
     }),
   ),
@@ -230,6 +232,16 @@ export const shopSettingsSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["bookingAvailableEndTime"],
       message: "마지막 미용 예약 시간은 시작 시간보다 늦어야 합니다.",
+    });
+  }
+
+  for (const [day, hours] of Object.entries(value.businessHours)) {
+    if (!hours.enabled || isValidBusinessHoursRange(hours.open, hours.close)) continue;
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessHours", day, "close"],
+      message: "영업 종료 시간은 시작 시간보다 늦어야 합니다.",
     });
   }
 

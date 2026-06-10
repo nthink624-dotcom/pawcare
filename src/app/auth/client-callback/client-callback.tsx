@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import type { SupabaseClient, Session, User } from "@supabase/supabase-js";
 
 import {
   PENDING_SOCIAL_PROVIDER_COOKIE,
@@ -32,6 +33,50 @@ function clearPendingProvider() {
   window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
 }
 
+async function waitForOAuthSession(supabase: SupabaseClient, timeoutMs = 8000) {
+  const current = await supabase.auth.getSession();
+  if (current.data.session?.access_token) {
+    const user = current.data.session.user ?? (await supabase.auth.getUser()).data.user;
+    return { session: current.data.session, user };
+  }
+
+  return new Promise<{ session: Session | null; user: User | null }>((resolve) => {
+    let settled = false;
+    let attempts = 0;
+    let unsubscribe: (() => void) | null = null;
+    let intervalId: number | null = null;
+    let timeoutId: number | null = null;
+
+    const finish = (session: Session | null, user: User | null) => {
+      if (settled) return;
+      settled = true;
+      unsubscribe?.();
+      if (intervalId != null) window.clearInterval(intervalId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      resolve({ session, user });
+    };
+
+    const subscription = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        finish(session, session.user ?? null);
+      }
+    });
+    unsubscribe = () => subscription.data.subscription.unsubscribe();
+
+    intervalId = window.setInterval(async () => {
+      attempts += 1;
+      const next = await supabase.auth.getSession();
+      if (next.data.session?.access_token) {
+        finish(next.data.session, next.data.session.user ?? null);
+      } else if (attempts >= Math.ceil(timeoutMs / 250)) {
+        finish(null, null);
+      }
+    }, 250);
+
+    timeoutId = window.setTimeout(() => finish(null, null), timeoutMs);
+  });
+}
+
 export default function AuthClientCallback() {
   const searchParams = useSearchParams();
   const [message, setMessage] = useState("소셜 로그인 연결을 마무리하고 있습니다.");
@@ -56,27 +101,27 @@ export default function AuthClientCallback() {
         return;
       }
 
-      if (!code) {
-        redirectToLogin("social-callback", next);
-        return;
-      }
-
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
         redirectToLogin("supabase", next);
         return;
       }
 
-      const exchanged = await supabase.auth.exchangeCodeForSession(code);
-      if (exchanged.error) {
-        redirectToLogin("social-callback", next, exchanged.error.message);
-        return;
+      let { session, user } = await waitForOAuthSession(supabase);
+
+      if (!session?.access_token && code) {
+        const exchanged = await supabase.auth.exchangeCodeForSession(code);
+        if (exchanged.error) {
+          redirectToLogin("social-callback", next, exchanged.error.message);
+          return;
+        }
+
+        session = exchanged.data.session;
+        user = exchanged.data.user ?? (await supabase.auth.getUser()).data.user;
       }
 
-      const session = exchanged.data.session;
-      const user = exchanged.data.user ?? (await supabase.auth.getUser()).data.user;
       if (!session?.access_token || !user) {
-        redirectToLogin("social-session", next);
+        redirectToLogin("social-session", next, code ? "세션 생성 대기 시간이 초과되었습니다." : "OAuth code가 없습니다.");
         return;
       }
 

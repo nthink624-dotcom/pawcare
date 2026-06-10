@@ -27,7 +27,7 @@ export default async function LoginPage({
   const errorDetail = typeof params.detail === "string" ? params.detail : undefined;
   const messageKey = typeof params.message === "string" ? params.message : undefined;
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
-  const shouldShowDetail = errorKey && !["social-callback", "social-oauth"].includes(errorKey);
+  const shouldShowDetail = Boolean(errorKey);
   const initialMessage = errorKey
     ? [errorMessages[errorKey] ?? null, shouldShowDetail && errorDetail ? `상세: ${errorDetail}` : null]
         .filter(Boolean)

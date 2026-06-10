@@ -100,10 +100,6 @@ export async function GET(request: NextRequest) {
 
   const exchanged = await supabase.auth.exchangeCodeForSession(code);
   if (exchanged.error) {
-    if (/code verifier|verifier not found|pkce/i.test(exchanged.error.message)) {
-      return redirectWithAuthCookies(`/auth/client-callback?${requestUrl.searchParams.toString()}`);
-    }
-
     return redirectToLogin("social-callback", exchanged.error.message);
   }
 

@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { PENDING_SOCIAL_PROVIDER_COOKIE } from "@/lib/auth/social-auth";
+import {
+  PENDING_SOCIAL_PROVIDER_COOKIE,
+  PENDING_SOCIAL_PROVIDER_STORAGE,
+  resolveSocialProviderFromAuthUser,
+  type SocialProvider,
+} from "@/lib/auth/social-auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
   return value?.startsWith("/") ? value : "/owner";
+}
+
+function resolveProvider(value: string | null): SocialProvider | null {
+  return value === "google" || value === "kakao" || value === "naver" ? value : null;
 }
 
 function redirectToLogin(error: string, next: string, detail?: string | null) {
@@ -16,6 +25,11 @@ function redirectToLogin(error: string, next: string, detail?: string | null) {
     params.set("detail", detail.slice(0, 180));
   }
   window.location.replace(`/login?${params.toString()}`);
+}
+
+function clearPendingProvider() {
+  document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
 }
 
 export default function AuthClientCallback() {
@@ -53,13 +67,41 @@ export default function AuthClientCallback() {
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) {
-        redirectToLogin("social-callback", next, error.message);
+      const exchanged = await supabase.auth.exchangeCodeForSession(code);
+      if (exchanged.error) {
+        redirectToLogin("social-callback", next, exchanged.error.message);
         return;
       }
 
-      document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+      const session = exchanged.data.session;
+      const user = exchanged.data.user ?? (await supabase.auth.getUser()).data.user;
+      if (!session?.access_token || !user) {
+        redirectToLogin("social-session", next);
+        return;
+      }
+
+      const requestedProvider = resolveProvider(params.get("provider"));
+      const storedProvider = resolveProvider(window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE));
+      const provider = requestedProvider ?? storedProvider ?? resolveSocialProviderFromAuthUser(user);
+
+      try {
+        const response = await fetch("/api/owner/shops", {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const shops = response.ok ? await response.json() : [];
+        if (Array.isArray(shops) && shops.length === 0) {
+          clearPendingProvider();
+          window.location.replace(`/signup/social?next=${encodeURIComponent(next)}&provider=${encodeURIComponent(provider)}`);
+          return;
+        }
+      } catch {
+        // If shop lookup fails, keep the signed-in session and continue to the requested page.
+      }
+
+      clearPendingProvider();
       window.location.replace(next);
     }
 

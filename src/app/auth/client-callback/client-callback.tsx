@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -13,7 +13,7 @@ import {
   resolveSocialProviderFromAuthUser,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
-import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
   return value?.startsWith("/") ? value : "/owner";
@@ -38,6 +38,7 @@ function clearPendingProvider() {
 
 export default function AuthClientCallback() {
   const searchParams = useSearchParams();
+  const callbackStartedRef = useRef(false);
   const [message, setMessage] = useState("소셜 로그인 연결을 마무리하고 있습니다.");
   const paramsKey = useMemo(() => searchParams.toString(), [searchParams]);
 
@@ -45,6 +46,9 @@ export default function AuthClientCallback() {
     let active = true;
 
     async function completeAuth() {
+      if (callbackStartedRef.current) return;
+      callbackStartedRef.current = true;
+
       const params = new URLSearchParams(paramsKey);
       const next = safeNextPath(params.get("next"));
       const callbackError = params.get("error");
@@ -90,17 +94,6 @@ export default function AuthClientCallback() {
       };
       writeOwnerAuthHandoff(handoffSession);
       writeOwnerAuthSessionCache(handoffSession);
-
-      const supabase = getSupabaseBrowserClient();
-      if (supabase) {
-        const persistedSession = await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        if (persistedSession.error) {
-          throw persistedSession.error;
-        }
-      }
 
       const requestedProvider = resolveProvider(params.get("provider"));
       const storedProvider = resolveProvider(window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE));

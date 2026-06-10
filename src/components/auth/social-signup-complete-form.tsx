@@ -23,7 +23,7 @@ import {
   PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 const AGREEMENTS = {
   service: true,
@@ -117,7 +117,7 @@ export default function SocialSignupCompleteForm({
   provider?: SocialProvider;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const supabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
 
   const [resolvedProvider, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
   const [ownerName, setOwnerName] = useState("");
@@ -198,9 +198,19 @@ export default function SocialSignupCompleteForm({
     setMessage(null);
 
     try {
+      const session = await supabase?.auth.getSession();
+      const accessToken = session?.data.session?.access_token;
+      if (!accessToken) {
+        setMessage("로그인 정보를 확인하지 못했어요. 소셜 로그인을 다시 진행해 주세요.");
+        return;
+      }
+
       const response = await fetch("/api/auth/social-complete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           ownerName: ownerName.trim(),
           phoneNumber,

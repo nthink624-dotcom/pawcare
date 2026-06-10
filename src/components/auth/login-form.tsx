@@ -227,6 +227,17 @@ export default function LoginForm({
     }
   }, []);
 
+  useEffect(() => {
+    if (!initialMessage) return;
+
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("error") && !url.searchParams.has("detail")) return;
+
+    url.searchParams.delete("error");
+    url.searchParams.delete("detail");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [initialMessage]);
+
   const handleLogin = async (credentials?: { loginId: string; password: string }) => {
     const currentLoginId = (credentials?.loginId ?? loginId).trim();
     const currentPassword = credentials?.password ?? password;

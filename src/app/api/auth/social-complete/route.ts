@@ -9,7 +9,7 @@ import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
-import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { insertOwnerDefaultSetup } from "@/server/owner-default-setup";
 import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
@@ -86,6 +86,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
     }
 
+    const authorization = request.headers.get("authorization") || "";
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+    const authClient = getSupabaseAuthClient();
+    const bearerUserResult = token && authClient ? await authClient.auth.getUser(token) : null;
+
     const cookieStore = await cookies();
     const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
       cookies: {
@@ -100,10 +105,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const cookieUserResult = bearerUserResult?.data.user ? null : await supabase.auth.getUser();
+    const user = bearerUserResult?.data.user ?? cookieUserResult?.data.user ?? null;
+    const userError = bearerUserResult?.error ?? cookieUserResult?.error ?? null;
 
     if (userError || !user) {
       return NextResponse.json({ message: "로그인 정보를 확인할 수 없습니다." }, { status: 401 });

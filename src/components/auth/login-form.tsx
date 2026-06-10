@@ -256,7 +256,10 @@ export default function LoginForm({
 
   useEffect(() => {
     setShowDevOwnerHelper(getSupabaseRuntimeStage() !== "production");
-    clearExpiredSocialCooldown();
+    const activeCooldownUntil = clearExpiredSocialCooldown();
+    if (activeCooldownUntil && activeCooldownUntil > Date.now()) {
+      setMessage(getSocialRateLimitMessage());
+    }
 
     const savedLoginId = window.localStorage.getItem(SAVED_LOGIN_ID_KEY);
     if (savedLoginId) {

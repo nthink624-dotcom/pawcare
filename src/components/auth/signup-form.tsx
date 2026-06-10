@@ -41,7 +41,7 @@ import {
   PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 type Step = "entry" | "profile";
 type StartTarget = { kind: "email" } | { kind: "social"; provider: SocialProvider } | null;
@@ -365,6 +365,7 @@ export default function SignupForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [step, setStep] = useState<Step>(initialStart === "email" ? "profile" : "entry");
   const [startTarget, setStartTarget] = useState<StartTarget>(null);
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
@@ -534,7 +535,7 @@ export default function SignupForm({
   };
 
   const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !supabase) {
+    if (!supabaseReady || !oauthSupabase) {
       setMessage("소셜 로그인 환경이 아직 준비되지 않았어요.");
       return;
     }
@@ -547,7 +548,7 @@ export default function SignupForm({
       window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
       const redirectTo = `${getOAuthRedirectOrigin()}/auth/client-callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await oauthSupabase.auth.signInWithOAuth({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: {
           redirectTo,

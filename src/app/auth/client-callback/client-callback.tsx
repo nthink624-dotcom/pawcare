@@ -4,12 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
+  writeOwnerAuthHandoff,
+  writeOwnerAuthSessionCache,
+} from "@/lib/auth/owner-auth-handoff";
+import {
   PENDING_SOCIAL_PROVIDER_COOKIE,
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
   return value?.startsWith("/") ? value : "/owner";
@@ -56,8 +60,8 @@ export default function AuthClientCallback() {
         return;
       }
 
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
+      const oauthSupabase = getSupabaseOAuthBrowserClient();
+      if (!oauthSupabase) {
         redirectToLogin("supabase", next);
         return;
       }
@@ -67,17 +71,35 @@ export default function AuthClientCallback() {
         return;
       }
 
-      const exchanged = await supabase.auth.exchangeCodeForSession(code);
+      const exchanged = await oauthSupabase.auth.exchangeCodeForSession(code);
       if (exchanged.error) {
         redirectToLogin("social-callback", next, exchanged.error.message);
         return;
       }
 
       const session = exchanged.data.session;
-      const user = exchanged.data.user ?? (await supabase.auth.getUser()).data.user;
+      const user = exchanged.data.user ?? (await oauthSupabase.auth.getUser()).data.user;
       if (!session?.access_token || !user) {
         redirectToLogin("social-session", next, "소셜 로그인 세션이 생성되지 않았습니다.");
         return;
+      }
+
+      const handoffSession = {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      };
+      writeOwnerAuthHandoff(handoffSession);
+      writeOwnerAuthSessionCache(handoffSession);
+
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        const persistedSession = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        if (persistedSession.error) {
+          throw persistedSession.error;
+        }
       }
 
       const requestedProvider = resolveProvider(params.get("provider"));

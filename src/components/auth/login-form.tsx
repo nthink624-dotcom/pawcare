@@ -11,7 +11,7 @@ import {
   type SocialProvider,
 } from "@/lib/auth/social-auth";
 import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
@@ -207,6 +207,7 @@ export default function LoginForm({
   nextPath?: string;
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
@@ -324,7 +325,7 @@ export default function LoginForm({
   };
 
   const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !supabase) {
+    if (!supabaseReady || !oauthSupabase) {
       setMessage("소셜 로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
@@ -337,7 +338,7 @@ export default function LoginForm({
       window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
 
       const redirectTo = `${getOAuthRedirectOrigin()}/auth/client-callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await oauthSupabase.auth.signInWithOAuth({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: {
           redirectTo,

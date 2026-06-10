@@ -1,16 +1,22 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 import { env, isUnsafeProdSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
+let oauthBrowserClient: ReturnType<typeof createClient> | null = null;
 
-export function getSupabaseBrowserClient() {
+function assertSafeBrowserSupabaseEnv() {
   if (isUnsafeProdSupabaseBrowserEnv()) {
     throw new Error(
-      "로컬/프리뷰 환경에서 운영 Supabase를 사용할 수 없습니다. 개발용 Supabase env로 바꾸거나 NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV=true 로 명시적으로 허용해 주세요.",
+      "Local or preview environments cannot use production Supabase unless NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV=true is set.",
     );
   }
+}
+
+export function getSupabaseBrowserClient() {
+  assertSafeBrowserSupabaseEnv();
 
   if (!env.supabaseUrl || !env.supabasePublishableKey) {
     return null;
@@ -24,4 +30,25 @@ export function getSupabaseBrowserClient() {
   });
 
   return browserClient;
+}
+
+export function getSupabaseOAuthBrowserClient() {
+  assertSafeBrowserSupabaseEnv();
+
+  if (!env.supabaseUrl || !env.supabasePublishableKey || typeof window === "undefined") {
+    return null;
+  }
+
+  oauthBrowserClient ??= createClient(env.supabaseUrl, env.supabasePublishableKey, {
+    auth: {
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      flowType: "pkce",
+      persistSession: true,
+      storage: window.localStorage,
+      storageKey: `petmanager.oauth.${new URL(env.supabaseUrl).hostname}.auth`,
+    },
+  });
+
+  return oauthBrowserClient;
 }

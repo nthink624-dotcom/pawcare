@@ -1,4 +1,7 @@
 import { buildDefaultOwnerServices, buildDefaultOwnerStaffMembers } from "@/lib/owner-default-setup";
+import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
+import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
+import { resetShopAlimtalkIncludedCredits } from "@/server/alimtalk-credit-service";
 
 type SupabaseWriter = {
   from: (table: string) => any;
@@ -29,6 +32,7 @@ export async function insertOwnerDefaultSetup(
     ownerName: string;
     ownerPhone?: string | null;
     now: string;
+    planCode?: string | null;
   },
 ) {
   const servicesInsert = (await supabase
@@ -42,20 +46,41 @@ export async function insertOwnerDefaultSetup(
     .from("staff_members")
     .insert(buildDefaultOwnerStaffMembers(params))) as SupabaseWriteResult;
   if (staffInsert.error) {
+    let staffSetupHandled = false;
+
     if (isMissingStaffProfileColumnsError(staffInsert.error)) {
       const legacyStaffMembers = buildDefaultOwnerStaffMembers(params).map(
         ({ display_name: _displayName, title_prefix: _titlePrefix, position: _position, ...staffMember }) => staffMember,
       );
       const legacyStaffInsert = (await supabase.from("staff_members").insert(legacyStaffMembers)) as SupabaseWriteResult;
-      if (!legacyStaffInsert.error) return;
-      throw new Error(legacyStaffInsert.error.message);
+      if (legacyStaffInsert.error) {
+        throw new Error(legacyStaffInsert.error.message);
+      }
+      staffSetupHandled = true;
     }
 
     if (isMissingStaffMembersTableError(staffInsert.error)) {
       console.error("[owner-signup] staff-members-table-missing", staffInsert.error.message);
-      return;
+      staffSetupHandled = true;
     }
 
-    throw new Error(staffInsert.error.message);
+    if (!staffSetupHandled) {
+      throw new Error(staffInsert.error.message);
+    }
   }
+
+  const trialPeriodEndsAt = new Date(params.now);
+  trialPeriodEndsAt.setDate(trialPeriodEndsAt.getDate() + OWNER_TRIAL_DAYS);
+
+  await resetShopAlimtalkIncludedCredits({
+    shopId: params.shopId,
+    includedAmount: getOwnerPlanIncludedAlimtalkCredits(params.planCode ?? "free"),
+    periodStartedAt: params.now,
+    periodEndsAt: trialPeriodEndsAt.toISOString(),
+    reason: "owner_default_setup",
+    metadata: {
+      source: "owner_default_setup",
+      planCode: params.planCode ?? "free",
+    },
+  });
 }

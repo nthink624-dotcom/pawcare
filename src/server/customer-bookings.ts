@@ -626,7 +626,6 @@ export async function createCustomerBooking(input: unknown) {
       petId: appointment.pet_id,
       type: "booking_received",
       channel: "alimtalk",
-      templateKey: "booking_received",
       recipientPhone: payload.phone,
       recipientName: payload.guardianName.trim(),
       skipIfExists: true,

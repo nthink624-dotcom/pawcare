@@ -6,7 +6,13 @@ import {
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
-import { hasAlimtalkServerEnv, hasSupabaseServerEnv, resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
+import {
+  getConfiguredAlimtalkTemplateKey,
+  hasAlimtalkServerEnv,
+  hasSupabaseServerEnv,
+  resolveAlimtalkTemplateKey,
+  serverEnv,
+} from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import {
@@ -788,9 +794,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
   const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
-  const templateKey = resolveAlimtalkTemplateKey(templateAlias);
-  const templateType = input.templateType ?? "alimtalk";
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
+  const configuredTemplateKey = getConfiguredAlimtalkTemplateKey(templateAlias);
+  const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
+  const templateType = input.templateType ?? "alimtalk";
   const isBookingTimeProposal = input.type === "booking_time_proposed";
   const bookingAccessToken =
     guardian?.id && pet?.id
@@ -874,7 +881,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     Boolean(serverEnv.alimtalkTemplateGroomingCompleted) ||
     (isPhotoAlimtalkRequest ? await isRelayTemplateConfigured(templateAlias) : false);
   const templateKeyForDelivery =
-    isPhotoAlimtalkRequest && usesAlimtalkRelay && !serverEnv.alimtalkTemplateGroomingCompleted
+    isPhotoAlimtalkRequest && usesAlimtalkRelay && !configuredTemplateKey
       ? null
       : templateKey;
 

@@ -31,6 +31,22 @@ export type OwnerPlan = {
 
 const EXCESS_ALIMTALK_LABEL = "초과 알림톡 11원/건, 부가세 포함";
 
+export const ownerPlanIncludedAlimtalkCredits: Record<OwnerPlanCode, number> = {
+  free: 100,
+  monthly: 500,
+  quarterly: 1500,
+  halfyearly: 1500,
+  yearly: 5000,
+};
+
+export function getOwnerPlanIncludedAlimtalkCredits(code: OwnerPlanCode | string | null | undefined) {
+  if (code === "free" || code === "monthly" || code === "quarterly" || code === "halfyearly" || code === "yearly") {
+    return ownerPlanIncludedAlimtalkCredits[code];
+  }
+
+  return ownerPlanIncludedAlimtalkCredits.free;
+}
+
 function makePlan({
   code,
   title,

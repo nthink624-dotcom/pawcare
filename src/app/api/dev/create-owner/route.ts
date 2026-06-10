@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
+import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { hasSupabaseServerEnv, isUnsafeProdSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { nowIso } from "@/lib/utils";
+import { resetShopAlimtalkIncludedCredits } from "@/server/alimtalk-credit-service";
 import { seedDemoDataForShop } from "@/server/demo-seed";
 import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
@@ -172,6 +174,16 @@ export async function POST() {
       shopId,
       isPrimary: true,
       now,
+    });
+    await resetShopAlimtalkIncludedCredits({
+      shopId,
+      includedAmount: getOwnerPlanIncludedAlimtalkCredits("free"),
+      periodStartedAt: now,
+      periodEndsAt: null,
+      reason: "dev_owner_default_setup",
+      metadata: {
+        source: "dev_create_owner",
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "매장 소유권 정보를 저장하지 못했습니다.";

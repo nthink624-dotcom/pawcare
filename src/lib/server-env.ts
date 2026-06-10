@@ -130,7 +130,7 @@ export function hasAlimtalkServerEnv() {
   return true;
 }
 
-export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
+export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefined) {
   if (!alias) return null;
 
   const templateConfigValues = {
@@ -150,8 +150,13 @@ export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
 
   const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
   if (!spec) {
-    return alias;
+    return null;
   }
 
-  return templateConfigValues[spec.templateConfigKey] ?? alias;
+  return templateConfigValues[spec.templateConfigKey] ?? null;
+}
+
+export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
+  if (!alias) return null;
+  return getConfiguredAlimtalkTemplateKey(alias) ?? alias;
 }

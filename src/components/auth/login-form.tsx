@@ -18,6 +18,10 @@ import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 function toKoreanAuthError(message: string) {
   const normalized = message.toLowerCase();
 
+  if (isRateLimitMessage(normalized)) {
+    return "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요.";
+  }
+
   if (normalized.includes("invalid login credentials")) {
     return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   }
@@ -55,6 +59,8 @@ const FAILED_LOGIN_LIMIT = 5;
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
 const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
+const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY = "petmanager.socialOAuthRateLimitCooldownUntil";
+const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
 
 type FailedLoginState = {
   count: number;
@@ -190,6 +196,10 @@ function getRateLimitMessage() {
   return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.";
 }
 
+function getSocialRateLimitMessage() {
+  return "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요.";
+}
+
 function recordFailedLoginAttempt(loginId: string) {
   const current = readFailedLoginState(loginId);
   const nextState = { count: Math.min(current.count + 1, FAILED_LOGIN_LIMIT) };
@@ -215,10 +225,38 @@ export default function LoginForm({
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
+  const [socialCooldownUntil, setSocialCooldownUntil] = useState<number | null>(null);
   const [rememberLoginId, setRememberLoginId] = useState(false);
+
+  const startSocialCooldown = () => {
+    const nextCooldownUntil = Date.now() + SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS;
+    setSocialCooldownUntil(nextCooldownUntil);
+    try {
+      window.localStorage.setItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY, String(nextCooldownUntil));
+    } catch {
+      // Cooldown persistence is only a guard against repeated clicks.
+    }
+  };
+
+  const clearExpiredSocialCooldown = () => {
+    try {
+      const raw = window.localStorage.getItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY);
+      const storedUntil = raw ? Number(raw) : null;
+      if (storedUntil && Number.isFinite(storedUntil) && storedUntil > Date.now()) {
+        setSocialCooldownUntil(storedUntil);
+        return storedUntil;
+      }
+      window.localStorage.removeItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY);
+    } catch {
+      // Ignore unavailable browser storage.
+    }
+    setSocialCooldownUntil(null);
+    return null;
+  };
 
   useEffect(() => {
     setShowDevOwnerHelper(getSupabaseRuntimeStage() !== "production");
+    clearExpiredSocialCooldown();
 
     const savedLoginId = window.localStorage.getItem(SAVED_LOGIN_ID_KEY);
     if (savedLoginId) {
@@ -233,10 +271,28 @@ export default function LoginForm({
     const url = new URL(window.location.href);
     if (!url.searchParams.has("error") && !url.searchParams.has("detail")) return;
 
+    if (isRateLimitMessage(initialMessage)) {
+      startSocialCooldown();
+      setMessage(getSocialRateLimitMessage());
+    }
+
     url.searchParams.delete("error");
     url.searchParams.delete("detail");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [initialMessage]);
+
+  useEffect(() => {
+    if (!socialCooldownUntil) return;
+
+    const delay = Math.max(0, socialCooldownUntil - Date.now());
+    if (delay === 0) {
+      clearExpiredSocialCooldown();
+      return;
+    }
+
+    const timer = window.setTimeout(clearExpiredSocialCooldown, delay);
+    return () => window.clearTimeout(timer);
+  }, [socialCooldownUntil]);
 
   const handleLogin = async (credentials?: { loginId: string; password: string }) => {
     const currentLoginId = (credentials?.loginId ?? loginId).trim();
@@ -336,6 +392,12 @@ export default function LoginForm({
   };
 
   const handleSocialLogin = async (provider: SocialProvider) => {
+    const activeCooldownUntil = clearExpiredSocialCooldown();
+    if (activeCooldownUntil && activeCooldownUntil > Date.now()) {
+      setMessage(getSocialRateLimitMessage());
+      return;
+    }
+
     if (!supabaseReady || !oauthSupabase) {
       setMessage("소셜 로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -363,6 +425,12 @@ export default function LoginForm({
       });
 
       if (error) {
+        if (isRateLimitMessage(error.message)) {
+          startSocialCooldown();
+          setMessage(getSocialRateLimitMessage());
+          return;
+        }
+
         setMessage(toKoreanAuthError(error.message));
       }
     } finally {
@@ -398,6 +466,8 @@ export default function LoginForm({
     }
   };
 
+  const isSocialCooldownActive = Boolean(socialCooldownUntil && socialCooldownUntil > Date.now());
+
   return (
     <div>
       <MobileLoginScreenTemplate
@@ -406,6 +476,7 @@ export default function LoginForm({
         rememberLoginId={rememberLoginId}
         loading={loading}
         socialLoading={socialLoading}
+        socialDisabled={isSocialCooldownActive}
         message={message}
         nextPath={nextPath}
         onLoginIdChange={setLoginId}

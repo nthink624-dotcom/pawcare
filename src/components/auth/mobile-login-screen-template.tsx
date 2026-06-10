@@ -36,6 +36,7 @@ type Props = {
   rememberLoginId: boolean;
   loading: boolean;
   socialLoading: SocialProvider | null;
+  socialDisabled?: boolean;
   message: string | null;
   nextPath: string;
   heading?: string;
@@ -69,6 +70,7 @@ export default function MobileLoginScreenTemplate({
   rememberLoginId,
   loading,
   socialLoading,
+  socialDisabled = false,
   message,
   nextPath,
   heading = "로그인",
@@ -164,7 +166,7 @@ export default function MobileLoginScreenTemplate({
         <button
           type="button"
           onClick={() => onSocialLogin("kakao")}
-          disabled={loading || socialLoading !== null}
+          disabled={loading || socialLoading !== null || socialDisabled}
           className="mt-8 h-[48px] w-full rounded-[8px] bg-[#fee500] text-[#191600] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="flex h-full w-full items-center">
@@ -257,7 +259,7 @@ export default function MobileLoginScreenTemplate({
           <button
             type="button"
             onClick={() => onSocialLogin("naver")}
-            disabled={loading || socialLoading !== null}
+            disabled={loading || socialLoading !== null || socialDisabled}
             className="h-[48px] w-full rounded-[8px] bg-[#05AC4F] text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex h-full w-full items-center">
@@ -282,7 +284,7 @@ export default function MobileLoginScreenTemplate({
           <button
             type="button"
             onClick={() => onSocialLogin("google")}
-            disabled={loading || socialLoading !== null}
+            disabled={loading || socialLoading !== null || socialDisabled}
             className="h-[48px] w-full rounded-[8px] border border-[#747775] bg-white text-[#1f1f1f] shadow-none transition-colors duration-200 hover:bg-[#f8f9fa] disabled:cursor-default disabled:border-[#1f1f1f1f] disabled:bg-[#ffffff61] disabled:text-[#1f1f1f61]"
           >
             <span className="flex h-full w-full items-center">

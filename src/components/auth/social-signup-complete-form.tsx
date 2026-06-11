@@ -101,7 +101,10 @@ function TextInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      className={cn(INPUT_BASE, "h-[56px] rounded-[14px] px-5 text-[18px]")}
+      className={cn(
+        INPUT_BASE,
+        "h-[58px] rounded-[12px] border-[#d9dee7] px-5 text-[18px] font-medium focus:border-[#111827] focus:ring-[#111827]/8",
+      )}
     />
   );
 }
@@ -263,8 +266,10 @@ export default function SocialSignupCompleteForm({
           <MobileBackLinkButton href="/login" replace aria-label="로그인으로 돌아가기" />
 
           <div className="space-y-2">
-            <p className={cn(PAGE_EYEBROW, "text-[16px]")}>{providerLabel} 회원가입</p>
-            <h1 className={cn(PAGE_TITLE, "text-[34px] leading-[1.18]")}>기본 정보를 입력해 주세요</h1>
+            <p className={cn(PAGE_EYEBROW, "text-[16px] font-medium text-[#6b7280]")}>{providerLabel} 회원가입</p>
+            <h1 className={cn(PAGE_TITLE, "text-[32px] font-bold leading-[1.22] tracking-[-0.035em]")}>
+              기본 정보를 입력해 주세요
+            </h1>
           </div>
         </div>
 
@@ -294,7 +299,7 @@ export default function SocialSignupCompleteForm({
                   onClick={() => setAddressSheetOpen(true)}
                   className={cn(
                     INPUT_BASE,
-                    "flex h-auto min-h-[56px] items-center justify-between gap-3 rounded-[14px] px-5 py-3 text-left text-[18px]",
+                    "flex h-auto min-h-[58px] items-center justify-between gap-3 rounded-[12px] border-[#d9dee7] px-5 py-3 text-left text-[18px] font-medium transition hover:bg-[#f7f8fa] focus:border-[#111827] focus:ring-[#111827]/8",
                   )}
                 >
                   <div className="min-w-0">
@@ -302,7 +307,7 @@ export default function SocialSignupCompleteForm({
                       {shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
                     </span>
                   </div>
-                  <span className="shrink-0 text-[15px] font-semibold text-[#1f6b5b]">주소 검색</span>
+                  <span className="shrink-0 text-[15px] font-semibold text-[#111827]">주소 검색</span>
                 </button>
 
                 <TextInput
@@ -320,7 +325,7 @@ export default function SocialSignupCompleteForm({
             type="button"
             onClick={handleSubmit}
             disabled={loading || !isFormValid}
-            className="flex h-[60px] w-full items-center justify-center rounded-[14px] bg-[#2f7866] px-5 text-[19px] font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-[#9fc6ba]"
+            className="flex h-[62px] w-full items-center justify-center rounded-[12px] bg-[#111827] px-5 text-[19px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:bg-[#d9dee7] disabled:text-[#8b95a1]"
           >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="ml-1 h-4 w-4" /> : null}

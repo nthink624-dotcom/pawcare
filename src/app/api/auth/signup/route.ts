@@ -34,7 +34,7 @@ const schema = z.object({
   phoneNumber: z.string().min(10).max(11),
   identityVerificationToken: z.string().min(1),
   shopName: z.string().min(1),
-  shopPhone: z.string().min(10).max(11),
+  shopPhone: z.string().min(9).max(11),
   shopAddress: z.string().min(1),
   agreements: z.object({
     service: z.boolean(),
@@ -47,6 +47,10 @@ const schema = z.object({
 
 function isValidPhoneNumber(value: string) {
   return /^01\d{8,9}$/.test(normalizeOwnerPhoneNumber(value));
+}
+
+function isValidShopPhone(value: string) {
+  return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizeOwnerPhoneNumber(value));
 }
 
 const duplicateAccountMessage = "이미 가입된 계정이 있어요. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요.";
@@ -154,7 +158,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "휴대폰 번호를 올바르게 입력해 주세요." }, { status: 400 });
     }
 
-    if (!isValidPhoneNumber(payload.shopPhone)) {
+    if (!isValidShopPhone(payload.shopPhone)) {
       return NextResponse.json({ message: "매장 연락처를 올바르게 입력해 주세요." }, { status: 400 });
     }
 

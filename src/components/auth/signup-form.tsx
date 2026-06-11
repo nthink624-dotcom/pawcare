@@ -83,8 +83,30 @@ function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
 
+function normalizeShopPhone(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function isValidShopPhone(value: string) {
+  return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizeShopPhone(value));
+}
+
 function formatPhone(value: string) {
   const digits = normalizePhone(value);
+  if (digits.length < 4) return digits;
+  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
+
+function formatShopPhone(value: string) {
+  const digits = normalizeShopPhone(value);
+  if (digits.startsWith("02")) {
+    if (digits.length < 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
   if (digits.length < 4) return digits;
   if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
@@ -517,8 +539,10 @@ export default function SignupForm({
     const normalizedValue =
       key === "birthDate"
         ? value.replace(/\D/g, "").slice(0, 8)
-        : key === "phoneNumber" || key === "shopPhone"
+        : key === "phoneNumber"
           ? normalizePhone(value)
+          : key === "shopPhone"
+            ? normalizeShopPhone(value)
           : value;
 
     setFields((prev) => ({
@@ -618,7 +642,7 @@ export default function SignupForm({
       setMessage("매장명을 입력해 주세요.");
       return;
     }
-    if (!/^01\d{8,9}$/.test(fields.shopPhone)) {
+    if (!isValidShopPhone(fields.shopPhone)) {
       setMessage("매장 연락처를 올바르게 입력해 주세요.");
       return;
     }
@@ -865,7 +889,7 @@ export default function SignupForm({
       setMessage("매장명을 입력해 주세요.");
       return;
     }
-    if (!/^01\d{8,9}$/.test(fields.shopPhone)) {
+    if (!isValidShopPhone(fields.shopPhone)) {
       setMessage("매장 연락처를 올바르게 입력해 주세요.");
       return;
     }
@@ -1018,9 +1042,9 @@ export default function SignupForm({
 
               <AuthField label="매장 연락처">
                 <AuthInput
-                  value={formatPhone(fields.shopPhone)}
+                  value={formatShopPhone(fields.shopPhone)}
                   onChange={(value) => updateField("shopPhone", value)}
-                  placeholder="010-0000-0000"
+                  placeholder="02-0000-0000"
                   inputMode="numeric"
                 />
               </AuthField>

@@ -18,7 +18,7 @@ import {
 } from "@/lib/auth/social-auth";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import type { Session } from "@supabase/supabase-js";
@@ -50,6 +50,7 @@ function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary)
 export default function OwnerMobilePage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const requestedOwnerMobilePath =
     typeof window === "undefined" ? "/owner/mobile" : `${window.location.pathname}${window.location.search}`;
   const launchPhotoStatusAction = useMemo<OwnerMobileLaunchPhotoStatusAction | null>(() => {
@@ -115,6 +116,18 @@ export default function OwnerMobilePage() {
         accessToken: cachedAccessToken,
         session: null,
       };
+    }
+
+    if (oauthSupabase) {
+      const oauthSession = await oauthSupabase.auth.getSession();
+      if (oauthSession.data.session?.access_token) {
+        writeOwnerAuthTokenCache(oauthSession.data.session.access_token, oauthSession.data.session.refresh_token);
+        setCurrentOwnerAccessToken(oauthSession.data.session.access_token);
+        return {
+          accessToken: oauthSession.data.session.access_token,
+          session: oauthSession.data.session,
+        };
+      }
     }
 
     const initialSession = await supabase.auth.getSession();

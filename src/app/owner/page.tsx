@@ -20,7 +20,7 @@ import {
 } from "@/lib/auth/social-auth";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
 type OwnedShopSummary = {
@@ -106,6 +106,7 @@ function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
 export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -145,6 +146,20 @@ export default function OwnerPage() {
         accessToken: cachedAccessToken,
         session: null,
       };
+    }
+
+    if (oauthSupabase) {
+      const oauthSession = await withOwnerSessionTimeout(
+        oauthSupabase.auth.getSession() as Promise<SupabaseSessionResult>,
+      );
+      if (oauthSession.data.session?.access_token) {
+        writeOwnerAuthTokenCache(oauthSession.data.session.access_token, oauthSession.data.session.refresh_token);
+        setCurrentOwnerAccessToken(oauthSession.data.session.access_token);
+        return {
+          accessToken: oauthSession.data.session.access_token,
+          session: oauthSession.data.session,
+        };
+      }
     }
 
     const initialSession = await withOwnerSessionTimeout(

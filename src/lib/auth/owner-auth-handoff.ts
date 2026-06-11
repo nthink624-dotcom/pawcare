@@ -41,7 +41,7 @@ function safeRemoveItem(storage: Storage | undefined, key: string) {
 export function writeOwnerAuthHandoff(session: OwnerAuthHandoffSession) {
   if (typeof window === "undefined") return;
   const payload = JSON.stringify(session);
-  if (safeSetItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload)) return;
+  safeSetItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload);
   safeSetItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY, payload);
 }
 
@@ -93,7 +93,7 @@ export function writeOwnerAuthTokenCache(accessToken: string, refreshToken?: str
   };
 
   const serialized = JSON.stringify(payload);
-  if (safeSetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized)) return;
+  safeSetItem(window.localStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized);
   safeSetItem(window.sessionStorage, OWNER_AUTH_TOKEN_CACHE_STORAGE_KEY, serialized);
 }
 

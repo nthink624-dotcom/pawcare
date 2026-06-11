@@ -24,6 +24,14 @@ const payloadSchema = z.object({
       message: "휴대폰 번호를 올바르게 입력해 주세요.",
     }),
   shopName: z.string().trim().min(1),
+  shopPhoneNumber: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ?? "").replace(/\D/g, "").slice(0, 11))
+    .refine((value) => !value || /^01\d{8,9}$/.test(value), {
+      message: "매장 연락처를 올바르게 입력해 주세요.",
+    }),
   shopAddress: z.string().trim().min(1),
   agreements: z.object({
     service: z.boolean(),
@@ -139,12 +147,13 @@ export async function POST(request: NextRequest) {
     const loginId = `social_${provider}_${user.id.replace(/-/g, "").slice(0, 12)}`;
     const ownerName = payload.ownerName.trim() || resolveOwnerName(user);
     const ownerPhoneNumber = payload.phoneNumber || resolvePhoneNumber(user) || null;
+    const shopPhoneNumber = payload.shopPhoneNumber || ownerPhoneNumber;
 
     const shopInsert = await admin.from("shops").insert({
       id: shopId,
       owner_user_id: user.id,
       name: payload.shopName,
-      phone: ownerPhoneNumber,
+      phone: shopPhoneNumber,
       address: payload.shopAddress,
       description: "",
       business_hours: defaultOwnerBusinessHours,

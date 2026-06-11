@@ -17,7 +17,6 @@ import {
   INPUT_BASE,
   PAGE_EYEBROW,
   PAGE_FRAME,
-  PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
 import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
@@ -123,6 +122,7 @@ export default function SocialSignupCompleteForm({
   const [ownerName, setOwnerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shopName, setShopName] = useState("");
+  const [shopPhoneNumber, setShopPhoneNumber] = useState("");
   const [shopAddress, setShopAddress] = useState("");
   const [shopDetailAddress, setShopDetailAddress] = useState("");
   const [shopPostalCode, setShopPostalCode] = useState("");
@@ -192,6 +192,7 @@ export default function SocialSignupCompleteForm({
     ownerName.trim().length > 0 &&
     /^01\d{8,9}$/.test(phoneNumber) &&
     shopName.trim().length > 0 &&
+    /^01\d{8,9}$/.test(shopPhoneNumber) &&
     shopAddress.trim().length > 0;
 
   const handleSubmit = async () => {
@@ -209,6 +210,11 @@ export default function SocialSignupCompleteForm({
 
     if (!shopName.trim()) {
       setMessage("매장명을 입력해 주세요.");
+      return;
+    }
+
+    if (!/^01\d{8,9}$/.test(shopPhoneNumber)) {
+      setMessage("매장 연락처를 다시 확인해 주세요.");
       return;
     }
 
@@ -238,6 +244,7 @@ export default function SocialSignupCompleteForm({
           ownerName: ownerName.trim(),
           phoneNumber,
           shopName: shopName.trim(),
+          shopPhoneNumber,
           shopAddress: joinAddress(shopAddress, shopDetailAddress),
           agreements: AGREEMENTS,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
@@ -262,23 +269,17 @@ export default function SocialSignupCompleteForm({
   return (
     <>
       <div className={cn(PAGE_FRAME, "bg-white px-6 pb-8 pt-7 text-[#111111]")}>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
+        <div className="relative flex h-9 items-center justify-center">
             <MobileBackLinkButton
               href="/login"
               replace
               aria-label="로그인으로 돌아가기"
-              className="h-9 w-9 shrink-0 rounded-[10px] bg-white shadow-none"
+              className="absolute left-0 h-9 w-9 rounded-[10px] bg-white shadow-none"
             />
             <p className={cn(PAGE_EYEBROW, "text-[16px] font-medium text-[#6b7280]")}>{providerLabel} 간편가입</p>
-          </div>
-
-          <h1 className={cn(PAGE_TITLE, "text-[31px] font-bold leading-[1.18] tracking-[-0.035em]")}>
-            기본 정보를 입력해 주세요
-          </h1>
         </div>
 
-        <div className="mt-7 space-y-7">
+        <div className="mt-6 space-y-7">
           <div className="space-y-5">
             <FormField label="이름">
               <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" />
@@ -295,6 +296,15 @@ export default function SocialSignupCompleteForm({
 
             <FormField label="매장명">
               <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />
+            </FormField>
+
+            <FormField label="매장 연락처">
+              <TextInput
+                value={formatPhone(shopPhoneNumber)}
+                onChange={(value) => setShopPhoneNumber(normalizePhone(value))}
+                placeholder="010-0000-0000"
+                inputMode="numeric"
+              />
             </FormField>
 
             <FormField label="매장 주소">

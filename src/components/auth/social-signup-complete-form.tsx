@@ -262,18 +262,23 @@ export default function SocialSignupCompleteForm({
   return (
     <>
       <div className={cn(PAGE_FRAME, "bg-white px-6 pb-8 pt-7 text-[#111111]")}>
-        <div className="space-y-7">
-          <MobileBackLinkButton href="/login" replace aria-label="로그인으로 돌아가기" />
-
-          <div className="space-y-2">
-            <p className={cn(PAGE_EYEBROW, "text-[16px] font-medium text-[#6b7280]")}>{providerLabel} 회원가입</p>
-            <h1 className={cn(PAGE_TITLE, "text-[32px] font-bold leading-[1.22] tracking-[-0.035em]")}>
-              기본 정보를 입력해 주세요
-            </h1>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <MobileBackLinkButton
+              href="/login"
+              replace
+              aria-label="로그인으로 돌아가기"
+              className="h-9 w-9 shrink-0 rounded-[10px] bg-white shadow-none"
+            />
+            <p className={cn(PAGE_EYEBROW, "text-[16px] font-medium text-[#6b7280]")}>{providerLabel} 간편가입</p>
           </div>
+
+          <h1 className={cn(PAGE_TITLE, "text-[31px] font-bold leading-[1.18] tracking-[-0.035em]")}>
+            기본 정보를 입력해 주세요
+          </h1>
         </div>
 
-        <div className="mt-9 space-y-7">
+        <div className="mt-7 space-y-7">
           <div className="space-y-5">
             <FormField label="이름">
               <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" />

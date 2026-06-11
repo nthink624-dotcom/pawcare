@@ -425,8 +425,8 @@ export default function SocialSignupCompleteForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading}
-            className="flex h-[62px] w-full items-center justify-center rounded-[12px] bg-[#111827] px-5 text-[19px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:bg-[#d9dee7] disabled:text-[#8b95a1]"
+            aria-disabled={loading}
+            className="flex h-[62px] w-full items-center justify-center rounded-[12px] bg-[#111827] px-5 text-[19px] font-semibold text-white transition hover:bg-[#1f2937] aria-disabled:cursor-wait aria-disabled:bg-[#111827] aria-disabled:text-white"
           >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="ml-1 h-4 w-4" /> : null}

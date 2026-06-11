@@ -258,12 +258,6 @@ export default function SocialSignupCompleteForm({
   }, [phoneNumber, shopPhoneSameAsOwner]);
 
   const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
-  const isFormValid =
-    ownerName.trim().length > 0 &&
-    /^01\d{8,9}$/.test(phoneNumber) &&
-    shopName.trim().length > 0 &&
-    isValidShopPhone(shopPhoneNumber) &&
-    shopAddress.trim().length > 0;
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -431,7 +425,7 @@ export default function SocialSignupCompleteForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || !isFormValid}
+            disabled={loading}
             className="flex h-[62px] w-full items-center justify-center rounded-[12px] bg-[#111827] px-5 text-[19px] font-semibold text-white transition hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:bg-[#d9dee7] disabled:text-[#8b95a1]"
           >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>

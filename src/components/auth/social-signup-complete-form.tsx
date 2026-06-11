@@ -13,11 +13,8 @@ import {
   type SocialProvider,
 } from "@/lib/auth/social-auth";
 import {
-  BUTTON_PRIMARY,
   INLINE_ERROR,
-  INLINE_HELP,
   INPUT_BASE,
-  PAGE_DESCRIPTION,
   PAGE_EYEBROW,
   PAGE_FRAME,
   PAGE_TITLE,
@@ -78,9 +75,9 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-[#6d675f]">{label}</span>
-        {hint ? <span className="text-[12px] text-[#8b847b]">{hint}</span> : null}
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[16px] font-medium text-[#3d3833]">{label}</span>
+        {hint ? <span className="text-[14px] text-[#8b847b]">{hint}</span> : null}
       </div>
       {children}
     </label>
@@ -104,7 +101,7 @@ function TextInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      className={INPUT_BASE}
+      className={cn(INPUT_BASE, "h-[56px] rounded-[14px] px-5 text-[18px]")}
     />
   );
 }
@@ -261,28 +258,23 @@ export default function SocialSignupCompleteForm({
 
   return (
     <>
-      <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
-        <div className="space-y-5">
+      <div className={cn(PAGE_FRAME, "bg-white px-6 pb-8 pt-7 text-[#111111]")}>
+        <div className="space-y-7">
           <MobileBackLinkButton href="/login" replace aria-label="로그인으로 돌아가기" />
 
-          <div className="space-y-3">
-            <p className={PAGE_EYEBROW}>{providerLabel} 회원가입</p>
-            <div>
-              <h1 className={PAGE_TITLE}>기본 정보를 입력해 주세요</h1>
-              <p className={cn(PAGE_DESCRIPTION, "mt-3")}>
-                소셜 로그인 후 매장 정보를 한 번만 입력하면 바로 시작할 수 있어요.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <p className={cn(PAGE_EYEBROW, "text-[16px]")}>{providerLabel} 회원가입</p>
+            <h1 className={cn(PAGE_TITLE, "text-[34px] leading-[1.18]")}>기본 정보를 입력해 주세요</h1>
           </div>
         </div>
 
-        <div className="mt-8 space-y-6">
-          <div className="space-y-4">
+        <div className="mt-9 space-y-7">
+          <div className="space-y-5">
             <FormField label="이름">
               <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" />
             </FormField>
 
-            <FormField label="휴대폰번호" hint="숫자만 입력해도 괜찮아요">
+            <FormField label="휴대폰번호">
               <TextInput
                 value={formatPhone(phoneNumber)}
                 onChange={(value) => setPhoneNumber(normalizePhone(value))}
@@ -295,27 +287,22 @@ export default function SocialSignupCompleteForm({
               <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />
             </FormField>
 
-            <FormField label="매장 주소" hint="주소 검색 후 상세 주소를 이어서 적어 주세요">
+            <FormField label="매장 주소">
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => setAddressSheetOpen(true)}
                   className={cn(
                     INPUT_BASE,
-                    "flex h-auto min-h-[48px] items-center justify-between gap-3 py-3 text-left",
+                    "flex h-auto min-h-[56px] items-center justify-between gap-3 rounded-[14px] px-5 py-3 text-left text-[18px]",
                   )}
                 >
                   <div className="min-w-0">
                     <span className={shopAddress ? "block truncate text-[#111827]" : "block truncate text-[#b0b7bf]"}>
                       {shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
                     </span>
-                    {shopPostalCode ? (
-                      <span className="mt-1 block text-[12px] font-medium text-[#8a8176]">
-                        우편번호 {shopPostalCode}
-                      </span>
-                    ) : null}
                   </div>
-                  <span className="shrink-0 text-[13px] font-semibold text-[#1f6b5b]">주소 검색</span>
+                  <span className="shrink-0 text-[15px] font-semibold text-[#1f6b5b]">주소 검색</span>
                 </button>
 
                 <TextInput
@@ -323,14 +310,18 @@ export default function SocialSignupCompleteForm({
                   onChange={setShopDetailAddress}
                   placeholder="상세 주소를 입력해 주세요"
                 />
-                <p className={INLINE_HELP}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
               </div>
             </FormField>
           </div>
 
           {message ? <p className={INLINE_ERROR}>{message}</p> : null}
 
-          <button type="button" onClick={handleSubmit} disabled={loading || !isFormValid} className={BUTTON_PRIMARY}>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !isFormValid}
+            className="flex h-[60px] w-full items-center justify-center rounded-[14px] bg-[#2f7866] px-5 text-[19px] font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-[#9fc6ba]"
+          >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="ml-1 h-4 w-4" /> : null}
           </button>

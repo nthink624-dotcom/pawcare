@@ -14,6 +14,10 @@ import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { insertOwnerDefaultSetup } from "@/server/owner-default-setup";
 import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
+function isValidShopPhone(value: string) {
+  return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(value);
+}
+
 const payloadSchema = z.object({
   ownerName: z.string().trim().min(1),
   phoneNumber: z
@@ -29,7 +33,7 @@ const payloadSchema = z.object({
     .trim()
     .optional()
     .transform((value) => (value ?? "").replace(/\D/g, "").slice(0, 11))
-    .refine((value) => !value || /^01\d{8,9}$/.test(value), {
+    .refine((value) => !value || isValidShopPhone(value), {
       message: "매장 연락처를 올바르게 입력해 주세요.",
     }),
   shopAddress: z.string().trim().min(1),

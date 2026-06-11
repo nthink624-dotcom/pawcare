@@ -141,7 +141,30 @@ export default function SocialSignupCompleteForm({
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user) {
+        setMessage("소셜 로그인 정보를 확인하지 못했어요. 로그인 화면에서 다시 시도해 주세요.");
+        return;
+      }
+
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      if (accessToken) {
+        try {
+          const response = await fetch("/api/owner/shops", {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          const shops = response.ok ? await response.json() : [];
+          if (Array.isArray(shops) && shops.length > 0) {
+            router.replace(nextPath as never);
+            return;
+          }
+        } catch {
+          // Existing-shop detection is only a convenience; keep the social signup form usable.
+        }
+      }
 
       const detectedProvider =
         pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
@@ -162,7 +185,7 @@ export default function SocialSignupCompleteForm({
     }
 
     void syncUser();
-  }, [supabase]);
+  }, [nextPath, router, supabase]);
 
   const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
   const isFormValid =

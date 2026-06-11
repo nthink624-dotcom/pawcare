@@ -22,6 +22,10 @@ function toKoreanAuthError(message: string) {
     return "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요.";
   }
 
+  if (isOAuthExpiredMessage(normalized)) {
+    return "소셜 로그인 시간이 만료됐어요. 아래 소셜 로그인 버튼을 다시 눌러 주세요.";
+  }
+
   if (normalized.includes("invalid login credentials")) {
     return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   }
@@ -180,6 +184,15 @@ function isRateLimitMessage(message?: string) {
     (normalized.includes("request") && normalized.includes("limit")) ||
     normalized.includes("요청이 잠시 제한") ||
     normalized.includes("잠시 제한")
+  );
+}
+
+function isOAuthExpiredMessage(message?: string) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    normalized.includes("oauth state has expired") ||
+    normalized.includes("state has expired") ||
+    normalized.includes("expired")
   );
 }
 

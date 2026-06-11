@@ -27,6 +27,15 @@ function isRateLimitDetail(value?: string) {
   );
 }
 
+function isOAuthExpiredDetail(value?: string) {
+  const normalized = (value ?? "").toLowerCase();
+  return (
+    normalized.includes("oauth state has expired") ||
+    normalized.includes("state has expired") ||
+    normalized.includes("expired")
+  );
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -38,10 +47,13 @@ export default async function LoginPage({
   const messageKey = typeof params.message === "string" ? params.message : undefined;
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
   const isRateLimited = isRateLimitDetail(errorDetail);
-  const shouldShowDetail = Boolean(errorKey) && !isRateLimited;
+  const isOAuthExpired = errorKey === "social-oauth" && isOAuthExpiredDetail(errorDetail);
+  const shouldShowDetail = Boolean(errorKey) && !isRateLimited && !isOAuthExpired;
   const initialMessage = errorKey
     ? isRateLimited
       ? "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요."
+      : isOAuthExpired
+        ? "소셜 로그인 시간이 만료됐어요. 아래 소셜 로그인 버튼을 다시 눌러 주세요."
       : [errorMessages[errorKey] ?? null, shouldShowDetail && errorDetail ? `상세: ${errorDetail}` : null]
           .filter(Boolean)
           .join(" ")

@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation";
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
+  consumeOwnerAuthHandoff,
+  readOwnerAuthTokenCache,
+  setCurrentOwnerAccessToken,
+  writeOwnerAuthSessionCache,
+  writeOwnerAuthTokenCache,
+} from "@/lib/auth/owner-auth-handoff";
+import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
 } from "@/lib/auth/social-auth";
@@ -14,12 +21,24 @@ import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
+import type { Session } from "@supabase/supabase-js";
 
 type OwnedShopSummary = {
   id: string;
   name: string;
   address: string;
   heroImageUrl: string;
+};
+
+type SupabaseSessionResult = {
+  data: {
+    session: Session | null;
+  };
+};
+
+type OwnerMobileAccessContext = {
+  accessToken: string;
+  session: Session | null;
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
@@ -57,19 +76,78 @@ export default function OwnerMobilePage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
 
-  async function getSessionWithRecovery() {
+  async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
     if (!supabase) return null;
 
+    const handoffSession = consumeOwnerAuthHandoff();
+    if (handoffSession) {
+      writeOwnerAuthSessionCache(handoffSession);
+      setCurrentOwnerAccessToken(handoffSession.accessToken);
+
+      try {
+        const sessionResult = (await supabase.auth.setSession({
+          access_token: handoffSession.accessToken,
+          refresh_token: handoffSession.refreshToken,
+        })) as SupabaseSessionResult;
+        const nextSession = sessionResult.data.session;
+        if (nextSession?.access_token) {
+          writeOwnerAuthTokenCache(nextSession.access_token, nextSession.refresh_token);
+          setCurrentOwnerAccessToken(nextSession.access_token);
+          return {
+            accessToken: nextSession.access_token,
+            session: nextSession,
+          };
+        }
+      } catch {
+        // The handoff token is enough for owner APIs; do not block mobile entry on browser session persistence.
+      }
+
+      return {
+        accessToken: handoffSession.accessToken,
+        session: null,
+      };
+    }
+
+    const cachedAccessToken = readOwnerAuthTokenCache();
+    if (cachedAccessToken) {
+      setCurrentOwnerAccessToken(cachedAccessToken);
+      return {
+        accessToken: cachedAccessToken,
+        session: null,
+      };
+    }
+
     const initialSession = await supabase.auth.getSession();
-    if (initialSession.data.session?.access_token) return initialSession.data.session;
+    if (initialSession.data.session?.access_token) {
+      writeOwnerAuthTokenCache(initialSession.data.session.access_token, initialSession.data.session.refresh_token);
+      setCurrentOwnerAccessToken(initialSession.data.session.access_token);
+      return {
+        accessToken: initialSession.data.session.access_token,
+        session: initialSession.data.session,
+      };
+    }
 
     const refreshedSession = await supabase.auth.refreshSession();
-    if (refreshedSession.data.session?.access_token) return refreshedSession.data.session;
+    if (refreshedSession.data.session?.access_token) {
+      writeOwnerAuthTokenCache(refreshedSession.data.session.access_token, refreshedSession.data.session.refresh_token);
+      setCurrentOwnerAccessToken(refreshedSession.data.session.access_token);
+      return {
+        accessToken: refreshedSession.data.session.access_token,
+        session: refreshedSession.data.session,
+      };
+    }
 
     const userResult = await supabase.auth.getUser();
     if (userResult.data.user) {
       const recoveredSession = await supabase.auth.getSession();
-      if (recoveredSession.data.session?.access_token) return recoveredSession.data.session;
+      if (recoveredSession.data.session?.access_token) {
+        writeOwnerAuthTokenCache(recoveredSession.data.session.access_token, recoveredSession.data.session.refresh_token);
+        setCurrentOwnerAccessToken(recoveredSession.data.session.access_token);
+        return {
+          accessToken: recoveredSession.data.session.access_token,
+          session: recoveredSession.data.session,
+        };
+      }
     }
 
     return null;
@@ -86,17 +164,17 @@ export default function OwnerMobilePage() {
         return;
       }
 
-      const session = await getSessionWithRecovery();
+      const ownerAccess = await getOwnerAccessContext();
 
-      if (!session?.access_token) {
+      if (!ownerAccess?.accessToken) {
         router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
         router.refresh();
         return;
       }
 
-      setUserEmail(session.user.email ?? null);
+      setUserEmail(ownerAccess.session?.user.email ?? null);
 
-      if (session.user.user_metadata?.account_suspended === true) {
+      if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
         if (active) setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
         return;
       }
@@ -104,7 +182,9 @@ export default function OwnerMobilePage() {
       const provider =
         pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
           ? pendingProvider
-          : resolveSocialProviderFromAuthUser(session.user);
+          : ownerAccess.session
+            ? resolveSocialProviderFromAuthUser(ownerAccess.session.user)
+            : "google";
 
       try {
         const shops = await fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops");

@@ -14,6 +14,7 @@ import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/co
 import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { staffChipPalette } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
 import {
@@ -87,6 +88,7 @@ export default function StaffManagementScreen({
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart]);
   const selectedStaff = staff.find((item) => item.id === selectedStaffId) ?? staff[0];
+  const selectedStaffIndex = selectedStaff ? Math.max(0, staff.findIndex((item) => item.id === selectedStaff.id)) : 0;
   const pendingCount = requests.filter((request) => request.status === "승인대기").length;
 
   useEffect(() => {
@@ -140,6 +142,7 @@ export default function StaffManagementScreen({
               name: draft.name.trim() || item.name,
               displayName: draft.displayName.trim(),
               profileImageUrl: draft.profileImageUrl.trim(),
+              chipColorIndex: draft.chipColorIndex,
               phone: draft.phone.trim(),
               role: draft.role.trim() || item.role || "직원",
               titlePrefix: draft.titlePrefix.trim(),
@@ -169,6 +172,7 @@ export default function StaffManagementScreen({
       name: newStaffDraft.name.trim() || "신규 직원",
       displayName: newStaffDraft.displayName.trim(),
       profileImageUrl: newStaffDraft.profileImageUrl.trim(),
+      chipColorIndex: newStaffDraft.chipColorIndex ?? staff.length % staffChipPalette.length,
       phone: newStaffDraft.phone.trim(),
       role: newStaffDraft.role.trim() || newStaffDraft.position.trim() || "직원",
       titlePrefix: newStaffDraft.titlePrefix.trim(),
@@ -446,14 +450,14 @@ export default function StaffManagementScreen({
                 <>
                   <div className="flex items-center gap-2">
                     <h2 className="text-[16px] font-normal text-[#111827]">직원 목록</h2>
-                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef8f4] px-3 text-[16px] font-normal text-[#2f7866]">
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#f1f5f9] px-3 text-[16px] font-normal text-[#334155]">
                       {staff.length}명
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setStaffDialogOpen(true)}
-                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-normal text-white"
+                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#111827] px-4 text-[16px] font-normal text-white hover:bg-[#1f2937]"
                   >
                     <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-5 w-5" />
                     직원 추가
@@ -463,7 +467,7 @@ export default function StaffManagementScreen({
             </div>
             ) : null}
 
-            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#1f6b5b]">{notice}</div> : null}
+            {notice ? <div className="border-b border-[#edf2f7] bg-[#f8fafc] px-5 py-2 text-[16px] text-[#475569]">{notice}</div> : null}
 
             {boardTab === "schedule" ? (
               <ScheduleTable staff={staff} weekDates={weekDates} requests={requests} overrides={scheduleOverrides} onOpenScheduleEditor={openScheduleEditor} />
@@ -498,6 +502,7 @@ export default function StaffManagementScreen({
             draft={draft}
             requests={requests}
             overrides={scheduleOverrides}
+            fallbackColorIndex={selectedStaffIndex}
             onDraftChange={setDraft}
             onSave={saveStaff}
             onOpenLeaveDialog={() => setLeaveDialogOpen(true)}
@@ -506,7 +511,7 @@ export default function StaffManagementScreen({
         ) : null}
       </div>
 
-      {staffDialogOpen ? <StaffAddModal draft={newStaffDraft} onDraftChange={setNewStaffDraft} onClose={() => setStaffDialogOpen(false)} onAdd={addStaff} /> : null}
+      {staffDialogOpen ? <StaffAddModal draft={newStaffDraft} fallbackColorIndex={staff.length} onDraftChange={setNewStaffDraft} onClose={() => setStaffDialogOpen(false)} onAdd={addStaff} /> : null}
 
       {leaveDialogOpen ? (
         <StaffLeaveModal staff={staff} draft={leaveDraft} onDraftChange={setLeaveDraft} onClose={() => setLeaveDialogOpen(false)} onSave={addLeaveRequest} />

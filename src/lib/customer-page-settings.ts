@@ -7,6 +7,14 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   tagline: "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.",
   hero_image_url: "",
   hero_image_urls: [],
+  showcase_title: "",
+  showcase_body: "",
+  social_links: {
+    instagram_url: "",
+    kakao_channel_url: "",
+    tiktok_url: "",
+    threads_url: "",
+  },
   primary_color: "#1F6B5B",
   notices: ["첫 방문은 상담 포함으로 여유 있게 예약해 주세요.", "대기 시간이 길어질 수 있어 예약 시간 10분 전에 도착해 주세요.", "피부 예민한 아이는 메모에 꼭 남겨 주세요."],
   operating_hours_note: "월-토 10:00 - 19:00, 일요일 휴무",
@@ -74,6 +82,16 @@ function normalizeHeroImageUrls(settings: Partial<CustomerPageSettings> | null |
   return (imageUrls.length > 0 ? imageUrls : singleImageUrl ? [singleImageUrl] : []).slice(0, 10);
 }
 
+function normalizeSocialLinks(settings: Partial<CustomerPageSettings> | null | undefined): NonNullable<CustomerPageSettings["social_links"]> {
+  const links = settings?.social_links;
+  return {
+    instagram_url: normalizeOptionalText(links?.instagram_url),
+    kakao_channel_url: normalizeOptionalText(links?.kakao_channel_url),
+    tiktok_url: normalizeOptionalText(links?.tiktok_url),
+    threads_url: normalizeOptionalText(links?.threads_url),
+  };
+}
+
 export function normalizeCustomerPageSettings(
   settings: Partial<CustomerPageSettings> | null | undefined,
   fallbackName?: string,
@@ -85,6 +103,9 @@ export function normalizeCustomerPageSettings(
     tagline: normalizeText(settings?.tagline, fallbackTagline || defaultCustomerPageSettings.tagline),
     hero_image_url: heroImageUrls[0] || "",
     hero_image_urls: heroImageUrls,
+    showcase_title: normalizeOptionalText(settings?.showcase_title),
+    showcase_body: normalizeOptionalText(settings?.showcase_body),
+    social_links: normalizeSocialLinks(settings),
     primary_color: normalizeColor(settings?.primary_color),
     notices: settings?.notices
       ? Array.from({ length: 3 }, (_, index) => normalizeOptionalText(settings.notices?.[index]))

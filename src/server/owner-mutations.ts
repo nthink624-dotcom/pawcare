@@ -3,12 +3,7 @@
 import { after } from "next/server";
 
 import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
-import {
-  concurrentCapacityForApprovalMode,
-  defaultBookingAvailableEndTime,
-  defaultBookingAvailableStartTime,
-  normalizeBookingAvailableTime,
-} from "@/lib/booking-slot-settings";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import {
@@ -274,18 +269,6 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
 
   if (!allowOutsideShopHours && (!hours?.enabled || startMinute < minutesFromTime(hours.open) || endMinute > minutesFromTime(hours.close))) {
     throw new Error("예약 시간이 매장 운영시간을 벗어납니다.");
-  }
-
-  if (!allowOutsideShopHours) {
-    const bookingStart = minutesFromTime(
-      normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
-    );
-    const bookingEnd = minutesFromTime(
-      normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
-    );
-    if (startMinute < bookingStart || startMinute > bookingEnd) {
-      throw new Error("예약 시간이 미용 예약 가능 시간을 벗어납니다.");
-    }
   }
 
   if (hasBlockedWindowOverlap(shop.reservation_policy_settings, startMinute, endMinute)) {

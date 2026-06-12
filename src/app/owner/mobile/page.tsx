@@ -220,7 +220,10 @@ export default function OwnerMobilePage() {
           return;
         }
 
-        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`);
+        const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+          `/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`,
+          { cache: "no-store" },
+        );
 
         if (!active) return;
         setOwnedShops(shops);
@@ -269,7 +272,10 @@ export default function OwnerMobilePage() {
     if (!shopId || shopId === selectedShopId) return;
     setMessage("매장을 바꾸는 중입니다.");
     setData(null);
-    const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(shopId)}`);
+    const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
+      `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+      { cache: "no-store" },
+    );
     if (typeof window !== "undefined") {
       window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, shopId);
     }

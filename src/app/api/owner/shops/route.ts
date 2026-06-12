@@ -17,13 +17,23 @@ const updateShopSchema = z.object({
   phone: z.string().trim().min(1).max(30).optional(),
   address: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(500).optional(),
+  showcaseTitle: z.string().trim().max(60).optional(),
+  showcaseBody: z.string().trim().max(220).optional(),
+  socialLinks: z
+    .object({
+      instagram_url: z.string().trim().max(500).optional(),
+      kakao_channel_url: z.string().trim().max(500).optional(),
+      tiktok_url: z.string().trim().max(500).optional(),
+      threads_url: z.string().trim().max(500).optional(),
+    })
+    .optional(),
   businessCategory: z.string().trim().min(1).max(40).optional(),
   additionalContact: z.string().trim().max(30).optional(),
   postalCode: z.string().trim().max(20).optional(),
   addressDetail: z.string().trim().max(120).optional(),
   approvalMode: z.enum(["manual", "auto"]).optional(),
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
-  pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional(),
+  pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional().transform((value) => (value === undefined ? undefined : 1)),
   customerServiceOverrides: z.unknown().optional(),
 });
 
@@ -154,7 +164,7 @@ export async function PATCH(request: NextRequest) {
           reservation_policy_settings: {
             cancel_window: body.cancelWindow ?? "2h",
             customer_change_enabled: body.cancelWindow !== "none",
-            pending_hold_limit: body.pendingHoldLimit ?? 2,
+            pending_hold_limit: 1,
           },
           customer_page_settings: {
             shop_name: body.name ?? "?곕え 留ㅼ옣",
@@ -164,6 +174,9 @@ export async function PATCH(request: NextRequest) {
             address_detail: body.addressDetail ?? "",
             hero_image_url: primaryHeroImageUrl,
             hero_image_urls: heroImageUrls,
+            showcase_title: body.showcaseTitle ?? "",
+            showcase_body: body.showcaseBody ?? "",
+            social_links: body.socialLinks ?? {},
             ...(body.customerServiceOverrides !== undefined
               ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
               : {}),
@@ -196,6 +209,9 @@ export async function PATCH(request: NextRequest) {
       body.name !== undefined ||
       body.tagline !== undefined ||
       body.businessCategory !== undefined ||
+      body.showcaseTitle !== undefined ||
+      body.showcaseBody !== undefined ||
+      body.socialLinks !== undefined ||
       body.additionalContact !== undefined ||
       body.postalCode !== undefined ||
       body.addressDetail !== undefined ||
@@ -232,6 +248,9 @@ export async function PATCH(request: NextRequest) {
           ...(currentShopResult.data?.customer_page_settings ?? {}),
           ...(body.name !== undefined ? { shop_name: body.name } : {}),
           ...(body.tagline !== undefined ? { tagline: body.tagline } : {}),
+          ...(body.showcaseTitle !== undefined ? { showcase_title: body.showcaseTitle } : {}),
+          ...(body.showcaseBody !== undefined ? { showcase_body: body.showcaseBody } : {}),
+          ...(body.socialLinks !== undefined ? { social_links: body.socialLinks } : {}),
           ...(body.businessCategory !== undefined ? { business_category: body.businessCategory } : {}),
           ...(body.additionalContact !== undefined ? { additional_contact: body.additionalContact } : {}),
           ...(body.postalCode !== undefined ? { postal_code: body.postalCode } : {}),

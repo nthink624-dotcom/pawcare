@@ -60,8 +60,23 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function buildPortoneIdentityVerificationUrls(identityVerificationId: string) {
+  const encodedId = encodeURIComponent(identityVerificationId);
+  const getEndpoint = new URL(`/identity-verifications/${encodedId}`, "https://api.portone.io");
+  const confirmEndpoint = new URL(`/identity-verifications/${encodedId}/confirm`, "https://api.portone.io");
+
+  if (serverEnv.portoneStoreId) {
+    getEndpoint.searchParams.set("storeId", serverEnv.portoneStoreId);
+  }
+
+  return {
+    getEndpoint: getEndpoint.toString(),
+    confirmEndpoint: confirmEndpoint.toString(),
+  };
+}
+
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
-  const endpoint = `https://api.portone.io/identity-verifications/${encodeURIComponent(identityVerificationId)}`;
+  const { getEndpoint, confirmEndpoint } = buildPortoneIdentityVerificationUrls(identityVerificationId);
   const headers = {
     Authorization: `PortOne ${serverEnv.portoneApiSecret}`,
     "Content-Type": "application/json",
@@ -70,12 +85,12 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
   let lastResponse: Response | null = null;
   let lastResult: PortoneVerificationResponse = {};
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     if (attempt > 0) {
-      await wait(500 * attempt);
+      await wait(700 * attempt);
     }
 
-    const getResponse = await fetch(endpoint, {
+    const getResponse = await fetch(getEndpoint, {
       headers,
       cache: "no-store",
     });
@@ -87,7 +102,7 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
       return { response: getResponse, result: getResult };
     }
 
-    const confirmResponse = await fetch(`${endpoint}/confirm`, {
+    const confirmResponse = await fetch(confirmEndpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(serverEnv.portoneStoreId ? { storeId: serverEnv.portoneStoreId } : {}),

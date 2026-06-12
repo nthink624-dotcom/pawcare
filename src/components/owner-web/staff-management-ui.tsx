@@ -1,10 +1,10 @@
 ﻿import type { ReactNode } from "react";
-import { ChevronDown, ImagePlus, X } from "lucide-react";
+import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
-import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
+import { getStaffChipTone, staffChipPalette } from "@/lib/staff-chip-colors";
+import { getStaffCustomerName, getStaffPositionName } from "@/lib/staff-display";
 import { cn } from "@/lib/utils";
 import {
   applyScheduleToCell,
@@ -47,16 +47,13 @@ function formatStaffPhone(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 }
 
-function getStaffInitial(name: string) {
-  return name.trim().slice(0, 1) || "스";
-}
-
 function StaffAvatar({ name, imageUrl, size = "md" }: { name: string; imageUrl?: string; size?: "sm" | "md" | "lg" }) {
-  const sizeClass = size === "lg" ? "h-16 w-16 text-[22px]" : size === "sm" ? "h-10 w-10 text-[16px]" : "h-12 w-12 text-[18px]";
+  const sizeClass = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
+  const iconSizeClass = size === "lg" ? "h-8 w-8" : size === "sm" ? "h-5 w-5" : "h-6 w-6";
 
   return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc] text-[#2f7866]", sizeClass)}>
-      {imageUrl ? <img src={imageUrl} alt={`${name || "스태프"} 프로필`} className="h-full w-full object-cover" /> : getStaffInitial(name)}
+    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-[#f8fafc] text-[#475569]", sizeClass)}>
+      {imageUrl ? <img src={imageUrl} alt={`${name || "스태프"} 프로필`} className="h-full w-full object-cover" /> : <UserRound className={iconSizeClass} strokeWidth={1.8} />}
     </span>
   );
 }
@@ -76,21 +73,21 @@ function StaffPhotoField({
 }) {
   return (
     <div className="flex items-center justify-center gap-2">
-      <label className="group relative flex h-[92px] w-[112px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[12px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#2f7866]/15">
-        <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#2f7866]">
+      <label className="group relative flex h-[84px] w-[104px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[12px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20">
+        <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]">
           {value ? (
             <img src={value} alt={`${name || "스태프"} 프로필`} className="h-full w-full rounded-full object-cover" />
           ) : (
             <ImagePlus className="h-5 w-5" strokeWidth={1.8} />
           )}
           {value ? (
-            <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#2f7866] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
+            <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#475569] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
               <ImagePlus className="h-3 w-3" strokeWidth={1.9} />
             </span>
           ) : null}
         </span>
         <span className="mt-1.5 max-w-full truncate text-[15px] font-normal leading-[17px]">{title}</span>
-        {subtitle ? <span className="mt-0.5 max-w-full truncate text-[12px] leading-[14px] text-[#64748b]">{subtitle}</span> : null}
+        {subtitle ? <span className="mt-0.5 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
         <span className="pointer-events-none absolute inset-0 rounded-[12px] bg-black/0 transition group-hover:bg-black/[0.025]" />
         <input
           type="file"
@@ -140,14 +137,14 @@ export function ScheduleTable({
             </div>
           ))}
         </div>
-        {staff.map((staffMember) => (
+        {staff.map((staffMember, staffIndex) => (
           <div key={staffMember.id} className="grid grid-cols-[180px_repeat(7,minmax(150px,1fr))] items-center border-b border-[#edf2f7] last:border-b-0">
             <button type="button" className="px-5 py-4 text-left">
               <p className="text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
             </button>
             {weekDates.map((day) => {
               const cell = applyScheduleToCell(staffMember, day.key, day.date, requests, overrides);
-              const staffTone = getStaffChipTone(staffMember.id);
+              const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
               return (
                 <button
                   key={`${staffMember.id}-${day.date}`}
@@ -179,6 +176,32 @@ export function ScheduleTable({
   );
 }
 
+function StaffChipColorPicker({ value, fallbackIndex = 0, onChange }: { value: number | null; fallbackIndex?: number; onChange: (value: number) => void }) {
+  const selectedIndex = value ?? fallbackIndex % staffChipPalette.length;
+
+  return (
+    <div className="grid grid-cols-8 gap-1.5">
+      {staffChipPalette.map((tone, index) => {
+        const selected = selectedIndex === index;
+        return (
+          <button
+            key={tone.selectedBackground}
+            type="button"
+            onClick={() => onChange(index)}
+            className={cn(
+              "h-9 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
+              selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
+            )}
+            aria-label={`직원 칩 색 ${index + 1}`}
+          >
+            <span className="block h-full rounded-[6px]" style={{ backgroundColor: tone.selectedBackground }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function StaffList({
   staff,
   selectedStaffId,
@@ -195,19 +218,20 @@ export function StaffList({
   onSelect: (staff: StaffMember) => void;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[1180px]">
-        <div className="grid grid-cols-[minmax(180px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-[16px] font-normal text-[#64748b]">
-          <span>이름</span>
-          <span>고객에게 노출할 이름</span>
-          <span>직함</span>
-          <span>연락처</span>
-          <span className="text-center">상태</span>
-          <span className="text-center">주간 근무</span>
-          <span className="text-center">오늘 예약</span>
-          <span className="text-right">휴무/연차</span>
+    <div className="overflow-x-auto [scrollbar-width:thin]">
+      <div className="min-w-[1160px]">
+        <div className="grid grid-cols-[minmax(160px,1fr)_minmax(140px,0.85fr)_minmax(100px,0.62fr)_minmax(120px,0.72fr)_minmax(150px,0.9fr)_112px_112px_104px_104px] items-center gap-3 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-center text-[16px] font-normal text-[#64748b]">
+          <span className="whitespace-nowrap">이름</span>
+          <span className="whitespace-nowrap">노출 이름</span>
+          <span className="whitespace-nowrap">직책</span>
+          <span className="whitespace-nowrap">역할</span>
+          <span className="whitespace-nowrap">연락처</span>
+          <span className="whitespace-nowrap text-center">상태</span>
+          <span className="whitespace-nowrap text-center">주간 근무</span>
+          <span className="whitespace-nowrap text-center">오늘 예약</span>
+          <span className="whitespace-nowrap text-center">휴무/연차</span>
         </div>
-        <div className="max-h-[560px] divide-y divide-[#edf2f7] overflow-y-auto">
+        <div className="max-h-[560px] divide-y divide-[#edf2f7] overflow-x-hidden overflow-y-auto">
           {staff.map((staffMember) => {
             const active = selectedStaffId === staffMember.id;
             const availability = getStaffAvailability(staffMember, requests, overrides);
@@ -219,28 +243,29 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full grid-cols-[minmax(180px,1fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(150px,1fr)_120px_120px_120px_130px] items-center gap-4 px-5 py-3 text-left transition",
+                  "grid w-full grid-cols-[minmax(160px,1fr)_minmax(140px,0.85fr)_minmax(100px,0.62fr)_minmax(120px,0.72fr)_minmax(150px,0.9fr)_112px_112px_104px_104px] items-center gap-3 px-5 py-3 text-center transition",
                   active ? "bg-white" : "bg-white hover:bg-white",
                 )}
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center justify-center gap-3">
                   <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="sm" />
-                  <p className="truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
+                  <p className="truncate text-center text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
                 </div>
-                <p className="truncate text-[16px] text-[#334155]">{getStaffCustomerName(staffMember) || "-"}</p>
-                <p className="truncate text-[16px] text-[#334155]">{getStaffCustomerTitle(staffMember) || "-"}</p>
-                <p className="truncate text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
+                <p className="truncate text-center text-[16px] text-[#334155]">{getStaffCustomerName(staffMember) || "-"}</p>
+                <p className="truncate text-center text-[16px] text-[#334155]">{staffMember.titlePrefix?.trim() || "-"}</p>
+                <p className="truncate text-center text-[16px] text-[#334155]">{getStaffPositionName(staffMember) || "-"}</p>
+                <p className="truncate text-center text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
                 <span
                   className={cn(
                     "justify-self-center rounded-full px-2.5 py-1 text-[16px] font-normal",
-                    availability === "근무 가능" ? "bg-[#e6f3ef] text-[#1f6b5b]" : "bg-[#f1f5f9] text-[#64748b]",
+                    availability === "근무 가능" ? "bg-[#f1f5f9] text-[#334155]" : "bg-[#f1f5f9] text-[#64748b]",
                   )}
                 >
                   {availability}
                 </span>
                 <p className="text-center text-[16px] text-[#334155]">{weeklyDays}일</p>
                 <p className="text-center text-[16px] text-[#334155]">{staffMember.todayBookings}건</p>
-                <p className="text-right text-[16px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
+                <p className="text-center text-[16px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
               </button>
             );
           })}
@@ -255,6 +280,7 @@ export function StaffDetailPanel({
   draft,
   requests,
   overrides,
+  fallbackColorIndex,
   onDraftChange,
   onSave,
   onOpenLeaveDialog,
@@ -264,6 +290,7 @@ export function StaffDetailPanel({
   draft: StaffDraft;
   requests: LeaveRequest[];
   overrides: ScheduleOverride[];
+  fallbackColorIndex: number;
   onDraftChange: (updater: (current: StaffDraft) => StaffDraft) => void;
   onSave: () => void;
   onOpenLeaveDialog: () => void;
@@ -289,13 +316,16 @@ export function StaffDetailPanel({
           <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 진" />
         </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="대표/실장">
-            <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onDraftChange((current) => ({ ...current, titlePrefix }))} placeholder="선택 입력" />
+          <Field label="직책">
+            <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onDraftChange((current) => ({ ...current, titlePrefix }))} placeholder="예: 대표, 수석, 원장" />
           </Field>
           <Field label="역할">
             <TextInput value={draft.position} onChange={(position) => onDraftChange((current) => ({ ...current, position }))} placeholder="예: 디자이너" />
           </Field>
         </div>
+        <Field label="개인 칩 색">
+          <StaffChipColorPicker value={draft.chipColorIndex} fallbackIndex={fallbackColorIndex} onChange={(chipColorIndex) => onDraftChange((current) => ({ ...current, chipColorIndex }))} />
+        </Field>
         <Field label="이름">
           <TextInput value={draft.name} onChange={(name) => onDraftChange((current) => ({ ...current, name }))} />
         </Field>
@@ -338,7 +368,7 @@ export function StaffDetailPanel({
         <button
           type="button"
           onClick={onSave}
-          className="inline-flex h-[40px] items-center justify-center rounded-[8px] bg-[#2f7866] px-4 text-[14px] font-medium text-white"
+          className="inline-flex h-[40px] items-center justify-center rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
         >
           저장
         </button>
@@ -367,7 +397,7 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -394,7 +424,7 @@ export function WeekdayColorPicker({ value, onChange }: { value: string; onChang
               onClick={() => toggleDay(day.key)}
               className={cn(
                 "h-8 min-w-8 rounded-full border px-2 text-[16px] font-normal transition",
-                selected ? "border-[#9ccabe] bg-[#edf7f3] text-[#1f6b5b]" : "border-[#d5dde6] bg-white text-[#64748b]",
+                selected ? "border-[#111827] bg-white text-[#111827]" : "border-[#d5dde6] bg-white text-[#64748b]",
               )}
               aria-pressed={selected}
             >
@@ -455,7 +485,7 @@ export function CompactInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[16px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#2f7866] focus:bg-white"
+      className="h-8 min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-right text-[16px] text-[#111827] outline-none transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:bg-white"
     />
   );
 }
@@ -501,7 +531,7 @@ export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardT
   );
 }
 
-export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChange: (draft: StaffDraft) => void }) {
+export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { draft: StaffDraft; onChange: (draft: StaffDraft) => void; fallbackColorIndex?: number }) {
   const displayName = draft.displayName.trim() || draft.name.trim() || "프로필";
   const title = [draft.titlePrefix.trim(), draft.position.trim()].filter(Boolean).join(" ");
 
@@ -515,13 +545,16 @@ export function StaffDraftForm({ draft, onChange }: { draft: StaffDraft; onChang
         <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 진" />
       </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="대표/실장">
-          <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onChange({ ...draft, titlePrefix })} placeholder="선택 입력" />
+        <Field label="직책">
+          <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onChange({ ...draft, titlePrefix })} placeholder="예: 대표, 수석, 원장" />
         </Field>
         <Field label="역할">
           <TextInput value={draft.position} onChange={(position) => onChange({ ...draft, position })} placeholder="예: 디자이너" />
         </Field>
       </div>
+      <Field label="개인 칩 색">
+        <StaffChipColorPicker value={draft.chipColorIndex} fallbackIndex={fallbackColorIndex} onChange={(chipColorIndex) => onChange({ ...draft, chipColorIndex })} />
+      </Field>
       <Field label="연락처">
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>

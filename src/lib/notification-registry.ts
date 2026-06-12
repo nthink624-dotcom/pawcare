@@ -462,6 +462,7 @@ export function shouldSendByShopSettings(
       return settings.booking_rejected_enabled;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
+    case "booking_time_proposed":
     case "booking_rescheduled_confirmed":
       return settings.booking_rescheduled_enabled;
     case "grooming_almost_done":
@@ -492,6 +493,7 @@ export function shouldSendByGuardianSettings(
       return settings.booking_rejected_enabled;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
+    case "booking_time_proposed":
     case "booking_rescheduled_confirmed":
       return settings.booking_rescheduled_enabled;
     case "appointment_reminder_10m":

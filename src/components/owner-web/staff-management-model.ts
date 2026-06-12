@@ -58,6 +58,7 @@ export type StaffDraft = {
   name: string;
   displayName: string;
   profileImageUrl: string;
+  chipColorIndex: number | null;
   phone: string;
   role: string;
   titlePrefix: string;
@@ -73,6 +74,7 @@ export const emptyStaffDraft: StaffDraft = {
   name: "",
   displayName: "",
   profileImageUrl: "",
+  chipColorIndex: null,
   phone: "",
   role: "",
   titlePrefix: "",
@@ -296,6 +298,7 @@ export function buildDraft(staff: StaffMember): StaffDraft {
     name: staff.name,
     displayName: staff.displayName ?? "",
     profileImageUrl: staff.profileImageUrl ?? "",
+    chipColorIndex: staff.chipColorIndex ?? null,
     phone: staff.phone,
     role: staff.role,
     titlePrefix: staff.titlePrefix ?? "",

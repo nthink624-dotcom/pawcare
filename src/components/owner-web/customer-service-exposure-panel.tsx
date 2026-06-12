@@ -94,8 +94,8 @@ export default function CustomerServiceExposurePanel({
   const usedLinkedOptionIds = new Set(rows.map((row) => getLinkedOptionId(row.option)));
   const canDelete = Boolean(onDeleteOption);
   const rowGridClass = canDelete
-    ? "grid-cols-[82px_minmax(520px,1fr)_104px_140px_56px]"
-    : "grid-cols-[82px_minmax(520px,1fr)_104px_140px]";
+    ? "grid-cols-[72px_minmax(520px,1fr)_44px]"
+    : "grid-cols-[72px_minmax(520px,1fr)]";
 
   function moveOption(index: number, direction: -1 | 1) {
     const targetIndex = index + direction;
@@ -121,18 +121,18 @@ export default function CustomerServiceExposurePanel({
   }
 
   return (
-    <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-4", embedded && "border-0 bg-transparent p-0")}>
+    <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-3", embedded && "border-0 bg-transparent p-0")}>
       {title || onAddOption ? (
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="mb-1.5 flex items-center justify-between gap-3">
           {title ? <p className="text-[16px] font-medium text-[#334155]">{title}</p> : <span />}
           {onAddOption ? (
             <button
               type="button"
               onClick={() => void onAddOption()}
               disabled={busyOptionId === "__add__"}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[16px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-2.5 text-[15px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               항목 추가
             </button>
           ) : null}
@@ -141,12 +141,10 @@ export default function CustomerServiceExposurePanel({
 
       {rows.length > 0 ? (
         <div className="overflow-x-auto">
-          <div className={cn("min-w-[1120px] overflow-hidden rounded-[10px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[1060px]")}>
-            <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-2 py-2 text-[16px] font-normal text-[#64748b]", rowGridClass)}>
+          <div className={cn("min-w-[720px] overflow-hidden rounded-[8px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[680px]")}>
+            <div className={cn("grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#f8fafc] px-1.5 py-1.5 text-[15px] font-normal text-[#64748b]", rowGridClass)}>
               <span>순서</span>
               <span>노출할 서비스</span>
-              <span className="text-right">예상 시간</span>
-              <span className="text-right">시작 가격</span>
               {canDelete ? <span className="text-center">삭제</span> : null}
             </div>
 
@@ -161,31 +159,31 @@ export default function CustomerServiceExposurePanel({
                 return (
                   <div
                     key={row.option.id}
-                    className={cn("grid items-center gap-2 px-2 py-2", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
+                    className={cn("grid items-center gap-1.5 px-1.5 py-1", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-6 text-center text-[16px] font-normal tabular-nums text-[#64748b]">
+                    <div className="flex items-center gap-1">
+                      <span className="w-5 text-center text-[15px] font-normal tabular-nums text-[#64748b]">
                         {String(index + 1).padStart(2, "0")}
                       </span>
-                      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+                      <div className="inline-flex overflow-hidden rounded-[7px] border border-[#dbe2ea] bg-white">
                         <button
                           type="button"
                           onClick={() => moveOption(index, -1)}
                           disabled={index === 0}
-                          className="inline-flex h-8 w-8 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
+                          className="inline-flex h-7 w-7 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
                           aria-label="위로 이동"
                         >
-                          <ArrowUp className="h-4 w-4" />
+                          <ArrowUp className="h-3.5 w-3.5" />
                         </button>
                         <span className="w-px bg-[#edf2f7]" />
                         <button
                           type="button"
                           onClick={() => moveOption(index, 1)}
                           disabled={index === rows.length - 1}
-                          className="inline-flex h-8 w-8 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
+                          className="inline-flex h-7 w-7 items-center justify-center text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#334155] disabled:cursor-not-allowed disabled:text-[#cbd5e1]"
                           aria-label="아래로 이동"
                         >
-                          <ArrowDown className="h-4 w-4" />
+                          <ArrowDown className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
@@ -196,27 +194,21 @@ export default function CustomerServiceExposurePanel({
                         value={currentLinkedOptionId}
                         onChange={(event) => void onRelinkOption?.(row.option, event.target.value)}
                         disabled={!onRelinkOption || rowBusy}
-                        className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
+                        className="h-8 w-full rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[15px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
                       >
                         {buildGroupedSelectOptions(selectableOptions)}
                       </select>
                     </label>
 
-                    <div className="flex h-9 items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal tabular-nums text-[#334155]">
-                      {row.option.durationMinutes}분
-                    </div>
-                    <div className="flex h-9 items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-normal tabular-nums text-[#334155]">
-                      {formatServicePrice(row.option.price, row.option.priceType)}
-                    </div>
                     {onDeleteOption ? (
                       <button
                         type="button"
                         onClick={() => void onDeleteOption(row.option)}
                         disabled={rowBusy}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:cursor-not-allowed disabled:opacity-35"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`${row.displayName} 삭제`}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     ) : null}
                   </div>

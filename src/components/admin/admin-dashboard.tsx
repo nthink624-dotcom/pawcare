@@ -67,7 +67,7 @@ const dashboardItems = [
     group: "shortcut",
   },
   {
-    href: "/demo/owner",
+    href: "/demo/owner-web",
     icon: MonitorSmartphone,
     title: "오너 데모 보기",
     description: "데모 오너 화면과 기본 예약 플로우를 빠르게 확인합니다.",

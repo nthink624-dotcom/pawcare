@@ -1,13 +1,14 @@
 import { normalizePendingHoldLimit } from "@/lib/booking-slot-settings";
 import { minutesFromTime } from "@/lib/utils";
-import type { BookingBlockedWindow, ReservationPolicySettings } from "@/types/domain";
+import type { BookingBlockedWindow, RegularClosedCycle, ReservationPolicySettings } from "@/types/domain";
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const regularClosedCycles = new Set<RegularClosedCycle>(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]);
 
 export const defaultReservationPolicySettings: ReservationPolicySettings = {
   cancel_window: "2h",
   customer_change_enabled: true,
-  pending_hold_limit: 2,
+  pending_hold_limit: 1,
   booking_blocked_windows: [
     { id: "lunch", start: "13:00", end: "14:00", label: "점심시간" },
     { id: "cleaning", start: "16:00", end: "16:30", label: "정리 시간" },
@@ -44,7 +45,9 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     source.cancel_window && ["none", "1h", "2h", "6h", "24h"].includes(source.cancel_window)
       ? source.cancel_window
       : defaultReservationPolicySettings.cancel_window;
-  const regularClosedCycle = source.regular_closed_cycle === "biweekly" ? "biweekly" : "weekly";
+  const regularClosedCycle = regularClosedCycles.has(source.regular_closed_cycle as RegularClosedCycle)
+    ? (source.regular_closed_cycle as RegularClosedCycle)
+    : "weekly";
   const regularClosedAnchorDate =
     typeof source.regular_closed_anchor_date === "string" && source.regular_closed_anchor_date
       ? source.regular_closed_anchor_date
@@ -54,7 +57,7 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     cancel_window: cancelWindow,
     customer_change_enabled:
       typeof source.customer_change_enabled === "boolean" ? source.customer_change_enabled : cancelWindow !== "none",
-    pending_hold_limit: normalizePendingHoldLimit(source.pending_hold_limit) as 1 | 2 | 3,
+    pending_hold_limit: normalizePendingHoldLimit(source.pending_hold_limit) as 1,
     booking_blocked_windows: hasBlockedWindows
       ? normalizeBookingBlockedWindows(source.booking_blocked_windows)
       : defaultReservationPolicySettings.booking_blocked_windows,

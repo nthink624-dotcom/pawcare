@@ -8,11 +8,11 @@ import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizeBookingBlockedWindows, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { cn } from "@/lib/utils";
-import type { BusinessHours, Shop } from "@/types/domain";
+import type { BusinessHours, RegularClosedCycle, Shop } from "@/types/domain";
 
 type BusinessDayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type OperatingHoursTab = "business" | "booking";
-type RegularHolidayCycle = "weekly" | "biweekly";
+type RegularHolidayCycle = RegularClosedCycle;
 
 type BusinessDay = {
   key: BusinessDayKey;
@@ -67,6 +67,12 @@ const weekdayIndexByKey: Record<BusinessDayKey, number> = {
 const regularHolidayCycleOptions: Array<{ value: RegularHolidayCycle; label: string }> = [
   { value: "weekly", label: "매주" },
   { value: "biweekly", label: "격주" },
+];
+
+const extendedRegularHolidayCycleOptions: Array<{ value: RegularHolidayCycle; label: string }> = [
+  ...regularHolidayCycleOptions,
+  { value: "monthly_1_3", label: "1·3주" },
+  { value: "monthly_2_4", label: "2·4주" },
 ];
 
 const bookingSettingsStorageKey = "petmanager.ownerWeb.operatingHours";
@@ -139,12 +145,33 @@ function getWeekStart(date: Date) {
   return next;
 }
 
+function getWeekAnchorDateKey(offsetWeeks = 0) {
+  const weekStart = getWeekStart(new Date());
+  weekStart.setDate(weekStart.getDate() + offsetWeeks * 7);
+  return formatDateKey(weekStart);
+}
+
+const biweeklyAnchorOptions = [
+  { value: "this", label: "이번 휴무 주부터", description: "이번 주를 쉬는 주로 계산" },
+  { value: "next", label: "다음 휴무 주부터", description: "다음 주를 쉬는 주로 계산" },
+] as const;
+
+function getBiweeklyAnchorPreset(anchorDateKey: string) {
+  return isBiweeklyClosedDate(getWeekAnchorDateKey(0), anchorDateKey) ? "this" : "next";
+}
+
 function isBiweeklyClosedDate(dateKey: string, anchorDateKey: string) {
   const date = new Date(`${dateKey}T00:00:00`);
   const anchor = new Date(`${anchorDateKey}T00:00:00`);
   if (!Number.isFinite(date.getTime()) || !Number.isFinite(anchor.getTime())) return true;
   const diffDays = Math.round((getWeekStart(date).getTime() - getWeekStart(anchor).getTime()) / (24 * 60 * 60 * 1000));
   return Math.abs(Math.trunc(diffDays / 7)) % 2 === 0;
+}
+
+function getWeekOfMonthFromDateKey(dateKey: string) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  if (!Number.isFinite(date.getTime())) return 0;
+  return Math.ceil(date.getDate() / 7);
 }
 
 function parseBusinessHours(value: string | boolean | number) {
@@ -289,15 +316,14 @@ function ToggleSwitch({
       onClick={onChange}
       className={cn(
         "relative inline-flex translate-y-px shrink-0 items-center rounded-full align-middle transition",
-        compact ? "h-6 w-10" : "h-7 w-12",
-        checked ? "bg-[#2f7866]" : "bg-[#f1f5f9] ring-1 ring-inset ring-[#d6dee8]",
+        compact ? "h-[26px] w-[48px]" : "h-[26px] w-[48px]",
+        checked ? "bg-[#2f7866]" : "bg-[#e2e8f0]",
       )}
     >
       <span
         className={cn(
-          "absolute top-1 rounded-full bg-white shadow-sm transition",
-          compact ? "h-4 w-4" : "h-5 w-5",
-          checked ? (compact ? "left-5" : "left-6") : "left-1",
+          "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition",
+          checked ? "left-[24px]" : "left-[2px]",
         )}
       />
     </button>
@@ -372,7 +398,7 @@ function TimeWheelColumn({
       aria-valuetext={getLabel(value)}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex min-w-0 flex-1 select-none flex-col items-center justify-center rounded-[8px] outline-none transition focus:bg-[#f8fafc] focus:ring-[2px] focus:ring-[#2f7866]/12",
+        "group flex min-w-0 flex-1 select-none flex-col items-center justify-center rounded-[8px] outline-none transition focus:bg-[#f8fafc] focus:ring-[2px] focus:ring-[#64748b]/12",
         disabled && "pointer-events-none text-[#94a3b8]",
       )}
     >
@@ -505,7 +531,7 @@ function TimeInput({
           setOpen((current) => !current);
         }}
         className={cn(
-          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#2f7866] focus:ring-[3px] focus:ring-[#2f7866]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
+          "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
           compact ? "h-8 w-[96px] px-2.5 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
         )}
       >
@@ -576,8 +602,8 @@ export default function OperatingHoursSettings({
   });
   const [activeTab, setActiveTab] = useState<OperatingHoursTab>("business");
   const [regularHolidayCycle, setRegularHolidayCycle] = useState<RegularHolidayCycle>(getRegularHolidayCycle(shop));
-  const [regularHolidayAnchorDate, setRegularHolidayAnchorDate] = useState(getRegularHolidayAnchorDate(shop) ?? todayKey());
-  const [temporaryHolidayMonth, setTemporaryHolidayMonth] = useState(() => createMonthCursor(getRegularHolidayAnchorDate(shop) ?? readInitialBookingSettings(shop).temporaryHolidays[0]?.date));
+  const [regularHolidayAnchorDate, setRegularHolidayAnchorDate] = useState(getRegularHolidayAnchorDate(shop) ?? getWeekAnchorDateKey());
+  const [regularHolidayMonth, setRegularHolidayMonth] = useState(() => createMonthCursor());
   const [pendingTemporaryHolidayDate, setPendingTemporaryHolidayDate] = useState("");
   const [saveError, setSaveError] = useState("");
   const [regularHolidayHelpOpen, setRegularHolidayHelpOpen] = useState(false);
@@ -592,9 +618,9 @@ export default function OperatingHoursSettings({
   }, [bookingSettings, persistToSupabase]);
 
   const temporaryHolidayDates = useMemo(() => new Set(bookingSettings.temporaryHolidays.map((holiday) => holiday.date)), [bookingSettings.temporaryHolidays]);
-  const temporaryHolidayCalendarCells = getMonthCalendarCells(temporaryHolidayMonth);
-  const [temporaryHolidayYear, temporaryHolidayMonthNumber] = temporaryHolidayMonth.split("-");
-  const temporaryHolidayMonthLabel = `${temporaryHolidayYear.slice(-2)}년 ${temporaryHolidayMonthNumber}월`;
+  const regularHolidayCalendarCells = getMonthCalendarCells(regularHolidayMonth);
+  const [regularHolidayYear, regularHolidayMonthNumber] = regularHolidayMonth.split("-");
+  const regularHolidayMonthLabel = `${regularHolidayYear}년 ${Number(regularHolidayMonthNumber)}월`;
   const regularClosedWeekdays = useMemo(() => new Set(createRegularClosedDaysPayload(businessDays)), [businessDays]);
 
   function buildNextShop(nextDays: BusinessDay[], nextSettings: BookingSettingsState, cycle = regularHolidayCycle, anchorDate = regularHolidayAnchorDate) {
@@ -707,6 +733,11 @@ export default function OperatingHoursSettings({
     void persistShopOperatingHours(businessDays, bookingSettings, regularHolidayCycle, dateKey);
   }
 
+  function updateRegularHolidayAnchorPreset(preset: (typeof biweeklyAnchorOptions)[number]["value"]) {
+    const dateKey = preset === "next" ? getWeekAnchorDateKey(1) : getWeekAnchorDateKey(0);
+    updateRegularHolidayAnchorDate(dateKey);
+  }
+
   function addTemporaryHoliday(dateKey: string) {
     if (!dateKey || dateKey < todayKey() || temporaryHolidayDates.has(dateKey)) {
       setPendingTemporaryHolidayDate("");
@@ -761,7 +792,87 @@ export default function OperatingHoursSettings({
     const weekday = getDateWeekdayIndex(dateKey);
     if (!regularClosedWeekdays.has(weekday)) return false;
     if (regularHolidayCycle === "weekly") return true;
-    return isBiweeklyClosedDate(dateKey, regularHolidayAnchorDate);
+    if (regularHolidayCycle === "biweekly") return isBiweeklyClosedDate(dateKey, regularHolidayAnchorDate);
+    if (regularHolidayCycle === "monthly_1_3") return [1, 3].includes(getWeekOfMonthFromDateKey(dateKey));
+    if (regularHolidayCycle === "monthly_2_4") return [2, 4].includes(getWeekOfMonthFromDateKey(dateKey));
+    return false;
+  }
+
+  function renderRegularHolidayCalendarPreview() {
+    return (
+      <div className="mt-2 rounded-[8px] border border-[#e5e7eb] bg-white p-2">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setRegularHolidayMonth((current) => moveMonth(current, -1))}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="이전 달"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <p className="text-[14px] font-normal text-[#111827]">{regularHolidayMonthLabel}</p>
+          <button
+            type="button"
+            onClick={() => setRegularHolidayMonth((current) => moveMonth(current, 1))}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            aria-label="다음 달"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[12px] font-normal text-[#94a3b8]">
+          {weekdayLabels.map((day) => (
+            <span key={day.key} className={cn(day.key === "sun" && "text-[#c13f52]")}>
+              {day.shortLabel}
+            </span>
+          ))}
+        </div>
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {regularHolidayCalendarCells.map((dateKey, index) => {
+            if (!dateKey) return <span key={`regular-empty-${index}`} className="h-7" />;
+            const savedTemporaryHoliday = bookingSettings.temporaryHolidays.find((holiday) => holiday.date === dateKey);
+            const saved = Boolean(savedTemporaryHoliday);
+            const regularClosed = isRegularClosedDate(dateKey);
+            const closed = saved || regularClosed;
+            const isToday = dateKey === todayKey();
+            return (
+              <button
+                key={dateKey}
+                type="button"
+                disabled={regularClosed && !saved}
+                onClick={() => {
+                  if (savedTemporaryHoliday) {
+                    removeTemporaryHoliday(savedTemporaryHoliday.id);
+                    return;
+                  }
+                  if (dateKey >= todayKey() && !regularClosed) setPendingTemporaryHolidayDate(dateKey);
+                }}
+                className={cn(
+                  "flex h-7 items-center justify-center rounded-[7px] border text-[13px] font-normal transition",
+                  saved ? "border-[#a04455] bg-[#fff1f3] text-[#a04455]" : regularClosed ? "border-[#f0a8b4] bg-[#fff7f8] text-[#c13f52]" : "border-transparent text-[#334155] hover:bg-[#f8fafc]",
+                  isToday && !closed && "border-[#dbe2ea] bg-[#f8fafc] text-[#111827]",
+                  regularClosed && !saved && "cursor-default",
+                )}
+              >
+                {Number(dateKey.slice(-2))}
+              </button>
+            );
+          })}
+        </div>
+        {bookingSettings.temporaryHolidays.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {bookingSettings.temporaryHolidays.map((holiday) => (
+              <span key={holiday.id} className="inline-flex h-7 items-center gap-1 rounded-full border border-[#dbe2ea] bg-[#fbfcfd] pl-2 pr-1 text-[12px] font-normal text-[#334155]">
+                {holiday.date.slice(5)}
+                <button type="button" onClick={() => removeTemporaryHoliday(holiday.id)} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#a04455] hover:bg-[#fff1f3]" aria-label="임시 휴무 삭제">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   if (compact) {
@@ -773,21 +884,21 @@ export default function OperatingHoursSettings({
           </p>
         ) : null}
 
-        <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(360px,420px)]">
-          <WebSurface className="h-full border-0 bg-transparent p-0 shadow-none">
+        <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]">
+          <WebSurface className="h-full border-0 bg-transparent p-0 shadow-none xl:order-2">
             <div className="h-full overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
               <div className="grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#fbfcfd] px-3 py-2 lg:grid-cols-[112px_minmax(0,1fr)]">
                 <p className="text-[16px] font-normal text-[#111827]">공통 적용</p>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <div className="grid grid-cols-[96px_24px_96px_auto] items-center justify-end gap-1.5">
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
-                  <span className="text-[13px] font-normal text-[#94a3b8]">-</span>
+                  <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
                   <button
                     type="button"
                     onClick={applyBulkTimeToAllDays}
                     className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
                   >
-                    전체 적용
+                    적용
                   </button>
                 </div>
               </div>
@@ -796,35 +907,35 @@ export default function OperatingHoursSettings({
                   <span className="text-[16px] font-normal text-[#111827]">{day.shortLabel}</span>
                   <div className="ml-7 flex items-center gap-1.5">
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
-                    <span className={cn("whitespace-nowrap text-[16px] font-normal", day.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
+                    <span className={cn("whitespace-nowrap text-[16px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="ml-auto grid items-center gap-1.5 sm:grid-cols-[146px_14px_146px]">
+                    <div className="ml-auto grid grid-cols-[96px_24px_96px] items-center justify-end gap-1.5">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
                       <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
-                    <p className="ml-auto w-full text-left text-[16px] font-normal text-[#64748b] sm:w-[318px]">예약을 받지 않습니다.</p>
+                    <p className="ml-auto w-[216px] text-left text-[16px] font-normal text-[#64748b]">예약을 받지 않습니다.</p>
                   )}
                 </div>
               ))}
             </div>
           </WebSurface>
 
-          <div className="grid min-w-0 gap-2">
+          <div className="grid min-w-0 gap-2 xl:order-1">
             <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[16px] font-normal text-[#111827]">정기 휴무일</p>
-                <div className="grid w-[136px] grid-cols-2 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
-                  {regularHolidayCycleOptions.map((option) => (
+                <div className="grid w-[280px] grid-cols-4 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
+                  {extendedRegularHolidayCycleOptions.map((option) => (
                     <button
                       key={option.value}
                       type="button"
                       onClick={() => updateRegularHolidayCycle(option.value)}
                       className={cn(
                         "h-7 rounded-[7px] text-[13px] font-normal transition",
-                        regularHolidayCycle === option.value ? "bg-white text-[#2f7866] shadow-sm" : "text-[#64748b] hover:bg-white/70",
+                        regularHolidayCycle === option.value ? "bg-white text-[#111827] shadow-sm" : "text-[#64748b] hover:bg-white/70",
                       )}
                     >
                       {option.label}
@@ -832,6 +943,26 @@ export default function OperatingHoursSettings({
                   ))}
                 </div>
               </div>
+              {regularHolidayCycle === "biweekly" ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {biweeklyAnchorOptions.map((option) => {
+                    const active = getBiweeklyAnchorPreset(regularHolidayAnchorDate) === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => updateRegularHolidayAnchorPreset(option.value)}
+                        className={cn(
+                          "h-8 rounded-[8px] border px-2 text-[13px] font-normal transition",
+                          active ? "border-[#111827] bg-white text-[#111827] shadow-sm" : "border-[#dbe2ea] bg-white text-[#64748b] hover:border-[#cbd5e1]",
+                        )}
+                      >
+                        {option.value === "next" ? "다음 주 휴무" : "이번 주 휴무"}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               <div className="mt-2 grid grid-cols-7 gap-1">
                 {weekdayLabels.map((day) => {
                   const active = !businessDays.find((item) => item.key === day.key)?.enabled;
@@ -842,7 +973,7 @@ export default function OperatingHoursSettings({
                       onClick={() => updateBusinessDay(day.key, { enabled: !businessDays.find((item) => item.key === day.key)?.enabled })}
                       className={cn(
                         "h-8 rounded-[8px] border text-[14px] font-normal transition",
-                        active ? "border-[#f0a8b4] bg-[#fff7f8] text-[#d43f57]" : "border-[#bad8cd] bg-[#f7fbf9] text-[#2f7866]",
+                        active ? "border-[#f0a8b4] bg-[#fff7f8] text-[#c13f52]" : "border-[#dbe2ea] bg-white text-[#475569]",
                       )}
                     >
                       {day.shortLabel}
@@ -850,82 +981,31 @@ export default function OperatingHoursSettings({
                   );
                 })}
               </div>
-            </div>
-
-            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
-              <p className="text-[16px] font-normal text-[#111827]">임시 휴무일</p>
-              <div className="mt-2 flex gap-1.5">
-                <input
-                  type="date"
-                  value={pendingTemporaryHolidayDate}
-                  onChange={(event) => setPendingTemporaryHolidayDate(event.target.value)}
-                  className="h-8 min-w-0 flex-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] text-[#111827] outline-none focus:border-[#2f7866]"
-                />
-                <button
-                  type="button"
-                  onClick={() => addTemporaryHoliday(pendingTemporaryHolidayDate)}
-                  className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#2f7866] hover:bg-[#f8fafc]"
-                >
-                  추가
-                </button>
-              </div>
-              {bookingSettings.temporaryHolidays.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {bookingSettings.temporaryHolidays.slice(0, 5).map((holiday) => (
-                    <span key={holiday.id} className="inline-flex h-7 items-center gap-1 rounded-full border border-[#dbe2ea] bg-[#fbfcfd] pl-2 pr-1 text-[12px] font-normal text-[#334155]">
-                      {holiday.date.slice(5)}
-                      <button type="button" onClick={() => removeTemporaryHoliday(holiday.id)} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#a04455] hover:bg-[#fff1f3]" aria-label="임시 휴무 삭제">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {bookingSettings.temporaryHolidays.length > 5 ? <span className="h-7 rounded-full bg-[#f8fafc] px-2 text-[12px] leading-7 text-[#64748b]">+{bookingSettings.temporaryHolidays.length - 5}</span> : null}
-                </div>
-              ) : null}
+              {renderRegularHolidayCalendarPreview()}
             </div>
 
             <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[16px] font-normal text-[#111827]">미용 예약 가능 시간</p>
-                <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#2f7866] hover:bg-[#f8fafc]">
+                <p className="text-[16px] font-normal text-[#111827]">예약 간격 / 제외 시간</p>
+                <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]">
                   <Plus className="h-3.5 w-3.5" />
                   제외 시간
                 </button>
               </div>
-              <div className="mt-2 grid items-center gap-1.5 sm:grid-cols-[146px_14px_146px]">
-                <TimeInput value={bookingSettings.firstBookingTime} onChange={(value) => updateBookingSetting("firstBookingTime", value, true)} compact />
-                <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
-                <TimeInput value={bookingSettings.lastBookingTime} onChange={(value) => updateBookingSetting("lastBookingTime", value, true)} compact />
-              </div>
-              <div className="relative mt-1.5 w-full">
-                <select
-                  value={bookingSettings.intervalMinutes}
-                  onChange={(event) => updateBookingSetting("intervalMinutes", event.target.value, true)}
-                  className="h-8 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white px-2 pr-7 text-[14px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
-                >
-                  <option value="15">15분</option>
-                  <option value="30">30분</option>
-                  <option value="60">1시간</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]" />
-              </div>
-
               {bookingSettings.blockedWindows.length > 0 ? (
                 <div className="mt-2 grid gap-1.5">
                   {bookingSettings.blockedWindows.map((windowItem) => (
-                    <div key={windowItem.id} className="grid items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
-                      <div className="grid items-center gap-1.5 sm:grid-cols-[1fr_1fr_30px]">
-                        <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
-                        <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
-                        <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                    <div key={windowItem.id} className="grid grid-cols-[96px_96px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
+                      <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
+                      <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
                       <input
                         value={windowItem.label}
                         onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                        className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
+                        className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus:border-[#94a3b8]"
                       />
+                      <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -946,8 +1026,7 @@ export default function OperatingHoursSettings({
       ) : null}
       <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
         {[
-          { key: "business" as const, label: "매장 운영시간" },
-          { key: "booking" as const, label: "미용 예약 가능 시간" },
+  { key: "business" as const, label: "매장 영업 시간" },
         ].map((item) => (
           <button
             key={item.key}
@@ -967,8 +1046,8 @@ export default function OperatingHoursSettings({
       </div>
 
       {activeTab === "business" ? (
-        <div className={cn("grid", compact ? "gap-3 xl:grid-cols-[minmax(0,1fr)_330px]" : "gap-4 xl:grid-cols-[minmax(0,1fr)_360px]")}>
-          <WebSurface className={cn(compact ? "p-3" : "p-4")}>
+        <div className={cn("grid", compact ? "gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]" : "gap-4 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]")}>
+          <WebSurface className={cn("xl:order-2", compact ? "p-3" : "p-4")}>
             <div className="divide-y divide-[#edf2f7]">
               <div
                 className={cn(
@@ -979,7 +1058,7 @@ export default function OperatingHoursSettings({
                 <div>
                   <div className="group relative inline-flex items-center gap-1.5">
                     <p className={cn("whitespace-nowrap font-normal text-[#111827] [word-break:keep-all]", compact ? "text-[15px]" : "text-[16px]")}>모든 요일 적용 시간</p>
-                    <button type="button" className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#2f7866]" aria-label="모든 요일 적용 시간 도움말">
+                    <button type="button" className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#334155]" aria-label="모든 요일 적용 시간 도움말">
                       <Info className="h-3.5 w-3.5" />
                     </button>
                     <div className="pointer-events-none absolute left-0 top-7 z-20 w-[240px] rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
@@ -987,7 +1066,7 @@ export default function OperatingHoursSettings({
                     </div>
                   </div>
                 </div>
-                <div className={cn("flex flex-wrap items-center", compact ? "gap-2" : "gap-3")}>
+                <div className={cn("grid items-center", compact ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2" : "grid-cols-[116px_24px_116px_auto] justify-start gap-3")}>
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact={compact} />
                   <span className={cn("text-center font-normal text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact={compact} />
@@ -995,11 +1074,11 @@ export default function OperatingHoursSettings({
                     type="button"
                     onClick={applyBulkTimeToAllDays}
                     className={cn(
-                      "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#bad8cd] hover:bg-[#f8fafc]",
+                      "rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]",
                       compact ? "h-8 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
                     )}
                   >
-                    전체 적용
+                    적용
                   </button>
                 </div>
               </div>
@@ -1014,11 +1093,11 @@ export default function OperatingHoursSettings({
                   <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{day.label}</p>
                   <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact={compact} />
-                    <span className={cn("font-normal", compact ? "text-[15px]" : "text-[16px]", day.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>
+                    <span className={cn("font-normal", compact ? "text-[15px]" : "text-[16px]", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>
                       {day.enabled ? "영업함" : "휴무일"}
                     </span>
                   </div>
-                  <div className={cn("ml-auto grid items-center", compact ? "grid-cols-[146px_16px_146px] gap-2" : "grid-cols-[188px_24px_188px] gap-3")}>
+                  <div className={cn("ml-auto grid items-center justify-end", compact ? "grid-cols-[96px_24px_96px] gap-2" : "grid-cols-[116px_24px_116px] gap-3")}>
                     {day.enabled ? (
                       <>
                         <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact={compact} />
@@ -1036,11 +1115,11 @@ export default function OperatingHoursSettings({
             </div>
           </WebSurface>
 
-          <WebSurface className={cn(compact ? "p-3" : "p-4")}>
+          <WebSurface className={cn("xl:order-1", compact ? "p-3" : "p-4")}>
             <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
               <p className={cn("font-normal text-[#111827]", compact ? "text-[16px]" : "text-[18px]")}>정기 휴무일</p>
-              <div className={cn("grid grid-cols-2 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
-                {regularHolidayCycleOptions.map((option) => (
+              <div className={cn("grid grid-cols-4 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
+                {extendedRegularHolidayCycleOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -1049,7 +1128,7 @@ export default function OperatingHoursSettings({
                       "rounded-[8px] font-normal transition",
                       compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
                       regularHolidayCycle === option.value
-                        ? "bg-white text-[#2f7866] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
+                        ? "bg-white text-[#111827] shadow-[0_2px_8px_rgba(15,23,42,0.06)]"
                         : "text-[#64748b] hover:bg-white/70 hover:text-[#111827]",
                     )}
                   >
@@ -1067,7 +1146,7 @@ export default function OperatingHoursSettings({
                       onClick={() => setRegularHolidayHelpOpen((current) => !current)}
                       className={cn(
                         "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition",
-                        regularHolidayHelpOpen ? "bg-[#e8f5f1] text-[#2f7866]" : "text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#2f7866]",
+                        regularHolidayHelpOpen ? "bg-[#f1f5f9] text-[#334155]" : "text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#334155]",
                       )}
                       aria-label="격주 기준일 설명"
                       aria-expanded={regularHolidayHelpOpen}
@@ -1075,14 +1154,26 @@ export default function OperatingHoursSettings({
                       <Info className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <input
-                    type="date"
-                    value={regularHolidayAnchorDate}
-                    onChange={(event) => updateRegularHolidayAnchorDate(event.target.value)}
-                    className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    {biweeklyAnchorOptions.map((option) => {
+                      const active = getBiweeklyAnchorPreset(regularHolidayAnchorDate) === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateRegularHolidayAnchorPreset(option.value)}
+                          className={cn(
+                            "h-10 rounded-[8px] border px-3 text-[14px] font-normal transition",
+                            active ? "border-[#111827] bg-white text-[#111827] shadow-sm" : "border-[#dbe2ea] bg-white text-[#64748b] hover:border-[#cbd5e1]",
+                          )}
+                        >
+                          {option.value === "next" ? "다음 주 휴무" : "이번 주 휴무"}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                {regularHolidayHelpOpen ? (
+                {false ? (
                   <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[13px] leading-5 text-[#64748b]">
                     선택한 날짜가 포함된 주를 쉬는 주로 계산합니다. 예를 들어 기준일이 2026-05-25이고 월요일을 휴무로 선택하면 5월 25일, 6월 8일, 6월 22일처럼 한 주 건너 월요일이 휴무로 표시됩니다.
                   </div>
@@ -1102,7 +1193,7 @@ export default function OperatingHoursSettings({
                         compact ? "h-8 text-[15px]" : "h-10 text-[16px]",
                         active
                           ? "border-[#f0a8b4] bg-[#fff7f8] text-[#d43f57] shadow-[0_1px_4px_rgba(212,63,87,0.08)]"
-                          : "border-[#bad8cd] bg-[#f7fbf9] text-[#2f7866] hover:border-[#2f7866] hover:bg-[#eef7f4]",
+                          : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#94a3b8] hover:bg-[#f8fafc]",
                       )}
                     >
                       {day.shortLabel}
@@ -1110,73 +1201,9 @@ export default function OperatingHoursSettings({
                   );
                 })}
               </div>
+              {renderRegularHolidayCalendarPreview()}
             </div>
 
-            <p className={cn("font-normal text-[#111827]", compact ? "mt-3 text-[16px]" : "mt-4 text-[18px]")}>임시 휴무일 설정</p>
-            <div className={cn(compact ? "mt-2" : "mt-3 p-1")}>
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setTemporaryHolidayMonth((current) => moveMonth(current, -1))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
-                  aria-label="이전 달"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <p className={cn("font-normal text-[#111827]", compact ? "text-[15px]" : "text-[16px]")}>{temporaryHolidayMonthLabel}</p>
-                <button
-                  type="button"
-                  onClick={() => setTemporaryHolidayMonth((current) => moveMonth(current, 1))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
-                  aria-label="다음 달"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              <div className={cn("grid grid-cols-7 gap-1 text-center font-normal text-[#94a3b8]", compact ? "mt-2 text-[12px]" : "mt-3 text-[13px]")}>
-                {["일", "월", "화", "수", "목", "금", "토"].map((label) => (
-                  <span key={label} className={cn(label === "일" && "text-[#c13f52]")}>
-                    {label}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-1 grid grid-cols-7 gap-1">
-                {temporaryHolidayCalendarCells.map((dateKey, index) => {
-                  if (!dateKey) return <span key={`empty-${index}`} className={cn(compact ? "h-7" : "h-9")} />;
-                  const saved = temporaryHolidayDates.has(dateKey);
-                  const regularClosed = isRegularClosedDate(dateKey);
-                  const closed = saved || regularClosed;
-                  return (
-                    <button
-                      key={dateKey}
-                      type="button"
-                      onClick={() => {
-                        if (!saved) setPendingTemporaryHolidayDate(dateKey);
-                      }}
-                      className={cn(
-                        "rounded-[8px] font-normal transition hover:bg-[#f8fafc]",
-                        compact ? "h-7 text-[14px]" : "h-9 text-[15px]",
-                        closed ? "text-[#c13f52] hover:text-[#ad3146]" : "text-[#334155] hover:text-[#2f7866]",
-                      )}
-                    >
-                      {Number(dateKey.slice(-2))}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {bookingSettings.temporaryHolidays.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                {bookingSettings.temporaryHolidays.map((holiday) => (
-                  <div key={holiday.id} className="flex items-center justify-between gap-2 rounded-[8px] bg-[#fbfcfd] px-3 py-2">
-                    <span className="text-[15px] font-normal text-[#334155]">{holiday.date}</span>
-                    <button type="button" onClick={() => removeTemporaryHoliday(holiday.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#c13f52] hover:bg-[#fff1f3]" aria-label="임시 휴무 삭제">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </WebSurface>
 
           {pendingTemporaryHolidayDate ? (
@@ -1219,32 +1246,10 @@ export default function OperatingHoursSettings({
             </div>
           </div>
 
-          <div className={cn("grid items-start", compact ? "mt-3 grid-cols-[112px_minmax(0,1fr)] gap-2" : "mt-4 grid-cols-[130px_minmax(0,1fr)] gap-3")}>
-            <p className={cn("font-normal text-[#334155]", compact ? "pt-1.5 text-[16px]" : "pt-2 text-[16px]")}>예약 간격</p>
-            <div className="min-w-0">
-              <div className={cn("relative", compact ? "w-[146px]" : "w-[188px]")}>
-                <select
-                  value={bookingSettings.intervalMinutes}
-                  onChange={(event) => updateBookingSetting("intervalMinutes", event.target.value, true)}
-                  className={cn(
-                    "w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-[3px] focus:ring-[#2f7866]/10",
-                    compact ? "h-8 px-2.5 pr-8 text-[14px]" : "h-10 px-3 pr-9 text-[16px]",
-                  )}
-                >
-                  <option value="15">15분</option>
-                  <option value="30">30분</option>
-                  <option value="60">1시간</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#111827]" />
-              </div>
-              <p className={cn("mt-2 text-[#64748b]", compact ? "text-[14px] leading-5" : "text-[16px] leading-6")}>설정한 예약 가능 시간과 간격은 고객 예약 화면에도 동일하게 보입니다.</p>
-            </div>
-          </div>
-
           <div className={cn("border-t border-[#edf2f7]", compact ? "mt-3 pt-3" : "mt-4 pt-4")}>
             <div className="flex items-center justify-between gap-3">
               <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 제외 시간</p>
-              <button type="button" onClick={addBlockedWindow} className={cn("inline-flex items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#2f7866] hover:bg-[#f8fafc]", compact ? "h-8 px-2.5 text-[14px]" : "h-9 px-3 text-[16px]")}>
+              <button type="button" onClick={addBlockedWindow} className={cn("inline-flex items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] hover:bg-[#f8fafc]", compact ? "h-8 px-2.5 text-[14px]" : "h-9 px-3 text-[16px]")}>
                 <Plus className="h-4 w-4" />
                 시간 추가
               </button>
@@ -1252,13 +1257,13 @@ export default function OperatingHoursSettings({
 
             <div className="mt-3 space-y-2">
               {bookingSettings.blockedWindows.map((windowItem) => (
-                <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[146px_146px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[188px_188px_minmax(0,1fr)_36px] gap-3 p-2")}>
+                <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[96px_96px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[116px_116px_minmax(0,1fr)_36px] gap-3 p-2")}>
                   <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact={compact} />
                   <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact={compact} />
                   <input
                     value={windowItem.label}
                     onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                    className={cn("rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none focus:border-[#2f7866]", compact ? "h-8 px-2.5 text-[14px]" : "h-10 px-3 text-[16px]")}
+                    className={cn("rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none focus:border-[#94a3b8]", compact ? "h-8 px-2.5 text-[14px]" : "h-10 px-3 text-[16px]")}
                   />
                   <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className={cn("inline-flex items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]", compact ? "h-8 w-8" : "h-9 w-9")} aria-label="예약 제외 시간 삭제">
                     <Trash2 className="h-4 w-4" />

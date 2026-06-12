@@ -64,6 +64,14 @@ function isPendingBookingStatus(status: string) {
   return status === "승인 대기";
 }
 
+function isOverduePendingBookingStatus(status: string) {
+  return status === "기한 지남";
+}
+
+function isApprovalQueueBookingStatus(status: string) {
+  return isPendingBookingStatus(status) || isOverduePendingBookingStatus(status);
+}
+
 function getStaffInitial(name: string) {
   return name.trim().slice(0, 1) || "?";
 }
@@ -88,6 +96,7 @@ function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, curr
 }
 
 function getBookingCardTone(status: string): BookingCardTone {
+  if (isOverduePendingBookingStatus(status)) return "cancelled";
   if (isPendingBookingStatus(status)) return "pending";
   if (status === "진행 중" || status === "픽업 준비") return "active";
   if (isCompletedBookingStatus(status)) return "completed";
@@ -118,6 +127,7 @@ function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
   if (status === "시작 지연") return "지연";
+  if (isOverduePendingBookingStatus(status)) return "기한 지남";
   if (status === "승인 대기") return "대기";
   return status;
 }
@@ -125,6 +135,7 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
   if (status === "승인 대기") return "border-[#f1d58c] bg-[#fff8df] text-[#9f6f00]";
+  if (isOverduePendingBookingStatus(status)) return "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]";
   if (status === "시작 지연") return "border-[#f2d4b7] bg-[#fff7ed] text-[#b45309]";
   if (status === "완료") return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
   if (status === "취소" || status === "거절") return "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]";
@@ -178,11 +189,7 @@ function getStaffBookingLayouts<T extends { id: string; start: number; duration:
 }
 
 function getPendingOverlapLabel(booking: DailyBooking, bookings: DailyBooking[]) {
-  if (!isPendingBookingStatus(booking.status)) return "";
-  const overlapCount = bookings.filter(
-    (item) => item.id !== booking.id && item.staffKey === booking.staffKey && bookingTimesOverlap(item, booking),
-  ).length;
-  return overlapCount > 0 ? `${overlapCount}건 겹침` : "";
+  return "";
 }
 
 function getBookingLayoutStyle(lane: number, laneCount: number) {
@@ -495,9 +502,9 @@ export function DailyScheduleGrid({
           <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-4" style={scheduleTrackStyle}>
             {scheduleStaff.map((staffMember, staffIndex) => {
               const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
-              const pendingStatusCount = staffBookings.filter((booking) => isPendingBookingStatus(booking.status)).length;
+                const pendingStatusCount = staffBookings.filter((booking) => isApprovalQueueBookingStatus(booking.status)).length;
               const selectedStaff = selectedStaffKey === staffMember.key;
-              const staffTone = getStaffChipTone(staffMember.key, staffIndex);
+              const staffTone = getStaffChipTone(staffMember.key, staffMember.chipColorIndex ?? staffIndex);
 
               return (
                 <section
@@ -613,7 +620,7 @@ export function DailyScheduleGrid({
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(staffBookings);
                 const selectedStaff = selectedStaffKey === staffMember.key;
-                const staffTone = getStaffChipTone(staffMember.key, staffIndex);
+                const staffTone = getStaffChipTone(staffMember.key, staffMember.chipColorIndex ?? staffIndex);
                 return (
                   <section
                     key={staffMember.key}
@@ -727,7 +734,7 @@ export function DailyScheduleGrid({
                                       </span>
                                       {pendingOverlapLabel ? (
                                         <span className="shrink-0 rounded-[6px] border border-[#e8c67e] bg-[#fffaf0] px-1.5 py-0.5 text-[11px] leading-none text-[#9a640f]">
-                                          겹침
+                                          {pendingOverlapLabel}
                                         </span>
                                       ) : null}
                                       <p className="min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">

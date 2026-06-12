@@ -39,6 +39,7 @@ export function StaffMonthlySchedule({
 }) {
   const monthDates = getMonthCalendarDates(monthStart);
   const weeks = Array.from({ length: 6 }, (_, index) => monthDates.slice(index * 7, index * 7 + 7));
+  const compactMonthLabel = monthLabel.replace(/^\d{4}년\s*/, "");
 
   return (
     <div className="max-w-full overflow-hidden bg-white">
@@ -51,8 +52,8 @@ export function StaffMonthlySchedule({
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <button type="button" onClick={onCurrentMonth} className="text-[34px] font-normal leading-none tracking-[0]">
-          {monthLabel}
+        <button type="button" onClick={onCurrentMonth} className="text-[44px] font-normal leading-none tracking-[0]">
+          {compactMonthLabel}
         </button>
         <button
           type="button"
@@ -66,14 +67,14 @@ export function StaffMonthlySchedule({
 
       <div className="max-w-full overflow-hidden">
         <div className="w-full min-w-0">
-          <div className="grid min-w-0 grid-cols-7 bg-white text-[16px] text-[#64748b]">
-            {weekdayColumns.map((day) => (
-              <div key={day.key} className="flex h-[48px] items-center justify-center">
+          <div className="grid min-w-0 grid-cols-7 border-b border-t border-[#dbe2ea] bg-[#f8fafc] text-[16px] text-[#475569]">
+            {weekdayColumns.map((day, index) => (
+              <div key={day.key} className={cn("flex h-[40px] items-center justify-center border-[#e2e8f0]", index < weekdayColumns.length - 1 && "border-r")}>
                 {day.label}
               </div>
             ))}
           </div>
-          <div className="grid min-w-0 grid-cols-7">
+          <div className="grid min-w-0 grid-cols-7 border-l border-[#dbe2ea]">
             {weeks.flatMap((week) =>
               week.map((day) => (
                 <MonthlyDayCell
@@ -107,8 +108,9 @@ function MonthlyDayCell({
   onOpenScheduleEditor: (staffMember: StaffMember, day: { key: WeekdayKey; label: string; date: string }) => void;
 }) {
   const workingCells = staff
-    .map((staffMember) => ({
+    .map((staffMember, staffIndex) => ({
       staffMember,
+      staffIndex,
       cell: applyScheduleToCell(staffMember, day.key, day.date, requests, overrides),
     }))
     .filter(({ cell }) => day.isCurrentMonth && cell.status === "work");
@@ -116,8 +118,8 @@ function MonthlyDayCell({
   return (
     <div
       className={cn(
-        "min-w-0 h-[150px] border-b border-r border-[#e6e6e6] bg-[#fafafa] px-[12px] py-[12px]",
-        !day.isCurrentMonth && "bg-white text-[#94a3b8]",
+        "min-w-0 h-[150px] border-b border-r border-[#dbe2ea] bg-white px-[12px] py-[12px]",
+        !day.isCurrentMonth && "bg-[#fafafa] text-[#94a3b8]",
       )}
     >
       <div className="mb-[9px] flex h-6 items-center justify-between gap-2">
@@ -132,8 +134,8 @@ function MonthlyDayCell({
         {day.isToday ? <span className="text-[16px] text-[#2f7866]">{"\uC624\uB298"}</span> : null}
       </div>
       <div className="max-h-[104px] min-w-0 space-y-[4px] overflow-y-auto pr-0.5">
-        {workingCells.map(({ staffMember, cell }) => {
-          const staffTone = getStaffChipTone(staffMember.id);
+        {workingCells.map(({ staffMember, staffIndex, cell }) => {
+          const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
           return (
             <button
               key={`${day.date}-${staffMember.id}`}

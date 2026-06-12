@@ -6,15 +6,18 @@ import {
   normalizePendingHoldLimit,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
-  normalizeBookingAvailableTime,
-  defaultBookingAvailableStartTime,
-  defaultBookingAvailableEndTime,
 } from "@/lib/booking-slot-settings";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { hasBlockedWindowOverlap } from "@/lib/reservation-policy-settings";
 import { currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, timeFromMinutes } from "@/lib/utils";
 
 export type RevisitStatus = "overdue" | "soon" | "ok" | "unknown";
+
+type ShopClosedPolicy = Pick<
+  Shop,
+  "business_hours" | "regular_closed_days" | "regular_closed_cycle" | "regular_closed_anchor_date" | "temporary_closed_dates"
+> &
+  Partial<Pick<Shop, "reservation_policy_settings">>;
 
 const slotBlockingAppointmentStatuses = new Set<Appointment["status"]>([
   "pending",
@@ -41,7 +44,11 @@ function isBiweeklyClosedWeek(date: Date, anchorDateKey?: string | null) {
   return Math.abs(Math.trunc(diffDays / 7)) % 2 === 0;
 }
 
-export function isRegularClosedOnDate(shop: Shop, date: string) {
+function getWeekOfMonth(date: Date) {
+  return Math.ceil(date.getDate() / 7);
+}
+
+export function isRegularClosedOnDate(shop: ShopClosedPolicy, date: string) {
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   const policyHasRegularClosedCycle = Object.prototype.hasOwnProperty.call(
@@ -58,11 +65,13 @@ export function isRegularClosedOnDate(shop: Shop, date: string) {
       : shop.regular_closed_anchor_date ?? null;
 
   if (!shop.regular_closed_days.includes(weekday)) return false;
-  if (regularClosedCycle !== "biweekly") return true;
-  return isBiweeklyClosedWeek(day, regularClosedAnchorDate);
+  if (regularClosedCycle === "biweekly") return isBiweeklyClosedWeek(day, regularClosedAnchorDate);
+  if (regularClosedCycle === "monthly_1_3") return [1, 3].includes(getWeekOfMonth(day));
+  if (regularClosedCycle === "monthly_2_4") return [2, 4].includes(getWeekOfMonth(day));
+  return true;
 }
 
-export function isShopClosedOnDate(shop: Shop, date: string) {
+export function isShopClosedOnDate(shop: ShopClosedPolicy, date: string) {
   const day = parseISO(`${date}T00:00:00`);
   const weekday = day.getDay();
   const hours = getBusinessHoursForWeekday(shop, weekday);
@@ -109,12 +118,6 @@ export function computeAvailableSlots(params: {
 
   const open = minutesFromTime(hours.open);
   const close = minutesFromTime(hours.close);
-  const bookingStart = minutesFromTime(
-    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
-  );
-  const bookingEnd = minutesFromTime(
-    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
-  );
   const nowMinutes = currentMinutesInTimeZone();
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];
@@ -123,10 +126,11 @@ export function computeAvailableSlots(params: {
     shop.booking_slot_offset_minutes,
     slotIntervalMinutes,
   );
-  const firstSlotMinute = alignToSlotPattern(Math.max(open, bookingStart), slotIntervalMinutes, slotOffsetMinutes);
+  const firstSlotMinute = alignToSlotPattern(open, slotIntervalMinutes, slotOffsetMinutes);
+  const latestStartMinute = close - durationMinutes;
   const candidateStartMinutes = new Set<number>();
 
-  for (let cursor = firstSlotMinute; cursor <= bookingEnd && cursor + durationMinutes <= close; cursor += slotIntervalMinutes) {
+  for (let cursor = firstSlotMinute; cursor <= latestStartMinute; cursor += slotIntervalMinutes) {
     candidateStartMinutes.add(cursor);
   }
 
@@ -140,7 +144,7 @@ export function computeAvailableSlots(params: {
     if (!appointmentDurationMinutes) continue;
 
     const appointmentEnd = appointmentStart + appointmentDurationMinutes;
-    if (appointmentEnd < Math.max(open, bookingStart) || appointmentEnd > bookingEnd) continue;
+    if (appointmentEnd < open) continue;
     if (appointmentEnd + durationMinutes > close) continue;
 
     candidateStartMinutes.add(appointmentEnd);

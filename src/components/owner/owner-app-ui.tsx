@@ -28,8 +28,8 @@ export function Panel({
   contentClassName?: string;
 }) {
   return (
-    <section className={`rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 shadow-[var(--shadow-soft)] ${className}`.trim()}>
-      <AppSectionHeader title={title} titleAccessory={titleAccessory} action={action} className={`mb-2.5 ${titleClassName}`.trim()} titleClassName={titleTextClassName} />
+    <section className={`rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 shadow-[var(--shadow-soft)] ${className}`.trim()}>
+      <AppSectionHeader title={title} titleAccessory={titleAccessory} action={action} className={`mb-3 ${titleClassName}`.trim()} titleClassName={titleTextClassName} />
       <div className={`space-y-2.5 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
@@ -122,7 +122,7 @@ export function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={`flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 ${disabled ? "opacity-50" : ""}`}>
+    <label className={`flex items-center justify-between gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 ${disabled ? "opacity-50" : ""}`}>
       <div>
         <p className="text-[14px] font-semibold text-[var(--text)]">{label}</p>
         <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{description}</p>
@@ -152,10 +152,10 @@ export function Sheet({
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
       <div
-        className="flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[32px] bg-white px-4 pb-5 pt-4"
+        className="flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#cbd5e1]" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{title}</h3>
           <div className="flex items-center gap-3">
@@ -218,7 +218,7 @@ export function ActionButton({ children, disabled, onClick, variant = "primary",
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-[42px] w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-medium tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}
+      className={`flex h-[46px] w-full items-center justify-center rounded-[12px] px-4 text-[14px] font-semibold tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}
     >
       {children}
     </button>
@@ -238,8 +238,8 @@ export function EmptyState({
 }) {
   if (compact) {
     return (
-      <div className={`flex items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-center ${className}`.trim()}>
-        <p className={`relative top-px text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63] ${titleClassName}`.trim()}>{title}</p>
+      <div className={`flex items-center justify-center rounded-[12px] border border-[var(--border)] bg-[#f8fafc] text-center ${className}`.trim()}>
+        <p className={`relative top-px text-[14px] font-medium leading-[20px] tracking-[-0.02em] text-[var(--muted)] ${titleClassName}`.trim()}>{title}</p>
       </div>
     );
   }
@@ -248,7 +248,7 @@ export function EmptyState({
     <AppEmptyState
       title={title}
       titleClassName={titleClassName}
-      className={`min-h-[68px] rounded-[10px] bg-white px-3.5 py-4 ${className}`.trim()}
+      className={`min-h-[64px] rounded-[12px] bg-[#f8fafc] px-3.5 py-4 ${className}`.trim()}
     />
   );
 }

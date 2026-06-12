@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
+import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
@@ -23,7 +24,7 @@ import {
 } from "@/lib/customer-service-options";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { ApprovalMode, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -46,6 +47,9 @@ type SettingsTab = {
 };
 
 type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description"> & {
+  showcaseTitle: string;
+  showcaseBody: string;
+  socialLinks: NonNullable<Shop["customer_page_settings"]["social_links"]>;
   businessCategory: string;
   additionalContact: string;
   postalCode: string;
@@ -54,7 +58,7 @@ type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description">
 type ShopPolicyPatch = {
   approvalMode: ApprovalMode;
   cancelWindow: ReservationPolicySettings["cancel_window"];
-  pendingHoldLimit: 1 | 2 | 3;
+  pendingHoldLimit: 1;
 };
 
 function approvalModeLabel(value: ApprovalMode | null | undefined) {
@@ -87,18 +91,6 @@ function cancelWindowFromLabel(value: string): ReservationPolicySettings["cancel
   if (value === "예약 6시간 전까지") return "6h";
   if (value === "예약 하루 전까지" || value === "예약 1일 전까지") return "24h";
   return "2h";
-}
-
-function pendingHoldLimitLabel(value: number | null | undefined) {
-  if (value && value >= 3) return "중복 예약 2건 이상 받기";
-  if (value === 1) return "중복 예약 X";
-  return "중복 예약 1건만 받기";
-}
-
-function pendingHoldLimitFromLabel(value: string | number): 1 | 2 | 3 {
-  if (value === 3 || value === "3" || value === "3건 이상 받아두기" || value === "중복 예약 2건 이상 받기") return 3;
-  if (value === 2 || value === "2" || value === "2건까지 받기" || value === "2건까지 받아두기" || value === "중복 예약 1건만 받기") return 2;
-  return 1;
 }
 
 function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | null | undefined): AlertSettingsDraft {
@@ -141,11 +133,19 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
 }
 
 const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
+  { key: "profile", label: "프로필" },
   { key: "shop", label: "매장 정보" },
   { key: "alerts", label: "알림 설정" },
 ];
 
 const initialSettings: Record<SettingsTabKey, SettingsTab> = {
+  profile: {
+    key: "profile",
+    label: "프로필",
+    title: "프로필",
+    description: "",
+    rows: [],
+  },
   shop: {
     key: "shop",
     label: "매장 정보",
@@ -164,6 +164,48 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         label: "매장 소개",
         value: "",
         description: "고객 예약 화면에 보여지는 짧은 소개",
+        control: "text",
+      },
+      {
+        id: "showcaseTitle",
+        label: "자랑 제목",
+        value: "",
+        description: "고객 프런트에 보여줄 매장 강점 제목",
+        control: "text",
+      },
+      {
+        id: "showcaseBody",
+        label: "자랑 문구",
+        value: "",
+        description: "고객 프런트에 보여줄 매장 강점 설명",
+        control: "text",
+      },
+      {
+        id: "instagramUrl",
+        label: "인스타그램",
+        value: "",
+        description: "고객에게 노출할 인스타그램 링크",
+        control: "text",
+      },
+      {
+        id: "kakaoChannelUrl",
+        label: "카카오 채널",
+        value: "",
+        description: "고객에게 노출할 카카오톡/채널 링크",
+        control: "text",
+      },
+      {
+        id: "tiktokUrl",
+        label: "틱톡",
+        value: "",
+        description: "고객에게 노출할 틱톡 링크",
+        control: "text",
+      },
+      {
+        id: "threadsUrl",
+        label: "쓰레드",
+        value: "",
+        description: "고객에게 노출할 Threads 링크",
         control: "text",
       },
       {
@@ -212,8 +254,8 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       {
         id: "slotPolicy",
         label: "승인 방식",
-        value: "바로 승인 1건 / 직접 승인 대기 1건",
-        description: "확정 예약은 같은 시간에 1건만 가능하고, 직접 승인 모드에서는 승인 대기로 접수됩니다.",
+        value: "같은 시간대 1건만 접수",
+        description: "확정 예약과 승인대기 예약 모두 같은 시간 구간에 1건만 받을 수 있습니다.",
         control: "readonly",
       },
       {
@@ -223,14 +265,6 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         description: "예약 요청 후 오너가 직접 확정하는 운영 방식",
         control: "select",
         options: ["직접 승인", "바로 승인"],
-      },
-      {
-        id: "pendingHoldLimit",
-        label: "승인대기 접수 방식",
-        value: "중복 예약 1건만 받기",
-        description: "직접 승인일 때 같은 시간대에 받을 승인대기 예약 수",
-        control: "select",
-        options: ["중복 예약 X", "중복 예약 1건만 받기", "중복 예약 2건 이상 받기"],
       },
       {
         id: "cancelWindow",
@@ -318,6 +352,12 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
       rows: settings.shop.rows.map((row) => {
         if (row.id === "shopName") return { ...row, value: shop.name };
         if (row.id === "description") return { ...row, value: shop.description ?? "" };
+        if (row.id === "showcaseTitle") return { ...row, value: shop.customer_page_settings.showcase_title || "" };
+        if (row.id === "showcaseBody") return { ...row, value: shop.customer_page_settings.showcase_body || "" };
+        if (row.id === "instagramUrl") return { ...row, value: shop.customer_page_settings.social_links?.instagram_url || "" };
+        if (row.id === "kakaoChannelUrl") return { ...row, value: shop.customer_page_settings.social_links?.kakao_channel_url || "" };
+        if (row.id === "tiktokUrl") return { ...row, value: shop.customer_page_settings.social_links?.tiktok_url || "" };
+        if (row.id === "threadsUrl") return { ...row, value: shop.customer_page_settings.social_links?.threads_url || "" };
         if (row.id === "businessCategory") return { ...row, value: shop.customer_page_settings.business_category || "애견미용" };
         if (row.id === "phone") return { ...row, value: shop.phone };
         if (row.id === "additionalContact") return { ...row, value: shop.customer_page_settings.additional_contact || "" };
@@ -325,9 +365,6 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
         if (row.id === "address") return { ...row, value: shop.address };
         if (row.id === "addressDetail") return { ...row, value: shop.customer_page_settings.address_detail || "" };
         if (row.id === "approvalMode") return { ...row, value: approvalModeLabel(shop.approval_mode) };
-        if (row.id === "pendingHoldLimit") {
-          return { ...row, value: pendingHoldLimitLabel(shop.reservation_policy_settings?.pending_hold_limit) };
-        }
         if (row.id === "cancelWindow") {
           return { ...row, value: cancelWindowLabel(shop.reservation_policy_settings?.cancel_window) };
         }
@@ -388,6 +425,14 @@ function readShopProfileFromSettings(settings: Record<SettingsTabKey, SettingsTa
     phone: String(rows.find((row) => row.id === "phone")?.value ?? "").trim(),
     address: String(rows.find((row) => row.id === "address")?.value ?? "").trim(),
     description: String(rows.find((row) => row.id === "description")?.value ?? "").trim(),
+    showcaseTitle: String(rows.find((row) => row.id === "showcaseTitle")?.value ?? "").trim(),
+    showcaseBody: String(rows.find((row) => row.id === "showcaseBody")?.value ?? "").trim(),
+    socialLinks: {
+      instagram_url: String(rows.find((row) => row.id === "instagramUrl")?.value ?? "").trim(),
+      kakao_channel_url: String(rows.find((row) => row.id === "kakaoChannelUrl")?.value ?? "").trim(),
+      tiktok_url: String(rows.find((row) => row.id === "tiktokUrl")?.value ?? "").trim(),
+      threads_url: String(rows.find((row) => row.id === "threadsUrl")?.value ?? "").trim(),
+    },
     businessCategory: String(rows.find((row) => row.id === "businessCategory")?.value ?? "").trim(),
     additionalContact: String(rows.find((row) => row.id === "additionalContact")?.value ?? "").trim(),
     postalCode: String(rows.find((row) => row.id === "postalCode")?.value ?? "").trim(),
@@ -400,7 +445,7 @@ function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab
   return {
     approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
     cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
-    pendingHoldLimit: pendingHoldLimitFromLabel(String(rows.find((row) => row.id === "pendingHoldLimit")?.value ?? "")),
+    pendingHoldLimit: 1,
   };
 }
 
@@ -764,7 +809,9 @@ export default function SettingsManagementScreen({
   showTabNavigation = true,
   shop,
   services = [],
+  ownerProfile,
   onShopChange,
+  onOwnerProfileChange,
   onServicesChange,
   persistShopProfile = true,
   manualApprovalEnabled,
@@ -775,7 +822,9 @@ export default function SettingsManagementScreen({
   showTabNavigation?: boolean;
   shop?: Shop;
   services?: Service[];
+  ownerProfile?: OwnerProfile | null;
   onShopChange?: (shop: Shop) => void;
+  onOwnerProfileChange?: (profile: OwnerProfile) => void;
   onServicesChange?: (services: Service[]) => void;
   persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
@@ -854,7 +903,7 @@ export default function SettingsManagementScreen({
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const current = useMemo(() => {
-    return draftSettings[activeTab];
+    return draftSettings[activeTab] ?? initialSettings[activeTab];
   }, [activeTab, draftSettings]);
   const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(services, { priceGuideOnly: true }), [services]);
   const customerServiceConnectionOptions = useMemo(
@@ -879,6 +928,9 @@ export default function SettingsManagementScreen({
       "businessCategory" in profilePatch && typeof profilePatch.businessCategory === "string" ? profilePatch.businessCategory : "";
     const additionalContact =
       "additionalContact" in profilePatch && typeof profilePatch.additionalContact === "string" ? profilePatch.additionalContact : "";
+    const showcaseTitle = "showcaseTitle" in profilePatch && typeof profilePatch.showcaseTitle === "string" ? profilePatch.showcaseTitle : "";
+    const showcaseBody = "showcaseBody" in profilePatch && typeof profilePatch.showcaseBody === "string" ? profilePatch.showcaseBody : "";
+    const socialLinks = "socialLinks" in profilePatch && profilePatch.socialLinks ? profilePatch.socialLinks : {};
     const postalCode = "postalCode" in profilePatch && typeof profilePatch.postalCode === "string" ? profilePatch.postalCode : "";
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
@@ -904,6 +956,9 @@ export default function SettingsManagementScreen({
         ...shop.customer_page_settings,
         shop_name: profileName || shop.customer_page_settings.shop_name,
         tagline,
+        showcase_title: showcaseTitle,
+        showcase_body: showcaseBody,
+        social_links: socialLinks,
         hero_image_url: heroImageUrl,
         hero_image_urls: heroImageUrls,
         business_category: businessCategory || shop.customer_page_settings.business_category,
@@ -939,6 +994,9 @@ export default function SettingsManagementScreen({
           shopId: shop.id,
           ...profilePatch,
           tagline,
+          showcaseTitle,
+          showcaseBody,
+          socialLinks,
           heroImageUrl,
           heroImageUrls,
           ...(policyPatch ?? {}),
@@ -1224,8 +1282,9 @@ export default function SettingsManagementScreen({
   }
 
   const addressValue = String(draftSettings.shop.rows.find((row) => row.id === "address")?.value ?? "");
-  const currentBusinessHoursRow = current.rows.find((row) => row.id === "businessHours");
-  const currentClosedDayRow = current.rows.find((row) => row.id === "closedDay");
+  const currentRows = current?.rows ?? [];
+  const currentBusinessHoursRow = currentRows.find((row) => row.id === "businessHours");
+  const currentClosedDayRow = currentRows.find((row) => row.id === "closedDay");
   const businessHoursRow = draftSettings.hours.rows.find((row) => row.id === "businessHours");
   const closedDayRow = draftSettings.hours.rows.find((row) => row.id === "closedDay");
 
@@ -1355,6 +1414,13 @@ export default function SettingsManagementScreen({
             <SettingsAlertsPanel
               value={alertSettings}
               onChange={updateAlertSettings}
+            />
+          ) : activeTab === "profile" ? (
+            <OwnerProfileSettingsPanel
+              shop={shop}
+              ownerProfile={ownerProfile}
+              persistToSupabase={persistShopProfile}
+              onOwnerProfileChange={onOwnerProfileChange}
             />
           ) : activeTab === "hours" && currentBusinessHoursRow && currentClosedDayRow ? (
             <OperatingHoursSettings

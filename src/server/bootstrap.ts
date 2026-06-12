@@ -22,6 +22,7 @@ import type {
   LandingInterest,
   Pet,
   PetStaffNote,
+  OwnerProfile,
   Service,
   Shop,
   AlimtalkCreditSummary,
@@ -131,6 +132,7 @@ type StaffMemberRow = {
   name: string;
   display_name?: string | null;
   profile_image_url?: string | null;
+  chip_color_index?: number | null;
   phone: string | null;
   role: string;
   title_prefix?: string | null;
@@ -148,6 +150,36 @@ type StaffScheduleOverrideRow = Omit<StaffScheduleOverride, "work_date" | "start
   end_time: string | null;
 };
 
+type OwnerProfileRow = {
+  user_id: string;
+  shop_id: string;
+  login_id: string;
+  name: string;
+  birth_date: string | null;
+  phone_number: string | null;
+  identity_verified_at?: string | null;
+  agreements?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function normalizeOwnerProfile(row: OwnerProfileRow | null | undefined): OwnerProfile | null {
+  if (!row) return null;
+
+  return {
+    user_id: row.user_id,
+    shop_id: row.shop_id,
+    login_id: row.login_id,
+    name: row.name,
+    birth_date: row.birth_date ?? null,
+    phone_number: row.phone_number ?? null,
+    identity_verified_at: row.identity_verified_at ?? null,
+    agreements: row.agreements ?? {},
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function normalizeTime(value: string | null | undefined) {
   return (value ?? "").slice(0, 5) || "10:00";
 }
@@ -158,6 +190,7 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
     profileImageUrl: row.profile_image_url?.trim() || "",
+    chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
     role: row.role,
     titlePrefix: row.title_prefix?.trim() || "",
@@ -178,6 +211,7 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
     name: "원장",
     displayName: "원장",
     profileImageUrl: "",
+    chipColorIndex: 0,
     phone: shop.phone ?? "",
     role: "원장 / 전체 미용",
     position: "원장",
@@ -217,6 +251,7 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
     message.includes("staff_members") &&
     (message.includes("display_name") ||
       message.includes("profile_image_url") ||
+      message.includes("chip_color_index") ||
       message.includes("title_prefix") ||
       message.includes("position") ||
       message.includes("schema cache"))
@@ -291,8 +326,13 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     .select("*")
     .eq("shop_id", shopId)
     .order("updated_at", { ascending: false });
+  const ownerProfileQuery = supabase
+    .from("owner_profiles")
+    .select("user_id,shop_id,login_id,name,birth_date,phone_number,identity_verified_at,agreements,created_at,updated_at")
+    .eq("shop_id", shopId)
+    .maybeSingle();
 
-  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes] =
+  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
     await Promise.all([
       supabase.from("shops").select("*").eq("id", shopId).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
@@ -300,7 +340,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
       supabase
         .from("staff_members")
-        .select("id,name,display_name,profile_image_url,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
+        .select("id,name,display_name,profile_image_url,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("sort_order")
@@ -317,6 +357,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       feedbackQuery,
       alimtalkCreditSummaryQuery,
       petStaffNotesQuery,
+      ownerProfileQuery,
     ]);
 
   if (shopRes.error || !shopRes.data) {
@@ -373,6 +414,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   return normalizeBootstrapNotifications({
     mode: "supabase",
     shop: normalizedShop,
+    ownerProfile: ownerProfileRes.error ? null : normalizeOwnerProfile(ownerProfileRes.data as OwnerProfileRow | null),
     guardians: activeGuardians,
     deletedGuardians,
     pets: ((petsRes.data ?? []) as Pet[]).filter((pet) => activeGuardianIds.has(pet.guardian_id)),

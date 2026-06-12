@@ -905,7 +905,7 @@ export default function CustomerBookingPage({
               : "예약 시간을 선택해 주세요",
         message:
           firstVisitStep === 1
-            ? "보호자 이름, 연락처, 반려동물 이름, 품종을 입력하면 예약 요청을 보낼 수 있어요."
+            ? "보호자 이름, 연락처, 아기 이름, 품종을 입력하면 예약 요청을 보낼 수 있어요."
             : "필수 정보를 선택한 뒤 다시 눌러 주세요.",
         action: "dismiss",
       });
@@ -1003,7 +1003,7 @@ export default function CustomerBookingPage({
       const guardianPets = result.pets.filter((item) => item.guardian_id === guardian.id);
       if (guardianPets.length === 0) {
         setReturningHistory(null);
-        setReturningError("등록된 반려동물 정보를 찾지 못했어요. 매장에 문의해 주세요.");
+        setReturningError("등록된 아기 정보를 찾지 못했어요. 매장에 문의해 주세요.");
         return;
       }
 
@@ -1098,7 +1098,7 @@ export default function CustomerBookingPage({
   return (
     <>
       <div
-        className="mx-auto w-full max-w-[430px] bg-[var(--background)]"
+        className="mx-auto min-h-[100dvh] w-full max-w-[430px] bg-[var(--background)]"
         style={{
           "--background": "#ffffff",
           "--surface": "#fffaf8",
@@ -1190,7 +1190,7 @@ export default function CustomerBookingPage({
                     onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(event.target.value) }))}
                   />
                 </BookingFieldCard>
-                <BookingFieldCard label="반려동물 이름">
+                <BookingFieldCard label="아기 이름">
                   <BookingTextInput
                     value={returningVisit.petName}
                     onChange={(event) => setReturningVisit((prev) => ({ ...prev, petName: event.target.value }))}

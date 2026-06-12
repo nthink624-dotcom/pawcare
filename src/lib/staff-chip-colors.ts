@@ -8,7 +8,7 @@ export type StaffChipTone = {
   badgeText: string;
 };
 
-const staffChipPalette: StaffChipTone[] = [
+export const staffChipPalette: StaffChipTone[] = [
   {
     border: "#f2b84b",
     background: "#fff8e8",
@@ -91,7 +91,12 @@ function hashStaffKey(value: string) {
   return hash;
 }
 
-export function getStaffChipTone(staffKey: string | null | undefined, paletteIndex?: number) {
+export function normalizeStaffChipColorIndex(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.abs(Math.trunc(value)) % staffChipPalette.length;
+}
+
+export function getStaffChipTone(staffKey: string | null | undefined, paletteIndex?: number | null) {
   if (!staffKey) {
     return {
       border: "#dbe2ea",
@@ -104,8 +109,9 @@ export function getStaffChipTone(staffKey: string | null | undefined, paletteInd
     } satisfies StaffChipTone;
   }
 
-  if (typeof paletteIndex === "number") {
-    return staffChipPalette[paletteIndex % staffChipPalette.length]!;
+  const normalizedPaletteIndex = normalizeStaffChipColorIndex(paletteIndex);
+  if (normalizedPaletteIndex !== null) {
+    return staffChipPalette[normalizedPaletteIndex]!;
   }
 
   return staffChipPalette[hashStaffKey(staffKey) % staffChipPalette.length]!;

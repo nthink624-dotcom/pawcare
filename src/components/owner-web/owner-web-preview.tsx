@@ -8,7 +8,7 @@ import {
   Store,
 } from "lucide-react";
 import Image from "next/image";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
 
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
@@ -30,7 +30,7 @@ import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { BootstrapPayload } from "@/types/domain";
+import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
 
 const screenIconPaths: Record<OwnerWebScreenKey, string> = {
   schedule: "/icons/phosphor/clipboard-text.svg",
@@ -40,6 +40,7 @@ const screenIconPaths: Record<OwnerWebScreenKey, string> = {
   customers: "/icons/phosphor/user-circle.svg",
   services: "/icons/phosphor/projector-screen-chart.svg",
   staff: "/icons/phosphor/users.svg",
+  ownerProfile: "/icons/phosphor/user-circle.svg",
   shopInfo: "/icons/phosphor/storefront.svg",
   operatingHours: "/icons/phosphor/clock.svg",
   alerts: "/icons/phosphor/bell.svg",
@@ -101,13 +102,15 @@ function AlimtalkCreditMenu({
   summary,
   open,
   onToggle,
+  containerRef,
 }: {
   summary: BootstrapPayload["alimtalkCreditSummary"];
   open: boolean;
   onToggle: () => void;
+  containerRef?: RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <div className="relative hidden lg:block">
+    <div ref={containerRef} className="relative hidden lg:block">
       <button
         type="button"
         onClick={onToggle}
@@ -118,12 +121,11 @@ function AlimtalkCreditMenu({
         <KakaoTalkIconMark />
       </button>
       {open ? (
-        <div className="absolute right-0 top-11 w-[218px] rounded-[8px] border border-[#dbe2ea] bg-white p-3 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+        <div className="fixed right-[276px] top-3 z-[80] w-[218px] rounded-[8px] border border-[#dbe2ea] bg-white p-3 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
           <div className="flex items-center gap-2 border-b border-[#edf2f7] pb-2.5">
             <KakaoTalkIconMark />
             <div>
               <p className="text-[13px] font-semibold text-[#111827]">알림톡 잔여 건수</p>
-              <p className="mt-0.5 text-[11px] text-[#64748b]">무료분과 결제분을 따로 봅니다.</p>
             </div>
           </div>
           <div className="mt-3 space-y-2">
@@ -147,6 +149,7 @@ function AlimtalkCreditMenu({
 }
 
 function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null {
+  if (screen === "ownerProfile") return "profile";
   if (screen === "shopInfo") return "shop";
   if (screen === "operatingHours") return "hours";
   if (screen === "alerts") return "alerts";
@@ -154,6 +157,7 @@ function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null 
 }
 
 const screenBySettingsTab: Record<SettingsTabKey, OwnerWebScreenKey> = {
+  profile: "ownerProfile",
   shop: "shopInfo",
   hours: "operatingHours",
   alerts: "alerts",
@@ -166,6 +170,7 @@ function renderScreen(
   initialData: BootstrapPayload,
   onDataChange: (data: BootstrapPayload) => void,
   onShopChange: (shop: BootstrapPayload["shop"]) => void,
+  onOwnerProfileChange: (profile: OwnerProfile) => void,
   staffMembers: OwnerWebStaffMember[],
   onStaffMembersChange: (staff: OwnerWebStaffMember[]) => void | Promise<void>,
   createRequest: OwnerScheduleCreateRequest | null,
@@ -196,7 +201,7 @@ function renderScreen(
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
-      return <CalendarRecordsScreen initialData={initialData} />;
+      return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} />;
     case "services":
       return (
         <ServiceManagementScreen
@@ -221,6 +226,7 @@ function renderScreen(
       );
     case "shopInfo":
     case "operatingHours":
+    case "ownerProfile":
     case "alerts":
       return (
         <SettingsManagementScreen
@@ -228,7 +234,9 @@ function renderScreen(
           showTabNavigation={false}
           shop={initialData.shop}
           services={initialData.services}
+          ownerProfile={initialData.ownerProfile ?? null}
           onShopChange={onShopChange}
+          onOwnerProfileChange={onOwnerProfileChange}
           onServicesChange={(services: BootstrapPayload["services"]) => onDataChange({ ...initialData, services })}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}
@@ -257,6 +265,7 @@ export default function OwnerWebPreview({
   const [ownerData, setOwnerData] = useState(initialData);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
+  const alimtalkCreditMenuRef = useRef<HTMLDivElement | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
@@ -324,6 +333,20 @@ export default function OwnerWebPreview({
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [storeMenuOpen]);
+
+  useEffect(() => {
+    if (!alimtalkCreditMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (alimtalkCreditMenuRef.current?.contains(target)) return;
+      setAlimtalkCreditMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [alimtalkCreditMenuOpen]);
 
   function handleManualApprovalChange(enabled: boolean) {
     setManualApprovalEnabled(enabled);
@@ -424,6 +447,14 @@ export default function OwnerWebPreview({
     setAlimtalkCreditMenuOpen(false);
   }
 
+  function handleOwnerProfileChange(profile: OwnerProfile) {
+    setOwnerData((current) => {
+      const nextData = { ...current, ownerProfile: profile };
+      onDataChange?.(nextData);
+      return nextData;
+    });
+  }
+
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -453,6 +484,7 @@ export default function OwnerWebPreview({
           <AlimtalkCreditMenu
             summary={ownerData.alimtalkCreditSummary}
             open={alimtalkCreditMenuOpen}
+            containerRef={alimtalkCreditMenuRef}
             onToggle={() => {
               setAlimtalkCreditMenuOpen((current) => !current);
               setStoreMenuOpen(false);
@@ -492,6 +524,9 @@ export default function OwnerWebPreview({
               </button>
             {storeMenuOpen ? (
               <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+                <button type="button" onClick={() => openSettingsTab("profile")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                  프로필
+                </button>
                 <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                   매장 정보
                 </button>
@@ -538,7 +573,7 @@ export default function OwnerWebPreview({
                           <PhosphorSidebarIcon screen={screen.key} active={active} />
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[16px] font-normal leading-[22px]">{screen.label}</span>
+                          <span className="block text-[16px] font-medium leading-[22px]">{screen.label}</span>
                         </span>
                       </button>
                     </div>
@@ -550,7 +585,7 @@ export default function OwnerWebPreview({
               <button
                 type="button"
                 onClick={() => openSettingsTab("alerts")}
-                className="flex h-10 w-full items-center gap-2.5 rounded-[10px] bg-[#5E6366]/10 px-3.5 text-left text-[16px] font-normal text-[#1C1D22] transition hover:bg-[#5E6366]/15"
+                className="flex h-10 w-full items-center gap-2.5 rounded-[10px] bg-[#5E6366]/10 px-3.5 text-left text-[16px] font-medium text-[#1C1D22] transition hover:bg-[#5E6366]/15"
               >
                 <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={2} />
                 <span className="min-w-0 truncate">문의하기</span>
@@ -565,6 +600,7 @@ export default function OwnerWebPreview({
               <AlimtalkCreditMenu
                 summary={ownerData.alimtalkCreditSummary}
                 open={alimtalkCreditMenuOpen}
+                containerRef={alimtalkCreditMenuRef}
                 onToggle={() => {
                   setAlimtalkCreditMenuOpen((current) => !current);
                   setStoreMenuOpen(false);
@@ -604,6 +640,9 @@ export default function OwnerWebPreview({
                 </button>
                 {storeMenuOpen ? (
                   <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
+                    <button type="button" onClick={() => openSettingsTab("profile")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
+                      프로필
+                    </button>
                     <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
                       매장 정보
                     </button>
@@ -641,6 +680,7 @@ export default function OwnerWebPreview({
               ownerData,
               setOwnerData,
               handleShopProfileChange,
+              handleOwnerProfileChange,
               staffMembers,
               handleStaffMembersChange,
               scheduleCreateRequest,

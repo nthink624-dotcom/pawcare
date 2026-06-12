@@ -81,6 +81,14 @@ export type CustomerPageSettings = {
   tagline: string;
   hero_image_url: string;
   hero_image_urls?: string[];
+  showcase_title?: string;
+  showcase_body?: string;
+  social_links?: {
+    instagram_url?: string;
+    kakao_channel_url?: string;
+    tiktok_url?: string;
+    threads_url?: string;
+  };
   primary_color: string;
   notices: string[];
   operating_hours_note: string;
@@ -117,12 +125,14 @@ export type BookingBlockedWindow = {
   label?: string;
 };
 
+export type RegularClosedCycle = "weekly" | "biweekly" | "monthly_1_3" | "monthly_2_4";
+
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
-  pending_hold_limit?: 1 | 2 | 3;
+  pending_hold_limit?: 1;
   booking_blocked_windows?: BookingBlockedWindow[];
-  regular_closed_cycle?: "weekly" | "biweekly";
+  regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
 };
 
@@ -146,7 +156,7 @@ export type Shop = {
   description: string;
   business_hours: BusinessHours;
   regular_closed_days: number[];
-  regular_closed_cycle?: "weekly" | "biweekly";
+  regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
   temporary_closed_dates: string[];
   concurrent_capacity: number;
@@ -158,6 +168,19 @@ export type Shop = {
   reservation_policy_settings?: ReservationPolicySettings;
   notification_settings: ShopNotificationSettings;
   customer_page_settings: CustomerPageSettings;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OwnerProfile = {
+  user_id: string;
+  shop_id: string;
+  login_id: string;
+  name: string;
+  birth_date: string | null;
+  phone_number: string | null;
+  identity_verified_at?: string | null;
+  agreements?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };
@@ -267,6 +290,7 @@ export type BootstrapStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  chipColorIndex?: number | null;
   phone: string;
   role: string;
   titlePrefix?: string;
@@ -443,6 +467,7 @@ export type LandingFeedback = {
 export type BootstrapPayload = {
   mode: "mock" | "supabase";
   shop: Shop;
+  ownerProfile?: OwnerProfile | null;
   guardians: Guardian[];
   deletedGuardians?: Guardian[];
   pets: Pet[];

@@ -16,7 +16,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffChipTone } from "@/lib/staff-chip-colors";
 import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
@@ -51,34 +50,23 @@ type BookingCompletion = {
 };
 
 const CUSTOM_SERVICE_ID = "__custom__";
-const popularBreedChips = ["말티즈", "푸들", "포메라니안", "비숑", "시츄", "믹스", "치와와", "말티푸", "요크셔테리어"];
-
-function getHeroImage(shop: Shop) {
-  const heroImages = shop.customer_page_settings?.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ?? [];
-  return heroImages[0] || shop.customer_page_settings?.hero_image_url || "/images/customer-booking-hero-original.jpg";
-}
-
-function getShopDisplayName(shop: Shop) {
-  return shop.name;
-}
-
-function getTodayOperatingLabel(shop: Shop) {
-  const today = new Date().getDay();
-  const hours = getBusinessHoursForWeekday(shop, today);
-  if (!hours?.enabled) return "휴무";
-
-  const [openHour, openMinute] = hours.open.slice(0, 5).split(":").map(Number);
-  const [closeHour, closeMinute] = hours.close.slice(0, 5).split(":").map(Number);
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const openMinutes = openHour * 60 + openMinute;
-  const closeMinutes = closeHour * 60 + closeMinute;
-
-  if (!Number.isFinite(openMinutes) || !Number.isFinite(closeMinutes)) return "영업 정보";
-  if (nowMinutes < openMinutes) return "영업 전";
-  if (nowMinutes >= closeMinutes) return "영업 종료";
-  return "영업 중";
-}
+const popularBreedChips = [
+  "말티즈",
+  "푸들",
+  "포메라니안",
+  "비숑",
+  "시츄",
+  "믹스",
+  "치와와",
+  "말티푸",
+  "요크셔테리어",
+  "스피츠",
+  "슈나우저",
+  "코카스파니엘",
+  "닥스훈트",
+  "웰시코기",
+  "보더콜리",
+];
 
 function formatDurationRange(minutes: number) {
   if (!Number.isFinite(minutes) || minutes <= 0) return "상담 후 안내";
@@ -158,7 +146,7 @@ function buildFallbackRecommendedSlots(shop: Shop, date: string, availableSlots:
 }
 
 function BookingShell({ children }: { children: ReactNode }) {
-  return <div className="bg-white px-3 pb-[94px] pt-0 text-[#2b241f]">{children}</div>;
+  return <div className="min-h-[100dvh] bg-white px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-0 text-[#2b241f]">{children}</div>;
 }
 
 function BookingStepHeader({ title, subtitle, step, onBack }: { title: string; subtitle: string; step: FirstVisitStep; onBack: () => void }) {
@@ -226,34 +214,6 @@ function StepBodyCard({ children }: { children: ReactNode }) {
 
 function StepSectionBlock({ children, className }: { children: ReactNode; className?: string }) {
   return <section className={cn("px-1", className)}>{children}</section>;
-}
-
-function ShopIntroBlock({ shop, onOpenShopInfo }: { shop: Shop; onOpenShopInfo: () => void }) {
-  const operatingLabel = getTodayOperatingLabel(shop);
-  const isOpen = operatingLabel === "영업 중";
-
-  return (
-    <section className="mt-2">
-      <div className="aspect-[16/9] overflow-hidden rounded-[14px] bg-[#FFF6E6]">
-        <img src={getHeroImage(shop)} alt={`${getShopDisplayName(shop)} 매장 이미지`} className="h-full w-full object-cover object-center" />
-      </div>
-      <div className="px-1 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 truncate text-[21px] font-medium tracking-[-0.04em] text-[#2b241f]">{getShopDisplayName(shop)}</h1>
-          <button
-            type="button"
-            onClick={onOpenShopInfo}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[16px] font-normal text-[#2f7866]"
-            aria-label="전체 영업시간 보기"
-          >
-            <span className={cn("h-2 w-2 rounded-full", isOpen ? "bg-[#2f7866]" : "bg-[#b9c3cf]")} />
-            {operatingLabel}
-            <ChevronRight className="h-3.5 w-3.5 text-[#C46A00]" />
-          </button>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 function FooterActions({
@@ -488,7 +448,6 @@ export default function CustomerFirstVisitFlow({
   onStepBack,
   onNext,
   onSubmit,
-  onOpenShopInfo,
   onServiceSelect,
   onStaffSelect,
   onDateSelect,
@@ -839,9 +798,8 @@ export default function CustomerFirstVisitFlow({
           <>
             <StepBodyCard>
             <PlainStepHeader title="예약자 정보" step={1} onBack={onStepBack} showBack={false} />
-            <ShopIntroBlock shop={shop} onOpenShopInfo={onOpenShopInfo} />
 
-            <div className="mt-1 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
                   <UserRound className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
@@ -872,7 +830,7 @@ export default function CustomerFirstVisitFlow({
               <label className="block">
                 <span className="flex items-center gap-2 text-[16px] font-medium text-[#2b241f]">
                   <PawPrint className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
-                  반려동물 이름
+                  아기 이름
                 </span>
                 <input
                   value={firstVisit.petName}

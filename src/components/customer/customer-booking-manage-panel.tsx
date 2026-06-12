@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
 
 import { fetchApiJson } from "@/lib/api";
+import { isShopClosedOnDate } from "@/lib/availability";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
@@ -86,12 +87,10 @@ function buildDateOptions(shop: Shop): DateOption[] {
   const todayDate = parseISO(`${today}T00:00:00`);
   let offset = 0;
 
-  while (options.length < 8 && offset < 45) {
-    const date = addDays(todayDate, offset);
-    const value = format(date, "yyyy-MM-dd");
-    const weekdayNumber = date.getDay();
-    const hours = shop.business_hours[weekdayNumber];
-    const isClosed = shop.regular_closed_days.includes(weekdayNumber) || shop.temporary_closed_dates.includes(value) || !hours?.enabled;
+    while (options.length < 8 && offset < 45) {
+      const date = addDays(todayDate, offset);
+      const value = format(date, "yyyy-MM-dd");
+      const isClosed = isShopClosedOnDate(shop, value);
 
     if (!isClosed) {
       options.push({

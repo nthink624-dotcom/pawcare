@@ -7,8 +7,8 @@ export const defaultBookingAvailableStartTime = "10:00";
 export const defaultBookingAvailableEndTime = "17:00";
 export const confirmedSlotCapacity = 1;
 export const manualPendingHoldCapacity = 1;
-export const defaultManualPendingHoldLimit = 2;
-export const maxManualPendingHoldCapacity = 3;
+export const defaultManualPendingHoldLimit = 1;
+export const maxManualPendingHoldCapacity = 1;
 export const defaultConcurrentCapacity = confirmedSlotCapacity;
 
 export function concurrentCapacityForApprovalMode(approvalMode: "manual" | "auto" | null | undefined) {

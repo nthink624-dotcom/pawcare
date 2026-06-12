@@ -173,7 +173,7 @@ export const shopSettingsSchema = z.object({
   bookingAvailableEndTime: z.string().regex(timePattern).default("17:00"),
   approvalMode: z.enum(["manual", "auto"]),
   regularClosedDays: z.array(z.number().min(0).max(6)),
-  regularClosedCycle: z.enum(["weekly", "biweekly"]).default("weekly"),
+  regularClosedCycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).default("weekly"),
   regularClosedAnchorDate: z.string().nullable().optional().default(null),
   temporaryClosedDates: z.array(z.string()),
   businessHours: z.record(
@@ -188,9 +188,9 @@ export const shopSettingsSchema = z.object({
     .object({
       cancel_window: z.enum(["none", "1h", "2h", "6h", "24h"]).default("2h"),
       customer_change_enabled: z.boolean().default(true),
-      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(2),
+      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(1).transform(() => 1 as const),
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
-      regular_closed_cycle: z.enum(["weekly", "biweekly"]).optional(),
+      regular_closed_cycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),
     })
     .optional(),

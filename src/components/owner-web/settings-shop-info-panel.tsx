@@ -2,7 +2,7 @@
 
 import { ImagePlus, Info } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
 import { cn } from "@/lib/utils";
@@ -40,10 +40,6 @@ function rowValue(rows: ShopInfoSettingRow[], rowId: string) {
   return String(rows.find((row) => row.id === rowId)?.value ?? "");
 }
 
-function rowOptions(rows: ShopInfoSettingRow[], rowId: string) {
-  return rows.find((row) => row.id === rowId)?.options ?? [];
-}
-
 function TextInput({
   value,
   placeholder,
@@ -69,33 +65,6 @@ function TextInput({
       onBlur={(event) => onCommit?.(event.target.value)}
       className="mt-0.5 h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
     />
-  );
-}
-
-function SelectInput({
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: {
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[linear-gradient(45deg,transparent_50%,#64748b_50%),linear-gradient(135deg,#64748b_50%,transparent_50%)] bg-[length:5px_5px,5px_5px] bg-[position:calc(100%-22px)_14px,calc(100%-17px)_14px] bg-no-repeat px-3 pr-10 text-[16px] font-medium text-[#111827] outline-none transition disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
-    >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
   );
 }
 
@@ -271,11 +240,16 @@ export default function ShopInfoSettingsPanel({
 }: ShopInfoSettingsPanelProps) {
   const shopName = rowValue(rows, "shopName");
   const description = rowValue(rows, "description");
+  const showcaseTitle = rowValue(rows, "showcaseTitle");
+  const showcaseBody = rowValue(rows, "showcaseBody");
+  const instagramUrl = rowValue(rows, "instagramUrl");
+  const kakaoChannelUrl = rowValue(rows, "kakaoChannelUrl");
+  const tiktokUrl = rowValue(rows, "tiktokUrl");
+  const threadsUrl = rowValue(rows, "threadsUrl");
   const phone = rowValue(rows, "phone");
   const address = rowValue(rows, "address");
   const addressDetail = rowValue(rows, "addressDetail");
   const approvalMode = rowValue(rows, "approvalMode");
-  const pendingHoldLimit = rowValue(rows, "pendingHoldLimit") || "以묐났 ?덉빟 1嫄대쭔 諛쏄린";
   const autoApproval = approvalMode === "諛붾줈 ?뱀씤" || approvalMode === "auto";
   const manualApproval = !autoApproval;
   const profileImages = shopProfileImages.slice(0, 10);
@@ -289,7 +263,8 @@ export default function ShopInfoSettingsPanel({
   const [activeProfileImageIndex, setActiveProfileImageIndex] = useState(0);
   const profileTouchStartXRef = useRef<number | null>(null);
   const profileDidSwipeRef = useRef(false);
-  const activeProfileImage = carouselProfileImages[Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0))] || displayedProfileImage;
+  const visibleProfileImageIndex = Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0));
+  const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] || displayedProfileImage;
   const customerPreviewShop = shop
     ? {
         ...shop,
@@ -300,16 +275,20 @@ export default function ShopInfoSettingsPanel({
         customer_page_settings: {
           ...shop.customer_page_settings,
           tagline: description || shop.customer_page_settings.tagline,
+          showcase_title: showcaseTitle,
+          showcase_body: showcaseBody,
+          social_links: {
+            instagram_url: instagramUrl,
+            kakao_channel_url: kakaoChannelUrl,
+            tiktok_url: tiktokUrl,
+            threads_url: threadsUrl,
+          },
           address_detail: addressDetail || shop.customer_page_settings.address_detail,
           hero_image_url: activeProfileImage || shop.customer_page_settings.hero_image_url,
           hero_image_urls: carouselProfileImages,
         },
       }
     : null;
-
-  useEffect(() => {
-    setActiveProfileImageIndex((current) => Math.min(current, Math.max(carouselProfileImages.length - 1, 0)));
-  }, [carouselProfileImages.length]);
 
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
     profileTouchStartXRef.current = event.touches[0]?.clientX ?? null;
@@ -341,8 +320,49 @@ export default function ShopInfoSettingsPanel({
   return (
     <div>
       <section className="rounded-[14px] border border-[#e5e7eb] bg-white p-2.5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
+            <div className="mb-3 border-b border-[#e5e7eb] px-2 pb-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">고객 프런트 노출 정보</h4>
+                <p className="text-[13px] font-normal text-[#64748b]">매장 소개 화면 상단에 노출됩니다.</p>
+              </div>
+              <div className="grid gap-x-7 gap-y-2 xl:grid-cols-2">
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+                  <AlignedFieldLabel>자랑 제목</AlignedFieldLabel>
+                  <TextInput value={showcaseTitle} maxLength={60} disabled={!editable} placeholder="예: 피부 예민한 아이도 편안하게" onChange={(value) => onRowChange("showcaseTitle", value)} onCommit={(value) => onRowCommit("showcaseTitle", value)} />
+                </label>
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                  <AlignedFieldLabel className="pt-2">자랑 문구</AlignedFieldLabel>
+                  <textarea
+                    value={showcaseBody}
+                    maxLength={220}
+                    disabled={!editable}
+                    onChange={(event) => onRowChange("showcaseBody", event.target.value)}
+                    onBlur={(event) => onRowCommit("showcaseBody", event.target.value)}
+                    className="mt-0.5 min-h-[58px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
+                    placeholder="아이 성향, 상담 방식, 매장 분위기 등을 짧게 적어주세요"
+                  />
+                </label>
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+                  <AlignedFieldLabel>인스타</AlignedFieldLabel>
+                  <TextInput value={instagramUrl} disabled={!editable} placeholder="https://instagram.com/..." onChange={(value) => onRowChange("instagramUrl", value)} onCommit={(value) => onRowCommit("instagramUrl", value)} />
+                </label>
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+                  <AlignedFieldLabel>카카오</AlignedFieldLabel>
+                  <TextInput value={kakaoChannelUrl} disabled={!editable} placeholder="https://pf.kakao.com/..." onChange={(value) => onRowChange("kakaoChannelUrl", value)} onCommit={(value) => onRowCommit("kakaoChannelUrl", value)} />
+                </label>
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+                  <AlignedFieldLabel>틱톡</AlignedFieldLabel>
+                  <TextInput value={tiktokUrl} disabled={!editable} placeholder="https://tiktok.com/..." onChange={(value) => onRowChange("tiktokUrl", value)} onCommit={(value) => onRowCommit("tiktokUrl", value)} />
+                </label>
+                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+                  <AlignedFieldLabel>쓰레드</AlignedFieldLabel>
+                  <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
+                </label>
+              </div>
+            </div>
+
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">매장 정보 설정</h4>
               {profileAction}
@@ -373,7 +393,7 @@ export default function ShopInfoSettingsPanel({
                               key={`${imageUrl}-${index}`}
                               className={cn(
                                 "h-1.5 rounded-full bg-white shadow-[0_1px_6px_rgba(0,0,0,0.18)] transition-all",
-                                activeProfileImageIndex === index ? "w-5 opacity-95" : "w-1.5 opacity-65",
+                                visibleProfileImageIndex === index ? "w-5 opacity-95" : "w-1.5 opacity-65",
                               )}
                             />
                           ))}
@@ -445,6 +465,7 @@ export default function ShopInfoSettingsPanel({
                       <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#64748b]">{description.length} / 100</span>
                     </div>
                   </label>
+
                 </div>
               </div>
 
@@ -468,7 +489,7 @@ export default function ShopInfoSettingsPanel({
                         saving && "opacity-80",
                       )}
                     >
-                      <div className={cn("grid items-center gap-2 px-2.5 py-2", manualApproval && "xl:grid-cols-[130px_minmax(210px,1fr)]")}>
+                      <div className="grid items-center gap-2 px-2.5 py-2">
                         <button
                           type="button"
                           disabled={saving}
@@ -486,17 +507,6 @@ export default function ShopInfoSettingsPanel({
                             </span>
                           </span>
                         </button>
-                        {manualApproval ? (
-                          <div className="grid min-w-0 items-center gap-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
-                            <span className="whitespace-nowrap text-[14px] font-normal text-[#64748b]">중복 예약</span>
-                            <SelectInput
-                              value={pendingHoldLimit}
-                              options={rowOptions(rows, "pendingHoldLimit").length > 0 ? rowOptions(rows, "pendingHoldLimit") : ["중복 예약 X", "중복 예약 1건만 받기", "중복 예약 2건 이상 받기"]}
-                              disabled={saving}
-                              onChange={(value) => onRowCommit("pendingHoldLimit", value)}
-                            />
-                          </div>
-                        ) : null}
                         </div>
                     </div>
                   </div>
@@ -506,7 +516,7 @@ export default function ShopInfoSettingsPanel({
               {children ? (
                 <div className="border-t border-[#e5e7eb] p-2">
                   <div className="mb-2 flex items-center gap-2">
-                    <p className="text-[16px] font-medium text-[#334155]">매장 운영시간</p>
+              <p className="text-[16px] font-medium text-[#334155]">매장 영업 시간</p>
                   </div>
                   {children}
                 </div>
@@ -520,10 +530,10 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
 
-          <aside className="min-w-0 border-t border-[#e5e7eb] pt-3 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
-            <div className="xl:sticky xl:top-5">
-              <h4 className="mb-2 text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">고객 예페 미리보기</h4>
-              <div className="relative mx-auto h-[530px] w-[260px] max-w-full">
+          <aside className="min-w-0 border-t border-[#e5e7eb] pt-3 xl:self-stretch xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
+            <div className="flex flex-col items-center xl:sticky xl:top-[max(48px,calc(50vh-350px))]">
+              <h4 className="mb-2 w-full text-center text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">미리보기</h4>
+              <div className="relative h-[530px] w-[260px] max-w-full">
                 <div className="absolute left-[16px] top-[41px] h-[468px] w-[228px] overflow-hidden rounded-[30px] bg-white">
                   <div className="pointer-events-none h-[883px] w-[430px] origin-top-left" style={{ transform: "scale(0.53)" }}>
                     {customerPreviewShop ? (

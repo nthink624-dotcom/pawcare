@@ -5,6 +5,7 @@ export type OwnerWebStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  chipColorIndex?: number | null;
   phone: string;
   role: string;
   titlePrefix?: string;
@@ -26,6 +27,7 @@ export type OwnerWebStaffColumn = {
   titlePrefix?: string;
   position?: string;
   profileImageUrl?: string;
+  chipColorIndex?: number | null;
 };
 
 export const ownerWebStaffStorageKey = "petmanager.ownerWeb.staffMembers";
@@ -151,6 +153,7 @@ export function toOwnerWebStaffColumn(staff: OwnerWebStaffMember): OwnerWebStaff
     titlePrefix: staff.titlePrefix,
     position: staff.position,
     profileImageUrl: staff.profileImageUrl,
+    chipColorIndex: staff.chipColorIndex ?? null,
   };
 }
 
@@ -172,6 +175,7 @@ export function parseStoredOwnerWebStaff(value: string | null): OwnerWebStaffMem
           ...item,
           displayName: item.displayName ?? "",
           profileImageUrl: item.profileImageUrl ?? "",
+          chipColorIndex: item.chipColorIndex ?? null,
           titlePrefix: item.titlePrefix ?? "",
           position: item.position?.trim() || item.role.split(/[/.|]/)[0]?.trim() || "스태프",
         }))

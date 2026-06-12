@@ -6,6 +6,7 @@
   | "calendarRecords"
   | "services"
   | "staff"
+  | "ownerProfile"
   | "shopInfo"
   | "operatingHours"
   | "alerts";
@@ -179,6 +180,7 @@ export const weekdayReservations = [
 ];
 
 export const settingsTabs = [
+  { key: "profile", label: "프로필" },
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
   { key: "alerts", label: "알림 설정" },

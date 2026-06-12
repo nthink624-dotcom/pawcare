@@ -124,7 +124,7 @@ function HeroSection({
 
       <div className="mt-5 grid gap-2.5">
         {canShowDemoLinks ? (
-          <Link href="/demo/owner" className={PRIMARY_BUTTON}>
+          <Link href="/demo/owner-web" className={PRIMARY_BUTTON}>
             오너 페이지 미리보기
           </Link>
         ) : null}

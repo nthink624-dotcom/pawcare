@@ -3,12 +3,14 @@
 import { ChevronDown, Copy, Navigation, Phone, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
+import CustomerShopFrontPanel from "@/components/customer/customer-shop-front-panel";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
   applyCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { isShopClosedOnDate } from "@/lib/availability";
 import { formatServicePrice } from "@/lib/utils";
 import type { BusinessHours, Service, Shop } from "@/types/domain";
 
@@ -95,7 +97,15 @@ function formatDateKey(date: Date) {
 }
 
 function buildEntryDateOptions(
-  shop: Pick<Shop, "business_hours" | "regular_closed_days" | "temporary_closed_dates">,
+  shop: Pick<
+    Shop,
+    | "business_hours"
+    | "regular_closed_days"
+    | "regular_closed_cycle"
+    | "regular_closed_anchor_date"
+    | "temporary_closed_dates"
+    | "reservation_policy_settings"
+  >,
 ): EntryDateOption[] {
   const options: EntryDateOption[] = [];
   const todayKey = getSeoulDateKey();
@@ -103,15 +113,10 @@ function buildEntryDateOptions(
   let offset = 0;
 
   while (options.length < 30 && offset < 90) {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + offset);
-    const value = formatDateKey(date);
-    const weekdayNumber = date.getDay();
-    const hours = shop.business_hours[weekdayNumber];
-    const isClosed =
-      shop.regular_closed_days.includes(weekdayNumber) ||
-      shop.temporary_closed_dates.includes(value) ||
-      !hours?.enabled;
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + offset);
+      const value = formatDateKey(date);
+      const isClosed = isShopClosedOnDate(shop, value);
 
     if (!isClosed) {
       options.push({
@@ -230,18 +235,23 @@ function formatBreedGroupTitle(title: string, serviceName: string) {
 }
 
 function getTodayOperatingStatus(
-  shop: Pick<Shop, "business_hours" | "regular_closed_days" | "temporary_closed_dates">,
+  shop: Pick<
+    Shop,
+    | "business_hours"
+    | "regular_closed_days"
+    | "regular_closed_cycle"
+    | "regular_closed_anchor_date"
+    | "temporary_closed_dates"
+    | "reservation_policy_settings"
+  >,
   currentMinutes: number,
 ) {
   const todayKey = getSeoulDateKey();
   const todayWeekday = getTodayWeekdayInSeoul();
   const hours = shop.business_hours[todayWeekday];
-  const isClosed =
-    shop.regular_closed_days.includes(todayWeekday) ||
-    shop.temporary_closed_dates.includes(todayKey) ||
-    !hours?.enabled;
+  const isClosed = isShopClosedOnDate(shop, todayKey);
 
-  if (isClosed) return { label: "휴무", open: false };
+  if (isClosed || !hours) return { label: "휴무", open: false };
 
   const openMinutes = timeTextToMinutes(hours.open);
   const closeMinutes = timeTextToMinutes(hours.close);
@@ -256,7 +266,7 @@ export default function CustomerBookingEntryPage({
   services,
   infoHref,
 }: {
-  shop: Pick<Shop, "id" | "name" | "phone" | "address" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
+  shop: Pick<Shop, "id" | "name" | "phone" | "address" | "description" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
   services: Service[];
   infoHref: string;
 }) {
@@ -309,10 +319,7 @@ export default function CustomerBookingEntryPage({
     if (serviceOptionId) href.searchParams.set("serviceOptionId", serviceOptionId);
     return `${href.pathname}${href.search}`;
   };
-
-  useEffect(() => {
-    setActiveHeroIndex((current) => Math.min(current, Math.max(heroImages.length - 1, 0)));
-  }, [heroImages.length]);
+  const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -368,7 +375,7 @@ export default function CustomerBookingEntryPage({
           onTouchStart={handleHeroTouchStart}
           onTouchEnd={handleHeroTouchEnd}
           style={{
-            backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[activeHeroIndex]})`,
+            backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[visibleHeroIndex]})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -382,7 +389,7 @@ export default function CustomerBookingEntryPage({
                   type="button"
                   aria-label={`${index + 1}번째 대표 사진 보기`}
                   onClick={() => setActiveHeroIndex(index)}
-                  className={`h-1.5 rounded-full transition ${activeHeroIndex === index ? "w-5 bg-white" : "w-1.5 bg-white/55"}`}
+                  className={`h-1.5 rounded-full transition ${visibleHeroIndex === index ? "w-5 bg-white" : "w-1.5 bg-white/55"}`}
                 />
               ))}
             </div>
@@ -430,6 +437,8 @@ export default function CustomerBookingEntryPage({
             })}
           </div>
         ) : null}
+
+        <CustomerShopFrontPanel shop={shop} kakaoInquiryUrl={kakaoInquiryUrl} bookingHref={bookingHref()} />
 
         <div className="mt-2 text-[#071923]">
           <div className="grid gap-1.5">

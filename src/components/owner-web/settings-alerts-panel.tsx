@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
@@ -42,6 +42,7 @@ type AlertItem = {
   key: AlertToggleKey;
   title: string;
   type: NotificationType;
+  role: string;
 };
 
 const visitReminderOptions = [10, 20, 30, 60] as const;
@@ -52,46 +53,61 @@ const alertItems: AlertItem[] = [
     key: "bookingConfirmedEnabled",
     title: "예약 확정",
     type: "booking_confirmed",
+    role: "오너가 예약을 확정했을 때 고객에게 방문 일시와 예약 내용을 안내합니다.",
   },
   {
     key: "bookingRejectedEnabled",
     title: "예약 거절",
     type: "booking_rejected",
+    role: "요청받은 예약을 받을 수 없을 때 고객에게 확정 불가 상태를 안내합니다.",
   },
   {
     key: "bookingCancelledEnabled",
     title: "예약 취소",
     type: "booking_cancelled",
+    role: "확정된 예약이 취소되었을 때 고객에게 취소 사실을 안내합니다.",
+  },
+  {
+    key: "bookingRescheduledEnabled",
+    title: "다른 시간 안내",
+    type: "booking_time_proposed",
+    role: "요청 시간 확정이 어려울 때 오너가 가능한 다른 시간을 제안합니다.",
   },
   {
     key: "bookingRescheduledEnabled",
     title: "예약 변경 확정",
     type: "booking_rescheduled_confirmed",
+    role: "고객 또는 오너가 변경한 예약 시간이 최종 확정되었음을 안내합니다.",
   },
   {
     key: "appointmentReminder10mEnabled",
     title: "방문 전 안내",
     type: "appointment_reminder_10m",
+    role: "예약 시간 전 고객에게 방문 준비와 도착 시간을 다시 안내합니다.",
   },
   {
     key: "groomingStartedEnabled",
     title: "미용 시작",
     type: "grooming_started",
+    role: "현장에서 미용을 시작했을 때 보호자에게 진행 시작을 알려줍니다.",
   },
   {
     key: "groomingAlmostDoneEnabled",
     title: "픽업 안내",
     type: "grooming_almost_done",
+    role: "미용 마무리 전 보호자가 데리러 올 시간을 준비하도록 안내합니다.",
   },
   {
     key: "groomingCompletedEnabled",
     title: "미용 완료",
     type: "grooming_completed",
+    role: "미용이 끝났을 때 완료 상태와 픽업 가능 상태를 안내합니다.",
   },
   {
     key: "revisitEnabled",
     title: "재방문 안내",
     type: "revisit_notice",
+    role: "이전 미용 주기를 기준으로 다음 방문 시점을 고객에게 안내합니다.",
   },
 ];
 
@@ -236,11 +252,10 @@ export default function SettingsAlertsPanel({
   value: AlertSettingsDraft;
   onChange: (value: AlertSettingsDraft) => void | Promise<void>;
 }) {
-  const [selectedAlertKey, setSelectedAlertKey] = useState<AlertItem["key"]>("appointmentReminder10mEnabled");
-  const previewItem = alertItems.find((item) => item.key === selectedAlertKey) ?? alertItems[0];
+  const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
+  const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
 
   function update(key: AlertToggleKey, checked: boolean) {
-    setSelectedAlertKey(key);
     onChange({ ...value, [key]: checked });
   }
 
@@ -321,39 +336,52 @@ export default function SettingsAlertsPanel({
               <div className="grid gap-2 lg:grid-cols-2">
                 {group.items.map((item) => {
                   const checked = Boolean(value[item.key]);
-                  const selected = previewItem.key === item.key;
+                  const selected = previewItem.type === item.type;
                   return (
-                    <div
-                      key={item.key}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedAlertKey(item.key)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedAlertKey(item.key);
-                        }
-                      }}
-                      className={cn(
-                        "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
-                        selected
-                          ? "border-[#2f7866] shadow-[0_6px_16px_rgba(47,120,102,0.08)]"
-                          : checked
-                            ? "border-[#b9d8cc]"
-                            : "border-[#dbe2ea]",
-                        value.enabled ? "hover:border-[#2f7866]" : "opacity-55",
-                      )}
-                    >
-                      <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
-                      <span onClick={(event) => event.stopPropagation()}>
-                        <Switch
-                          checked={checked}
-                          disabled={!value.enabled}
-                          aria-label={`${item.title} 알림`}
-                          onCheckedChange={(nextChecked) => update(item.key, nextChecked)}
-                        />
-                      </span>
-                    </div>
+                    <Fragment key={`${item.key}-${item.type}`}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={selected}
+                        onClick={() => setSelectedAlertType(item.type)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedAlertType(item.type);
+                          }
+                        }}
+                        className={cn(
+                          "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
+                          selected
+                            ? "border-[#2f7866] shadow-[0_6px_16px_rgba(47,120,102,0.08)]"
+                            : checked
+                              ? "border-[#b9d8cc]"
+                              : "border-[#dbe2ea]",
+                          value.enabled ? "hover:border-[#2f7866]" : "opacity-55",
+                        )}
+                      >
+                        <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
+                        <span onClick={(event) => event.stopPropagation()}>
+                          <Switch
+                            checked={checked}
+                            disabled={!value.enabled}
+                            aria-label={`${item.title} 알림`}
+                            onCheckedChange={(nextChecked) => {
+                              setSelectedAlertType(item.type);
+                              update(item.key, nextChecked);
+                            }}
+                          />
+                        </span>
+                      </div>
+                      {selected ? (
+                        <div className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 lg:col-span-2">
+                          <div className="flex gap-2 text-[15px] leading-6">
+                            <span className="shrink-0 text-[#64748b]">역할</span>
+                            <p className="min-w-0 text-[#334155]">{item.role}</p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </div>

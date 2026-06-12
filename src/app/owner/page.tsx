@@ -42,7 +42,7 @@ type OwnerAccessContext = {
 };
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
-const OWNER_LOAD_TIMEOUT_MS = 12000;
+const OWNER_LOAD_TIMEOUT_MS = 30000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
 const OWNER_BACKGROUND_REFRESH_MS = 60_000;
@@ -238,7 +238,7 @@ export default function OwnerPage() {
 
         const shops = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
-          "매장 정보를 불러오는 중 지연되고 있습니다. Supabase 또는 Vercel 환경변수를 확인해 주세요.",
+          "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
         );
         const storedShopId =
           typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
@@ -255,7 +255,7 @@ export default function OwnerPage() {
 
         const subscription = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-          "구독 정보를 확인하는 중 지연되고 있습니다. 잠시 후 다시 시도해 주세요.",
+          "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
         );
 
         if (shouldBlockOwnerAccessBySubscription(subscription)) {
@@ -266,7 +266,7 @@ export default function OwnerPage() {
 
         const bootstrap = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
-          "오너 초기 데이터를 불러오는 중 지연되고 있습니다. API 또는 Supabase 연결을 확인해 주세요.",
+          "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
         );
 
         if (!active) return;

@@ -159,6 +159,24 @@ export async function postOwnerPet(payload: unknown) {
   }
 }
 
+export async function patchOwnerPet(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<Pet>("/api/pets", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<Pet>("/api/pets", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
 export async function postOwnerService(payload: unknown) {
   try {
     return await fetchApiJsonWithAuth<Service>("/api/services", {

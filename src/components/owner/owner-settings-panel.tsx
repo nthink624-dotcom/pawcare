@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
@@ -533,11 +533,17 @@ export default function OwnerSettingsPanel({
       onSaveService({
         shopId: data.shop.id,
         serviceId: service.id,
-        name: editingServiceName,
+        name: editingServiceName.trim(),
         price: Number(editingServicePrice),
         priceType: editingServicePriceType,
         durationMinutes: Number(editingServiceDuration),
         isActive: editingServiceIsActive,
+        category: service.category ?? "미용",
+        description: service.description ?? "",
+        sortOrder: service.sort_order ?? data.services.findIndex((item) => item.id === service.id) + 1,
+        capacityLabel: service.capacity_label ?? "동일 시간 1건",
+        staffSelectionMode: service.staff_selection_mode ?? "all",
+        priceGuide: service.price_guide ?? {},
       }),
     );
     stopEditingService();
@@ -547,11 +553,17 @@ export default function OwnerSettingsPanel({
     await Promise.resolve(
       onSaveService({
         shopId: data.shop.id,
-        name: newService.name,
+        name: newService.name.trim(),
         price: Number(newService.price),
         priceType: newService.priceType,
         durationMinutes: Number(newService.duration),
         isActive: newService.isActive,
+        category: "미용",
+        description: "",
+        sortOrder: data.services.length + 1,
+        capacityLabel: "동일 시간 1건",
+        staffSelectionMode: "all",
+        priceGuide: {},
       }),
     );
     setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
@@ -1168,7 +1180,7 @@ export default function OwnerSettingsPanel({
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
-    closures: { title: "운영시간 안내", content: closuresSection },
+    closures: { title: "영업 시간 설정", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
     services: { title: "미용 요금", content: servicesSection },
     addons: { title: "부가기능", content: addonsSection },
@@ -1306,18 +1318,8 @@ export default function OwnerSettingsPanel({
         />
         <SettingsNavRow
           icon={CalendarDays}
-          title="운영시간 안내"
+          title="영업 시간 설정"
           onClick={() => updateActiveScreen("closures")}
-        />
-        <SettingsNavRow
-          icon={Bell}
-          title="알림톡 설정"
-          onClick={() => updateActiveScreen("notifications")}
-        />
-        <SettingsNavRow
-          icon={Scissors}
-          title="미용 요금"
-          onClick={() => updateActiveScreen("services")}
         />
         <SettingsNavRow
           icon={Plus}

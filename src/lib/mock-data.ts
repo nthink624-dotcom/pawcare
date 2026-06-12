@@ -68,6 +68,8 @@ export const demoShop: Shop = {
     shop_name: "데모 미용실",
     tagline: "아이 성향에 맞춘 차분한 그루밍 예약을 도와드려요.",
     hero_image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=1200&q=80",
+    showcase_title: "피부 예민한 아이도 편안하게",
+    showcase_body: "아이 성향과 컨디션을 먼저 살피고, 상담부터 마무리 안내까지 차분하게 케어해 드려요.",
     primary_color: "#1F6B5B",
     notices: [
       "첫 방문은 상담 포함으로 여유 있게 예약해 주세요.",
@@ -76,6 +78,13 @@ export const demoShop: Shop = {
     ],
     show_services: true,
     booking_button_label: "예약하기",
+    kakao_inquiry_url: "https://pf.kakao.com/_petmanager",
+    social_links: {
+      instagram_url: "https://instagram.com/petmanager.demo",
+      kakao_channel_url: "https://pf.kakao.com/_petmanager",
+      tiktok_url: "https://tiktok.com/@petmanager.demo",
+      threads_url: "https://threads.net/@petmanager.demo",
+    },
     show_kakao_inquiry: true,
   }),
   created_at: now,

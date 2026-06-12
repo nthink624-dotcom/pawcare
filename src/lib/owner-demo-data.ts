@@ -17,6 +17,7 @@ function makeAppointment(
   petId: string,
   serviceId: string,
   memo = "",
+  staffId: string | null = null,
 ): Appointment {
   const durationByService: Record<string, number> = {
     "svc-full": 120,
@@ -40,6 +41,7 @@ function makeAppointment(
     guardian_id: guardianId,
     pet_id: petId,
     service_id: serviceId,
+    staff_id: staffId,
     appointment_date: date,
     appointment_time: time,
     status,
@@ -88,10 +90,11 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
 
   const [g1, g2, g3] = base.guardians;
   const [p1, p2, p3, p4] = base.pets;
+  const ownerStaffId = "staff-1";
 
   const appointments: Appointment[] = [
-    makeAppointment("demo-a-1", dates[0], "09:00", "pending", g1.id, p1.id, "svc-full", "첫 방문 상담 포함"),
-    makeAppointment("demo-a-2", dates[0], "10:00", "pending", g2.id, p3.id, "svc-bath", "피부가 예민해요"),
+    makeAppointment("demo-a-1", dates[0], "09:30", "pending", g1.id, p1.id, "svc-care", "첫 방문 상담 포함", ownerStaffId),
+    makeAppointment("demo-a-2", dates[0], "10:15", "pending", g2.id, p3.id, "svc-care", "피부가 예민해요", ownerStaffId),
     makeAppointment("demo-a-3", dates[0], "11:00", "confirmed", g1.id, p2.id, "svc-bath-only", "짧게 정리"),
     makeAppointment("demo-a-4", dates[0], "13:00", "in_progress", g3.id, p4.id, "svc-full", "얼굴 라인 정리"),
     makeAppointment("demo-a-5", dates[0], "15:00", "almost_done", g2.id, p3.id, "svc-care", "발 관리 추가"),

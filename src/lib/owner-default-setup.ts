@@ -52,6 +52,7 @@ export function buildDefaultOwnerStaffMembers(params: {
       name: "원장",
       display_name: "원장",
       title_prefix: "",
+      chip_color_index: 0,
       phone: ownerPhone?.trim() || "",
       role: "원장 / 전체 미용",
       position: "원장",

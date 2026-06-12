@@ -16,7 +16,7 @@ export default async function BookPage({
   const encodedShopId = encodeURIComponent(shopId);
 
   if (requestedMode === "manage") {
-    const manageUrl = new URL(shopId === "demo-shop" ? "/demo/book/manage" : `/book/${encodedShopId}/manage`, "http://localhost");
+    const manageUrl = new URL(`/book/${encodedShopId}/manage`, "http://localhost");
     const accessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
 
     if (accessToken) {

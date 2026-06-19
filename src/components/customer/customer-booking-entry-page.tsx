@@ -1,10 +1,8 @@
 ﻿"use client";
 
-import { ChevronDown, Copy, Navigation, Phone, X } from "lucide-react";
+import { AtSign, ChevronDown, Copy, Instagram, MessageCircle, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
-import CustomerShopFrontPanel from "@/components/customer/customer-shop-front-panel";
-import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
   applyCustomerServiceOverrides,
@@ -12,7 +10,7 @@ import {
 } from "@/lib/customer-service-options";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { formatServicePrice } from "@/lib/utils";
-import type { BusinessHours, Service, Shop } from "@/types/domain";
+import type { BusinessHours, OwnerProfile, Service, Shop } from "@/types/domain";
 
 export const DEFAULT_HERO_IMAGES = [
   "/images/customer-booking-hero-original.jpg",
@@ -149,6 +147,12 @@ function openExternalMap(appUrl: string, webUrl: string) {
   window.location.href = appUrl;
 }
 
+function normalizeExternalHref(value: string | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 function resolveHeroImages(value: string | undefined, values?: string[]) {
   const uploadedImages = Array.isArray(values)
     ? values.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0).slice(0, 10)
@@ -264,18 +268,19 @@ function getTodayOperatingStatus(
 export default function CustomerBookingEntryPage({
   shop,
   services,
+  ownerProfile,
   infoHref,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "description" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
   services: Service[];
+  ownerProfile?: OwnerProfile | null;
   infoHref: string;
 }) {
   const settings = shop.customer_page_settings;
   const displayName = shop.name;
-  const bookingAccentColor = "#7A5A45";
+  const bookingAccentColor = "#ec7f72";
   const displayAddress = [shop.address, settings.address_detail].filter(Boolean).join(", ");
   const todayWeekday = getTodayWeekdayInSeoul();
-  const todayRow = weekRows.find((row) => row.key === todayWeekday) ?? weekRows[0];
   const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
   const operatingStatus = getTodayOperatingStatus(shop, currentSeoulMinutes);
   const serviceOptions = useMemo(
@@ -299,6 +304,11 @@ export default function CustomerBookingEntryPage({
     [services],
   );
   const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url, settings.hero_image_urls), [settings.hero_image_url, settings.hero_image_urls]);
+  const ownerProfileImage = typeof ownerProfile?.agreements?.profile_image_url === "string"
+    ? ownerProfile.agreements.profile_image_url.trim()
+    : "";
+  const featuredProfileName = ownerProfile?.name?.trim() || "오너";
+  const featuredProfileCaption = shop.description || settings.tagline || "반려동물 미용 예약";
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
@@ -309,10 +319,31 @@ export default function CustomerBookingEntryPage({
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
-  const kakaoWebUrl = `https://map.kakao.com/link/search/${encodeURIComponent(directionsQuery)}`;
-  const tmapWebUrl = `https://www.tmap.co.kr/tmap2/mobile/route.jsp?name=${encodeURIComponent(directionsQuery)}`;
-  const kakaoInquiryUrl = settings.kakao_inquiry_url.trim();
-  const inquiryHref = kakaoInquiryUrl || `tel:${shop.phone.replace(/[^0-9+]/g, "")}`;
+  const preferredMap = {
+    label: "네이버 지도에서 열기",
+    appUrl: `nmap://search?query=${encodeURIComponent(directionsQuery)}&appname=${encodeURIComponent("kr.petmanager.app")}`,
+    webUrl: naverWebUrl,
+  };
+  const socialLinks = useMemo(
+    () => [
+      {
+        key: "instagram",
+        label: "인스타그램",
+        href: normalizeExternalHref(settings.social_links?.instagram_url),
+      },
+      {
+        key: "threads",
+        label: "쓰레드",
+        href: normalizeExternalHref(settings.social_links?.threads_url),
+      },
+      {
+        key: "kakao",
+        label: "카카오톡",
+        href: normalizeExternalHref(settings.social_links?.kakao_channel_url),
+      },
+    ].filter((link) => link.href.length > 0),
+    [settings.social_links?.instagram_url, settings.social_links?.threads_url, settings.social_links?.kakao_channel_url],
+  );
   const bookingHref = (serviceId?: string, serviceOptionId?: string) => {
     const href = new URL(`/book/${encodeURIComponent(shop.id)}`, "http://localhost");
     if (serviceId) href.searchParams.set("serviceId", serviceId);
@@ -320,6 +351,7 @@ export default function CustomerBookingEntryPage({
     return `${href.pathname}${href.search}`;
   };
   const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
+  const heroDotCount = Math.min(heroImages.length, 4);
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -368,165 +400,170 @@ export default function CustomerBookingEntryPage({
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-3 pb-6 pt-3">
-      <section className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
-        <div
-          className="relative aspect-[16/9] overflow-hidden bg-[#efe7dd] text-white"
-          onTouchStart={handleHeroTouchStart}
-          onTouchEnd={handleHeroTouchEnd}
-          style={{
-            backgroundImage: `linear-gradient(180deg, rgba(42, 30, 20, 0.04), rgba(31, 24, 18, 0.36)), url(${heroImages[visibleHeroIndex]})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          <span className="sr-only">{displayName}</span>
-          {heroImages.length > 1 ? (
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-              {heroImages.map((image, index) => (
-                <button
-                  key={`${image}-${index}`}
-                  type="button"
-                  aria-label={`${index + 1}번째 대표 사진 보기`}
-                  onClick={() => setActiveHeroIndex(index)}
-                  className={`h-1.5 rounded-full transition ${visibleHeroIndex === index ? "w-5 bg-white" : "w-1.5 bg-white/55"}`}
-                />
-              ))}
-            </div>
-          ) : (
-            <div aria-hidden="true" className="absolute bottom-3 left-1/2 h-1.5 w-12 -translate-x-1/2 rounded-full bg-white/85 shadow-[0_1px_6px_rgba(0,0,0,0.18)]" />
-          )}
-        </div>
-      </section>
-
-      <section className="mt-2 rounded-[12px] border border-[#e5e7eb] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
-        <div className="px-0.5 pb-2">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <h2 className="truncate text-[21px] font-semibold tracking-[-0.04em] text-[#2b241f]">{displayName}</h2>
-              <button
-                type="button"
-                onClick={() => setHoursOpen((value) => !value)}
-                aria-expanded={hoursOpen}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-1 text-[16px] font-normal text-[#6f6258] transition hover:bg-[#faf7f2]"
+    <div className="pm-entry-proto mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]">
+      <style>{`
+        .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
+        .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
+        .pm-entry-proto .scroll::-webkit-scrollbar{display:none}
+        .pm-entry-proto .gwrap{padding-top:14px}
+        .pm-entry-proto .gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 14px;scrollbar-width:none}
+        .pm-entry-proto .gallery::-webkit-scrollbar{display:none}
+        .pm-entry-proto .gcard{flex:0 0 88%;scroll-snap-align:center;height:238px;border-radius:16px;position:relative;overflow:hidden;background-size:cover;background-position:center}
+        .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#f4e6fb 0,#f4e6fb 9px,#ecd8f7 9px,#ecd8f7 18px);opacity:.78}
+        .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
+        .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
+        .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+        .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px}
+        .pm-entry-proto .gdots{display:flex;justify-content:center;align-items:center;gap:5px;padding:11px 0 1px}
+        .pm-entry-proto .gdots i{width:6px;height:6px;border-radius:999px;background:#f7dcd5;display:block;transition:width .2s,background-color .2s;opacity:.9}
+        .pm-entry-proto .gdots i.clickable{cursor:pointer}
+        .pm-entry-proto .gdots i.on{width:18px;background:var(--primary);opacity:1}
+        .pm-entry-proto .body{padding:12px 16px 6px;display:flex;flex-direction:column;gap:16px}
+        .pm-entry-proto .pbar{display:flex;align-items:center;gap:12px}
+        .pm-entry-proto .pbar .av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background-size:cover;background-position:center;background:#fff0ec;color:var(--primaryDk);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .pbar .who{min-width:0;flex:1}
+        .pm-entry-proto .pbar .nm{font-size:17px;font-weight:600;letter-spacing:-.02em}
+        .pm-entry-proto .pbar .sub{font-size:13px;color:var(--textMuted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .pm-entry-proto .srow{display:flex;align-items:flex-start;gap:10px}
+        .pm-entry-proto .socials{display:flex;gap:9px;margin-left:auto}
+        .pm-entry-proto .socials .chip{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(60,40,30,.16);cursor:pointer;border:none;background:var(--card);color:var(--primaryDk)}
+        .pm-entry-proto .hours{position:relative}
+        .pm-entry-proto .hours .top{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:16px;font-weight:600;color:var(--text);white-space:nowrap}
+        .pm-entry-proto .hours .top .od{width:8px;height:8px;border-radius:50%;background:var(--open);display:block}
+        .pm-entry-proto .hours .top .chev{width:14px;height:14px;color:var(--textMuted);transition:transform .25s;flex-shrink:0}
+        .pm-entry-proto .hours.open .top .chev{transform:rotate(180deg)}
+        .pm-entry-proto .hours .list{position:absolute;left:0;top:50px;z-index:10;width:calc(min(100vw,430px) - 32px);max-width:398px;animation:hdrop .18s ease}
+        .pm-entry-proto .hours .inner{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:5px 15px;box-shadow:0 16px 34px rgba(60,40,30,.18)}
+        .pm-entry-proto .hours .hrow{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:16px;padding:11px 0}
+        .pm-entry-proto .hours .hrow + .hrow{border-top:1px solid var(--borderSoft)}
+        .pm-entry-proto .hours .hrow .d{flex:0 0 62px;color:var(--textMid)}
+        .pm-entry-proto .hours .hrow .t{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+        .pm-entry-proto .hours .hrow.today .d,.pm-entry-proto .hours .hrow.today .t{color:var(--primaryDk);font-weight:600}
+        .pm-entry-proto .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+        .pm-entry-proto .pcard .pr{display:flex;align-items:center;padding:13px 17px}
+        .pm-entry-proto .pcard .pr + .pr{border-top:1px solid var(--borderSoft)}
+        .pm-entry-proto .pcard .pr .n{font-size:15px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
+        .pm-entry-proto .pcard .pr .d{font-size:12.5px;color:var(--textMuted);margin-left:8px;white-space:nowrap;overflow:hidden}
+        .pm-entry-proto .pcard .pr .p{margin-left:auto;font-size:16px;font-weight:600;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:8px}
+        .pm-entry-proto .pcard .full{display:flex;align-items:center;justify-content:center;gap:5px;padding:14px;border-top:1px solid var(--borderSoft);font-size:13.5px;color:var(--textMid);cursor:pointer}
+        .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;align-items:center;gap:9px}
+        .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
+        .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
+      `}</style>
+      <div className="scroll">
+        <div className="gwrap">
+          <div className="gallery" onTouchStart={handleHeroTouchStart} onTouchEnd={handleHeroTouchEnd}>
+            {heroImages.map((image, index) => (
+              <div
+                key={`${image}-${index}`}
+                className="gcard"
+                style={{ backgroundImage: `linear-gradient(180deg, rgba(42,30,20,0.04), rgba(31,24,18,0.12)), url(${image})` }}
               >
-                <span className={getDotIndicatorClass(operatingStatus.open ? "teal" : "neutral")} aria-hidden="true" />
-                {operatingStatus.label}
-                <ChevronDown className={`h-3.5 w-3.5 transition ${hoursOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
-              </button>
-            </div>
+                <div className="ovl" />
+                {index === 0 ? (
+                  <>
+                    <span className="cnt">{visibleHeroIndex + 1} / {heroImages.length}</span>
+                    <div className="id"><div className="nm">{displayName}</div></div>
+                  </>
+                ) : null}
+              </div>
+            ))}
+            {heroImages.length === 1 ? <div className="gslot" aria-hidden="true" /> : null}
           </div>
-        </div>
-
-        {hoursOpen ? (
-          <div className="mt-1 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white text-[#26352f]">
-            {weekRows.map((row, index) => {
-              const hoursText = formatHoursRow(row.key, shop.business_hours, shop.regular_closed_days);
-              const isToday = row.key === todayWeekday;
+          <div className="gdots">
+            {Array.from({ length: heroDotCount }).map((_, index) => {
+              const targetIndex = heroImages.length > heroDotCount && index === heroDotCount - 1 ? heroImages.length - 1 : index;
+              const isActive = index === heroDotCount - 1
+                ? visibleHeroIndex >= index
+                : visibleHeroIndex === index;
               return (
-                <div
-                  key={row.key}
-                  className={`grid grid-cols-[1fr_120px] items-center px-4 py-2.5 text-[16px] ${
-                    index !== weekRows.length - 1 ? "border-b border-[#edf0ee]" : ""
-                  } ${isToday ? "bg-[#faf7f2]" : "bg-white"}`}
-                >
-                  <span className="font-normal">{row.label}</span>
-                  <span className={`text-right ${hoursText === "휴무" ? "text-[#87918c]" : "text-[#26352f]"}`}>{hoursText}</span>
-                </div>
+                <i
+                  key={`hero-dot-${index}`}
+                  className={`${isActive ? "on" : ""} clickable`}
+                  onClick={() => setActiveHeroIndex(targetIndex)}
+                />
               );
             })}
           </div>
-        ) : null}
+        </div>
 
-        <CustomerShopFrontPanel shop={shop} kakaoInquiryUrl={kakaoInquiryUrl} bookingHref={bookingHref()} />
-
-        <div className="mt-2 text-[#071923]">
-          <div className="grid gap-1.5">
-            {serviceOptions.map((service) => (
-                <a
-                  key={service.id}
-                  href={bookingHref(service.serviceId, service.id)}
-                  className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-3 py-2 text-left transition hover:border-[#d8c8b8] hover:bg-[#fffdf9]"
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{service.name}</span>
-                    <span className="h-3 w-px shrink-0 bg-[#e5e7eb]" aria-hidden="true" />
-                    <span className="shrink-0 text-[16px] font-normal text-[#7a6a5d]">{service.durationMinutes}분 예상</span>
-                  </span>
-                  <span className="shrink-0 text-right text-[16px] font-normal text-[#7A5A45]">
-                    {formatServicePrice(service.price, service.priceType)}
-                  </span>
-                </a>
-              ))}
+        <div className="body">
+          <div className="pbar">
+            <div className="av" style={ownerProfileImage ? { backgroundImage: `url(${ownerProfileImage})` } : undefined}>
+              {ownerProfileImage ? null : <UserRound className="h-6 w-6" strokeWidth={1.8} />}
+            </div>
+            <div className="who">
+              <div className="nm">{featuredProfileName}</div>
+              <div className="sub">{featuredProfileCaption}</div>
+            </div>
           </div>
-          {priceGuideExtraFeeGroups.length > 0 ? (
-            <div className="mt-2 rounded-[8px] border border-[#eadfd6] bg-[#fffdf9] px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 truncate text-[16px] font-normal tracking-[-0.02em] text-[#3f352d]">추가 요금 안내</p>
-                <button
-                  type="button"
-                  onClick={() => setPriceSheetOpen(true)}
-                  className="shrink-0 whitespace-nowrap text-[16px] font-normal text-[#7A5A45]"
-                >
-                  자세히
-                </button>
+
+          <div className="srow">
+            <div className={`hours${hoursOpen ? " open" : ""}`}>
+              <div className="top" onClick={() => setHoursOpen((value) => !value)}>
+                <span className="od" />{operatingStatus.label}<ChevronDown className="chev" strokeWidth={2} />
               </div>
-              <div className="no-scrollbar mt-1.5 flex gap-1.5 overflow-x-auto">
-                {priceGuideExtraFeeGroups[0].extraFees.slice(0, 5).map((fee) => (
-                  <span
-                    key={fee.id}
-                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#eadfd6] bg-white px-2.5 text-[16px] font-normal text-[#4a3a30]"
-                  >
-                    <span>{fee.label}</span>
-                    {fee.price ? <span className="text-[#7A5A45]">{fee.price}</span> : null}
-                  </span>
+              {hoursOpen ? (
+                <div className="list"><div className="inner">
+                  {weekRows.map((row) => {
+                    const hoursText = formatHoursRow(row.key, shop.business_hours, shop.regular_closed_days);
+                    const isToday = row.key === todayWeekday;
+                    return (
+                      <div key={row.key} className={`hrow${isToday ? " today" : ""}${hoursText === "휴무" ? " off" : ""}`}>
+                        <span className="d">{row.label.replace("요일", "")}</span>
+                        <span className="t">{hoursText}</span>
+                      </div>
+                    );
+                  })}
+                </div></div>
+              ) : null}
+            </div>
+            {socialLinks.length > 0 ? (
+              <div className="socials">
+                {socialLinks.map((link) => (
+                  <a key={link.key} className={`chip social-${link.key}`} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
+                    {link.key === "instagram" ? <Instagram className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
+                    {link.key === "threads" ? <AtSign className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
+                    {link.key === "kakao" ? <MessageCircle className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
+                  </a>
                 ))}
               </div>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setPriceSheetOpen(true)}
-            className="mt-2 flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
-            style={{ fontSize: 16, fontWeight: 400 }}
-          >
-            요금표 전체보기
-          </button>
-        </div>
+            ) : null}
+          </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setDirectionsOpen(true)}
-            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
-            style={{ fontSize: 16, fontWeight: 400 }}
-          >
-            길찾기
-          </button>
-          <a
-            href={inquiryHref}
-            target={kakaoInquiryUrl ? "_blank" : undefined}
-            rel={kakaoInquiryUrl ? "noreferrer" : undefined}
-            className="flex h-[42px] w-full items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
-            style={{ fontSize: 16, fontWeight: 400 }}
-          >
-            문의하기
-          </a>
+          <div className="pcard">
+            {serviceOptions.map((service) => (
+              <div className="pr" key={service.id}>
+                <span className="n">{service.name}</span><span className="d">{service.durationMinutes}분</span>
+                <span className="p">{formatServicePrice(service.price, service.priceType)}</span>
+              </div>
+            ))}
+            <div className="full" onClick={() => setPriceSheetOpen(true)}>전체 요금표 보기 ›</div>
+          </div>
         </div>
-      </section>
+      </div>
+
+      <div className="dock">
+        <a className="quick" href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`} aria-label="전화하기">
+          <Phone className="h-5 w-5" strokeWidth={1.9} />
+        </a>
+        <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
+          <Navigation className="h-5 w-5" strokeWidth={1.9} />
+        </button>
+        <a className="cta" href={bookingHref()}>간편예약 시작</a>
+      </div>
 
       {priceSheetOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 px-4" onClick={() => setPriceSheetOpen(false)}>
-          <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[18px] bg-white" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#e5e7eb]" />
-            <div className="flex items-start justify-between gap-4 px-4 pb-3 pt-4">
+          <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[22px] bg-[#fff8f6] shadow-[0_-18px_55px_rgba(42,25,17,0.18)]" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#f3d8d1]" />
+            <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
               <div>
-                <p className="text-[16px] font-normal text-[#7A5A45]">미용 요금</p>
-                <h3 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#071923]">요금표 전체보기</h3>
+                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">요금표 전체보기</h3>
               </div>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[#7a5a45]"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#f1d7d1] bg-white text-[#8b6259] shadow-sm"
                 onClick={() => setPriceSheetOpen(false)}
                 aria-label="요금표 닫기"
               >
@@ -534,7 +571,7 @@ export default function CustomerBookingEntryPage({
               </button>
             </div>
 
-            <div className="max-h-[calc(82vh-88px)] overflow-y-auto px-4 pb-5">
+            <div className="max-h-[calc(82vh-92px)] overflow-y-auto px-5 pb-5">
               {priceGuideSections.length > 0 ? (
                 <div className="space-y-3">
                   {priceGuideSections.map(({ serviceId, serviceName, section }) => {
@@ -543,20 +580,20 @@ export default function CustomerBookingEntryPage({
                     const breedGuideOpen = expandedBreedGuideKeys.includes(breedGuideKey);
 
                     return (
-                    <section key={breedGuideKey} className="overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
-                      <div className="border-b border-[#edf0ee] bg-[#fffdf9] p-2">
+                    <section key={breedGuideKey} className="overflow-hidden rounded-[16px] border border-[#f1d7d1] bg-white shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
+                      <div className="border-b border-[#f6e2dd] bg-white p-2.5">
                         {breedGuide ? (
                           <button
                             type="button"
                             onClick={() => toggleBreedGuide(breedGuideKey)}
-                            className="flex w-full items-start justify-between gap-3 rounded-[8px] px-2 py-1.5 text-left transition hover:bg-[#faf7f2]"
+                            className="flex w-full items-start justify-between gap-3 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#fff4f1]"
                             aria-expanded={breedGuideOpen}
                           >
                             <span className="min-w-0">
                               <span className="block text-[16px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
-                              <span className="mt-1 block truncate text-[16px] font-normal leading-6 text-[#7a6a5d]">대표 품종: {breedGuide.summary}</span>
+                              <span className="mt-1 block truncate text-[15px] font-normal leading-6 text-[#9a7168]">대표 품종: {breedGuide.summary}</span>
                             </span>
-                            <span className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#eadfd6] bg-white text-[#7A5A45]">
+                            <span className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] text-[#e76557]">
                               <ChevronDown className={`h-4 w-4 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
                             </span>
                           </button>
@@ -568,7 +605,7 @@ export default function CustomerBookingEntryPage({
                         {breedGuide && breedGuideOpen ? (
                           <div className="mt-1 flex flex-wrap gap-1.5 px-2 pb-1">
                             {breedGuide.breeds.map((breed) => (
-                              <span key={`${breedGuideKey}-${breed}`} className="inline-flex h-8 items-center rounded-full border border-[#eadfd6] bg-white px-2.5 text-[16px] font-normal text-[#4a3a30]">
+                              <span key={`${breedGuideKey}-${breed}`} className="inline-flex h-8 items-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] px-2.5 text-[15px] font-normal text-[#6d4b43]">
                                 {breed}
                               </span>
                             ))}
@@ -578,10 +615,10 @@ export default function CustomerBookingEntryPage({
                       <div className="overflow-x-auto">
                         <table className="min-w-[560px] w-full border-collapse text-center">
                           <thead>
-                            <tr className="bg-[#fbfaf8] text-[16px] font-normal text-[#7a6a5d]">
-                              <th className="w-[96px] border-b border-r border-[#edf0ee] px-3 py-2 text-center font-normal">무게</th>
+                            <tr className="bg-[#fff8f6] text-[15px] font-normal text-[#8b6259]">
+                              <th className="w-[96px] border-b border-r border-[#f6e2dd] px-3 py-2 text-center font-normal">무게</th>
                               {section.items.map((item) => (
-                                <th key={item.id} className="border-b border-r border-[#edf0ee] px-3 py-2 text-center font-normal last:border-r-0">
+                                <th key={item.id} className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center font-normal last:border-r-0">
                                   {item.label}
                                 </th>
                               ))}
@@ -590,13 +627,13 @@ export default function CustomerBookingEntryPage({
                           <tbody>
                             {section.weightBands.map((band) => (
                               <tr key={band} className="text-[16px] text-[#2b241f]">
-                                <td className="border-b border-r border-[#edf0ee] px-3 py-2 text-center text-[#6f6258]">{band}</td>
+                                <td className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center text-[#7f625b]">{band}</td>
                                 {section.items.map((item) => {
                                   const { priceText, durationText } = formatPriceGuideCell(item.cells[band]);
                                   return (
-                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#edf0ee] px-3 py-2 text-center last:border-r-0">
-                                      <span className="block whitespace-nowrap text-[16px] font-normal text-[#2b241f]">{priceText}</span>
-                                      {durationText ? <span className="mt-0.5 block whitespace-nowrap text-[16px] font-normal text-[#7a6a5d]">{durationText}</span> : null}
+                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center last:border-r-0">
+                                      <span className="block whitespace-nowrap text-[16px] font-normal text-[#2f211d]">{priceText}</span>
+                                      {durationText ? <span className="mt-0.5 block whitespace-nowrap text-[15px] font-normal text-[#9a7168]">{durationText}</span> : null}
                                     </td>
                                   );
                                 })}
@@ -610,8 +647,8 @@ export default function CustomerBookingEntryPage({
                   })}
                 </div>
               ) : (
-                <div className="rounded-[10px] border border-[#e5e7eb] bg-white">
-                  <a href={infoHref} className="flex h-14 items-center justify-center text-[16px] font-normal text-[#3f352d]">
+                <div className="rounded-[16px] border border-[#f1d7d1] bg-white">
+                  <a href={infoHref} className="flex h-14 items-center justify-center text-[16px] font-normal text-[#6d4b43]">
                     등록된 전체 요금표가 없습니다.
                   </a>
                 </div>
@@ -619,29 +656,29 @@ export default function CustomerBookingEntryPage({
               {priceGuideExtraFeeGroups.length > 0 ? (
                 <div className="mt-3 space-y-2">
                   {priceGuideExtraFeeGroups.map((group) => (
-                    <section key={`${group.serviceId}-extra-fees`} className="rounded-[10px] border border-[#e5e7eb] bg-white px-3 py-3">
+                    <section key={`${group.serviceId}-extra-fees`} className="rounded-[16px] border border-[#f1d7d1] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[16px] font-normal text-[#2b241f]">추가 요금 안내</p>
+                          <p className="text-[16px] font-normal text-[#2f211d]">추가 요금 안내</p>
                           {priceGuideExtraFeeGroups.length > 1 ? (
-                            <p className="mt-0.5 text-[16px] font-normal text-[#7a6a5d]">{group.serviceName}</p>
+                            <p className="mt-0.5 text-[15px] font-normal text-[#9a7168]">{group.serviceName}</p>
                           ) : null}
                         </div>
                       </div>
                       {group.extraNote ? (
-                        <p className="mt-2 whitespace-pre-line text-[16px] font-normal leading-6 text-[#6f6258]">{group.extraNote}</p>
+                        <p className="mt-2 whitespace-pre-line text-[15px] font-normal leading-6 text-[#7f625b]">{group.extraNote}</p>
                       ) : null}
                       {group.extraFees.length > 0 ? (
-                        <div className="mt-3 overflow-hidden rounded-[8px] border border-[#edf0ee]">
+                        <div className="mt-3 overflow-hidden rounded-[12px] border border-[#f6e2dd]">
                           {group.extraFees.map((fee, index) => (
                             <div
                               key={fee.id}
                               className={`grid grid-cols-[minmax(0,1fr)_96px] items-center gap-2 px-3 py-2 text-[16px] ${
-                                index !== group.extraFees.length - 1 ? "border-b border-[#edf0ee]" : ""
+                                index !== group.extraFees.length - 1 ? "border-b border-[#f6e2dd]" : ""
                               }`}
                             >
-                              <span className="truncate font-normal text-[#3f352d]">{fee.label}</span>
-                              <span className="text-right font-normal text-[#7A5A45]">{fee.price}</span>
+                              <span className="truncate font-normal text-[#4d3a34]">{fee.label}</span>
+                              <span className="text-right font-normal text-[#e76557]">{fee.price}</span>
                             </div>
                           ))}
                         </div>
@@ -651,7 +688,7 @@ export default function CustomerBookingEntryPage({
                 </div>
               ) : null}
               {priceGuideExtraFeeGroups.length === 0 ? (
-                <p className="mt-3 text-[16px] leading-6 text-[#7a6a5d]">실제 요금은 아이 상태와 털엉킴, 기장, 피부 상태에 따라 매장에서 최종 안내드릴 수 있어요.</p>
+                <p className="mt-3 rounded-[14px] bg-white px-3 py-3 text-[15px] leading-6 text-[#9a7168]">실제 요금은 아이 상태와 털엉킴, 기장, 피부 상태에 따라 매장에서 최종 안내드릴 수 있어요.</p>
               ) : null}
             </div>
           </div>
@@ -660,18 +697,15 @@ export default function CustomerBookingEntryPage({
 
       {directionsOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 px-4" onClick={() => setDirectionsOpen(false)}>
-          <div className="w-full max-w-[430px] rounded-t-[18px] bg-white p-4" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#e5e7eb]" />
+          <div className="w-full max-w-[430px] rounded-t-[26px] bg-[#fffaf8] p-4 shadow-[0_-18px_50px_rgba(60,34,24,0.16)]" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#f1d7d1]" />
             <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-[16px] font-normal" style={{ color: bookingAccentColor }}>
-                  길찾기
-                </p>
-                <h3 className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#071923]">{displayName}</h3>
-              </div>
+              <p className="text-[16px] font-normal" style={{ color: bookingAccentColor }}>
+                길찾기
+              </p>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white text-[#7a5a45]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#f0d8d2] bg-white text-[#8a665d] shadow-[0_8px_20px_rgba(60,34,24,0.04)]"
                 onClick={() => setDirectionsOpen(false)}
                 aria-label="길찾기 닫기"
               >
@@ -679,43 +713,23 @@ export default function CustomerBookingEntryPage({
               </button>
             </div>
 
-            <div className="rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-4">
+            <div className="rounded-[18px] border border-[#f1d7d1] bg-white px-4 py-4 shadow-[0_12px_34px_rgba(60,34,24,0.05)]">
               <p className="text-[16px] leading-6 text-[#6f6258]">{displayAddress}</p>
-              <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <div className="mt-4">
                 <button
                   type="button"
                   onClick={handleCopyAddress}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[16px] font-normal text-[#26352f] hover:bg-[#faf7f2]"
+                  className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#f0d8d2] bg-white px-4 text-[16px] font-normal text-[#3f302b] hover:bg-[#fff3ef]"
                 >
                   <Copy className="h-4 w-4" strokeWidth={1.9} />
                   {addressCopied ? "복사 완료" : "주소 복사"}
                 </button>
-                <a
-                  href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`}
-                  className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-[16px] font-normal text-[#26352f] hover:bg-[#faf7f2]"
-                >
-                  <Phone className="h-4 w-4" strokeWidth={1.9} />
-                  전화하기
-                </a>
               </div>
 
               <div className="mt-4 space-y-2.5">
                 <MapButton
-                  label="네이버 지도로 보기"
-                  onClick={() =>
-                    openExternalMap(
-                      `nmap://search?query=${encodeURIComponent(directionsQuery)}&appname=${encodeURIComponent("kr.petmanager.app")}`,
-                      naverWebUrl,
-                    )
-                  }
-                />
-                <MapButton
-                  label="카카오맵으로 보기"
-                  onClick={() => openExternalMap(`kakaomap://search?q=${encodeURIComponent(directionsQuery)}`, kakaoWebUrl)}
-                />
-                <MapButton
-                  label="티맵으로 보기"
-                  onClick={() => openExternalMap(`tmap://search?name=${encodeURIComponent(directionsQuery)}`, tmapWebUrl)}
+                  label={preferredMap.label}
+                  onClick={() => openExternalMap(preferredMap.appUrl, preferredMap.webUrl)}
                 />
               </div>
             </div>
@@ -732,15 +746,15 @@ function MapButton({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[50px] w-full items-center justify-between rounded-[8px] border border-[#e5e7eb] bg-white px-4 text-left hover:bg-[#faf7f2]"
+      className="flex h-[54px] w-full items-center justify-between rounded-[14px] border border-[#f0d8d2] bg-[#fffaf8] px-4 text-left hover:bg-[#fff3ef]"
     >
       <span className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f3ebe2] text-[#7a5a45]">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#fde9e5] text-[#ec7f72]">
           <Navigation className="h-4.5 w-4.5" strokeWidth={2} />
         </span>
-        <span className="text-[16px] font-normal tracking-[-0.02em] text-[#26352f]">{label}</span>
+        <span className="text-[16px] font-normal tracking-[-0.02em] text-[#2f211d]">{label}</span>
       </span>
-      <span className="text-[16px] font-normal text-[#7a6a5d]">열기</span>
+      <span className="text-[16px] font-normal text-[#e76557]">열기</span>
     </button>
   );
 }

@@ -1,6 +1,6 @@
 ﻿import { decodeUnicodeEscapes } from "@/lib/utils";
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
-import type { CustomerPageSettings } from "@/types/domain";
+import type { CustomerDiscountCoupon, CustomerPageSettings } from "@/types/domain";
 
 export const defaultCustomerPageSettings: CustomerPageSettings = {
   shop_name: "",
@@ -33,7 +33,61 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   postal_code: "",
   address_detail: "",
   customer_service_overrides: {},
+  discount_coupons: [],
 };
+
+function normalizeCouponText(value: unknown, maxLength: number) {
+  return typeof value === "string" ? decodeUnicodeEscapes(value).trim().slice(0, maxLength) : "";
+}
+
+function normalizeCouponNumber(value: unknown, max: number) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) return 0;
+  return Math.min(max, Math.round(numberValue));
+}
+
+export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .slice(0, 30)
+    .flatMap((item, index): CustomerDiscountCoupon[] => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const source = item as Record<string, unknown>;
+      const id = normalizeCouponText(source.id, 80) || `coupon-${index + 1}`;
+      const name = normalizeCouponText(source.name, 40) || "할인 쿠폰";
+      const discountType = source.discount_type === "percent" ? "percent" : "fixed";
+      const discountValue = normalizeCouponNumber(source.discount_value, discountType === "percent" ? 100 : 1_000_000);
+      const audience =
+        source.audience === "first_visit" || source.audience === "revisit" || source.audience === "all"
+          ? source.audience
+          : "all";
+      const serviceScope = source.service_scope === "specific" ? "specific" : "all";
+      const serviceOptionIds = Array.isArray(source.service_option_ids)
+        ? source.service_option_ids
+            .map((optionId) => normalizeCouponText(optionId, 180))
+            .filter(Boolean)
+            .slice(0, 50)
+        : [];
+
+      return [
+        {
+          id,
+          name,
+          enabled: source.enabled !== false,
+          visible: source.visible !== false,
+          discount_type: discountType,
+          discount_value: discountValue,
+          audience,
+          service_scope: serviceScope,
+          service_option_ids: serviceScope === "specific" ? serviceOptionIds : [],
+          per_customer_limit: source.per_customer_limit !== false,
+          starts_at: normalizeCouponText(source.starts_at, 10),
+          ends_at: normalizeCouponText(source.ends_at, 10),
+        },
+      ];
+    });
+}
 
 export function buildDefaultCustomerPageSettings(input: {
   shopName: string;
@@ -126,5 +180,6 @@ export function normalizeCustomerPageSettings(
     postal_code: normalizeOptionalText(settings?.postal_code),
     address_detail: normalizeOptionalText(settings?.address_detail),
     customer_service_overrides: normalizeCustomerServiceOverrides(settings?.customer_service_overrides),
+    discount_coupons: normalizeDiscountCoupons(settings?.discount_coupons),
   };
 }

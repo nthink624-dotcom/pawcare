@@ -1,14 +1,6 @@
-"use client";
+﻿"use client";
 
-import {
-  Bell,
-  ChevronDown,
-  LogOut,
-  MessageCircle,
-  Store,
-} from "lucide-react";
-import Image from "next/image";
-import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
 import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
@@ -16,6 +8,7 @@ import CustomerBookingPageManagementScreen from "@/components/owner-web/customer
 import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
 import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -24,59 +17,12 @@ import {
 import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
-import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { cn, currentDateInTimeZone } from "@/lib/utils";
+import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
-
-const screenIconPaths: Record<OwnerWebScreenKey, string> = {
-  schedule: "/icons/phosphor/clipboard-text.svg",
-  bookingPageManagement: "/icons/phosphor/storefront.svg",
-  bookingLink: "/icons/phosphor/line-segments.svg",
-  calendarRecords: "/icons/phosphor/calendar-dots.svg",
-  customers: "/icons/phosphor/user-circle.svg",
-  services: "/icons/phosphor/projector-screen-chart.svg",
-  staff: "/icons/phosphor/users.svg",
-  ownerProfile: "/icons/phosphor/user-circle.svg",
-  shopInfo: "/icons/phosphor/storefront.svg",
-  operatingHours: "/icons/phosphor/clock.svg",
-  alerts: "/icons/phosphor/bell.svg",
-};
-
-const ownerWebNavigationItems: Array<{ key: OwnerWebScreenKey; label: string }> = [
-  { key: "schedule", label: "예약 관리" },
-  { key: "calendarRecords", label: "캘린더" },
-  { key: "customers", label: "고객 관리" },
-  { key: "bookingLink", label: "예약 링크" },
-  { key: "services", label: "미용 요금" },
-  { key: "staff", label: "직원 관리" },
-  { key: "shopInfo", label: "매장 정보" },
-  { key: "alerts", label: "알림 설정" },
-];
-
-function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebScreenKey; active: boolean }) {
-  return (
-    <span
-      className={cn("block h-[21px] w-[21px]", active ? "bg-white" : "bg-[#53545C]")}
-      style={
-        {
-          WebkitMaskImage: `url(${screenIconPaths[screen]})`,
-          maskImage: `url(${screenIconPaths[screen]})`,
-          WebkitMaskRepeat: "no-repeat",
-          maskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-          maskPosition: "center",
-          WebkitMaskSize: "contain",
-          maskSize: "contain",
-        } as CSSProperties
-      }
-      aria-hidden="true"
-    />
-  );
-}
 
 const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
 
@@ -84,74 +30,16 @@ function isDemoOwnerWebData(data: BootstrapPayload) {
   return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
 }
 
-function formatAlimtalkCount(value: number | null | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
-  return value.toLocaleString("ko-KR");
-}
-
 function buildShopInitials(shopName: string) {
   const compactName = shopName.replace(/\s+/g, "");
   return Array.from(compactName).slice(0, 2).join("").toUpperCase() || "PM";
-}
-
-function KakaoTalkIconMark() {
-  return <MessageCircle className="h-4 w-4" strokeWidth={1.9} />;
-}
-
-function AlimtalkCreditMenu({
-  summary,
-  open,
-  onToggle,
-  containerRef,
-}: {
-  summary: BootstrapPayload["alimtalkCreditSummary"];
-  open: boolean;
-  onToggle: () => void;
-  containerRef?: RefObject<HTMLDivElement | null>;
-}) {
-  return (
-    <div ref={containerRef} className="relative hidden lg:block">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-        aria-label="알림톡 잔여 건수"
-        aria-expanded={open}
-      >
-        <KakaoTalkIconMark />
-      </button>
-      {open ? (
-        <div className="fixed right-[276px] top-3 z-[80] w-[218px] rounded-[8px] border border-[#dbe2ea] bg-white p-3 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
-          <div className="flex items-center gap-2 border-b border-[#edf2f7] pb-2.5">
-            <KakaoTalkIconMark />
-            <div>
-              <p className="text-[13px] font-semibold text-[#111827]">알림톡 잔여 건수</p>
-            </div>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] font-medium text-[#64748b]">무료 잔여</span>
-              <span className="text-[15px] font-semibold text-[#111827]">
-                {formatAlimtalkCount(summary?.included_remaining)}건
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] font-medium text-[#64748b]">결제 잔여</span>
-              <span className="text-[15px] font-semibold text-[#111827]">
-                {formatAlimtalkCount(summary?.purchased_remaining)}건
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null {
   if (screen === "ownerProfile") return "profile";
   if (screen === "shopInfo") return "shop";
   if (screen === "operatingHours") return "hours";
+  if (screen === "benefits") return "benefits";
   if (screen === "alerts") return "alerts";
   return null;
 }
@@ -160,6 +48,7 @@ const screenBySettingsTab: Record<SettingsTabKey, OwnerWebScreenKey> = {
   profile: "ownerProfile",
   shop: "shopInfo",
   hours: "operatingHours",
+  benefits: "benefits",
   alerts: "alerts",
 };
 
@@ -176,6 +65,7 @@ function renderScreen(
   createRequest: OwnerScheduleCreateRequest | null,
   onCreateRequestHandled: (requestId: number) => void,
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
+  onCreateReservationForDate: (date: string) => void,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -201,7 +91,7 @@ function renderScreen(
     case "customers":
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
-      return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} />;
+      return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
     case "services":
       return (
         <ServiceManagementScreen
@@ -227,6 +117,7 @@ function renderScreen(
     case "shopInfo":
     case "operatingHours":
     case "ownerProfile":
+    case "benefits":
     case "alerts":
       return (
         <SettingsManagementScreen
@@ -435,6 +326,16 @@ export default function OwnerWebPreview({
       petId: params.petId,
       date: currentDateInTimeZone(),
     });
+    setActiveScreen("schedule");
+  }
+
+  function handleCreateReservationForDate(date: string) {
+    setScheduleCreateRequest({
+      requestId: Date.now(),
+      petId: null,
+      date,
+    });
+    setActiveScreen("schedule");
   }
 
   function handleScheduleCreateRequestHandled(requestId: number) {
@@ -471,226 +372,45 @@ export default function OwnerWebPreview({
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-[#111827] lg:h-screen lg:overflow-hidden">
-      <header className="sticky top-0 z-40 flex h-[64px] items-center gap-3 border-b border-[#dbe2ea] bg-white px-5 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.03)] lg:hidden">
-        <div className="flex min-w-[250px] items-center gap-3 lg:hidden">
-          <Image src="/images/brand/ododok-petmanager-logo.png" alt="펫매니저" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" />
-          <span className="font-['SUIT_Variable','Pretendard_Variable','Pretendard',sans-serif] text-[24px] font-extrabold tracking-[-0.02em] text-[#146757]">
-            펫매니저
-          </span>
-        </div>
-
-        <div className="ml-auto hidden items-center gap-2 lg:flex">
-          <AlimtalkCreditMenu
-            summary={ownerData.alimtalkCreditSummary}
-            open={alimtalkCreditMenuOpen}
-            containerRef={alimtalkCreditMenuRef}
-            onToggle={() => {
-              setAlimtalkCreditMenuOpen((current) => !current);
-              setStoreMenuOpen(false);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => openSettingsTab("shop")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="매장 정보"
-          >
-            <Store className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => openSettingsTab("alerts")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="알림"
-          >
-            <Bell className="h-4 w-4" />
-          </button>
-          <div ref={storeMenuRef} className="relative w-[168px]">
-            <button
-              type="button"
-              onClick={() => {
-                setStoreMenuOpen((current) => !current);
-                setAlimtalkCreditMenuOpen(false);
-              }}
-              className="grid h-9 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
-                aria-expanded={storeMenuOpen}
-              >
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[11px] font-bold text-[#475569]">
-                  {shopInitials}
-                </span>
-                <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
-              </button>
-            {storeMenuOpen ? (
-              <div className="absolute right-0 top-11 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
-                <button type="button" onClick={() => openSettingsTab("profile")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                  프로필
-                </button>
-                <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                  매장 정보
-                </button>
-                <div className="my-1 border-t border-[#edf2f7]" />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#b45309] hover:bg-[#fffaf0] disabled:opacity-60"
-                >
-                  <LogOut className="h-4 w-4" />
-                  {loggingOut ? "로그아웃 중..." : "로그아웃"}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </header>
-
-      <div className="flex min-h-[calc(100vh-64px)] lg:ml-[216px] lg:h-screen lg:min-h-0 lg:px-4 lg:pb-4 lg:pl-0 lg:pt-2">
-        <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[216px] shrink-0 self-start bg-[#f6f7fb] lg:block">
-          <div className="flex h-full flex-col">
-            <div className="flex h-[62px] items-center gap-2 px-4">
-              <Image src="/images/brand/ododok-petmanager-logo.png" alt="펫매니저" width={34} height={34} className="h-[34px] w-[34px] shrink-0 object-contain" />
-              <span className="font-['SUIT_Variable','Pretendard_Variable','Pretendard',sans-serif] text-[20px] font-extrabold tracking-[-0.02em] text-[#45464E]">
-                펫매니저
-              </span>
-            </div>
-            <nav className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
-              <div className="space-y-1">
-                {ownerWebNavigationItems.map((screen) => {
-                  const active = activeScreen === screen.key;
-                  return (
-                    <div key={screen.key}>
-                      <button
-                        type="button"
-                        onClick={() => handleScreenSelect(screen.key)}
-                        className={cn(
-                          "flex h-[42px] w-full items-center gap-2.5 rounded-[9px] px-3.5 text-left transition",
-                          active ? "bg-[#5570F1] text-white shadow-[0_10px_24px_rgba(85,112,241,0.18)]" : "text-[#53545C] hover:bg-[#f7f8fb]",
-                        )}
-                      >
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                          <PhosphorSidebarIcon screen={screen.key} active={active} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[16px] font-medium leading-[22px]">{screen.label}</span>
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </nav>
-            <div className="px-4 pb-4">
-              <button
-                type="button"
-                onClick={() => openSettingsTab("alerts")}
-                className="flex h-10 w-full items-center gap-2.5 rounded-[10px] bg-[#5E6366]/10 px-3.5 text-left text-[16px] font-medium text-[#1C1D22] transition hover:bg-[#5E6366]/15"
-              >
-                <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={2} />
-                <span className="min-w-0 truncate">문의하기</span>
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 lg:flex lg:h-[calc(100vh-24px)] lg:min-h-0 lg:flex-col lg:gap-1.5 lg:overflow-hidden">
-          <div className="hidden h-8 shrink-0 items-center gap-2 bg-transparent px-4 lg:flex">
-            <div className="ml-auto flex items-center gap-2">
-              <AlimtalkCreditMenu
-                summary={ownerData.alimtalkCreditSummary}
-                open={alimtalkCreditMenuOpen}
-                containerRef={alimtalkCreditMenuRef}
-                onToggle={() => {
-                  setAlimtalkCreditMenuOpen((current) => !current);
-                  setStoreMenuOpen(false);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => openSettingsTab("shop")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-                aria-label="매장 정보"
-              >
-                <Store className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => openSettingsTab("alerts")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-                aria-label="알림"
-              >
-                <Bell className="h-4 w-4" />
-              </button>
-              <div ref={storeMenuRef} className="relative w-[168px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStoreMenuOpen((current) => !current);
-                    setAlimtalkCreditMenuOpen(false);
-                  }}
-                  className="grid h-8 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-full px-2 text-[14px] font-semibold text-[#111827] hover:bg-[#f8fafc]"
-                  aria-expanded={storeMenuOpen}
-                >
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[10px] font-bold text-[#475569]">
-                    {shopInitials}
-                  </span>
-                  <span className="min-w-0 truncate text-right">{shopDisplayName}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-[#64748b]" />
-                </button>
-                {storeMenuOpen ? (
-                  <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white py-1 shadow-[0_14px_32px_rgba(15,23,42,0.14)]">
-                    <button type="button" onClick={() => openSettingsTab("profile")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                      프로필
-                    </button>
-                    <button type="button" onClick={() => openSettingsTab("shop")} className="block w-full px-3 py-2.5 text-left text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-                      매장 정보
-                    </button>
-                    <div className="my-1 border-t border-[#edf2f7]" />
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      disabled={loggingOut}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-[#b45309] hover:bg-[#fffaf0] disabled:opacity-60"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      {loggingOut ? "로그아웃 중..." : "로그아웃"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-          <div className="min-w-0 flex-1 lg:min-h-0 lg:overflow-hidden lg:rounded-[18px] lg:border lg:border-[#dbe2ea] lg:bg-white lg:shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
-          <div className="border-b border-[#dbe2ea] bg-white px-5 py-3 lg:hidden">
-            <SoftSelect<OwnerWebScreenKey>
-              value={activeScreen}
-              onChange={handleScreenSelect}
-              options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
-              align="left"
-              className="max-w-[240px]"
-              buttonClassName="h-10"
-            />
-          </div>
-          <div className="p-5 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
-            {renderScreen(
-              activeScreen,
-              manualApprovalEnabled,
-              handleManualApprovalChange,
-              ownerData,
-              setOwnerData,
-              handleShopProfileChange,
-              handleOwnerProfileChange,
-              staffMembers,
-              handleStaffMembersChange,
-              scheduleCreateRequest,
-              handleScheduleCreateRequestHandled,
-              handleCreateReservationForCustomer,
-            )}
-          </div>
-          </div>
-        </main>
-      </div>
-    </div>
+    <OwnerWebAppShell
+      activeScreen={activeScreen}
+      onScreenSelect={handleScreenSelect}
+      shopDisplayName={shopDisplayName}
+      shopInitials={shopInitials}
+      alimtalkCreditSummary={ownerData.alimtalkCreditSummary}
+      alimtalkCreditMenuOpen={alimtalkCreditMenuOpen}
+      alimtalkCreditMenuRef={alimtalkCreditMenuRef}
+      onAlimtalkCreditToggle={() => {
+        setAlimtalkCreditMenuOpen((current) => !current);
+        setStoreMenuOpen(false);
+      }}
+      storeMenuOpen={storeMenuOpen}
+      storeMenuRef={storeMenuRef}
+      onStoreMenuToggle={() => {
+        setStoreMenuOpen((current) => !current);
+        setAlimtalkCreditMenuOpen(false);
+      }}
+      onOpenProfile={() => openSettingsTab("profile")}
+      onOpenShop={() => openSettingsTab("shop")}
+      onOpenAlerts={() => openSettingsTab("alerts")}
+      onLogout={handleLogout}
+      loggingOut={loggingOut}
+    >
+      {renderScreen(
+        activeScreen,
+        manualApprovalEnabled,
+        handleManualApprovalChange,
+        ownerData,
+        setOwnerData,
+        handleShopProfileChange,
+        handleOwnerProfileChange,
+        staffMembers,
+        handleStaffMembersChange,
+        scheduleCreateRequest,
+        handleScheduleCreateRequestHandled,
+        handleCreateReservationForCustomer,
+        handleCreateReservationForDate,
+      )}
+    </OwnerWebAppShell>
   );
 }

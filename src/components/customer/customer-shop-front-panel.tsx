@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, ExternalLink, Instagram, MessageCircle, Play, Sparkles, type LucideIcon } from "lucide-react";
+import { AtSign, ExternalLink, Instagram, MessageCircle, Play, type LucideIcon } from "lucide-react";
 
 import type { Shop } from "@/types/domain";
 
@@ -24,9 +24,9 @@ function getShowcaseTitle(shop: Pick<Shop, "customer_page_settings">) {
 
 function getShowcaseBody(shop: Pick<Shop, "description" | "customer_page_settings">) {
   return (
-    shop.customer_page_settings.showcase_body?.trim() ||
     shop.description?.trim() ||
     shop.customer_page_settings.tagline?.trim() ||
+    shop.customer_page_settings.showcase_body?.trim() ||
     "상담부터 마무리 안내까지, 아이 성향과 컨디션을 살피며 차분하게 케어해 드려요."
   );
 }
@@ -45,10 +45,12 @@ export default function CustomerShopFrontPanel({
   shop,
   kakaoInquiryUrl,
   bookingHref,
+  onBookingClick,
 }: {
   shop: Pick<Shop, "description" | "customer_page_settings">;
   kakaoInquiryUrl: string;
   bookingHref: string;
+  onBookingClick?: () => void;
 }) {
   const settings = shop.customer_page_settings;
   const showcaseTitle = getShowcaseTitle(shop);
@@ -57,15 +59,10 @@ export default function CustomerShopFrontPanel({
 
   return (
     <>
-      <div className="mt-3 rounded-[10px] border border-[#eadfd6] bg-[#fffdf9] px-3 py-3">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#7A5A45] ring-1 ring-[#eadfd6]">
-            <Sparkles className="h-4 w-4" strokeWidth={1.8} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[17px] font-semibold leading-6 tracking-[-0.03em] text-[#2b241f]">{showcaseTitle}</p>
-            <p className="mt-1 whitespace-pre-line text-[16px] font-normal leading-6 tracking-[-0.02em] text-[#6f6258]">{showcaseBody}</p>
-          </div>
+      <div className="mt-3 rounded-[14px] border border-[#efe2dc] bg-white px-4 py-3.5">
+        <div className="min-w-0">
+          <p className="text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[#3a2e2a]">{showcaseTitle}</p>
+          <p className="mt-1 whitespace-pre-line text-[16px] font-normal leading-6 tracking-[-0.02em] text-[#8a7a72]">{showcaseBody}</p>
         </div>
       </div>
 
@@ -77,22 +74,32 @@ export default function CustomerShopFrontPanel({
               href={href}
               target="_blank"
               rel="noreferrer"
-              className="flex h-[42px] min-w-0 items-center justify-center gap-2 rounded-[8px] border border-[#e5e7eb] bg-white px-2 text-[16px] font-normal leading-none text-[#3f352d] hover:bg-[#faf7f2]"
+              className="flex h-[44px] min-w-0 items-center justify-center gap-2 rounded-[12px] border border-[#efe2dc] bg-white px-2 text-[16px] font-semibold leading-none text-[#3a2e2a] hover:bg-[#fffaf8]"
             >
               <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
               <span className="truncate">{label}</span>
-              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#9a8c80]" strokeWidth={1.8} />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#b6a89f]" strokeWidth={1.8} />
             </a>
           ))}
         </div>
       ) : null}
 
-      <a
-        href={bookingHref}
-        className="mt-2 flex h-[46px] w-full items-center justify-center rounded-[8px] bg-[#7A5A45] text-[16px] font-medium leading-none text-white transition hover:bg-[#684b39]"
-      >
-        {settings.booking_button_label || "예약하기"}
-      </a>
+      {onBookingClick ? (
+        <button
+          type="button"
+          onClick={onBookingClick}
+          className="mt-3 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#ec7f72] text-[16px] font-semibold leading-none text-white shadow-[0_6px_16px_rgba(236,127,114,0.32)] transition hover:bg-[#d35f50]"
+        >
+          {settings.booking_button_label || "예약하기"}
+        </button>
+      ) : (
+        <a
+          href={bookingHref}
+          className="mt-3 flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[#ec7f72] text-[16px] font-semibold leading-none text-white shadow-[0_6px_16px_rgba(236,127,114,0.32)] transition hover:bg-[#d35f50]"
+        >
+          {settings.booking_button_label || "예약하기"}
+        </a>
+      )}
     </>
   );
 }

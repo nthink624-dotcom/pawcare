@@ -37,7 +37,7 @@ import {
   serviceInputSchema,
   shopSettingsSchema,
 } from "@/server/schemas";
-import type { Appointment, AppointmentStatus, Guardian, Pet, PetStaffNote, Service, Shop } from "@/types/domain";
+import type { Appointment, AppointmentChangeEvent, AppointmentStatus, Guardian, Pet, PetStaffNote, Service, Shop } from "@/types/domain";
 
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const scheduleActiveStatuses = ["confirmed", "in_progress", "almost_done"] as const;
@@ -109,6 +109,72 @@ function assertAppointmentStatusIsNotRepeated(params: {
 
 function normalizeAppointmentTimeForCompare(value: string | null | undefined) {
   return (value ?? "").slice(0, 5);
+}
+
+function isMissingAppointmentChangeEventsError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    message.includes("appointment_change_events") ||
+    message.includes("schema cache")
+  );
+}
+
+function buildAppointmentHistorySnapshot(appointment: Appointment) {
+  return {
+    status: appointment.status,
+    service_id: appointment.service_id,
+    staff_id: appointment.staff_id ?? null,
+    appointment_date: appointment.appointment_date,
+    appointment_time: normalizeAppointmentTimeForCompare(appointment.appointment_time),
+    memo: appointment.memo,
+    rejection_reason: appointment.rejection_reason,
+    start_at: appointment.start_at,
+    end_at: appointment.end_at,
+    visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? null,
+    pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? null,
+  };
+}
+
+function createAppointmentChangeEvent(params: {
+  before: Appointment;
+  after: Appointment;
+  eventType: AppointmentChangeEvent["event_type"];
+  note?: string | null;
+  createdAt?: string;
+}): AppointmentChangeEvent {
+  return {
+    id: randomUUID(),
+    shop_id: params.after.shop_id,
+    appointment_id: params.after.id,
+    event_type: params.eventType,
+    previous_values: buildAppointmentHistorySnapshot(params.before),
+    next_values: buildAppointmentHistorySnapshot(params.after),
+    note: params.note ?? null,
+    created_at: params.createdAt ?? nowIso(),
+  };
+}
+
+async function persistAppointmentChangeEvent(event: AppointmentChangeEvent) {
+  if (!hasSupabaseServerEnv()) {
+    const store = getMutableStore();
+    store.appointmentChangeEvents = [event, ...(store.appointmentChangeEvents ?? [])];
+    setMockStore(store);
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("appointment_change_events").insert(event);
+  if (error) {
+    if (isMissingAppointmentChangeEventsError(error)) {
+      console.warn("[owner-mutations] appointment_change_events table is not ready; skipped history event");
+      return;
+    }
+    console.warn("[owner-mutations] appointment change history insert failed", error.message);
+  }
 }
 
 function hasNotificationRelevantAppointmentDetailChange(params: {
@@ -418,7 +484,7 @@ async function dispatchAppointmentNotificationWithLogs(params: {
       ok: false,
       reason: error instanceof Error ? error.message : String(error),
     });
-    throw error;
+    return null;
   }
 }
 
@@ -1346,13 +1412,35 @@ export async function createAppointment(input: unknown) {
 
   if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
 
+  let resolvedStaffId = payload.staffId ?? null;
+  if (!resolvedStaffId && data.staffMembers.length > 0) {
+    const availableStaff = data.staffMembers.find((staffMember) =>
+      computeAvailableSlots({
+        date: payload.appointmentDate,
+        serviceId: service.id,
+        shop: data.shop,
+        services: data.services,
+        appointments: data.appointments,
+        staffId: staffMember.id,
+        staffMembers: data.staffMembers,
+        staffScheduleOverrides: data.staffScheduleOverrides,
+      }).includes(payload.appointmentTime),
+    );
+
+    if (!availableStaff) {
+      throw new Error("선택한 시간에는 예약할 수 없습니다.");
+    }
+
+    resolvedStaffId = availableStaff.id;
+  }
+
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
     serviceId: service.id,
     shop: data.shop,
     services: data.services,
     appointments: data.appointments,
-    staffId: payload.staffId ?? null,
+    staffId: resolvedStaffId,
     staffMembers: data.staffMembers,
     staffScheduleOverrides: data.staffScheduleOverrides,
   });
@@ -1364,7 +1452,7 @@ export async function createAppointment(input: unknown) {
   ensureStaffAvailableForWindow({
     staffMembers: data.staffMembers,
     staffScheduleOverrides: data.staffScheduleOverrides,
-    staffId: payload.staffId,
+    staffId: resolvedStaffId,
     date: payload.appointmentDate,
     appointmentTime: payload.appointmentTime,
     durationMinutes: service.duration_minutes,
@@ -1379,7 +1467,7 @@ export async function createAppointment(input: unknown) {
     guardian_id: payload.guardianId,
     pet_id: payload.petId,
     service_id: service.id,
-    staff_id: payload.staffId ?? null,
+    staff_id: resolvedStaffId,
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     status,
@@ -1485,6 +1573,7 @@ export async function updateAppointmentStatus(input: unknown) {
     const store = getMutableStore();
     const appointment = store.appointments.find((item) => item.id === payload.appointmentId);
     if (!appointment) throw new Error("예약을 찾을 수 없습니다.");
+    const previousAppointment = { ...appointment };
 
     assertAppointmentStatusIsNotRepeated({
       previousStatus: appointment.status,
@@ -1549,6 +1638,13 @@ export async function updateAppointmentStatus(input: unknown) {
     }
 
     setMockStore(store);
+    await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+      before: previousAppointment,
+      after: appointment,
+      eventType: "status",
+      note: payload.eventType ?? null,
+      createdAt: statusChangedAt,
+    }));
     if (shouldNotifyCustomer && payload.status === "confirmed") {
       await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
@@ -1607,6 +1703,7 @@ export async function updateAppointmentStatus(input: unknown) {
     .single();
 
   if (appointmentError) throw new Error(appointmentError.message);
+  const previousAppointment = currentAppointment as Appointment;
 
   assertAppointmentStatusIsNotRepeated({
     previousStatus: currentAppointment.status,
@@ -1735,6 +1832,14 @@ export async function updateAppointmentStatus(input: unknown) {
       }
     }
   }
+
+  await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+    before: previousAppointment,
+    after: resolvedAppointment as Appointment,
+    eventType: "status",
+    note: payload.eventType ?? null,
+    createdAt: statusChangedAt,
+  }));
 
   if (shouldNotifyCustomer && payload.status === "confirmed") {
     await dispatchAppointmentNotificationWithLogs({
@@ -1883,9 +1988,17 @@ export async function updateAppointmentDetails(input: unknown) {
     const store = getMutableStore();
     const target = store.appointments.find((item) => item.id === payload.appointmentId);
     if (!target) throw new Error("예약 정보를 찾을 수 없습니다.");
+    const previousAppointment = { ...target };
 
     Object.assign(target, nextValues);
     setMockStore(store);
+    await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+      before: previousAppointment,
+      after: target,
+      eventType: "details",
+      note: payload.eventType ?? null,
+      createdAt: String(nextValues.updated_at),
+    }));
 
     if (payload.notifyCustomer) {
       await dispatchNotification({
@@ -1954,6 +2067,14 @@ export async function updateAppointmentDetails(input: unknown) {
       throw new Error(error.message);
     }
   }
+
+  await persistAppointmentChangeEvent(createAppointmentChangeEvent({
+    before: appointment,
+    after: resolvedAppointment as Appointment,
+    eventType: "details",
+    note: payload.eventType ?? null,
+    createdAt: String(nextValues.updated_at),
+  }));
 
   if (payload.notifyCustomer) {
     await dispatchNotification({

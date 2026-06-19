@@ -1,0 +1,42 @@
+[
+  {
+    "label": "예약 관리",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\01-schedule.png"
+  },
+  {
+    "label": "캘린더",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\02-calendar.png"
+  },
+  {
+    "label": "고객 관리",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\03-customers.png"
+  },
+  {
+    "label": "예약 링크",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\04-booking-link.png"
+  },
+  {
+    "label": "미용 요금",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\05-pricing.png"
+  },
+  {
+    "label": "혜택 관리",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\06-benefits.png"
+  },
+  {
+    "label": "직원 관리",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\07-staff.png"
+  },
+  {
+    "label": "매장 정보",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\08-shop-info.png"
+  },
+  {
+    "label": "알림 설정",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\09-notifications.png"
+  },
+  {
+    "label": "문의하기",
+    "filePath": "D:\\petmanager\\captures\\owner-sidebar-tone\\10-support.png"
+  }
+]

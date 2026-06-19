@@ -13,7 +13,7 @@ export function WebSurface({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-[8px] border border-[#e2e6ea] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]", className)}>
+    <section className={cn("rounded-[8px] border border-[#e1e1dd] bg-white shadow-[0_8px_20px_rgba(32,33,36,0.04)]", className)}>
       {children}
     </section>
   );
@@ -31,8 +31,8 @@ export function WebSectionTitle({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-[24px] font-semibold text-[#111827]">{title}</h2>
-        {description ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{description}</p> : null}
+        <h2 className="text-[24px] font-semibold text-[#202124]">{title}</h2>
+        {description ? <p className="mt-2 text-[14px] leading-6 text-[#6f747a]">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -45,10 +45,10 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
-      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
+    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#e1e1dd] bg-white px-3 text-[#6f747a]">
+      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#9a9a94]" />
       <input
-        className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+        className="w-full bg-transparent text-[16px] text-[#202124] outline-none placeholder:text-[#9a9a94]"
         placeholder={placeholder}
       />
     </label>
@@ -60,10 +60,10 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#1f2937]"
+      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[8px] border border-[#e1e1dd] bg-white px-4 text-[14px] font-medium text-[#30312f] hover:bg-[#f7f7f4]"
     >
       <span>{label}</span>
-      <Icon className="h-4 w-4 text-[#64748b]" />
+      <Icon className="h-4 w-4 text-[#6f747a]" />
     </button>
   );
 }
@@ -127,21 +127,21 @@ export function SoftSelect<T extends string = string>({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-left transition",
-          "hover:border-[#cbd5e1] hover:bg-[#f8fafc] focus:outline-none focus:ring-[3px] focus:ring-[#cbd5e1]/45 disabled:cursor-not-allowed disabled:opacity-60",
-          open && "border-[#cbd5e1] bg-white",
+          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e1e1dd] bg-white px-3 text-left transition",
+          "hover:border-[#c8c8c2] hover:bg-[#f7f7f4] focus:outline-none focus:ring-[3px] focus:ring-[#d7d7d2]/45 disabled:cursor-not-allowed disabled:opacity-60",
+          open && "border-[#c8c8c2] bg-white",
           buttonClassName,
         )}
       >
-        {label ? <span className={cn("text-[12px] text-[#64748b]", labelClassName)}>{label}</span> : <span />}
-        <span className={cn("truncate text-right text-[14px] font-medium text-[#111827]", valueClassName)}>{selectedOption?.label ?? ""}</span>
-        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180")} />
+        {label ? <span className={cn("text-[12px] text-[#6f747a]", labelClassName)}>{label}</span> : <span />}
+        <span className={cn("truncate text-right text-[14px] font-medium text-[#202124]", valueClassName)}>{selectedOption?.label ?? ""}</span>
+        <ChevronDown className={cn("h-4 w-4 text-[#6f747a] transition", open && "rotate-180")} />
       </button>
       {open ? (
         <div
           role="listbox"
           className={cn(
-            "absolute z-50 mt-2 min-w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1 shadow-[0_18px_42px_rgba(15,23,42,0.16)]",
+            "absolute z-50 mt-2 min-w-full overflow-hidden rounded-[10px] border border-[#e1e1dd] bg-white p-1 shadow-[0_18px_42px_rgba(32,33,36,0.12)]",
             align === "right" ? "right-0" : "left-0",
             direction === "up" && "bottom-full mb-2 mt-0",
             menuClassName,
@@ -162,7 +162,7 @@ export function SoftSelect<T extends string = string>({
                 }}
                 className={cn(
                   "flex h-9 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
-                  selected ? "bg-[#f1f5f9] font-semibold text-[#111827]" : "text-[#1f2937] hover:bg-[#f8fafc]",
+                  selected ? "bg-[#f1f0ec] font-semibold text-[#202124]" : "text-[#30312f] hover:bg-[#f7f7f4]",
                   option.disabled && "cursor-not-allowed opacity-45",
                 )}
               >
@@ -203,7 +203,7 @@ export function PrimaryButton({ label, onClick, icon }: { label: string; onClick
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#2f7866] px-5 text-[14px] font-semibold text-white"
+      className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#30312f] px-5 text-[14px] font-medium text-white transition hover:bg-[#1f201e]"
     >
       {icon}
       {label}
@@ -216,7 +216,7 @@ export function GhostButton({ label, onClick }: { label: string; onClick?: () =>
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[40px] items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-medium text-[#334155]"
+      className="inline-flex h-[40px] items-center justify-center rounded-[8px] border border-[#e1e1dd] bg-white px-4 text-[14px] font-medium text-[#30312f] hover:bg-[#f7f7f4]"
     >
       {label}
     </button>
@@ -240,10 +240,10 @@ export function Chip({
       onClick={onClick}
       className={cn(
         "inline-flex h-[34px] items-center justify-center rounded-[8px] border px-3.5 text-[13px] font-medium transition",
-        active && tone === "default" && "border-[#cfded8] bg-white text-[#1f6b5b]",
+        active && tone === "default" && "border-[#c8c8c2] bg-[#f1f0ec] text-[#30312f]",
         active && tone === "soft" && "border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1]",
         active && tone === "danger" && "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]",
-        !active && "border-[#dbe2ea] bg-white text-[#475569]",
+        !active && "border-[#e1e1dd] bg-white text-[#6f747a]",
       )}
     >
       {label}
@@ -345,7 +345,7 @@ export function TableRow({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f7866]/35",
+        "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#334155]/20",
         "grid w-full border-b border-[#edf2f7] px-5 py-4 transition last:border-b-0",
         align === "center" ? "items-center text-center" : "text-left",
         active ? "bg-[#f8fafc]" : "bg-white hover:bg-[#f8fafc]",
@@ -431,19 +431,19 @@ export function SimpleLineChart({ points }: { points: Array<{ label: string; val
       <svg viewBox={`0 0 ${width} ${height}`} className="h-[180px] w-full">
         <defs>
           <linearGradient id="owner-web-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2f7866" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#2f7866" stopOpacity="0" />
+            <stop offset="0%" stopColor="#64748b" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#64748b" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[0, 1, 2, 3].map((line) => (
           <line key={line} x1="0" x2={width} y1={18 + line * 46} y2={18 + line * 46} stroke="#efe8e2" strokeWidth="1" />
         ))}
         <path d={`${path} L ${width} ${height} L 0 ${height} Z`} fill="url(#owner-web-fill)" />
-        <path d={path} fill="none" stroke="#2f7866" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={path} fill="none" stroke="#64748b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
         {points.map((point, index) => {
           const x = index * step;
           const y = height - (point.value / max) * (height - 28) - 14;
-          return <circle key={point.label} cx={x} cy={y} r="4.5" fill="#2f7866" />;
+          return <circle key={point.label} cx={x} cy={y} r="4.5" fill="#64748b" />;
         })}
       </svg>
       <div className="mt-3 flex justify-between text-[12px] font-medium text-[#8a8178]">
@@ -512,7 +512,7 @@ export function SimpleBarChart({
         <div key={item.label} className="flex items-center gap-4">
           <span className="w-6 text-[12px] font-medium text-[#8f877d]">{item.label}</span>
           <div className="h-3 flex-1 overflow-hidden rounded-full bg-[#f1ece7]">
-            <div className="h-full rounded-full bg-[#2f7866]" style={{ width: `${(item.value / max) * 100}%` }} />
+            <div className="h-full rounded-full bg-[#64748b]" style={{ width: `${(item.value / max) * 100}%` }} />
           </div>
           <span className="w-7 text-right text-[12px] font-medium text-[#4d5551]">{item.value}</span>
         </div>

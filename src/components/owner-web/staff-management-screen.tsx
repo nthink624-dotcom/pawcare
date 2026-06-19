@@ -416,12 +416,12 @@ export default function StaffManagementScreen({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full min-h-0 flex-col space-y-3">
       <StaffBoardTabs activeTab={boardTab} onChange={setBoardTab} />
 
-      <div className={cn("grid gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
-        <div className="min-w-0">
-          <WebSurface className="overflow-hidden">
+      <div className={cn("grid min-h-0 flex-1 gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
+        <div className="min-h-0 min-w-0">
+          <WebSurface className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}>
             {boardTab !== "monthly" ? (
             <div className="flex items-center justify-between border-b border-[#edf2f7] px-5 py-2.5">
               {boardTab === "schedule" ? (

@@ -1,14 +1,15 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { patchOwnerAppointmentStatus, replaceAppointmentInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
+import { isShopClosedOnDate } from "@/lib/availability";
 import { cn, currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime } from "@/lib/utils";
-import type { AppointmentStatus, BootstrapPayload } from "@/types/domain";
+import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
 type GroomingCalendarRecord = {
   id: string;
@@ -26,6 +27,7 @@ type GroomingCalendarRecord = {
   next: string;
   date: string;
   time: string;
+  staffId: string | null;
   staff: string;
   eventReceivedAt?: string | null;
   reservationConfirmedAt?: string | null;
@@ -49,6 +51,7 @@ type ReservationRow = {
   staffComment: string;
   date: string;
   time: string;
+  staffId: string | null;
   staff: string;
   phone: string;
   channel: string;
@@ -79,6 +82,7 @@ type DayItem = {
   date: string;
   next?: string;
   time?: string;
+  staffId?: string | null;
   staff?: string;
   phone?: string;
   channel?: string;
@@ -93,7 +97,19 @@ type DayItem = {
   actualCompletedAt?: string | null;
 };
 
+type BirthdayItem = {
+  id: string;
+  petId: string;
+  guardianId: string;
+  pet: string;
+  breed: string;
+  customer: string;
+  phone: string;
+  birthday: string;
+};
+
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   pending: "승인 대기",
@@ -105,7 +121,7 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   rejected: "거절",
   noshow: "노쇼",
 };
-const overduePendingStatusLabel = "기한 지남";
+const overduePendingStatusLabel = "누락";
 
 function isOverduePendingStatus(status: string) {
   return status === overduePendingStatusLabel;
@@ -185,6 +201,7 @@ function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[
       staffComment,
       date: appointment.appointment_date,
       time: appointment.appointment_time,
+      staffId: appointment.staff_id ?? null,
       staff: displayText(staff?.name, "담당 미지정"),
       channel: appointment.source === "customer" ? "고객 예약" : "오너 등록",
       eventReceivedAt: appointment.created_at,
@@ -229,6 +246,7 @@ function buildRecordsFromBootstrap(data: BootstrapPayload): GroomingCalendarReco
       next: "",
       date: record.groomed_at.slice(0, 10),
       time: getRecordClockTime(record.groomed_at),
+      staffId: linkedAppointment?.staff_id ?? null,
       staff: displayText(staff?.name, "담당 미지정"),
       eventReceivedAt: linkedAppointment?.created_at ?? null,
       reservationConfirmedAt: getNotificationEventTime(notifications, "booking_confirmed"),
@@ -251,7 +269,7 @@ function getRecordClockTime(value: string) {
 
 function formatMonthLabel(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
-  return `${String(parsed.getFullYear()).slice(-2)}년 ${parsed.getMonth() + 1}월`;
+  return `${parsed.getMonth() + 1}월`;
 }
 
 function formatShortDate(date: string) {
@@ -286,6 +304,35 @@ function formatHistoryTimestamp(value?: string | null) {
 function formatHistoryFallback(date: string, time?: string) {
   const parsed = new Date(`${date}T00:00:00`);
   return `${parsed.getMonth() + 1}.${parsed.getDate()} (${weekdayLabels[parsed.getDay()]}) ${time || "-"}`;
+}
+
+function isSameMonthDay(sourceDate: string | null | undefined, targetDate: string) {
+  if (!sourceDate) return false;
+  const sourceParts = sourceDate.split("-");
+  const targetParts = targetDate.split("-");
+  if (sourceParts.length < 3 || targetParts.length < 3) return false;
+  return sourceParts[1] === targetParts[1] && sourceParts[2] === targetParts[2];
+}
+
+function buildBirthdayItems(data: BootstrapPayload, date: string, query: string): BirthdayItem[] {
+  const guardianById = new Map(data.guardians.map((guardian) => [guardian.id, guardian]));
+  return data.pets
+    .filter((pet) => isSameMonthDay(pet.birthday, date))
+    .map((pet) => {
+      const guardian = guardianById.get(pet.guardian_id);
+      return {
+        id: `birthday-${pet.id}-${date}`,
+        petId: pet.id,
+        guardianId: pet.guardian_id,
+        pet: displayText(pet.name, "반려동물 미등록"),
+        breed: displayText(pet.breed, "품종 미입력"),
+        customer: displayText(guardian?.name, "보호자 미등록"),
+        phone: guardian?.phone ?? "",
+        birthday: pet.birthday ?? "",
+      };
+    })
+    .filter((item) => matchesCalendarSearch([item.pet, item.breed, item.customer, item.phone], query))
+    .sort((first, second) => first.pet.localeCompare(second.pet, "ko"));
 }
 
 function getMonthDates(monthAnchor: string) {
@@ -332,6 +379,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       next: record.next,
       date,
       time: record.time,
+      staffId: record.staffId,
       staff: record.staff,
       eventReceivedAt: record.eventReceivedAt,
       reservationConfirmedAt: record.reservationConfirmedAt,
@@ -362,6 +410,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
       customerRequest: reservation.customerRequest,
       staffComment: reservation.staffComment,
       time: reservation.time,
+      staffId: reservation.staffId,
       staff: reservation.staff,
       phone: reservation.phone,
       channel: reservation.channel,
@@ -397,6 +446,7 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
           customerRequest: reservation.customerRequest,
           staffComment: reservation.staffComment,
           time: reservation.time,
+          staffId: reservation.staffId,
           staff: reservation.staff,
           phone: reservation.phone,
           channel: reservation.channel,
@@ -409,11 +459,42 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
           actualCompletedAt: reservation.actualCompletedAt,
           date,
         }))
-    : [];
+    : reservations
+        .filter((reservation) => reservation.date === date)
+        .filter((reservation) => reservation.status !== "완료")
+        .filter((reservation) => reservation.status.includes("취소") || reservation.status.includes("거절") || reservation.status.includes("노쇼") || reservation.status.includes("변경") || isOverduePendingStatus(reservation.status))
+        .filter((reservation) => !recordAppointmentIds.has(reservation.id))
+        .map((reservation) => ({
+          id: reservation.id,
+          type: "reservation" as const,
+          guardianId: reservation.guardianId,
+          petId: reservation.petId,
+          appointmentId: reservation.id,
+          groomingRecordId: null,
+          pet: reservation.pet,
+          breed: reservation.breed,
+          customer: reservation.customer,
+          service: reservation.service,
+          status: reservation.status,
+          note: reservation.note,
+          customerRequest: reservation.customerRequest,
+          staffComment: reservation.staffComment,
+          time: reservation.time,
+          staffId: reservation.staffId,
+          staff: reservation.staff,
+          phone: reservation.phone,
+          channel: reservation.channel,
+          eventReceivedAt: reservation.eventReceivedAt,
+          eventUpdatedAt: reservation.eventUpdatedAt,
+          reservationConfirmedAt: reservation.reservationConfirmedAt,
+          groomingStartedAt: reservation.groomingStartedAt,
+          pickupReadyAt: reservation.pickupReadyAt,
+          groomingCompletedAt: reservation.groomingCompletedAt,
+          actualCompletedAt: reservation.actualCompletedAt,
+          date,
+        }));
 
-  return [...reservationItems, ...completedReservationRecordItems, ...recordItems].sort((first, second) =>
-    (first.time ?? "99:99").localeCompare(second.time ?? "99:99"),
-  );
+  return sortOperationalItems([...reservationItems, ...completedReservationRecordItems, ...recordItems]);
 }
 
 function matchesCalendarSearch(fields: Array<string | undefined | null>, query: string) {
@@ -456,32 +537,38 @@ function getStatusAccent(item: DayItem): StatusIndicatorTone {
   return "teal";
 }
 
-function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolean) {
-  if (active) return "border-[#2f7866] bg-white shadow-[inset_3px_0_0_#2f7866,0_8px_20px_rgba(15,23,42,0.08)]";
-  if (isToday) return "border-[#d6e8e1] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.035)]";
+function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolean, closed: boolean) {
+  if (active) return "border-[#111827] bg-white shadow-[inset_3px_0_0_#111827,0_8px_20px_rgba(15,23,42,0.08)]";
+  if (closed) return "border-white bg-[linear-gradient(135deg,#f8fafc_0,#f8fafc_45%,#eef2f7_45%,#eef2f7_50%,#f8fafc_50%,#f8fafc_95%,#eef2f7_95%)] bg-[length:12px_12px] shadow-[0_1px_4px_rgba(15,23,42,0.03)]";
+  if (isToday) return "border-[#dbe2ea] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.035)]";
   if (hasItems) return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_62%,#fbfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.035)] hover:border-[#d5e7df] hover:shadow-[0_6px_16px_rgba(15,23,42,0.055)]";
   return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_72%,#fcfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.032)] hover:border-[#dbe8e2] hover:bg-white hover:shadow-[0_5px_14px_rgba(15,23,42,0.05)]";
 }
 
 type CalendarStatusIndicator = {
-  key: "pending" | "confirmed" | "completed" | "changed" | "cancelled";
+  key: "overdue" | "pending" | "confirmed" | "completed" | "changed" | "cancelled";
   label: string;
   tone: StatusIndicatorTone;
 };
 
+type CalendarStatusFilter = "all" | CalendarStatusIndicator["key"];
+type CalendarStaffFilter = "all" | string;
+
 const calendarStatusIndicators: CalendarStatusIndicator[] = [
+  { key: "overdue", label: "누락", tone: "burgundy" },
+  { key: "pending", label: "예약요청", tone: "amber" },
   { key: "confirmed", label: "확정", tone: "teal" },
-  { key: "pending", label: "승인대기", tone: "amber" },
-  { key: "completed", label: "완료", tone: "slate" },
   { key: "changed", label: "변경", tone: "amber" },
   { key: "cancelled", label: "취소", tone: "burgundy" },
+  { key: "completed", label: "완료", tone: "slate" },
 ];
 
 function getCalendarStatusCounts(items: DayItem[]) {
   const reservationItems = items.filter((item) => item.type === "reservation");
 
   return {
-    pending: reservationItems.filter((item) => item.status.includes("승인") || isOverduePendingStatus(item.status)).length,
+    overdue: reservationItems.filter((item) => isOverduePendingStatus(item.status)).length,
+    pending: reservationItems.filter((item) => item.status.includes("승인") && !isOverduePendingStatus(item.status)).length,
     confirmed: reservationItems.filter((item) => item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비").length,
     completed: items.filter((item) => item.type === "record" || item.status.includes("완료")).length,
     changed: reservationItems.filter((item) => item.status.includes("변경")).length,
@@ -489,8 +576,87 @@ function getCalendarStatusCounts(items: DayItem[]) {
   };
 }
 
-function getCalendarStatusBarClass(tone: StatusIndicatorTone) {
-  return cn("h-[3px] w-3 rounded-full", statusIndicatorBgClass[tone]);
+function getCalendarStatusSummaryClass(tone: StatusIndicatorTone) {
+  if (tone === "amber") return "border-[#d6a34c] bg-[#fff2cf] text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.18)]";
+  if (tone === "teal") return "border-[#9aa8b6] bg-[#f5f7fa] text-[#334155] shadow-[0_1px_3px_rgba(96,112,128,0.16)]";
+  if (tone === "burgundy") return "border-[#d9919d] bg-[#fff0f3] text-[#8f2438] shadow-[0_1px_3px_rgba(160,68,85,0.18)]";
+  return "border-[#b9c3cf] bg-[#f8fafc] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.12)]";
+}
+
+function getCalendarStatusShortLabel(key: CalendarStatusIndicator["key"]) {
+  if (key === "overdue") return "누락";
+  if (key === "pending") return "요청";
+  if (key === "confirmed") return "확정";
+  if (key === "completed") return "완료";
+  if (key === "changed") return "변경";
+  return "취소";
+}
+
+function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarStatusIndicator["key"] {
+  if (item.type === "record" || item.status.includes("완료")) return "completed";
+  if (isOverduePendingStatus(item.status)) return "overdue";
+  if (item.status.includes("승인")) return "pending";
+  if (item.status.includes("변경")) return "changed";
+  if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return "cancelled";
+  return "confirmed";
+}
+
+function matchesStatusFilter(item: Pick<DayItem, "type" | "status">, filter: CalendarStatusFilter) {
+  return filter === "all" || getItemStatusGroup(item) === filter;
+}
+
+function getOperationalPriority(item: Pick<DayItem, "type" | "status">) {
+  if (isOverduePendingStatus(item.status)) return 0;
+  if (item.status.includes("승인")) return 1;
+  if (item.status.includes("변경")) return 2;
+  if (item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비") return 3;
+  if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return 4;
+  return item.type === "record" ? 5 : 4;
+}
+
+function sortOperationalItems(items: DayItem[]) {
+  return [...items].sort((first, second) => {
+    const priorityDiff = getOperationalPriority(first) - getOperationalPriority(second);
+    if (priorityDiff !== 0) return priorityDiff;
+    return (first.time ?? "99:99").localeCompare(second.time ?? "99:99");
+  });
+}
+
+function getStaffDayKey(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  return staffDayKeys[weekday];
+}
+
+function getStaffWorkNotice(data: BootstrapPayload, date: string, staffFilter: CalendarStaffFilter) {
+  if (isShopClosedOnDate(data.shop, date)) return { closed: true, label: "매장 휴무", description: "예약을 받지 않는 날입니다." };
+
+  const staffMembers =
+    staffFilter === "all"
+      ? data.staffMembers
+      : data.staffMembers.filter((staff) => staff.id === staffFilter);
+  const dayKey = getStaffDayKey(date);
+  const offStaff = staffMembers.filter((staff) => {
+    const override = data.staffScheduleOverrides?.find((item) => item.staff_id === staff.id && item.work_date === date);
+    if (override?.status === "off" || override?.status === "annual") return true;
+    if (override?.status === "work" || override?.status === "half") return false;
+    return !staff.defaultDays.includes(dayKey);
+  });
+  const halfStaff = staffMembers.filter((staff) => {
+    const override = data.staffScheduleOverrides?.find((item) => item.staff_id === staff.id && item.work_date === date);
+    return override?.status === "half";
+  });
+
+  const parts = [
+    offStaff.length > 0 ? `${offStaff.map((staff) => staff.name).join(", ")} 휴무` : "",
+    halfStaff.length > 0 ? `${halfStaff.map((staff) => staff.name).join(", ")} 반차` : "",
+  ].filter(Boolean);
+
+  return {
+    closed: false,
+    label: parts.length > 0 ? parts.join(" · ") : "근무 가능",
+    description: parts.length > 0 ? "근무표 기준 예약 가능 여부를 확인해 주세요." : "근무표상 특이사항이 없습니다.",
+  };
 }
 
 function isPastPendingReservation(date: string, time?: string) {
@@ -504,9 +670,11 @@ function isPastPendingReservation(date: string, time?: string) {
 export default function CalendarRecordsScreen({
   initialData,
   onDataChange,
+  onCreateReservationForDate,
 }: {
   initialData: BootstrapPayload;
   onDataChange?: (data: BootstrapPayload) => void;
+  onCreateReservationForDate?: (date: string) => void;
 }) {
   const records = useMemo(() => buildRecordsFromBootstrap(initialData), [initialData]);
   const initialReservations = useMemo(() => buildReservationsFromBootstrap(initialData), [initialData]);
@@ -514,6 +682,8 @@ export default function CalendarRecordsScreen({
   const [selectedDate, setSelectedDate] = useState(currentDateInTimeZone());
   const [monthAnchor, setMonthAnchor] = useState(currentDateInTimeZone());
   const [query, setQuery] = useState("");
+  const [staffFilter, setStaffFilter] = useState<CalendarStaffFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
   const [confirmingReservationId, setConfirmingReservationId] = useState<string | null>(null);
   const [calendarError, setCalendarError] = useState("");
@@ -532,9 +702,11 @@ export default function CalendarRecordsScreen({
 
   const filteredRecords = useMemo(() => {
     return records.filter((record) =>
-      matchesCalendarSearch([record.pet, record.customer, record.date, record.service, record.memo, record.customerRequest, record.staffComment, record.next], query),
+      matchesCalendarSearch([record.pet, record.customer, record.date, record.service, record.memo, record.customerRequest, record.staffComment, record.next], query) &&
+      (staffFilter === "all" || record.staffId === staffFilter) &&
+      (statusFilter === "all" || statusFilter === "completed"),
     );
-  }, [query, records]);
+  }, [query, records, staffFilter, statusFilter]);
   const filteredReservations = useMemo(() => {
     return reservations.filter((reservation) =>
       matchesCalendarSearch(
@@ -553,11 +725,14 @@ export default function CalendarRecordsScreen({
           reservation.channel,
         ],
         query,
-      ),
+      ) &&
+      (staffFilter === "all" || reservation.staffId === staffFilter) &&
+      matchesStatusFilter({ type: "reservation", status: reservation.status }, statusFilter),
     );
-  }, [query, reservations]);
+  }, [query, reservations, staffFilter, statusFilter]);
 
   const monthDates = useMemo(() => getMonthDates(monthAnchor), [monthAnchor]);
+  const calendarWeekRows = Math.max(5, Math.ceil(monthDates.length / 7));
   const dayItemsByDate = useMemo(() => {
     const map = new Map<string, DayItem[]>();
     for (const date of monthDates) {
@@ -566,7 +741,33 @@ export default function CalendarRecordsScreen({
     }
     return map;
   }, [filteredRecords, filteredReservations, monthDates]);
+  const birthdayItemsByDate = useMemo(() => {
+    const map = new Map<string, BirthdayItem[]>();
+    for (const date of monthDates) {
+      if (!date) continue;
+      map.set(date, buildBirthdayItems(initialData, date, query));
+    }
+    return map;
+  }, [initialData, monthDates, query]);
   const selectedItems = dayItemsByDate.get(selectedDate) ?? [];
+  const selectedBirthdays = birthdayItemsByDate.get(selectedDate) ?? [];
+  const selectedWorkNotice = getStaffWorkNotice(initialData, selectedDate, staffFilter);
+  const staffOptions = useMemo(
+    () => [
+      { value: "all", label: "전체 직원" },
+      ...initialData.staffMembers.map((staff) => ({ value: staff.id, label: staff.displayName || staff.name })),
+    ],
+    [initialData.staffMembers],
+  );
+  const statusOptions: Array<{ value: CalendarStatusFilter; label: string }> = [
+    { value: "all", label: "전체 상태" },
+    { value: "overdue", label: "누락" },
+    { value: "pending", label: "예약요청" },
+    { value: "confirmed", label: "확정/진행" },
+    { value: "changed", label: "변경" },
+    { value: "cancelled", label: "취소/거절" },
+    { value: "completed", label: "완료" },
+  ];
 
   async function confirmReservation(reservationId: string) {
     const reservation = reservations.find((item) => item.id === reservationId);
@@ -619,63 +820,110 @@ export default function CalendarRecordsScreen({
   }
 
   return (
-    <div className="space-y-3">
-      <WebSurface className="overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#e2e8f0] px-5 py-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <WebSurface className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#e5e7eb] bg-white px-5 py-2.5">
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, -1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
               aria-label="이전 달"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="min-w-[130px] text-center text-[18px] font-medium text-[#111827]">{formatMonthLabel(monthAnchor)}</p>
+            <p className="flex h-9 min-w-[78px] items-center justify-center px-3 text-center text-[16px] font-medium text-[#111827]">{formatMonthLabel(monthAnchor)}</p>
             <button
               type="button"
               onClick={() => setMonthAnchor((current) => moveMonth(current, 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] text-[#64748b] hover:bg-[#f8fafc]"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
               aria-label="다음 달"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = currentDateInTimeZone();
+                setMonthAnchor(today);
+                openDate(today);
+              }}
+              className="h-9 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white hover:bg-[#1f2937]"
+            >
+              오늘
+            </button>
           </div>
-          <label className="flex h-11 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b]">
-            <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
+          <label className="flex h-9 min-w-[280px] flex-1 items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-[#64748b]">
+            <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+              className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
               placeholder="반려동물명, 보호자명, 메모 검색"
             />
           </label>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <label className="relative block">
+              <select
+                value={staffFilter}
+                onChange={(event) => setStaffFilter(event.target.value)}
+                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+              >
+                {staffOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            </label>
+            <label className="relative block">
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as CalendarStatusFilter)}
+                className="h-9 min-w-[132px] appearance-none rounded-[8px] border border-[#e5e7eb] bg-white pl-3 pr-10 text-[15px] font-normal text-[#111827] outline-none focus:border-[#111827]"
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            </label>
+          </div>
         </div>
 
-        <div className="grid min-h-0 items-start xl:grid-cols-[minmax(0,1fr)_392px]">
-          <section className="min-w-0 bg-[#f1f5f9] xl:border-r xl:border-[#edf2f7]">
-            <div className="grid grid-cols-7 border-b border-[#e8eef5] bg-[#fbfcfd]">
+        <div className="grid min-h-0 flex-1 items-stretch overflow-hidden xl:grid-cols-[minmax(0,1fr)_392px]">
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f1f5f9] xl:border-r xl:border-[#edf2f7]">
+            <div className="grid grid-cols-7 border-b border-[#e5e7eb] bg-white">
               {weekdayLabels.map((label) => (
-                <div key={label} className="px-2 py-2 text-center text-[13px] font-medium text-[#64748b]">
-                  {label}
+                <div key={label} className="flex h-9 items-center justify-center text-center text-[13px] font-medium">
+                  <span className="inline-flex h-6 min-w-8 items-center justify-center px-2 text-[#111827]">
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-px bg-[#eef2f7] p-px">
+            <div
+              className="grid min-h-0 flex-1 grid-cols-7 gap-px bg-[#eef2f7] p-px"
+              style={{ gridTemplateRows: `repeat(${calendarWeekRows}, minmax(0, 1fr))` }}
+            >
               {monthDates.map((date, index) => {
                 const items = date ? dayItemsByDate.get(date) ?? [] : [];
+                const birthdays = date ? birthdayItemsByDate.get(date) ?? [] : [];
                 const recordCount = items.filter((item) => item.type === "record").length;
                 const reservationCount = items.filter((item) => item.type === "reservation").length;
+                const birthdayCount = birthdays.length;
                 const active = date === selectedDate;
-                const hasItems = items.length > 0;
+                const hasItems = items.length > 0 || birthdayCount > 0;
                 const isToday = date === currentDateInTimeZone();
+                if (!date) {
+                  return <div key={`empty-${index}`} className="min-h-0 rounded-[8px] bg-[#fdfefe]" />;
+                }
+
+                const workNotice = getStaffWorkNotice(initialData, date, staffFilter);
                 const statusCounts = getCalendarStatusCounts(items);
                 const visibleStatuses = calendarStatusIndicators.filter((indicator) => statusCounts[indicator.key] > 0);
-
-                if (!date) {
-                  return <div key={`empty-${index}`} className="min-h-[106px] rounded-[8px] bg-[#fdfefe]" />;
-                }
+                const primaryStatuses = visibleStatuses.slice(0, 3);
+                const hiddenStatusCount = visibleStatuses.length - primaryStatuses.length;
 
                 return (
                   <button
@@ -683,8 +931,8 @@ export default function CalendarRecordsScreen({
                     type="button"
                     onClick={() => openDate(date)}
                     className={cn(
-                      "relative flex min-h-[112px] flex-col justify-between rounded-[8px] border px-3 py-2.5 text-left transition duration-150",
-                      getCalendarCellTone(active, isToday, hasItems),
+                      "relative flex min-h-0 flex-col justify-between overflow-hidden rounded-[8px] border px-3 py-2 text-left transition duration-150",
+                      getCalendarCellTone(active, isToday, hasItems, workNotice.closed),
                     )}
                     aria-label={`${date} 예약 ${reservationCount}건`}
                   >
@@ -693,9 +941,9 @@ export default function CalendarRecordsScreen({
                         className={cn(
                           "leading-5",
                           isToday
-                            ? "text-[15px] font-bold text-[#1f6b5b]"
+                            ? "text-[15px] font-bold text-[#111827]"
                             : active
-                              ? "text-[13px] font-bold text-[#1f6b5b]"
+                              ? "text-[13px] font-bold text-[#111827]"
                               : hasItems
                                 ? "text-[13px] font-medium text-[#111827]"
                                 : "text-[13px] font-medium text-[#111827]",
@@ -707,27 +955,42 @@ export default function CalendarRecordsScreen({
                         <span className="pt-0.5 text-[11px] font-medium leading-4 text-[#64748b]">
                           {reservationCount}건
                         </span>
+                      ) : birthdayCount > 0 ? (
+                        <span className="pt-0.5 text-[11px] font-medium leading-4 text-[#b98121]">
+                          생일 {birthdayCount}
+                        </span>
+                      ) : workNotice.closed ? (
+                        <span className="rounded-full border border-[#dbe2ea] bg-white/85 px-2 py-0.5 text-[11px] font-normal text-[#64748b]">휴무</span>
                       ) : null}
                     </div>
+                    {!workNotice.closed && workNotice.label !== "근무 가능" ? (
+                      <span className="line-clamp-1 text-[11px] font-normal leading-4 text-[#94a3b8]">{workNotice.label}</span>
+                    ) : null}
                     {visibleStatuses.length > 0 ? (
-                      <div className="flex items-end justify-between gap-2">
-                        <div className="flex h-5 flex-col-reverse items-start justify-start gap-0.5">
-                          {visibleStatuses
-                            .filter((indicator) => indicator.key !== "completed")
-                            .map((indicator) => (
-                              <span
-                                key={indicator.key}
-                                className={getCalendarStatusBarClass(indicator.tone)}
-                                title={`${indicator.label} ${statusCounts[indicator.key]}건`}
-                              />
-                            ))}
-                        </div>
-                        {statusCounts.completed > 0 ? (
+                      <div className="flex flex-wrap items-end gap-1">
+                        {primaryStatuses.map((indicator) => (
                           <span
-                            className={getCalendarStatusBarClass("slate")}
-                            title={`기록 ${statusCounts.completed}건`}
-                          />
+                            key={indicator.key}
+                            className={cn(
+                              "inline-flex h-5 min-w-[42px] items-center justify-center rounded-full border px-2 text-[11px] font-medium leading-none",
+                              getCalendarStatusSummaryClass(indicator.tone),
+                            )}
+                            title={`${indicator.label} ${statusCounts[indicator.key]}건`}
+                          >
+                            {getCalendarStatusShortLabel(indicator.key)} {statusCounts[indicator.key]}
+                          </span>
+                        ))}
+                        {hiddenStatusCount > 0 ? (
+                          <span className="inline-flex h-5 min-w-[34px] items-center justify-center rounded-full border border-[#b9c3cf] bg-[#f8fafc] px-2 text-[11px] font-medium leading-none text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.1)]">
+                            +{hiddenStatusCount}
+                          </span>
                         ) : null}
+                      </div>
+                    ) : birthdayCount > 0 ? (
+                      <div className="flex flex-wrap items-end gap-1">
+                        <span className="inline-flex h-5 min-w-[42px] items-center justify-center rounded-full border border-[#d6a34c] bg-[#fff2cf] px-2 text-[11px] font-medium leading-none text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.16)]">
+                          생일 {birthdayCount}
+                        </span>
                       </div>
                     ) : null}
                   </button>
@@ -739,16 +1002,28 @@ export default function CalendarRecordsScreen({
           <GroomingDatePanel
             date={selectedDate}
             items={selectedItems}
+            birthdays={selectedBirthdays}
             error={calendarError}
+            workNotice={selectedWorkNotice}
             confirmingReservationId={confirmingReservationId}
             onSelectItem={openItem}
             onConfirmReservation={confirmReservation}
+            onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
       </WebSurface>
 
       {selectedItem ? (
-        <GroomingRecordSheet shopId={initialData.shop.id} item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <GroomingRecordSheet
+          shopId={initialData.shop.id}
+          item={selectedItem}
+          changeEvents={(initialData.appointmentChangeEvents ?? []).filter(
+            (event) => selectedItem.appointmentId && event.appointment_id === selectedItem.appointmentId,
+          )}
+          services={initialData.services}
+          staffMembers={initialData.staffMembers}
+          onClose={() => setSelectedItem(null)}
+        />
       ) : null}
     </div>
   );
@@ -757,35 +1032,63 @@ export default function CalendarRecordsScreen({
 function GroomingDatePanel({
   date,
   items,
+  birthdays,
   error,
+  workNotice,
   confirmingReservationId,
   onSelectItem,
   onConfirmReservation,
+  onAddReservation,
 }: {
   date: string;
   items: DayItem[];
+  birthdays: BirthdayItem[];
   error: string;
+  workNotice: ReturnType<typeof getStaffWorkNotice>;
   confirmingReservationId: string | null;
   onSelectItem: (item: DayItem) => void;
   onConfirmReservation: (reservationId: string) => void | Promise<void>;
+  onAddReservation?: () => void;
 }) {
-  const isPastDate = date < currentDateInTimeZone();
-  const visibleItems = isPastDate
-    ? items.filter((item) => item.type === "record" || isOverduePendingStatus(item.status))
-    : items;
+  const visibleItems = sortOperationalItems(items);
+  const hasVisibleContent = visibleItems.length > 0 || birthdays.length > 0;
 
   return (
     <aside className="self-start bg-white">
       <div className="px-5 py-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-[15px] font-normal text-[#334155]">{formatFullDate(date)}</h3>
-          <span className="text-[13px] text-[#94a3b8]">{visibleItems.length}건</span>
+          <div className="flex shrink-0 items-center gap-2">
+            {onAddReservation ? (
+              <button
+                type="button"
+                onClick={onAddReservation}
+                className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                예약 추가
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-3">
           {error ? (
             <div className="mb-2 rounded-[8px] border border-[#ead28e] bg-[#fff8e7] px-3 py-2 text-[13px] leading-5 text-[#8a5a00]">
               {error}
+            </div>
+          ) : null}
+          {!hasVisibleContent ? (
+            <div
+              className={cn(
+                "mb-2 rounded-[8px] border px-3 py-2 text-[13px] leading-5",
+                workNotice.closed
+                  ? "border-[#ead6dc] bg-[#fffafa] text-[#a04455]"
+                  : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+              )}
+            >
+              <p className="font-medium">{workNotice.label}</p>
+              <p className="mt-0.5">{workNotice.description}</p>
             </div>
           ) : null}
           {visibleItems.length > 0 ? (
@@ -798,14 +1101,36 @@ function GroomingDatePanel({
               onConfirmReservation={onConfirmReservation}
               hideHeader
             />
-          ) : (
-            <div className="rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-4 py-6 text-center text-[13px] text-[#94a3b8]">
-              {isPastDate ? "이 날짜에는 기록이 없습니다." : "이 날짜에는 예약이나 기록이 없습니다."}
-            </div>
-          )}
+          ) : null}
+          {birthdays.length > 0 ? <BirthdaySection birthdays={birthdays} /> : null}
         </div>
       </div>
     </aside>
+  );
+}
+
+function BirthdaySection({ birthdays }: { birthdays: BirthdayItem[] }) {
+  return (
+    <section className="mt-2 rounded-[8px] border border-[#ead9b8] bg-[#fffaf0] p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[13px] font-medium text-[#8a5a00]">반려동물 생일</p>
+        <span className="text-[12px] text-[#b98121]">{birthdays.length}마리</span>
+      </div>
+      <div className="space-y-1.5">
+        {birthdays.map((birthday) => (
+          <div key={birthday.id} className="flex min-w-0 items-center gap-2 rounded-[8px] border border-[#f0dfbd] bg-white px-3 py-2">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff4dc] text-[#b98121]">
+              <PawPrint className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-medium text-[#111827]">{birthday.pet} · {birthday.breed}</p>
+              <p className="mt-0.5 truncate text-[12px] text-[#64748b]">{birthday.customer} 보호자</p>
+            </div>
+            {birthday.phone ? <span className="shrink-0 text-[12px] tabular-nums text-[#64748b]">{formatRecordPhone(birthday.phone)}</span> : null}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -894,7 +1219,21 @@ function DayItemSection({
 }
 
 /*
-function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
+function GroomingRecordSheet({
+  shopId,
+  item,
+  changeEvents,
+  services,
+  staffMembers,
+  onClose,
+}: {
+  shopId: string;
+  item: DayItem;
+  changeEvents: AppointmentChangeEvent[];
+  services: BootstrapPayload["services"];
+  staffMembers: BootstrapPayload["staffMembers"];
+  onClose: () => void;
+}) {
   const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
   const hasCustomerRequest = Boolean(item.customerRequest?.trim());
   const hasStaffComment = Boolean(item.staffComment?.trim());
@@ -1046,7 +1385,21 @@ function RecordMemoCard({ title, value, highlighted = false }: { title: string; 
 }
 */
 
-function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: DayItem; onClose: () => void }) {
+function GroomingRecordSheet({
+  shopId,
+  item,
+  changeEvents,
+  services,
+  staffMembers,
+  onClose,
+}: {
+  shopId: string;
+  item: DayItem;
+  changeEvents: AppointmentChangeEvent[];
+  services: BootstrapPayload["services"];
+  staffMembers: BootstrapPayload["staffMembers"];
+  onClose: () => void;
+}) {
   const sourceLabel = item.channel ?? (item.type === "record" ? "기록 등록" : "예약");
   const hasCustomerRequest = Boolean(item.customerRequest?.trim());
   const hasStaffComment = Boolean(item.staffComment?.trim());
@@ -1108,7 +1461,7 @@ function GroomingRecordSheet({ shopId, item, onClose }: { shopId: string; item: 
           <RecordMemoCard title="고객 요청사항" value={customerRequest} empty={!hasCustomerRequest} highlighted />
           <RecordMemoCard title="직원 코멘트" value={staffComment} empty={!hasStaffComment} />
 
-          <RecordHistoryCard item={item} sourceLabel={sourceLabel} />
+          <RecordHistoryCard item={item} sourceLabel={sourceLabel} changeEvents={changeEvents} services={services} staffMembers={staffMembers} />
 
           {item.next ? (
             <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white p-4">
@@ -1238,10 +1591,93 @@ function buildRecordHistoryTimeline(item: DayItem, sourceLabel: string): RecordH
   return items;
 }
 
-function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: string }) {
+const appointmentHistoryFields = [
+  { key: "status", label: "상태" },
+  { key: "appointment_date", label: "날짜" },
+  { key: "appointment_time", label: "시간" },
+  { key: "service_id", label: "서비스" },
+  { key: "staff_id", label: "담당" },
+  { key: "memo", label: "메모" },
+  { key: "visit_reminder_offset_minutes", label: "방문 전 알림" },
+  { key: "pickup_ready_eta_minutes", label: "픽업 안내" },
+] as const;
+
+function historyRawValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function formatAppointmentHistoryValue(
+  key: string,
+  value: unknown,
+  services: BootstrapPayload["services"],
+  staffMembers: BootstrapPayload["staffMembers"],
+) {
+  if (value === null || value === undefined || value === "") return "없음";
+
+  if (key === "status") {
+    const status = String(value) as AppointmentStatus;
+    return appointmentStatusLabels[status] ?? String(value);
+  }
+
+  if (key === "appointment_time") {
+    return formatClockTime(String(value));
+  }
+
+  if (key === "service_id") {
+    const service = services.find((item) => item.id === value);
+    return service?.name ?? "삭제된 서비스";
+  }
+
+  if (key === "staff_id") {
+    const staff = staffMembers.find((item) => item.id === value);
+    return staff?.displayName || staff?.name || "담당 미지정";
+  }
+
+  if (key === "visit_reminder_offset_minutes" || key === "pickup_ready_eta_minutes") {
+    return `${value}분`;
+  }
+
+  return String(value);
+}
+
+function buildAppointmentHistoryChanges(
+  event: AppointmentChangeEvent,
+  services: BootstrapPayload["services"],
+  staffMembers: BootstrapPayload["staffMembers"],
+) {
+  return appointmentHistoryFields
+    .map((field) => {
+      const previousValue = event.previous_values[field.key];
+      const nextValue = event.next_values[field.key];
+      if (historyRawValue(previousValue) === historyRawValue(nextValue)) return null;
+      return {
+        key: field.key,
+        label: field.label,
+        previous: formatAppointmentHistoryValue(field.key, previousValue, services, staffMembers),
+        next: formatAppointmentHistoryValue(field.key, nextValue, services, staffMembers),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+}
+
+function RecordHistoryCard({
+  item,
+  sourceLabel,
+  changeEvents,
+  services,
+  staffMembers,
+}: {
+  item: DayItem;
+  sourceLabel: string;
+  changeEvents: AppointmentChangeEvent[];
+  services: BootstrapPayload["services"];
+  staffMembers: BootstrapPayload["staffMembers"];
+}) {
   const [open, setOpen] = useState(false);
   const historyItems = buildRecordHistoryTimeline(item, sourceLabel);
   const lastItem = historyItems[historyItems.length - 1];
+  const sortedChangeEvents = [...changeEvents].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
     <section className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white">
@@ -1275,6 +1711,41 @@ function RecordHistoryCard({ item, sourceLabel }: { item: DayItem; sourceLabel: 
               </div>
             ))}
           </div>
+
+          {sortedChangeEvents.length > 0 ? (
+            <div className="mt-3 border-t border-[#edf2f7] pt-3">
+              <p className="text-[15px] text-[#334155]">변경/취소 이력</p>
+              <div className="mt-2 space-y-2">
+                {sortedChangeEvents.map((event) => {
+                  const changes = buildAppointmentHistoryChanges(event, services, staffMembers);
+                  return (
+                    <div key={event.id} className="rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-3">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] text-[#111827]">{event.event_type === "status" ? "상태 변경" : "예약 변경"}</p>
+                        <span className="ml-auto text-[12px] text-[#64748b]">{formatHistoryTimestamp(event.created_at)}</span>
+                      </div>
+                      {changes.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          {changes.map((change) => (
+                            <div key={change.key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-[13px] leading-5">
+                              <span className="text-[#64748b]">{change.label}</span>
+                              <span className="min-w-0 text-[#334155]">
+                                <span className="text-[#94a3b8]">{change.previous}</span>
+                                <span className="mx-1 text-[#94a3b8]">→</span>
+                                <span className="text-[#111827]">{change.next}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[13px] text-[#64748b]">세부 변경 항목이 없습니다.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import {
   normalizeCustomerServiceOverrides,
@@ -94,8 +94,8 @@ export default function CustomerServiceExposurePanel({
   const usedLinkedOptionIds = new Set(rows.map((row) => getLinkedOptionId(row.option)));
   const canDelete = Boolean(onDeleteOption);
   const rowGridClass = canDelete
-    ? "grid-cols-[72px_minmax(520px,1fr)_44px]"
-    : "grid-cols-[72px_minmax(520px,1fr)]";
+    ? "grid-cols-[86px_minmax(420px,1fr)_60px]"
+    : "grid-cols-[86px_minmax(420px,1fr)]";
 
   function moveOption(index: number, direction: -1 | 1) {
     const targetIndex = index + direction;
@@ -123,7 +123,7 @@ export default function CustomerServiceExposurePanel({
   return (
     <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-3", embedded && "border-0 bg-transparent p-0")}>
       {title || onAddOption ? (
-        <div className="mb-1.5 flex items-center justify-between gap-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
           {title ? <p className="text-[16px] font-medium text-[#334155]">{title}</p> : <span />}
           {onAddOption ? (
             <button
@@ -140,9 +140,9 @@ export default function CustomerServiceExposurePanel({
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <div className={cn("min-w-[720px] overflow-hidden rounded-[8px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[680px]")}>
-            <div className={cn("grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#f8fafc] px-1.5 py-1.5 text-[15px] font-normal text-[#64748b]", rowGridClass)}>
+        <div className="overflow-x-auto px-1">
+          <div className={cn("min-w-[680px] overflow-hidden rounded-[8px] border border-[#edf2f7] bg-white", !canDelete && "min-w-[640px]")}>
+            <div className={cn("grid items-center gap-2 border-b border-[#edf2f7] bg-[#f8fafc] px-3 py-1.5 text-[15px] font-normal text-[#64748b]", rowGridClass)}>
               <span>순서</span>
               <span>노출할 서비스</span>
               {canDelete ? <span className="text-center">삭제</span> : null}
@@ -159,9 +159,9 @@ export default function CustomerServiceExposurePanel({
                 return (
                   <div
                     key={row.option.id}
-                    className={cn("grid items-center gap-1.5 px-1.5 py-1", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
+                    className={cn("grid items-center gap-2 px-3 py-1", rowGridClass, row.visible ? "bg-white" : "bg-[#fbfcfd]")}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span className="w-5 text-center text-[15px] font-normal tabular-nums text-[#64748b]">
                         {String(index + 1).padStart(2, "0")}
                       </span>
@@ -188,16 +188,17 @@ export default function CustomerServiceExposurePanel({
                       </div>
                     </div>
 
-                    <label className="block min-w-0">
+                    <label className="relative block min-w-0">
                       <span className="sr-only">노출할 서비스</span>
                       <select
                         value={currentLinkedOptionId}
                         onChange={(event) => void onRelinkOption?.(row.option, event.target.value)}
                         disabled={!onRelinkOption || rowBusy}
-                        className="h-8 w-full rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[15px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
+                        className="h-8 w-full appearance-none rounded-[7px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[15px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10 disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:text-[#94a3b8]"
                       >
                         {buildGroupedSelectOptions(selectableOptions)}
                       </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[#0f172a]" strokeWidth={2} />
                     </label>
 
                     {onDeleteOption ? (
@@ -205,10 +206,10 @@ export default function CustomerServiceExposurePanel({
                         type="button"
                         onClick={() => void onDeleteOption(row.option)}
                         disabled={rowBusy}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:cursor-not-allowed disabled:opacity-35"
+                        className="inline-flex h-9 w-full items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`${row.displayName} 삭제`}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     ) : null}
                   </div>

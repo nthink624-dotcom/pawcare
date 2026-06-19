@@ -1,11 +1,13 @@
 ﻿"use client";
 
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
+import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -623,12 +625,14 @@ export default function OwnerSettingsPanel({
                 <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">{endDateLabel}</p>
                 <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
-              <a
+              <Link
                 href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
+                prefetch
+                onClick={() => writeOwnerBillingSummaryCache(subscriptionSummary)}
                 className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"
               >
                 {planCtaLabel}
-              </a>
+              </Link>
             </div>
           </div>
         </div>

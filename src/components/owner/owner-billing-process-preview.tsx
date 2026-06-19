@@ -152,7 +152,7 @@ function PgHandoffCard({ plan }: { plan: OwnerPlan }) {
 export function OwnerBillingProcessPreview() {
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlan["code"]>("quarterly");
   const [agreed, setAgreed] = useState(true);
-  const [paymentSheetOpen, setPaymentSheetOpen] = useState(true);
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<PaymentMethodOptionId>("saved");
   const sheetTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -173,7 +173,7 @@ export function OwnerBillingProcessPreview() {
 
   return (
     <div className="owner-font min-h-screen bg-[#f8f6f2] px-4 py-8 text-[#171411]">
-      <div className="mx-auto max-w-[430px]">
+      <div className="mx-auto max-w-[1120px]">
         <header className="mb-6">
           <p className="text-[13px] font-medium tracking-[-0.02em] text-[#1f6b5b]">카드사 제출용</p>
           <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.05em] text-[#171411]">정기결제 프로세스</h1>
@@ -191,6 +191,7 @@ export function OwnerBillingProcessPreview() {
             <div className="overflow-hidden rounded-[22px] border border-[#e5ddd1] bg-[#fffdfa]">
               <OwnerBillingPlanPicker
                 plans={billableOwnerPlans}
+                currentPlanCode="quarterly"
                 selectedPlanCode={selectedPlan.code}
                 onSelectPlanCode={setSelectedPlanCode}
                 onContinue={() => undefined}

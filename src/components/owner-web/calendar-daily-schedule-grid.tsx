@@ -9,7 +9,17 @@ import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/ow
 import { cn } from "@/lib/utils";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
-type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "changed" | "cancelled";
+type BookingCardTone =
+  | "pending"
+  | "confirmed"
+  | "active"
+  | "pickupReady"
+  | "completed"
+  | "changed"
+  | "cancelled"
+  | "rejected"
+  | "noshow"
+  | "missed";
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
 type BoardPanState = {
@@ -65,7 +75,7 @@ function isPendingBookingStatus(status: string) {
 }
 
 function isOverduePendingBookingStatus(status: string) {
-  return status === "기한 지남";
+  return status === "누락";
 }
 
 function isApprovalQueueBookingStatus(status: string) {
@@ -85,7 +95,7 @@ function isRescheduledBookingStatus(status: string) {
 }
 
 function isChangeBookingStatus(status: string) {
-  return status.includes("변경") || status.includes("취소");
+  return status.includes("변경") || status.includes("취소") || status.includes("거절") || status.includes("노쇼");
 }
 
 function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, currentHour: number) {
@@ -96,64 +106,89 @@ function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, curr
 }
 
 function getBookingCardTone(status: string): BookingCardTone {
-  if (isOverduePendingBookingStatus(status)) return "cancelled";
+  if (status === "시작 지연") return "missed";
+  if (isOverduePendingBookingStatus(status)) return "missed";
   if (isPendingBookingStatus(status)) return "pending";
-  if (status === "진행 중" || status === "픽업 준비") return "active";
+  if (status === "진행 중") return "active";
+  if (status === "픽업 준비") return "pickupReady";
   if (isCompletedBookingStatus(status)) return "completed";
-  if (isChangeBookingStatus(status)) return "changed";
-  if (status === "취소" || status === "거절" || status === "노쇼") return "cancelled";
+  if (isRescheduledBookingStatus(status)) return "changed";
+  if (status.includes("취소")) return "cancelled";
+  if (status.includes("거절")) return "rejected";
+  if (status.includes("노쇼")) return "noshow";
   return "confirmed";
 }
 
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
-  const base = "bg-white border-[#dbe2ea] hover:border-[#c5d0dc]";
+  const base = "border-[#dbe2ea] hover:border-[#c5d0dc]";
   const selectedClass = selected ? "ring-1 ring-[#94a3b8]/35" : "";
-  if (tone === "pending") return cn(base, "border-[#e7c980]", selectedClass);
-  if (tone === "active") return cn(base, "border-[#a8cfc4]", selectedClass);
-  if (tone === "completed") return cn(base, "border-[#d2d9e3]", selectedClass);
-  if (tone === "changed") return cn(base, "border-[#e0b7c1]", selectedClass);
-  if (tone === "cancelled") return cn(base, "border-[#e1bac3] opacity-80", selectedClass);
-  return cn(base, selectedClass);
+  const backgroundClass: Record<BookingCardTone, string> = {
+    pending: "bg-[#fffdf7]",
+    confirmed: "bg-[#fbfdff]",
+    active: "bg-[#fbfffc]",
+    pickupReady: "bg-[#faffff]",
+    completed: "bg-[#fbfcfe]",
+    changed: "bg-[#fdfcff]",
+    cancelled: "bg-[#fffafb]",
+    rejected: "bg-[#fffafa]",
+    noshow: "bg-[#fffdfb]",
+    missed: "bg-[#fffbfd]",
+  };
+  return cn(base, backgroundClass[tone], tone === "cancelled" && "opacity-85", selectedClass);
 }
 
 function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
-  if (tone === "pending") return "amber";
-  if (tone === "changed" || tone === "cancelled") return "burgundy";
-  if (tone === "completed") return "slate";
-  if (tone === "active" || tone === "confirmed") return "teal";
-  return "neutral";
+  return tone;
 }
 
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
   if (status === "시작 지연") return "지연";
-  if (isOverduePendingBookingStatus(status)) return "기한 지남";
+  if (isOverduePendingBookingStatus(status)) return "누락";
   if (status === "승인 대기") return "대기";
   return status;
 }
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (status === "승인 대기") return "border-[#f1d58c] bg-[#fff8df] text-[#9f6f00]";
-  if (isOverduePendingBookingStatus(status)) return "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]";
-  if (status === "시작 지연") return "border-[#f2d4b7] bg-[#fff7ed] text-[#b45309]";
+  if (status === "승인 대기") return "border-[#fde68a] bg-[#fffbeb] text-[#b45309]";
+  if (isOverduePendingBookingStatus(status)) return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
+  if (status === "시작 지연") return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
+  if (status === "확정") return "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]";
+  if (status === "진행 중") return "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]";
+  if (status === "픽업 준비") return "border-[#a5f3fc] bg-[#ecfeff] text-[#0e7490]";
   if (status === "완료") return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
-  if (status === "취소" || status === "거절") return "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]";
-  return "border-[#cfe5dd] bg-[#eefaf5] text-[#1f6b5b]";
+  if (status.includes("변경")) return "border-[#ddd6fe] bg-[#f5f3ff] text-[#6d28d9]";
+  if (status.includes("취소")) return "border-[#fecdd3] bg-[#fff1f2] text-[#be123c]";
+  if (status.includes("거절")) return "border-[#fecaca] bg-[#fef2f2] text-[#991b1b]";
+  if (status.includes("노쇼")) return "border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]";
+  return "border-[#dbe2ea] bg-[#f8fafc] text-[#334155]";
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#d99a2b]";
-  if (tone === "changed" || tone === "cancelled") return "bg-[#a04455]";
-  if (tone === "completed") return "bg-[#64748b]";
-  return "bg-[#2f7866]";
+  if (tone === "pending") return "bg-[#f59e0b]/72";
+  if (tone === "confirmed") return "bg-[#2563eb]/70";
+  if (tone === "active") return "bg-[#16a34a]/72";
+  if (tone === "pickupReady") return "bg-[#0891b2]/72";
+  if (tone === "completed") return "bg-[#64748b]/62";
+  if (tone === "changed") return "bg-[#7c3aed]/70";
+  if (tone === "cancelled") return "bg-[#e11d48]/68";
+  if (tone === "rejected") return "bg-[#b91c1c]/68";
+  if (tone === "noshow") return "bg-[#ea580c]/70";
+  return "bg-[#db2777]/70";
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#9f6f00]";
-  if (tone === "changed" || tone === "cancelled") return "text-[#8f2438]";
+  if (tone === "pending") return "text-[#b45309]";
+  if (tone === "confirmed") return "text-[#1d4ed8]";
+  if (tone === "active") return "text-[#15803d]";
+  if (tone === "pickupReady") return "text-[#0e7490]";
   if (tone === "completed") return "text-[#64748b]";
-  return "text-[#1f6b5b]";
+  if (tone === "changed") return "text-[#6d28d9]";
+  if (tone === "cancelled") return "text-[#be123c]";
+  if (tone === "rejected") return "text-[#991b1b]";
+  if (tone === "noshow") return "text-[#c2410c]";
+  return "text-[#be185d]";
 }
 
 function getBookingTop(start: number) {
@@ -487,7 +522,7 @@ export function DailyScheduleGrid({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
+    <div className="flex min-h-0 flex-1 flex-col bg-white">
       <div className="flex shrink-0 bg-white">
         <div className="flex w-[64px] shrink-0 items-center justify-center border-r border-[#edf2f7] bg-white px-2 pt-2">
           <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-white text-[12px] text-[#64748b]">
@@ -511,7 +546,7 @@ export function DailyScheduleGrid({
                   key={staffMember.key}
                   onClick={() => onSelectStaff(staffMember.key)}
                   className={cn(
-                    "min-w-[136px] cursor-pointer rounded-t-[8px] border border-b-0 px-3 py-2.5 transition hover:brightness-[0.98]",
+                    "min-w-[136px] cursor-pointer rounded-t-[8px] border border-b-0 px-2.5 py-1.5 transition hover:brightness-[0.98]",
                     selectedStaff && "shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-inset ring-white/45",
                   )}
                   style={{
@@ -520,9 +555,9 @@ export function DailyScheduleGrid({
                     backgroundColor: staffTone.selectedBackground,
                   }}
                 >
-                  <div className="grid min-h-[50px] grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5">
+                  <div className="grid min-h-[42px] grid-cols-[30px_minmax(0,1fr)] items-center gap-2">
                     <span
-                      className="flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full border text-[14px] font-medium"
+                      className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full border text-[13px] font-medium"
                       style={{
                         borderColor: "rgba(255,255,255,0.72)",
                         backgroundColor: "rgba(255,255,255,0.18)",
@@ -537,13 +572,13 @@ export function DailyScheduleGrid({
                     </span>
                     <div className="min-w-0">
                       <p
-                        className="min-w-0 truncate text-[14px] font-medium leading-[18px]"
+                        className="min-w-0 truncate text-[13px] font-semibold leading-[17px]"
                         style={{ color: "#ffffff" }}
                       >
                         {staffMember.name}
                       </p>
                       <p
-                        className="mt-0.5 min-w-0 truncate text-[12px] leading-[16px]"
+                        className="min-w-0 truncate text-[11px] leading-[15px]"
                         style={{ color: "rgba(255,255,255,0.84)" }}
                       >
                         예약 {staffBookings.length}건 · 대기 {pendingStatusCount}건
@@ -614,13 +649,12 @@ export function DailyScheduleGrid({
                   </div>
                 </section>
               ) : null}
-              {scheduleStaff.map((staffMember, staffIndex) => {
+              {scheduleStaff.map((staffMember) => {
                 const staffBookings = displayedVisibleBookings
                   .filter((booking) => booking.staffKey === staffMember.key)
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(staffBookings);
                 const selectedStaff = selectedStaffKey === staffMember.key;
-                const staffTone = getStaffChipTone(staffMember.key, staffMember.chipColorIndex ?? staffIndex);
                 return (
                   <section
                     key={staffMember.key}
@@ -632,7 +666,7 @@ export function DailyScheduleGrid({
                       selectedStaff && "ring-1 ring-inset ring-[#cfd8e3]",
                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
-                    style={{ flex: columnFlexBasis, borderColor: staffTone.border }}
+                    style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
                       {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
@@ -722,14 +756,19 @@ export function DailyScheduleGrid({
                                       "shrink-0 justify-self-end text-[13px] leading-[16px]",
                                       microCard
                                         ? "max-w-[92px] truncate whitespace-nowrap text-[#64748b]"
-                                        : `whitespace-nowrap tabular-nums ${getBookingTimeTextClass(cardTone)}`,
+                                        : `whitespace-nowrap font-semibold tabular-nums ${getBookingTimeTextClass(cardTone)}`,
                                     )}
                                   >
                                     {microCard ? booking.service : timeLabel}
                                   </span>
                                   {!microCard ? (
                                     <div className="col-span-2 flex min-w-0 items-center gap-1.5">
-                                      <span className={cn("shrink-0 rounded-[6px] border px-1.5 py-0.5 text-[11px] leading-none", statusPillClass)}>
+                                      <span
+                                        className={cn(
+                                          "shrink-0 rounded-[6px] border px-2 py-[2px] text-[11px] font-semibold leading-none shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
+                                          statusPillClass,
+                                        )}
+                                      >
                                         {statusLabel}
                                       </span>
                                       {pendingOverlapLabel ? (

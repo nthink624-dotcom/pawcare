@@ -546,7 +546,7 @@ export default function ServiceManagementScreen({
           : "입력하면 자동 저장됩니다";
 
   return (
-    <div className="space-y-5">
+    <div className="h-full min-h-0 space-y-5 overflow-y-auto pr-1">
       <section className="space-y-6">
           <div>
             <ServicePriceGuideEditor

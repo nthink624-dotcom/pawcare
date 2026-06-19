@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
+import DiscountCouponEditor from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
@@ -14,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import {
   applyCustomerServiceOverrides,
   buildCustomerServiceMenuConnectionOptions,
@@ -24,7 +26,7 @@ import {
 } from "@/lib/customer-service-options";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { ApprovalMode, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -135,8 +137,26 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
 const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: "profile", label: "프로필" },
   { key: "shop", label: "매장 정보" },
+  { key: "benefits", label: "혜택 관리" },
   { key: "alerts", label: "알림 설정" },
 ];
+
+function createDiscountCouponDraft(index: number): CustomerDiscountCoupon {
+  return {
+    id: `coupon-${Date.now()}-${index}`,
+    name: "첫 방문 할인",
+    enabled: true,
+    visible: true,
+    discount_type: "fixed",
+    discount_value: 10000,
+    audience: "first_visit",
+    service_scope: "all",
+    service_option_ids: [],
+    per_customer_limit: true,
+    starts_at: "",
+    ends_at: "",
+  };
+}
 
 const initialSettings: Record<SettingsTabKey, SettingsTab> = {
   profile: {
@@ -297,6 +317,13 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         control: "closedDays",
       },
     ],
+  },
+  benefits: {
+    key: "benefits",
+    label: "혜택 관리",
+    title: "혜택 관리",
+    description: "고객 예약 화면에 노출할 할인 혜택을 관리하세요.",
+    rows: [],
   },
   alerts: {
     key: "alerts",
@@ -914,6 +941,10 @@ export default function SettingsManagementScreen({
     () => applyCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
     [rawCustomerServiceConnectionOptions, customerServiceOverrides],
   );
+  const discountCoupons = useMemo(
+    () => normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
+    [shop?.customer_page_settings.discount_coupons],
+  );
 
   async function saveShopSettings(
     settings: Record<SettingsTabKey, SettingsTab>,
@@ -1063,6 +1094,81 @@ export default function SettingsManagementScreen({
         });
       customerServiceSaveTimerRef.current = null;
     }, 500);
+  }
+
+  function updateDiscountCoupons(nextCoupons: CustomerDiscountCoupon[]) {
+    const normalizedCoupons = normalizeDiscountCoupons(nextCoupons);
+
+    if (customerServiceSaveTimerRef.current) {
+      clearTimeout(customerServiceSaveTimerRef.current);
+      customerServiceSaveTimerRef.current = null;
+    }
+
+    if (!shop) {
+      setCustomerServiceSaveStatus("idle");
+      return;
+    }
+
+    const optimisticShop: Shop = {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        discount_coupons: normalizedCoupons,
+      },
+    };
+    onShopChange?.(optimisticShop);
+
+    if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
+      setCustomerServiceSaveStatus("saved");
+      return;
+    }
+
+    setCustomerServiceSaveStatus("pending");
+    customerServiceSaveTimerRef.current = setTimeout(() => {
+      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: shop.id,
+          discountCoupons: normalizedCoupons,
+        }),
+      })
+        .then((result) => {
+          onShopChange?.({
+            ...optimisticShop,
+            customer_page_settings: {
+              ...optimisticShop.customer_page_settings,
+              ...result.shop.customer_page_settings,
+            },
+          });
+          setCustomerServiceSaveStatus("saved");
+        })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to save discount coupons", error);
+          setCustomerServiceSaveStatus("error");
+        });
+      customerServiceSaveTimerRef.current = null;
+    }, 500);
+  }
+
+  function updateDiscountCoupon(couponId: string, patch: Partial<CustomerDiscountCoupon>) {
+    updateDiscountCoupons(
+      discountCoupons.map((coupon) =>
+        coupon.id === couponId
+          ? {
+              ...coupon,
+              ...patch,
+            }
+          : coupon,
+      ),
+    );
+  }
+
+  function addDiscountCoupon() {
+    updateDiscountCoupons([...discountCoupons, createDiscountCouponDraft(discountCoupons.length + 1)]);
+  }
+
+  function deleteDiscountCoupon(couponId: string) {
+    updateDiscountCoupons(discountCoupons.filter((coupon) => coupon.id !== couponId));
   }
 
   function addCustomerServiceOption() {
@@ -1375,7 +1481,7 @@ export default function SettingsManagementScreen({
   }
 
   return (
-    <div>
+    <div className="h-full min-h-0 overflow-y-auto">
       {saveCompleteVisible ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none" aria-live="polite">
           <div className="flex min-w-[252px] items-center justify-center gap-3 rounded-[12px] border border-[#dbe2ea] bg-white px-6 py-5 text-[18px] font-semibold text-[#111827] shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
@@ -1387,7 +1493,7 @@ export default function SettingsManagementScreen({
         </div>
       ) : null}
 
-      <div className={cn("grid gap-6", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
+      <div className={cn("grid min-h-0 gap-6", activeTab === "shop" && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
           <WebSurface className="p-3">
             <div className="space-y-1.5">
@@ -1409,7 +1515,7 @@ export default function SettingsManagementScreen({
           </WebSurface>
         ) : null}
 
-        <div className="min-w-0 space-y-4">
+        <div className={cn("min-w-0 space-y-4", activeTab === "shop" && "h-full min-h-0")}>
           {activeTab === "alerts" ? (
             <SettingsAlertsPanel
               value={alertSettings}
@@ -1436,11 +1542,12 @@ export default function SettingsManagementScreen({
             <>
               <ShopInfoSettingsPanel
                 rows={current.rows}
-                shopProfileImages={shopProfileImages}
-                shop={shop}
-                previewServices={services}
-                businessHoursSummary={String(businessHoursRow?.value ?? "")}
-                closedDaysSummary={String(closedDayRow?.value ?? "")}
+                  shopProfileImages={shopProfileImages}
+                  shop={shop}
+                  previewServices={services}
+                  ownerProfile={ownerProfile}
+                  businessHoursSummary={String(businessHoursRow?.value ?? "")}
+                  closedDaysSummary={String(closedDayRow?.value ?? "")}
                 editable
                 saving={savingShopInfo}
                 onSave={saveShopInfoFromDraft}
@@ -1479,6 +1586,29 @@ export default function SettingsManagementScreen({
                 ) : null}
               </ShopInfoSettingsPanel>
             </>
+          ) : activeTab === "benefits" ? (
+            <WebSurface className="p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[20px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={addDiscountCoupon}
+                  className="inline-flex h-10 shrink-0 items-center rounded-[8px] border border-[#607080] bg-[#607080] px-4 text-[15px] font-normal text-white transition hover:border-[#526170] hover:bg-[#526170]"
+                >
+                  혜택 추가
+                </button>
+              </div>
+              <DiscountCouponEditor
+                coupons={discountCoupons}
+                serviceOptions={customerServiceConnectionOptions}
+                disabled={false}
+                onAdd={addDiscountCoupon}
+                onDelete={deleteDiscountCoupon}
+                onUpdate={updateDiscountCoupon}
+              />
+            </WebSurface>
           ) : (
             <WebSurface className="p-6">
               <div className="divide-y divide-[#f1e8e0]">

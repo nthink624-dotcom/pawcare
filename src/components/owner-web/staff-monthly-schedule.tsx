@@ -1,8 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
-import { cn } from "@/lib/utils";
 import {
   applyScheduleToCell,
   getCellIndicatorTone,
@@ -13,6 +12,8 @@ import {
   type StaffMember,
   type WeekdayKey,
 } from "@/components/owner-web/staff-management-model";
+import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import { cn } from "@/lib/utils";
 
 type MonthDay = ReturnType<typeof getMonthCalendarDates>[number];
 
@@ -42,39 +43,39 @@ export function StaffMonthlySchedule({
   const compactMonthLabel = monthLabel.replace(/^\d{4}년\s*/, "");
 
   return (
-    <div className="max-w-full overflow-hidden bg-white">
-      <div className="relative flex h-[96px] items-center justify-center bg-gradient-to-b from-[#2f7866] to-[#1f6b5b] px-16 text-white">
+    <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white">
+      <div className="relative flex h-[64px] items-center justify-center border-b border-[#e1e1dd] bg-white px-16 text-[#202124]">
         <button
           type="button"
           onClick={onPreviousMonth}
-          className="absolute left-5 inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-white/25 bg-white/10 text-white transition hover:bg-white/15"
-          aria-label="Previous month"
+          className="absolute left-5 inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e1e1dd] bg-white text-[#6f747a] transition hover:bg-[#f4f4f1] hover:text-[#202124]"
+          aria-label="이전 달"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <button type="button" onClick={onCurrentMonth} className="text-[44px] font-normal leading-none tracking-[0]">
+        <button type="button" onClick={onCurrentMonth} className="text-[24px] font-medium leading-none tracking-[0] text-[#202124]">
           {compactMonthLabel}
         </button>
         <button
           type="button"
           onClick={onNextMonth}
-          className="absolute right-5 inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-white/25 bg-white/10 text-white transition hover:bg-white/15"
-          aria-label="Next month"
+          className="absolute right-5 inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#e1e1dd] bg-white text-[#6f747a] transition hover:bg-[#f4f4f1] hover:text-[#202124]"
+          aria-label="다음 달"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="max-w-full overflow-hidden">
-        <div className="w-full min-w-0">
-          <div className="grid min-w-0 grid-cols-7 border-b border-t border-[#dbe2ea] bg-[#f8fafc] text-[16px] text-[#475569]">
+      <div className="min-h-0 max-w-full flex-1 overflow-auto overscroll-contain [scrollbar-width:thin]">
+        <div className="w-full min-w-[980px]">
+          <div className="grid min-w-0 grid-cols-7 border-b border-[#e1e1dd] bg-[#f7f7f4] text-[16px] text-[#6f747a]">
             {weekdayColumns.map((day, index) => (
-              <div key={day.key} className={cn("flex h-[40px] items-center justify-center border-[#e2e8f0]", index < weekdayColumns.length - 1 && "border-r")}>
+              <div key={day.key} className={cn("flex h-[36px] items-center justify-center border-[#e1e1dd]", index < weekdayColumns.length - 1 && "border-r")}>
                 {day.label}
               </div>
             ))}
           </div>
-          <div className="grid min-w-0 grid-cols-7 border-l border-[#dbe2ea]">
+          <div className="grid min-w-0 grid-cols-7 border-l border-[#e1e1dd]">
             {weeks.flatMap((week) =>
               week.map((day) => (
                 <MonthlyDayCell
@@ -114,26 +115,25 @@ function MonthlyDayCell({
       cell: applyScheduleToCell(staffMember, day.key, day.date, requests, overrides),
     }))
     .filter(({ cell }) => day.isCurrentMonth && cell.status === "work");
-
   return (
     <div
       className={cn(
-        "min-w-0 h-[150px] border-b border-r border-[#dbe2ea] bg-white px-[12px] py-[12px]",
-        !day.isCurrentMonth && "bg-[#fafafa] text-[#94a3b8]",
+        "flex h-[154px] min-w-0 flex-col border-b border-r border-[#e1e1dd] bg-white px-[12px] py-[11px]",
+        !day.isCurrentMonth && "bg-[#fafafa] text-[#9a9a94]",
       )}
     >
-      <div className="mb-[9px] flex h-6 items-center justify-between gap-2">
+      <div className="mb-[8px] flex h-6 shrink-0 items-center justify-between gap-2">
         <span
           className={cn(
             "inline-flex h-8 min-w-8 items-center justify-center rounded-[8px] px-2 text-[17px] font-normal",
-            day.isToday ? "bg-[#2f7866] text-white" : day.isCurrentMonth ? "text-[#111827]" : "text-[#94a3b8]",
+            day.isToday ? "bg-[#30312f] text-white" : day.isCurrentMonth ? "text-[#202124]" : "text-[#9a9a94]",
           )}
         >
           {day.dayNumber}
         </span>
-        {day.isToday ? <span className="text-[16px] text-[#2f7866]">{"\uC624\uB298"}</span> : null}
+        {day.isToday ? <span className="text-[16px] text-[#6f747a]">오늘</span> : null}
       </div>
-      <div className="max-h-[104px] min-w-0 space-y-[4px] overflow-y-auto pr-0.5">
+      <div className="min-h-0 min-w-0 flex-1 space-y-[3px] overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
         {workingCells.map(({ staffMember, staffIndex, cell }) => {
           const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
           return (
@@ -142,20 +142,20 @@ function MonthlyDayCell({
               type="button"
               onClick={() => onOpenScheduleEditor(staffMember, day)}
               className={cn(
-                "pm-wrap-indicator flex h-[23px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[7px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f8fafc]",
+                "pm-wrap-indicator flex h-[22px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[7px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
               style={
                 {
                   borderColor: staffTone.border,
                   "--pm-wrap-indicator-color": staffTone.border,
-                } as any
+                } as CSSProperties
               }
             >
-              <span className="min-w-0 flex-1 truncate font-normal" style={{ color: staffTone.text }}>
+              <span className="inline-flex min-w-0 items-center truncate font-normal leading-none" style={{ color: staffTone.text }}>
                 {staffMember.name}
               </span>
-              <span className="shrink-0 font-normal tabular-nums text-[#64748b]">{cell.label}</span>
+              <span className="inline-flex shrink-0 items-center font-normal leading-none tabular-nums text-[#6f747a]">{cell.label}</span>
             </button>
           );
         })}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>매장 첫 화면 v6 — 소셜 강화 + 영업시간 동일 줄 + 폰트 확대</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --text:#3a2e2a; --textMid:#8a7a72; --textMuted:#b6a89f; --open:#3a9e6e;
+    --primary:#ec7f72; --primaryDk:#d35f50; --primarySoft:#fce9e4;
+    --surface:#fdf7f5; --track:#f6e2db; --border:#efe2dc; --borderSoft:#f5ebe6; --card:#fff;
+    --r:14px; --rbtn:12px;
+    --ig:linear-gradient(45deg,#feda75 5%,#fa7e1e 28%,#d62976 55%,#962fbf 78%,#4f5bd5 100%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans KR',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:var(--text);background:#e7e2dc;min-height:100vh;padding:54px 40px 90px;}
+  .head{max-width:760px;margin:0 auto 38px;}
+  .head h1{font-size:25px;font-weight:700;letter-spacing:-.04em;}
+  .head p{font-size:14px;color:#6e635c;margin-top:10px;line-height:1.7;}
+  .head p b{color:var(--primaryDk);font-weight:600;}
+
+  .grid{display:flex;justify-content:center;}
+  .col{width:380px;}
+
+  .phone{background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(60,40,30,.17),0 0 0 1px rgba(0,0,0,.08);}
+  .screen{background:var(--surface);border-radius:31px;overflow:hidden;position:relative;height:780px;}
+  .island{position:absolute;top:13px;left:50%;transform:translateX(-50%);width:104px;height:29px;border-radius:16px;background:#1a1410;z-index:9;}
+  .sb{position:absolute;top:0;left:0;right:0;z-index:8;display:flex;justify-content:space-between;align-items:center;padding:14px 26px 6px;font-size:13px;font-weight:600;}
+  .scroll{height:100%;overflow:auto;padding-bottom:90px;scrollbar-width:none;}
+  .scroll::-webkit-scrollbar{display:none;}
+
+  .ph{background:repeating-linear-gradient(135deg,#f2e6e0 0 11px,#ede0d7 11px 22px);display:flex;align-items:center;justify-content:center;}
+  .ph span{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:#c2ab9f;}
+  .ph.b{background:repeating-linear-gradient(135deg,#efe4f0 0 11px,#e9dcea 11px 22px);}
+  .ph.c{background:repeating-linear-gradient(135deg,#e9ece4 0 11px,#e2e6da 11px 22px);}
+
+  /* 갤러리 = 히어로 */
+  .gwrap{padding-top:39px;}
+  .gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 13px;scrollbar-width:none;}
+  .gallery::-webkit-scrollbar{display:none;}
+  .gcard{flex:0 0 88%;scroll-snap-align:center;height:234px;border-radius:16px;position:relative;overflow:hidden;}
+  .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%);}
+  .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff;}
+  .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35);}
+  .gcard .cnt{position:absolute;right:12px;top:12px;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;}
+  /* 갤러리 우상단 — 문의/길찾기 글래스 버튼 */
+  .gacts{position:absolute;left:12px;top:12px;display:flex;gap:7px;}
+  .gacts button{width:38px;height:38px;border-radius:12px;background:rgba(20,12,10,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .gdots{display:flex;justify-content:center;gap:5px;padding:12px 0 2px;}
+  .gdots i{width:6px;height:6px;border-radius:50%;background:var(--track);display:block;}
+  .gdots i.on{width:18px;border-radius:3px;background:var(--primary);}
+
+  .body{padding:12px 16px 6px;display:flex;flex-direction:column;gap:16px;}
+
+  /* 프로필 */
+  .pbar{display:flex;align-items:center;gap:12px;}
+  .avwrap{position:relative;flex-shrink:0;}
+  .avwrap .av{width:50px;height:50px;border-radius:50%;}
+  .pbar .who{min-width:0;flex:1;}
+  .pbar .nm{font-size:17px;font-weight:600;letter-spacing:-.02em;}
+  .pbar .sub{font-size:13px;color:var(--textMuted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* 소셜(강화) + 영업시간 한 줄 */
+  .srow{display:flex;align-items:flex-start;gap:10px;}
+  .socials{display:flex;gap:9px;}
+  .socials .chip{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(60,40,30,.16);cursor:pointer;}
+  .hours{margin-left:auto;position:relative;}
+  .hours .top{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;}
+  .hours .top .od{width:8px;height:8px;border-radius:50%;background:var(--open);display:block;}
+  .hours .top .chev{color:var(--textMuted);font-size:12px;transition:transform .25s;}
+  .hours.open .top .chev{transform:rotate(180deg);}
+  .hours .list{position:absolute;right:0;top:48px;z-index:5;width:236px;display:none;}
+  .hours.open .list{display:block;animation:hdrop .18s ease;}
+  @keyframes hdrop{from{opacity:0;}to{opacity:1;}}
+  .hours .list .inner{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:5px 15px;box-shadow:0 14px 30px rgba(60,40,30,.16);}
+  .hours .row{display:flex;align-items:center;font-size:13px;padding:8px 0;}
+  .hours .row + .row{border-top:1px solid var(--borderSoft);}
+  .hours .row .d{width:64px;color:var(--textMid);}
+  .hours .row .t{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .hours .row.today .d,.hours .row.today .t{color:var(--primaryDk);font-weight:600;}
+  .hours .row.off .t{color:var(--textMuted);}
+
+  /* 요금 + 오늘 가능 시간 — 따뜻한 톤(초록 제거) */
+  .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+  .pcard .r{display:flex;align-items:center;padding:13px 17px;}
+  .pcard .r + .r{border-top:1px solid var(--borderSoft);}
+  .pcard .r .n{font-size:15px;font-weight:500;letter-spacing:-.02em;white-space:nowrap;}
+  .pcard .r .d{font-size:12.5px;color:var(--textMuted);margin-left:8px;white-space:nowrap;overflow:hidden;}
+  .pcard .r .p{margin-left:auto;font-size:16px;font-weight:600;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:8px;}
+  .pcard .slots{border-top:6px solid var(--surface);padding:15px 17px 16px;}
+  .pcard .slots .sh{display:flex;align-items:baseline;}
+  .pcard .slots .sh .b{font-size:14px;font-weight:600;letter-spacing:-.02em;}
+  .pcard .slots .sh .left{margin-left:auto;font-size:12.5px;color:var(--textMid);white-space:nowrap;}
+  .pcard .slots .sh .left b{color:var(--primaryDk);font-weight:600;}
+  .pcard .slots .chips{display:flex;gap:9px;margin-top:13px;}
+  .pcard .slots .chip{font-size:14.5px;font-weight:500;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:10px 0;flex:1;text-align:center;font-variant-numeric:tabular-nums;cursor:pointer;}
+  .pcard .slots .chip.soon{color:var(--primaryDk);border-color:#f0c5ba;background:#fdeee9;font-weight:600;}
+  .pcard .full{display:flex;align-items:center;justify-content:center;gap:5px;padding:14px;border-top:1px solid var(--borderSoft);font-size:13.5px;color:var(--textMid);text-decoration:none;cursor:pointer;}
+
+  /* 하단 — 쿠폰 한 줄 + 예약하기 풀폭 */
+  .dock{position:absolute;bottom:0;left:0;right:0;z-index:7;padding:10px 16px 16px;background:rgba(253,247,245,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);}
+  .dock .cpn{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text);padding:4px 2px 10px;}
+  .dock .cpn .ctag{font-size:11px;font-weight:700;color:#fff;background:var(--primary);border-radius:6px;padding:3px 7px;letter-spacing:-.01em;}
+  .dock .cpn .x{color:var(--textMuted);margin-left:auto;}
+  .dock .cta{width:100%;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>매장 첫 화면 v6 · 소셜 강화 + 정리</h1>
+  <p>① <b>영업 중</b>을 소셜 아이콘과 같은 줄로 → 빈 줄 낭비 제거 · ② 인스타·쓰레드·카톡을 <b>브랜드 컬러 칩</b>으로 키워 또렷하게 · ③ 본문 폰트 전반 확대 · ④ 요금·시간 카드의 <b>초록색 제거</b>, 따뜻한 톤으로 통일. (영업 중 / 시간 칩 클릭 가능)</p>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const IG = (c,s=20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" style="display:block"><rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5.6" stroke="${c}" stroke-width="2.1"/><circle cx="12" cy="12" r="4.3" stroke="${c}" stroke-width="2.1"/><circle cx="17.4" cy="6.6" r="1.5" fill="${c}"/></svg>`;
+const THREADS = (c,s=19) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${c}" style="display:block"><path d="M16.7 11.16c-.09-.04-.18-.08-.27-.12-.16-2.93-1.76-4.6-4.45-4.62h-.04c-1.6 0-2.95.69-3.77 1.94l1.48 1.01c.61-.93 1.57-1.13 2.29-1.13h.03c.9 0 1.57.26 2 .77.31.38.52.9.63 1.56-.82-.14-1.7-.18-2.65-.12-2.66.15-4.37 1.7-4.26 3.85.06 1.09.6 2.03 1.53 2.64.79.51 1.8.76 2.86.71 1.4-.08 2.5-.61 3.26-1.59.58-.74.95-1.7 1.11-2.92.68.41 1.18.95 1.46 1.6.47 1.1.5 2.9-.97 4.37-1.29 1.28-2.83 1.84-5.16 1.85-2.58-.02-4.54-.85-5.81-2.46C5.02 16.83 4.41 14.7 4.39 12c.02-2.7.63-4.83 1.81-6.33C7.47 4.06 9.43 3.23 12 3.21c2.59.02 4.58.85 5.91 2.47.65.8 1.15 1.8 1.47 2.98l1.74-.46c-.39-1.45-1-2.7-1.84-3.72C18.6 2.4 16.13 1.34 12.83 1.32h-.01C8.69 1.34 5.95 2.74 4.42 5.06 3.06 7.12 2.36 9.86 2.34 12v.01c.02 2.14.72 4.88 2.08 6.94 1.53 2.32 4.27 3.72 8.41 3.74h.01c3.68-.03 6.27-1 8.4-3.11 2.79-2.76 2.71-6.23 1.79-8.36-.66-1.53-1.92-2.77-3.64-3.6Zm-4.59 6.93c-1.17.07-2.39-.46-2.45-1.57-.04-.83.59-1.75 2.52-1.86.22-.01.44-.02.65-.02.7 0 1.36.07 1.96.2-.22 2.79-1.53 3.18-2.68 3.25Z"/></svg>`;
+const KAKAO = (c,s=20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${c}" style="display:block"><path d="M12 3.2C6.9 3.2 2.8 6.43 2.8 10.41c0 2.55 1.71 4.79 4.28 6.08-.14.49-.9 3.1-.93 3.31 0 0-.02.16.08.22.1.06.22.02.22.02.29-.04 3.36-2.2 3.94-2.6.52.07 1.06.11 1.61.11 5.1 0 9.2-3.23 9.2-7.21S17.1 3.2 12 3.2Z"/></svg>`;
+const PIN = (c) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z" stroke="${c}" stroke-width="1.9" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" stroke="${c}" stroke-width="1.9"/></svg>`;
+const CHAT = (c) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 5.5h16v11H9l-4 3.5v-3.5H4v-11Z" stroke="${c}" stroke-width="1.9" stroke-linejoin="round"/></svg>`;
+
+const gallery = `<div class="gwrap">
+  <div class="gallery">
+    <div class="gcard ph"><span>대표 작업 ①</span><div class="ovl"></div>
+      <div class="gacts">
+        <button title="문의하기">${CHAT('#fff')}</button>
+        <button title="길찾기">${PIN('#fff')}</button>
+      </div>
+      <span class="cnt">1 / 324</span>
+      <div class="id"><div class="nm">우진만세</div></div>
+    </div>
+    <div class="gcard ph b"><span>대표 작업 ②</span></div>
+    <div class="gcard ph c"><span>대표 작업 ③</span></div>
+  </div>
+  <div class="gdots"><i class="on"></i><i></i><i></i><i></i></div>
+</div>`;
+
+const profile = `<div class="pbar">
+  <div class="avwrap"><div class="av ph"></div></div>
+  <div class="who"><div class="nm">정우진 원장</div>
+    <div class="sub">@woojinmanse · 팔로워 1.8천 · 반려견 미용 9년차</div></div>
+</div>`;
+
+const srow = `<div class="srow">
+  <div class="socials">
+    <span class="chip" style="background:var(--ig)">${IG('#fff')}</span>
+    <span class="chip" style="background:#000">${THREADS('#fff')}</span>
+    <span class="chip" style="background:#FEE500">${KAKAO('#3A1D1D')}</span>
+  </div>
+  <div class="hours" onclick="this.classList.toggle('open')">
+    <div class="top"><span class="od"></span>영업 중<span class="chev">▾</span></div>
+    <div class="list"><div class="inner">
+      <div class="row today"><span class="d">오늘 (금)</span><span class="t">10:00 – 21:00</span></div>
+      <div class="row"><span class="d">월–목</span><span class="t">10:00 – 21:00</span></div>
+      <div class="row"><span class="d">토</span><span class="t">10:00 – 19:00</span></div>
+      <div class="row off"><span class="d">일</span><span class="t">정기 휴무</span></div>
+      <div class="row off"><span class="d">점심</span><span class="t">13:00 – 14:00</span></div>
+    </div></div>
+  </div>
+</div>`;
+
+const pcard = `<div class="pcard">
+  <div class="r"><span class="n">전체미용</span><span class="d">90~120분</span><span class="p">45,000원~</span></div>
+  <div class="r"><span class="n">위생미용+목욕</span><span class="d">60~90분</span><span class="p">30,000원~</span></div>
+  <div class="r"><span class="n">스포팅</span><span class="d">120~150분</span><span class="p">70,000원~</span></div>
+  <div class="slots">
+    <div class="sh"><span class="b">오늘 예약 가능 시간</span><span class="left"><b>3자리</b> 남음</span></div>
+    <div class="chips"><span class="chip soon">14:00</span><span class="chip">15:30</span><span class="chip">19:30</span></div>
+  </div>
+  <a class="full">전체 요금표 보기 ›</a>
+</div>`;
+
+const dock = `<div class="dock">
+  <div class="cpn"><span class="ctag">첫 방문</span>10,000원 할인 자동 적용<span class="x">D-7</span></div>
+  <button class="cta">예약하기</button>
+</div>`;
+
+document.getElementById("grid").innerHTML = `<div class="col"><div class="phone"><div class="screen">
+  <div class="island"></div>
+  <div class="sb"><span>9:41</span><div style="display:flex;gap:4px"><i style="width:5px;height:5px;border-radius:50%;background:var(--text);display:block"></i><i style="width:5px;height:5px;border-radius:50%;background:var(--text);display:block"></i><i style="width:5px;height:5px;border-radius:50%;background:var(--text);display:block"></i></div></div>
+  <div class="scroll">${gallery}<div class="body">${profile}${srow}${pcard}</div></div>
+  ${dock}
+</div></div></div>`;
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { readOwnerBillingSummaryCache, writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
@@ -24,6 +25,12 @@ function OwnerBillingPageContent() {
     let active = true;
 
     async function load() {
+      const cachedSummary = readOwnerBillingSummaryCache();
+      if (cachedSummary && active) {
+        setSummary(cachedSummary);
+        setMessage("최신 구독 정보를 확인하는 중입니다.");
+      }
+
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active) {
           setMessage("Supabase 설정을 확인해 주세요.");
@@ -46,6 +53,7 @@ function OwnerBillingPageContent() {
           cache: "no-store",
         });
         if (active) {
+          writeOwnerBillingSummaryCache(nextSummary);
           setSummary(nextSummary);
         }
       } catch (error) {
@@ -75,6 +83,7 @@ function OwnerBillingPageContent() {
           cache: "no-store",
         });
         if (active) {
+          writeOwnerBillingSummaryCache(nextSummary);
           setSummary(nextSummary);
         }
       } catch {

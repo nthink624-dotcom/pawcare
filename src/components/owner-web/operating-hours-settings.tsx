@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronLeft, ChevronRight, Info, Plus, Trash2 } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -479,7 +479,7 @@ function TimeInput({
   const displayMinuteValue = minuteOptions.includes(minuteText) ? minuteText : "00";
   const displayValue = `${displayHourValue}:${displayMinuteValue}`;
 
-  function updatePopoverPosition() {
+  const updatePopoverPosition = useCallback(() => {
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
     const viewportPadding = 8;
@@ -491,11 +491,11 @@ function TimeInput({
       left,
       top: rect.bottom + 6,
     });
-  }
+  }, [popoverWidth, setPopoverPosition]);
 
   useEffect(() => {
     if (!open) return;
-    updatePopoverPosition();
+    const frameId = window.requestAnimationFrame(updatePopoverPosition);
 
     function handleDocumentMouseDown(event: MouseEvent) {
       if (!pickerRef.current?.contains(event.target as Node)) {
@@ -507,11 +507,12 @@ function TimeInput({
     window.addEventListener("resize", updatePopoverPosition);
     window.addEventListener("scroll", updatePopoverPosition, true);
     return () => {
+      window.cancelAnimationFrame(frameId);
       document.removeEventListener("mousedown", handleDocumentMouseDown);
       window.removeEventListener("resize", updatePopoverPosition);
       window.removeEventListener("scroll", updatePopoverPosition, true);
     };
-  }, [open, popoverWidth]);
+  }, [open, updatePopoverPosition]);
 
   function commit(nextDisplayHour: string, nextDisplayMinute: string) {
     const nextValue = `${nextDisplayHour}:${nextDisplayMinute}`;
@@ -532,7 +533,7 @@ function TimeInput({
         }}
         className={cn(
           "inline-flex items-center justify-between rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#111827] outline-none transition hover:bg-[#f8fafc] focus:border-[#94a3b8] focus:ring-[3px] focus:ring-[#64748b]/10 disabled:bg-[#f8fafc] disabled:text-[#94a3b8]",
-          compact ? "h-8 w-[96px] px-2.5 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
+          compact ? "h-8 w-[88px] px-2 text-[14px]" : "h-10 w-[116px] px-3 text-[16px]",
         )}
       >
         <span>{displayValue}</span>
@@ -839,13 +840,13 @@ export default function OperatingHoursSettings({
               <button
                 key={dateKey}
                 type="button"
-                disabled={regularClosed && !saved}
+                disabled={dateKey < todayKey()}
                 onClick={() => {
                   if (savedTemporaryHoliday) {
                     removeTemporaryHoliday(savedTemporaryHoliday.id);
                     return;
                   }
-                  if (dateKey >= todayKey() && !regularClosed) setPendingTemporaryHolidayDate(dateKey);
+                  if (dateKey >= todayKey()) setPendingTemporaryHolidayDate(dateKey);
                 }}
                 className={cn(
                   "flex h-7 items-center justify-center rounded-[7px] border text-[13px] font-normal transition",
@@ -884,39 +885,39 @@ export default function OperatingHoursSettings({
           </p>
         ) : null}
 
-        <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(560px,1fr)_minmax(440px,520px)]">
+        <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
           <WebSurface className="h-full border-0 bg-transparent p-0 shadow-none xl:order-2">
             <div className="h-full overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
-              <div className="grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#fbfcfd] px-3 py-2 lg:grid-cols-[112px_minmax(0,1fr)]">
+              <div className="grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#fbfcfd] px-2.5 py-2 lg:grid-cols-[86px_minmax(0,1fr)]">
                 <p className="text-[16px] font-normal text-[#111827]">공통 적용</p>
-                <div className="grid grid-cols-[96px_24px_96px_auto] items-center justify-end gap-1.5">
+                <div className="grid grid-cols-[88px_14px_88px_auto] items-center justify-end gap-1">
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
                   <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
                   <button
                     type="button"
                     onClick={applyBulkTimeToAllDays}
-                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
                   >
                     적용
                   </button>
                 </div>
               </div>
               {businessDays.map((day) => (
-                <div key={day.key} className="grid min-h-[48px] items-center gap-2 border-b border-[#edf2f7] px-3 py-2.5 last:border-b-0 lg:grid-cols-[36px_128px_minmax(0,1fr)]">
+                <div key={day.key} className="grid min-h-[48px] items-center gap-1.5 border-b border-[#edf2f7] px-2.5 py-2.5 last:border-b-0 lg:grid-cols-[28px_110px_minmax(0,1fr)]">
                   <span className="text-[16px] font-normal text-[#111827]">{day.shortLabel}</span>
-                  <div className="ml-7 flex items-center gap-1.5">
+                  <div className="ml-4 flex items-center gap-1.5">
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
                     <span className={cn("whitespace-nowrap text-[16px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="ml-auto grid grid-cols-[96px_24px_96px] items-center justify-end gap-1.5">
+                    <div className="ml-auto grid grid-cols-[88px_14px_88px] items-center justify-end gap-1">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
                       <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
-                    <p className="ml-auto w-[216px] text-left text-[16px] font-normal text-[#64748b]">예약을 받지 않습니다.</p>
+                    <p className="ml-auto w-[190px] text-left text-[16px] font-normal text-[#64748b]">예약을 받지 않습니다.</p>
                   )}
                 </div>
               ))}
@@ -986,17 +987,18 @@ export default function OperatingHoursSettings({
 
             <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[16px] font-normal text-[#111827]">예약 간격 / 제외 시간</p>
+                <p className="text-[16px] font-normal text-[#111827]">예약 금지 시간 설정</p>
                 <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]">
                   <Plus className="h-3.5 w-3.5" />
-                  제외 시간
+                  금지 시간
                 </button>
               </div>
               {bookingSettings.blockedWindows.length > 0 ? (
                 <div className="mt-2 grid gap-1.5">
                   {bookingSettings.blockedWindows.map((windowItem) => (
-                    <div key={windowItem.id} className="grid grid-cols-[96px_96px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
+                    <div key={windowItem.id} className="grid grid-cols-[88px_16px_88px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
                       <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
+                      <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
                       <input
                         value={windowItem.label}
@@ -1013,6 +1015,32 @@ export default function OperatingHoursSettings({
             </div>
           </div>
         </div>
+        {pendingTemporaryHolidayDate ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+              <p className="text-[18px] font-normal text-[#111827]">임시 휴무일 지정</p>
+              <p className="mt-3 text-[15px] leading-6 text-[#475569]">
+                {pendingTemporaryHolidayDate}을 임시 휴무일로 지정할까요?
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingTemporaryHolidayDate("")}
+                  className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addTemporaryHoliday(pendingTemporaryHolidayDate)}
+                  className="h-11 rounded-[8px] bg-[#2f7866] text-[15px] font-normal text-white hover:bg-[#286b5b]"
+                >
+                  지정하기
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1248,17 +1276,18 @@ export default function OperatingHoursSettings({
 
           <div className={cn("border-t border-[#edf2f7]", compact ? "mt-3 pt-3" : "mt-4 pt-4")}>
             <div className="flex items-center justify-between gap-3">
-              <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 제외 시간</p>
+              <p className={cn("font-normal text-[#334155]", "text-[16px]")}>예약 금지 시간 설정</p>
               <button type="button" onClick={addBlockedWindow} className={cn("inline-flex items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white font-normal text-[#334155] hover:bg-[#f8fafc]", compact ? "h-8 px-2.5 text-[14px]" : "h-9 px-3 text-[16px]")}>
                 <Plus className="h-4 w-4" />
-                시간 추가
+                금지 시간 추가
               </button>
             </div>
 
             <div className="mt-3 space-y-2">
               {bookingSettings.blockedWindows.map((windowItem) => (
-                <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[96px_96px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[116px_116px_minmax(0,1fr)_36px] gap-3 p-2")}>
+                <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[88px_16px_88px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[116px_20px_116px_minmax(0,1fr)_36px] gap-3 p-2")}>
                   <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact={compact} />
+                  <span className={cn("text-center font-normal text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>~</span>
                   <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact={compact} />
                   <input
                     value={windowItem.label}

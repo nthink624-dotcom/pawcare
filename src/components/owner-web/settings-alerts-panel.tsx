@@ -183,12 +183,72 @@ function TimingOptionButton({
       className={cn(
         "h-10 rounded-[8px] border px-4 text-[16px] transition",
         selected
-          ? "border-[#2f7866] bg-[#f1f7f4] text-[#2f7866]"
-          : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b9c3cf]",
+          ? "border-[#202020] bg-[#f5f5f5] text-[#111827] shadow-[inset_0_0_0_1px_rgba(17,17,17,0.03)]"
+          : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#cbd5e1] hover:bg-[#fafafa]",
       )}
     >
       {children}
     </button>
+  );
+}
+
+function clampMinuteValue(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function MinuteTimingControl({
+  title,
+  value,
+  unitLabel,
+  options,
+  min = 1,
+  max = 180,
+  onChange,
+}: {
+  title: string;
+  value: number;
+  unitLabel: string;
+  options: readonly number[];
+  min?: number;
+  max?: number;
+  onChange: (minutes: number) => void;
+}) {
+  return (
+    <div className="rounded-[10px] border border-[#e5e7eb] bg-[#fbfbfb] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[16px] font-medium text-[#111827]">{title}</p>
+        <label className="flex h-10 items-center overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            onChange={(event) => {
+              const nextValue = Number.parseInt(event.target.value, 10);
+              if (!Number.isFinite(nextValue)) {
+                return;
+              }
+              onChange(clampMinuteValue(nextValue, min, max));
+            }}
+            onBlur={(event) => {
+              const nextValue = Number.parseInt(event.target.value, 10);
+              onChange(clampMinuteValue(Number.isFinite(nextValue) ? nextValue : value, min, max));
+            }}
+            className="h-full w-[76px] border-0 bg-transparent px-3 text-right text-[16px] font-medium text-[#111827] outline-none"
+            aria-label={`${title} 분 단위 입력`}
+          />
+          <span className="border-l border-[#e5e7eb] px-3 text-[16px] text-[#475569]">{unitLabel}</span>
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {options.map((minutes) => (
+          <TimingOptionButton key={minutes} selected={value === minutes} onClick={() => onChange(minutes)}>
+            {minutes}분 {unitLabel}
+          </TimingOptionButton>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -202,18 +262,18 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
           <p className="text-[16px] font-semibold text-[#111827]">쏘다 템플릿 미리보기</p>
           <p className="mt-1 text-[16px] text-[#64748b]">{item.title}</p>
         </div>
-        <MessageCircle className="h-5 w-5 text-[#2f7866]" />
+        <MessageCircle className="h-5 w-5 text-[#64748b]" />
       </div>
 
       <div className="mt-4 flex justify-center">
         <div className="w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
           <div className="flex items-center gap-2">
             <img
-              src="/images/brand/ododok-petmanager-logo.png"
+              src="/icons/logo/넘친 Day 이니셜.svg"
               alt=""
               className="h-9 w-9 rounded-full bg-white object-contain p-1"
             />
-            <p className="min-w-0 truncate text-[14px] text-[#0f172a]">오도독상회 펫매니저</p>
+            <p className="min-w-0 truncate text-[14px] text-[#0f172a]">넘친 Day</p>
           </div>
 
           <div className="relative ml-[35px] mt-1 w-[214px] rounded-[2px] bg-white text-[#111827] shadow-sm">
@@ -279,52 +339,6 @@ export default function SettingsAlertsPanel({
             </div>
           </div>
 
-          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
-            <div className="mb-4">
-              <p className="text-[16px] font-semibold text-[#111827]">기본 발송 시간</p>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <p className="mb-2 text-[16px] text-[#475569]">방문 전 안내</p>
-                <div className="flex flex-wrap gap-2">
-                  {visitReminderOptions.map((minutes) => (
-                    <TimingOptionButton
-                      key={minutes}
-                      selected={value.visitReminderOffsetMinutes === minutes}
-                      onClick={() =>
-                        onChange({
-                          ...value,
-                          visitReminderOffsetMinutes: minutes,
-                        })
-                      }
-                    >
-                      {minutes}분 전
-                    </TimingOptionButton>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-[16px] text-[#475569]">픽업 예상 시간</p>
-                <div className="flex flex-wrap gap-2">
-                  {pickupReadyOptions.map((minutes) => (
-                    <TimingOptionButton
-                      key={minutes}
-                      selected={value.pickupReadyEtaMinutes === minutes}
-                      onClick={() =>
-                        onChange({
-                          ...value,
-                          pickupReadyEtaMinutes: minutes,
-                        })
-                      }
-                    >
-                      {minutes}분 뒤
-                    </TimingOptionButton>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {alertGroups.map((group) => (
             <div key={group.title} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -353,11 +367,11 @@ export default function SettingsAlertsPanel({
                         className={cn(
                           "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
                           selected
-                            ? "border-[#2f7866] shadow-[0_6px_16px_rgba(47,120,102,0.08)]"
+                            ? "border-[#cbd5e1] shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
                             : checked
-                              ? "border-[#b9d8cc]"
+                              ? "border-[#dbe2ea]"
                               : "border-[#dbe2ea]",
-                          value.enabled ? "hover:border-[#2f7866]" : "opacity-55",
+                          value.enabled ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
                         )}
                       >
                         <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
@@ -387,6 +401,45 @@ export default function SettingsAlertsPanel({
               </div>
             </div>
           ))}
+
+          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div className="mb-4">
+              <p className="text-[16px] font-semibold text-[#111827]">기본 발송 시간</p>
+              <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
+                자주 쓰는 시간은 버튼으로 고르고, 필요한 경우 1분 단위로 직접 입력할 수 있어요.
+              </p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <MinuteTimingControl
+                title="방문 전 안내"
+                value={value.visitReminderOffsetMinutes}
+                unitLabel="전"
+                options={visitReminderOptions}
+                min={1}
+                max={180}
+                onChange={(minutes) =>
+                  onChange({
+                    ...value,
+                    visitReminderOffsetMinutes: minutes,
+                  })
+                }
+              />
+              <MinuteTimingControl
+                title="픽업 예상 시간"
+                value={value.pickupReadyEtaMinutes}
+                unitLabel="뒤"
+                options={pickupReadyOptions}
+                min={1}
+                max={180}
+                onChange={(minutes) =>
+                  onChange({
+                    ...value,
+                    pickupReadyEtaMinutes: minutes,
+                  })
+                }
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">

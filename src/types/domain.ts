@@ -116,7 +116,23 @@ export type CustomerPageSettings = {
         linkedOptionId?: string;
       }
     >;
+    discount_coupons?: CustomerDiscountCoupon[];
   };
+
+export type CustomerDiscountCoupon = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  visible: boolean;
+  discount_type: "fixed" | "percent";
+  discount_value: number;
+  audience: "all" | "first_visit" | "revisit";
+  service_scope: "all" | "specific";
+  service_option_ids: string[];
+  per_customer_limit: boolean;
+  starts_at?: string;
+  ends_at?: string;
+};
 
 export type BookingBlockedWindow = {
   id?: string;
@@ -254,6 +270,19 @@ export type Appointment = {
   source: "owner" | "customer";
   created_at: string;
   updated_at: string;
+};
+
+export type AppointmentChangeEventType = "status" | "details";
+
+export type AppointmentChangeEvent = {
+  id: string;
+  shop_id: string;
+  appointment_id: string;
+  event_type: AppointmentChangeEventType;
+  previous_values: Record<string, unknown>;
+  next_values: Record<string, unknown>;
+  note: string | null;
+  created_at: string;
 };
 
 export type GroomingRecord = {
@@ -475,6 +504,7 @@ export type BootstrapPayload = {
   staffMembers: BootstrapStaffMember[];
   staffScheduleOverrides?: StaffScheduleOverride[];
   appointments: Appointment[];
+  appointmentChangeEvents?: AppointmentChangeEvent[];
   groomingRecords: GroomingRecord[];
   petStaffNotes?: PetStaffNote[];
   notifications: Notification[];

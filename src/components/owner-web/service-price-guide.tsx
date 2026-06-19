@@ -622,7 +622,7 @@ export function ServicePriceGuideEditor({
               onClick={() => onChange({ ...guide, enabled: !guide.enabled })}
               className={cn(
                 "flex h-8 min-w-[64px] items-center justify-center rounded-[8px] border px-3 text-[16px] font-normal",
-                guide.enabled ? "border-[#c8ded8] bg-[#edf7f3] text-[#2f7866]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+                guide.enabled ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
               )}
             >
               {guide.enabled ? "사용" : "미사용"}
@@ -635,31 +635,31 @@ export function ServicePriceGuideEditor({
         <div className={cn("space-y-4", showHeader || showEnabledToggle ? "mt-4" : "")}>
           <div className="space-y-3">
             {sections.map((section) => (
-              <section key={section.id} className="rounded-[8px] border border-[#dbe2ea] bg-white">
-                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#edf2f7] px-3 py-2">
+              <section key={section.id} className="overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white">
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
                   <div className="min-w-[240px] flex-1">
                     <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
                       <input
                         type="text"
                         value={section.title}
                         onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                        className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none focus:border-[#2f7866]"
+                        className="h-9 rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none focus:border-[var(--accent)]"
                       />
                       <input
                         type="text"
                         value={section.note}
                         onChange={(event) => updateSection(section.id, { note: event.target.value })}
                         placeholder="예: 말티, 요키, 시츄"
-                        className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                        className="h-9 rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[16px] font-normal text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)]"
                       />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
+                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
                       <Plus className="h-4 w-4" strokeWidth={1.9} />
                       무게
                     </button>
-                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
+                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
                       <Plus className="h-4 w-4" strokeWidth={1.9} />
                       항목
                     </button>
@@ -677,23 +677,23 @@ export function ServicePriceGuideEditor({
                       <col className="w-[34px]" />
                     </colgroup>
                     <thead>
-                      <tr className="bg-[#f8fafc] text-[#475569]">
-                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-3 py-2 text-center font-normal">그룹</th>
-                        <th className="whitespace-nowrap border-b border-r border-[#e5eaf0] px-3 py-2 text-center font-normal">무게</th>
+                      <tr className="bg-[var(--accent)] text-white">
+                        <th className="whitespace-nowrap border-b border-r border-[var(--acc-dk,var(--accent))] px-3 py-2 text-center font-normal">그룹</th>
+                        <th className="whitespace-nowrap border-b border-r border-[var(--acc-dk,var(--accent))] px-3 py-2 text-center font-normal">무게</th>
                         {section.items.map((item) => (
-                          <th key={item.id} className="border-b border-r border-[#e5eaf0] px-2 py-2 text-center last:border-r-0">
+                          <th key={item.id} className="border-b border-r border-[var(--acc-dk,var(--accent))] px-2 py-2 text-center last:border-r-0">
                             <div className="flex items-center justify-center gap-1.5">
                               <input
                                 type="text"
                                 value={item.label}
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
-                                className="h-7 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#334155] outline-none focus:border-[#2f7866] focus:bg-white"
+                                className="h-7 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-white outline-none placeholder:text-white/50 focus:border-[#d1d5db] focus:bg-white focus:text-[#111827]"
                               />
                               <button
                                 type="button"
                                 onClick={() => removeItem(section.id, item.id)}
                                 disabled={section.items.length <= 1}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-[#94a3b8] hover:bg-[#f1f5f9] disabled:opacity-35"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-white/65 hover:bg-white/10 hover:text-white disabled:opacity-35"
                                 aria-label="요금 항목 삭제"
                               >
                                 <BasilIcon name="trash" className="h-5 w-5" />
@@ -701,7 +701,7 @@ export function ServicePriceGuideEditor({
                             </div>
                           </th>
                         ))}
-                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[#d5dde7] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.035)]" />
+                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[var(--acc-dk,var(--accent))] bg-[var(--accent)] shadow-[-6px_0_10px_rgba(15,23,42,0.08)]" />
                       </tr>
                     </thead>
                     <tbody>
@@ -717,7 +717,7 @@ export function ServicePriceGuideEditor({
                               type="text"
                               value={band}
                               onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
-                              className="h-8 w-full rounded-[8px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
+                              className="h-8 w-full rounded-[8px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#111827] outline-none focus:border-[var(--accent)] focus:bg-white"
                             />
                           </td>
                           {section.items.map((item) => {
@@ -754,7 +754,7 @@ export function ServicePriceGuideEditor({
                               type="button"
                               onClick={() => removeWeightBand(section.id, bandIndex)}
                               disabled={section.weightBands.length <= 1}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#334155] disabled:opacity-40"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-[#f3f4f6] hover:text-[#111827] disabled:opacity-40"
                               aria-label="무게 구간 삭제"
                             >
                               <BasilIcon name="trash" className="h-5 w-5" />
@@ -770,7 +770,7 @@ export function ServicePriceGuideEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] px-3 text-[16px] font-normal text-[#334155]">
+            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
               <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
               그룹 추가
             </button>
@@ -778,7 +778,7 @@ export function ServicePriceGuideEditor({
               <button
                 type="button"
                 onClick={restoreLastDelete}
-                className="inline-flex h-9 items-center rounded-[8px] border border-[#c8ded8] bg-[#edf7f3] px-3 text-[16px] font-normal text-[#2f7866] transition hover:bg-[#e2f1ec]"
+                className="inline-flex h-9 items-center rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[16px] font-normal text-[#111827] transition hover:bg-[#f9fafb]"
               >
                 삭제 복구 {deleteHistory.length}
               </button>
@@ -791,17 +791,17 @@ export function ServicePriceGuideEditor({
               value={guide.extraNote}
               onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
               rows={4}
-              className="mt-2 w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none focus:border-[#2f7866]"
+              className="mt-2 w-full resize-none rounded-[8px] border border-[#d1d5db] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none focus:border-[var(--accent)]"
             />
           </label>
 
-          <section className="rounded-[8px] border border-[#dbe2ea] bg-white">
-            <div className="flex items-center justify-between gap-3 border-b border-[#edf2f7] px-3 py-2">
+          <section className="overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
               <p className="text-[16px] font-normal text-[#334155]">추가 비용</p>
               <button
                 type="button"
                 onClick={addExtraFee}
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#334155] transition hover:bg-[#f8fafc]"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]"
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
                 항목 추가
@@ -816,14 +816,14 @@ export function ServicePriceGuideEditor({
                       value={row.label}
                       onChange={(event) => updateExtraFee(row.id, { label: event.target.value })}
                       placeholder="예: 털엉킴"
-                      className="h-10 min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                      className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
                     />
                     <input
                       type="text"
                       value={row.price}
                       onChange={(event) => updateExtraFee(row.id, { price: event.target.value })}
                       placeholder="예: 5,000~"
-                      className="h-10 min-w-0 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866] focus:bg-white"
+                      className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
                     />
                     <button
                       type="button"

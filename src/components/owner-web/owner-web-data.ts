@@ -9,6 +9,7 @@
   | "ownerProfile"
   | "shopInfo"
   | "operatingHours"
+  | "benefits"
   | "alerts";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
@@ -19,6 +20,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "services", label: "미용 요금" },
   { key: "staff", label: "직원 관리" },
   { key: "shopInfo", label: "매장 정보" },
+  { key: "benefits", label: "혜택 관리" },
   { key: "alerts", label: "알림 설정" },
 ];
 
@@ -183,6 +185,7 @@ export const settingsTabs = [
   { key: "profile", label: "프로필" },
   { key: "shop", label: "매장 정보" },
   { key: "hours", label: "운영 시간" },
+  { key: "benefits", label: "혜택 관리" },
   { key: "alerts", label: "알림 설정" },
 ] as const;
 

@@ -99,13 +99,13 @@ export function normalizeStaffChipColorIndex(value: number | null | undefined) {
 export function getStaffChipTone(staffKey: string | null | undefined, paletteIndex?: number | null) {
   if (!staffKey) {
     return {
-      border: "#dbe2ea",
-      background: "#f8fafc",
-      selectedBackground: "#64748b",
-      text: "#334155",
-      mutedText: "#64748b",
-      badgeBackground: "#f1f5f9",
-      badgeText: "#64748b",
+      border: "#e1e1dd",
+      background: "#f7f7f4",
+      selectedBackground: "#6f747a",
+      text: "#30312f",
+      mutedText: "#6f747a",
+      badgeBackground: "#f1f0ec",
+      badgeText: "#6f747a",
     } satisfies StaffChipTone;
   }
 

@@ -26,6 +26,7 @@ import type {
   Service,
   Shop,
   AlimtalkCreditSummary,
+  AppointmentChangeEvent,
   BootstrapStaffMember,
   StaffScheduleOverride,
 } from "@/types/domain";
@@ -258,6 +259,16 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
   );
 }
 
+function isMissingAppointmentChangeEventsError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    message.includes("appointment_change_events") ||
+    message.includes("schema cache")
+  );
+}
+
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
   const includeLanding = options.includeLanding ?? true;
   const includeNotifications = options.includeNotifications ?? true;
@@ -296,6 +307,17 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   if (appointmentsTo) {
     appointmentsQuery = appointmentsQuery.lte("appointment_date", appointmentsTo);
   }
+  let appointmentChangeEventsQuery: any = supabase
+    .from("appointment_change_events")
+    .select("*")
+    .eq("shop_id", shopId)
+    .order("created_at", { ascending: false });
+  if (appointmentsFrom) {
+    appointmentChangeEventsQuery = appointmentChangeEventsQuery.gte("created_at", `${appointmentsFrom}T00:00:00+09:00`);
+  }
+  if (appointmentsTo) {
+    appointmentChangeEventsQuery = appointmentChangeEventsQuery.lte("created_at", `${appointmentsTo}T23:59:59+09:00`);
+  }
 
   let groomingRecordsQuery: any = includeGroomingRecords
     ? supabase.from("grooming_records").select("*").eq("shop_id", shopId).order("groomed_at", { ascending: false })
@@ -332,7 +354,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     .eq("shop_id", shopId)
     .maybeSingle();
 
-  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
+  const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
     await Promise.all([
       supabase.from("shops").select("*").eq("id", shopId).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
@@ -351,6 +373,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
         .eq("shop_id", shopId)
         .order("work_date"),
       appointmentsQuery,
+      appointmentChangeEventsQuery,
       groomingRecordsQuery,
       notificationsQuery,
       interestsQuery,
@@ -410,6 +433,14 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     ),
   };
   const staffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
+  let appointmentChangeEvents: AppointmentChangeEvent[] = [];
+  if (appointmentChangeEventsRes.error) {
+    if (!isMissingAppointmentChangeEventsError(appointmentChangeEventsRes.error)) {
+      throw new Error(appointmentChangeEventsRes.error.message);
+    }
+  } else {
+    appointmentChangeEvents = (appointmentChangeEventsRes.data ?? []) as AppointmentChangeEvent[];
+  }
 
   return normalizeBootstrapNotifications({
     mode: "supabase",
@@ -424,6 +455,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     appointments: ((appointmentsRes.data ?? []) as Appointment[])
       .filter((appointment) => activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id))
       .map(normalizeAppointmentForBootstrap),
+    appointmentChangeEvents,
     groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
       activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),
     ),

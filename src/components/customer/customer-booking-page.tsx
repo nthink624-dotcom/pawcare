@@ -30,7 +30,7 @@ import {
   TimeGrid,
 } from "@/components/customer/customer-booking-flow-ui";
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
-import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-flow";
+import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-claude-flow";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson } from "@/lib/api";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
@@ -43,7 +43,7 @@ import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
 type ActiveMode = "first" | "returning" | "manage" | null;
-type FirstVisitStep = 1 | 2 | 3 | 4;
+type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
 
 type LookupPayload = {
   guardians: Array<{ id: string; name: string; phone: string }>;
@@ -187,6 +187,12 @@ function formatBookingPhoneNumber(value: string) {
   if (digits.length <= 3) return digits;
   if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
+
+function isValidBookingPhoneNumber(value: string) {
+  const digits = phoneNormalize(value);
+  if (digits.startsWith("02")) return digits.length === 9 || digits.length === 10;
+  return digits.length === 10 || digits.length === 11;
 }
 
 function formatCustomerBusinessHoursRows(shop: Shop) {
@@ -694,7 +700,7 @@ export default function CustomerBookingPage({
 
     try {
       const parsed = JSON.parse(rawDraft) as Partial<FirstVisitDraftPayload>;
-      const nextStep = parsed.step && parsed.step >= 1 && parsed.step <= 3 ? parsed.step : 1;
+      const nextStep = parsed.step && parsed.step >= 1 && parsed.step <= 4 ? parsed.step : 1;
       const draft = parsed.firstVisit;
       const defaultServiceId = initialSelectableServiceId;
       const defaultServiceOptionId = initialSelectableServiceOptionId;
@@ -874,18 +880,18 @@ export default function CustomerBookingPage({
   }
 
   function getFirstVisitStepValidity(step: FirstVisitStep) {
-    const basicInfoReady = Boolean(
-      firstVisit.ownerName.trim() &&
-        firstVisit.phone.trim() &&
-        firstVisit.petName.trim() &&
+    const petInfoReady = Boolean(
+      firstVisit.petName.trim() &&
         firstVisit.breed.trim() &&
         firstVisit.extraPets.every((pet) => pet.name.trim()),
     );
-    if (step === 1) return basicInfoReady;
+    const contactInfoReady = Boolean(firstVisit.ownerName.trim() && isValidBookingPhoneNumber(firstVisit.phone));
+    if (step === 1) return petInfoReady;
     if (step === 2) return Boolean(firstVisit.serviceId && (!firstVisitUsesCustomService || firstVisit.customServiceName.trim()));
     if (step === 3) return Boolean(firstVisit.date && firstVisit.timeSlot);
     return Boolean(
-      basicInfoReady &&
+      petInfoReady &&
+        contactInfoReady &&
         firstVisit.date &&
         firstVisit.timeSlot &&
         firstVisit.serviceId &&
@@ -900,12 +906,14 @@ export default function CustomerBookingPage({
         title:
           firstVisitStep === 1
             ? "예약자 정보를 확인해 주세요"
-            : firstVisitStep === 2
-              ? "서비스를 선택해 주세요"
-              : "예약 시간을 선택해 주세요",
+              : firstVisitStep === 2
+                ? "서비스를 선택해 주세요"
+                : firstVisitStep === 3
+                  ? "예약 시간을 선택해 주세요"
+                  : "연락 정보를 확인해 주세요",
         message:
           firstVisitStep === 1
-            ? "보호자 이름, 연락처, 아기 이름, 품종을 입력하면 예약 요청을 보낼 수 있어요."
+            ? "아기 이름과 품종을 입력하면 다음 단계로 넘어갈 수 있어요."
             : "필수 정보를 선택한 뒤 다시 눌러 주세요.",
         action: "dismiss",
       });
@@ -917,7 +925,7 @@ export default function CustomerBookingPage({
     }
 
     if (firstVisitStep === 2 && shouldSkipFirstVisitDateTimeStep) {
-      setFirstVisitStep(4);
+      setFirstVisitStep(5);
       return;
     }
 
@@ -926,6 +934,15 @@ export default function CustomerBookingPage({
 
   async function submitFirstVisit() {
     if (submitting) return;
+    if (!getFirstVisitStepValidity(4)) {
+      setSubmitFeedback({
+        type: "error",
+        title: "예약 정보를 확인해 주세요",
+        message: "보호자 이름과 10~11자리 연락처, 예약 시간을 모두 입력하면 예약 요청을 보낼 수 있어요.",
+        action: "dismiss",
+      });
+      return;
+    }
 
     setSubmitting(true);
     setSubmitFeedback(null);
@@ -983,6 +1000,11 @@ export default function CustomerBookingPage({
   }
 
   async function lookupReturningHistory() {
+    if (!isValidBookingPhoneNumber(returningVisit.phone)) {
+      setReturningError("연락처를 10~11자리 숫자로 입력해 주세요.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       setReturningError(null);
@@ -1057,6 +1079,15 @@ export default function CustomerBookingPage({
 
   async function submitReturningVisit() {
     if (!returningHistory || submitting) return;
+    if (!isValidBookingPhoneNumber(returningHistory.phone)) {
+      setSubmitFeedback({
+        type: "error",
+        title: "연락처를 확인해 주세요",
+        message: "10~11자리 연락처를 입력해야 예약 요청을 보낼 수 있어요.",
+        action: "dismiss",
+      });
+      return;
+    }
 
     setSubmitting(true);
     setSubmitFeedback(null);
@@ -1121,6 +1152,7 @@ export default function CustomerBookingPage({
               dateOptions={dateOptions}
               staffMembers={staffMembers}
               firstVisit={firstVisit}
+              savedPets={savedPets}
               step={firstVisitStep}
               selectedService={selectedFirstService}
               selectedServiceOption={selectedFirstServiceOption}
@@ -1198,7 +1230,7 @@ export default function CustomerBookingPage({
                 </BookingFieldCard>
                 {returningError ? <p className="text-[13px] leading-5 text-[#c43d3d]">{returningError}</p> : null}
                 <ActionButton
-                  disabled={submitting || !returningVisit.phone || !returningVisit.guardianName || !returningVisit.petName}
+                  disabled={submitting || !isValidBookingPhoneNumber(returningVisit.phone) || !returningVisit.guardianName || !returningVisit.petName}
                   onClick={lookupReturningHistory}
                 >
                   지난 방문 불러오기
@@ -1285,14 +1317,15 @@ export default function CustomerBookingPage({
               <CustomerBookingManagePanel
                 shopId={shopId}
                 shop={initialShop}
-                services={services}
+                services={initialServices}
+                customerServiceOptions={customerServiceOptions}
                 staffMembers={staffMembers}
                 initialAccessToken={completionManageAccessToken || initialAccessToken}
                 onBack={
                   completionManageAccessToken
                     ? () => {
                         setCompletionManageAccessToken(null);
-                        setFirstVisitStep(4);
+                        setFirstVisitStep(5);
                         setActiveMode("first");
                       }
                     : initialMode === "manage"

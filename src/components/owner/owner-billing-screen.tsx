@@ -544,6 +544,7 @@ export default function OwnerBillingScreen({
       <>
         <OwnerBillingPlanPicker
           plans={billableOwnerPlans}
+          currentPlanCode={summary.currentPlanCode}
           selectedPlanCode={selectedPlanCode}
           onSelectPlanCode={setSelectedPlanCode}
           onContinue={() => {

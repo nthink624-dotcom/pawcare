@@ -40,6 +40,7 @@ export default async function EntryPage({
     <CustomerBookingEntryPage
       shop={data.shop}
       services={data.services}
+      ownerProfile={data.ownerProfile}
       infoHref={`/book/${encodedShopId}/info`}
     />
   );

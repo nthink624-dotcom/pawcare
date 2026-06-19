@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
+import { normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
@@ -35,6 +36,7 @@ const updateShopSchema = z.object({
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
   pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional().transform((value) => (value === undefined ? undefined : 1)),
   customerServiceOverrides: z.unknown().optional(),
+  discountCoupons: z.unknown().optional(),
 });
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -180,6 +182,7 @@ export async function PATCH(request: NextRequest) {
             ...(body.customerServiceOverrides !== undefined
               ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
               : {}),
+            ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
           },
         },
       });
@@ -217,7 +220,8 @@ export async function PATCH(request: NextRequest) {
       body.addressDetail !== undefined ||
       body.heroImageUrl !== undefined ||
       body.heroImageUrls !== undefined ||
-      body.customerServiceOverrides !== undefined;
+      body.customerServiceOverrides !== undefined ||
+      body.discountCoupons !== undefined;
 
     if (
       Object.keys(updates).length === 0 &&
@@ -260,6 +264,7 @@ export async function PATCH(request: NextRequest) {
           ...(body.customerServiceOverrides !== undefined
             ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
             : {}),
+          ...(body.discountCoupons !== undefined ? { discount_coupons: normalizeDiscountCoupons(body.discountCoupons) } : {}),
         };
       }
 

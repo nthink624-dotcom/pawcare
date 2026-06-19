@@ -42,7 +42,7 @@ import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
-import { addDate, currentDateInTimeZone, formatClockTime, phoneNormalize, shortDate, won } from "@/lib/utils";
+import { addDate, cn, currentDateInTimeZone, formatClockTime, phoneNormalize, shortDate, won } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, MediaKind, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
@@ -163,11 +163,11 @@ const rejectionReasonTemplates = [
 ] as const;
 
 const statusMeta: Record<AppointmentStatus, { label: string; color: string; bg: string }> = {
-  pending: { label: "\uB300\uAE30", color: "#7b654d", bg: "#f6eee3" },
-  confirmed: { label: "\uD655\uC815", color: "#334155", bg: "#f3f5f7" },
-  in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#334155", bg: "#f3f5f7" },
-  almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#5f6b66", bg: "#f3f4f2" },
-  completed: { label: "\uC644\uB8CC", color: "#5f6b66", bg: "#f3f4f2" },
+  pending: { label: "\uB300\uAE30", color: "#9a6a16", bg: "#fff8eb" },
+  confirmed: { label: "\uD655\uC815", color: "#2f6bd4", bg: "#eef4ff" },
+  in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#2f6bd4", bg: "#eef4ff" },
+  almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#4f5d73", bg: "#f3f6fb" },
+  completed: { label: "\uC644\uB8CC", color: "#4f5d73", bg: "#f3f6fb" },
   cancelled: { label: "\uCDE8\uC18C", color: "#8f6658", bg: "#f8efea" },
   rejected: { label: "\uBBF8\uC2B9\uC778", color: "#8f6658", bg: "#f8efea" },
   noshow: { label: "\uB178\uC1FC", color: "#8f6658", bg: "#f8efea" },
@@ -206,7 +206,7 @@ function getNotificationResultMeta(notification: BootstrapPayload["notifications
   if (!notification) {
     return {
       label: "알림 기록 없음",
-      className: "border-[#e7e1d8] bg-[#faf8f4] text-[#8a8176]",
+      className: "border-[#e1e4ea] bg-[#f8fafc] text-[#646a74]",
     };
   }
 
@@ -226,12 +226,12 @@ function getNotificationResultMeta(notification: BootstrapPayload["notifications
   if (notification.status === "queued") {
     return {
       label: `${prefix} 대기`,
-      className: "border-[#e5dccf] bg-[#fbf8f2] text-[#7d6a55]",
+      className: "border-[#f0dfbc] bg-[#fff8eb] text-[#9a6a16]",
     };
   }
   return {
     label: `${prefix} 건너뜀`,
-    className: "border-[#e7e1d8] bg-[#faf8f4] text-[#8a8176]",
+    className: "border-[#e1e4ea] bg-[#f8fafc] text-[#646a74]",
   };
 }
 
@@ -1944,6 +1944,7 @@ export default function OwnerApp({
                   <TodayConfirmedContent
                     pendingAppointments={filteredHomePendingAppointments}
                     currentAppointments={filteredHomeActionAppointments}
+                    cancelChangeAppointments={filteredHomeCancelChangeAppointments}
                     completedAppointments={filteredHomeCompletedHistoryAppointments}
                     petMap={petMap}
                     guardianMap={guardianMap}
@@ -2718,16 +2719,16 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
 function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <AppEmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
 function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRecord; pet: Pet; guardian: Guardian; service?: Service }) {
   return (
-    <div className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{record.groomed_at.slice(11, 16)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <div className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{record.groomed_at.slice(11, 16)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service?.name || "서비스"}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#64748b]">{service?.name || "서비스"}</p>
       </div>
       <AppointmentListTrailing status="record-completed" />
     </div>
@@ -2737,20 +2738,20 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
 function MobileStatusSummary({ items }: { items: Array<{ label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }> }) {
   const toneMap = {
     accent: {
-      dot: "bg-[#94a3b8]",
-      text: "text-[#475569]",
+      dot: "bg-[var(--accent)]",
+      text: "text-[var(--accent)]",
     },
     warning: {
       dot: "bg-[#c79a37]",
-      text: "text-[#475569]",
+      text: "text-[#4f5d73]",
     },
     danger: {
       dot: "bg-[#b56a78]",
-      text: "text-[#475569]",
+      text: "text-[#4f5d73]",
     },
     neutral: {
-      dot: "bg-[#94a3b8]",
-      text: "text-[#475569]",
+      dot: "bg-[#8c98aa]",
+      text: "text-[#4f5d73]",
     },
   } as const;
   const mainItem = items.find((item) => item.tone === "accent") ?? items[0];
@@ -2767,8 +2768,8 @@ function MobileStatusSummary({ items }: { items: Array<{ label: string; value: n
           onClick={item.onClick}
           className={`min-w-0 rounded-[12px] border px-3 py-3 text-left transition ${
             active
-              ? "border-[#334155] bg-[#334155] text-white shadow-[0_10px_24px_rgba(15,23,42,0.10)]"
-              : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#f8fafc]"
+              ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_24px_rgba(47,107,212,0.12)]"
+              : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#f3f6fb]"
           }`}
         >
           <span className={`flex items-center justify-between gap-2 text-[16px] font-normal leading-[22px] tracking-[-0.02em] ${active ? "text-white" : toneMap[item.tone].text}`}>
@@ -2776,7 +2777,7 @@ function MobileStatusSummary({ items }: { items: Array<{ label: string; value: n
             <span className={`h-2 w-2 shrink-0 rounded-full ${toneMap[item.tone].dot}`} />
             <span className="truncate">{item.label}</span>
             </span>
-            <span className={active ? "text-white" : "text-[#94a3b8]"}>{item.value}</span>
+            <span className={active ? "text-white" : "text-[#8c98aa]"}>{item.value}</span>
           </span>
         </button>
           );
@@ -2804,7 +2805,7 @@ function MobileStaffFilterStrip({
         id="home-staff-filter"
         value={value}
         onChange={(event) => onChange(event.target.value as HomeStaffFilterKey)}
-        className="h-11 w-full appearance-none rounded-[14px] border border-[var(--border)] bg-white px-3 pr-8 text-[13px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(51,65,85,0.10)]"
+        className="h-11 w-full appearance-none rounded-[14px] border border-[var(--border)] bg-white px-3 pr-8 text-[13px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(47,107,212,0.12)]"
         aria-label="담당자 선택"
       >
         {options.map((option) => (
@@ -2822,16 +2823,16 @@ function MobileStaffFilterStrip({
 
 function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#f8fafc]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#64748b]">{service.name}</p>
       </div>
       <AppointmentListTrailing status={appointment.status} />
     </button>
@@ -4019,26 +4020,25 @@ function PendingApprovalCard({ appointment, pet, guardian, service, staffName, s
     onStatusChange({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason.trim() });
     handleRejectCancel();
   };
-  const monogram = sequenceLabel ? sequenceLabel.replace("요청 ", "") : pet.name.slice(0, 1);
-
   return (
-    <div className="rounded-[12px] border border-[#e7edf4] bg-white px-3 py-2">
-      <div className="flex w-full items-center gap-2">
+    <div className="rounded-[12px] border border-[#e7edf4] bg-white px-3.5 py-2.5">
+      <div className={cn("grid w-full items-center gap-x-3", hideTime ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[54px_1px_minmax(0,1fr)_auto]")}>
         {!hideTime ? (
           <>
-            <button onClick={onOpen} className="w-[52px] shrink-0 text-left text-[16px] font-normal leading-6 tracking-[-0.02em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</button>
-            <div className="h-8 w-px shrink-0 bg-[#e1e7ef]" />
+            <button onClick={onOpen} className="text-left text-[16px] font-normal leading-6 tracking-[-0.02em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</button>
+            <div className="h-9 w-px bg-[#e1e7ef]" />
           </>
         ) : null}
-        <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#edf4f3] text-[16px] font-medium text-[#475569]">{monogram}</span>
-          <div className="min-w-0">
-            <p className="truncate text-[16px] font-medium leading-[22px] text-[var(--text)]">{pet.name} <span className="font-normal text-[var(--muted)]">({guardian.name})</span></p>
-            <p className="truncate text-[16px] leading-[22px] text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
-          </div>
+        <button onClick={onOpen} className="min-w-0 text-left">
+          <p className="truncate text-[16px] font-medium leading-[21px] text-[var(--text)]">
+            {pet.name} <span className="font-normal text-[var(--muted)]">{guardian.name}</span>
+          </p>
+          <p className="truncate text-[16px] font-normal leading-[21px] text-[var(--muted)]">
+            {service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"}
+          </p>
         </button>
         {!isRejectOpen ? (
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => onStatusChange({ status: "confirmed" })}
@@ -4098,10 +4098,34 @@ function AppointmentTimeGroupHeader({ time, count, label }: { time: string; coun
   );
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
+type HomeReservationSectionKey = "pending" | "current" | "cancelChange" | "completed";
+
+function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle }: { title: string; dotClassName: string; expanded: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between gap-3 text-left ${expanded ? "mb-4" : ""}`}>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
+        <span className="truncate text-[16px] font-medium leading-[22px] tracking-[-0.02em] text-[var(--text)]">{title}</span>
+      </span>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} />
+    </button>
+  );
+}
+
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<HomeReservationSectionKey, boolean>>({
+    pending: true,
+    current: true,
+    cancelChange: true,
+    completed: true,
+  });
   const pendingGroups = groupAppointmentsByTime(pendingAppointments);
   const currentGroups = groupAppointmentsByTime(currentAppointments);
+  const cancelChangeGroups = groupAppointmentsByTime(cancelChangeAppointments);
+  const toggleSection = (section: HomeReservationSectionKey) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [contentSlideStyle, setContentSlideStyle] = useState<{ transform: string; opacity: number; transition: string }>({
@@ -4167,74 +4191,91 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
     <div className="space-y-3">
       <div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} />
       <div className="space-y-3" style={contentSlideStyle}>
-        <section className="min-h-[136px] rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-[#b98121]" />
-              <h3 className="truncate text-[15px] font-medium leading-[20px] tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>
-            </div>
-          </div>
-          <div className="max-h-64 overflow-y-auto pr-1">
-            <div className="space-y-3">
-              {pendingAppointments.length === 0 ? (
-                <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.pendingSectionEmpty} />
-              ) : (
-                pendingGroups.map((group) => {
-                  const isTimeGroup = group.items.length > 1;
-                  return (
-                  <div key={`pending-${group.time}`} className="space-y-2">
-                    {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 요청" /> : null}
-                    <div className="space-y-2">
-                      {group.items.map((appointment, index) => (
-                        <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} hideTime={isTimeGroup} sequenceLabel={isTimeGroup ? `요청 ${index + 1}` : undefined} />
-                      ))}
+        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+          <HomeReservationSectionHeader title={ownerHomeCopy.pendingSectionTitle} dotClassName="bg-[#c79a37]" expanded={expandedSections.pending} onToggle={() => toggleSection("pending")} />
+          {expandedSections.pending ? (
+            <div className="max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-3">
+                {pendingAppointments.length === 0 ? (
+                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.pendingSectionEmpty} />
+                ) : (
+                  pendingGroups.map((group) => {
+                    const isTimeGroup = group.items.length > 1;
+                    return (
+                    <div key={`pending-${group.time}`} className="space-y-2">
+                      {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 요청" /> : null}
+                      <div className="space-y-2">
+                        {group.items.map((appointment, index) => (
+                          <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} hideTime={isTimeGroup} sequenceLabel={isTimeGroup ? `요청 ${index + 1}` : undefined} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </section>
-        <section className="min-h-[136px] rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-[#64748b]" />
-              <h3 className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3>
-            </div>
-          </div>
-          <div className="max-h-[29rem] overflow-y-auto pr-1">
-            <div className="space-y-3">
-              {currentAppointments.length === 0 ? (
-                <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.currentSectionEmpty} />
-              ) : (
-                currentGroups.map((group) => {
-                  const isTimeGroup = group.items.length > 1;
-                  return (
-                  <div key={`current-${group.time}`} className="space-y-2">
-                    {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 확정" /> : null}
-                    <div className="space-y-2">
-                      {group.items.map((appointment) => (
-                        <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
-                      ))}
+        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+          <HomeReservationSectionHeader title={ownerHomeCopy.currentSectionTitle} dotClassName="bg-[var(--accent)]" expanded={expandedSections.current} onToggle={() => toggleSection("current")} />
+          {expandedSections.current ? (
+            <div className="max-h-[29rem] overflow-y-auto pr-1">
+              <div className="space-y-3">
+                {currentAppointments.length === 0 ? (
+                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.currentSectionEmpty} />
+                ) : (
+                  currentGroups.map((group) => {
+                    const isTimeGroup = group.items.length > 1;
+                    return (
+                    <div key={`current-${group.time}`} className="space-y-2">
+                      {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 확정" /> : null}
+                      <div className="space-y-2">
+                        {group.items.map((appointment) => (
+                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </section>
-        <section className="min-h-[136px] rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-[#64748b]" />
-              <h3 className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3>
+        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+          <HomeReservationSectionHeader title={ownerHomeCopy.statCancelChange} dotClassName="bg-[#b76d7b]" expanded={expandedSections.cancelChange} onToggle={() => toggleSection("cancelChange")} />
+          {expandedSections.cancelChange ? (
+            <div className="max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-3">
+                {cancelChangeAppointments.length === 0 ? (
+                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title="취소·변경 내역이 없어요" />
+                ) : (
+                  cancelChangeGroups.map((group) => {
+                    const isTimeGroup = group.items.length > 1;
+                    return (
+                    <div key={`cancel-change-${group.time}`} className="space-y-2">
+                      {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 취소·변경" /> : null}
+                      <div className="space-y-2">
+                        {group.items.map((appointment) => (
+                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
+                        ))}
+                      </div>
+                    </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-          <div className="space-y-2.5">
-            {completedAppointments.length === 0 ? <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.historySectionEmpty} /> : completedAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}
-          </div>
+          ) : null}
+        </section>
+        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+          <HomeReservationSectionHeader title={ownerHomeCopy.historySectionTitle} dotClassName="bg-[#8c98aa]" expanded={expandedSections.completed} onToggle={() => toggleSection("completed")} />
+          {expandedSections.completed ? (
+            <div className="space-y-2.5">
+              {completedAppointments.length === 0 ? <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.historySectionEmpty} /> : completedAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>
@@ -4243,22 +4284,22 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
 
 
 function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; staffMap?: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId?: Map<string, BootstrapPayload["notifications"][number]>; onOpenAppointment: (appointment: Appointment) => void; }) {
-  return <div className="overflow-hidden rounded-[10px] border border-[#e9ddd3] bg-[#fbf8f4] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#c9b39e]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId?.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
+  return <div className="overflow-hidden rounded-[10px] border border-[#e1e7ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#94a3b8]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId?.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
 }
 
 function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, latestNotification, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; latestNotification?: BootstrapPayload["notifications"][number] | null; onClick: () => void }) {
   const notificationMeta = getNotificationResultMeta(latestNotification ?? null);
   return (
-    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#f8fafc]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"}</p>
+        <p className="truncate text-[13px] font-normal leading-[17px] text-[#64748b]">{service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"}</p>
         {latestNotification ? <span className={`mt-1 inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${notificationMeta.className}`}>{notificationMeta.label}</span> : null}
       </div>
       <AppointmentListTrailing status="completed" />

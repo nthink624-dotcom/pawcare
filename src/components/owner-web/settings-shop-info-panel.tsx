@@ -4,9 +4,9 @@ import { ImagePlus, Info } from "lucide-react";
 import Image from "next/image";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
-import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
+import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { cn } from "@/lib/utils";
-import type { Service, Shop } from "@/types/domain";
+import type { OwnerProfile, Service, Shop } from "@/types/domain";
 
 export type ShopInfoSettingRow = {
   id: string;
@@ -16,6 +16,8 @@ export type ShopInfoSettingRow = {
 };
 
 const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
+// Locked preview frame. Do not replace this with a CSS-drawn or generated phone frame.
+const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.svg";
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -24,6 +26,7 @@ type ShopInfoSettingsPanelProps = {
   serviceMenuContent?: ReactNode;
   shop?: Shop;
   previewServices?: Service[];
+  ownerProfile?: OwnerProfile | null;
   businessHoursSummary?: string;
   closedDaysSummary?: string;
   editable?: boolean;
@@ -220,6 +223,72 @@ function OptionCard({
   );
 }
 
+function ShopCustomerPagePreview({
+  shop,
+  services,
+  ownerProfile,
+}: {
+  shop: Shop | null;
+  services: Service[];
+  ownerProfile?: OwnerProfile | null;
+}) {
+  return (
+    <div className="flex w-full flex-col items-center">
+      <p className="mb-3 text-[18px] font-semibold text-[#111827]">미리보기</p>
+      <div className="relative aspect-[823/1677] w-[300px] max-w-full">
+        <div className="absolute left-[4.62%] top-[1.91%] h-[96.48%] w-[90.64%] overflow-hidden rounded-[30px] bg-[#fdf7f5]">
+          {shop ? (
+            <div className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
+              <CustomerBookingEntryPage
+                shop={shop}
+                services={services}
+                ownerProfile={ownerProfile}
+                infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
+              />
+              <style>{`
+                .pm-preview-viewport .pm-entry-proto{
+                  max-width:none!important;
+                  min-height:100%!important;
+                  height:100%!important;
+                }
+                .pm-preview-viewport .pm-entry-proto .scroll{
+                  height:100%!important;
+                  padding-bottom:96px!important;
+                }
+                .pm-preview-viewport .pm-entry-proto .dock{
+                  position:absolute!important;
+                  left:0!important;
+                  right:0!important;
+                  bottom:0!important;
+                  transform:none!important;
+                  width:100%!important;
+                  max-width:none!important;
+                }
+                .pm-preview-viewport .pm-entry-proto .hours .list{
+                  width:calc(100% - 32px)!important;
+                  max-width:none!important;
+                }
+              `}</style>
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center bg-[#fdf7f5] px-8 text-center text-[14px] leading-5 text-[#8a7a72]">
+              매장 정보를 불러오면 실제 고객 예약 첫 화면이 표시됩니다.
+            </div>
+          )}
+        </div>
+        <Image
+          src={CUSTOMER_PREVIEW_PHONE_FRAME_SRC}
+          alt=""
+          fill
+          priority
+          unoptimized
+          className="pointer-events-none select-none object-contain"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ShopInfoSettingsPanel({
   rows,
   shopProfileImages,
@@ -227,6 +296,7 @@ export default function ShopInfoSettingsPanel({
   serviceMenuContent,
   shop,
   previewServices = [],
+  ownerProfile,
   businessHoursSummary = "",
   closedDaysSummary = "",
   editable = true,
@@ -240,8 +310,6 @@ export default function ShopInfoSettingsPanel({
 }: ShopInfoSettingsPanelProps) {
   const shopName = rowValue(rows, "shopName");
   const description = rowValue(rows, "description");
-  const showcaseTitle = rowValue(rows, "showcaseTitle");
-  const showcaseBody = rowValue(rows, "showcaseBody");
   const instagramUrl = rowValue(rows, "instagramUrl");
   const kakaoChannelUrl = rowValue(rows, "kakaoChannelUrl");
   const tiktokUrl = rowValue(rows, "tiktokUrl");
@@ -265,30 +333,55 @@ export default function ShopInfoSettingsPanel({
   const profileDidSwipeRef = useRef(false);
   const visibleProfileImageIndex = Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0));
   const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] || displayedProfileImage;
-  const customerPreviewShop = shop
-    ? {
-        ...shop,
-        name: shopName || shop.name,
-        phone: phone || shop.phone,
-        address: address || shop.address,
-        approval_mode: autoApproval ? ("auto" as const) : ("manual" as const),
-        customer_page_settings: {
-          ...shop.customer_page_settings,
-          tagline: description || shop.customer_page_settings.tagline,
-          showcase_title: showcaseTitle,
-          showcase_body: showcaseBody,
-          social_links: {
-            instagram_url: instagramUrl,
-            kakao_channel_url: kakaoChannelUrl,
-            tiktok_url: tiktokUrl,
-            threads_url: threadsUrl,
-          },
-          address_detail: addressDetail || shop.customer_page_settings.address_detail,
-          hero_image_url: activeProfileImage || shop.customer_page_settings.hero_image_url,
-          hero_image_urls: carouselProfileImages,
+  const maxVisibleProfileThumbnails = 4;
+  const hasHiddenProfileImages = carouselProfileImages.length > maxVisibleProfileThumbnails;
+  const visibleProfileThumbnails = hasHiddenProfileImages
+    ? carouselProfileImages.slice(0, maxVisibleProfileThumbnails - 1)
+    : carouselProfileImages.slice(0, maxVisibleProfileThumbnails);
+  const hiddenProfileImageCount = hasHiddenProfileImages
+    ? carouselProfileImages.length - visibleProfileThumbnails.length
+    : 0;
+  const effectiveDescription =
+    description || shop?.description?.trim() || shop?.customer_page_settings.tagline?.trim() || "";
+  const customerPreviewShop = useMemo(() => {
+    if (!shop) return null;
+
+    return {
+      ...shop,
+      name: shopName || shop.name,
+      phone: phone || shop.phone,
+      address: address || shop.address,
+      description: effectiveDescription,
+      approval_mode: autoApproval ? ("auto" as const) : ("manual" as const),
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        tagline: effectiveDescription || shop.customer_page_settings.tagline,
+        social_links: {
+          instagram_url: instagramUrl,
+          kakao_channel_url: kakaoChannelUrl,
+          tiktok_url: tiktokUrl,
+          threads_url: threadsUrl,
         },
-      }
-    : null;
+        address_detail: addressDetail || shop.customer_page_settings.address_detail,
+        hero_image_url: activeProfileImage || shop.customer_page_settings.hero_image_url,
+        hero_image_urls: carouselProfileImages,
+      },
+    };
+  }, [
+    activeProfileImage,
+    address,
+    addressDetail,
+    autoApproval,
+    carouselProfileImages,
+    effectiveDescription,
+    instagramUrl,
+    kakaoChannelUrl,
+    phone,
+    shop,
+    shopName,
+    threadsUrl,
+    tiktokUrl,
+  ]);
 
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
     profileTouchStartXRef.current = event.touches[0]?.clientX ?? null;
@@ -311,39 +404,70 @@ export default function ShopInfoSettingsPanel({
       type="button"
       onClick={onSave}
       disabled={saving}
-      className="h-9 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-medium text-white transition hover:bg-[#276756] disabled:bg-[#cbd5e1] disabled:text-white"
+      className="h-7 rounded-[7px] bg-[#2f7866] px-3 text-[14px] font-medium text-white transition hover:bg-[#276756] disabled:bg-[#cbd5e1] disabled:text-white"
     >
       {saving ? "저장 중" : "저장"}
     </button>
   );
 
+  const reservationPolicySection = (
+    <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
+      <p className="mb-2 text-[16px] font-medium text-[#334155]">예약 정책</p>
+      <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
+        <span className="pt-2 text-[16px] font-normal text-[#111827]">승인 방식</span>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <OptionCard
+            selected={autoApproval}
+            disabled={saving}
+            title="바로 승인"
+            helpText="고객이 가능한 시간을 선택하면 예약이 즉시 확정됩니다."
+            compact
+            onClick={() => onRowCommit("approvalMode", "바로 승인")}
+          />
+          <div
+            className={cn(
+              "rounded-[8px] border bg-white transition",
+              manualApproval ? "border-[#2f7866] bg-white" : "border-[#dbe2ea] hover:border-[#bad8cd]",
+              saving && "opacity-80",
+            )}
+          >
+            <div className="grid items-center gap-2 px-2.5 py-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => onRowCommit("approvalMode", "직접 승인")}
+                className="flex min-w-0 items-center gap-2 text-left"
+              >
+                <span className={cn("h-3.5 w-3.5 shrink-0 rounded-full border", manualApproval ? "border-[#2f7866] bg-[#2f7866] shadow-[inset_0_0_0_3.5px_white]" : "border-[#cbd5e1]")} />
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-[15px] font-normal leading-5 text-[#111827]">
+                  <span className="truncate">직접 승인</span>
+                  <span className="group relative inline-flex h-6 w-4 shrink-0 items-center justify-center">
+                    <Info className="block h-4 w-4 translate-y-[0.5px] text-[#94a3b8]" aria-hidden="true" />
+                    <span className="pointer-events-none absolute left-1/2 top-6 z-30 w-[240px] -translate-x-1/2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      고객 예약은 승인 대기로 들어오고, 오너가 확인 후 확정하거나 거절합니다.
+                    </span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div>
-      <section className="rounded-[14px] border border-[#e5e7eb] bg-white p-2.5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-w-0">
-            <div className="mb-3 border-b border-[#e5e7eb] px-2 pb-3">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">고객 프런트 노출 정보</h4>
-                <p className="text-[13px] font-normal text-[#64748b]">매장 소개 화면 상단에 노출됩니다.</p>
+    <div className="h-full min-h-0 pr-1">
+      <section className="h-full min-h-0 overflow-hidden rounded-[14px] border border-[#e5e7eb] bg-white p-2.5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
+        <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-h-0 min-w-0 overflow-y-auto pr-2 [scrollbar-width:thin]">
+            <div className="space-y-3">
+            <div className="flex flex-col rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
+              <div className="-mx-0.5 -mt-0.5 mb-0.5 flex h-8 items-center justify-between gap-3 rounded-[8px] px-0.5">
+                <h4 className="text-[16px] font-medium text-[#334155]">매장 정보 설정</h4>
+                {profileAction}
               </div>
-              <div className="grid gap-x-7 gap-y-2 xl:grid-cols-2">
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <AlignedFieldLabel>자랑 제목</AlignedFieldLabel>
-                  <TextInput value={showcaseTitle} maxLength={60} disabled={!editable} placeholder="예: 피부 예민한 아이도 편안하게" onChange={(value) => onRowChange("showcaseTitle", value)} onCommit={(value) => onRowCommit("showcaseTitle", value)} />
-                </label>
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
-                  <AlignedFieldLabel className="pt-2">자랑 문구</AlignedFieldLabel>
-                  <textarea
-                    value={showcaseBody}
-                    maxLength={220}
-                    disabled={!editable}
-                    onChange={(event) => onRowChange("showcaseBody", event.target.value)}
-                    onBlur={(event) => onRowCommit("showcaseBody", event.target.value)}
-                    className="mt-0.5 min-h-[58px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
-                    placeholder="아이 성향, 상담 방식, 매장 분위기 등을 짧게 적어주세요"
-                  />
-                </label>
+              <div className="order-2 mt-3 grid gap-x-7 gap-y-2 border-t border-[#e5e7eb] pt-3 xl:grid-cols-2">
                 <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
                   <AlignedFieldLabel>인스타</AlignedFieldLabel>
                   <TextInput value={instagramUrl} disabled={!editable} placeholder="https://instagram.com/..." onChange={(value) => onRowChange("instagramUrl", value)} onCommit={(value) => onRowCommit("instagramUrl", value)} />
@@ -361,51 +485,91 @@ export default function ShopInfoSettingsPanel({
                   <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
                 </label>
               </div>
-            </div>
 
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">매장 정보 설정</h4>
-              {profileAction}
-            </div>
-            <div className="bg-white">
+              <div className="order-1">
+              <div className="bg-white">
               <div className="grid items-center gap-4 p-2 lg:grid-cols-[230px_minmax(0,1fr)] xl:gap-6">
-                <div className="flex min-w-0 items-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (profileDidSwipeRef.current) {
-                        profileDidSwipeRef.current = false;
-                        return;
-                      }
-                      document.getElementById("shop-profile-images-input")?.click();
-                    }}
-                    onTouchStart={handleProfileTouchStart}
-                    onTouchEnd={handleProfileTouchEnd}
-                    disabled={!editable}
-                    className="group relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] text-[#2f7866] transition hover:border-[#2f7866]"
-                  >
-                    {activeProfileImage ? (
-                      <>
-                        <Image src={activeProfileImage} alt="매장 사진" width={360} height={270} unoptimized className="h-full w-full object-cover" />
-                        <span className="absolute inset-x-0 bottom-2 flex items-center justify-center gap-1.5">
-                          {carouselProfileImages.map((imageUrl, index) => (
-                            <span
-                              key={`${imageUrl}-${index}`}
-                              className={cn(
-                                "h-1.5 rounded-full bg-white shadow-[0_1px_6px_rgba(0,0,0,0.18)] transition-all",
-                                visibleProfileImageIndex === index ? "w-5 opacity-95" : "w-1.5 opacity-65",
-                              )}
-                            />
-                          ))}
+                <div className="min-w-0">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (profileDidSwipeRef.current) {
+                          profileDidSwipeRef.current = false;
+                          return;
+                        }
+                        document.getElementById("shop-profile-images-input")?.click();
+                      }}
+                      onTouchStart={handleProfileTouchStart}
+                      onTouchEnd={handleProfileTouchEnd}
+                      disabled={!editable}
+                      className="group h-full w-full text-[#2f7866] transition hover:opacity-95"
+                    >
+                      {activeProfileImage ? (
+                        <>
+                          <Image src={activeProfileImage} alt="매장 사진" width={360} height={270} unoptimized className="h-full w-full object-cover" />
+                          <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[12px] font-medium text-white">
+                            {visibleProfileImageIndex === 0 ? "대표 이미지" : "미리보기"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="flex h-full flex-col items-center justify-center gap-1">
+                          <ImagePlus className="h-7 w-7" />
+                          <span className="text-[14px] font-medium">사진 추가</span>
+                          <span className="text-[13px] font-normal text-[#64748b]">여러 장 등록 가능</span>
                         </span>
-                      </>
-                    ) : (
-                      <span className="flex h-full flex-col items-center justify-center gap-1">
-                        <ImagePlus className="h-7 w-7" />
-                        <span className="text-[14px] font-medium">사진 추가</span>
-                      </span>
-                    )}
-                  </button>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("shop-profile-images-input")?.click()}
+                      disabled={!editable}
+                      className="absolute right-2 top-2 z-10 inline-flex h-8 items-center gap-1 rounded-full bg-white/95 px-2.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition hover:bg-white hover:text-[#d97706] disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="매장 사진 여러 장 추가"
+                    >
+                      <ImagePlus className="h-3.5 w-3.5" />
+                      사진 추가
+                    </button>
+                    {activeProfileImage ? (
+                      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 via-black/32 to-transparent px-2 pb-2 pt-8">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {visibleProfileThumbnails.map((imageUrl, index) => (
+                            <button
+                              key={`${imageUrl}-${index}`}
+                              type="button"
+                              onClick={() => setActiveProfileImageIndex(index)}
+                              className={cn(
+                                "relative h-9 w-9 shrink-0 overflow-hidden rounded-[7px] border bg-white transition",
+                                visibleProfileImageIndex === index ? "border-white ring-2 ring-[#f59e0b]" : "border-white/55 hover:border-white",
+                              )}
+                              aria-label={`${index + 1}번째 매장 사진 보기`}
+                            >
+                              <Image src={imageUrl} alt="" width={36} height={36} unoptimized className="h-full w-full object-cover" />
+                            </button>
+                          ))}
+                          {hasHiddenProfileImages ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveProfileImageIndex(visibleProfileThumbnails.length)}
+                              className={cn(
+                                "relative h-9 w-9 shrink-0 overflow-hidden rounded-[7px] border bg-white transition",
+                                visibleProfileImageIndex >= visibleProfileThumbnails.length ? "border-white ring-2 ring-[#f59e0b]" : "border-white/55 hover:border-white",
+                              )}
+                              aria-label={`숨겨진 매장 사진 ${hiddenProfileImageCount}장 보기`}
+                            >
+                              <Image src={carouselProfileImages[visibleProfileThumbnails.length]} alt="" width={36} height={36} unoptimized className="h-full w-full object-cover" />
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-[12px] font-medium text-white">
+                                +{hiddenProfileImageCount}
+                              </span>
+                            </button>
+                          ) : null}
+                          <span className="ml-auto shrink-0 rounded-full bg-white/90 px-2 py-1 text-[11px] font-medium text-[#334155]">
+                            {carouselProfileImages.length}/10
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                   <input
                     id="shop-profile-images-input"
                     type="file"
@@ -469,93 +633,40 @@ export default function ShopInfoSettingsPanel({
                 </div>
               </div>
 
-              <div className="border-t border-[#e5e7eb] px-2 py-2.5">
-                <p className="mb-2 text-[16px] font-medium text-[#334155]">예약 정책</p>
-                <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
-                  <span className="pt-2 text-[16px] font-normal text-[#111827]">승인 방식</span>
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    <OptionCard
-                      selected={autoApproval}
-                      disabled={saving}
-                      title="바로 승인"
-                      helpText="고객이 가능한 시간을 선택하면 예약이 즉시 확정됩니다."
-                      compact
-                      onClick={() => onRowCommit("approvalMode", "바로 승인")}
-                    />
-                    <div
-                      className={cn(
-                        "rounded-[8px] border bg-white transition",
-                        manualApproval ? "border-[#2f7866] bg-white" : "border-[#dbe2ea] hover:border-[#bad8cd]",
-                        saving && "opacity-80",
-                      )}
-                    >
-                      <div className="grid items-center gap-2 px-2.5 py-2">
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => onRowCommit("approvalMode", "직접 승인")}
-                          className="flex min-w-0 items-center gap-2 text-left"
-                        >
-                          <span className={cn("h-3.5 w-3.5 shrink-0 rounded-full border", manualApproval ? "border-[#2f7866] bg-[#2f7866] shadow-[inset_0_0_0_3.5px_white]" : "border-[#cbd5e1]")} />
-                          <span className="inline-flex min-w-0 items-center gap-1.5 text-[15px] font-normal leading-5 text-[#111827]">
-                            <span className="truncate">직접 승인</span>
-                            <span className="group relative inline-flex h-6 w-4 shrink-0 items-center justify-center">
-                              <Info className="block h-4 w-4 translate-y-[0.5px] text-[#94a3b8]" aria-hidden="true" />
-                              <span className="pointer-events-none absolute left-1/2 top-6 z-30 w-[240px] -translate-x-1/2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
-                                고객 예약은 승인 대기로 들어오고, 오너가 확인 후 확정하거나 거절합니다.
-                              </span>
-                            </span>
-                          </span>
-                        </button>
-                        </div>
-                    </div>
-                  </div>
-                </div>
               </div>
-
-              {children ? (
-                <div className="border-t border-[#e5e7eb] p-2">
-                  <div className="mb-2 flex items-center gap-2">
-              <p className="text-[16px] font-medium text-[#334155]">매장 영업 시간</p>
-                  </div>
-                  {children}
-                </div>
-              ) : null}
-
-              {serviceMenuContent ? (
-                <div className="border-t border-[#e5e7eb] p-2">
-                  {serviceMenuContent}
-                </div>
-              ) : null}
+              </div>
             </div>
-          </div>
 
-          <aside className="min-w-0 border-t border-[#e5e7eb] pt-3 xl:self-stretch xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
-            <div className="flex flex-col items-center xl:sticky xl:top-[max(48px,calc(50vh-350px))]">
-              <h4 className="mb-2 w-full text-center text-[16px] font-semibold tracking-[-0.01em] text-[#111827]">미리보기</h4>
-              <div className="relative h-[530px] w-[260px] max-w-full">
-                <div className="absolute left-[16px] top-[41px] h-[468px] w-[228px] overflow-hidden rounded-[30px] bg-white">
-                  <div className="pointer-events-none h-[883px] w-[430px] origin-top-left" style={{ transform: "scale(0.53)" }}>
-                    {customerPreviewShop ? (
-                        <CustomerFirstVisitPreview
-                          shop={customerPreviewShop}
-                          services={previewServices}
-                        />
-                    ) : null}
-                  </div>
+            {children ? (
+              <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <p className="text-[16px] font-medium text-[#334155]">매장 영업 시간</p>
                 </div>
-                <img
-                  src="/images/iphone-14-pro-phone-template.svg"
-                  alt=""
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none"
-                />
+                {children}
               </div>
+            ) : null}
+
+            {serviceMenuContent ? (
+              <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
+                {serviceMenuContent}
+              </div>
+            ) : null}
+            {reservationPolicySection}
+            </div>
+
+            <p className="mt-4 text-[12px] font-medium text-[#64748b]">* 필수 입력 항목입니다.</p>
+            </div>
+
+          <aside className="min-h-0 min-w-0 border-t border-[#e5e7eb] pt-3 xl:flex xl:h-full xl:items-center xl:justify-center xl:overflow-hidden xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
+            <div className="flex w-full flex-col items-center">
+              <ShopCustomerPagePreview
+                shop={customerPreviewShop}
+                services={previewServices}
+                ownerProfile={ownerProfile}
+              />
             </div>
           </aside>
         </div>
-
-        <p className="mt-4 text-[12px] font-medium text-[#64748b]">* 필수 입력 항목입니다.</p>
       </section>
     </div>
   );

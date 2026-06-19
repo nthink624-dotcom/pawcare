@@ -1287,25 +1287,25 @@ export default function CustomerManagementScreen({
   }
 
   return (
-    <div>
-      <section className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+    <div className="h-full min-h-0 overflow-hidden">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
         <div className="border-b border-[#dbe2ea] px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-11 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#2f7866]">
-              <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
+            <label className="flex h-9 min-w-[320px] flex-1 items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[#64748b] focus-within:border-[#111827]">
+              <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-4 w-4 text-[#94a3b8]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full bg-transparent text-[16px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                className="w-full bg-transparent text-[15px] text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 placeholder="보호자명, 연락처, 반려동물 이름 검색"
               />
             </label>
             <button
               type="button"
               onClick={openNewCustomerModal}
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f7866] px-4 text-[16px] font-semibold text-white transition hover:bg-[#286a5a]"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white transition hover:bg-[#1f2937]"
             >
-              <AssetIcon src="/icons/phosphor/UserCirclePlus.svg" className="h-6 w-6" />
+              <AssetIcon src="/icons/phosphor/UserCirclePlus.svg" className="h-4 w-4" />
               고객 추가
             </button>
             <button
@@ -1313,7 +1313,7 @@ export default function CustomerManagementScreen({
               aria-label={deleteMode ? "고객 삭제 모드 닫기" : "고객 삭제 모드"}
               onClick={toggleDeleteMode}
               className={cn(
-                "inline-flex h-11 w-11 items-center justify-center rounded-[8px] border transition",
+                "inline-flex h-9 w-9 items-center justify-center rounded-[8px] border transition",
                 deleteMode
                   ? "border-[#ead9cf] bg-[#fff7ed] text-[#9a4f1f]"
                   : "border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]",
@@ -1350,7 +1350,7 @@ export default function CustomerManagementScreen({
           </p>
         ) : null}
 
-        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f8fafc] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]", customerListGridClass)}>
+        <div className={cn("grid border-b border-[#dbe2ea] bg-[#f1f2ef] px-4 py-3 text-center text-[16px] font-medium text-[#4f5a64]", customerListGridClass)}>
           <span />
           <button type="button" onClick={() => setSort((current) => (current === "nameAsc" ? "recentDesc" : "nameAsc"))} className="text-center transition hover:text-[#1f6b5b]">
             보호자명
@@ -1361,7 +1361,7 @@ export default function CustomerManagementScreen({
           <span className="text-center">알림 수신</span>
           <span />
         </div>
-        <div className="max-h-[calc(100vh-240px)] min-h-[620px] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {displayedCustomers.length > 0 ? (
             displayedCustomers.map((row) => (
               <CustomerListRow

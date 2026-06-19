@@ -2,6 +2,7 @@
 
 const nextConfig: NextConfig = {
   typedRoutes: true,
+  devIndicators: false,
 };
 
 export default nextConfig;

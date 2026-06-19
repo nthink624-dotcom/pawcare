@@ -146,7 +146,29 @@ function buildFallbackRecommendedSlots(shop: Shop, date: string, availableSlots:
 }
 
 function BookingShell({ children }: { children: ReactNode }) {
-  return <div className="min-h-[100dvh] bg-white px-3 pb-[calc(104px+env(safe-area-inset-bottom))] pt-0 text-[#2b241f]">{children}</div>;
+  return (
+    <div className="pm-claude-booking min-h-[100dvh] bg-[#fdf7f5] px-4 pb-[calc(118px+env(safe-area-inset-bottom))] pt-0 text-[#3a2e2a]">
+      <style>{`
+        .pm-claude-booking [class*="border-[#FFE1B0]"] { border-color: #efe2dc !important; }
+        .pm-claude-booking [class*="border-[#F5A623]"] { border-color: #ec7f72 !important; }
+        .pm-claude-booking [class*="bg-[#F5A623]"] { background-color: #ec7f72 !important; }
+        .pm-claude-booking [class*="bg-[#FFF6E6]"],
+        .pm-claude-booking [class*="bg-[#FFF9EC]"] { background-color: #fffaf8 !important; }
+        .pm-claude-booking [class*="text-[#C46A00]"],
+        .pm-claude-booking [class*="text-[#D97706]"] { color: #d35f50 !important; }
+        .pm-claude-booking [class*="text-[#8B6F4D]"] { color: #8a7a72 !important; }
+        .pm-claude-booking [class*="hover:bg-[#FFF9EC]"]:hover { background-color: #fffaf8 !important; }
+        .pm-claude-booking [class*="hover:bg-[#E99718]"]:hover { background-color: #d35f50 !important; }
+        .pm-claude-booking button[aria-pressed="true"] {
+          background-color: #ec7f72 !important;
+          border-color: #ec7f72 !important;
+          color: #fff !important;
+        }
+        .pm-claude-booking button[aria-pressed="true"] span { color: #fff !important; }
+      `}</style>
+      {children}
+    </div>
+  );
 }
 
 function BookingStepHeader({ title, subtitle, step, onBack }: { title: string; subtitle: string; step: FirstVisitStep; onBack: () => void }) {
@@ -186,23 +208,23 @@ function PlainStepHeader({
   showBack?: boolean;
 }) {
   return (
-    <header className="sticky top-0 z-20 -mx-3 bg-white px-4 pb-1.5 pt-1">
+    <header className="sticky top-0 z-20 -mx-4 border-b border-[#f5ebe6] bg-[#fdf7f5]/95 px-4 pb-2 pt-2 backdrop-blur">
       <div className="relative flex min-h-9 items-center justify-center">
         {showBack ? (
           <button
             type="button"
             onClick={onBack}
-            className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#2b241f] transition hover:bg-[#FFF9EC]"
+            className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-[11px] text-[#3a2e2a] transition hover:bg-[#fffaf8]"
             aria-label="이전"
           >
             <ChevronLeft className="h-5 w-5" strokeWidth={1.9} />
           </button>
         ) : null}
-        <h2 className="text-[21px] font-normal tracking-[-0.03em] text-[#2b241f]">{title}</h2>
-        <span className="absolute right-1 text-[16px] font-normal text-[#8B6F4D]">{step}/4</span>
+        <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#3a2e2a]">{title}</h2>
+        <span className="absolute right-1 text-[16px] font-normal text-[#b6a89f]">{step}/4</span>
       </div>
-      <div className="mt-1 h-1.5 rounded-full bg-[#FFE1B0]">
-        <div className="h-full rounded-full bg-[#F5A623]" style={{ width: `${(step / 4) * 100}%` }} />
+      <div className="mt-2 h-1.5 rounded-full bg-[#f6e2db]">
+        <div className="h-full rounded-full bg-[#ec7f72]" style={{ width: `${(step / 4) * 100}%` }} />
       </div>
     </header>
   );
@@ -240,12 +262,12 @@ function FooterActions({
   const hasSummary = Boolean(summaryTitle || summarySubtitle);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px] border-t border-[#FFE1B0] bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3">
+    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px] border-t border-[#efe2dc] bg-[#fdf7f5]/95 px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-3 backdrop-blur">
       <div className={cn("flex items-center gap-2", hasSummary ? "justify-between" : "")}>
         {hasSummary ? (
           <div className="min-w-0 w-[150px] shrink-0">
-            {summaryTitle ? <p className="truncate text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{summaryTitle}</p> : null}
-            {summarySubtitle ? <p className="mt-0.5 truncate text-[16px] font-normal tracking-[-0.02em] text-[#C46A00]">{summarySubtitle}</p> : null}
+            {summaryTitle ? <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#3a2e2a]">{summaryTitle}</p> : null}
+            {summarySubtitle ? <p className="mt-0.5 truncate text-[16px] font-normal tracking-[-0.02em] text-[#d35f50]">{summarySubtitle}</p> : null}
           </div>
         ) : null}
         <div className={cn("grid gap-2", single ? "w-full grid-cols-1" : hasSummary ? "min-w-0 flex-1 grid-cols-2" : "w-full grid-cols-[0.78fr_1.22fr]")}>
@@ -253,7 +275,7 @@ function FooterActions({
             <button
               type="button"
               onClick={onSecondary}
-              className="h-11 rounded-[10px] border border-[#FFE1B0] bg-white text-[16px] font-normal tracking-[-0.02em] text-[#2b241f]"
+              className="h-12 rounded-[12px] border border-[#efe2dc] bg-white text-[16px] font-semibold tracking-[-0.02em] text-[#3a2e2a]"
             >
               {secondaryLabel}
             </button>
@@ -262,7 +284,7 @@ function FooterActions({
             type="button"
             disabled={primaryDisabled || submitting}
             onClick={() => void onPrimary()}
-            className="h-11 rounded-[10px] bg-[#F5A623] text-[16px] font-normal tracking-[-0.02em] text-white transition hover:bg-[#E99718] disabled:cursor-not-allowed disabled:bg-[#F3D6A6]"
+            className="h-12 rounded-[12px] bg-[#ec7f72] text-[16px] font-semibold tracking-[-0.02em] text-white shadow-[0_6px_16px_rgba(236,127,114,0.32)] transition hover:bg-[#d35f50] disabled:cursor-not-allowed disabled:bg-[#e8d9d2] disabled:text-[#b9a89f] disabled:shadow-none"
           >
             {submitting ? "예약 요청 중..." : primaryLabel}
           </button>
@@ -291,20 +313,20 @@ function ServiceOptionCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative w-full rounded-[14px] border px-3 py-2.5 text-left transition",
-        active ? "border-[#F5A623] bg-[#FFF6E6]" : "border-[#FFE1B0] bg-white hover:bg-[#FFF9EC]",
+        "relative w-full rounded-[14px] border px-4 py-3.5 text-left transition",
+        active ? "border-[#ec7f72] bg-[#fffaf8]" : "border-[#efe2dc] bg-white hover:bg-[#fffaf8]",
       )}
     >
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#FFF6E6] text-[#D97706]">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#fce9e4] text-[#d35f50]">
           <Icon className="h-5 w-5" strokeWidth={1.9} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[16px] font-normal tracking-[-0.03em] text-[#2b241f]">{title}</span>
+          <span className="block text-[16px] font-semibold tracking-[-0.02em] text-[#3a2e2a]">{title}</span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="block text-[16px] font-normal text-[#C46A00]">{duration}</span>
-          <span className="mt-0.5 block text-[16px] font-normal text-[#C46A00]">{price}</span>
+          <span className="block text-[16px] font-semibold text-[#d35f50]">{duration}</span>
+          <span className="mt-0.5 block text-[16px] font-semibold text-[#d35f50]">{price}</span>
         </span>
       </div>
     </button>
@@ -327,9 +349,9 @@ function CustomerInput({
   inputMode?: "text" | "tel";
 }) {
   return (
-    <label className="block rounded-[14px] border border-[#FFE1B0] bg-white px-3.5 py-3">
-      <span className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-[#2b241f]">
-        <Icon className="h-4 w-4 text-[#D97706]" strokeWidth={1.9} />
+    <label className="block rounded-[14px] border border-[#efe2dc] bg-white px-3.5 py-3">
+      <span className="mb-2 flex items-center gap-2 text-[16px] font-semibold text-[#3a2e2a]">
+        <Icon className="h-4 w-4 text-[#d35f50]" strokeWidth={1.9} />
         {label}
       </span>
       <input
@@ -337,7 +359,7 @@ function CustomerInput({
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-11 w-full rounded-[10px] border border-[#FFE1B0] bg-white px-3 text-[16px] text-[#2b241f] outline-none placeholder:text-[#b8a79a] focus:border-[#F5A623]"
+        className="h-11 w-full rounded-[11px] border border-[#efe2dc] bg-white px-3 text-[16px] text-[#3a2e2a] outline-none placeholder:text-[#b6a89f] focus:border-[#ec7f72]"
       />
     </label>
   );
@@ -526,7 +548,8 @@ export default function CustomerFirstVisitFlow({
   }, [defaultDateValue, firstVisit.date, onDateSelect, step]);
 
   useEffect(() => {
-    setAllTimesExpanded(false);
+    const timeoutId = window.setTimeout(() => setAllTimesExpanded(false), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId]);
 
   useEffect(() => {
@@ -549,10 +572,10 @@ export default function CustomerFirstVisitFlow({
         <PlainStepHeader title="최종 확인" step={4} onBack={onStepBack} />
         <section className="mt-1 px-1 pb-36 pt-4 text-center">
           <div className="relative mx-auto h-28 w-36">
-            {["left-2 top-4 bg-[#F5A623]", "right-3 top-6 bg-[#FFD28A]", "left-8 bottom-5 bg-[#D97706]", "right-8 bottom-4 bg-[#FFE1B0]"].map((className) => (
+            {["left-2 top-4 bg-[#ec7f72]", "right-3 top-6 bg-[#f6c1b8]", "left-8 bottom-5 bg-[#d35f50]", "right-8 bottom-4 bg-[#f6e2db]"].map((className) => (
               <span key={className} className={cn("absolute h-2 w-1.5 rotate-45 rounded-sm", className)} />
             ))}
-            <div className="absolute left-1/2 top-0 z-10 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full bg-[#F5A623] text-white">
+            <div className="absolute left-1/2 top-0 z-10 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full bg-[#ec7f72] text-white shadow-[0_10px_24px_rgba(236,127,114,0.34)]">
               <Check className="h-8 w-8" strokeWidth={2.2} />
             </div>
             <div className="absolute bottom-0 left-1/2 h-16 w-24 -translate-x-1/2 overflow-hidden rounded-t-full">
@@ -564,7 +587,7 @@ export default function CustomerFirstVisitFlow({
             매장에서 확인 후 문자 또는 전화로 안내드릴게요.
           </p>
 
-          <div className="mt-5 border-y border-[#FFE1B0] py-1">
+          <div className="mt-6 rounded-[14px] border border-[#efe2dc] bg-white px-4 py-1 text-left">
             <SummaryLine label="예약 번호" value={buildReservationNumber(appointment)} />
             <SummaryLine label="예약 날짜" value={formatDateForSummary(summaryDate)} />
             <SummaryLine label="예약 시간" value={formatTimeForSummary(summaryTime)} />
@@ -588,19 +611,19 @@ export default function CustomerFirstVisitFlow({
             </button>
           </div>
         </section>
-        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px] border-t border-[#FFE1B0] bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3">
+        <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[430px] border-t border-[#efe2dc] bg-[#fdf7f5]/95 px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-3 backdrop-blur">
           <div className="grid gap-2">
             <button
               type="button"
               onClick={onGoManage}
-              className="h-12 rounded-[10px] bg-[#F5A623] text-[16px] font-normal tracking-[-0.02em] text-white transition hover:bg-[#E99718]"
+              className="h-12 rounded-[12px] bg-[#ec7f72] text-[16px] font-semibold tracking-[-0.02em] text-white shadow-[0_6px_16px_rgba(236,127,114,0.32)] transition hover:bg-[#d35f50]"
             >
               예약 내역 보기
             </button>
             <button
               type="button"
               onClick={onBackToEntry}
-              className="h-12 rounded-[10px] border border-[#F5A623] bg-white text-[16px] font-normal tracking-[-0.02em] text-[#C46A00]"
+              className="h-12 rounded-[12px] border border-[#efe2dc] bg-white text-[16px] font-semibold tracking-[-0.02em] text-[#d35f50]"
             >
               추가 예약하기
             </button>
@@ -614,7 +637,7 @@ export default function CustomerFirstVisitFlow({
     <BookingShell>
       {step === 2 ? (
         <>
-          <section className="pt-3">
+          <section className="pt-4">
             <h2 className="text-center text-[18px] font-normal tracking-[-0.03em] text-[#2b241f]">원하는 서비스 선택</h2>
             <p className="mt-5 text-[17px] font-normal tracking-[-0.03em] text-[#2b241f]">어떤 서비스를 원하시나요?</p>
             <div className="mt-2 grid gap-2">
@@ -631,7 +654,7 @@ export default function CustomerFirstVisitFlow({
                 );
               })}
               {customerServiceOptions.length === 0 ? (
-                <div className="rounded-[12px] border border-[#FFE1B0] bg-white px-3 py-6 text-center text-[16px] font-normal text-[#8B6F4D]">
+                <div className="rounded-[14px] border border-[#efe2dc] bg-white px-3 py-6 text-center text-[16px] font-normal text-[#8a7a72]">
                   노출 중인 서비스가 없습니다.
                 </div>
               ) : null}
@@ -659,7 +682,7 @@ export default function CustomerFirstVisitFlow({
                   type="button"
                   onClick={() => moveSelectedDate(-1)}
                   disabled={currentDateIndex <= 0}
-                  className="flex h-8 w-6 items-center justify-center rounded-full text-[#111111] transition hover:bg-[#f3f4f6] disabled:text-[#cbd5e1]"
+                  className="flex h-8 w-6 items-center justify-center rounded-full text-[#3a2e2a] transition hover:bg-[#fffaf8] disabled:text-[#d8c8c0]"
                   aria-label="이전 날짜"
                 >
                   <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
@@ -678,16 +701,16 @@ export default function CustomerFirstVisitFlow({
                         onClick={() => onDateSelect(date.value)}
                         aria-pressed={active}
                         className={cn(
-                          "flex h-[74px] w-[58px] shrink-0 snap-start flex-col items-center justify-center rounded-[11px] border px-1 text-center font-medium transition",
+                          "flex h-[78px] w-[56px] shrink-0 snap-start flex-col items-center justify-center rounded-[14px] border px-1 text-center font-medium transition",
                           active
-                            ? "border-[#F5A623] bg-[#FFF6E6] text-[#C46A00]"
-                            : "border-[#e5e7eb] bg-white text-[#111111] hover:border-[#cfd6df]",
+                            ? "border-[#ec7f72] bg-[#ec7f72] text-white"
+                            : "border-[#efe2dc] bg-white text-[#3a2e2a] hover:border-[#f0c5ba]",
                         )}
                       >
-                        <span className={cn("text-[14px] font-medium leading-[16px]", active ? "text-[#C46A00]" : "text-[#111111]")}>
+                        <span className={cn("text-[16px] font-normal leading-[18px]", active ? "text-white" : "text-[#8a7a72]")}>
                           {formatDateChipTitle(date, dateOptions[index - 1])}
                         </span>
-                        <span className="mt-1 text-[18px] font-medium leading-[20px]">{formatDateChipSubtitle(date)}</span>
+                        <span className="mt-1 text-[20px] font-semibold leading-[22px]">{formatDateChipSubtitle(date)}</span>
                       </button>
                     );
                   })}
@@ -696,7 +719,7 @@ export default function CustomerFirstVisitFlow({
                   type="button"
                   onClick={() => moveSelectedDate(1)}
                   disabled={currentDateIndex >= dateOptions.length - 1}
-                  className="flex h-8 w-6 items-center justify-center rounded-full text-[#111111] transition hover:bg-[#f3f4f6] disabled:text-[#cbd5e1]"
+                  className="flex h-8 w-6 items-center justify-center rounded-full text-[#3a2e2a] transition hover:bg-[#fffaf8] disabled:text-[#d8c8c0]"
                   aria-label="다음 날짜"
                 >
                   <ChevronRight className="h-4 w-4" strokeWidth={2.4} />

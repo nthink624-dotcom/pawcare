@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owner-web/calendar-schedule-dropdown";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
@@ -74,7 +74,7 @@ export function ScheduleCreateDialog({
   visibleStaff: OwnerWebStaffColumn[];
   staffMembers: OwnerWebStaffMember[];
   staffAssignments: StaffAssignments;
-  getAvailableSlots: (params: { date: string; duration: number; staffKey: StaffKey }) => string[];
+  getAvailableSlots: (params: { date: string; serviceId: string; duration: number; staffKey: StaffKey }) => string[];
   saving: boolean;
   error: string;
   onChange: (form: ScheduleCreateFormState) => void;
@@ -133,15 +133,23 @@ export function ScheduleCreateDialog({
   }));
   const selectedService = data.services.find((service) => service.id === form.serviceId);
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
-  const availableSlots = selectedService ? getAvailableSlots({ date: form.date, duration, staffKey: form.staffKey }) : [];
+  const availableSlots = selectedService
+    ? getAvailableSlots({ date: form.date, serviceId: selectedService.id, duration, staffKey: form.staffKey })
+    : [];
+  const isSelectedTimeAvailable = !form.time || availableSlots.includes(form.time);
   const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
   const isCustomerPhoneIncomplete = form.customerMode === "new" && Boolean(form.customerPhone.trim()) && normalizedCustomerPhone.length < 10;
   const hasCustomerInfo =
     form.customerMode === "existing"
       ? Boolean(form.petId)
       : Boolean(form.customerName.trim() && form.petName.trim() && normalizedCustomerPhone.length >= 10);
-  const canSubmit = Boolean(hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && !saving);
+  const canSubmit = Boolean(hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && isSelectedTimeAvailable && !saving);
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!form.time || !selectedService || availableSlots.includes(form.time)) return;
+    onChange({ ...form, time: "" });
+  }, [availableSlots, form, onChange, selectedService]);
 
   function updateDate(nextDate: string) {
     onChange({ ...form, date: nextDate, time: "" });

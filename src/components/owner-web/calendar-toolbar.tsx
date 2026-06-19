@@ -55,7 +55,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, -1))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="이전 날짜"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -63,14 +63,14 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={() => onDateChange(currentDateInTimeZone())}
-            className="inline-flex min-w-[178px] items-center justify-center rounded-[8px] px-2 text-[17px] font-medium text-[#111827] hover:bg-[#f8fafc]"
+            className="inline-flex h-9 min-w-[178px] items-center justify-center rounded-[8px] px-2 text-[17px] font-medium text-[#111827] hover:bg-[#f8fafc]"
           >
             {formatSchedulePickerRelativeLabel(selectedDate, shop)}
           </button>
           <button
             type="button"
             onClick={() => onDateChange(addDate(selectedDate, 1))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] hover:bg-[#f8fafc]"
             aria-label="다음 날짜"
           >
             <ChevronRight className="h-4 w-4" />

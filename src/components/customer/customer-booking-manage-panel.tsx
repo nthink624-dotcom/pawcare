@@ -7,6 +7,7 @@ import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
 
 import { fetchApiJson } from "@/lib/api";
 import { isShopClosedOnDate } from "@/lib/availability";
+import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
 
@@ -63,10 +64,10 @@ const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
 ];
 
 function getStatusTone(status: Appointment["status"]) {
-  if (status === "cancelled" || status === "rejected" || status === "noshow") return "border-[#f1c7c7] bg-[#fff5f5] text-[#a04455]";
-  if (status === "pending") return "border-[#ead6a8] bg-[#fff8e7] text-[#9a640f]";
-  if (status === "completed") return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
-  return "border-[#b7d8cd] bg-[#eef8f4] text-[#2f7866]";
+  if (status === "cancelled" || status === "rejected" || status === "noshow") return "border-[#f1d4cf] bg-[#fff7f4] text-[#b95045]";
+  if (status === "pending") return "border-[#f3ded8] bg-[#fff8f5] text-[#d35f50]";
+  if (status === "completed") return "border-[#f0e3dd] bg-[#fffaf8] text-[#8a7a72]";
+  return "border-[#f3ded8] bg-[#fff8f5] text-[#d35f50]";
 }
 
 function getProgressIndex(status: Appointment["status"]) {
@@ -147,6 +148,10 @@ function ManageInfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatServiceFallback() {
+  return "선택한 서비스";
+}
+
 function ProgressTracker({ status }: { status: Appointment["status"] }) {
   const currentIndex = getProgressIndex(status);
 
@@ -187,6 +192,7 @@ export default function CustomerBookingManagePanel({
   shopId,
   shop,
   services,
+  customerServiceOptions = [],
   staffMembers = [],
   initialAccessToken,
   onBack,
@@ -194,6 +200,7 @@ export default function CustomerBookingManagePanel({
   shopId: string;
   shop: Shop;
   services: Service[];
+  customerServiceOptions?: CustomerServiceSourceOption[];
   staffMembers?: BootstrapStaffMember[];
   initialAccessToken?: string;
   onBack: () => void;
@@ -226,6 +233,7 @@ export default function CustomerBookingManagePanel({
   const visibleAppointments = useMemo(() => sortedAppointments.filter(canManageAppointment), [sortedAppointments]);
   const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
   const selectedService = services.find((service) => service.id === manageForm?.serviceId);
+  const selectedServiceOption = customerServiceOptions.find((option) => option.serviceId === manageForm?.serviceId || option.id === manageForm?.serviceId);
 
   useEffect(() => {
     let active = true;
@@ -458,22 +466,22 @@ export default function CustomerBookingManagePanel({
               value={lookupGuardianName}
               onChange={(event) => setLookupGuardianName(event.target.value)}
               placeholder="보호자 이름 입력"
-              className="field rounded-[14px] border-[#e2e8f0] bg-[#f8fafc] px-4 py-4 text-[16px]"
+              className="field rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
             />
             <input
               value={lookupPhone}
               onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
               placeholder="연락처 입력"
-              className="field rounded-[14px] border-[#e2e8f0] bg-[#f8fafc] px-4 py-4 text-[16px]"
+              className="field rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
             />
             <div className="flex gap-2">
               <input
                 value={lookupPetName}
                 onChange={(event) => setLookupPetName(event.target.value)}
                 placeholder="반려동물 이름 입력"
-                className="field flex-1 rounded-[14px] border-[#e2e8f0] bg-[#f8fafc] px-4 py-4 text-[16px]"
+                className="field flex-1 rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
               />
-              <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-[14px] bg-[#8B5E3C] px-5 text-[15px] font-semibold text-white disabled:opacity-50">
+              <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-[14px] bg-[#ec7f72] px-5 text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
                 조회
               </button>
             </div>
@@ -505,23 +513,24 @@ export default function CustomerBookingManagePanel({
           {latestAppointments.map((appointment) => {
             const pet = petMap[appointment.pet_id];
             const service = services.find((item) => item.id === appointment.service_id);
+            const serviceOption = customerServiceOptions.find((item) => item.serviceId === appointment.service_id || item.id === appointment.service_id);
             const staffName = appointment.staff_id ? staffMap[appointment.staff_id] : "";
             const manageable = canManageAppointment(appointment);
             const isOpen = openAppointmentId === appointment.id && manageForm?.appointmentId === appointment.id;
             const statusLabel = statusLabelMap[appointment.status] || appointment.status;
-            const serviceLabel = service?.name || "서비스";
+            const serviceLabel = service?.name || serviceOption?.name || formatServiceFallback();
             const inquiryLabel = getCustomerActionLabel(appointment.status);
 
             return (
-              <article key={appointment.id} className="overflow-hidden rounded-[24px] border border-[#dbe2ea] bg-white shadow-[0_14px_32px_rgba(15,23,42,0.06)]">
+              <article key={appointment.id} className="overflow-hidden rounded-[24px] border border-[#f3e5df] bg-white shadow-[0_18px_42px_rgba(60,40,30,0.07)]">
                 <div className="px-4 pb-3 pt-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold tracking-[-0.02em] text-[#94a3b8]">예약 내역</p>
-                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.05em] text-[#111827]">
+                      <p className="text-[13px] font-semibold tracking-[-0.02em] text-[#b6a89f]">예약 내역</p>
+                      <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.05em] text-[#3a2e2a]">
                         {pet?.name || "예약"} · {lookupGuardianName || "보호자"}
                       </h3>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-medium text-[#64748b]">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-medium text-[#8a7a72]">
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="h-4 w-4" />
                           {formatDateLabel(appointment.appointment_date)}
@@ -537,26 +546,26 @@ export default function CustomerBookingManagePanel({
                     </span>
                   </div>
 
-                  <div className="mt-4 rounded-[16px] border border-[#e2e8f0] bg-[#fbfdff] px-4 py-2">
+                  <div className="mt-4 rounded-[16px] border border-[#f3e5df] bg-[#fffaf8] px-4 py-2">
                     <ManageInfoRow label="서비스" value={serviceLabel} />
                     <ManageInfoRow label="예약 상태" value={statusLabel} />
                     {pet?.breed ? <ManageInfoRow label="품종" value={pet.breed} /> : null}
                     {staffName ? <ManageInfoRow label="담당" value={staffName} /> : null}
                   </div>
 
-                  <div className="mt-3 rounded-[16px] border border-[#e2e8f0] bg-white px-4 py-3">
-                    <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#64748b]">고객 요청사항</p>
-                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-6 text-[#111827]">
+                  <div className="mt-3 rounded-[16px] border border-[#f3e5df] bg-white px-4 py-3">
+                    <p className="text-[14px] font-semibold tracking-[-0.02em] text-[#8a7a72]">고객 요청사항</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-6 text-[#3a2e2a]">
                       {appointment.memo?.trim() || "등록된 요청사항이 없습니다."}
                     </p>
                   </div>
 
                   {manageable ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155]">
+                      <button type="button" onClick={() => openRescheduleForm(appointment)} className="h-11 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]">
                         예약 변경
                       </button>
-                      <button type="button" onClick={() => void cancelAppointment(appointment.id)} disabled={submitting} className="h-11 rounded-[12px] bg-[#8B5E3C] text-[15px] font-semibold text-white disabled:opacity-50">
+                      <button type="button" onClick={() => void cancelAppointment(appointment.id)} disabled={submitting} className="h-11 rounded-[12px] bg-[#ec7f72] text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
                         예약 취소
                       </button>
                     </div>
@@ -570,7 +579,7 @@ export default function CustomerBookingManagePanel({
                         }
                         window.location.href = `tel:${shop.phone}`;
                       }}
-                      className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155]"
+                      className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#f3e5df] bg-white text-[15px] font-semibold text-[#3a2e2a]"
                     >
                       <MessageCircle className="h-4 w-4" />
                       {inquiryLabel}
@@ -578,16 +587,16 @@ export default function CustomerBookingManagePanel({
                   )}
 
                   {isOpen ? (
-                    <div className="mt-4 space-y-3 rounded-[18px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
+                    <div className="mt-4 space-y-3 rounded-[18px] border border-[#f3e5df] bg-[#fffaf8] px-3 py-3">
                       <div>
-                        <p className="text-sm font-semibold text-[#111827]">변경할 날짜</p>
+                        <p className="text-sm font-semibold text-[#3a2e2a]">변경할 날짜</p>
                         <div className="mt-2 grid grid-cols-4 gap-2">
                           {dateOptions.map((option) => (
                             <button
                               key={option.value}
                               type="button"
                               onClick={() => setManageForm((prev) => (prev ? { ...prev, date: option.value, timeSlot: "" } : prev))}
-                              className={`rounded-[12px] border px-2 py-3 text-center text-sm font-bold ${manageForm?.date === option.value ? "border-[#8B5E3C] bg-[#f6eadc] text-[#8B5E3C]" : "border-[#dbe2ea] bg-white text-[#111827]"}`}
+                              className={`rounded-[12px] border px-2 py-3 text-center text-sm font-bold ${manageForm?.date === option.value ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
                             >
                               <div>{option.label}</div>
                               <div className="mt-1 text-xs font-medium">{option.weekday}</div>
@@ -597,12 +606,12 @@ export default function CustomerBookingManagePanel({
                       </div>
 
                       <div>
-                        <p className="text-sm font-semibold text-[#111827]">변경할 시간</p>
+                        <p className="text-sm font-semibold text-[#3a2e2a]">변경할 시간</p>
                         <div className="mt-2">
                           {loadingManageSlots ? (
-                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#64748b]">가능한 시간을 확인하고 있어요.</div>
+                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">가능한 시간을 확인하고 있어요.</div>
                           ) : manageSlots.length === 0 ? (
-                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#64748b]">선택한 날짜에 가능한 시간이 없어요.</div>
+                            <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">선택한 날짜에 가능한 시간이 없어요.</div>
                           ) : (
                             <div className="grid grid-cols-3 gap-2">
                               {manageSlots.map((slot) => (
@@ -610,7 +619,7 @@ export default function CustomerBookingManagePanel({
                                   key={slot}
                                   type="button"
                                   onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                  className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#8B5E3C] bg-[#f6eadc] text-[#8B5E3C]" : "border-[#dbe2ea] bg-white text-[#111827]"}`}
+                                  className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
                                 >
                                   {slot}
                                 </button>
@@ -620,42 +629,50 @@ export default function CustomerBookingManagePanel({
                         </div>
                       </div>
 
-                      <label className="block text-sm font-semibold text-[#111827]">
-                        <span className="mb-2 block text-xs text-[#64748b]">서비스 선택</span>
+                      <label className="block text-sm font-semibold text-[#3a2e2a]">
+                        <span className="mb-2 block text-xs text-[#8a7a72]">서비스 선택</span>
                         <select
                           value={manageForm?.serviceId || ""}
                           onChange={(event) => setManageForm((prev) => (prev ? { ...prev, serviceId: event.target.value, timeSlot: "" } : prev))}
-                          className="field rounded-[12px] border-[#dbe2ea] bg-white"
+                          className="field rounded-[12px] border-[#f3e5df] bg-white"
                         >
-                          {services.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                          {(customerServiceOptions.length > 0 ? customerServiceOptions : services.map((item) => ({
+                            id: item.id,
+                            serviceId: item.id,
+                            name: item.name,
+                          }))).map((item) => (
+                            <option key={item.id} value={item.serviceId}>{item.name}</option>
                           ))}
                         </select>
                       </label>
 
-                      <div className="rounded-[14px] border border-[#dbe2ea] bg-white px-4 py-3 text-sm text-[#64748b]">
-                        {selectedService ? `${selectedService.name} · ${formatServicePrice(selectedService.price, selectedService.price_type ?? "starting")}` : "서비스를 선택해 주세요."}
+                      <div className="rounded-[14px] border border-[#f3e5df] bg-white px-4 py-3 text-sm text-[#8a7a72]">
+                        {selectedServiceOption
+                          ? `${selectedServiceOption.name} · ${formatServicePrice(selectedServiceOption.price, selectedServiceOption.priceType)}`
+                          : selectedService
+                            ? `${selectedService.name} · ${formatServicePrice(selectedService.price, selectedService.price_type ?? "starting")}`
+                            : "서비스를 선택해 주세요."}
                       </div>
 
-                      <label className="block text-sm font-semibold text-[#111827]">
-                        <span className="mb-2 block text-xs text-[#64748b]">추가 메모</span>
+                      <label className="block text-sm font-semibold text-[#3a2e2a]">
+                        <span className="mb-2 block text-xs text-[#8a7a72]">추가 메모</span>
                         <textarea
                           value={manageForm?.note || ""}
                           onChange={(event) => setManageForm((prev) => (prev ? { ...prev, note: event.target.value } : prev))}
                           placeholder="변경하면서 전달할 메모가 있으면 남겨 주세요."
-                          className="field min-h-24 rounded-[12px] border-[#dbe2ea] bg-white px-4 py-4"
+                          className="field min-h-24 rounded-[12px] border-[#f3e5df] bg-white px-4 py-4"
                         />
                       </label>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={closeRescheduleForm} className="rounded-[12px] border border-[#dbe2ea] bg-white px-4 py-3 text-sm font-semibold text-[#334155]">
+                        <button type="button" onClick={closeRescheduleForm} className="rounded-[12px] border border-[#f3e5df] bg-white px-4 py-3 text-sm font-semibold text-[#3a2e2a]">
                           닫기
                         </button>
                         <button
                           type="button"
                           onClick={() => void submitReschedule()}
                           disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId}
-                          className="rounded-[12px] bg-[#8B5E3C] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                          className="rounded-[12px] bg-[#ec7f72] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50"
                         >
                           {shop.approval_mode === "auto" ? "바로 변경하기" : "변경 요청 보내기"}
                         </button>

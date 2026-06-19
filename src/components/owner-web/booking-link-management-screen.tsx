@@ -54,7 +54,7 @@ export default function BookingLinkManagementScreen({
   }
 
   return (
-    <div className="text-[#0f172a]">
+    <div className="h-full min-h-0 overflow-y-auto text-[#0f172a]">
       <main className="grid w-full gap-3">
         <WebSurface className="p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

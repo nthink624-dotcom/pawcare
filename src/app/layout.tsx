@@ -7,6 +7,13 @@ export const metadata: Metadata = {
   description: "반려동물 미용샵 예약과 고객 관리를 위한 모바일 SaaS",
 };
 
+export const viewport: import("next").Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f8f6f2",
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">

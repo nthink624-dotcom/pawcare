@@ -45,7 +45,6 @@ import {
   patchOwnerGuardian,
   patchOwnerPet,
   patchOwnerPetStaffNote,
-  postOwnerAppointment,
   postOwnerGuardian,
   postOwnerPet,
   postOwnerScheduleCreate,
@@ -1352,6 +1351,7 @@ function BookingSidePanel({
   shopId,
   bootstrapData,
   manualApprovalEnabled,
+  automaticVisitReminderAvailable,
   selectedBooking,
   selectedBookingId,
   selectedDate,
@@ -1374,6 +1374,7 @@ function BookingSidePanel({
   shopId: string;
   bootstrapData: BootstrapPayload;
   manualApprovalEnabled: boolean;
+  automaticVisitReminderAvailable: boolean;
   selectedBooking: DailyBooking | undefined;
   selectedBookingId: string;
   selectedDate: string;
@@ -1616,6 +1617,11 @@ function BookingSidePanel({
   const panelPhoneLabel = formatPanelPhoneNumber(editablePhone || selectedBooking.guardianPhone || "") || "연락처 없음";
   const visitReminderSending = notificationSendingType === "appointment_reminder_10m";
   const visitReminderDone = notificationFeedbackType === "appointment_reminder_10m";
+  const visitReminderMode =
+    automaticVisitReminderAvailable && bootstrapData.shop.notification_settings.appointment_reminder_10m_mode === "auto"
+      ? "auto"
+      : "manual";
+  const showVisitReminderTiming = visitReminderMode === "auto";
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -1960,12 +1966,20 @@ function BookingSidePanel({
                 </button>
               ) : sourceStatus === "확정" ? (
                 <>
-                  <div className="relative grid h-10 grid-cols-[minmax(0,1fr)_96px] overflow-visible rounded-[8px] border border-[#dbe2ea] bg-white">
+                  <div
+                    className={cn(
+                      "relative grid h-10 overflow-visible rounded-[8px] border border-[#dbe2ea] bg-white",
+                      showVisitReminderTiming ? "grid-cols-[minmax(0,1fr)_96px]" : "grid-cols-1",
+                    )}
+                  >
                     <button
                       type="button"
                       disabled={!canSendVisitReminder || notificationSending}
                       onClick={() => void sendWorkflowAlimtalk("appointment_reminder_10m")}
-                      className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-l-[8px] px-3 text-[#1d4ed8] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+                      className={cn(
+                        "inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-[#1d4ed8] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50",
+                        showVisitReminderTiming ? "rounded-l-[8px]" : "rounded-[8px]",
+                      )}
                     >
                       {visitReminderDone ? (
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1d4ed8]" />
@@ -1978,16 +1992,18 @@ function BookingSidePanel({
                         {visitReminderDone ? "요청됨" : visitReminderSending ? "전송 중" : "방문 전 알림"}
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      disabled={timingSaving}
-                      onClick={() => setTimingPickerOpen((current) => (current === "visit" ? null : "visit"))}
-                      className="inline-flex min-w-0 items-center justify-center border-l border-[#e2e8f0] px-2.5 text-[14px] text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="방문 전 알림 시간 선택"
-                    >
-                      {selectedBooking.visitReminderOffsetMinutes ?? 10}분 전
-                    </button>
-                    {timingPickerOpen === "visit" ? (
+                    {showVisitReminderTiming ? (
+                      <button
+                        type="button"
+                        disabled={timingSaving}
+                        onClick={() => setTimingPickerOpen((current) => (current === "visit" ? null : "visit"))}
+                        className="inline-flex min-w-0 items-center justify-center border-l border-[#e2e8f0] px-2.5 text-[14px] text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="방문 전 알림 시간 선택"
+                      >
+                        {selectedBooking.visitReminderOffsetMinutes ?? 10}분 전
+                      </button>
+                    ) : null}
+                    {showVisitReminderTiming && timingPickerOpen === "visit" ? (
                       <NotificationTimingPopover
                         value={selectedBooking.visitReminderOffsetMinutes ?? 10}
                         suffix="전"
@@ -2065,21 +2081,13 @@ function BookingSidePanel({
                       />
                     ) : null}
                   </div>
-                  <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     <button
                       type="button"
                       onClick={previousAction?.onClick}
                       className="inline-flex h-10 min-w-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       이전
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "완료")}
-                      className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-medium text-[#1d4ed8] transition hover:bg-[#f8fafc]"
-                    >
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      미용 완료
                     </button>
                   </div>
                 </>
@@ -3541,6 +3549,7 @@ export default function CalendarManagementScreen({
   staffMembers = [],
   manualApprovalEnabled: controlledManualApprovalEnabled,
   onManualApprovalChange,
+  automaticVisitReminderAvailable = true,
   createRequest,
   onCreateRequestHandled,
 }: {
@@ -3549,6 +3558,7 @@ export default function CalendarManagementScreen({
   staffMembers?: OwnerWebStaffMember[];
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
+  automaticVisitReminderAvailable?: boolean;
   createRequest?: OwnerScheduleCreateRequest | null;
   onCreateRequestHandled?: (requestId: number) => void;
 }) {
@@ -3869,6 +3879,20 @@ export default function CalendarManagementScreen({
   const filteredBookings = displayScopedBookings.filter((booking) => isTimelineBookingStatus(booking.status));
 
   const selectedBooking = displayScopedBookings.find((item) => item.id === selectedBookingId);
+
+  useEffect(() => {
+    if (displayScopedBookings.length === 0) {
+      if (selectedBookingId) setSelectedBookingId("");
+      return;
+    }
+
+    if (selectedBookingId && displayScopedBookings.some((booking) => booking.id === selectedBookingId)) return;
+
+    const firstBooking = [...displayScopedBookings].sort(
+      (a, b) => a.start - b.start || a.staffName.localeCompare(b.staffName) || a.id.localeCompare(b.id),
+    )[0];
+    setSelectedBookingId(firstBooking.id);
+  }, [displayScopedBookings, selectedBookingId]);
 
   function handleMetricSelect(metric: SummaryMetricKey) {
     setActiveMetric(metric);
@@ -4225,7 +4249,7 @@ export default function CalendarManagementScreen({
     if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(targetBooking.status)) return;
     if (
       nextStatus === "완료" &&
-      !["확정", "진행 중", "픽업 준비"].includes(targetBooking.status) &&
+      targetBooking.status !== "픽업 준비" &&
       displayStatus !== "완료"
     ) return;
 
@@ -4590,6 +4614,7 @@ export default function CalendarManagementScreen({
 
     const payload = {
       shopId: bootstrapData.shop.id,
+      customerMode: "existing" as const,
       guardianId: selectedGuardian.id,
       petId: selectedPet.id,
       serviceId: selectedService.id,
@@ -4597,12 +4622,11 @@ export default function CalendarManagementScreen({
       appointmentDate: scheduleForm.date,
       appointmentTime: scheduleForm.time,
       memo: scheduleForm.memo,
-      source: "owner",
     };
 
     try {
-      const appointment = await postOwnerAppointment(payload);
-      applyCreatedAppointment(appointment);
+      const result = await postOwnerScheduleCreate(payload);
+      applyCreatedAppointment(result.appointment);
     } catch (error) {
       const message = getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다.");
       if (message.includes("로그인이 필요")) {
@@ -4770,6 +4794,7 @@ export default function CalendarManagementScreen({
           shopId={bootstrapData.shop.id}
           bootstrapData={bootstrapData}
           manualApprovalEnabled={manualApprovalEnabled}
+          automaticVisitReminderAvailable={automaticVisitReminderAvailable}
           selectedBooking={selectedBooking}
           selectedBookingId={selectedBookingId}
           selectedDate={selectedDate}

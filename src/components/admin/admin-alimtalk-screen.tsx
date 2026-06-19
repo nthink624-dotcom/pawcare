@@ -164,7 +164,6 @@ function TextField({
             : "border-[#d8d4ce] bg-white text-[#171411] focus:border-[#1f6b5b]"
         }`}
       />
-      {help ? <span className="block text-[11px] leading-4 text-[#8a8277]">{help}</span> : null}
     </label>
   );
 }
@@ -193,7 +192,6 @@ function AdminCollapsibleSection({
         <div>
           <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">{eyebrow}</p>
           <h2 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">{title}</h2>
-          <p className="mt-2 text-[14px] leading-6 text-[#6f665f]">{description}</p>
         </div>
         <ChevronDown className={`h-5 w-5 shrink-0 text-[#7a7268] transition ${open ? "rotate-180" : ""}`} />
       </button>
@@ -296,11 +294,6 @@ export default function AdminAlimtalkScreen({
     () => creditBalances.find((item) => item.shopId === creditShopId) ?? null,
     [creditBalances, creditShopId],
   );
-  const dirtyCount = useMemo(() => {
-    if (!relayConfig) return 0;
-    return Object.values(relayConfig).filter((value) => value.trim().length > 0).length;
-  }, [relayConfig]);
-
   async function handleSave() {
     if (!relayConfig) return;
 
@@ -399,9 +392,6 @@ export default function AdminAlimtalkScreen({
             <div>
               <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">크레딧 증정</p>
               <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">오너 알림톡 건수 수동 증정</h2>
-              <p className="mt-3 max-w-[720px] text-[14px] leading-6 text-[#6f665f]">
-                알림톡은 매장 단위로 차감됩니다. 여기에서 증정한 건수는 선택한 매장의 내부 크레딧 잔액에 바로 반영됩니다.
-              </p>
             </div>
             <button
               type="button"
@@ -557,11 +547,6 @@ export default function AdminAlimtalkScreen({
                 </div>
               </div>
 
-              <p className="mt-3 text-[14px] leading-6 text-[#6f665f]">
-                Relay Secret은 앱 서버의 <span className="font-semibold text-[#171411]">ALIMTALK_RELAY_SECRET</span>과 같아야 합니다.
-                템플릿 코드는 쏘다/카카오에서 승인된 코드만 넣어야 실제 발송됩니다.
-              </p>
-
               {loading ? (
                 <div className="mt-5 rounded-[6px] border border-[#e6e3dd] bg-white px-5 py-6 text-[16px] text-[#7a7268]">
                   릴레이 설정을 불러오는 중입니다.
@@ -572,7 +557,6 @@ export default function AdminAlimtalkScreen({
                     <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                       <div className="space-y-1">
                         <h4 className="text-[16px] font-semibold text-[#171411]">{group.title}</h4>
-                        <p className="text-[14px] leading-5 text-[#7a7268]">{group.description}</p>
                       </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2">
                         {group.fields.map((field) => (
@@ -588,9 +572,6 @@ export default function AdminAlimtalkScreen({
                       </div>
                     </section>
                   ))}
-                  <p className="text-[14px] leading-5 text-[#8a8277]">
-                    현재 릴레이 설정 입력칸 {dirtyCount}개가 채워져 있습니다.
-                  </p>
                 </div>
               ) : null}
             </div>
@@ -603,9 +584,6 @@ export default function AdminAlimtalkScreen({
                 <div>
                   <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">앱 서버(Vercel)</p>
                   <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">현재 읽히는 환경변수</h3>
-                  <p className="mt-3 text-[14px] leading-6 text-[#6f665f]">
-                    이 영역은 현재 Vercel 서버가 읽고 있는 값을 보여주는 확인용입니다.
-                  </p>
                 </div>
               </div>
 
@@ -614,7 +592,6 @@ export default function AdminAlimtalkScreen({
                   <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                     <div className="space-y-1">
                       <h4 className="text-[16px] font-semibold text-[#171411]">{group.title}</h4>
-                      <p className="text-[14px] leading-5 text-[#7a7268]">{group.description}</p>
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {group.fields.map((field) => (

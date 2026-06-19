@@ -38,7 +38,6 @@ const dashboardItems = [
     href: "/owner/admin",
     icon: LayoutDashboard,
     title: "오너 계정 관리",
-    description: "가입 매장별 계정, 플랜 종료일, 결제 상태, 임시비밀번호 발급을 관리합니다.",
     meta: "계정 / 결제 / 복구",
     group: "primary",
   },
@@ -46,7 +45,6 @@ const dashboardItems = [
     href: "/admin/alimtalk",
     icon: KeyRound,
     title: "알림톡 키 / 템플릿 관리",
-    description: "relay 서버 원본 키, 템플릿 코드, 발송 진단 정보를 확인하고 수정합니다.",
     meta: "알림 / 템플릿",
     group: "primary",
   },
@@ -54,7 +52,6 @@ const dashboardItems = [
     href: "/admin/env",
     icon: ServerCog,
     title: "환경변수 상태 확인",
-    description: "AUTH_FLOW_SECRET, Supabase, PortOne 등 운영 필수 환경값을 점검합니다.",
     meta: "운영 환경",
     group: "system",
   },
@@ -62,7 +59,6 @@ const dashboardItems = [
     href: "/owner",
     icon: Store,
     title: "오너 페이지 보기",
-    description: "현재 로그인된 테스트 오너 화면으로 이동해 실제 운영 화면을 확인합니다.",
     meta: "Owner",
     group: "shortcut",
   },
@@ -70,7 +66,6 @@ const dashboardItems = [
     href: "/demo/owner-web",
     icon: MonitorSmartphone,
     title: "오너 데모 보기",
-    description: "데모 오너 화면과 기본 예약 플로우를 빠르게 확인합니다.",
     meta: "Demo",
     group: "shortcut",
   },
@@ -78,7 +73,6 @@ const dashboardItems = [
     href: "/",
     icon: ShieldCheck,
     title: "서비스 메인 보기",
-    description: "랜딩과 체험 플랜 진입 화면을 확인합니다.",
     meta: "Public",
     group: "shortcut",
   },
@@ -86,7 +80,6 @@ const dashboardItems = [
   href: string;
   icon: LucideIcon;
   title: string;
-  description: string;
   meta: string;
   group: "primary" | "system" | "shortcut";
 }>;

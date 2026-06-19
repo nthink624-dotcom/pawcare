@@ -202,6 +202,7 @@ export const shopSettingsSchema = z.object({
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
     appointmentReminder10mEnabled: z.boolean().default(true),
+    appointmentReminder10mMode: z.enum(["manual", "auto"]).default("manual"),
     visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).default(10),
     groomingStartedEnabled: z.boolean().default(true),
     groomingAlmostDoneEnabled: z.boolean(),

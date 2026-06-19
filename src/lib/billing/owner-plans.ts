@@ -181,6 +181,10 @@ export const ownerPlans: OwnerPlan[] = [
 
 export const billableOwnerPlans = ownerPlans.filter((plan) => plan.code !== "free" && !plan.hidden);
 
+export function ownerPlanAllowsAutomaticVisitReminder(code: OwnerPlanCode | string | null | undefined) {
+  return code === "quarterly" || code === "halfyearly" || code === "yearly";
+}
+
 export function getOwnerPlanByCode(code: string | null | undefined) {
   return ownerPlans.find((plan) => plan.code === code) ?? null;
 }

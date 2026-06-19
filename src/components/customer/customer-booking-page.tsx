@@ -5,30 +5,6 @@ import { ko } from "date-fns/locale";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  ActionButton,
-  AddPetButton,
-  BookingBottomSheet,
-  BookingFieldCard,
-  BookingStageCard,
-  BookingTextArea,
-  BookingTextInput,
-  BottomBar,
-  CustomerGroomingPriceGuide,
-  DateGrid,
-  FeedbackDialog,
-  FlowHeader,
-  InfoRow,
-  ReservationSlotPicker,
-  SecondaryButton,
-  SectionCard,
-  ServiceCards,
-  ServiceSelect,
-  StepHeader,
-  StepSection,
-  SummaryRow,
-  TimeGrid,
-} from "@/components/customer/customer-booking-flow-ui";
 import CustomerBookingManagePanel from "@/components/customer/customer-booking-manage-panel";
 import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-claude-flow";
 import { isShopClosedOnDate } from "@/lib/availability";
@@ -38,19 +14,11 @@ import {
   applyCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
-import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
-import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
-import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
+import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
+import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
 
-type ActiveMode = "first" | "returning" | "manage" | null;
+type ActiveMode = "first" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
-
-type LookupPayload = {
-  guardians: Array<{ id: string; name: string; phone: string }>;
-  appointments: Appointment[];
-  groomingRecords: GroomingRecord[];
-  pets: Array<{ id: string; name: string; guardian_id: string }>;
-};
 
 type AvailabilityPayload = { slots: string[]; recommendedSlots?: string[] };
 
@@ -83,29 +51,6 @@ type FirstVisitState = {
   note: string;
 };
 
-type ReturningVisitState = {
-  phone: string;
-  guardianName: string;
-  petName: string;
-  date: string;
-  timeSlot: string;
-  serviceId: string;
-  customerServiceOptionId: string;
-  staffId: string;
-  customServiceName: string;
-  note: string;
-};
-
-type ReturningHistory = {
-  guardianName: string;
-  phone: string;
-  petName: string;
-  lastServiceId: string;
-  lastServiceLabel: string;
-  lastVisitedAt: string;
-  lastNote: string;
-};
-
 type SubmitFeedback = {
   type: "success" | "error";
   title: string;
@@ -125,19 +70,6 @@ const initialFirstVisitState: FirstVisitState = {
   petName: "",
   breed: "",
   extraPets: [],
-  date: "",
-  timeSlot: "",
-  serviceId: "",
-  customerServiceOptionId: "",
-  staffId: "",
-  customServiceName: "",
-  note: "",
-};
-
-const initialReturningVisitState: ReturningVisitState = {
-  phone: "",
-  guardianName: "",
-  petName: "",
   date: "",
   timeSlot: "",
   serviceId: "",
@@ -226,6 +158,43 @@ function CustomerBusinessHoursSheet({ shop }: { shop: Shop }) {
             <span className={`text-[16px] font-normal ${row.closed ? "text-[#8B6F4D]" : "text-[#2b241f]"}`}>{row.value}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function CustomerBookingFeedbackDialog({
+  title,
+  message,
+  tone,
+  onConfirm,
+}: {
+  title: string;
+  message: string;
+  tone: SubmitFeedback["type"];
+  onConfirm: () => void;
+}) {
+  const isError = tone === "error";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3a2e2a]/35 px-5">
+      <div className="w-full max-w-[360px] rounded-[18px] border border-[#efe2dc] bg-white p-5 text-center shadow-[0_22px_60px_rgba(58,46,42,0.18)]">
+        <div
+          className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full text-[19px] font-bold ${
+            isError ? "bg-[#fff1f1] text-[#c84b4b]" : "bg-[#fce9e4] text-[#d35f50]"
+          }`}
+        >
+          {isError ? "!" : "✓"}
+        </div>
+        <h2 className="text-[18px] font-bold tracking-[-0.02em] text-[#3a2e2a]">{title}</h2>
+        <p className="mt-2 text-[15px] leading-6 tracking-[-0.02em] text-[#8a7a72]">{message}</p>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="mt-5 h-12 w-full rounded-[12px] bg-[#ec7f72] text-[16px] font-bold tracking-[-0.02em] text-white transition hover:bg-[#d35f50]"
+        >
+          확인
+        </button>
       </div>
     </div>
   );
@@ -337,17 +306,6 @@ function saveBookingProfile(source: FirstVisitState, savedPets: BookingProfilePe
   return profile.pets ?? savedPets;
 }
 
-const statusLabelMap: Record<Appointment["status"], string> = {
-  pending: "승인 대기",
-  confirmed: "확정",
-  in_progress: "미용 중",
-  almost_done: "픽업 준비",
-  completed: "완료",
-  cancelled: "취소",
-  rejected: "미승인",
-  noshow: "노쇼",
-};
-
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
   return fetchApiJson<T>(String(input), {
     ...init,
@@ -392,122 +350,8 @@ function buildDateOptions(shop: Shop): DateOption[] {
   return options;
 }
 
-function formatVisitedAt(value: string) {
-  if (!value) return "방문 기록 없음";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return format(parsed, "yy.MM.dd", { locale: ko });
-}
-
 function getDefaultDateOptionValue(dateOptions: DateOption[]) {
   return dateOptions.find((option) => option.label === "오늘")?.value ?? dateOptions[0]?.value ?? "";
-}
-
-function formatDateLabel(value: string) {
-  if (!value) return "-";
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return format(parsed, "M월 d일 EEEE", { locale: ko });
-}
-
-function getLatestAppointment(appointments: Appointment[]) {
-  return [...appointments].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`))[0];
-}
-
-function getLatestRecord(records: GroomingRecord[]) {
-  return [...records].sort((a, b) => (b.groomed_at || "").localeCompare(a.groomed_at || ""))[0];
-}
-
-function getCustomerBookingSuccessFeedback(approvalMode: Shop["approval_mode"]): SubmitFeedback {
-  if (approvalMode === "auto") {
-    return {
-      type: "success",
-      title: "예약이 확정되었어요",
-      message: "선택한 일정으로 예약이 잡혔어요. 매장 안내 메시지를 확인해 주세요.",
-    };
-  }
-
-  return {
-    type: "success",
-    title: "예약 신청이 접수되었어요",
-    message: "매장에서 확인한 뒤 승인 여부를 안내해드릴게요.",
-  };
-}
-
-function createAdditionalPetDraft(): AdditionalPetDraft {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: "",
-    breed: "",
-  };
-}
-
-function getStaffInitial(name: string) {
-  return name.trim().slice(0, 1) || "스";
-}
-
-function StaffPreferenceCards({
-  staffMembers,
-  value,
-  onChange,
-}: {
-  staffMembers: BootstrapStaffMember[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  if (staffMembers.length <= 1) return null;
-
-  const options = [
-    { id: "", name: "담당 디자이너 없음", title: "", profileImageUrl: "" },
-    ...staffMembers.map((staff) => ({
-      id: staff.id,
-      name: getStaffCustomerName(staff),
-      title: getStaffCustomerTitle(staff),
-      profileImageUrl: staff.profileImageUrl ?? "",
-    })),
-  ];
-
-  return (
-    <div className="space-y-2.5">
-      <p className="text-left text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">담당 디자이너</p>
-      <div className="space-y-1.5">
-        {options.map((option) => {
-          const active = value === option.id;
-          return (
-            <button
-              key={option.id || "none"}
-              type="button"
-              onClick={() => onChange(option.id)}
-              className={`w-full rounded-[8px] border px-3.5 py-3 text-left transition ${
-                active
-                  ? "border-[var(--accent)] bg-[var(--selection-soft)]"
-                  : "border-[var(--border)] bg-white hover:bg-[var(--selection-soft)]"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f8fafc] text-[16px] text-[var(--accent)]">
-                    {option.profileImageUrl ? (
-                      <img src={option.profileImageUrl} alt={`${option.name} 프로필`} className="h-full w-full object-cover" />
-                    ) : option.id ? (
-                      getStaffInitial(option.name)
-                    ) : (
-                      "?"
-                    )}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{option.name}</p>
-                    {option.title ? <p className="mt-0.5 truncate text-[12px] leading-[14px] text-[var(--muted)]">{option.title}</p> : null}
-                  </div>
-                </div>
-                {active ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" /> : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 export default function CustomerBookingPage({
@@ -530,7 +374,6 @@ export default function CustomerBookingPage({
   initialServices: Service[];
   initialStaffMembers?: BootstrapStaffMember[];
   initialAppointments?: Appointment[];
-  initialRecords?: GroomingRecord[];
   initialMode?: ActiveMode;
   initialAccessToken?: string;
   initialDate?: string;
@@ -573,58 +416,24 @@ export default function CustomerBookingPage({
     serviceId: initialSelectableServiceId,
     customerServiceOptionId: initialSelectableServiceOptionId,
   });
-  const [returningVisit, setReturningVisit] = useState<ReturningVisitState>({
-    ...initialReturningVisitState,
-    serviceId: initialSelectableServiceId,
-    customerServiceOptionId: initialSelectableServiceOptionId,
-  });
-  const [returningHistory, setReturningHistory] = useState<ReturningHistory | null>(null);
-  const [returningError, setReturningError] = useState<string | null>(null);
   const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
   const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
   const [completionManageAccessToken, setCompletionManageAccessToken] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
-  const [returningVisitSlots, setReturningVisitSlots] = useState<string[]>([]);
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
-  const [loadingReturningVisitSlots, setLoadingReturningVisitSlots] = useState(false);
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [savedPets, setSavedPets] = useState<BookingProfilePet[]>([]);
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);
-  const selectedReturningService = services.find((service) => service.id === returningVisit.serviceId);
   const selectedFirstServiceOption =
     customerServiceOptions.find((option) => option.id === firstVisit.customerServiceOptionId) ??
     customerServiceOptions.find((option) => option.serviceId === firstVisit.serviceId);
-  const selectedFirstStaffName = firstVisit.staffId
-    ? staffMembers.find((staff) => staff.id === firstVisit.staffId)
-      ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!)
-      : undefined
-    : staffMembers.length > 1
-      ? "담당 디자이너 없음"
-      : staffMembers[0]
-        ? getStaffCustomerName(staffMembers[0])
-        : undefined;
-  const selectedReturningStaffName = returningVisit.staffId
-    ? staffMembers.find((staff) => staff.id === returningVisit.staffId)
-      ? getStaffCustomerName(staffMembers.find((staff) => staff.id === returningVisit.staffId)!)
-      : undefined
-    : staffMembers.length > 1
-      ? "담당 디자이너 없음"
-      : staffMembers[0]
-        ? getStaffCustomerName(staffMembers[0])
-        : undefined;
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
-  const returningVisitUsesCustomService = returningVisit.serviceId === CUSTOM_SERVICE_ID;
   const hasInitialFirstVisitSlot = Boolean(initialDate && initialTime);
   const shouldSkipFirstVisitDateTimeStep = false;
-  const displayedFirstVisitStep = firstVisitStep;
-  const firstVisitStepTotal = 4;
-  const firstVisitProgress = (displayedFirstVisitStep / firstVisitStepTotal) * 100;
-  const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
-  const isNewPetInputActive = savedPets.length === 0 || !selectedSavedPet;
   const firstVisitDateOptionValues = useMemo(() => new Set(dateOptions.map((option) => option.value)), [dateOptions]);
 
   useEffect(() => {
@@ -654,10 +463,6 @@ export default function CustomerBookingPage({
       return staffId === prev.staffId
         ? prev
         : { ...prev, staffId, timeSlot: hasInitialFirstVisitSlot ? prev.timeSlot : "" };
-    });
-    setReturningVisit((prev) => {
-      const staffId = normalizeStaffId(prev.staffId);
-      return staffId === prev.staffId ? prev : { ...prev, staffId, timeSlot: "" };
     });
   }, [fixedStaffId, hasInitialFirstVisitSlot, staffMembers]);
 
@@ -788,34 +593,6 @@ export default function CustomerBookingPage({
     return () => { active = false; };
   }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, firstVisit.timeSlot, firstVisitStep, hasInitialFirstVisitSlot, selectedFirstServiceOption?.durationMinutes, shopId]);
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      if (!returningVisit.date) {
-        setReturningVisitSlots([]);
-        return;
-      }
-      setLoadingReturningVisitSlots(true);
-      try {
-        const usesPreviewSlots = !returningVisit.serviceId || returningVisit.serviceId === CUSTOM_SERVICE_ID;
-        const result = await fetchAvailabilitySlots(
-          shopId,
-          returningVisit.date,
-          usesPreviewSlots
-            ? { previewDurationMinutes: returningVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30, staffId: returningVisit.staffId || null }
-            : { serviceId: returningVisit.serviceId, staffId: returningVisit.staffId || null },
-        );
-        if (!active) return;
-        setReturningVisitSlots(result.slots);
-        if (!result.slots.includes(returningVisit.timeSlot)) setReturningVisit((prev) => ({ ...prev, timeSlot: "" }));
-      } finally {
-        if (active) setLoadingReturningVisitSlots(false);
-      }
-    }
-    void load();
-    return () => { active = false; };
-  }, [returningVisit.date, returningVisit.serviceId, returningVisit.staffId, returningVisit.timeSlot, shopId]);
-
   function resetView() {
     window.location.href = entryHref || `/entry/${shopId}`;
   }
@@ -836,47 +613,6 @@ export default function CustomerBookingPage({
       breed: "",
       extraPets: [],
     }));
-  }
-
-  function saveFirstVisitDraft() {
-    if (typeof window === "undefined") return;
-
-    const hasDraftContent = Boolean(
-      firstVisit.ownerName.trim() ||
-        firstVisit.phone.trim() ||
-        firstVisit.petName.trim() ||
-        firstVisit.extraPets.some((pet) => pet.name.trim()) ||
-        firstVisit.date ||
-        firstVisit.timeSlot ||
-        firstVisit.note.trim() ||
-        (firstVisitUsesCustomService && firstVisit.customServiceName.trim()),
-    );
-
-    if (!hasDraftContent) {
-      setSubmitFeedback({
-        type: "error",
-        title: "저장할 내용이 없어요",
-        message: "예약자 정보를 조금 입력한 뒤 임시저장해 주세요.",
-        action: "dismiss",
-      });
-      return;
-    }
-
-    const payload: FirstVisitDraftPayload = {
-      version: 1,
-      step: firstVisitStep,
-      firstVisit,
-      savedAt: new Date().toISOString(),
-    };
-
-    window.localStorage.setItem(getFirstVisitDraftStorageKey(shopId), JSON.stringify(payload));
-    setSavedPets(saveBookingProfile(firstVisit, savedPets));
-    setSubmitFeedback({
-      type: "success",
-      title: "임시저장했어요",
-      message: "같은 기기라면 다른 예약 링크에서도 예약자 정보를 이어서 쓸 수 있어요.",
-      action: "dismiss",
-    });
   }
 
   function getFirstVisitStepValidity(step: FirstVisitStep) {
@@ -999,133 +735,6 @@ export default function CustomerBookingPage({
     }
   }
 
-  async function lookupReturningHistory() {
-    if (!isValidBookingPhoneNumber(returningVisit.phone)) {
-      setReturningError("연락처를 10~11자리 숫자로 입력해 주세요.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      setReturningError(null);
-      const query = new URLSearchParams({
-        shopId,
-        phone: phoneNormalize(returningVisit.phone),
-        guardianName: returningVisit.guardianName,
-        petName: returningVisit.petName,
-      });
-      const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
-      const guardian = result.guardians.find((item) => item.name.trim() === returningVisit.guardianName.trim());
-      if (!guardian) {
-        setReturningHistory(null);
-        setReturningError("입력한 정보와 일치하는 지난 방문 정보를 찾지 못했어요.");
-        return;
-      }
-
-      const guardianPets = result.pets.filter((item) => item.guardian_id === guardian.id);
-      if (guardianPets.length === 0) {
-        setReturningHistory(null);
-        setReturningError("등록된 아기 정보를 찾지 못했어요. 매장에 문의해 주세요.");
-        return;
-      }
-
-      const rankedPets = guardianPets
-        .map((pet) => {
-          const petAppointments = result.appointments.filter((item) => item.pet_id === pet.id);
-          const petRecords = result.groomingRecords.filter((item) => item.pet_id === pet.id);
-          const latestAppointment = getLatestAppointment(petAppointments);
-          const latestRecord = getLatestRecord(petRecords);
-          const latestVisitedAt = latestRecord?.groomed_at || latestAppointment?.appointment_date || "";
-
-          return {
-            pet,
-            latestAppointment,
-            latestRecord,
-            latestVisitedAt,
-          };
-        })
-        .sort((a, b) => `${b.latestVisitedAt}`.localeCompare(`${a.latestVisitedAt}`));
-
-      const latestPet = rankedPets[0];
-      const latestAppointment = latestPet?.latestAppointment;
-      const latestRecord = latestPet?.latestRecord;
-      const lastServiceId = latestRecord?.service_id || latestAppointment?.service_id || services[0]?.id || "";
-
-      setReturningHistory({
-        guardianName: guardian.name,
-        phone: formatBookingPhoneNumber(returningVisit.phone),
-        petName: latestPet.pet.name,
-        lastServiceId,
-        lastServiceLabel: services.find((service) => service.id === lastServiceId)?.name || "지난 서비스 정보 없음",
-        lastVisitedAt: latestRecord?.groomed_at || latestAppointment?.appointment_date || "",
-        lastNote: latestRecord?.style_notes || latestRecord?.memo || latestAppointment?.memo || "지난 참고사항이 없어요.",
-      });
-      setReturningVisit((prev) => ({
-        ...prev,
-        serviceId: lastServiceId,
-        staffId: fixedStaffId,
-        customServiceName: "",
-        date: "",
-        timeSlot: "",
-        note: "",
-      }));
-    } catch (error) {
-      setReturningHistory(null);
-      setReturningError(error instanceof Error ? error.message : "조회에 실패했어요.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitReturningVisit() {
-    if (!returningHistory || submitting) return;
-    if (!isValidBookingPhoneNumber(returningHistory.phone)) {
-      setSubmitFeedback({
-        type: "error",
-        title: "연락처를 확인해 주세요",
-        message: "10~11자리 연락처를 입력해야 예약 요청을 보낼 수 있어요.",
-        action: "dismiss",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitFeedback(null);
-    try {
-      const bookingPayload = {
-        shopId,
-        guardianName: returningHistory.guardianName,
-        phone: phoneNormalize(returningHistory.phone),
-        petName: returningHistory.petName,
-        breed: "",
-        serviceId: returningVisit.serviceId,
-        staffId: returningVisit.staffId || null,
-        customServiceName: returningVisitUsesCustomService ? returningVisit.customServiceName.trim() : "",
-        appointmentDate: returningVisit.date,
-        appointmentTime: returningVisit.timeSlot,
-        memo: [returningVisit.note ? `메모: ${returningVisit.note}` : ""].filter(Boolean).join(" / "),
-      };
-
-      await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
-        method: "POST",
-        body: JSON.stringify(bookingPayload),
-      });
-
-      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
-      setSubmitFeedback({ ...nextFeedback, action: "reset" });
-    } catch (error) {
-      setSubmitFeedback({
-        type: "error",
-        title: "예약 신청에 실패했습니다",
-        message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
-        action: "dismiss",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-
   return (
     <>
       <div
@@ -1205,141 +814,32 @@ export default function CustomerBookingPage({
             />
           ) : null}
 
-          {activeMode === "returning" ? (
-            <BookingBottomSheet>
-              <div className="space-y-4">
-              <FlowHeader title="재방문 예약" onBack={resetView} />
-              <SectionCard title="고객 확인">
-                <BookingFieldCard label="보호자 이름">
-                  <BookingTextInput
-                    value={returningVisit.guardianName}
-                    onChange={(event) => setReturningVisit((prev) => ({ ...prev, guardianName: event.target.value }))}
-                  />
-                </BookingFieldCard>
-                <BookingFieldCard label="연락처">
-                  <BookingTextInput
-                    value={returningVisit.phone}
-                    onChange={(event) => setReturningVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(event.target.value) }))}
-                  />
-                </BookingFieldCard>
-                <BookingFieldCard label="아기 이름">
-                  <BookingTextInput
-                    value={returningVisit.petName}
-                    onChange={(event) => setReturningVisit((prev) => ({ ...prev, petName: event.target.value }))}
-                  />
-                </BookingFieldCard>
-                {returningError ? <p className="text-[13px] leading-5 text-[#c43d3d]">{returningError}</p> : null}
-                <ActionButton
-                  disabled={submitting || !isValidBookingPhoneNumber(returningVisit.phone) || !returningVisit.guardianName || !returningVisit.petName}
-                  onClick={lookupReturningHistory}
-                >
-                  지난 방문 불러오기
-                </ActionButton>
-              </SectionCard>
-              {returningHistory ? (
-                <SectionCard title="지난 방문 정보">
-                  <InfoRow label="아기 이름" value={returningHistory.petName} />
-                  <InfoRow label="지난 서비스" value={returningHistory.lastServiceLabel} />
-                  <InfoRow label="최근 방문" value={formatVisitedAt(returningHistory.lastVisitedAt)} />
-                  <InfoRow label="지난 메모" value={returningHistory.lastNote} />
-                  <StaffPreferenceCards
-                    staffMembers={staffMembers}
-                    value={returningVisit.staffId}
-                    onChange={(staffId) => setReturningVisit((prev) => ({ ...prev, staffId, timeSlot: "" }))}
-                  />
-                  <ReservationSlotPicker
-                    date={returningVisit.date}
-                    timeSlot={returningVisit.timeSlot}
-                    dateOptions={dateOptions}
-                    availableSlots={returningVisitSlots}
-                    loading={loadingReturningVisitSlots}
-                    onDateChange={(value) => setReturningVisit((prev) => ({ ...prev, date: value, timeSlot: "" }))}
-                    onTimeChange={(value) => setReturningVisit((prev) => ({ ...prev, timeSlot: value }))}
-                  />
-                  <ServiceSelect
-                    services={services}
-                    value={returningVisit.serviceId}
-                    onChange={(value) =>
-                      setReturningVisit((prev) => ({
-                        ...prev,
-                        serviceId: value,
-                        customServiceName: value === CUSTOM_SERVICE_ID ? prev.customServiceName : "",
-                        timeSlot: "",
-                      }))
-                    }
-                    allowCustom
-                  />
-                  {returningVisitUsesCustomService ? (
-                    <BookingFieldCard label="원하는 서비스">
-                      <BookingTextInput
-                        value={returningVisit.customServiceName}
-                        onChange={(event) => setReturningVisit((prev) => ({ ...prev, customServiceName: event.target.value }))}
-                      />
-                    </BookingFieldCard>
-                  ) : null}
-                  <BookingFieldCard label="선택 서비스">
-                    <p className="text-[15px] font-medium leading-6 tracking-[-0.02em] text-[var(--text)]">
-                      {returningVisitUsesCustomService
-                        ? `기타 · ${returningVisit.customServiceName || "직접 입력"}`
-                        : selectedReturningService
-                          ? `${selectedReturningService.name} · ${formatServicePrice(selectedReturningService.price, selectedReturningService.price_type ?? "starting")}`
-                          : "서비스를 선택해 주세요."}
-                    </p>
-                  </BookingFieldCard>
-                  {selectedReturningStaffName ? <InfoRow label="담당" value={selectedReturningStaffName} /> : null}
-                  <BookingFieldCard label="추가 참고사항">
-                    <BookingTextArea
-                      value={returningVisit.note}
-                      onChange={(event) => setReturningVisit((prev) => ({ ...prev, note: event.target.value }))}
-                      className="min-h-[92px]"
-                    />
-                  </BookingFieldCard>
-                  <ActionButton
-                    disabled={
-                      submitting ||
-                      !returningVisit.date ||
-                      !returningVisit.timeSlot ||
-                      !returningVisit.serviceId ||
-                      (returningVisitUsesCustomService && !returningVisit.customServiceName.trim())
-                    }
-                    onClick={submitReturningVisit}
-                  >
-                    {submitting ? "예약 요청 중..." : "재방문 예약 요청"}
-                  </ActionButton>
-                </SectionCard>
-              ) : null}
-              </div>
-            </BookingBottomSheet>
-          ) : null}
-
           {activeMode === "manage" ? (
-            <BookingBottomSheet>
-              <CustomerBookingManagePanel
-                shopId={shopId}
-                shop={initialShop}
-                services={initialServices}
-                customerServiceOptions={customerServiceOptions}
-                staffMembers={staffMembers}
-                initialAccessToken={completionManageAccessToken || initialAccessToken}
-                onBack={
-                  completionManageAccessToken
-                    ? () => {
-                        setCompletionManageAccessToken(null);
-                        setFirstVisitStep(5);
-                        setActiveMode("first");
-                      }
-                    : initialMode === "manage"
-                      ? () => { window.location.href = entryHref || `/entry/${shopId}`; }
-                      : resetView
-                }
-              />
-            </BookingBottomSheet>
+            <CustomerBookingManagePanel
+              shopId={shopId}
+              shop={initialShop}
+              services={initialServices}
+              customerServiceOptions={customerServiceOptions}
+              staffMembers={staffMembers}
+              initialAccessToken={completionManageAccessToken || initialAccessToken}
+              onBack={
+                completionManageAccessToken
+                  ? () => {
+                      setCompletionManageAccessToken(null);
+                      setFirstVisitStep(5);
+                      setActiveMode("first");
+                    }
+                  : initialMode === "manage"
+                    ? () => { window.location.href = entryHref || `/entry/${shopId}`; }
+                    : resetView
+              }
+            />
           ) : null}
         </div>
       </div>
 
       {submitFeedback ? (
-        <FeedbackDialog
+        <CustomerBookingFeedbackDialog
           title={submitFeedback.title}
           message={submitFeedback.message}
           tone={submitFeedback.type}

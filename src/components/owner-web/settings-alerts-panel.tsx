@@ -10,7 +10,7 @@ import {
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
 import { cn } from "@/lib/utils";
-import type { NotificationType } from "@/types/domain";
+import type { NotificationDeliveryMode, NotificationType } from "@/types/domain";
 
 export type AlertSettingsDraft = {
   enabled: boolean;
@@ -20,6 +20,7 @@ export type AlertSettingsDraft = {
   bookingCancelledEnabled: boolean;
   bookingRescheduledEnabled: boolean;
   appointmentReminder10mEnabled: boolean;
+  appointmentReminder10mMode: NotificationDeliveryMode;
   visitReminderOffsetMinutes: number;
   groomingStartedEnabled: boolean;
   groomingAlmostDoneEnabled: boolean;
@@ -308,12 +309,15 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
 export default function SettingsAlertsPanel({
   value,
   onChange,
+  automaticVisitReminderAvailable = true,
 }: {
   value: AlertSettingsDraft;
   onChange: (value: AlertSettingsDraft) => void | Promise<void>;
+  automaticVisitReminderAvailable?: boolean;
 }) {
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
+  const visitReminderMode = automaticVisitReminderAvailable ? value.appointmentReminder10mMode : "manual";
 
   function update(key: AlertToggleKey, checked: boolean) {
     onChange({ ...value, [key]: checked });
@@ -409,21 +413,65 @@ export default function SettingsAlertsPanel({
                 자주 쓰는 시간은 버튼으로 고르고, 필요한 경우 1분 단위로 직접 입력할 수 있어요.
               </p>
             </div>
+            <div className="mb-3 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-semibold text-[#111827]">방문 전 알림 방식</p>
+                  <p className="mt-1 text-[14px] leading-5 text-[#64748b]">
+                    수동은 오너가 직접 발송하고, 자동은 예약 시간 기준으로 발송 시간을 사용합니다.
+                  </p>
+                </div>
+                <div className="grid h-9 grid-cols-2 rounded-[9px] border border-[#dbe2ea] bg-white p-0.5">
+                  {(["manual", "auto"] as const).map((mode) => {
+                    const disabled = mode === "auto" && !automaticVisitReminderAvailable;
+                    const active = visitReminderMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          onChange({
+                            ...value,
+                            appointmentReminder10mMode: mode,
+                          })
+                        }
+                        className={cn(
+                          "h-8 rounded-[7px] px-3 text-[14px] font-medium transition disabled:cursor-not-allowed disabled:opacity-45",
+                          active ? "bg-[#222222] text-white" : "text-[#64748b] hover:bg-[#f1f5f9]",
+                        )}
+                      >
+                        {mode === "manual" ? "수동" : "자동"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {!automaticVisitReminderAvailable ? (
+                <p className="mt-2 text-[13px] leading-5 text-[#94a3b8]">자동 방문 전 알림은 스탠다드 플랜부터 사용할 수 있습니다.</p>
+              ) : null}
+            </div>
             <div className="grid gap-3 lg:grid-cols-2">
-              <MinuteTimingControl
-                title="방문 전 안내"
-                value={value.visitReminderOffsetMinutes}
-                unitLabel="전"
-                options={visitReminderOptions}
-                min={1}
-                max={180}
-                onChange={(minutes) =>
-                  onChange({
-                    ...value,
-                    visitReminderOffsetMinutes: minutes,
-                  })
-                }
-              />
+              {visitReminderMode === "auto" ? (
+                <MinuteTimingControl
+                  title="방문 전 안내"
+                  value={value.visitReminderOffsetMinutes}
+                  unitLabel="전"
+                  options={visitReminderOptions}
+                  min={1}
+                  max={180}
+                  onChange={(minutes) =>
+                    onChange({
+                      ...value,
+                      visitReminderOffsetMinutes: minutes,
+                    })
+                  }
+                />
+              ) : (
+                <div className="rounded-[10px] border border-dashed border-[#dbe2ea] bg-[#fbfcfd] px-4 py-3 text-[14px] leading-6 text-[#64748b]">
+                  방문 전 알림은 수동 발송입니다. 수동 모드에서는 10분 전 같은 자동 발송 시간이 표시되지 않습니다.
+                </div>
+              )}
               <MinuteTimingControl
                 title="픽업 예상 시간"
                 value={value.pickupReadyEtaMinutes}

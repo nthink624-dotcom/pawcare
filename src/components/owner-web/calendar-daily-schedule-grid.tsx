@@ -420,6 +420,10 @@ export function DailyScheduleGrid({
       return;
     }
     const booking = bookings.find((item) => item.id === bookingId);
+    if (booking && isCompletedBookingStatus(booking.sourceStatus ?? booking.status)) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", bookingId);
     setDraggingBookingId(bookingId);
@@ -439,6 +443,11 @@ export function DailyScheduleGrid({
     const bookingId = event.dataTransfer.getData("text/plain");
     const booking = bookings.find((item) => item.id === bookingId);
     if (!booking) {
+      setDraggingBookingId(null);
+      return;
+    }
+    if (isCompletedBookingStatus(booking.sourceStatus ?? booking.status)) {
+      onSelectBooking(bookingId);
       setDraggingBookingId(null);
       return;
     }
@@ -470,6 +479,7 @@ export function DailyScheduleGrid({
 
   function handleResizePointerDown(event: ReactPointerEvent<HTMLDivElement>, booking: DailyBooking) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (isCompletedBookingStatus(booking.sourceStatus ?? booking.status)) return;
     event.stopPropagation();
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -689,6 +699,8 @@ export function DailyScheduleGrid({
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
                           const changeStatus = isChangeBookingStatus(booking.status);
                           const cardTone = getBookingCardTone(booking.status);
+                          const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
+                          const canAdjustBookingTime = !changeStatus && !completedBooking;
                           const density = getBookingCardDensity(booking.duration);
                           const microCard = density === "micro";
                           const expandedMicro = density === "micro" && expandedMicroBookingId === booking.id;
@@ -703,7 +715,7 @@ export function DailyScheduleGrid({
                             <button
                               key={booking.id}
                               type="button"
-                              draggable={!resizingBooking && !changeStatus}
+                              draggable={!resizingBooking && canAdjustBookingTime}
                               data-booking-id={booking.id}
                               data-booking-duration={booking.duration}
                               onDragStart={(event) => handleBookingDragStart(event, booking.id)}
@@ -716,9 +728,9 @@ export function DailyScheduleGrid({
                               }}
                               className={cn(
                                 "absolute z-20 box-border cursor-grab overflow-hidden rounded-[8px] border p-0 text-left transition-all active:cursor-grabbing",
-                                changeStatus && "cursor-default active:cursor-default",
+                                !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
-                                cardTone !== "pending" && !changeStatus && "hover:-translate-y-0.5",
+                                cardTone !== "pending" && canAdjustBookingTime && "hover:-translate-y-0.5",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#8ab9ab]/24",
                                 expandedMicro &&
                                   (cardTone === "pending"
@@ -783,7 +795,7 @@ export function DailyScheduleGrid({
                                   ) : null}
                                 </div>
                               </div>
-                              {selected && !changeStatus ? (
+                              {selected && canAdjustBookingTime ? (
                                 <div
                                   role="separator"
                                   aria-label="예약 종료 시간 조정"

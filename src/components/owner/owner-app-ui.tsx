@@ -150,9 +150,9 @@ export function Sheet({
   headerAction?: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
+    <div className="pm-mobile-sheet-scrim fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
       <div
-        className="flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)]"
+        className="pm-mobile-sheet flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[24px] bg-white px-4 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.16)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#cbd5e1]" />

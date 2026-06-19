@@ -19,6 +19,7 @@ import SettingsManagementScreen from "@/components/owner-web/settings-management
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { ownerPlanAllowsAutomaticVisitReminder, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
@@ -66,6 +67,7 @@ function renderScreen(
   onCreateRequestHandled: (requestId: number) => void,
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
   onCreateReservationForDate: (date: string) => void,
+  automaticVisitReminderAvailable: boolean,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -79,6 +81,7 @@ function renderScreen(
           onDataChange={onDataChange}
           staffMembers={staffMembers}
           manualApprovalEnabled={manualApprovalEnabled}
+          automaticVisitReminderAvailable={automaticVisitReminderAvailable}
           onManualApprovalChange={onManualApprovalChange}
           createRequest={createRequest}
           onCreateRequestHandled={onCreateRequestHandled}
@@ -132,6 +135,7 @@ function renderScreen(
           persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
+          automaticVisitReminderAvailable={automaticVisitReminderAvailable}
         />
       );
     default:
@@ -143,10 +147,12 @@ export default function OwnerWebPreview({
   initialData,
   demoStaffFallback = [],
   onDataChange,
+  currentPlanCode,
 }: {
   initialData: BootstrapPayload;
   demoStaffFallback?: OwnerWebStaffMember[];
   onDataChange?: (data: BootstrapPayload) => void;
+  currentPlanCode?: OwnerPlanCode | null;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(initialData.shop.approval_mode !== "auto");
@@ -168,6 +174,7 @@ export default function OwnerWebPreview({
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const shopDisplayName = ownerData.shop.name.trim() || "PetManager";
   const shopInitials = buildShopInitials(shopDisplayName);
+  const automaticVisitReminderAvailable = ownerPlanAllowsAutomaticVisitReminder(currentPlanCode ?? "quarterly");
 
   useEffect(() => {
     setManualApprovalEnabled(initialData.shop.approval_mode !== "auto");
@@ -410,6 +417,7 @@ export default function OwnerWebPreview({
         handleScheduleCreateRequestHandled,
         handleCreateReservationForCustomer,
         handleCreateReservationForDate,
+        automaticVisitReminderAvailable,
       )}
     </OwnerWebAppShell>
   );

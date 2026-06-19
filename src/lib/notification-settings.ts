@@ -8,6 +8,7 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
   appointment_reminder_10m_enabled: true,
+  appointment_reminder_10m_mode: "manual",
   visit_reminder_offset_minutes: 10,
   grooming_started_enabled: true,
   grooming_almost_done_enabled: true,
@@ -41,6 +42,8 @@ export function normalizeShopNotificationSettings(settings: Partial<ShopNotifica
   return {
     ...defaultShopNotificationSettings,
     ...(settings ?? {}),
+    appointment_reminder_10m_mode:
+      settings?.appointment_reminder_10m_mode === "auto" ? "auto" : "manual",
     visit_reminder_offset_minutes: normalizeMinuteValue(
       settings?.visit_reminder_offset_minutes,
       defaultShopNotificationSettings.visit_reminder_offset_minutes,

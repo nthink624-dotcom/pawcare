@@ -21,7 +21,6 @@ export default async function BookManagePage({
       initialServices={data.services}
       initialStaffMembers={data.staffMembers}
       initialAppointments={data.appointments}
-      initialRecords={data.groomingRecords}
       initialMode="manage"
       initialAccessToken={initialAccessToken}
       entryHref={`/entry/${shopId}`}

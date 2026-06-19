@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-flow";
+import CustomerFirstVisitFlow from "@/components/customer/customer-first-visit-claude-flow";
 import CustomerShopFrontPanel from "@/components/customer/customer-shop-front-panel";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import {
@@ -106,6 +106,7 @@ export default function CustomerFirstVisitPreview({
         dateOptions={dateOptions}
         staffMembers={staffMembers}
         firstVisit={firstVisit}
+        savedPets={[]}
         step={step}
         selectedService={selectedService}
         selectedServiceOption={selectedServiceOption}

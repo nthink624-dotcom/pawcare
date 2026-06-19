@@ -28,6 +28,7 @@ export type NotificationType =
 
 export type ChannelType = "alimtalk" | "sms" | "in_app" | "mock";
 export type NotificationStatus = "queued" | "sent" | "failed" | "mocked" | "skipped";
+export type NotificationDeliveryMode = "manual" | "auto";
 export type PetBiteLevel = "none" | "mild" | "watch" | "bite" | "strong";
 export type MediaKind =
   | "grooming_before"
@@ -53,6 +54,7 @@ export type ShopNotificationSettings = {
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
   appointment_reminder_10m_enabled: boolean;
+  appointment_reminder_10m_mode: NotificationDeliveryMode;
   visit_reminder_offset_minutes: number;
   grooming_started_enabled: boolean;
   grooming_almost_done_enabled: boolean;

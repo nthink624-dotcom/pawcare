@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { ChevronLeft, Loader2, RotateCcw, Search, ShieldAlert, Store } from "lucide-react";
+import { ChevronLeft, Loader2, MessageSquareText, RefreshCcw, RotateCcw, Search, ShieldAlert, Store } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
@@ -47,6 +47,20 @@ type TemporaryPasswordResult = {
   loginId: string;
   temporaryPassword: string;
   issuedAt: string;
+};
+
+type AdminAlimtalkCreditBalance = {
+  shopId: string;
+  shopName: string;
+  includedTotal: number;
+  includedUsed: number;
+  includedRemaining: number;
+  includedPeriodStartedAt: string | null;
+  includedPeriodEndsAt: string | null;
+  purchasedTotal: number;
+  purchasedUsed: number;
+  purchasedRemaining: number;
+  remainingTotal: number;
 };
 
 type AdminOwnerItem = {
@@ -324,6 +338,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [issuingTemporaryPasswordUserId, setIssuingTemporaryPasswordUserId] = useState<string | null>(null);
   const [temporaryPasswords, setTemporaryPasswords] = useState<Record<string, TemporaryPasswordResult>>({});
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
+  const [alimtalkBalances, setAlimtalkBalances] = useState<AdminAlimtalkCreditBalance[]>([]);
+  const [loadingAlimtalkCredits, setLoadingAlimtalkCredits] = useState(false);
+  const [savingAlimtalkCredits, setSavingAlimtalkCredits] = useState(false);
+  const [alimtalkAmount, setAlimtalkAmount] = useState("100");
+  const [alimtalkBucket, setAlimtalkBucket] = useState<"purchased" | "included">("purchased");
+  const [alimtalkAction, setAlimtalkAction] = useState<"grant" | "reset-included">("grant");
   const [search, setSearch] = useState("");
   const [adminSurface, setAdminSurface] = useState<"local" | "production" | "unknown">("unknown");
 
@@ -361,6 +381,10 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     setAdminSurface("production");
   }, []);
 
+  useEffect(() => {
+    void loadAlimtalkBalances();
+  }, []);
+
   const filteredOwners = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return owners;
@@ -385,6 +409,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
   const selectedOwner = filteredOwners.find((item) => item.userId === selectedUserId) ?? null;
   const selectedDraft = selectedOwner ? drafts[selectedOwner.userId] : null;
+  const selectedAlimtalkBalance = selectedOwner
+    ? alimtalkBalances.find((balance) => balance.shopId === selectedOwner.shopId) ?? null
+    : null;
   const adminSurfaceLabel =
     adminSurface === "local" ? "로컬 관리자" : adminSurface === "production" ? "운영 관리자" : "관리자";
   const adminSurfaceTone =
@@ -499,6 +526,52 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     }
   }
 
+  async function loadAlimtalkBalances() {
+    setLoadingAlimtalkCredits(true);
+    try {
+      const response = await fetchApiJson<{ ok: true; balances: AdminAlimtalkCreditBalance[] }>("/api/admin/alimtalk/credits", {
+        cache: "no-store",
+      });
+      setAlimtalkBalances(response.balances);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "알림톡 잔액을 불러오지 못했습니다.");
+    } finally {
+      setLoadingAlimtalkCredits(false);
+    }
+  }
+
+  async function saveOwnerAlimtalkCredits(item: AdminOwnerItem) {
+    const amount = Number(alimtalkAmount);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setError("알림톡 건수를 입력해 주세요.");
+      return;
+    }
+
+    setSavingAlimtalkCredits(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchApiJson<{ ok: true; remainingCount: number | null }>("/api/admin/alimtalk/credits", {
+        method: "POST",
+        body: JSON.stringify({
+          action: alimtalkAction,
+          shopId: item.shopId,
+          amount,
+          creditBucket: alimtalkBucket,
+          reason: alimtalkAction === "reset-included" ? "owner_admin_included_reset" : "owner_admin_credit_grant",
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+      await loadAlimtalkBalances();
+      setNotice(`${item.shopName} 알림톡 잔여 ${response.remainingCount?.toLocaleString("ko-KR") ?? "-"}건`);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "알림톡 건수를 저장하지 못했습니다.");
+    } finally {
+      setSavingAlimtalkCredits(false);
+    }
+  }
+
   async function issueOwnerTemporaryPassword(item: AdminOwnerItem) {
     if (!item.loginId) {
       setError("로그인 아이디가 없는 오너 계정에는 임시비밀번호를 발급할 수 없습니다.");
@@ -583,9 +656,6 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     </span>
                   </div>
                   <h1 className="mt-2 text-[30px] tracking-[-0.03em] text-[#0f172a]">오너 계정 관리</h1>
-                  <p className="mt-2 text-[16px] leading-6 text-[#6f665f]">
-                    오너 이름, 상호명, 전화번호, 매장명으로 빠르게 찾고 플랜과 서비스 기간을 바로 조정하세요.
-                  </p>
                 </div>
                 <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-4 py-3 text-right">
                   <p className="text-[16px] text-[#64748b]">현재 운영자 계정</p>
@@ -728,6 +798,77 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
                   />
 
+                  <div className="rounded-[12px] border border-[#edf2f7] bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#eef7f2] text-[#1f6b5b]">
+                          <MessageSquareText className="h-4 w-4" />
+                        </div>
+                        <h3 className="text-[16px] text-[#0f172a]">알림톡</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void loadAlimtalkBalances()}
+                        disabled={loadingAlimtalkCredits || savingAlimtalkCredits}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] disabled:opacity-50"
+                      >
+                        <RefreshCcw className="h-3.5 w-3.5" />
+                        새로고침
+                      </button>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <MiniStat label="총 잔여" value={`${(selectedAlimtalkBalance?.remainingTotal ?? 0).toLocaleString("ko-KR")}건`} />
+                      <MiniStat label="포함" value={`${(selectedAlimtalkBalance?.includedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
+                      <MiniStat label="추가" value={`${(selectedAlimtalkBalance?.purchasedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-[1fr_92px] gap-2">
+                      <select
+                        value={alimtalkAction}
+                        onChange={(event) => setAlimtalkAction(event.target.value === "reset-included" ? "reset-included" : "grant")}
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#172033] outline-none focus:border-[#2f7866]"
+                      >
+                        <option value="grant">건수 추가</option>
+                        <option value="reset-included">포함 건수 리셋</option>
+                      </select>
+                      <input
+                        value={alimtalkAmount}
+                        onChange={(event) => setAlimtalkAmount(event.target.value.replace(/[^\d]/g, ""))}
+                        inputMode="numeric"
+                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#172033] outline-none focus:border-[#2f7866]"
+                      />
+                    </div>
+
+                    {alimtalkAction === "grant" ? (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAlimtalkBucket("purchased")}
+                          className={`h-9 rounded-[8px] border text-[15px] ${alimtalkBucket === "purchased" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
+                        >
+                          추가
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAlimtalkBucket("included")}
+                          className={`h-9 rounded-[8px] border text-[15px] ${alimtalkBucket === "included" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
+                        >
+                          포함
+                        </button>
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => void saveOwnerAlimtalkCredits(selectedOwner)}
+                      disabled={savingAlimtalkCredits || loadingAlimtalkCredits}
+                      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[15px] text-white disabled:opacity-50"
+                    >
+                      {savingAlimtalkCredits ? "저장 중..." : "알림톡 저장"}
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <SelectField
                       label="현재 플랜"
@@ -826,15 +967,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   </div>
 
                   <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff4f1] text-[#b54b4b]">
                         <ShieldAlert className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[16px] text-[#0f172a]">계정 정지 / 정지 해제</p>
-                        <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
-                          정지는 결제와 별개로 오너 로그인과 운영 기능을 임시 차단하는 기능입니다. 분쟁, 정책 위반, 테스트 계정 잠금 같은 경우에만 쓰는 운영자 전용 기능이에요.
-                        </p>
                       </div>
                     </div>
 
@@ -888,15 +1026,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                   </div>
 
                   <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
                         <RotateCcw className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[16px] text-[#0f172a]">결제 내역 / 취소</p>
-                        <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
-                          결제된 건을 확인하고, 필요한 건만 선택해서 취소할 수 있습니다.
-                        </p>
                       </div>
                     </div>
 
@@ -905,9 +1040,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         <div className="min-w-0">
                           <p className="text-[16px] text-[#0f172a]">등록 결제수단 복구</p>
                           <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
-                            {selectedOwner.paymentMethodExists
-                              ? `${selectedOwner.paymentMethodLabel ?? "등록된 카드"} 정보를 지우고, 오너가 배포 서버에서 새 카드를 다시 등록할 수 있게 합니다.`
-                              : "현재 등록된 카드가 없어서 초기화할 결제수단이 없습니다."}
+                            {selectedOwner.paymentMethodExists ? selectedOwner.paymentMethodLabel ?? "등록된 카드" : "등록 카드 없음"}
                           </p>
                         </div>
                         <button
@@ -993,22 +1126,6 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => void saveOwner(selectedOwner)}
-                    disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50 xl:hidden"
-                  >
-                    {savingUserId === selectedOwner.userId ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        저장 중...
-                      </span>
-                    ) : (
-                      "변경사항 저장"
-                    )}
-                  </button>
-
                   <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-[16px] text-[#0f172a]">최근 변경 이력</h3>
@@ -1066,6 +1183,15 @@ function DetailRow({ label, value, children, mono = false }: { label: string; va
     <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2">
       <span className="text-[16px] text-[#64748b]">{label}</span>
       <div className={`min-w-0 truncate text-right text-[16px] text-[#0f172a] ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-2.5 py-2">
+      <p className="text-[13px] text-[#64748b]">{label}</p>
+      <p className="mt-1 truncate text-[15px] text-[#0f172a]">{value}</p>
     </div>
   );
 }

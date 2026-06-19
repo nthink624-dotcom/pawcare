@@ -108,6 +108,7 @@ export default function OwnerPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
@@ -263,6 +264,7 @@ export default function OwnerPage() {
           router.refresh();
           return;
         }
+        setSubscriptionSummary(subscription);
 
         const bootstrap = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
@@ -377,5 +379,5 @@ export default function OwnerPage() {
     );
   }
 
-  return <OwnerWebPreview initialData={data} onDataChange={setData} />;
+  return <OwnerWebPreview initialData={data} onDataChange={setData} currentPlanCode={subscriptionSummary?.currentPlanCode ?? null} />;
 }

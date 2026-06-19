@@ -108,6 +108,23 @@ function assertAppointmentStatusIsNotRepeated(params: {
   throw new Error(`이미 '${label}' 상태입니다. 같은 상태 버튼은 두 번 이상 처리하거나 알림을 다시 보낼 수 없어요.`);
 }
 
+function assertAppointmentStatusTransitionAllowed(params: {
+  previousStatus: AppointmentStatus;
+  nextStatus: AppointmentStatus;
+}) {
+  if (params.nextStatus === "in_progress" && params.previousStatus !== "confirmed" && params.previousStatus !== "almost_done") {
+    throw new Error("미용 시작은 예약 확정 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "almost_done" && params.previousStatus !== "in_progress") {
+    throw new Error("픽업 준비는 미용 시작 후에만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "completed" && params.previousStatus !== "almost_done") {
+    throw new Error("미용 완료는 픽업 준비 상태에서만 처리할 수 있어요. 먼저 픽업 준비를 눌러 주세요.");
+  }
+}
+
 function normalizeAppointmentTimeForCompare(value: string | null | undefined) {
   return (value ?? "").slice(0, 5);
 }
@@ -518,6 +535,7 @@ export async function updateShopSettings(input: unknown) {
     booking_cancelled_enabled: payload.notificationSettings.bookingCancelledEnabled,
     booking_rescheduled_enabled: payload.notificationSettings.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: payload.notificationSettings.appointmentReminder10mEnabled,
+    appointment_reminder_10m_mode: payload.notificationSettings.appointmentReminder10mMode,
     visit_reminder_offset_minutes: payload.notificationSettings.visitReminderOffsetMinutes,
     grooming_started_enabled: payload.notificationSettings.groomingStartedEnabled,
     grooming_almost_done_enabled: payload.notificationSettings.groomingAlmostDoneEnabled,
@@ -1583,6 +1601,10 @@ export async function updateAppointmentStatus(input: unknown) {
       previousStatus: appointment.status,
       nextStatus: payload.status,
     });
+    assertAppointmentStatusTransitionAllowed({
+      previousStatus: appointment.status,
+      nextStatus: payload.status,
+    });
 
     assertPhotoRequirementForAppointmentStatus({
       status: payload.status,
@@ -1713,6 +1735,10 @@ export async function updateAppointmentStatus(input: unknown) {
   const previousAppointment = currentAppointment as Appointment;
 
   assertAppointmentStatusIsNotRepeated({
+    previousStatus: currentAppointment.status,
+    nextStatus: payload.status,
+  });
+  assertAppointmentStatusTransitionAllowed({
     previousStatus: currentAppointment.status,
     nextStatus: payload.status,
   });

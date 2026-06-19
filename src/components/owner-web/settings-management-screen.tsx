@@ -105,6 +105,7 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     bookingCancelledEnabled: normalized.booking_cancelled_enabled,
     bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
     appointmentReminder10mEnabled: normalized.appointment_reminder_10m_enabled,
+    appointmentReminder10mMode: normalized.appointment_reminder_10m_mode,
     visitReminderOffsetMinutes: normalized.visit_reminder_offset_minutes,
     groomingStartedEnabled: normalized.grooming_started_enabled,
     groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
@@ -124,6 +125,7 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     booking_cancelled_enabled: draft.bookingCancelledEnabled,
     booking_rescheduled_enabled: draft.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: draft.appointmentReminder10mEnabled,
+    appointment_reminder_10m_mode: draft.appointmentReminder10mMode,
     visit_reminder_offset_minutes: draft.visitReminderOffsetMinutes,
     grooming_started_enabled: draft.groomingStartedEnabled,
     grooming_almost_done_enabled: draft.groomingAlmostDoneEnabled,
@@ -843,6 +845,7 @@ export default function SettingsManagementScreen({
   persistShopProfile = true,
   manualApprovalEnabled,
   onManualApprovalChange,
+  automaticVisitReminderAvailable = true,
 }: {
   activeTab?: SettingsTabKey;
   onActiveTabChange?: (tab: SettingsTabKey) => void;
@@ -856,6 +859,7 @@ export default function SettingsManagementScreen({
   persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
+  automaticVisitReminderAvailable?: boolean;
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
   const [draftSettings, setDraftSettings] = useState(() => applyShopToSettings(cloneSettings(initialSettings), shop));
@@ -1520,6 +1524,7 @@ export default function SettingsManagementScreen({
             <SettingsAlertsPanel
               value={alertSettings}
               onChange={updateAlertSettings}
+              automaticVisitReminderAvailable={automaticVisitReminderAvailable}
             />
           ) : activeTab === "profile" ? (
             <OwnerProfileSettingsPanel

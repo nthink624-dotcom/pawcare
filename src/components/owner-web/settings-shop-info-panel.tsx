@@ -18,6 +18,9 @@ export type ShopInfoSettingRow = {
 const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
 // Locked preview frame. Do not replace this with a CSS-drawn or generated phone frame.
 const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.svg";
+const CUSTOMER_PREVIEW_CONTENT_WIDTH = 430;
+const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 930;
+const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.632;
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -239,15 +242,25 @@ function ShopCustomerPagePreview({
         <div className="absolute left-[4.62%] top-[1.91%] h-[96.48%] w-[90.64%] overflow-hidden rounded-[30px] bg-[#fdf7f5]">
           {shop ? (
             <div className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
-              <CustomerBookingEntryPage
-                shop={shop}
-                services={services}
-                ownerProfile={ownerProfile}
-                infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
-              />
+              <div
+                className="absolute left-0 top-0 origin-top-left overflow-hidden"
+                style={{
+                  width: CUSTOMER_PREVIEW_CONTENT_WIDTH,
+                  height: CUSTOMER_PREVIEW_CONTENT_HEIGHT,
+                  transform: `scale(${CUSTOMER_PREVIEW_CONTENT_SCALE})`,
+                }}
+              >
+                <CustomerBookingEntryPage
+                  shop={shop}
+                  services={services}
+                  ownerProfile={ownerProfile}
+                  infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
+                />
+              </div>
               <style>{`
                 .pm-preview-viewport .pm-entry-proto{
                   max-width:none!important;
+                  width:${CUSTOMER_PREVIEW_CONTENT_WIDTH}px!important;
                   min-height:100%!important;
                   height:100%!important;
                 }

@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       metadata: body?.metadata ?? null,
       mediaAssetIds: normalizeMediaAssetIds(body?.mediaAssetIds),
       scheduledAt: body?.scheduledAt ?? null,
-      force: !hasSupabaseServerEnv(),
+      force: body?.force === true || !hasSupabaseServerEnv(),
       skipIfExists: body?.skipIfExists === true,
     });
 

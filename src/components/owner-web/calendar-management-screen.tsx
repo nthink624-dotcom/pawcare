@@ -48,6 +48,7 @@ import {
   postOwnerAppointment,
   postOwnerGuardian,
   postOwnerPet,
+  postOwnerScheduleCreate,
   postOwnerService,
   replaceAppointmentInBootstrap,
   replaceScheduleRangeInBootstrap,
@@ -72,6 +73,7 @@ import {
   type StatusIndicatorTone,
 } from "@/components/owner-web/status-indicators";
 import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
+import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
@@ -795,12 +797,18 @@ function appointmentToDailyBooking(
     ? staffColumns.find((item) => item.key === persistedStaffKey)
     : null;
   const staffColumn = assignedStaff ?? fallbackStaff;
-  const durationMinutes = minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
+  const effectiveWindow = getAppointmentEffectiveWindow(appointment, data.services);
+  const startMinute =
+    effectiveWindow?.date === selectedDate ? effectiveWindow.startMinute : timeToHour(appointment.appointment_time) * 60;
+  const durationMinutes =
+    effectiveWindow?.date === selectedDate
+      ? effectiveWindow.durationMinutes
+      : minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
 
   return {
     id: appointment.id,
     day: "오늘",
-    start: timeToHour(appointment.appointment_time),
+    start: startMinute / 60,
     duration: Math.max(0.25, durationMinutes / 60),
     lane: 0,
     guardianId: appointment.guardian_id,
@@ -4249,6 +4257,7 @@ export default function CalendarManagementScreen({
           appointmentId: bookingId,
           type: "grooming_almost_done",
           channel: "alimtalk",
+          force: true,
           metadata: { source: "owner_schedule_pickup_ready_action" },
         });
       }
@@ -4470,7 +4479,59 @@ export default function CalendarManagementScreen({
     let createdGuardian: Guardian | null = null;
     let createdPet: Pet | null = null;
 
+    const applyCreatedAppointment = (appointment: Appointment) => {
+      const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
+      const nextGuardian = createdGuardian;
+      const nextPet = createdPet;
+      const nextBootstrapData = {
+        ...bootstrapData,
+        guardians: nextGuardian
+          ? [...bootstrapData.guardians.filter((item) => item.id !== nextGuardian.id), nextGuardian]
+          : bootstrapData.guardians,
+        pets: nextPet ? [...bootstrapData.pets.filter((item) => item.id !== nextPet.id), nextPet] : bootstrapData.pets,
+        appointments: [...bootstrapData.appointments.filter((item) => item.id !== appointment.id), appointment],
+      };
+      const nextBookings = buildDailyBookingsFromBootstrap(nextBootstrapData, scheduleForm.date, nextAssignments);
+
+      setStaffAssignments(nextAssignments);
+      setBootstrapData(nextBootstrapData);
+      onDataChange?.(nextBootstrapData);
+      setSelectedDate(scheduleForm.date);
+      setBookings(manualApprovalEnabled ? nextBookings : nextBookings.map((booking) => normalizeBookingForApprovalMode(booking, false)));
+      setSelectedBookingId(appointment.id);
+      setActiveMetric("today");
+      setReservationStatusFilter("all");
+      setScheduleDialogOpen(false);
+    };
+
     if (scheduleForm.customerMode === "new") {
+      try {
+        const result = await postOwnerScheduleCreate({
+          shopId: bootstrapData.shop.id,
+          customerMode: "new",
+          customerName: newCustomerName,
+          customerPhone: newCustomerPhone,
+          petName: newPetName,
+          serviceId: selectedService.id,
+          staffId: targetStaff.key,
+          appointmentDate: scheduleForm.date,
+          appointmentTime: scheduleForm.time,
+          memo: scheduleForm.memo,
+        });
+
+        createdGuardian = result.guardian;
+        createdPet = result.pet;
+        applyCreatedAppointment(result.appointment);
+        return;
+      } catch (error) {
+        const message = getApiErrorMessage(error, "");
+        if (!message.includes("Supabase 연결") && !message.includes("로그인이 필요")) {
+          setScheduleError(getApiErrorMessage(error, "예약 등록 중 문제가 발생했습니다."));
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
       try {
         selectedGuardian = await postOwnerGuardian({
           shopId: bootstrapData.shop.id,
@@ -4537,29 +4598,6 @@ export default function CalendarManagementScreen({
       appointmentTime: scheduleForm.time,
       memo: scheduleForm.memo,
       source: "owner",
-    };
-
-    const applyCreatedAppointment = (appointment: Appointment) => {
-      const nextAssignments = { ...staffAssignments, [appointment.id]: targetStaff.key };
-      const nextBootstrapData = {
-        ...bootstrapData,
-        guardians: createdGuardian
-          ? [...bootstrapData.guardians.filter((item) => item.id !== createdGuardian.id), createdGuardian]
-          : bootstrapData.guardians,
-        pets: createdPet ? [...bootstrapData.pets.filter((item) => item.id !== createdPet.id), createdPet] : bootstrapData.pets,
-        appointments: [...bootstrapData.appointments.filter((item) => item.id !== appointment.id), appointment],
-      };
-      const nextBookings = buildDailyBookingsFromBootstrap(nextBootstrapData, scheduleForm.date, nextAssignments);
-
-      setStaffAssignments(nextAssignments);
-      setBootstrapData(nextBootstrapData);
-      onDataChange?.(nextBootstrapData);
-      setSelectedDate(scheduleForm.date);
-      setBookings(manualApprovalEnabled ? nextBookings : nextBookings.map((booking) => normalizeBookingForApprovalMode(booking, false)));
-      setSelectedBookingId(appointment.id);
-      setActiveMetric("today");
-      setReservationStatusFilter("all");
-      setScheduleDialogOpen(false);
     };
 
     try {

@@ -3,6 +3,7 @@
 import { after } from "next/server";
 
 import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
+import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -132,6 +133,8 @@ function buildAppointmentHistorySnapshot(appointment: Appointment) {
     rejection_reason: appointment.rejection_reason,
     start_at: appointment.start_at,
     end_at: appointment.end_at,
+    actual_started_at: appointment.actual_started_at ?? null,
+    actual_completed_at: appointment.actual_completed_at ?? null,
     visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? null,
     pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? null,
   };
@@ -358,12 +361,11 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
     if (item.id === appointment.id) return false;
     if (item.appointment_date !== date) return false;
     if (item.staff_id !== staffId) return false;
-    if (["cancelled", "rejected", "noshow"].includes(item.status)) return false;
+    if (["completed", "cancelled", "rejected", "noshow"].includes(item.status)) return false;
 
-    const itemStart = minutesFromTime(item.appointment_time);
-    const itemDuration = getAppointmentDurationMinutes(item, services);
-    if (!itemDuration) return false;
-    return itemStart < endMinute && startMinute < itemStart + itemDuration;
+    const effectiveWindow = getAppointmentEffectiveWindow(item, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) return false;
+    return effectiveWindow.startMinute < endMinute && startMinute < effectiveWindow.endMinute;
   });
 
   if (hasConflict) {
@@ -451,6 +453,7 @@ async function dispatchAppointmentNotificationWithLogs(params: {
   type: AppointmentStatusNotificationType;
   skipIfExists?: boolean;
   mediaAssetIds?: string[];
+  force?: boolean;
 }) {
   console.log("[appointments-api] notification dispatch start", {
     appointmentId: params.appointment.id,
@@ -466,6 +469,7 @@ async function dispatchAppointmentNotificationWithLogs(params: {
       petId: params.appointment.pet_id,
       type: params.type,
       mediaAssetIds: params.mediaAssetIds,
+      force: params.force === true,
       ...(params.skipIfExists ? { skipIfExists: true } : {}),
     });
 
@@ -1629,7 +1633,7 @@ export async function updateAppointmentStatus(input: unknown) {
         style_notes: appointment.memo,
         memo: "",
         price_paid: service?.price ?? 0,
-        groomed_at: toTimestampString(appointment.appointment_date, appointment.appointment_time),
+        groomed_at: appointment.actual_completed_at ?? statusChangedAt,
         created_at: statusChangedAt,
         updated_at: statusChangedAt,
       },
@@ -1672,6 +1676,7 @@ export async function updateAppointmentStatus(input: unknown) {
         appointment,
         type: "grooming_started",
         mediaAssetIds: statusMediaAssetIds,
+        force: true,
       });
     }
     if (shouldNotifyCustomer && payload.status === "almost_done") {
@@ -1680,6 +1685,7 @@ export async function updateAppointmentStatus(input: unknown) {
         appointment,
         type: "grooming_almost_done",
         mediaAssetIds: statusMediaAssetIds,
+        force: true,
       });
     }
     if (shouldNotifyCustomer && payload.status === "completed") {
@@ -1688,6 +1694,7 @@ export async function updateAppointmentStatus(input: unknown) {
         appointment,
         type: "grooming_completed",
         mediaAssetIds: statusMediaAssetIds,
+        force: true,
       });
     }
     return appointment;
@@ -1811,7 +1818,7 @@ export async function updateAppointmentStatus(input: unknown) {
         style_notes: resolvedAppointment.memo,
         memo: "",
         price_paid: service?.price ?? 0,
-        groomed_at: toTimestampString(resolvedAppointment.appointment_date, resolvedAppointment.appointment_time),
+        groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
         created_at: statusChangedAt,
         updated_at: statusChangedAt,
       });
@@ -1868,6 +1875,7 @@ export async function updateAppointmentStatus(input: unknown) {
       appointment: resolvedAppointment,
       type: "grooming_started",
       mediaAssetIds: statusMediaAssetIds,
+      force: true,
     });
   }
   if (shouldNotifyCustomer && payload.status === "almost_done") {
@@ -1876,6 +1884,7 @@ export async function updateAppointmentStatus(input: unknown) {
       appointment: resolvedAppointment,
       type: "grooming_almost_done",
       mediaAssetIds: statusMediaAssetIds,
+      force: true,
     });
   }
   if (shouldNotifyCustomer && payload.status === "completed") {
@@ -1884,6 +1893,7 @@ export async function updateAppointmentStatus(input: unknown) {
       appointment: resolvedAppointment,
       type: "grooming_completed",
       mediaAssetIds: statusMediaAssetIds,
+      force: true,
     });
   }
 

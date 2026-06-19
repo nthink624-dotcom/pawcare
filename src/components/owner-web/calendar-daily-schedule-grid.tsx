@@ -740,12 +740,12 @@ export function DailyScheduleGrid({
                                   className={cn(
                                     "grid w-full min-w-0 items-center gap-x-2",
                                     microCard ? "grid-cols-[minmax(0,1fr)_max-content]" : "grid-cols-[minmax(0,1fr)_auto]",
-                                    microCard ? "grid-rows-[16px]" : "grid-rows-[16px_16px] gap-y-[2.5px]",
+                                    microCard ? "grid-rows-[17px]" : "grid-rows-[17px_17px] gap-y-[2px]",
                                   )}
                                 >
                                   <p
                                     className={cn(
-                                      "min-w-0 truncate text-[13px] font-medium leading-[16px]",
+                                      "min-w-0 truncate text-[13px] font-medium leading-[17px]",
                                       cardTone === "completed" ? "text-[#6b7280]" : "text-[#0f172a]",
                                     )}
                                   >
@@ -753,10 +753,10 @@ export function DailyScheduleGrid({
                                   </p>
                                   <span
                                     className={cn(
-                                      "shrink-0 justify-self-end text-[13px] leading-[16px]",
+                                      "shrink-0 justify-self-end text-[13px] leading-[17px]",
                                       microCard
                                         ? "max-w-[92px] truncate whitespace-nowrap text-[#64748b]"
-                                        : `whitespace-nowrap font-semibold tabular-nums ${getBookingTimeTextClass(cardTone)}`,
+                                        : `relative -top-px whitespace-nowrap font-medium tabular-nums ${getBookingTimeTextClass(cardTone)}`,
                                     )}
                                   >
                                     {microCard ? booking.service : timeLabel}

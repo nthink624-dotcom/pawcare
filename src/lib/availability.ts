@@ -1,6 +1,7 @@
 ﻿import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffScheduleOverride } from "@/types/domain";
+import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import {
   confirmedSlotCapacity,
   normalizePendingHoldLimit,
@@ -137,13 +138,10 @@ export function computeAvailableSlots(params: {
   for (const appointment of appointments) {
     if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
 
-    const appointmentStart = minutesFromTime(appointment.appointment_time);
-    const appointmentDurationMinutes =
-      getAppointmentDurationMinutes(appointment) ??
-      services.find((item) => item.id === appointment.service_id)?.duration_minutes;
-    if (!appointmentDurationMinutes) continue;
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) continue;
 
-    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    const appointmentEnd = effectiveWindow.endMinute;
     if (appointmentEnd < open) continue;
     if (appointmentEnd + durationMinutes > close) continue;
 
@@ -210,13 +208,10 @@ export function computeRecommendedAvailableSlots(params: {
   for (const appointment of appointments) {
     if (!isAppointmentEndSlotCandidate({ appointment, date, staffId, excludeAppointmentId })) continue;
 
-    const appointmentStart = minutesFromTime(appointment.appointment_time);
-    const appointmentDurationMinutes =
-      getAppointmentDurationMinutes(appointment) ??
-      services.find((item) => item.id === appointment.service_id)?.duration_minutes;
-    if (!appointmentDurationMinutes) continue;
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) continue;
 
-    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    const appointmentEnd = effectiveWindow.endMinute;
     const appointmentEndSlot = timeFromMinutes(appointmentEnd);
     if (availableSlotSet.has(appointmentEndSlot)) {
       recommendedSlotMinutes.add(appointmentEnd);
@@ -335,12 +330,11 @@ export function isSlotAvailable(params: {
 
   const overlapBoundaries = new Set<number>([startMinute, endMinute]);
   const overlappingAppointments = activeAppointments.flatMap((appointment) => {
-    const service = services.find((item) => item.id === appointment.service_id);
-    const appointmentDurationMinutes = getAppointmentDurationMinutes(appointment) ?? service?.duration_minutes;
-    if (!appointmentDurationMinutes) return [];
+    const effectiveWindow = getAppointmentEffectiveWindow(appointment, services);
+    if (!effectiveWindow || effectiveWindow.date !== date) return [];
 
-    const appointmentStart = minutesFromTime(appointment.appointment_time);
-    const appointmentEnd = appointmentStart + appointmentDurationMinutes;
+    const appointmentStart = effectiveWindow.startMinute;
+    const appointmentEnd = effectiveWindow.endMinute;
     const overlapsWindow = appointmentStart < endMinute && startMinute < appointmentEnd;
     if (!overlapsWindow) return [];
 

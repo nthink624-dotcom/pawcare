@@ -93,7 +93,7 @@ const alertItems: AlertItem[] = [
   },
   {
     key: "groomingAlmostDoneEnabled",
-    title: "픽업 안내",
+    title: "픽업 준비",
     type: "grooming_almost_done",
     role: "미용 마무리 전 보호자가 데리러 올 시간을 준비하도록 안내합니다.",
   },

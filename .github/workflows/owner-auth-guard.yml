@@ -20,6 +20,7 @@ jobs:
       OWNER_LOGIN_SMOKE_ID: ${{ secrets.OWNER_LOGIN_E2E_ID || 'devowner' }}
       OWNER_LOGIN_SMOKE_PASSWORD: ${{ secrets.OWNER_LOGIN_E2E_PASSWORD || 'test1234' }}
       OWNER_LOGIN_SMOKE_BASE_URL: http://127.0.0.1:3000
+      OWNER_LOGIN_SMOKE_ENABLED: ${{ secrets.OWNER_LOGIN_SMOKE_ENABLED || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +43,14 @@ jobs:
 
       - run: npm run build
 
-      - run: npm run smoke:owner-login:with-server
+      - name: Run owner login smoke
+        if: env.OWNER_LOGIN_SMOKE_ENABLED == 'true'
+        run: npm run smoke:owner-login:with-server
 
-      - run: npm run test:e2e:owner-login
+      - name: Run owner login e2e
+        if: env.OWNER_LOGIN_SMOKE_ENABLED == 'true'
+        run: npm run test:e2e:owner-login
+
+      - name: Skip owner login browser smoke
+        if: env.OWNER_LOGIN_SMOKE_ENABLED != 'true'
+        run: echo "Skipping owner login smoke/e2e. Set OWNER_LOGIN_SMOKE_ENABLED=true with a safe development Supabase to enable it."

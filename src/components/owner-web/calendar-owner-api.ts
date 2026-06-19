@@ -8,6 +8,12 @@ export type OwnerScheduleRangeResponse = Pick<BootstrapPayload, "appointments" |
   to: string;
 };
 
+export type OwnerScheduleCreateResponse = {
+  guardian: Guardian | null;
+  pet: Pet | null;
+  appointment: Appointment;
+};
+
 const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
   "승인 대기": "pending",
   "확정": "confirmed",
@@ -151,6 +157,24 @@ export async function postOwnerPet(payload: unknown) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
       return fetchApiJson<Pet>("/api/pets", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+    throw error;
+  }
+}
+
+export async function postOwnerScheduleCreate(payload: unknown) {
+  try {
+    return await fetchApiJsonWithAuth<OwnerScheduleCreateResponse>("/api/owner/schedule", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Supabase 연결") || message.includes("로그인이 필요")) {
+      return fetchApiJson<OwnerScheduleCreateResponse>("/api/owner/schedule", {
         method: "POST",
         body: JSON.stringify(payload),
       });

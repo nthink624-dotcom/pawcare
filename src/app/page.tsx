@@ -1,11 +1,13 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { env } from "@/lib/env";
-import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
+import LandingPage from "@/components/landing/landing-page";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "넘친 day | 매출도 여유도 넘치는 하루",
+  description: "반려동물 미용샵 예약 요청, 승인, 알림톡, 재방문 관리를 한 곳에서 정리하는 예약관리 서비스입니다.",
+};
 
 export default async function Home({
   searchParams,
@@ -37,25 +39,5 @@ export default async function Home({
     redirect(`/auth/callback?${callbackParams.toString()}` as never);
   }
 
-  if (env.supabaseUrl && env.supabasePublishableKey) {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(env.supabaseUrl, env.supabasePublishableKey, {
-      cookieOptions: getSupabaseCookieOptions(),
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (session?.user) {
-      redirect("/owner");
-    }
-  }
-
-  redirect("/login?next=%2Fowner" as never);
+  return <LandingPage />;
 }

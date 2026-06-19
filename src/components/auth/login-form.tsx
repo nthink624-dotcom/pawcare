@@ -371,22 +371,24 @@ export default function LoginForm({
       if (result.session?.accessToken && result.session.refreshToken) {
         await makeRoomForAuthStorage(currentLoginId);
         clearOwnerAuthTokenCache();
-        if (supabase) {
-          try {
-            const sessionResult = await supabase.auth.setSession({
-              access_token: result.session.accessToken,
-              refresh_token: result.session.refreshToken,
-            });
-
-            if (sessionResult.error) {
-              console.warn("[auth/login] browser Supabase session persistence failed", sessionResult.error.message);
-            }
-          } catch (error) {
-            console.warn("[auth/login] browser Supabase session persistence threw", error);
-          }
-        }
         writeOwnerAuthHandoff(result.session);
         writeOwnerAuthSessionCache(result.session);
+
+        if (supabase) {
+          void supabase.auth
+            .setSession({
+              access_token: result.session.accessToken,
+              refresh_token: result.session.refreshToken,
+            })
+            .then((sessionResult: { error: { message: string } | null }) => {
+              if (sessionResult.error) {
+                console.warn("[auth/login] browser Supabase session persistence failed", sessionResult.error.message);
+              }
+            })
+            .catch((error: unknown) => {
+              console.warn("[auth/login] browser Supabase session persistence threw", error);
+            });
+        }
       }
 
       try {

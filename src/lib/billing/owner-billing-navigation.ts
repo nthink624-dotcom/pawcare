@@ -1,7 +1,7 @@
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 
 const OWNER_BILLING_SUMMARY_CACHE_KEY = "owner-billing:summary-cache";
-const DEFAULT_MAX_AGE_MS = 2 * 60 * 1000;
+const DEFAULT_MAX_AGE_MS = 10 * 60 * 1000;
 
 type OwnerBillingSummaryCache = {
   cachedAt: number;

@@ -24,6 +24,7 @@ import {
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
+import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
 import type { ApprovalMode, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
@@ -407,10 +408,11 @@ const ownerWebSettingsStorageKey = "petmanager.ownerWeb.settings";
 const ownerWebShopProfileImageStorageKey = "petmanager.ownerWeb.shopProfileImage";
 const ownerWebShopProfileImagesStorageKey = "petmanager.ownerWeb.shopProfileImages";
 const ownerWebShopProfileImagesStorageLimit = 900_000;
+const ownerWebShopProfileImagesMaxCount = 500;
 
 function normalizeShopProfileImages(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return value.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.length > 0).slice(0, 10);
+  return value.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.length > 0).slice(0, ownerWebShopProfileImagesMaxCount);
 }
 
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
@@ -865,6 +867,7 @@ export default function SettingsManagementScreen({
   const [draftSettings, setDraftSettings] = useState(() => applyShopToSettings(cloneSettings(initialSettings), shop));
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [shopProfileImages, setShopProfileImages] = useState<string[]>([]);
+  const [shopProfileImageAssetIds, setShopProfileImageAssetIds] = useState<string[]>([]);
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
@@ -902,6 +905,7 @@ export default function SettingsManagementScreen({
         } else if (shop?.customer_page_settings.hero_image_url) {
           setShopProfileImages([shop.customer_page_settings.hero_image_url]);
         }
+        setShopProfileImageAssetIds((shop?.customer_page_settings.hero_media_asset_ids ?? []).filter(Boolean).slice(0, 10));
       });
       setIsShopInfoDirty(false);
       setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
@@ -970,7 +974,10 @@ export default function SettingsManagementScreen({
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
+    const heroMediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
+    const persistentHeroImageUrls = heroMediaAssetIds.length > 0 ? [] : heroImageUrls;
     const heroImageUrl = heroImageUrls[0] ?? "";
+    const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
     const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
     const optimisticShop: Shop = {
       ...shop,
@@ -996,6 +1003,8 @@ export default function SettingsManagementScreen({
         social_links: socialLinks,
         hero_image_url: heroImageUrl,
         hero_image_urls: heroImageUrls,
+        hero_media_asset_id: heroMediaAssetIds[0] ?? "",
+        hero_media_asset_ids: heroMediaAssetIds,
         business_category: businessCategory || shop.customer_page_settings.business_category,
         additional_contact: additionalContact,
         postal_code: postalCode,
@@ -1032,14 +1041,30 @@ export default function SettingsManagementScreen({
           showcaseTitle,
           showcaseBody,
           socialLinks,
-          heroImageUrl,
-          heroImageUrls,
+          heroImageUrl: persistentHeroImageUrl,
+          heroImageUrls: persistentHeroImageUrls,
+          heroMediaAssetIds,
           ...(policyPatch ?? {}),
           ...(policyPatch ? { pendingHoldLimit: policyPatch.pendingHoldLimit } : {}),
         }),
       },
     );
-    onShopChange?.({ ...optimisticShop, ...result.shop });
+    onShopChange?.({
+      ...optimisticShop,
+      ...result.shop,
+      customer_page_settings: {
+        ...optimisticShop.customer_page_settings,
+        ...result.shop.customer_page_settings,
+        ...(heroMediaAssetIds.length > 0
+          ? {
+              hero_image_url: heroImageUrl,
+              hero_image_urls: heroImageUrls,
+              hero_media_asset_id: heroMediaAssetIds[0] ?? "",
+              hero_media_asset_ids: heroMediaAssetIds,
+            }
+          : {}),
+      },
+    });
     if (policyPatch) {
       onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
     }
@@ -1398,34 +1423,39 @@ export default function SettingsManagementScreen({
   const businessHoursRow = draftSettings.hours.rows.find((row) => row.id === "businessHours");
   const closedDayRow = draftSettings.hours.rows.find((row) => row.id === "closedDay");
 
-  function readImageFileAsDataUrl(file: File) {
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = () => resolve("");
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function addShopProfileImages(files: FileList | File[]) {
-    const remainingCount = Math.max(10 - shopProfileImages.length, 0);
+    if (!shop) return;
+    const remainingCount = Math.max(ownerWebShopProfileImagesMaxCount - shopProfileImages.length, 0);
     if (remainingCount === 0) return;
 
     const selectedFiles = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, remainingCount);
     if (selectedFiles.length === 0) return;
 
-    const imageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
-    if (imageUrls.length === 0) return;
+    setSavingShopInfo(true);
+    try {
+      const uploadedImages = await Promise.all(
+        selectedFiles.map((file) => createOwnerShopProfileImageFromFile({ shopId: shop.id }, file)),
+      );
+      const imageUrls = uploadedImages.map((item) => item.signedUrl).filter(Boolean);
+      const mediaAssetIds = uploadedImages.map((item) => item.mediaAsset.id).filter(Boolean);
+      if (imageUrls.length === 0) return;
 
-    const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
-    setShopProfileImages(nextImages);
-    persistSettings(draftSettings, nextImages);
-    setIsShopInfoDirty(true);
+      const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
+      const nextMediaAssetIds = [...shopProfileImageAssetIds, ...mediaAssetIds].slice(0, nextImages.length);
+      setShopProfileImages(nextImages);
+      setShopProfileImageAssetIds(nextMediaAssetIds);
+      persistSettings(draftSettings, nextImages);
+      setIsShopInfoDirty(true);
+    } finally {
+      setSavingShopInfo(false);
+    }
   }
 
   function removeShopProfileImage(index: number) {
     const nextImages = shopProfileImages.filter((_, imageIndex) => imageIndex !== index);
+    const nextMediaAssetIds = shopProfileImageAssetIds.filter((_, imageIndex) => imageIndex !== index);
     setShopProfileImages(nextImages);
+    setShopProfileImageAssetIds(nextMediaAssetIds);
     persistSettings(draftSettings, nextImages);
     setIsShopInfoDirty(true);
   }

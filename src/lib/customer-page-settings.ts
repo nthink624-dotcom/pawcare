@@ -7,6 +7,8 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   tagline: "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.",
   hero_image_url: "",
   hero_image_urls: [],
+  hero_media_asset_id: "",
+  hero_media_asset_ids: [],
   showcase_title: "",
   showcase_body: "",
   social_links: {
@@ -136,6 +138,14 @@ function normalizeHeroImageUrls(settings: Partial<CustomerPageSettings> | null |
   return (imageUrls.length > 0 ? imageUrls : singleImageUrl ? [singleImageUrl] : []).slice(0, 10);
 }
 
+function normalizeHeroMediaAssetIds(settings: Partial<CustomerPageSettings> | null | undefined) {
+  const mediaAssetIds = Array.isArray(settings?.hero_media_asset_ids)
+    ? settings.hero_media_asset_ids.filter((mediaAssetId): mediaAssetId is string => typeof mediaAssetId === "string" && mediaAssetId.trim().length > 0)
+    : [];
+  const singleMediaAssetId = settings?.hero_media_asset_id?.trim() || "";
+  return (mediaAssetIds.length > 0 ? mediaAssetIds : singleMediaAssetId ? [singleMediaAssetId] : []).slice(0, 10);
+}
+
 function normalizeSocialLinks(settings: Partial<CustomerPageSettings> | null | undefined): NonNullable<CustomerPageSettings["social_links"]> {
   const links = settings?.social_links;
   return {
@@ -152,11 +162,14 @@ export function normalizeCustomerPageSettings(
   fallbackTagline?: string,
 ): CustomerPageSettings {
   const heroImageUrls = normalizeHeroImageUrls(settings);
+  const heroMediaAssetIds = normalizeHeroMediaAssetIds(settings);
   return {
     shop_name: normalizeText(settings?.shop_name, fallbackName || defaultCustomerPageSettings.shop_name),
     tagline: normalizeText(settings?.tagline, fallbackTagline || defaultCustomerPageSettings.tagline),
     hero_image_url: heroImageUrls[0] || "",
     hero_image_urls: heroImageUrls,
+    hero_media_asset_id: heroMediaAssetIds[0] || "",
+    hero_media_asset_ids: heroMediaAssetIds,
     showcase_title: normalizeOptionalText(settings?.showcase_title),
     showcase_body: normalizeOptionalText(settings?.showcase_body),
     social_links: normalizeSocialLinks(settings),

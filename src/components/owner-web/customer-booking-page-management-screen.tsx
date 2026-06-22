@@ -12,7 +12,7 @@ import {
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
-import { compressImageForPetmanager } from "@/lib/media/client-image-compression";
+import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { formatServicePrice } from "@/lib/utils";
 import type { BootstrapPayload, CustomerPageSettings, Service, Shop } from "@/types/domain";
 
@@ -98,15 +98,6 @@ function buildShopPatch(shop: Shop, name: string, tagline: string) {
   };
 }
 
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function getCustomerServiceRows(options: CustomerServiceSourceOption[], overrides: CustomerServiceDisplayOverrides) {
   const hasConfiguredOverrides = Object.keys(overrides).length > 0;
   return options
@@ -164,8 +155,10 @@ export default function CustomerBookingPageManagementScreen({
   const businessHours = useMemo(() => formatBusinessHours(shop), [shop]);
   const heroImageUrl = shop.customer_page_settings.hero_image_url.trim();
   const heroImages = shop.customer_page_settings.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ?? [];
+  const heroMediaAssetIds = shop.customer_page_settings.hero_media_asset_ids?.filter(Boolean) ?? [];
   const heroDisplayImageUrl = heroImages[0] || heroImageUrl || "/images/customer-booking-hero-original.jpg";
-  const isUsingDefaultHeroImage = !heroImages[0] && !heroImageUrl;
+  const hasCustomHeroImage = Boolean(heroImages[0] || heroImageUrl || heroMediaAssetIds[0]);
+  const isUsingDefaultHeroImage = !hasCustomHeroImage;
   const previewShop = useMemo(
     () => ({
       ...shop,
@@ -354,12 +347,15 @@ export default function CustomerBookingPageManagementScreen({
     setServices((current) => [...current, nextService]);
   }
 
-  async function saveHeroImageUrl(heroImageUrl: string) {
+  async function saveHeroImage(heroImageUrl: string, heroMediaAssetId = "") {
     const nextSettings = {
       ...shop.customer_page_settings,
       shop_name: shopName.trim() || shop.customer_page_settings.shop_name || shop.name,
       tagline: tagline.trim() || shop.customer_page_settings.tagline,
       hero_image_url: heroImageUrl,
+      hero_image_urls: heroImageUrl ? [heroImageUrl] : [],
+      hero_media_asset_id: heroMediaAssetId,
+      hero_media_asset_ids: heroMediaAssetId ? [heroMediaAssetId] : [],
     };
     const savedSettings = await fetchApiJsonWithAuth<CustomerPageSettings>("/api/customer-page-settings", {
       method: "PATCH",
@@ -379,16 +375,18 @@ export default function CustomerBookingPageManagementScreen({
       return;
     }
 
-    setUploadingHeroImage(true);
-    setMessage("대표 사진을 업로드하고 있습니다.");
-    try {
-      const compressed = await compressImageForPetmanager(file, {
-        maxLongEdge: 1280,
-        targetBytes: 220 * 1024,
-        maxBytes: 700 * 1024,
+      setUploadingHeroImage(true);
+      setMessage("대표 사진을 업로드하고 있습니다.");
+      try {
+      const uploaded = await createOwnerShopProfileImageFromFile({ shopId: shop.id }, file);
+      await saveHeroImage("", uploaded.mediaAsset.id);
+      updateCustomerPageSettings({
+        ...shop.customer_page_settings,
+        hero_image_url: uploaded.signedUrl,
+        hero_image_urls: [uploaded.signedUrl],
+        hero_media_asset_id: uploaded.mediaAsset.id,
+        hero_media_asset_ids: [uploaded.mediaAsset.id],
       });
-      const dataUrl = await fileToDataUrl(compressed.file);
-      await saveHeroImageUrl(dataUrl);
       setMessage("대표 사진이 저장되었습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "대표 사진 저장에 실패했습니다.");
@@ -401,7 +399,7 @@ export default function CustomerBookingPageManagementScreen({
     setUploadingHeroImage(true);
     setMessage("");
     try {
-      await saveHeroImageUrl("");
+      await saveHeroImage("");
       setMessage("대표 사진을 삭제했습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "대표 사진 삭제에 실패했습니다.");
@@ -556,9 +554,9 @@ export default function CustomerBookingPageManagementScreen({
                   className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#2f7866] px-3 text-[15px] font-medium text-white disabled:bg-[#94a3b8]"
                 >
                   <ImagePlus className="h-4 w-4" />
-                  {uploadingHeroImage ? "업로드 중" : heroImageUrl ? "사진 변경" : "사진 업로드"}
+                  {uploadingHeroImage ? "업로드 중" : hasCustomHeroImage ? "사진 변경" : "사진 업로드"}
                 </button>
-                {heroImageUrl ? (
+                {hasCustomHeroImage ? (
                   <button
                     type="button"
                     onClick={() => void removeHeroImage()}

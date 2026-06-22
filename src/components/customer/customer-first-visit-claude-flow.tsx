@@ -169,14 +169,14 @@ function ClaudeStyles() {
       .pm-proto .chips{display:flex;flex-wrap:wrap;gap:7px}
       .pm-proto .breedchip{border:1px solid var(--border);background:var(--card);border-radius:999px;color:var(--textMid);font-size:15px;font-weight:500;padding:7px 10px}
       .pm-proto .breedchip.sel{border-color:var(--primary);background:#fffaf8;color:var(--primaryDk)}
-      .pm-proto .staffstrip{display:flex;gap:9px;overflow-x:auto;scrollbar-width:none}
+      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
       .pm-proto .staffstrip::-webkit-scrollbar{display:none}
-      .pm-proto .staff{flex:0 0 104px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:12px 9px;text-align:center}
+      .pm-proto .staff{flex:0 0 112px;min-height:138px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:18px 10px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
       .pm-proto .staff.sel{border-color:var(--primary);background:#fffaf8}
-      .pm-proto .staff .avatar{width:42px;height:42px;margin:0 auto 7px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
+      .pm-proto .staff .avatar{width:50px;height:50px;margin:0 auto 14px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
-      .pm-proto .staff .name{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pm-proto .staff .role{display:block;font-size:14px;color:var(--textMuted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .role{display:block;width:100%;font-size:13px;color:var(--textMuted);margin-top:5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
       .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:700;color:var(--primaryDk)}
       .pm-proto .consent-note .agree{color:#8a665d}

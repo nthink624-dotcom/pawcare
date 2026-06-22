@@ -123,17 +123,17 @@ export default function CustomerServiceExposurePanel({
   return (
     <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-3", embedded && "border-0 bg-transparent p-0")}>
       {title || onAddOption ? (
-        <div className="mb-2 flex items-center justify-between gap-3">
-          {title ? <p className="text-[16px] font-medium text-[#334155]">{title}</p> : <span />}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {title ? <p className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">{title}</p> : <span />}
           {onAddOption ? (
             <button
               type="button"
-              onClick={() => void onAddOption()}
+              onClick={() => void onAddOption?.()}
               disabled={busyOptionId === "__add__"}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-2.5 text-[15px] font-normal text-white transition hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#2f6bd4] bg-[#2f6bd4] px-3 text-[0px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              <Plus className="h-3.5 w-3.5" />
-              항목 추가
+              <Plus className="h-4 w-4" />
+              <span className="text-[15px]">서비스 추가</span>
             </button>
           ) : null}
         </div>
@@ -215,6 +215,21 @@ export default function CustomerServiceExposurePanel({
                   </div>
                 );
               })}
+              {false ? (
+                <div className={cn("grid items-center gap-2 bg-[#fbfcfd] px-3 py-2", rowGridClass)}>
+                  <button
+                    type="button"
+                    onClick={() => void onAddOption?.()}
+                    disabled={busyOptionId === "__add__"}
+                    className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-[7px] border border-[#dbe2ea] bg-white text-[15px] font-normal text-[#334155] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    추가
+                  </button>
+                  <span className="text-[15px] font-normal text-[#64748b]">서비스 추가</span>
+                  {canDelete ? <span /> : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

@@ -83,6 +83,8 @@ export type CustomerPageSettings = {
   tagline: string;
   hero_image_url: string;
   hero_image_urls?: string[];
+  hero_media_asset_id?: string;
+  hero_media_asset_ids?: string[];
   showcase_title?: string;
   showcase_body?: string;
   social_links?: {

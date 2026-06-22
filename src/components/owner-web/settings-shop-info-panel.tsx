@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import { ImagePlus, Info } from "lucide-react";
+import { Camera, Info, Save, Scissors, Settings2, Store } from "lucide-react";
 import Image from "next/image";
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { cn } from "@/lib/utils";
@@ -19,8 +19,9 @@ const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
 // Locked preview frame. Do not replace this with a CSS-drawn or generated phone frame.
 const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.svg";
 const CUSTOMER_PREVIEW_CONTENT_WIDTH = 430;
-const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 930;
-const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.632;
+const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 804;
+const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.569;
+const MAX_SHOP_PROFILE_IMAGES = 500;
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -69,14 +70,14 @@ function TextInput({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       onBlur={(event) => onCommit?.(event.target.value)}
-      className="mt-0.5 h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-medium text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
+      className="h-10 w-full rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 text-[16px] font-normal text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
     />
   );
 }
 
 function AlignedFieldLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn("w-[92px] whitespace-nowrap text-[16px] font-normal text-[#111827]", className)}>
+    <span className={cn("w-[92px] whitespace-nowrap text-[16px] font-normal text-[#181b21]", className)}>
       <span>{children}</span>
     </span>
   );
@@ -84,11 +85,59 @@ function AlignedFieldLabel({ children, className = "" }: { children: ReactNode; 
 
 function FieldLabel({ children, required }: { children: ReactNode; required?: boolean }) {
   return (
-    <span className="text-[16px] font-normal text-[#111827]">
+    <span className="text-[16px] font-normal text-[#181b21]">
       {children}
-      {required ? <span className="ml-1 text-[#2f7866]">*</span> : null}
+      {required ? <span className="ml-1 text-[#ef6a52]">*</span> : null}
     </span>
   );
+}
+
+function PanelCard({
+  id,
+  icon,
+  title,
+  description,
+  action,
+  hideHeader = false,
+  children,
+}: {
+  id?: string;
+  icon: ReactNode;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  hideHeader?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-5 overflow-hidden rounded-[16px] border border-[#e1e4ea] bg-white shadow-[0_1px_2px_rgba(30,35,45,0.03)]">
+      {!hideHeader ? (
+        <div className="flex items-start gap-3 px-5 pt-5">
+          <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] bg-[#2f6bd4]/10 text-[#2f6bd4]">
+            {icon}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.02em] text-[#181b21]">{title}</h3>
+            {description ? <p className="mt-0.5 text-[13.5px] font-normal leading-5 text-[#969ba4]">{description}</p> : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
+      ) : null}
+      <div className={cn("px-5 pb-5", hideHeader ? "pt-5" : "pt-4")}>{children}</div>
+    </section>
+  );
+}
+
+function SocialIcon({ label, className }: { label: string; className: string }) {
+  return (
+    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[12px] font-semibold", className)}>
+      {label}
+    </span>
+  );
+}
+
+function CardSectionTitle({ children }: { children: ReactNode }) {
+  return <h3 className="mb-4 text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">{children}</h3>;
 }
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
@@ -236,14 +285,34 @@ function ShopCustomerPagePreview({
   ownerProfile?: OwnerProfile | null;
 }) {
   return (
-    <div className="flex w-full flex-col items-center">
-      <p className="mb-3 text-[18px] font-semibold text-[#111827]">미리보기</p>
-      <div className="relative aspect-[823/1677] w-[300px] max-w-full">
-        <div className="absolute left-[4.62%] top-[1.91%] h-[96.48%] w-[90.64%] overflow-hidden rounded-[30px] bg-[#fdf7f5]">
+    <div className="flex h-full w-full flex-col items-center justify-center">
+      <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">미리보기</p>
+      <div className="relative aspect-[823/1677] w-[270px] max-w-full">
+        <div className="pointer-events-none absolute left-[3.4%] top-[1.25%] h-[97.4%] w-[93.2%] rounded-[40px] bg-[#070707]" />
+        <div className="absolute left-[4.62%] top-[1.91%] z-10 h-[96.48%] w-[90.64%] overflow-hidden rounded-[31px] bg-[#fdf7f5]">
           {shop ? (
             <div className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[40px] items-center justify-between bg-[#fdf7f5] px-[24px] pt-[8px] text-[10.5px] font-semibold text-[#241916]">
+                <span>9:41</span>
+                <span className="flex items-center gap-[4px]">
+                  <span className="flex h-[9px] items-end gap-[1.5px]">
+                    <span className="block h-[3px] w-[2px] rounded-sm bg-[#241916]/85" />
+                    <span className="block h-[5px] w-[2px] rounded-sm bg-[#241916]/85" />
+                    <span className="block h-[7px] w-[2px] rounded-sm bg-[#241916]/85" />
+                    <span className="block h-[9px] w-[2px] rounded-sm bg-[#241916]/85" />
+                  </span>
+                  <span className="relative h-[9px] w-[12px] overflow-hidden">
+                    <span className="absolute left-1/2 top-[1px] h-[12px] w-[12px] -translate-x-1/2 rounded-full border-[1.5px] border-[#241916]/85" />
+                    <span className="absolute bottom-0 left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-[#241916]/85" />
+                  </span>
+                  <span className="relative h-[9px] w-[19px] rounded-[3px] border border-[#241916]/85">
+                    <span className="absolute -right-[3px] top-1/2 h-[4px] w-[2px] -translate-y-1/2 rounded-r bg-[#241916]/70" />
+                    <span className="absolute left-[2px] top-[2px] h-[3px] w-[12px] rounded-[2px] bg-[#241916]" />
+                  </span>
+                </span>
+              </div>
               <div
-                className="absolute left-0 top-0 origin-top-left overflow-hidden"
+                className="absolute left-0 top-[40px] origin-top-left overflow-hidden"
                 style={{
                   width: CUSTOMER_PREVIEW_CONTENT_WIDTH,
                   height: CUSTOMER_PREVIEW_CONTENT_HEIGHT,
@@ -263,16 +332,17 @@ function ShopCustomerPagePreview({
                   width:${CUSTOMER_PREVIEW_CONTENT_WIDTH}px!important;
                   min-height:100%!important;
                   height:100%!important;
+                  padding-top:0!important;
                 }
                 .pm-preview-viewport .pm-entry-proto .scroll{
                   height:100%!important;
-                  padding-bottom:96px!important;
+                  padding-bottom:128px!important;
                 }
                 .pm-preview-viewport .pm-entry-proto .dock{
                   position:absolute!important;
                   left:0!important;
                   right:0!important;
-                  bottom:0!important;
+                  bottom:-12px!important;
                   transform:none!important;
                   width:100%!important;
                   max-width:none!important;
@@ -282,6 +352,9 @@ function ShopCustomerPagePreview({
                   max-width:none!important;
                 }
               `}</style>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[34px] items-end justify-center bg-[#fdf7f5] pb-[8px]">
+                <span className="h-[4px] w-[92px] rounded-full bg-[#241916]/18" />
+              </div>
             </div>
           ) : (
             <div className="flex h-full items-center justify-center bg-[#fdf7f5] px-8 text-center text-[14px] leading-5 text-[#8a7a72]">
@@ -295,7 +368,7 @@ function ShopCustomerPagePreview({
           fill
           priority
           unoptimized
-          className="pointer-events-none select-none object-contain"
+          className="pointer-events-none z-20 select-none object-contain"
         />
       </div>
     </div>
@@ -333,13 +406,13 @@ export default function ShopInfoSettingsPanel({
   const approvalMode = rowValue(rows, "approvalMode");
   const autoApproval = approvalMode === "諛붾줈 ?뱀씤" || approvalMode === "auto";
   const manualApproval = !autoApproval;
-  const profileImages = shopProfileImages.slice(0, 10);
-  const storedProfileImages = (shop?.customer_page_settings.hero_image_urls ?? []).filter(Boolean).slice(0, 10);
+  const profileImages = shopProfileImages.slice(0, MAX_SHOP_PROFILE_IMAGES);
+  const storedProfileImages = (shop?.customer_page_settings.hero_image_urls ?? []).filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
   const mainProfileImage = profileImages[0] ?? "";
   const displayedProfileImage = mainProfileImage || storedProfileImages[0] || shop?.customer_page_settings.hero_image_url || DEFAULT_SHOP_PROFILE_IMAGE;
   const carouselProfileImages = useMemo(() => {
     const sourceImages = profileImages.length > 0 ? profileImages : storedProfileImages.length > 0 ? storedProfileImages : [displayedProfileImage];
-    return sourceImages.filter(Boolean).slice(0, 10);
+    return sourceImages.filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
   }, [displayedProfileImage, profileImages, storedProfileImages]);
   const [activeProfileImageIndex, setActiveProfileImageIndex] = useState(0);
   const profileTouchStartXRef = useRef<number | null>(null);
@@ -354,6 +427,17 @@ export default function ShopInfoSettingsPanel({
   const hiddenProfileImageCount = hasHiddenProfileImages
     ? carouselProfileImages.length - visibleProfileThumbnails.length
     : 0;
+  const sectionTabs = useMemo(
+    () => [
+      { id: "basic", label: "기본 정보" },
+      { id: "hours", label: "영업 시간", hidden: !children },
+      { id: "menu", label: "서비스 메뉴", hidden: !serviceMenuContent },
+      { id: "policy", label: "예약 정책" },
+    ].filter((tab) => !tab.hidden),
+    [children, serviceMenuContent],
+  );
+  const [activeSectionId, setActiveSectionId] = useState(sectionTabs[0]?.id ?? "basic");
+  const settingsScrollRef = useRef<HTMLDivElement | null>(null);
   const effectiveDescription =
     description || shop?.description?.trim() || shop?.customer_page_settings.tagline?.trim() || "";
   const customerPreviewShop = useMemo(() => {
@@ -412,20 +496,65 @@ export default function ShopInfoSettingsPanel({
     });
   }
 
-  const profileAction = (
+  useEffect(() => {
+    const scrollContainer = settingsScrollRef.current;
+    if (!scrollContainer) return;
+    const container = scrollContainer;
+
+    function updateActiveSection() {
+      const bottomGap = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (bottomGap <= 8) {
+        setActiveSectionId(sectionTabs[sectionTabs.length - 1]?.id ?? "basic");
+        return;
+      }
+
+      const containerTop = container.getBoundingClientRect().top;
+      let nextSectionId = sectionTabs[0]?.id ?? "basic";
+
+      for (const tab of sectionTabs) {
+        const section = container.querySelector<HTMLElement>(`#shop-info-${tab.id}`);
+        if (!section) continue;
+        const sectionTop = section.getBoundingClientRect().top - containerTop;
+        if (sectionTop <= 44) {
+          nextSectionId = tab.id;
+        }
+      }
+
+      setActiveSectionId(nextSectionId);
+    }
+
+    updateActiveSection();
+    container.addEventListener("scroll", updateActiveSection, { passive: true });
+    return () => container.removeEventListener("scroll", updateActiveSection);
+  }, [sectionTabs]);
+
+  function scrollToSection(sectionId: string) {
+    const scrollContainer = settingsScrollRef.current;
+    const section = scrollContainer?.querySelector<HTMLElement>(`#shop-info-${sectionId}`);
+    if (!scrollContainer || !section) return;
+
+    const containerTop = scrollContainer.getBoundingClientRect().top;
+    const sectionTop = section.getBoundingClientRect().top;
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollTop + sectionTop - containerTop - 20,
+      behavior: "smooth",
+    });
+    setActiveSectionId(sectionId);
+  }
+
+  const saveAction = (
     <button
       type="button"
       onClick={onSave}
       disabled={saving}
-      className="h-7 rounded-[7px] bg-[#2f7866] px-3 text-[14px] font-medium text-white transition hover:bg-[#276756] disabled:bg-[#cbd5e1] disabled:text-white"
+      className="inline-flex h-10 items-center gap-2 rounded-[11px] bg-[#2f6bd4] px-4 text-[16px] font-semibold text-white transition hover:bg-[#285bb3] disabled:bg-[#bdc2cb] disabled:text-white"
     >
+      <Save className="h-4 w-4" />
       {saving ? "저장 중" : "저장"}
     </button>
   );
-
   const reservationPolicySection = (
     <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
-      <p className="mb-2 text-[16px] font-medium text-[#334155]">예약 정책</p>
       <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
         <span className="pt-2 text-[16px] font-normal text-[#111827]">승인 방식</span>
         <div className="grid gap-1.5 sm:grid-cols-2">
@@ -470,165 +599,165 @@ export default function ShopInfoSettingsPanel({
   );
 
   return (
-    <div className="h-full min-h-0 pr-1">
-      <section className="h-full min-h-0 overflow-hidden rounded-[14px] border border-[#e5e7eb] bg-white p-2.5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
-        <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-h-0 min-w-0 overflow-y-auto pr-2 [scrollbar-width:thin]">
-            <div className="space-y-3">
-            <div className="flex flex-col rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
-              <div className="-mx-0.5 -mt-0.5 mb-0.5 flex h-8 items-center justify-between gap-3 rounded-[8px] px-0.5">
-                <h4 className="text-[16px] font-medium text-[#334155]">매장 정보 설정</h4>
-                {profileAction}
+    <div className="h-full min-h-0 overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-[#f1f3f6] shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
+      <div className="grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
+        <div className="flex min-h-0 min-w-0 flex-col border-r border-[#e1e4ea] bg-[#f1f3f6]">
+          <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {sectionTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => scrollToSection(tab.id)}
+                    className={cn(
+                      "inline-flex h-8 shrink-0 items-center rounded-full px-4 text-[15px] font-medium transition",
+                      activeSectionId === tab.id ? "bg-white text-[#2f6bd4] shadow-[0_1px_2px_rgba(15,23,42,0.08)]" : "text-[#646a74] hover:bg-white/70 hover:text-[#181b21]",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-              <div className="order-2 mt-3 grid gap-x-7 gap-y-2 border-t border-[#e5e7eb] pt-3 xl:grid-cols-2">
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <AlignedFieldLabel>인스타</AlignedFieldLabel>
-                  <TextInput value={instagramUrl} disabled={!editable} placeholder="https://instagram.com/..." onChange={(value) => onRowChange("instagramUrl", value)} onCommit={(value) => onRowCommit("instagramUrl", value)} />
-                </label>
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <AlignedFieldLabel>카카오</AlignedFieldLabel>
-                  <TextInput value={kakaoChannelUrl} disabled={!editable} placeholder="https://pf.kakao.com/..." onChange={(value) => onRowChange("kakaoChannelUrl", value)} onCommit={(value) => onRowCommit("kakaoChannelUrl", value)} />
-                </label>
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <AlignedFieldLabel>틱톡</AlignedFieldLabel>
-                  <TextInput value={tiktokUrl} disabled={!editable} placeholder="https://tiktok.com/..." onChange={(value) => onRowChange("tiktokUrl", value)} onCommit={(value) => onRowCommit("tiktokUrl", value)} />
-                </label>
-                <label className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
-                  <AlignedFieldLabel>쓰레드</AlignedFieldLabel>
-                  <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
-                </label>
-              </div>
+              {saveAction}
+            </div>
+          </div>
 
-              <div className="order-1">
-              <div className="bg-white">
-              <div className="grid items-center gap-4 p-2 lg:grid-cols-[230px_minmax(0,1fr)] xl:gap-6">
-                <div className="min-w-0">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (profileDidSwipeRef.current) {
-                          profileDidSwipeRef.current = false;
-                          return;
-                        }
-                        document.getElementById("shop-profile-images-input")?.click();
-                      }}
-                      onTouchStart={handleProfileTouchStart}
-                      onTouchEnd={handleProfileTouchEnd}
-                      disabled={!editable}
-                      className="group h-full w-full text-[#2f7866] transition hover:opacity-95"
-                    >
-                      {activeProfileImage ? (
-                        <>
-                          <Image src={activeProfileImage} alt="매장 사진" width={360} height={270} unoptimized className="h-full w-full object-cover" />
-                          <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[12px] font-medium text-white">
-                            {visibleProfileImageIndex === 0 ? "대표 이미지" : "미리보기"}
+          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
+            <div className="mx-auto max-w-[980px] space-y-[18px] pb-24">
+              <PanelCard
+                id="shop-info-basic"
+                icon={<Store className="h-[17px] w-[17px]" />}
+                title="기본 정보"
+                hideHeader
+              >
+                <CardSectionTitle>기본 정보</CardSectionTitle>
+                <div className="space-y-4">
+                  <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profileDidSwipeRef.current) {
+                            profileDidSwipeRef.current = false;
+                            return;
+                          }
+                          document.getElementById("shop-profile-images-input")?.click();
+                        }}
+                        onTouchStart={handleProfileTouchStart}
+                        onTouchEnd={handleProfileTouchEnd}
+                        disabled={!editable}
+                        className={cn(
+                          "group relative aspect-[16/10] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
+                          activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
+                        )}
+                        aria-label="대표 매장 사진"
+                      >
+                        {activeProfileImage ? (
+                          <>
+                            <Image src={activeProfileImage} alt="매장 사진" width={360} height={360} unoptimized className="h-full w-full object-cover" />
+                            <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
+                              대표
+                            </span>
+                          </>
+                        ) : (
+                          <span className="flex h-full flex-col items-center justify-center gap-2">
+                            <Camera className="h-8 w-8" />
+                            <span className="text-[15px] font-semibold text-[#64748b]">사진 추가</span>
                           </span>
-                        </>
-                      ) : (
-                        <span className="flex h-full flex-col items-center justify-center gap-1">
-                          <ImagePlus className="h-7 w-7" />
-                          <span className="text-[14px] font-medium">사진 추가</span>
-                          <span className="text-[13px] font-normal text-[#64748b]">여러 장 등록 가능</span>
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                      disabled={!editable}
-                      className="absolute right-2 top-2 z-10 inline-flex h-8 items-center gap-1 rounded-full bg-white/95 px-2.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition hover:bg-white hover:text-[#d97706] disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="매장 사진 여러 장 추가"
-                    >
-                      <ImagePlus className="h-3.5 w-3.5" />
-                      사진 추가
-                    </button>
-                    {activeProfileImage ? (
-                      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 via-black/32 to-transparent px-2 pb-2 pt-8">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {visibleProfileThumbnails.map((imageUrl, index) => (
-                            <button
-                              key={`${imageUrl}-${index}`}
-                              type="button"
-                              onClick={() => setActiveProfileImageIndex(index)}
-                              className={cn(
-                                "relative h-9 w-9 shrink-0 overflow-hidden rounded-[7px] border bg-white transition",
-                                visibleProfileImageIndex === index ? "border-white ring-2 ring-[#f59e0b]" : "border-white/55 hover:border-white",
-                              )}
-                              aria-label={`${index + 1}번째 매장 사진 보기`}
-                            >
-                              <Image src={imageUrl} alt="" width={36} height={36} unoptimized className="h-full w-full object-cover" />
-                            </button>
-                          ))}
-                          {hasHiddenProfileImages ? (
-                            <button
-                              type="button"
-                              onClick={() => setActiveProfileImageIndex(visibleProfileThumbnails.length)}
-                              className={cn(
-                                "relative h-9 w-9 shrink-0 overflow-hidden rounded-[7px] border bg-white transition",
-                                visibleProfileImageIndex >= visibleProfileThumbnails.length ? "border-white ring-2 ring-[#f59e0b]" : "border-white/55 hover:border-white",
-                              )}
-                              aria-label={`숨겨진 매장 사진 ${hiddenProfileImageCount}장 보기`}
-                            >
-                              <Image src={carouselProfileImages[visibleProfileThumbnails.length]} alt="" width={36} height={36} unoptimized className="h-full w-full object-cover" />
-                              <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-[12px] font-medium text-white">
-                                +{hiddenProfileImageCount}
-                              </span>
-                            </button>
-                          ) : null}
-                          <span className="ml-auto shrink-0 rounded-full bg-white/90 px-2 py-1 text-[11px] font-medium text-[#334155]">
-                            {carouselProfileImages.length}/10
+                        )}
+                      </button>
+                      <input
+                        id="shop-profile-images-input"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        disabled={!editable}
+                        onChange={(event) => {
+                          if (event.target.files?.length) {
+                            onProfileImagesAdd(event.target.files);
+                          }
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </div>
+
+                    <div className="grid min-w-0 grid-cols-4 content-start gap-2 overflow-hidden">
+                      {carouselProfileImages.slice(1, 8).map((imageUrl, offsetIndex) => {
+                        const imageIndex = offsetIndex + 1;
+                        return (
+                          <button
+                            key={`${imageUrl}-${imageIndex}`}
+                            type="button"
+                            onClick={() => setActiveProfileImageIndex(imageIndex)}
+                            className={cn(
+                              "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
+                              visibleProfileImageIndex === imageIndex ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-[#e1e5ec] hover:border-[#9bb8f4]",
+                            )}
+                            aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
+                          >
+                            <Image src={imageUrl} alt="" width={112} height={112} unoptimized className="h-full w-full object-cover" />
+                          </button>
+                        );
+                      })}
+                      {carouselProfileImages.length > 8 ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveProfileImageIndex(8)}
+                          className="relative aspect-square w-full overflow-hidden rounded-[10px] border border-[#e1e5ec] bg-white transition hover:border-[#9bb8f4]"
+                          aria-label={`숨겨진 매장 사진 ${carouselProfileImages.length - 8}장 보기`}
+                        >
+                          <Image src={carouselProfileImages[8]} alt="" width={96} height={96} unoptimized className="h-full w-full object-cover" />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[14px] font-semibold text-white">
+                            +{carouselProfileImages.length - 8}
                           </span>
-                        </div>
-                      </div>
-                    ) : null}
+                        </button>
+                      ) : null}
+                      {carouselProfileImages.length <= 8 && carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES ? (
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById("shop-profile-images-input")?.click()}
+                          disabled={!editable}
+                          className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label="매장 사진 추가"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[12px] font-semibold">사진 추가</span>
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                  <input
-                    id="shop-profile-images-input"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    disabled={!editable}
-                    onChange={(event) => {
-                      if (event.target.files?.length) {
-                        onProfileImagesAdd(event.target.files);
-                      }
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                </div>
 
-                <div className="grid min-w-0 content-center gap-2">
-                  <div className="grid gap-1.5 xl:grid-cols-[minmax(260px,0.42fr)_minmax(360px,0.58fr)] xl:gap-6">
-                    <label className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-center gap-3">
-                      <AlignedFieldLabel>매장명</AlignedFieldLabel>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <FieldLabel required>매장명</FieldLabel>
                       <TextInput value={shopName} disabled={!editable} onChange={(value) => onRowChange("shopName", value)} onCommit={(value) => onRowCommit("shopName", value)} />
                     </label>
-                    <label className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
-                      <span className="whitespace-nowrap text-[16px] font-normal text-[#111827]">매장 연락처</span>
+                    <label className="grid gap-1.5">
+                      <FieldLabel required>매장 연락처</FieldLabel>
                       <TextInput value={phone} disabled={!editable} onChange={(value) => onRowChange("phone", value)} onCommit={(value) => onRowCommit("phone", value)} />
                     </label>
                   </div>
 
-                  <div className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-center gap-3">
-                    <AlignedFieldLabel>매장 주소</AlignedFieldLabel>
-                    <div className="grid min-w-0 gap-1.5 lg:grid-cols-[minmax(240px,0.6fr)_minmax(180px,0.4fr)_56px]">
+                  <label className="grid gap-1.5">
+                    <FieldLabel required>매장 주소</FieldLabel>
+                    <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,0.45fr)_80px]">
                       <TextInput value={address} disabled={!editable} onChange={(value) => onRowChange("address", value)} onCommit={(value) => onRowCommit("address", value)} />
                       <TextInput value={addressDetail} disabled={!editable} onChange={(value) => onRowChange("addressDetail", value)} onCommit={(value) => onRowCommit("addressDetail", value)} />
                       <button
                         type="button"
                         onClick={onOpenAddressSearch}
                         disabled={!editable}
-                        className="h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[16px] font-medium text-[#2f7866] transition hover:border-[#bad8cd] hover:bg-[#f8fafc] disabled:text-[#94a3b8]"
+                        className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#d8dce3] bg-white px-3 text-[16px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:text-[#969ba4]"
                       >
                         검색
                       </button>
                     </div>
-                  </div>
+                  </label>
 
-                  <label className="grid min-w-0 grid-cols-[98px_minmax(0,1fr)] items-start gap-3">
-                    <AlignedFieldLabel className="pt-2">매장 소개</AlignedFieldLabel>
+                  <label className="grid gap-1.5">
+                    <FieldLabel>매장 소개</FieldLabel>
                     <div className="relative min-w-0">
                       <textarea
                         value={description}
@@ -636,51 +765,85 @@ export default function ShopInfoSettingsPanel({
                         disabled={!editable}
                         onChange={(event) => onRowChange("description", event.target.value)}
                         onBlur={(event) => onRowCommit("description", event.target.value)}
-                        className="mt-0.5 min-h-[58px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 pb-6 text-[16px] font-medium leading-6 text-[#111827] outline-none transition placeholder:text-[#9ca3af] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#111827] focus:border-[#2f7866] focus:ring-2 focus:ring-[#2f7866]/10"
+                        className="min-h-[94px] w-full resize-none rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 py-2.5 pb-7 text-[16px] font-normal leading-6 text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
                         placeholder="매장을 짧게 소개해 주세요"
                       />
-                      <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#64748b]">{description.length} / 100</span>
+                      <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#646a74]">{description.length} / 100</span>
                     </div>
                   </label>
-
                 </div>
-              </div>
 
-              </div>
-              </div>
-            </div>
-
-            {children ? (
-              <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
-                <div className="mb-2 flex items-center gap-2">
-                  <p className="text-[16px] font-medium text-[#334155]">매장 영업 시간</p>
+                <div className="mt-5 border-t border-[#e8eaef] pt-4">
+                  <p className="mb-3 text-[16px] font-medium text-[#3a3f48]">SNS · 채널 연결</p>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <label className="flex min-w-0 items-center gap-2">
+                      <SocialIcon label="in" className="bg-[linear-gradient(135deg,#feda75,#d62976,#962fbf)] text-white" />
+                      <TextInput value={instagramUrl} disabled={!editable} placeholder="https://instagram.com/..." onChange={(value) => onRowChange("instagramUrl", value)} onCommit={(value) => onRowCommit("instagramUrl", value)} />
+                    </label>
+                    <label className="flex min-w-0 items-center gap-2">
+                      <SocialIcon label="k" className="bg-[#FEE500] text-[#3b1e1e]" />
+                      <TextInput value={kakaoChannelUrl} disabled={!editable} placeholder="https://pf.kakao.com/..." onChange={(value) => onRowChange("kakaoChannelUrl", value)} onCommit={(value) => onRowCommit("kakaoChannelUrl", value)} />
+                    </label>
+                    <label className="flex min-w-0 items-center gap-2">
+                      <SocialIcon label="T" className="bg-[#181b21] text-white" />
+                      <TextInput value={tiktokUrl} disabled={!editable} placeholder="https://tiktok.com/..." onChange={(value) => onRowChange("tiktokUrl", value)} onCommit={(value) => onRowCommit("tiktokUrl", value)} />
+                    </label>
+                    <label className="flex min-w-0 items-center gap-2">
+                      <SocialIcon label="@" className="bg-[#181b21] text-white" />
+                      <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
+                    </label>
+                  </div>
                 </div>
-                {children}
-              </div>
-            ) : null}
+              </PanelCard>
 
-            {serviceMenuContent ? (
-              <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
-                {serviceMenuContent}
-              </div>
-            ) : null}
-            {reservationPolicySection}
-            </div>
+              {children ? (
+                <PanelCard
+                  id="shop-info-hours"
+                  icon={<Settings2 className="h-[17px] w-[17px]" />}
+                  title="영업 시간"
+                  hideHeader
+                >
+                  <CardSectionTitle>영업 시간</CardSectionTitle>
+                  <div>{children}</div>
+                </PanelCard>
+              ) : null}
 
-            <p className="mt-4 text-[12px] font-medium text-[#64748b]">* 필수 입력 항목입니다.</p>
-            </div>
+              {serviceMenuContent ? (
+                <PanelCard
+                  id="shop-info-menu"
+                  icon={<Scissors className="h-[17px] w-[17px]" />}
+                  title="서비스 메뉴"
+                  hideHeader
+                >
+                  <div>{serviceMenuContent}</div>
+                </PanelCard>
+              ) : null}
 
-          <aside className="min-h-0 min-w-0 border-t border-[#e5e7eb] pt-3 xl:flex xl:h-full xl:items-center xl:justify-center xl:overflow-hidden xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
-            <div className="flex w-full flex-col items-center">
-              <ShopCustomerPagePreview
-                shop={customerPreviewShop}
-                services={previewServices}
-                ownerProfile={ownerProfile}
-              />
+              <PanelCard
+                id="shop-info-policy"
+                icon={<Settings2 className="h-[17px] w-[17px]" />}
+                title="예약 정책"
+                hideHeader
+              >
+                <CardSectionTitle>예약 정책</CardSectionTitle>
+                <div>{reservationPolicySection}</div>
+              </PanelCard>
+
+              <p className="text-[13px] font-normal text-[#969ba4]">* 표시는 필수 입력 항목입니다.</p>
             </div>
-          </aside>
+          </div>
         </div>
-      </section>
+
+        <aside className="hidden min-h-0 min-w-0 bg-white xl:flex xl:flex-col">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
+            <ShopCustomerPagePreview
+              shop={customerPreviewShop}
+              services={previewServices}
+              ownerProfile={ownerProfile}
+            />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-set
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime } from "@/lib/utils";
+import { createMediaSignedReadUrl } from "@/server/media-storage";
 import type {
   Appointment,
   BootstrapPayload,
@@ -82,6 +83,65 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
 }
 
 const autoCompletedAppointmentStatuses = new Set<Appointment["status"]>(["confirmed", "in_progress", "almost_done"]);
+
+async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
+  const mediaAssetIds = (shop.customer_page_settings.hero_media_asset_ids ?? [])
+    .filter(Boolean)
+    .slice(0, 10);
+  if (!mediaAssetIds.length) return shop;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return shop;
+
+  const assetsResult = await supabase
+    .from("media_assets")
+    .select("id,bucket,storage_path")
+    .eq("shop_id", shop.id)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .in("id", mediaAssetIds);
+
+  if (assetsResult.error || !assetsResult.data?.length) return shop;
+
+  const assetsById = new Map(
+    assetsResult.data.map((asset) => [
+      String(asset.id),
+      {
+        bucket: String(asset.bucket),
+        storagePath: String(asset.storage_path),
+      },
+    ]),
+  );
+
+  const signedUrls = (
+    await Promise.all(
+      mediaAssetIds.map(async (mediaAssetId) => {
+        const asset = assetsById.get(mediaAssetId);
+        if (!asset) return "";
+        try {
+          return await createMediaSignedReadUrl({
+            bucket: asset.bucket,
+            path: asset.storagePath,
+            expiresInSeconds: 10 * 60,
+          });
+        } catch {
+          return "";
+        }
+      }),
+    )
+  ).filter(Boolean);
+
+  if (!signedUrls.length) return shop;
+
+  return {
+    ...shop,
+    customer_page_settings: {
+      ...shop.customer_page_settings,
+      hero_image_url: signedUrls[0] ?? "",
+      hero_image_urls: signedUrls,
+    },
+  };
+}
 
 function hasAppointmentWindowEnded(appointment: Appointment) {
   const today = currentDateInTimeZone();
@@ -413,7 +473,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     rawShop.reservation_policy_settings ?? {},
     "regular_closed_cycle",
   );
-  const normalizedShop = {
+  const normalizedShop = await resolveCustomerPageMediaImages({
     ...normalizeShopBookingSettings(rawShop),
     business_hours: normalizeBusinessHours(rawShop.business_hours),
     regular_closed_cycle:
@@ -431,7 +491,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       rawShop.name,
       rawShop.description,
     ),
-  };
+  });
   const staffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
   let appointmentChangeEvents: AppointmentChangeEvent[] = [];
   if (appointmentChangeEventsRes.error) {

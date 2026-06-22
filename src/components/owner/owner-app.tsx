@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, QrCode, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   ActionButton,
@@ -1101,6 +1101,26 @@ export default function OwnerApp({
     });
   }
 
+  function openMobilePhotoStatusAction(
+    appointmentId: string,
+    status: Extract<AppointmentStatus, "in_progress" | "completed">,
+    autoOpenCamera = false,
+  ) {
+    setMobilePhotoStatusAction({
+      appointmentId,
+      nextStatus: status,
+      mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
+      title: status === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+      description:
+        status === "in_progress"
+          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
+          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
+      skipLabel: status === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
+      autoOpenCamera,
+    });
+  }
+
   function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
     if (
       status === "completed" &&
@@ -1111,15 +1131,7 @@ export default function OwnerApp({
     }
 
     if (status === "in_progress") {
-      setMobilePhotoStatusAction({
-        appointmentId,
-        nextStatus: status,
-        mediaKind: "grooming_before",
-        title: "미용 전 사진",
-        description: "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요.",
-        buttonLabel: "사진 찍고 미용 시작",
-        skipLabel: "사진 없이 미용 시작",
-      });
+      openMobilePhotoStatusAction(appointmentId, status);
       return;
     }
 
@@ -1128,15 +1140,15 @@ export default function OwnerApp({
       return;
     }
 
-    setMobilePhotoStatusAction({
-      appointmentId,
-      nextStatus: status,
-      mediaKind: "grooming_after",
-      title: "미용 완료 사진",
-      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
-      buttonLabel: "사진 찍고 미용 완료",
-      skipLabel: "사진 없이 미용 완료",
-    });
+    openMobilePhotoStatusAction(appointmentId, status);
+  }
+
+  function startMobileAppointmentWithoutPhoto(appointmentId: string) {
+    void updateAppointment(appointmentId, { status: "in_progress" });
+  }
+
+  function startMobileAppointmentWithPhoto(appointmentId: string, file: File) {
+    void updateAppointmentStatusWithMobilePhoto(appointmentId, "in_progress", "grooming_before", file);
   }
 
   function updateAppointmentWithMobilePhotoGuard(appointmentId: string, payload: AppointmentUpdatePayload) {
@@ -1159,9 +1171,13 @@ export default function OwnerApp({
     void updateAppointment(appointmentId, payload);
   }
 
-  async function handleMobilePhotoStatusFile(file: File) {
-    if (!mobilePhotoStatusAction) return;
-    const appointment = data.appointments.find((item) => item.id === mobilePhotoStatusAction.appointmentId);
+  async function updateAppointmentStatusWithMobilePhoto(
+    appointmentId: string,
+    nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">,
+    mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">,
+    file: File,
+  ) {
+    const appointment = data.appointments.find((item) => item.id === appointmentId);
     if (!appointment) {
       setError("사진을 연결할 예약 정보를 찾지 못했습니다.");
       setMobilePhotoStatusAction(null);
@@ -1179,12 +1195,12 @@ export default function OwnerApp({
           appointmentId: appointment.id,
           groomingRecordId: null,
         },
-        mobilePhotoStatusAction.mediaKind,
+        mediaKind,
         file,
       );
 
       await updateAppointment(appointment.id, {
-        status: mobilePhotoStatusAction.nextStatus,
+        status: nextStatus,
         mediaAssetIds: [uploaded.mediaAsset.id],
       });
       setMobilePhotoStatusAction(null);
@@ -1193,6 +1209,16 @@ export default function OwnerApp({
     } finally {
       setMobilePhotoUploading(false);
     }
+  }
+
+  async function handleMobilePhotoStatusFile(file: File) {
+    if (!mobilePhotoStatusAction) return;
+    await updateAppointmentStatusWithMobilePhoto(
+      mobilePhotoStatusAction.appointmentId,
+      mobilePhotoStatusAction.nextStatus,
+      mobilePhotoStatusAction.mediaKind,
+      file,
+    );
   }
 
   function openSettingsScreen(screen: Exclude<SettingsEntryScreen, null>) {
@@ -1961,6 +1987,8 @@ export default function OwnerApp({
                     onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
                     onPendingUpdate={(appointmentId, payload) => updateAppointment(appointmentId, payload)}
                     onStatusChange={requestMobileAppointmentStatusChange}
+                    onStartWithoutPhoto={startMobileAppointmentWithoutPhoto}
+                    onStartWithPhoto={startMobileAppointmentWithPhoto}
                   />
                 </div>
               </div>
@@ -2529,8 +2557,8 @@ export default function OwnerApp({
         {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
-      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+7px)] pt-1.5 backdrop-blur-xl">
-        <div className="grid grid-cols-4 gap-1.5">
+      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
+        <div className="grid grid-cols-4 gap-1">
             {tabItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
@@ -2542,7 +2570,7 @@ export default function OwnerApp({
                   key={item.key}
                   type="button"
                   aria-label={item.label}
-                  className={`group relative flex min-h-[50px] flex-col items-center justify-center rounded-[14px] px-1 py-1 text-center transition ${
+                  className={`group relative flex min-h-[42px] flex-col items-center justify-center rounded-[12px] px-1 py-0.5 text-center transition ${
                     active
                       ? "bg-[var(--accent-soft)] text-[var(--accent)]"
                       : "text-[var(--muted)] hover:bg-[#f8fafc]"
@@ -2565,8 +2593,8 @@ export default function OwnerApp({
                   <div
                     className={`relative flex items-center justify-center rounded-full transition ${
                       active
-                        ? "h-8 w-8 text-[var(--accent)]"
-                        : "h-8 w-8 text-[var(--muted)]"
+                        ? "h-7 w-7 text-[var(--accent)]"
+                        : "h-7 w-7 text-[var(--muted)]"
                     }`}
                   >
                     <Icon
@@ -4112,7 +4140,7 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
   );
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<HomeReservationSectionKey, boolean>>({
     pending: true,
@@ -4232,7 +4260,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
                       {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 확정" /> : null}
                       <div className="space-y-2">
                         {group.items.map((appointment) => (
-                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
+                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} onStartWithoutPhoto={() => onStartWithoutPhoto(appointment.id)} onStartWithPhoto={(file) => onStartWithPhoto(appointment.id, file)} allowSwipeCancel />
                         ))}
                       </div>
                     </div>
@@ -4258,7 +4286,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
                       {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 취소·변경" /> : null}
                       <div className="space-y-2">
                         {group.items.map((appointment) => (
-                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
+                          <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
                         ))}
                       </div>
                     </div>
@@ -4307,9 +4335,10 @@ function CompletedAppointmentRow({ appointment, pet, guardian, service, staffNam
   );
 }
 
-function HomeConfirmedCard({ appointment, pet, guardian, service, staffName, latestNotification = null, saving, onOpen, onStatusChange, allowSwipeCancel = false }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; latestNotification?: BootstrapPayload["notifications"][number] | null; saving: boolean; onOpen: () => void; onStatusChange: (status: AppointmentStatus) => void; allowSwipeCancel?: boolean; }) {
+function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, onStartWithoutPhoto, onStartWithPhoto, allowSwipeCancel = false }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (status: AppointmentStatus) => void; onStartWithoutPhoto?: () => void; onStartWithPhoto?: (file: File) => void; allowSwipeCancel?: boolean; }) {
   const actionWidth = 96;
   const snapThreshold = 48;
+  const beforePhotoInputId = useId();
   const [startX, setStartX] = useState<number | null>(null);
   const [dragStartX, setDragStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
@@ -4319,7 +4348,6 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, staffName, lat
   const actionVisible = allowSwipeCancel && (isDragging || translateX !== 0);
   const rollbackStatus = appointment.status === "cancelled" ? "confirmed" : null;
   const rollbackLabel = appointment.status === "cancelled" ? "\uCDE8\uC18C/\uBCC0\uACBD \uCCA0\uD68C" : null;
-  const notificationMeta = getNotificationResultMeta(latestNotification);
   const updateTranslateX = (next: number) => {
     translateXRef.current = next;
     setTranslateX(next);
@@ -4399,31 +4427,62 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, staffName, lat
               }
               onOpen();
             }}
-            className="flex w-full items-center justify-between gap-3 px-3.5 pb-2 pt-3 text-left"
+            className="flex w-full items-center justify-between gap-3 px-3.5 pb-1.5 pt-2.5 text-left"
           >
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <div className="min-w-[56px] text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">
                 {formatClockTime(appointment.appointment_time)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
-                  <span className="truncate text-[14px] font-normal leading-[18px] text-[#9f9a92]">{guardian.name}</span>
-                </div>
-                <p className="mt-0.5 truncate text-[13px] leading-[18px] text-[#ada79f]">
-                  {service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}
+                <p className="truncate text-[16px] font-normal leading-6 tracking-[-0.02em] text-[var(--text)]">
+                  <span className="font-medium">{pet.name}</span>
+                  <span className="text-[#8f8a83]"> {ownerHomeCopy.separator} {guardian.name} {ownerHomeCopy.separator} {service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</span>
                 </p>
-                <span className={`mt-1 inline-flex h-6 max-w-full items-center rounded-full border px-2 text-[11px] font-medium ${notificationMeta.className}`}>
-                  {notificationMeta.label}
-                </span>
               </div>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} />
           </button>
 
-          <div className="px-3.5 pb-2.5 pt-1.5">
+          <div
+            className="px-3.5 pb-2.5 pt-1"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center">
-              {appointment.status === "confirmed" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}
+              {appointment.status === "confirmed" && (
+                <div className="grid w-full grid-cols-[1.15fr_0.85fr] gap-2">
+                  <ActionButton className="!h-[40px] !rounded-[14px] !px-3 !text-[16px]" variant="ghost" onClick={onStartWithoutPhoto ?? (() => onStatusChange("in_progress"))} disabled={saving}>촬영없이 시작</ActionButton>
+                  {onStartWithPhoto ? (
+                    <>
+                      <input
+                        id={beforePhotoInputId}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        disabled={saving}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) onStartWithPhoto(file);
+                        }}
+                      />
+                      <label
+                        htmlFor={beforePhotoInputId}
+                        className={`flex h-[40px] w-full items-center justify-center rounded-[14px] border border-[#d7e7e1] px-3 text-[16px] font-semibold tracking-[-0.01em] text-white shadow-[0_8px_18px_rgba(47,120,102,0.14)] transition ${
+                          saving ? "pointer-events-none bg-[#8da9a2] opacity-50" : "bg-[#2f7866] active:scale-[0.99]"
+                        }`}
+                      >
+                        촬영
+                      </label>
+                    </>
+                  ) : (
+                    <ActionButton className="!h-[40px] !rounded-[14px] !px-3 !text-[16px]" variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>촬영</ActionButton>
+                  )}
+                </div>
+              )}
               {appointment.status === "in_progress" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}
               {appointment.status === "almost_done" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}
               {rollbackStatus && rollbackLabel && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}

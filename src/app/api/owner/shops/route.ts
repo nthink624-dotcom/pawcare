@@ -13,8 +13,9 @@ const updateShopSchema = z.object({
   shopId: z.string().trim().min(1),
   name: z.string().trim().min(1).max(80).optional(),
   tagline: z.string().trim().max(120).optional(),
-  heroImageUrl: z.string().trim().max(1_200_000).optional(),
-  heroImageUrls: z.array(z.string().trim().max(1_200_000)).max(10).optional(),
+  heroImageUrl: z.string().trim().max(2000).optional(),
+  heroImageUrls: z.array(z.string().trim().max(2000)).max(10).optional(),
+  heroMediaAssetIds: z.array(z.string().trim().min(1)).max(10).optional(),
   phone: z.string().trim().min(1).max(30).optional(),
   address: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(500).optional(),
@@ -152,6 +153,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       const body = updateShopSchema.parse(await request.json());
+      const heroMediaAssetIds = body.heroMediaAssetIds ?? [];
       const heroImageUrls = body.heroImageUrls ?? (body.heroImageUrl ? [body.heroImageUrl] : []);
       const primaryHeroImageUrl = body.heroImageUrl ?? heroImageUrls[0] ?? "";
       return ownerMobileCorsJson(request, {
@@ -176,6 +178,8 @@ export async function PATCH(request: NextRequest) {
             address_detail: body.addressDetail ?? "",
             hero_image_url: primaryHeroImageUrl,
             hero_image_urls: heroImageUrls,
+            hero_media_asset_id: heroMediaAssetIds[0] ?? "",
+            hero_media_asset_ids: heroMediaAssetIds,
             showcase_title: body.showcaseTitle ?? "",
             showcase_body: body.showcaseBody ?? "",
             social_links: body.socialLinks ?? {},
@@ -189,6 +193,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = updateShopSchema.parse(await request.json());
+    const heroMediaAssetIds = body.heroMediaAssetIds;
     const heroImageUrls =
       body.heroImageUrls !== undefined ? body.heroImageUrls : body.heroImageUrl !== undefined ? (body.heroImageUrl ? [body.heroImageUrl] : []) : undefined;
     const primaryHeroImageUrl = body.heroImageUrl !== undefined ? body.heroImageUrl : heroImageUrls?.[0];
@@ -220,6 +225,7 @@ export async function PATCH(request: NextRequest) {
       body.addressDetail !== undefined ||
       body.heroImageUrl !== undefined ||
       body.heroImageUrls !== undefined ||
+      body.heroMediaAssetIds !== undefined ||
       body.customerServiceOverrides !== undefined ||
       body.discountCoupons !== undefined;
 
@@ -261,6 +267,12 @@ export async function PATCH(request: NextRequest) {
           ...(body.addressDetail !== undefined ? { address_detail: body.addressDetail } : {}),
           ...(primaryHeroImageUrl !== undefined ? { hero_image_url: primaryHeroImageUrl } : {}),
           ...(heroImageUrls !== undefined ? { hero_image_urls: heroImageUrls } : {}),
+          ...(heroMediaAssetIds !== undefined
+            ? {
+                hero_media_asset_id: heroMediaAssetIds[0] ?? "",
+                hero_media_asset_ids: heroMediaAssetIds,
+              }
+            : {}),
           ...(body.customerServiceOverrides !== undefined
             ? { customer_service_overrides: normalizeCustomerServiceOverrides(body.customerServiceOverrides) }
             : {}),

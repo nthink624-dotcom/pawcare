@@ -18,6 +18,7 @@ import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
 } from "@/lib/auth/social-auth";
+import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
@@ -264,6 +265,7 @@ export default function OwnerPage() {
           router.refresh();
           return;
         }
+        writeOwnerBillingSummaryCache(subscription);
         setSubscriptionSummary(subscription);
 
         const bootstrap = await withOwnerLoadTimeout(

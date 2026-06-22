@@ -262,7 +262,10 @@ export const customerPageSettingsSchema = z.object({
   customerPageSettings: z.object({
     shop_name: z.string().min(1),
     tagline: z.string().min(1).max(120),
-    hero_image_url: z.string().default(""),
+    hero_image_url: z.string().max(2000).default(""),
+    hero_image_urls: z.array(z.string().max(2000)).max(10).default([]),
+    hero_media_asset_id: z.string().default(""),
+    hero_media_asset_ids: z.array(z.string()).max(10).default([]),
     primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     notices: z.array(z.string()).max(3),
     operating_hours_note: z.string().default(""),
@@ -280,5 +283,5 @@ export const customerPageSettingsSchema = z.object({
     additional_contact: z.string().default(""),
     postal_code: z.string().default(""),
     address_detail: z.string().default(""),
-  }),
+  }).passthrough(),
 });

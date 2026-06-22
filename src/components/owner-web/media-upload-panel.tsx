@@ -33,7 +33,11 @@ type UploadIntentResponse = {
   upload: {
     bucket: string;
     path: string;
-    token: string;
+    provider?: "supabase" | "r2";
+    signedUrl?: string;
+    token?: string | null;
+    method?: string;
+    headers?: Record<string, string>;
     maxBytes: number;
   };
 };
@@ -46,7 +50,11 @@ type VariantUploadIntentResponse = {
   upload: {
     bucket: string;
     path: string;
-    token: string;
+    provider?: "supabase" | "r2";
+    signedUrl?: string;
+    token?: string | null;
+    method?: string;
+    headers?: Record<string, string>;
     maxBytes: number;
   };
 };
@@ -134,9 +142,30 @@ function isAlimtalkCreditEmptyReason(reason?: string | null) {
 async function uploadCompressedFile(params: {
   bucket: string;
   path: string;
-  token: string;
+  signedUrl?: string;
+  token?: string | null;
+  method?: string;
+  headers?: Record<string, string>;
   file: File;
 }) {
+  if (params.method === "PUT" && params.signedUrl) {
+    const headers = new Headers(params.headers ?? {});
+    if (!headers.has("content-type")) headers.set("content-type", params.file.type);
+    const response = await fetch(params.signedUrl, {
+      method: "PUT",
+      headers,
+      body: params.file,
+    });
+    if (!response.ok) {
+      throw new Error(`사진 업로드에 실패했습니다. (${response.status})`);
+    }
+    return;
+  }
+
+  if (!params.token) {
+    throw new Error("사진 업로드 토큰을 확인할 수 없습니다.");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase 연결을 확인할 수 없습니다.");
@@ -210,7 +239,10 @@ async function createProviderReadyVariant(context: MediaContext, mediaAssetId: s
   await uploadCompressedFile({
     bucket: intent.upload.bucket,
     path: intent.upload.path,
+    signedUrl: intent.upload.signedUrl,
     token: intent.upload.token,
+    method: intent.upload.method,
+    headers: intent.upload.headers,
     file: variant.file,
   });
 
@@ -341,7 +373,10 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       await uploadCompressedFile({
         bucket: intent.upload.bucket,
         path: intent.upload.path,
+        signedUrl: intent.upload.signedUrl,
         token: intent.upload.token,
+        method: intent.upload.method,
+        headers: intent.upload.headers,
         file: compressed.file,
       });
 

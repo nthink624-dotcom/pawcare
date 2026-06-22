@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import OwnerBillingScreen from "@/components/owner/owner-billing-screen";
@@ -8,8 +8,6 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { readOwnerBillingSummaryCache, writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
-import { hasSupabaseBrowserEnv } from "@/lib/env";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function OwnerBillingPageContent() {
   const router = useRouter();
@@ -17,7 +15,6 @@ function OwnerBillingPageContent() {
   const preferredPlan = (searchParams.get("plan") && getOwnerPlanByCode(searchParams.get("plan"))?.code) as OwnerPlanCode | null;
   const forcePlanPicker = searchParams.get("compare") === "1";
   const openPaymentSheet = searchParams.get("sheet") === "1";
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("구독 정보를 불러오는 중입니다.");
 
@@ -31,23 +28,6 @@ function OwnerBillingPageContent() {
         setMessage("최신 구독 정보를 확인하는 중입니다.");
       }
 
-      if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active) {
-          setMessage("Supabase 설정을 확인해 주세요.");
-        }
-        return;
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        router.replace("/login?next=/owner/billing" as never);
-        router.refresh();
-        return;
-      }
-
       try {
         const nextSummary = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
           cache: "no-store",
@@ -59,7 +39,7 @@ function OwnerBillingPageContent() {
       } catch (error) {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "구독 정보를 불러오지 못했습니다.";
-        if (nextMessage === "로그인이 필요합니다.") {
+        if (nextMessage === "로그인이 필요합니다." || nextMessage.includes("로그인 상태를 확인하지 못했습니다")) {
           router.replace("/login?next=/owner/billing" as never);
           router.refresh();
           return;
@@ -72,7 +52,7 @@ function OwnerBillingPageContent() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [router]);
 
   useEffect(() => {
     let active = true;

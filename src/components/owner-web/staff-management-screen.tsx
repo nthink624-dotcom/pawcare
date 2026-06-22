@@ -8,6 +8,7 @@ import {
   StaffBoardTabs,
   StaffDetailPanel,
   StaffList,
+  StaffModal,
   StaffScheduleEditModal,
 } from "@/components/owner-web/staff-management-ui";
 import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
@@ -72,6 +73,7 @@ export default function StaffManagementScreen({
   const [selectedStaffId, setSelectedStaffId] = useState(initialStaff?.id ?? "");
   const [boardTab, setBoardTab] = useState<StaffBoardTab>("monthly");
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
+  const [staffDetailDialogOpen, setStaffDetailDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [annualGrantDialogOpen, setAnnualGrantDialogOpen] = useState(false);
   const [draft, setDraft] = useState<StaffDraft>(() => (initialStaff ? buildDraft(initialStaff) : emptyStaffDraft));
@@ -189,15 +191,18 @@ export default function StaffManagementScreen({
     if (!saved) {
       return;
     }
-    selectStaff(nextStaff);
+    selectStaff(nextStaff, false);
     setNewStaffDraft({ ...emptyStaffDraft, defaultDaysText: "월, 화, 수, 목, 금", regularOff: "토, 일" });
     setStaffDialogOpen(false);
     setNotice("직원를 추가했습니다.");
   }
 
-  function selectStaff(staffMember: StaffMember) {
+  function selectStaff(staffMember: StaffMember, openDialog = true) {
     setSelectedStaffId(staffMember.id);
     setDraft(buildDraft(staffMember));
+    if (openDialog) {
+      setStaffDetailDialogOpen(true);
+    }
   }
 
   function parseDefaultDays(text: string) {
@@ -419,7 +424,7 @@ export default function StaffManagementScreen({
     <div className="flex h-full min-h-0 flex-col space-y-3">
       <StaffBoardTabs activeTab={boardTab} onChange={setBoardTab} />
 
-      <div className={cn("grid min-h-0 flex-1 gap-5", boardTab === "list" ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "xl:grid-cols-1")}>
+      <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-1">
         <div className="min-h-0 min-w-0">
           <WebSurface className={cn("overflow-hidden", boardTab === "monthly" && "flex h-full min-h-0 flex-col")}>
             {boardTab !== "monthly" ? (
@@ -496,19 +501,6 @@ export default function StaffManagementScreen({
           </WebSurface>
         </div>
 
-        {boardTab === "list" && selectedStaff ? (
-          <StaffDetailPanel
-            selectedStaff={selectedStaff}
-            draft={draft}
-            requests={requests}
-            overrides={scheduleOverrides}
-            fallbackColorIndex={selectedStaffIndex}
-            onDraftChange={setDraft}
-            onSave={saveStaff}
-            onOpenLeaveDialog={() => setLeaveDialogOpen(true)}
-            onOpenAnnualGrantDialog={() => setAnnualGrantDialogOpen(true)}
-          />
-        ) : null}
       </div>
 
       {staffDialogOpen ? <StaffAddModal draft={newStaffDraft} fallbackColorIndex={staff.length} onDraftChange={setNewStaffDraft} onClose={() => setStaffDialogOpen(false)} onAdd={addStaff} /> : null}
@@ -525,6 +517,28 @@ export default function StaffManagementScreen({
           onClose={() => setAnnualGrantDialogOpen(false)}
           onSave={grantAnnualLeaveToAllStaff}
         />
+      ) : null}
+
+      {staffDetailDialogOpen && selectedStaff ? (
+        <StaffModal title="직원 상세" onClose={() => setStaffDetailDialogOpen(false)}>
+          <StaffDetailPanel
+            selectedStaff={selectedStaff}
+            draft={draft}
+            requests={requests}
+            overrides={scheduleOverrides}
+            fallbackColorIndex={selectedStaffIndex}
+            onDraftChange={setDraft}
+            onSave={saveStaff}
+            onOpenLeaveDialog={() => {
+              setStaffDetailDialogOpen(false);
+              setLeaveDialogOpen(true);
+            }}
+            onOpenAnnualGrantDialog={() => {
+              setStaffDetailDialogOpen(false);
+              setAnnualGrantDialogOpen(true);
+            }}
+          />
+        </StaffModal>
       ) : null}
 
       {scheduleEditDraft ? (

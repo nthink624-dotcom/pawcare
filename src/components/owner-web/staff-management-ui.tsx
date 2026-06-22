@@ -1,7 +1,8 @@
 ﻿import type { ReactNode } from "react";
+import { useState } from "react";
 import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 
-import { GhostButton, PrimaryButton, SoftSelect, WebSurface } from "@/components/owner-web/owner-web-ui";
+import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
 import { getStaffChipTone, staffChipPalette } from "@/lib/staff-chip-colors";
 import { getStaffCustomerName, getStaffPositionName } from "@/lib/staff-display";
@@ -178,26 +179,37 @@ export function ScheduleTable({
 
 function StaffChipColorPicker({ value, fallbackIndex = 0, onChange }: { value: number | null; fallbackIndex?: number; onChange: (value: number) => void }) {
   const selectedIndex = value ?? fallbackIndex % staffChipPalette.length;
+  const [expanded, setExpanded] = useState(selectedIndex >= 8);
+  const visiblePalette = expanded ? staffChipPalette : staffChipPalette.slice(0, 8);
 
   return (
-    <div className="grid grid-cols-8 gap-1.5">
-      {staffChipPalette.map((tone, index) => {
-        const selected = selectedIndex === index;
-        return (
-          <button
-            key={tone.selectedBackground}
-            type="button"
-            onClick={() => onChange(index)}
-            className={cn(
-              "h-9 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
-              selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
-            )}
-            aria-label={`직원 칩 색 ${index + 1}`}
-          >
-            <span className="block h-full rounded-[6px]" style={{ backgroundColor: tone.selectedBackground }} />
-          </button>
-        );
-      })}
+    <div className="space-y-2">
+      <div className="grid grid-cols-8 gap-1.5">
+        {visiblePalette.map((tone, index) => {
+          const selected = selectedIndex === index;
+          return (
+            <button
+              key={tone.selectedBackground}
+              type="button"
+              onClick={() => onChange(index)}
+              className={cn(
+                "h-9 rounded-[8px] border bg-white p-1 transition hover:bg-[#f8fafc]",
+                selected ? "border-[#64748b] ring-1 ring-[#64748b]/30" : "border-[#dbe2ea]",
+              )}
+              aria-label={`직원 칩 색 ${index + 1}`}
+            >
+              <span className="block h-full rounded-[6px]" style={{ backgroundColor: tone.selectedBackground }} />
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className="h-8 rounded-[8px] px-2 text-[15px] text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
+      >
+        {expanded ? "간단히 보기" : "더보기"}
+      </button>
     </div>
   );
 }
@@ -303,7 +315,7 @@ export function StaffDetailPanel({
   const profileSubtitle = [draft.titlePrefix.trim(), positionName].filter(Boolean).join(" ");
 
   return (
-    <WebSurface className="p-3">
+    <div className="space-y-3">
       <div className="space-y-2">
         <StaffPhotoField
           name={customerVisibleName}
@@ -377,7 +389,7 @@ export function StaffDetailPanel({
         <GhostButton label="휴무/연차 등록" onClick={onOpenLeaveDialog} />
         <GhostButton label="연차 일괄 부여" onClick={onOpenAnnualGrantDialog} />
       </div>
-    </WebSurface>
+    </div>
   );
 }
 

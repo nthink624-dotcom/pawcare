@@ -209,11 +209,11 @@ body {
 }
 
 .pm-mobile-owner > main {
-  padding-bottom: calc(6rem + var(--pm-safe-bottom));
+  padding-bottom: calc(4.25rem + var(--pm-safe-bottom));
 }
 
 .pm-mobile-owner > nav {
-  padding-bottom: calc(var(--pm-safe-bottom) + 7px);
+  padding-bottom: calc(var(--pm-safe-bottom) + 2px);
 }
 
 .pm-mobile-sheet-scrim {

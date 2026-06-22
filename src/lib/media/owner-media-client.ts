@@ -66,6 +66,10 @@ type VariantCompleteResponse = {
   variant: MediaVariant;
 };
 
+type SignedUrlResponse = {
+  signedUrl: string;
+};
+
 export type OwnerMediaUploadResult = {
   mediaAsset: MediaAsset;
   variant: MediaVariant | null;
@@ -129,7 +133,7 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       width: compressed.width,
       height: compressed.height,
       mediaKind,
-      visibility: "customer_shared",
+      visibility: mediaKind === "shop_profile" ? "public" : "customer_shared",
       retentionPolicy: "standard",
       uploadedFrom: "owner_web",
       guardianId: context.guardianId ?? null,
@@ -220,5 +224,29 @@ export async function createOwnerMediaAssetFromFile(
   return {
     mediaAsset: completed.mediaAsset,
     variant,
+  };
+}
+
+export async function getOwnerMediaSignedUrl(
+  shopId: string,
+  mediaAssetId: string,
+  variant: "original" | "thumbnail" | "preview" | "optimized" | "provider_ready" = "original",
+) {
+  const query = new URLSearchParams({ shopId, mediaAssetId });
+  if (variant !== "original") query.set("variant", variant);
+  const result = await fetchApiJsonWithAuth<SignedUrlResponse>(`/api/owner/media/signed-url?${query.toString()}`);
+  return result.signedUrl;
+}
+
+export async function createOwnerShopProfileImageFromFile(
+  context: OwnerMediaContext,
+  file: File,
+) {
+  const uploaded = await createOwnerMediaAssetFromFile(context, "shop_profile", file);
+  const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
+
+  return {
+    ...uploaded,
+    signedUrl,
   };
 }

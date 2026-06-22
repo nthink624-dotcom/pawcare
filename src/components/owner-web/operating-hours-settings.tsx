@@ -66,7 +66,6 @@ const weekdayIndexByKey: Record<BusinessDayKey, number> = {
 
 const regularHolidayCycleOptions: Array<{ value: RegularHolidayCycle; label: string }> = [
   { value: "weekly", label: "매주" },
-  { value: "biweekly", label: "격주" },
 ];
 
 const extendedRegularHolidayCycleOptions: Array<{ value: RegularHolidayCycle; label: string }> = [
@@ -98,9 +97,10 @@ function getRegularHolidayCycle(shop?: Shop): RegularHolidayCycle {
     shop?.reservation_policy_settings &&
     Object.prototype.hasOwnProperty.call(shop.reservation_policy_settings, "regular_closed_cycle")
   ) {
-    return shop.reservation_policy_settings.regular_closed_cycle ?? "weekly";
+    const cycle = shop.reservation_policy_settings.regular_closed_cycle ?? "weekly";
+    return cycle === "biweekly" ? "weekly" : cycle;
   }
-  return shop?.regular_closed_cycle ?? "weekly";
+  return shop?.regular_closed_cycle === "biweekly" ? "weekly" : shop?.regular_closed_cycle ?? "weekly";
 }
 
 function getRegularHolidayAnchorDate(shop?: Shop) {
@@ -149,15 +149,6 @@ function getWeekAnchorDateKey(offsetWeeks = 0) {
   const weekStart = getWeekStart(new Date());
   weekStart.setDate(weekStart.getDate() + offsetWeeks * 7);
   return formatDateKey(weekStart);
-}
-
-const biweeklyAnchorOptions = [
-  { value: "this", label: "이번 휴무 주부터", description: "이번 주를 쉬는 주로 계산" },
-  { value: "next", label: "다음 휴무 주부터", description: "다음 주를 쉬는 주로 계산" },
-] as const;
-
-function getBiweeklyAnchorPreset(anchorDateKey: string) {
-  return isBiweeklyClosedDate(getWeekAnchorDateKey(0), anchorDateKey) ? "this" : "next";
 }
 
 function isBiweeklyClosedDate(dateKey: string, anchorDateKey: string) {
@@ -607,8 +598,6 @@ export default function OperatingHoursSettings({
   const [regularHolidayMonth, setRegularHolidayMonth] = useState(() => createMonthCursor());
   const [pendingTemporaryHolidayDate, setPendingTemporaryHolidayDate] = useState("");
   const [saveError, setSaveError] = useState("");
-  const [regularHolidayHelpOpen, setRegularHolidayHelpOpen] = useState(false);
-
   useEffect(() => {
     if (persistToSupabase) return;
     try {
@@ -727,16 +716,6 @@ export default function OperatingHoursSettings({
   function updateRegularHolidayCycle(cycle: RegularHolidayCycle) {
     setRegularHolidayCycle(cycle);
     void persistShopOperatingHours(businessDays, bookingSettings, cycle, regularHolidayAnchorDate);
-  }
-
-  function updateRegularHolidayAnchorDate(dateKey: string) {
-    setRegularHolidayAnchorDate(dateKey);
-    void persistShopOperatingHours(businessDays, bookingSettings, regularHolidayCycle, dateKey);
-  }
-
-  function updateRegularHolidayAnchorPreset(preset: (typeof biweeklyAnchorOptions)[number]["value"]) {
-    const dateKey = preset === "next" ? getWeekAnchorDateKey(1) : getWeekAnchorDateKey(0);
-    updateRegularHolidayAnchorDate(dateKey);
   }
 
   function addTemporaryHoliday(dateKey: string) {
@@ -885,50 +864,51 @@ export default function OperatingHoursSettings({
           </p>
         ) : null}
 
-        <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
-          <WebSurface className="h-full border-0 bg-transparent p-0 shadow-none xl:order-2">
-            <div className="h-full overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
-              <div className="grid items-center gap-1.5 border-b border-[#edf2f7] bg-[#fbfcfd] px-2.5 py-2 lg:grid-cols-[86px_minmax(0,1fr)]">
-                <p className="text-[16px] font-normal text-[#111827]">공통 적용</p>
-                <div className="grid grid-cols-[88px_14px_88px_auto] items-center justify-end gap-1">
-                  <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
-                  <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
-                  <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
-                  <button
-                    type="button"
-                    onClick={applyBulkTimeToAllDays}
-                    className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
-                  >
-                    적용
-                  </button>
-                </div>
-              </div>
+        <div className="overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3">
+            <div>
+              <p className="text-[15px] font-normal text-[#111827]">공통 적용</p>
+              <p className="mt-0.5 text-[12px] font-normal text-[#94a3b8]">예외 요일만 따로 수정</p>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
+              <span className="text-center text-[13px] font-normal text-[#94a3b8]">~</span>
+              <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
+              <button
+                type="button"
+                onClick={applyBulkTimeToAllDays}
+                className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+              >
+                적용
+              </button>
+            </div>
+          </div>
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.86fr)]">
+            <div className="divide-y divide-[#f1f5f9]">
               {businessDays.map((day) => (
-                <div key={day.key} className="grid min-h-[48px] items-center gap-1.5 border-b border-[#edf2f7] px-2.5 py-2.5 last:border-b-0 lg:grid-cols-[28px_110px_minmax(0,1fr)]">
+                <div key={day.key} className="grid min-h-[48px] items-center gap-2 px-4 py-2 lg:grid-cols-[28px_82px_minmax(0,1fr)]">
                   <span className="text-[16px] font-normal text-[#111827]">{day.shortLabel}</span>
-                  <div className="ml-4 flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <ToggleSwitch checked={day.enabled} onChange={() => updateBusinessDay(day.key, { enabled: !day.enabled })} label={`${day.label} 영업 여부`} compact />
-                    <span className={cn("whitespace-nowrap text-[16px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
+                    <span className={cn("whitespace-nowrap text-[14px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="ml-auto grid grid-cols-[88px_14px_88px] items-center justify-end gap-1">
+                    <div className="ml-auto grid grid-cols-[82px_14px_82px] items-center justify-end gap-1.5">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
-                      <span className="text-center text-[13px] font-normal text-[#94a3b8]">-</span>
+                      <span className="text-center text-[13px] font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
-                    <p className="ml-auto w-[190px] text-left text-[16px] font-normal text-[#64748b]">예약을 받지 않습니다.</p>
+                    <p className="ml-auto rounded-[8px] bg-[#f8fafc] px-3 py-1.5 text-[14px] font-normal text-[#64748b]">예약 없음</p>
                   )}
                 </div>
               ))}
             </div>
-          </WebSurface>
 
-          <div className="grid min-w-0 gap-2 xl:order-1">
-            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
-              <div className="flex items-center justify-between gap-2">
+            <div className="border-t border-[#edf2f7] px-4 py-3 lg:border-l lg:border-t-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[16px] font-normal text-[#111827]">정기 휴무일</p>
-                <div className="grid w-[280px] grid-cols-4 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
+                <div className="grid w-[190px] grid-cols-3 gap-1 rounded-[8px] border border-[#e4ebf2] bg-[#f8fafc] p-1">
                   {extendedRegularHolidayCycleOptions.map((option) => (
                     <button
                       key={option.value}
@@ -944,26 +924,6 @@ export default function OperatingHoursSettings({
                   ))}
                 </div>
               </div>
-              {regularHolidayCycle === "biweekly" ? (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {biweeklyAnchorOptions.map((option) => {
-                    const active = getBiweeklyAnchorPreset(regularHolidayAnchorDate) === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => updateRegularHolidayAnchorPreset(option.value)}
-                        className={cn(
-                          "h-8 rounded-[8px] border px-2 text-[13px] font-normal transition",
-                          active ? "border-[#111827] bg-white text-[#111827] shadow-sm" : "border-[#dbe2ea] bg-white text-[#64748b] hover:border-[#cbd5e1]",
-                        )}
-                      >
-                        {option.value === "next" ? "다음 주 휴무" : "이번 주 휴무"}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
               <div className="mt-2 grid grid-cols-7 gap-1">
                 {weekdayLabels.map((day) => {
                   const active = !businessDays.find((item) => item.key === day.key)?.enabled;
@@ -984,35 +944,35 @@ export default function OperatingHoursSettings({
               </div>
               {renderRegularHolidayCalendarPreview()}
             </div>
+          </div>
 
-            <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[16px] font-normal text-[#111827]">예약 금지 시간 설정</p>
-                <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]">
-                  <Plus className="h-3.5 w-3.5" />
-                  금지 시간
-                </button>
-              </div>
-              {bookingSettings.blockedWindows.length > 0 ? (
-                <div className="mt-2 grid gap-1.5">
-                  {bookingSettings.blockedWindows.map((windowItem) => (
-                    <div key={windowItem.id} className="grid grid-cols-[88px_16px_88px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] p-1.5">
-                      <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
-                      <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
-                      <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
-                      <input
-                        value={windowItem.label}
-                        onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
-                        className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus:border-[#94a3b8]"
-                      />
-                      <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+          <div className="border-t border-[#edf2f7] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[16px] font-normal text-[#111827]">예약 금지 시간 설정</p>
+              <button type="button" onClick={addBlockedWindow} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#334155] hover:bg-[#f8fafc]">
+                <Plus className="h-3.5 w-3.5" />
+                금지 시간
+              </button>
             </div>
+            {bookingSettings.blockedWindows.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {bookingSettings.blockedWindows.map((windowItem) => (
+                  <div key={windowItem.id} className="grid grid-cols-[88px_18px_88px_minmax(0,1fr)_32px] items-center gap-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] p-2">
+                    <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact />
+                    <span className="text-center text-[14px] font-normal text-[#94a3b8]">~</span>
+                    <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact />
+                    <input
+                      value={windowItem.label}
+                      onChange={(event) => updateBlockedWindow(windowItem.id, { label: event.target.value })}
+                      className="h-8 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#111827] outline-none focus:border-[#94a3b8]"
+                    />
+                    <button type="button" onClick={() => removeBlockedWindow(windowItem.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#a04455] hover:bg-[#fff7f8]" aria-label="예약 제외 시간 삭제">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         {pendingTemporaryHolidayDate ? (
@@ -1146,7 +1106,7 @@ export default function OperatingHoursSettings({
           <WebSurface className={cn("xl:order-1", compact ? "p-3" : "p-4")}>
             <div className={cn("border-b border-[#edf2f7]", compact ? "pb-3" : "pb-4")}>
               <p className={cn("font-normal text-[#111827]", compact ? "text-[16px]" : "text-[18px]")}>정기 휴무일</p>
-              <div className={cn("grid grid-cols-4 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
+              <div className={cn("grid grid-cols-3 gap-1 rounded-[10px] border border-[#e4ebf2] bg-[#f8fafc] p-1", compact ? "mt-2" : "mt-4")}>
                 {extendedRegularHolidayCycleOptions.map((option) => (
                   <button
                     key={option.value}
@@ -1164,50 +1124,6 @@ export default function OperatingHoursSettings({
                   </button>
                 ))}
               </div>
-            {regularHolidayCycle === "biweekly" ? (
-              <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <p className="text-[16px] font-normal text-[#334155]">격주 기준일</p>
-                    <button
-                      type="button"
-                      onClick={() => setRegularHolidayHelpOpen((current) => !current)}
-                      className={cn(
-                        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition",
-                        regularHolidayHelpOpen ? "bg-[#f1f5f9] text-[#334155]" : "text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#334155]",
-                      )}
-                      aria-label="격주 기준일 설명"
-                      aria-expanded={regularHolidayHelpOpen}
-                    >
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {biweeklyAnchorOptions.map((option) => {
-                      const active = getBiweeklyAnchorPreset(regularHolidayAnchorDate) === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => updateRegularHolidayAnchorPreset(option.value)}
-                          className={cn(
-                            "h-10 rounded-[8px] border px-3 text-[14px] font-normal transition",
-                            active ? "border-[#111827] bg-white text-[#111827] shadow-sm" : "border-[#dbe2ea] bg-white text-[#64748b] hover:border-[#cbd5e1]",
-                          )}
-                        >
-                          {option.value === "next" ? "다음 주 휴무" : "이번 주 휴무"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                {false ? (
-                  <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[13px] leading-5 text-[#64748b]">
-                    선택한 날짜가 포함된 주를 쉬는 주로 계산합니다. 예를 들어 기준일이 2026-05-25이고 월요일을 휴무로 선택하면 5월 25일, 6월 8일, 6월 22일처럼 한 주 건너 월요일이 휴무로 표시됩니다.
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
               <div className={cn("mt-3 grid grid-cols-7", compact ? "gap-1" : "gap-2")}>
                 {weekdayLabels.map((day) => {
                   const active = !businessDays.find((item) => item.key === day.key)?.enabled;

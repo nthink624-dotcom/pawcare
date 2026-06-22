@@ -9,6 +9,7 @@ import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/custome
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type {
@@ -61,6 +62,15 @@ type NewCustomerDraft = {
   needsConsultation: boolean;
 };
 
+type OwnerMediaUploadIntentResponse = {
+  mediaAsset: MediaAsset;
+  upload: {
+    signedUrl: string;
+    method: string;
+    headers: Record<string, string>;
+  };
+};
+
 type PetAddInput = {
   name: string;
   breed?: string;
@@ -78,15 +88,6 @@ type CustomerReservationDraft = {
   date: string;
   time: string;
   memo: string;
-};
-
-type OwnerMediaUploadIntentResponse = {
-  mediaAsset: MediaAsset;
-  upload: {
-    signedUrl: string;
-    method: string;
-    headers: Record<string, string>;
-  };
 };
 
 type GuardianDeleteResult = {
@@ -391,6 +392,9 @@ async function uploadOwnerPetProfilePhoto({
   petId: string;
   file: File;
 }) {
+  await createOwnerMediaAssetFromFile({ shopId, guardianId, petId }, "customer_shared", file);
+  return;
+
   const intent = await fetchApiJsonWithAuth<OwnerMediaUploadIntentResponse>("/api/owner/media/upload-intents", {
     method: "POST",
     body: JSON.stringify({

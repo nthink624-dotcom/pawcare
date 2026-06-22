@@ -1451,9 +1451,11 @@ export default function SettingsManagementScreen({
     }
   }
 
-  function removeShopProfileImage(index: number) {
-    const nextImages = shopProfileImages.filter((_, imageIndex) => imageIndex !== index);
-    const nextMediaAssetIds = shopProfileImageAssetIds.filter((_, imageIndex) => imageIndex !== index);
+  function removeShopProfileImages(indexes: number[]) {
+    const removeIndexes = new Set(indexes);
+    if (removeIndexes.size === 0) return;
+    const nextImages = shopProfileImages.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
+    const nextMediaAssetIds = shopProfileImageAssetIds.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
     setShopProfileImages(nextImages);
     setShopProfileImageAssetIds(nextMediaAssetIds);
     persistSettings(draftSettings, nextImages);
@@ -1587,7 +1589,7 @@ export default function SettingsManagementScreen({
                 saving={savingShopInfo}
                 onSave={saveShopInfoFromDraft}
                 onProfileImagesAdd={addShopProfileImages}
-                onProfileImageRemove={removeShopProfileImage}
+                onProfileImagesRemove={removeShopProfileImages}
                 onRowChange={(rowId, value) => updateRow(rowId, value)}
                 onRowCommit={(rowId, value) => updateRow(rowId, value)}
                 onOpenAddressSearch={() => setAddressSheetOpen(true)}

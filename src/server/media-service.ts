@@ -21,6 +21,7 @@ import {
   getMediaStorageInfo,
   removeMediaStorageObjects,
 } from "@/server/media-storage";
+import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type {
   ChannelType,
@@ -267,13 +268,15 @@ function getUsageMonth() {
 function buildStoragePath(params: {
   shopId: string;
   mediaAssetId: string;
+  mediaKind: MediaKind;
   contentType: string;
+  guardianId?: string | null;
+  petId?: string | null;
+  appointmentId?: string | null;
 }) {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const ext = extensionForContentType(params.contentType);
-  return `shops/${params.shopId}/media/${year}/${month}/${params.mediaAssetId}/original.${ext}`;
+  const directory = buildMediaStorageDirectory(params);
+  return `${directory}/original.${ext}`;
 }
 
 async function recordMonthlyMediaUsage(params: {
@@ -507,11 +510,19 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const uploadedFrom = uploadSources.has(input.uploadedFrom as MediaUploadSource)
     ? (input.uploadedFrom as MediaUploadSource)
     : "owner_web";
+  const guardianId = optionalUuid(input.guardianId, "guardianId");
+  const petId = optionalUuid(input.petId, "petId");
+  const appointmentId = optionalUuid(input.appointmentId, "appointmentId");
+  const groomingRecordId = optionalUuid(input.groomingRecordId, "groomingRecordId");
   const mediaAssetId = randomUUID();
   const storagePath = buildStoragePath({
     shopId: owner.shopId,
     mediaAssetId,
+    mediaKind,
     contentType,
+    guardianId,
+    petId,
+    appointmentId,
   });
 
   const signedUpload = await createMediaSignedUploadUrl({
@@ -523,10 +534,10 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const insertPayload = {
     id: mediaAssetId,
     shop_id: owner.shopId,
-    guardian_id: optionalUuid(input.guardianId, "guardianId"),
-    pet_id: optionalUuid(input.petId, "petId"),
-    appointment_id: optionalUuid(input.appointmentId, "appointmentId"),
-    grooming_record_id: optionalUuid(input.groomingRecordId, "groomingRecordId"),
+    guardian_id: guardianId,
+    pet_id: petId,
+    appointment_id: appointmentId,
+    grooming_record_id: groomingRecordId,
     bucket: MEDIA_BUCKET,
     storage_path: storagePath,
     original_file_name: input.originalFileName?.slice(0, 180) ?? null,

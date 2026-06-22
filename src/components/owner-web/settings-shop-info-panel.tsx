@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Camera, Info, Save, Scissors, Settings2, Store } from "lucide-react";
+import { Camera, Info, Save, Scissors, Settings2, Store, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
@@ -37,7 +37,7 @@ type ShopInfoSettingsPanelProps = {
   saving?: boolean;
   onSave?: () => void | Promise<void>;
   onProfileImagesAdd: (files: FileList | File[]) => void;
-  onProfileImageRemove: (index: number) => void;
+  onProfileImagesRemove: (indexes: number[]) => void;
   onRowChange: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onRowCommit: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onOpenAddressSearch: () => void;
@@ -389,7 +389,7 @@ export default function ShopInfoSettingsPanel({
   saving = false,
   onSave,
   onProfileImagesAdd,
-  onProfileImageRemove,
+  onProfileImagesRemove,
   onRowChange,
   onRowCommit,
   onOpenAddressSearch,
@@ -407,26 +407,20 @@ export default function ShopInfoSettingsPanel({
   const autoApproval = approvalMode === "諛붾줈 ?뱀씤" || approvalMode === "auto";
   const manualApproval = !autoApproval;
   const profileImages = shopProfileImages.slice(0, MAX_SHOP_PROFILE_IMAGES);
-  const storedProfileImages = (shop?.customer_page_settings.hero_image_urls ?? []).filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
-  const mainProfileImage = profileImages[0] ?? "";
-  const displayedProfileImage = mainProfileImage || storedProfileImages[0] || shop?.customer_page_settings.hero_image_url || DEFAULT_SHOP_PROFILE_IMAGE;
   const carouselProfileImages = useMemo(() => {
-    const sourceImages = profileImages.length > 0 ? profileImages : storedProfileImages.length > 0 ? storedProfileImages : [displayedProfileImage];
-    return sourceImages.filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
-  }, [displayedProfileImage, profileImages, storedProfileImages]);
+    return profileImages.filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
+  }, [profileImages]);
   const [activeProfileImageIndex, setActiveProfileImageIndex] = useState(0);
+  const [selectedProfileImageIndexes, setSelectedProfileImageIndexes] = useState<number[]>([]);
   const profileTouchStartXRef = useRef<number | null>(null);
   const profileDidSwipeRef = useRef(false);
   const visibleProfileImageIndex = Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0));
-  const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] || displayedProfileImage;
-  const maxVisibleProfileThumbnails = 4;
-  const hasHiddenProfileImages = carouselProfileImages.length > maxVisibleProfileThumbnails;
-  const visibleProfileThumbnails = hasHiddenProfileImages
-    ? carouselProfileImages.slice(0, maxVisibleProfileThumbnails - 1)
-    : carouselProfileImages.slice(0, maxVisibleProfileThumbnails);
-  const hiddenProfileImageCount = hasHiddenProfileImages
-    ? carouselProfileImages.length - visibleProfileThumbnails.length
-    : 0;
+  const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] ?? "";
+  const selectedProfileImageIndexSet = useMemo(() => new Set(selectedProfileImageIndexes), [selectedProfileImageIndexes]);
+  const hasProfileImages = carouselProfileImages.length > 0 && Boolean(carouselProfileImages[0]);
+  const allProfileImagesSelected = hasProfileImages && selectedProfileImageIndexes.length === carouselProfileImages.length;
+  const [profileImageSelectionMode, setProfileImageSelectionMode] = useState(false);
+  const isProfileImageSelectionActive = profileImageSelectionMode || selectedProfileImageIndexes.length > 0;
   const sectionTabs = useMemo(
     () => [
       { id: "basic", label: "기본 정보" },
@@ -460,7 +454,7 @@ export default function ShopInfoSettingsPanel({
           threads_url: threadsUrl,
         },
         address_detail: addressDetail || shop.customer_page_settings.address_detail,
-        hero_image_url: activeProfileImage || shop.customer_page_settings.hero_image_url,
+        hero_image_url: activeProfileImage || DEFAULT_SHOP_PROFILE_IMAGE,
         hero_image_urls: carouselProfileImages,
       },
     };
@@ -495,6 +489,34 @@ export default function ShopInfoSettingsPanel({
       return (current - 1 + carouselProfileImages.length) % carouselProfileImages.length;
     });
   }
+
+  function toggleProfileImageSelection(index: number) {
+    if (!editable) return;
+    setProfileImageSelectionMode(true);
+    setSelectedProfileImageIndexes((current) =>
+      current.includes(index) ? current.filter((item) => item !== index) : [...current, index].sort((a, b) => a - b),
+    );
+  }
+
+  function toggleAllProfileImages() {
+    if (!editable || !hasProfileImages) return;
+    setProfileImageSelectionMode(true);
+    setSelectedProfileImageIndexes(allProfileImagesSelected ? [] : carouselProfileImages.map((_, index) => index));
+  }
+
+  function removeSelectedProfileImages() {
+    if (!selectedProfileImageIndexes.length) return;
+    onProfileImagesRemove(selectedProfileImageIndexes);
+    setSelectedProfileImageIndexes([]);
+    setProfileImageSelectionMode(false);
+    setActiveProfileImageIndex(0);
+  }
+
+  useEffect(() => {
+    setSelectedProfileImageIndexes((current) =>
+      current.filter((index) => index >= 0 && index < carouselProfileImages.length),
+    );
+  }, [carouselProfileImages.length]);
 
   useEffect(() => {
     const scrollContainer = settingsScrollRef.current;
@@ -542,7 +564,7 @@ export default function ShopInfoSettingsPanel({
     setActiveSectionId(sectionId);
   }
 
-  const saveAction = (
+  const saveAction = onSave ? (
     <button
       type="button"
       onClick={onSave}
@@ -552,7 +574,7 @@ export default function ShopInfoSettingsPanel({
       <Save className="h-4 w-4" />
       {saving ? "저장 중" : "저장"}
     </button>
-  );
+  ) : null;
   const reservationPolicySection = (
     <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
       <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
@@ -599,9 +621,9 @@ export default function ShopInfoSettingsPanel({
   );
 
   return (
-    <div className="h-full min-h-0 overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-[#f1f3f6] shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
+    <div className="h-full min-h-0 overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
       <div className="grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
-        <div className="flex min-h-0 min-w-0 flex-col border-r border-[#e1e4ea] bg-[#f1f3f6]">
+        <div className="flex min-h-0 min-w-0 flex-col border-r border-[#e1e4ea] bg-white">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
               <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -619,19 +641,21 @@ export default function ShopInfoSettingsPanel({
                   </button>
                 ))}
               </div>
-              {saveAction}
             </div>
           </div>
 
-          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto px-5 py-5 [scrollbar-width:thin]">
-            <div className="mx-auto max-w-[980px] space-y-[18px] pb-24">
+          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white px-5 py-5 [scrollbar-width:thin]">
+            <div className="w-full space-y-[18px] pb-24">
               <PanelCard
                 id="shop-info-basic"
                 icon={<Store className="h-[17px] w-[17px]" />}
                 title="기본 정보"
                 hideHeader
               >
-                <CardSectionTitle>기본 정보</CardSectionTitle>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
+                  {saveAction}
+                </div>
                 <div className="space-y-4">
                   <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
                     <div className="min-w-0">
@@ -640,6 +664,10 @@ export default function ShopInfoSettingsPanel({
                         onClick={() => {
                           if (profileDidSwipeRef.current) {
                             profileDidSwipeRef.current = false;
+                            return;
+                          }
+                          if (isProfileImageSelectionActive && hasProfileImages) {
+                            toggleProfileImageSelection(visibleProfileImageIndex);
                             return;
                           }
                           document.getElementById("shop-profile-images-input")?.click();
@@ -659,6 +687,19 @@ export default function ShopInfoSettingsPanel({
                             <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
                               대표
                             </span>
+                            {isProfileImageSelectionActive ? (
+                              <span
+                                className={cn(
+                                  "absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-[8px] border text-[12px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
+                                  selectedProfileImageIndexSet.has(visibleProfileImageIndex)
+                                    ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
+                                    : "border-white/90 bg-white/85 text-transparent",
+                                )}
+                                aria-hidden="true"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
                           </>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
@@ -690,7 +731,13 @@ export default function ShopInfoSettingsPanel({
                           <button
                             key={`${imageUrl}-${imageIndex}`}
                             type="button"
-                            onClick={() => setActiveProfileImageIndex(imageIndex)}
+                            onClick={() => {
+                              if (isProfileImageSelectionActive) {
+                                toggleProfileImageSelection(imageIndex);
+                                return;
+                              }
+                              setActiveProfileImageIndex(imageIndex);
+                            }}
                             className={cn(
                               "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
                               visibleProfileImageIndex === imageIndex ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-[#e1e5ec] hover:border-[#9bb8f4]",
@@ -698,6 +745,19 @@ export default function ShopInfoSettingsPanel({
                             aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
                           >
                             <Image src={imageUrl} alt="" width={112} height={112} unoptimized className="h-full w-full object-cover" />
+                            {isProfileImageSelectionActive ? (
+                              <span
+                                className={cn(
+                                  "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-[7px] border text-[11px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
+                                  selectedProfileImageIndexSet.has(imageIndex)
+                                    ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
+                                    : "border-white/90 bg-white/85 text-transparent",
+                                )}
+                                aria-hidden="true"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
                           </button>
                         );
                       })}
@@ -728,6 +788,46 @@ export default function ShopInfoSettingsPanel({
                       ) : null}
                     </div>
                   </div>
+
+                  {hasProfileImages ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[#e1e5ec] bg-[#f8fafc] px-3 py-2">
+                      <span className="text-[13px] font-medium text-[#64748b]">
+                        {selectedProfileImageIndexes.length > 0 ? `선택 ${selectedProfileImageIndexes.length}장` : `사진 ${carouselProfileImages.length}장`}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={!editable}
+                          onClick={() => {
+                            setProfileImageSelectionMode((current) => {
+                              if (current) setSelectedProfileImageIndexes([]);
+                              return !current;
+                            });
+                          }}
+                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {profileImageSelectionMode ? "선택 종료" : "부분선택"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!editable}
+                          onClick={toggleAllProfileImages}
+                          className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {allProfileImagesSelected ? "전체해제" : "전체선택"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!editable || selectedProfileImageIndexes.length === 0}
+                          onClick={removeSelectedProfileImages}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[#e2b6be] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          선택삭제
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="grid gap-3 lg:grid-cols-2">
                     <label className="grid gap-1.5">

@@ -4,6 +4,7 @@ import {
 } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createMediaSignedUploadUrl, getMediaStorageInfo } from "@/server/media-storage";
+import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { MediaAsset, MediaVariant, MediaVariantKey } from "@/types/domain";
 
@@ -100,30 +101,22 @@ async function getMediaAsset(owner: OwnerContext, mediaAssetId: string) {
   return result.data as MediaAsset;
 }
 
-function getYearMonthFromAsset(mediaAsset: MediaAsset) {
-  const createdAt = new Date(mediaAsset.created_at);
-  if (Number.isNaN(createdAt.getTime())) {
-    const now = new Date();
-    return {
-      year: now.getUTCFullYear(),
-      month: String(now.getUTCMonth() + 1).padStart(2, "0"),
-    };
-  }
-
-  return {
-    year: createdAt.getUTCFullYear(),
-    month: String(createdAt.getUTCMonth() + 1).padStart(2, "0"),
-  };
-}
-
 function buildVariantStoragePath(params: {
   mediaAsset: MediaAsset;
   variantKey: MediaVariantKey;
   contentType: string;
 }) {
-  const { year, month } = getYearMonthFromAsset(params.mediaAsset);
   const ext = extensionForContentType(params.contentType);
-  return `shops/${params.mediaAsset.shop_id}/media/${year}/${month}/${params.mediaAsset.id}/${params.variantKey}.${ext}`;
+  const directory = buildMediaStorageDirectory({
+    shopId: params.mediaAsset.shop_id,
+    mediaAssetId: params.mediaAsset.id,
+    mediaKind: params.mediaAsset.media_kind,
+    createdAt: params.mediaAsset.created_at,
+    guardianId: params.mediaAsset.guardian_id,
+    petId: params.mediaAsset.pet_id,
+    appointmentId: params.mediaAsset.appointment_id,
+  });
+  return `${directory}/${params.variantKey}.${ext}`;
 }
 
 function validateVariantByteSize(params: {

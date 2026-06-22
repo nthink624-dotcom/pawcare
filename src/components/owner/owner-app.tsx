@@ -110,6 +110,7 @@ type AppointmentEditPayload = {
   memo: string;
 };
 type AppointmentUpdatePayload = AppointmentStatusUpdatePayload | AppointmentEditPayload;
+type HomeReservationSectionKey = "pending" | "current" | "cancelChange" | "completed";
 type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
@@ -298,6 +299,7 @@ export default function OwnerApp({
   const [homeReservationDate, setHomeReservationDate] = useState(() => currentDateInTimeZone());
   const [homeReservationSlideDirection, setHomeReservationSlideDirection] = useState<"prev" | "next">("next");
   const [homeStaffFilter, setHomeStaffFilter] = useState<HomeStaffFilterKey>("all");
+  const [homeFocusedSection, setHomeFocusedSection] = useState<HomeReservationSectionKey>("current");
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
   const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
@@ -1959,11 +1961,12 @@ export default function OwnerApp({
               </div>
               <div className="space-y-3">
                 <MobileStatusSummary
+                  activeKey={homeFocusedSection}
                   items={[
-                    { label: ownerHomeCopy.statPending, value: filteredHomePendingAppointments.length, tone: "warning", onClick: () => setModal({ type: "stat", kind: "pending" }) },
-                    { label: ownerHomeCopy.statUpcoming, value: filteredHomeActionAppointments.length, tone: "accent", onClick: () => setModal({ type: "stat", kind: "today" }) },
-                    { label: ownerHomeCopy.statCompleted, value: filteredHomeCompletedHistoryAppointments.length, tone: "neutral", onClick: () => setModal({ type: "stat", kind: "completed" }) },
-                    { label: ownerHomeCopy.statCancelChange, value: filteredHomeCancelChangeAppointments.length, tone: "danger", onClick: () => setModal({ type: "stat", kind: "cancel_change" }) },
+                    { key: "pending", label: ownerHomeCopy.statPending, value: filteredHomePendingAppointments.length, tone: "warning", onClick: () => setHomeFocusedSection("pending") },
+                    { key: "current", label: ownerHomeCopy.statUpcoming, value: filteredHomeActionAppointments.length, tone: "accent", onClick: () => setHomeFocusedSection("current") },
+                    { key: "completed", label: ownerHomeCopy.statCompleted, value: filteredHomeCompletedHistoryAppointments.length, tone: "neutral", onClick: () => setHomeFocusedSection("completed") },
+                    { key: "cancelChange", label: ownerHomeCopy.statCancelChange, value: filteredHomeCancelChangeAppointments.length, tone: "danger", onClick: () => setHomeFocusedSection("cancelChange") },
                   ]}
                 />
                 <div className="space-y-0">
@@ -1978,6 +1981,7 @@ export default function OwnerApp({
                     staffMap={staffMap}
                     latestNotificationByAppointmentId={latestNotificationByAppointmentId}
                     saving={saving}
+                    focusedSection={homeFocusedSection}
                     selectedDateKey={homeReservationDate}
                     slideDirection={homeReservationSlideDirection}
                     canMoveBackward={canMoveHomeReservationBackward}
@@ -2763,7 +2767,7 @@ function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRe
   );
 }
 
-function MobileStatusSummary({ items }: { items: Array<{ label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }> }) {
+function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeReservationSectionKey; label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }>; activeKey: HomeReservationSectionKey }) {
   const toneMap = {
     accent: {
       dot: "bg-[var(--accent)]",
@@ -2782,17 +2786,16 @@ function MobileStatusSummary({ items }: { items: Array<{ label: string; value: n
       text: "text-[#4f5d73]",
     },
   } as const;
-  const mainItem = items.find((item) => item.tone === "accent") ?? items[0];
-
   return (
     <div className="rounded-[18px] border border-[var(--border)] bg-white p-4 text-[var(--text)] shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
       <div className="grid grid-cols-2 gap-2.5">
         {items.map((item) => {
-          const active = item === mainItem;
+          const active = item.key === activeKey;
           return (
         <button
-          key={item.label}
+          key={item.key}
           type="button"
+          aria-pressed={active}
           onClick={item.onClick}
           className={`min-w-0 rounded-[12px] border px-3 py-3 text-left transition ${
             active
@@ -4126,8 +4129,6 @@ function AppointmentTimeGroupHeader({ time, count, label }: { time: string; coun
   );
 }
 
-type HomeReservationSectionKey = "pending" | "current" | "cancelChange" | "completed";
-
 function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle }: { title: string; dotClassName: string; expanded: boolean; onToggle: () => void }) {
   return (
     <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between gap-3 text-left ${expanded ? "mb-4" : ""}`}>
@@ -4140,7 +4141,7 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
   );
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, focusedSection, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<HomeReservationSectionKey, boolean>>({
     pending: true,
@@ -4154,6 +4155,11 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
   const toggleSection = (section: HomeReservationSectionKey) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
+  const shouldShowSection = (section: HomeReservationSectionKey) => focusedSection === section;
+
+  useEffect(() => {
+    setExpandedSections((prev) => ({ ...prev, [focusedSection]: true }));
+  }, [focusedSection]);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [contentSlideStyle, setContentSlideStyle] = useState<{ transform: string; opacity: number; transition: string }>({
@@ -4219,7 +4225,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
     <div className="space-y-3">
       <div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} />
       <div className="space-y-3" style={contentSlideStyle}>
-        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        {shouldShowSection("pending") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
           <HomeReservationSectionHeader title={ownerHomeCopy.pendingSectionTitle} dotClassName="bg-[#c79a37]" expanded={expandedSections.pending} onToggle={() => toggleSection("pending")} />
           {expandedSections.pending ? (
             <div className="max-h-64 overflow-y-auto pr-1">
@@ -4244,8 +4250,8 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
               </div>
             </div>
           ) : null}
-        </section>
-        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        </section> : null}
+        {shouldShowSection("current") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
           <HomeReservationSectionHeader title={ownerHomeCopy.currentSectionTitle} dotClassName="bg-[var(--accent)]" expanded={expandedSections.current} onToggle={() => toggleSection("current")} />
           {expandedSections.current ? (
             <div className="max-h-[29rem] overflow-y-auto pr-1">
@@ -4270,8 +4276,8 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
               </div>
             </div>
           ) : null}
-        </section>
-        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        </section> : null}
+        {shouldShowSection("cancelChange") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
           <HomeReservationSectionHeader title={ownerHomeCopy.statCancelChange} dotClassName="bg-[#b76d7b]" expanded={expandedSections.cancelChange} onToggle={() => toggleSection("cancelChange")} />
           {expandedSections.cancelChange ? (
             <div className="max-h-64 overflow-y-auto pr-1">
@@ -4296,15 +4302,15 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
               </div>
             </div>
           ) : null}
-        </section>
-        <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        </section> : null}
+        {shouldShowSection("completed") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
           <HomeReservationSectionHeader title={ownerHomeCopy.historySectionTitle} dotClassName="bg-[#8c98aa]" expanded={expandedSections.completed} onToggle={() => toggleSection("completed")} />
           {expandedSections.completed ? (
             <div className="space-y-2.5">
               {completedAppointments.length === 0 ? <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.historySectionEmpty} /> : completedAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}
             </div>
           ) : null}
-        </section>
+        </section> : null}
       </div>
     </div>
   );

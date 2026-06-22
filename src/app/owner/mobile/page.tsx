@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import OwnerShell from "@/components/owner/owner-shell";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
+  clearOwnerAuthTokenCache,
   consumeOwnerAuthHandoff,
   readOwnerAuthTokenCache,
   setCurrentOwnerAccessToken,
@@ -46,6 +47,18 @@ const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 
 function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
   return summary.status === "expired" || summary.status === "past_due";
+}
+
+function isOwnerAuthRecoveryError(message: string) {
+  return (
+    message === "로그인이 필요합니다." ||
+    message.includes("로그인 상태를 확인하지 못했습니다") ||
+    message.includes("새로고침 후 다시 시도") ||
+    message.toLowerCase().includes("invalid refresh token") ||
+    message.toLowerCase().includes("refresh token") ||
+    message.toLowerCase().includes("auth session") ||
+    message.toLowerCase().includes("jwt")
+  );
 }
 
 export default function OwnerMobilePage() {
@@ -236,7 +249,8 @@ export default function OwnerMobilePage() {
         if (!active) return;
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";
 
-        if (nextMessage === "로그인이 필요합니다.") {
+        if (isOwnerAuthRecoveryError(nextMessage)) {
+          clearOwnerAuthTokenCache();
           router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
           router.refresh();
           return;

@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "넘친 Day | 오너 관리",
-  description: "넘친 Day 오너 관리 화면으로 이동합니다.",
+  title: "PetManager | Owner",
+  description: "Redirects to the PetManager owner workspace.",
 };
 
 export default async function Home({

@@ -82,6 +82,18 @@ function getOwnerLoadErrorMessage(error: unknown) {
   return "오너 화면을 불러오지 못했습니다.";
 }
 
+function isOwnerAuthRecoveryError(message: string) {
+  return (
+    message === "로그인이 필요합니다." ||
+    message.includes("로그인 상태를 확인하지 못했습니다") ||
+    message.includes("새로고침 후 다시 시도") ||
+    message.toLowerCase().includes("invalid refresh token") ||
+    message.toLowerCase().includes("refresh token") ||
+    message.toLowerCase().includes("auth session") ||
+    message.toLowerCase().includes("jwt")
+  );
+}
+
 function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
   return summary.status === "expired" || summary.status === "past_due";
 }
@@ -291,7 +303,7 @@ export default function OwnerPage() {
 
         const nextMessage = getOwnerLoadErrorMessage(error);
 
-        if (nextMessage === "로그인이 필요합니다.") {
+        if (isOwnerAuthRecoveryError(nextMessage)) {
           clearOwnerAuthTokenCache();
           router.replace("/login" as never);
           router.refresh();

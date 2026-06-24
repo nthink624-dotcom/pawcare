@@ -1,4 +1,4 @@
-import CustomerBookingPage from "@/components/customer/customer-booking-page";
+import CustomerBookingManagePage from "@/components/customer/customer-booking-manage-page";
 import { getBootstrap } from "@/server/bootstrap";
 
 export default async function BookManagePage({
@@ -13,17 +13,16 @@ export default async function BookManagePage({
   const initialAccessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
 
   const data = await getBootstrap(shopId);
+  const encodedShopId = encodeURIComponent(shopId);
 
   return (
-    <CustomerBookingPage
+    <CustomerBookingManagePage
       shopId={shopId}
       initialShop={data.shop}
       initialServices={data.services}
       initialStaffMembers={data.staffMembers}
-      initialAppointments={data.appointments}
-      initialMode="manage"
       initialAccessToken={initialAccessToken}
-      entryHref={`/entry/${shopId}`}
+      entryHref={`/entry/${encodedShopId}`}
     />
   );
 }

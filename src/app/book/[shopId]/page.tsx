@@ -1,8 +1,5 @@
 import { redirect } from "next/navigation";
 
-import CustomerBookingPage from "@/components/customer/customer-booking-page";
-import { getBootstrap } from "@/server/bootstrap";
-
 export default async function BookPage({
   params,
   searchParams,
@@ -26,24 +23,5 @@ export default async function BookPage({
     redirect(`${manageUrl.pathname}${manageUrl.search}` as never);
   }
 
-  const data = await getBootstrap(shopId);
-  const requestedStep = Number(resolvedSearchParams?.step);
-  const initialFirstVisitStep = requestedStep >= 1 && requestedStep <= 4 ? (requestedStep as 1 | 2 | 3 | 4) : 1;
-
-  return (
-    <CustomerBookingPage
-      shopId={shopId}
-      initialShop={data.shop}
-      initialServices={data.services}
-      initialStaffMembers={data.staffMembers}
-      initialAppointments={data.appointments}
-      initialMode="first"
-      initialDate={resolvedSearchParams?.date ?? ""}
-      initialTime={resolvedSearchParams?.time ?? ""}
-      initialServiceId={resolvedSearchParams?.serviceId ?? ""}
-      initialServiceOptionId={resolvedSearchParams?.serviceOptionId ?? ""}
-      initialFirstVisitStep={initialFirstVisitStep}
-      entryHref={`/entry/${encodedShopId}`}
-    />
-  );
+  redirect(`/entry/${encodedShopId}` as never);
 }

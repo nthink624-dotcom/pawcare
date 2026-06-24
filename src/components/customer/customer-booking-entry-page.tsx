@@ -388,12 +388,6 @@ export default function CustomerBookingEntryPage({
       .filter((coupon) => isDiscountCouponVisible(coupon, todayKey))
       .slice(0, 3);
   }, [settings.discount_coupons]);
-  const bookingHref = (serviceId?: string, serviceOptionId?: string) => {
-    const href = new URL(`/book/${encodeURIComponent(shop.id)}`, "http://localhost");
-    if (serviceId) href.searchParams.set("serviceId", serviceId);
-    if (serviceOptionId) href.searchParams.set("serviceOptionId", serviceOptionId);
-    return `${href.pathname}${href.search}`;
-  };
   const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
   const heroDotCount = Math.min(heroImages.length, 4);
 
@@ -614,7 +608,7 @@ export default function CustomerBookingEntryPage({
           <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
             <Navigation className="h-5 w-5" strokeWidth={1.9} />
           </button>
-          <a className="cta" href={bookingHref()}>간편예약 시작</a>
+          <a className="cta" href={`/entry/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
         </div>
       </div>
 

@@ -53,6 +53,14 @@ function createMenuOptionId(label: string) {
   return `menu:${normalizeOptionLabelKey(label)}`;
 }
 
+function buildPriceGuideOptionName(sectionTitle: string, itemLabel: string) {
+  const title = sectionTitle.trim();
+  const label = itemLabel.trim();
+  if (!title) return label;
+  if (!label) return title;
+  return label.startsWith(`${title} /`) ? label : `${title} / ${label}`;
+}
+
 function getPriceGuideItemGroupKey(option: CustomerServiceSourceOption) {
   const rawItemId = option.id.includes(":") ? option.id.split(":").pop() ?? "" : "";
   const semanticItemId = rawItemId.replace(/^(?:basic|plus|premium|default)_/, "");
@@ -148,11 +156,12 @@ export function buildCustomerServiceSourceOptions(
 
         const itemId = String(sourceItem.id ?? "").trim();
         const durationMinutes = numberFromText(firstCell?.durationMinutes) ?? service.duration_minutes;
+        const displayName = buildPriceGuideOptionName(sectionTitle, label);
         result.push({
           id: `${service.id}:price-guide:${sectionTitle}:${itemId || normalizeOptionLabelKey(label)}`,
           serviceId: service.id,
-          name: label,
-          sourceName: label,
+          name: displayName,
+          sourceName: displayName,
           category: sectionTitle,
           description: "",
           durationMinutes,
@@ -175,8 +184,8 @@ export function buildCustomerServiceSourceOptions(
             result.push({
               id: `${service.id}:price-guide:${sectionTitle}:${item.id}`,
               serviceId: service.id,
-              name: item.label,
-              sourceName: item.label,
+              name: buildPriceGuideOptionName(sectionTitle, item.label),
+              sourceName: buildPriceGuideOptionName(sectionTitle, item.label),
               category: sectionTitle,
               description: "",
               durationMinutes: item.durationMinutes,
@@ -266,8 +275,8 @@ export function applyCustomerServiceOverrides(
     rows.push({
       ...linkedOption,
       id: defaultRow.id,
-      name: override?.displayName || defaultRow.sourceName,
-      sourceName: override?.displayName || defaultRow.sourceName,
+      name: linkedOption.sourceName,
+      sourceName: linkedOption.sourceName,
       description: override?.description ?? defaultRow.description,
       order: override?.order ?? defaultRow.order,
       linkedOptionId: linkedOption.id,
@@ -287,8 +296,8 @@ export function applyCustomerServiceOverrides(
     rows.push({
       ...linkedOption,
       id: rowId,
-      name: override.displayName || linkedOption.sourceName,
-      sourceName: override.displayName || linkedOption.sourceName,
+      name: linkedOption.sourceName,
+      sourceName: linkedOption.sourceName,
       description: override.description ?? linkedOption.description,
       order: override.order ?? linkedOption.order,
       linkedOptionId: linkedOption.id,
@@ -323,8 +332,8 @@ export function applyConfiguredCustomerServiceOverrides(
         {
           ...linkedOption,
           id: rowId,
-          name: override.displayName || defaultRow?.sourceName || linkedOption.sourceName,
-          sourceName: override.displayName || defaultRow?.sourceName || linkedOption.sourceName,
+          name: linkedOption.sourceName,
+          sourceName: linkedOption.sourceName,
           description: override.description ?? defaultRow?.description ?? linkedOption.description,
           order: override.order ?? defaultRow?.order ?? linkedOption.order,
           linkedOptionId: linkedOption.id,

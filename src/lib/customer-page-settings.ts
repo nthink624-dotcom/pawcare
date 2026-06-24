@@ -14,6 +14,7 @@ export const defaultCustomerPageSettings: CustomerPageSettings = {
   social_links: {
     instagram_url: "",
     kakao_channel_url: "",
+    naver_blog_url: "",
     tiktok_url: "",
     threads_url: "",
   },
@@ -61,7 +62,7 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
       const discountType = source.discount_type === "percent" ? "percent" : "fixed";
       const discountValue = normalizeCouponNumber(source.discount_value, discountType === "percent" ? 100 : 1_000_000);
       const audience =
-        source.audience === "first_visit" || source.audience === "revisit" || source.audience === "all"
+        source.audience === "first_visit" || source.audience === "revisit" || source.audience === "all" || source.audience === "custom"
           ? source.audience
           : "all";
       const serviceScope = source.service_scope === "specific" ? "specific" : "all";
@@ -77,13 +78,13 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
           id,
           name,
           enabled: source.enabled !== false,
-          visible: source.visible !== false,
+          visible: true,
           discount_type: discountType,
           discount_value: discountValue,
           audience,
           service_scope: serviceScope,
           service_option_ids: serviceScope === "specific" ? serviceOptionIds : [],
-          per_customer_limit: source.per_customer_limit !== false,
+          per_customer_limit: audience === "first_visit" ? true : source.per_customer_limit !== false,
           starts_at: normalizeCouponText(source.starts_at, 10),
           ends_at: normalizeCouponText(source.ends_at, 10),
         },
@@ -151,6 +152,7 @@ function normalizeSocialLinks(settings: Partial<CustomerPageSettings> | null | u
   return {
     instagram_url: normalizeOptionalText(links?.instagram_url),
     kakao_channel_url: normalizeOptionalText(links?.kakao_channel_url),
+    naver_blog_url: normalizeOptionalText(links?.naver_blog_url),
     tiktok_url: normalizeOptionalText(links?.tiktok_url),
     threads_url: normalizeOptionalText(links?.threads_url),
   };

@@ -71,13 +71,17 @@ export default function CustomerFirstVisitPreview({
   shop,
   services,
   staffMembers = [],
+  initialMode = "front",
+  initialStep = 1,
 }: {
   shop: Shop;
   services: Service[];
   staffMembers?: BootstrapStaffMember[];
+  initialMode?: "front" | "booking";
+  initialStep?: FirstVisitStep;
 }) {
-  const [mode, setMode] = useState<"front" | "booking">("front");
-  const [step, setStep] = useState<FirstVisitStep>(1);
+  const [mode, setMode] = useState<"front" | "booking">(initialMode);
+  const [step, setStep] = useState<FirstVisitStep>(initialStep);
   const [firstVisit, setFirstVisit] = useState(createEmptyFirstVisit);
 
   const settings = shop.customer_page_settings;

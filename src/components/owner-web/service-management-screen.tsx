@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import {
   ServicePriceGuideEditor,
   buildDefaultServicePriceGuide,
@@ -20,7 +21,7 @@ import {
 } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Service, Shop } from "@/types/domain";
+import type { OwnerProfile, Service, Shop } from "@/types/domain";
 
 type BaseServiceRow = (typeof serviceRows)[number];
 
@@ -164,6 +165,25 @@ function managedServicesToDomain(services: ManagedService[], shopId: string): Se
   }));
 }
 
+function getBootstrapServicesSignature(rows: Service[]) {
+  return JSON.stringify(
+    rows.map((service) => ({
+      id: service.id,
+      name: service.name,
+      price: service.price,
+      priceType: service.price_type,
+      durationMinutes: service.duration_minutes,
+      isActive: service.is_active,
+      category: service.category ?? "",
+      description: service.description ?? "",
+      sortOrder: service.sort_order ?? 0,
+      capacityLabel: service.capacity_label ?? "",
+      staffSelectionMode: service.staff_selection_mode ?? "",
+      priceGuide: normalizeServicePriceGuide(service.price_guide),
+    })),
+  );
+}
+
 function buildForm(service: ManagedService): ServiceForm {
   return {
     id: service.id,
@@ -278,6 +298,7 @@ function VisibilityBadge({ visible }: { visible: boolean }) {
 export default function ServiceManagementScreen({
   shopId,
   shop,
+  ownerProfile,
   initialServices = [],
   staffMembers = [],
   demoMode = false,
@@ -286,6 +307,7 @@ export default function ServiceManagementScreen({
 }: {
   shopId: string;
   shop?: Shop;
+  ownerProfile?: OwnerProfile | null;
   initialServices?: Service[];
   staffMembers?: OwnerWebStaffMember[];
   demoMode?: boolean;
@@ -304,6 +326,8 @@ export default function ServiceManagementScreen({
   const [storageReady, setStorageReady] = useState(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const lastSavedSignatureRef = useRef("");
+  const latestServiceFormSignatureRef = useRef("");
+  const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
 
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
@@ -332,6 +356,9 @@ export default function ServiceManagementScreen({
 
   useEffect(() => {
     if (demoMode) return;
+    const externalSignature = getBootstrapServicesSignature(initialServices);
+    if (externalSignature === lastExternalServicesSignatureRef.current) return;
+    lastExternalServicesSignatureRef.current = externalSignature;
     const nextServices = normalizeBootstrapServices(initialServices);
     const nextSelectedId = nextServices.some((service) => service.id === selectedServiceId) ? selectedServiceId : (nextServices[0]?.id ?? "");
     const nextSelectedService = nextServices.find((service) => service.id === nextSelectedId) ?? nextServices[0];
@@ -339,10 +366,23 @@ export default function ServiceManagementScreen({
     setSelectedServiceId(nextSelectedId);
     if (nextSelectedService) {
       const nextForm = buildForm(nextSelectedService);
-      setServiceForm(nextForm);
-      lastSavedSignatureRef.current = getServiceFormSignature(nextForm);
+      const nextFormSignature = getServiceFormSignature(nextForm);
+      const isEditingCurrentService =
+        nextSelectedId === selectedServiceId &&
+        latestServiceFormSignatureRef.current !== lastSavedSignatureRef.current &&
+        latestServiceFormSignatureRef.current !== nextFormSignature;
+
+      if (!isEditingCurrentService) {
+        setServiceForm(nextForm);
+        latestServiceFormSignatureRef.current = nextFormSignature;
+        lastSavedSignatureRef.current = nextFormSignature;
+      }
     }
   }, [demoMode, initialServices, selectedServiceId]);
+
+  useEffect(() => {
+    latestServiceFormSignatureRef.current = getServiceFormSignature(serviceForm);
+  }, [serviceForm]);
 
   useEffect(() => {
     if (!storageReady || !demoMode) return;
@@ -432,6 +472,7 @@ export default function ServiceManagementScreen({
       return false;
     }
 
+    const saveSignature = getServiceFormSignature(serviceForm);
     const price = formatPrice(serviceForm.price);
     const nextService: ManagedService = {
       id: serviceForm.id ?? createServiceId(),
@@ -459,8 +500,10 @@ export default function ServiceManagementScreen({
     setFormError("");
 
     if (demoMode) {
-      setAutosaveStatus("saved");
-      lastSavedSignatureRef.current = getServiceFormSignature(buildForm(nextService));
+      if (latestServiceFormSignatureRef.current === saveSignature) {
+        setAutosaveStatus("saved");
+        lastSavedSignatureRef.current = saveSignature;
+      }
       return true;
     }
 
@@ -484,10 +527,17 @@ export default function ServiceManagementScreen({
         }),
       });
       const savedManaged = normalizeBootstrapServices([savedService])[0] ?? nextService;
+      if (latestServiceFormSignatureRef.current !== saveSignature) {
+        return true;
+      }
+
       setServices((current) => current.map((service) => (service.id === savedManaged.id ? savedManaged : service)));
-      setServiceForm(buildForm(savedManaged));
+      const savedForm = buildForm(savedManaged);
+      setServiceForm(savedForm);
       setAutosaveStatus("saved");
-      lastSavedSignatureRef.current = getServiceFormSignature(buildForm(savedManaged));
+      const savedSignature = getServiceFormSignature(savedForm);
+      latestServiceFormSignatureRef.current = savedSignature;
+      lastSavedSignatureRef.current = savedSignature;
       onServicesChange?.(
         initialServices.some((service) => service.id === savedService.id)
           ? initialServices.map((service) => (service.id === savedService.id ? savedService : service))
@@ -495,6 +545,10 @@ export default function ServiceManagementScreen({
       );
       return true;
     } catch (error) {
+      if (latestServiceFormSignatureRef.current !== saveSignature) {
+        return false;
+      }
+
       setServices(previousServices);
       setFormError(error instanceof Error ? error.message : "서비스 저장 중 문제가 발생했습니다.");
       setAutosaveStatus("needs-info");
@@ -545,19 +599,57 @@ export default function ServiceManagementScreen({
           ? "서비스명과 가격 입력 시 자동 저장"
           : "입력하면 자동 저장됩니다";
 
+  function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false) {
+    const nextPriceGuide = normalizeServicePriceGuide(forceEnabled ? { ...priceGuide, enabled: true } : priceGuide);
+    setServiceForm((form) => ({ ...form, priceGuide: nextPriceGuide }));
+    if (selectedServiceId) {
+      setServices((current) =>
+        current.map((service) => (service.id === selectedServiceId ? { ...service, priceGuide: nextPriceGuide } : service)),
+      );
+    }
+  }
+
+  const previewServices = useMemo(() => {
+    const draftName = serviceForm.name.trim();
+    const draftService: ManagedService | null = draftName
+      ? {
+          id: serviceForm.id ?? "service-preview-draft",
+          name: draftName,
+          category: serviceForm.category,
+          duration: `${Number(serviceForm.duration) || 60}분`,
+          price: formatPrice(serviceForm.price) || "가격 상담",
+          capacity: "동일 시간 1건",
+          staff: serviceForm.staff,
+          visible: serviceForm.visible,
+          description: serviceForm.description.trim(),
+          order: selectedService?.order ?? services.length + 1,
+          priceGuide: normalizeServicePriceGuide(serviceForm.priceGuide),
+        }
+      : null;
+
+    const nextServices = draftService
+      ? services.some((service) => service.id === draftService.id)
+        ? services.map((service) => (service.id === draftService.id ? draftService : service))
+        : [draftService, ...services]
+      : services;
+
+    return managedServicesToDomain(nextServices, shopId);
+  }, [selectedService?.order, serviceForm, services, shopId]);
+
   return (
-    <div className="h-full min-h-0 space-y-5 overflow-y-auto pr-1">
-      <section className="space-y-6">
+    <CustomerPagePreviewLayout shop={shop ?? null} services={previewServices} ownerProfile={ownerProfile}>
+      <div className="space-y-5">
+        <section className="space-y-6">
           <div>
             <ServicePriceGuideEditor
               value={{ ...serviceForm.priceGuide, enabled: true }}
-              onChange={(priceGuide) => setServiceForm((form) => ({ ...form, priceGuide: { ...priceGuide, enabled: true } }))}
+              onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
               framed={false}
               showHeader={false}
               showEnabledToggle={false}
             />
           </div>
-      </section>
+        </section>
 
       {formError ? <p className="text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
 
@@ -624,7 +716,7 @@ export default function ServiceManagementScreen({
                 <div className="border-b border-[#edf2f7] bg-[#fbfdff] px-5 py-4">
                   <ServicePriceGuideEditor
                     value={serviceForm.priceGuide}
-                    onChange={(priceGuide) => setServiceForm((form) => ({ ...form, priceGuide }))}
+                    onChange={(priceGuide) => updatePriceGuide(priceGuide)}
                   />
                 </div>
               ) : null}
@@ -745,6 +837,7 @@ export default function ServiceManagementScreen({
           </div>
         </WebSurface>
       </div>
-    </div>
+      </div>
+    </CustomerPagePreviewLayout>
   );
 }

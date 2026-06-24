@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
+import AdminAlimtalkShopChannelPanel from "@/components/admin/admin-alimtalk-shop-channel-panel";
 import AdminAlimtalkTemplateRegistrationPanel from "@/components/admin/admin-alimtalk-template-registration-panel";
 import { fetchApiJson } from "@/lib/api";
 import type {
@@ -518,6 +519,9 @@ export default function AdminAlimtalkScreen({
           title="연결값 / 템플릿 코드 수정"
           description="초기 세팅이 끝난 뒤에는 평소에 열지 않아도 됩니다. 잘못 수정하면 알림톡 발송이 끊길 수 있습니다."
         >
+          <div className="mb-5">
+            <AdminAlimtalkShopChannelPanel />
+          </div>
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-6">
               <div className="flex items-center justify-between gap-3">

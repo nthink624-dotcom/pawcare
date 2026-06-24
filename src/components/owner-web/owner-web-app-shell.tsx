@@ -11,7 +11,12 @@ import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
-const screenIconPaths: Record<OwnerWebScreenKey, string> = {
+type OwnerWebNavigationKey = OwnerWebScreenKey | "billing";
+type OwnerWebNavigationItem =
+  | { key: OwnerWebScreenKey; label: string; href?: never }
+  | { key: "billing"; label: string; href: Route };
+
+const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   schedule: "/icons/phosphor/clipboard-text.svg",
   bookingPageManagement: "/icons/phosphor/storefront.svg",
   bookingLink: "/icons/phosphor/line-segments.svg",
@@ -24,11 +29,12 @@ const screenIconPaths: Record<OwnerWebScreenKey, string> = {
   operatingHours: "/icons/phosphor/clock.svg",
   benefits: "/icons/phosphor/projector-screen-chart.svg",
   alerts: "/icons/phosphor/bell.svg",
+  billing: "/icons/phosphor/projector-screen-chart.svg",
 };
 
 const ownerWebNavigationGroups: Array<{
   label: string;
-  items: Array<{ key: OwnerWebScreenKey; label: string }>;
+  items: OwnerWebNavigationItem[];
 }> = [
   {
     label: "운영",
@@ -51,12 +57,40 @@ const ownerWebNavigationGroups: Array<{
   },
 ];
 
-const ownerWebNavigationItems = ownerWebNavigationGroups.flatMap((group) => group.items);
+const ownerWebSidebarGroups: Array<{
+  label: string;
+  items: OwnerWebNavigationItem[];
+}> = [
+  {
+    label: "운영",
+    items: [
+      { key: "schedule", label: "예약 관리" },
+      { key: "calendarRecords", label: "캘린더" },
+      { key: "customers", label: "고객 관리" },
+      { key: "bookingLink", label: "예약 링크" },
+    ],
+  },
+  {
+    label: "설정",
+    items: [
+      { key: "shopInfo", label: "매장 정보" },
+      { key: "services", label: "서비스/가격" },
+      { key: "benefits", label: "혜택 관리" },
+      { key: "staff", label: "직원 관리" },
+      { key: "alerts", label: "알림 설정" },
+      { key: "billing", label: "요금/결제", href: "/owner/billing?compare=1" as Route },
+    ],
+  },
+];
 
-function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebScreenKey; active: boolean }) {
+const ownerWebNavigationItems = ownerWebSidebarGroups
+  .flatMap((group) => group.items)
+  .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
+
+function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
-      className={cn("block h-[19px] w-[19px]", active ? "bg-white" : "bg-[var(--nav-mut)]")}
+      className={cn("block h-[18px] w-[18px] shrink-0 transition-colors", active ? "bg-white" : "bg-[#9aa3af]")}
       style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,
@@ -199,25 +233,34 @@ export default function OwnerWebAppShell({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
-          <div className="space-y-6">
-            {ownerWebNavigationGroups.map((group) => (
-              <div key={group.label}>
-                <p className="mb-2 px-3.5 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--nav-sec)]">
+          <div className="space-y-5">
+            {ownerWebSidebarGroups.map((group, groupIndex) => (
+              <div key={group.label} className={cn(groupIndex > 0 && "border-t border-dashed border-[#e1e5ec] pt-5")}>
+                <p className="mb-2.5 px-1 text-[13px] font-medium tracking-[0.01em] text-[#8f98a6]">
                   {group.label}
                 </p>
-                <div className="space-y-1">
-                  {group.items.map((screen) => {
+                <div className="space-y-1.5">
+                  {group.items.filter((item) => item.key !== "billing").map((screen) => {
                     const active = activeScreen === screen.key;
+                    const itemClassName = cn(
+                      "relative flex h-[40px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
+                      active &&
+                        "bg-[#316fe8] font-semibold text-white shadow-[0_10px_22px_rgba(49,111,232,0.20)] hover:bg-[#316fe8] hover:text-white",
+                    );
+                    if (screen.href) {
+                      return (
+                        <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
+                          <PhosphorSidebarIcon screen={screen.key} active={false} />
+                          <span className="min-w-0 truncate">{screen.label}</span>
+                        </Link>
+                      );
+                    }
                     return (
                       <button
                         key={screen.key}
                         type="button"
                         onClick={() => onScreenSelect(screen.key)}
-                        className={cn(
-                          "relative flex h-[42px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[14px] font-medium text-[var(--nav-ink)] transition hover:bg-[var(--nav-hover)] hover:text-[var(--nav-ink)]",
-                          active &&
-                            "bg-[#316fe8] font-semibold text-white shadow-[0_8px_18px_rgba(49,111,232,0.22)] hover:bg-[#316fe8] hover:text-white",
-                        )}
+                        className={itemClassName}
                       >
                         <PhosphorSidebarIcon screen={screen.key} active={active} />
                         <span className="min-w-0 truncate">{screen.label}</span>
@@ -231,7 +274,22 @@ export default function OwnerWebAppShell({
         </nav>
 
         <div className="border-t border-[var(--nav-bd)] px-5 py-4">
-          <div className="rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
+          <Link
+            href="/owner/billing?compare=1"
+            prefetch
+            className="group block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c6d8] hover:shadow-[0_12px_24px_rgba(49,111,232,0.10)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold text-[#273142]">스탠다드</p>
+                <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">운영 플랜</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8] transition group-hover:bg-[#316fe8] group-hover:text-white">
+                업그레이드
+              </span>
+            </div>
+          </Link>
+          <div className="hidden rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-[var(--nav-ink)]">스탠다드</p>

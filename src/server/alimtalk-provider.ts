@@ -27,6 +27,10 @@ type SendAlimtalkInput = {
   templateAlias?: string | null;
   templateKey?: string | null;
   templateType?: string | null;
+  senderChannelMode?: "petmanager" | "shop_channel";
+  senderProfileKey?: string | null;
+  senderChannelName?: string | null;
+  senderChannelUrl?: string | null;
   recipientName?: string | null;
   metadata?: AlimtalkMetadata | null;
   mediaAttachments?: AlimtalkMediaAttachment[] | null;
@@ -171,6 +175,10 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
           templateAlias: input.templateAlias ?? null,
           templateKey: input.templateKey ?? null,
           templateType: input.templateType ?? null,
+          senderChannelMode: input.senderChannelMode ?? "petmanager",
+          senderProfileKey: input.senderProfileKey ?? null,
+          senderChannelName: input.senderChannelName ?? null,
+          senderChannelUrl: input.senderChannelUrl ?? null,
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),
@@ -227,12 +235,15 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
     serverEnv.alimtalkProvider === "ssodaa"
       ? {
           token_key: serverEnv.alimtalkTokenKey ?? "",
-          sender_key: serverEnv.alimtalkSenderKey ?? serverEnv.alimtalkProfileKey ?? "",
+          sender_key: input.senderProfileKey ?? serverEnv.alimtalkSenderKey ?? serverEnv.alimtalkProfileKey ?? "",
           template_code: input.templateKey ?? "",
           msg_body: input.message,
           dest_phone: input.to,
           dest_name: input.recipientName ?? "",
           template_type: input.templateType ?? "alimtalk",
+          sender_channel_mode: input.senderChannelMode ?? "petmanager",
+          sender_channel_name: input.senderChannelName ?? null,
+          sender_channel_url: input.senderChannelUrl ?? null,
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),
           ...(buttons.length
@@ -247,12 +258,15 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
             : {}),
         }
       : {
-          profileKey: serverEnv.alimtalkProfileKey ?? null,
-          senderKey: serverEnv.alimtalkSenderKey ?? null,
+          profileKey: input.senderProfileKey ?? serverEnv.alimtalkProfileKey ?? null,
+          senderKey: input.senderProfileKey ?? serverEnv.alimtalkSenderKey ?? null,
           to: input.to,
           message: input.message,
           templateKey: input.templateKey ?? null,
           templateType: input.templateType ?? null,
+          senderChannelMode: input.senderChannelMode ?? "petmanager",
+          senderChannelName: input.senderChannelName ?? null,
+          senderChannelUrl: input.senderChannelUrl ?? null,
           recipientName: input.recipientName ?? null,
           metadata: input.metadata ?? null,
           ...(mediaAttachments.length ? { mediaAttachments } : {}),

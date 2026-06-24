@@ -49,6 +49,7 @@ type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
 type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "addons" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
+type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
 type OwnedShopSummary = {
   id: string;
@@ -274,6 +275,8 @@ export default function OwnerApp({
   ownedShops,
   selectedShopId,
   isPreviewDemo = false,
+  appRole = "owner",
+  currentStaffId = null,
   onLogout,
   onSwitchShop,
   loggingOut = false,
@@ -285,6 +288,8 @@ export default function OwnerApp({
   ownedShops: OwnedShopSummary[];
   selectedShopId: string | null;
   isPreviewDemo?: boolean;
+  appRole?: MobileAppRole;
+  currentStaffId?: string | null;
   onLogout?: () => void | Promise<void>;
   onSwitchShop?: (shopId: string) => Promise<void>;
   loggingOut?: boolean;
@@ -364,6 +369,7 @@ export default function OwnerApp({
     };
   }, []);
   const isOwnerDemo = isPreviewDemo || data.shop.id === "owner-demo";
+  const isStaffApp = appRole === "staff";
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -396,6 +402,17 @@ export default function OwnerApp({
       return;
     }
     setError(nextMessage);
+  }
+
+  async function copyBookingEntryUrl() {
+    try {
+      await navigator.clipboard.writeText(bookingEntryUrl);
+      setBookingLinkCopied(true);
+      if (bookingLinkCopyTimeoutRef.current) clearTimeout(bookingLinkCopyTimeoutRef.current);
+      bookingLinkCopyTimeoutRef.current = setTimeout(() => setBookingLinkCopied(false), 1800);
+    } catch {
+      setError("예약 링크 복사에 실패했습니다.");
+    }
   }
 
   function syncOwnedShopSummary(shop: BootstrapPayload["shop"]) {
@@ -513,17 +530,6 @@ export default function OwnerApp({
   const guardianMap = useMemo(() => Object.fromEntries(data.guardians.map((item) => [item.id, item])), [data.guardians]);
   const petMap = useMemo(() => Object.fromEntries(data.pets.map((item) => [item.id, item])), [data.pets]);
   const staffMap = useMemo(() => Object.fromEntries(data.staffMembers.map((item) => [item.id, item])), [data.staffMembers]);
-  const latestNotificationByAppointmentId = useMemo(() => {
-    const rows = [...data.notifications].sort((first, second) =>
-      (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at),
-    );
-    const map = new Map<string, BootstrapPayload["notifications"][number]>();
-    for (const notification of rows) {
-      if (!notification.appointment_id || map.has(notification.appointment_id)) continue;
-      map.set(notification.appointment_id, notification);
-    }
-    return map;
-  }, [data.notifications]);
   const currentOwnedShop = useMemo(() => {
     const currentShopId = selectedShopId || data.shop.id;
     const ownedShop = ownedShopItems.find((shop) => shop.id === currentShopId);
@@ -596,21 +602,38 @@ export default function OwnerApp({
 
     return options;
   }, [data.staffMembers, homeWorkAppointments]);
+  const matchesHomeRoleScope = (appointment: Appointment) => {
+    if (!isStaffApp) return true;
+    if (!currentStaffId) return true;
+    return appointment.staff_id === currentStaffId;
+  };
   const filteredHomePendingAppointments = useMemo(
-    () => homePendingAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
-    [homePendingAppointments, homeStaffFilter],
+    () =>
+      homePendingAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homePendingAppointments, homeStaffFilter, isStaffApp],
   );
   const filteredHomeActionAppointments = useMemo(
-    () => homeActionAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
-    [homeActionAppointments, homeStaffFilter],
+    () =>
+      homeActionAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeActionAppointments, homeStaffFilter, isStaffApp],
   );
   const filteredHomeCompletedHistoryAppointments = useMemo(
-    () => homeCompletedHistoryAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
-    [homeCompletedHistoryAppointments, homeStaffFilter],
+    () =>
+      homeCompletedHistoryAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeCompletedHistoryAppointments, homeStaffFilter, isStaffApp],
   );
   const filteredHomeCancelChangeAppointments = useMemo(
-    () => homeCancelChangeAppointments.filter((appointment) => matchesHomeStaffFilter(appointment, homeStaffFilter)),
-    [homeCancelChangeAppointments, homeStaffFilter],
+    () =>
+      homeCancelChangeAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeCancelChangeAppointments, homeStaffFilter, isStaffApp],
   );
   const filteredHomeConfirmedAppointmentsForStat = useMemo(
     () => [...filteredHomeActionAppointments, ...filteredHomeCompletedHistoryAppointments, ...filteredHomeCancelChangeAppointments],
@@ -628,12 +651,9 @@ export default function OwnerApp({
     if (homeReservationDate === todayDate) return "오늘";
     if (homeReservationDate === tomorrowDate) return "내일";
     return new Intl.DateTimeFormat("ko-KR", {
-      month: "long",
       day: "numeric",
-      weekday: "short",
     })
-      .format(new Date(homeReservationDate + "T00:00:00"))
-      .replace("요일", "");
+      .format(new Date(homeReservationDate + "T00:00:00"));
   }, [homeReservationDate, todayDate, tomorrowDate]);
   const homeReservationFullDateLabel = useMemo(
     () =>
@@ -1835,34 +1855,51 @@ export default function OwnerApp({
       : activeTab === "customers" && !selectedGuardian
         ? { label: "고객추가", onClick: () => setModal({ type: "new-customer" }) }
         : null;
-  const homeSecondaryAction =
-    isHomeTab
-      ? {
-          label: "예약 링크 복사",
-          onClick: () => setGuideScreen("getting-started" as OwnerGuideScreen),
-        }
-      : null;
 
   return (
     <div
       className="pm-mobile-owner mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]"
     >
       {!isCustomerDetailView ? (
-      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-white/90 px-4 py-3 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-white/90 px-2 py-2 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             {isHomeTab ? (
-              <button
-                type="button"
-                onClick={() => setIsShopPickerOpen((prev) => !prev)}
-                className="flex w-full max-w-[250px] items-center gap-2 rounded-[14px] bg-transparent py-1 text-left"
-              >
-                <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">{currentOwnedShop.name}</p>
+              <div className="flex w-full min-w-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsShopPickerOpen((prev) => !prev)}
+                  className="flex h-9 min-w-0 flex-1 items-center gap-[3px] rounded-[12px] bg-transparent py-1 text-left"
+                >
+                  <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
+                  <p className="min-w-0 max-w-[82px] truncate text-[13px] font-medium tracking-[-0.02em] text-[var(--text)]">{currentOwnedShop.name}</p>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
+                </button>
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <div className={cn("flex h-9 shrink-0 items-center justify-between gap-1 rounded-[12px] border border-[var(--border)] bg-white px-1", isStaffApp ? "w-[118px]" : "w-[104px]")} aria-label={`예약 날짜 선택: ${homeReservationFullDateLabel}`}>
+                    <button
+                      type="button"
+                      onClick={() => moveHomeReservationDate("prev")}
+                      disabled={!canMoveHomeReservationBackward}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="이전 날짜"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                    <p className="min-w-0 flex-1 whitespace-nowrap text-center text-[14px] font-medium leading-7 tracking-[-0.02em] text-[var(--text)]">{homeReservationDateLabel}</p>
+                    <button
+                      type="button"
+                      onClick={() => moveHomeReservationDate("next")}
+                      disabled={!canMoveHomeReservationForward}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--text)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="다음 날짜"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+                  {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} /> : null}
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-              </button>
+              </div>
             ) : (
               isSettingsDetailView ? (
                 <button
@@ -1882,6 +1919,26 @@ export default function OwnerApp({
             )}
           </div>
           {headerAction ? (
+            activeTab === "book" ? (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-[var(--border)] bg-white text-[var(--text)] transition hover:bg-[#f8fafc]"
+                  onClick={copyBookingEntryUrl}
+                  aria-label="예약 링크 복사"
+                >
+                  {bookingLinkCopied ? <Check className="h-4 w-4" strokeWidth={2.3} /> : <Copy className="h-4 w-4" strokeWidth={1.9} />}
+                </button>
+                <button
+                  type="button"
+                  disabled={headerAction.disabled}
+                  className="shrink-0 rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white disabled:opacity-45"
+                  onClick={headerAction.onClick}
+                >
+                  {headerAction.label}
+                </button>
+              </div>
+            ) : (
             <button
               type="button"
               disabled={headerAction.disabled}
@@ -1890,15 +1947,7 @@ export default function OwnerApp({
             >
               {headerAction.label}
             </button>
-          ) : homeSecondaryAction ? (
-            <button
-              type="button"
-              className="relative top-[2px] inline-flex shrink-0 items-center gap-1.5 rounded-[12px] border border-[var(--border)] bg-white px-2.5 py-1.5 text-[12px] font-semibold tracking-[-0.01em] text-[var(--text)] transition hover:bg-[#f8fafc]"
-              onClick={homeSecondaryAction.onClick}
-            >
-              <Copy className="h-3.5 w-3.5 shrink-0 text-[var(--text)]" strokeWidth={1.8} />
-              {homeSecondaryAction.label}
-            </button>
+            )
           ) : null}
         </div>
       </header>
@@ -1908,7 +1957,7 @@ export default function OwnerApp({
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
-          <section className="space-y-4 p-4 pb-5">
+          <section className="flex min-h-[calc(100dvh-132px)] flex-col gap-3 px-2.5 py-3 pb-5">
             {isOnboardingIncomplete ? (
               <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
                 <div className="space-y-2.5">
@@ -1930,36 +1979,8 @@ export default function OwnerApp({
                 </div>
               </Panel>
             ) : null}
-            <div className="space-y-3">
-              <div className="grid grid-cols-[minmax(0,1fr)_154px] gap-2">
-                <div className="flex h-11 items-center justify-between gap-2 rounded-[14px] border border-[var(--border)] bg-white px-2" aria-label={`예약 날짜 선택: ${homeReservationFullDateLabel}`}>
-                  <button
-                    type="button"
-                    onClick={() => moveHomeReservationDate("prev")}
-                    disabled={!canMoveHomeReservationBackward}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
-                    aria-label="이전 날짜"
-                  >
-                    <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-                  </button>
-                  <p className="min-w-0 flex-1 text-center text-[16px] font-medium leading-8 tracking-[-0.02em] text-[var(--text)]">{homeReservationDateLabel}</p>
-                  <button
-                    type="button"
-                    onClick={() => moveHomeReservationDate("next")}
-                    disabled={!canMoveHomeReservationForward}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text)] transition hover:bg-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-35"
-                    aria-label="다음 날짜"
-                  >
-                    <ChevronRight className="h-4 w-4" strokeWidth={2} />
-                  </button>
-                </div>
-                <MobileStaffFilterStrip
-                  options={homeStaffFilterOptions}
-                  value={homeStaffFilter}
-                  onChange={setHomeStaffFilter}
-                />
-              </div>
-              <div className="space-y-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
                 <MobileStatusSummary
                   activeKey={homeFocusedSection}
                   items={[
@@ -1969,7 +1990,7 @@ export default function OwnerApp({
                     { key: "cancelChange", label: ownerHomeCopy.statCancelChange, value: filteredHomeCancelChangeAppointments.length, tone: "danger", onClick: () => setHomeFocusedSection("cancelChange") },
                   ]}
                 />
-                <div className="space-y-0">
+                <div className="min-h-0 flex-1">
                   <TodayConfirmedContent
                     pendingAppointments={filteredHomePendingAppointments}
                     currentAppointments={filteredHomeActionAppointments}
@@ -1979,7 +2000,6 @@ export default function OwnerApp({
                     guardianMap={guardianMap}
                     serviceMap={serviceMap}
                     staffMap={staffMap}
-                    latestNotificationByAppointmentId={latestNotificationByAppointmentId}
                     saving={saving}
                     focusedSection={homeFocusedSection}
                     selectedDateKey={homeReservationDate}
@@ -2787,8 +2807,8 @@ function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeRes
     },
   } as const;
   return (
-    <div className="rounded-[18px] border border-[var(--border)] bg-white p-4 text-[var(--text)] shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-      <div className="grid grid-cols-2 gap-2.5">
+    <div className="rounded-[16px] border border-[var(--border)] bg-white p-2 text-[var(--text)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+      <div className="grid grid-cols-2 gap-2">
         {items.map((item) => {
           const active = item.key === activeKey;
           return (
@@ -2797,13 +2817,13 @@ function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeRes
           type="button"
           aria-pressed={active}
           onClick={item.onClick}
-          className={`min-w-0 rounded-[12px] border px-3 py-3 text-left transition ${
+          className={`flex h-[54px] min-w-0 items-center rounded-[12px] border px-3 text-left transition ${
             active
               ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_10px_24px_rgba(47,107,212,0.12)]"
               : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#f3f6fb]"
           }`}
         >
-          <span className={`flex items-center justify-between gap-2 text-[16px] font-normal leading-[22px] tracking-[-0.02em] ${active ? "text-white" : toneMap[item.tone].text}`}>
+          <span className={`flex w-full items-center justify-between gap-2 text-[16px] font-normal leading-[22px] tracking-[-0.02em] ${active ? "text-white" : toneMap[item.tone].text}`}>
             <span className="flex min-w-0 items-center gap-1.5">
             <span className={`h-2 w-2 shrink-0 rounded-full ${toneMap[item.tone].dot}`} />
             <span className="truncate">{item.label}</span>
@@ -2818,7 +2838,7 @@ function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeRes
   );
 }
 
-function MobileStaffFilterStrip({
+function HomeHeaderStaffSelect({
   options,
   value,
   onChange,
@@ -2827,16 +2847,14 @@ function MobileStaffFilterStrip({
   value: HomeStaffFilterKey;
   onChange: (value: HomeStaffFilterKey) => void;
 }) {
-  if (options.length <= 1) return null;
-
   return (
-    <div className="relative">
-      <label className="sr-only" htmlFor="home-staff-filter">담당자 선택</label>
+    <div className="relative h-9 w-[128px] shrink-0">
+      <label className="sr-only" htmlFor="home-header-staff-filter">담당자 선택</label>
       <select
-        id="home-staff-filter"
+        id="home-header-staff-filter"
         value={value}
         onChange={(event) => onChange(event.target.value as HomeStaffFilterKey)}
-        className="h-11 w-full appearance-none rounded-[14px] border border-[var(--border)] bg-white px-3 pr-8 text-[13px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(47,107,212,0.12)]"
+        className="h-9 w-full appearance-none rounded-[12px] border border-[var(--border)] bg-white px-2.5 pr-7 text-[13px] font-medium tracking-[-0.02em] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[rgba(47,107,212,0.12)]"
         aria-label="담당자 선택"
       >
         {options.map((option) => (
@@ -2845,8 +2863,8 @@ function MobileStaffFilterStrip({
           </option>
         ))}
       </select>
-      <div className="pointer-events-none absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center text-[var(--muted)]">
-        <ChevronDown className="h-4 w-4" strokeWidth={2} />
+      <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center text-[var(--muted)]">
+        <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
       </div>
     </div>
   );
@@ -3204,6 +3222,21 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
   );
 }
 
+function isBookableOwnerService(service: Service) {
+  const name = service.name.trim();
+  return service.is_active && name.length > 0 && name !== "새 항목";
+}
+
+function dedupeServicesByName(services: Service[]) {
+  const seen = new Set<string>();
+  return services.filter((service) => {
+    const key = service.name.replace(/\s+/g, "").trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) {
   const [selectedPetId, setSelectedPetId] = useState(petId || "");
   const [customerQuery, setCustomerQuery] = useState("");
@@ -3216,7 +3249,15 @@ function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: Bo
 
   const selectedPet = data.pets.find((item) => item.id === selectedPetId);
   const selectedGuardian = selectedPet ? data.guardians.find((item) => item.id === selectedPet.guardian_id) : undefined;
-  const selectableServices = data.services;
+  const selectableServices = useMemo(
+    () =>
+      dedupeServicesByName(
+        data.services
+          .filter(isBookableOwnerService)
+          .sort((first, second) => (first.sort_order ?? 0) - (second.sort_order ?? 0)),
+      ),
+    [data.services],
+  );
   const customService: Service = {
     id: "__custom__",
     shop_id: data.shop.id,
@@ -3246,8 +3287,159 @@ function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: Bo
   const canMoveToService = Boolean(selectedPet);
   const canMoveToSchedule = Boolean(serviceId && (serviceId !== "__custom__" || customServiceName.trim()));
   const canSave = Boolean(selectedPet && time && serviceId && (serviceId !== "__custom__" || customServiceName.trim()) && !saving);
+  const footer =
+    step === "customer" ? (
+      <ActionButton disabled={!canMoveToService} onClick={() => setStep("service")}>다음</ActionButton>
+    ) : step === "service" ? (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("customer")}>이전</ActionButton>
+        <ActionButton disabled={!canMoveToSchedule} onClick={() => setStep("schedule")}>다음</ActionButton>
+      </div>
+    ) : step === "schedule" ? (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("service")}>이전</ActionButton>
+        <ActionButton disabled={!time} onClick={() => setStep("memo")}>다음</ActionButton>
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("schedule")}>이전</ActionButton>
+        <ActionButton
+          disabled={!canSave}
+          onClick={() =>
+            onSave({
+              shopId: data.shop.id,
+              guardianId: selectedPet?.guardian_id,
+              petId: selectedPetId,
+              serviceId,
+              customServiceName: serviceId === "__custom__" ? customServiceName.trim() : "",
+              appointmentDate: date,
+              appointmentTime: time,
+              memo,
+              source: "owner",
+            })
+          }
+        >
+          예약 등록
+        </ActionButton>
+      </div>
+    );
 
-  return <Sheet title="새 예약" onClose={onClose}><div className="space-y-4">{step === "customer" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-semibold">고객 검색</p><p className="mt-1 text-xs text-[var(--muted)]">보호자 이름이나 아기 이름으로 빠르게 찾아서 예약을 등록해 주세요.</p><div className="mt-3 rounded-2xl border border-[var(--border)] bg-white px-3 py-3"><input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="보호자명 또는 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{selectedPet && selectedGuardian ? <div className="mt-3 flex items-center gap-3 rounded-2xl bg-[#fcfaf7] px-3 py-3"><Avatar seed={selectedPet.avatar_seed} /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{selectedPet.name}</p><p className="text-xs text-[var(--muted)]">{selectedGuardian.name} {ownerHomeCopy.separator} {selectedGuardian.phone}</p></div><span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-bold text-[var(--accent)]">선택됨</span></div> : null}<div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2">{filteredPets.length === 0 ? <EmptyState title="검색된 고객이 없어요" /> : filteredPets.map((row) => <button key={row.pet.id} className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left ${selectedPetId === row.pet.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setSelectedPetId(row.pet.id); setServiceId(""); setCustomServiceName(""); setTime(""); setMemo(""); }}><Avatar seed={row.pet.avatar_seed} /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{row.pet.name}</p><p className="text-xs text-[var(--muted)]">{row.guardian?.name || "보호자 없음"} {ownerHomeCopy.separator} {row.pet.breed}</p></div></button>)}</div></div><div className="mt-4"><ActionButton disabled={!canMoveToService} onClick={() => setStep("service")}>다음</ActionButton></div></div> : null}{step === "service" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-semibold">서비스 선택</p><div className="mt-2.5 grid grid-cols-2 gap-2">{selectableServices.map((item) => <button key={item.id} className={`rounded-2xl border px-3 py-4 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId(item.id); setTime(""); }}><p className="text-sm font-bold">{item.name}</p></button>)}<button className={`rounded-2xl border px-3 py-4 text-left ${serviceId === "__custom__" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId("__custom__"); setTime(""); }}><p className="text-sm font-bold">기타</p></button></div>{serviceId === "__custom__" ? <div className="mt-3"><input value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} className="field" placeholder="예: 탄산 스파, 발 관리" /></div> : null}<div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("customer")}>이전</ActionButton><ActionButton disabled={!canMoveToSchedule} onClick={() => setStep("schedule")}>다음</ActionButton></div></div> : null}{step === "schedule" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div><p className="text-sm font-semibold">날짜 / 시간 선택</p><p className="mt-1 text-xs text-[var(--muted)]">좌우로 넘기듯 터치해서 빠르게 선택할 수 있어요.</p></div><div className="mt-3 space-y-3"><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p><HorizontalDragScroll>{dateOptions.map((item, index) => <button key={item} className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => { setDate(item); setTime(""); }}><span className="text-sm font-bold">{index === 0 ? "오늘" : shortDate(item)}</span></button>)}</HorizontalDragScroll></div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>{slots.length === 0 ? <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div> : <HorizontalDragScroll>{slots.map((slot) => <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>{slot}</button>)}</HorizontalDragScroll>}</div></div><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("service")}>이전</ActionButton><ActionButton disabled={!time} onClick={() => setStep("memo")}>다음</ActionButton></div></div> : null}{step === "memo" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><Field label="메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="참고 메모를 남겨주세요" /></Field><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("schedule")}>이전</ActionButton><ActionButton disabled={!canSave} onClick={() => onSave({ shopId: data.shop.id, guardianId: selectedPet?.guardian_id, petId: selectedPetId, serviceId, customServiceName: serviceId === "__custom__" ? customServiceName.trim() : "", appointmentDate: date, appointmentTime: time, memo, source: "owner" })}>예약 등록</ActionButton></div></div> : null}</div></Sheet>;
+  return (
+    <Sheet title="새 예약" onClose={onClose} footer={footer}>
+      <div className="space-y-4">
+        {step === "customer" ? (
+          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <p className="text-sm font-semibold">고객 검색</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">보호자 이름이나 아기 이름으로 빠르게 찾아서 예약을 등록해 주세요.</p>
+            <div className="mt-3 rounded-2xl border border-[var(--border)] bg-white px-3 py-3">
+              <input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="보호자명 또는 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" />
+            </div>
+            {selectedPet && selectedGuardian ? (
+              <div className="mt-3 flex items-center gap-3 rounded-2xl bg-[#fcfaf7] px-3 py-3">
+                <Avatar seed={selectedPet.avatar_seed} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">{selectedPet.name}</p>
+                  <p className="text-xs text-[var(--muted)]">{selectedGuardian.name} {ownerHomeCopy.separator} {selectedGuardian.phone}</p>
+                </div>
+                <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-bold text-[var(--accent)]">선택됨</span>
+              </div>
+            ) : null}
+            <div className="mt-3 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2">
+                {filteredPets.length === 0 ? (
+                  <EmptyState title="검색된 고객이 없어요" />
+                ) : (
+                  filteredPets.map((row) => (
+                    <button
+                      key={row.pet.id}
+                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left ${selectedPetId === row.pet.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`}
+                      onClick={() => {
+                        setSelectedPetId(row.pet.id);
+                        setServiceId("");
+                        setCustomServiceName("");
+                        setTime("");
+                        setMemo("");
+                      }}
+                    >
+                      <Avatar seed={row.pet.avatar_seed} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold">{row.pet.name}</p>
+                        <p className="text-xs text-[var(--muted)]">{row.guardian?.name || "보호자 없음"} {ownerHomeCopy.separator} {row.pet.breed}</p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "service" ? (
+          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <p className="text-sm font-semibold">서비스 선택</p>
+            <div className="mt-2.5 grid grid-cols-2 gap-2">
+              {selectableServices.map((item) => (
+                <button key={item.id} className={`rounded-2xl border px-3 py-4 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId(item.id); setTime(""); }}>
+                  <p className="text-sm font-bold">{item.name}</p>
+                </button>
+              ))}
+              <button className={`rounded-2xl border px-3 py-4 text-left ${serviceId === "__custom__" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId("__custom__"); setTime(""); }}>
+                <p className="text-sm font-bold">기타</p>
+              </button>
+            </div>
+            {serviceId === "__custom__" ? (
+              <div className="mt-3">
+                <input value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} className="field" placeholder="예: 탄산 스파, 발 관리" />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {step === "schedule" ? (
+          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div>
+              <p className="text-sm font-semibold">날짜 / 시간 선택</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">좌우로 넘기듯 터치해서 빠르게 선택할 수 있어요.</p>
+            </div>
+            <div className="mt-3 space-y-3">
+              <div className="rounded-2xl bg-[#fcfaf7] p-2">
+                <p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p>
+                <HorizontalDragScroll>
+                  {dateOptions.map((item, index) => (
+                    <button key={item} className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => { setDate(item); setTime(""); }}>
+                      <span className="text-sm font-bold">{index === 0 ? "오늘" : shortDate(item)}</span>
+                    </button>
+                  ))}
+                </HorizontalDragScroll>
+              </div>
+              <div className="rounded-2xl bg-[#fcfaf7] p-2">
+                <p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>
+                {slots.length === 0 ? (
+                  <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div>
+                ) : (
+                  <HorizontalDragScroll>
+                    {slots.map((slot) => (
+                      <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>
+                        {slot}
+                      </button>
+                    ))}
+                  </HorizontalDragScroll>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "memo" ? (
+          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <Field label="메모">
+              <textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="참고 메모를 남겨주세요" />
+            </Field>
+          </div>
+        ) : null}
+      </div>
+    </Sheet>
+  );
 }
 
 function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
@@ -4141,7 +4333,7 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
   );
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, saving, focusedSection, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId: Map<string, BootstrapPayload["notifications"][number]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
+function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, saving, focusedSection, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<HomeReservationSectionKey, boolean>>({
     pending: true,
@@ -4221,17 +4413,21 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
     }
   };
 
+  const openSectionClassName = "flex min-h-[360px] flex-1 flex-col";
+  const openSectionBodyClassName = "min-h-0 flex-1 overflow-y-auto";
+  const emptySectionClassName = "flex min-h-[260px] flex-1 items-center justify-center bg-[#f8fafc]";
+
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-full flex-col">
       <div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} />
-      <div className="space-y-3" style={contentSlideStyle}>
-        {shouldShowSection("pending") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+      <div className="flex min-h-[calc(100dvh-288px)] flex-1 flex-col" style={contentSlideStyle}>
+        {shouldShowSection("pending") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.pending ? openSectionClassName : "")}>
           <HomeReservationSectionHeader title={ownerHomeCopy.pendingSectionTitle} dotClassName="bg-[#c79a37]" expanded={expandedSections.pending} onToggle={() => toggleSection("pending")} />
           {expandedSections.pending ? (
-            <div className="max-h-64 overflow-y-auto pr-1">
-              <div className="space-y-3">
+            <div className={openSectionBodyClassName}>
+              <div className="flex min-h-full flex-col space-y-3">
                 {pendingAppointments.length === 0 ? (
-                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.pendingSectionEmpty} />
+                  <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.pendingSectionEmpty} />
                 ) : (
                   pendingGroups.map((group) => {
                     const isTimeGroup = group.items.length > 1;
@@ -4251,13 +4447,13 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("current") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        {shouldShowSection("current") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.current ? openSectionClassName : "")}>
           <HomeReservationSectionHeader title={ownerHomeCopy.currentSectionTitle} dotClassName="bg-[var(--accent)]" expanded={expandedSections.current} onToggle={() => toggleSection("current")} />
           {expandedSections.current ? (
-            <div className="max-h-[29rem] overflow-y-auto pr-1">
-              <div className="space-y-3">
+            <div className={openSectionBodyClassName}>
+              <div className="flex min-h-full flex-col space-y-3">
                 {currentAppointments.length === 0 ? (
-                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.currentSectionEmpty} />
+                  <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.currentSectionEmpty} />
                 ) : (
                   currentGroups.map((group) => {
                     const isTimeGroup = group.items.length > 1;
@@ -4277,13 +4473,13 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("cancelChange") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        {shouldShowSection("cancelChange") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.cancelChange ? openSectionClassName : "")}>
           <HomeReservationSectionHeader title={ownerHomeCopy.statCancelChange} dotClassName="bg-[#b76d7b]" expanded={expandedSections.cancelChange} onToggle={() => toggleSection("cancelChange")} />
           {expandedSections.cancelChange ? (
-            <div className="max-h-64 overflow-y-auto pr-1">
-              <div className="space-y-3">
+            <div className={openSectionBodyClassName}>
+              <div className="flex min-h-full flex-col space-y-3">
                 {cancelChangeAppointments.length === 0 ? (
-                  <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title="취소·변경 내역이 없어요" />
+                  <EmptyState compact className={emptySectionClassName} title="취소·변경 내역이 없어요" />
                 ) : (
                   cancelChangeGroups.map((group) => {
                     const isTimeGroup = group.items.length > 1;
@@ -4303,11 +4499,13 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("completed") ? <section className="rounded-[18px] border border-[var(--border)] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+        {shouldShowSection("completed") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.completed ? openSectionClassName : "")}>
           <HomeReservationSectionHeader title={ownerHomeCopy.historySectionTitle} dotClassName="bg-[#8c98aa]" expanded={expandedSections.completed} onToggle={() => toggleSection("completed")} />
           {expandedSections.completed ? (
-            <div className="space-y-2.5">
-              {completedAppointments.length === 0 ? <EmptyState compact className="min-h-[76px] bg-[#f8fafc]" title={ownerHomeCopy.historySectionEmpty} /> : completedAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}
+            <div className={openSectionBodyClassName}>
+              <div className="flex min-h-full flex-col space-y-2.5">
+                {completedAppointments.length === 0 ? <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.historySectionEmpty} /> : completedAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} onClick={() => onOpenAppointment(appointment)} />)}
+              </div>
             </div>
           ) : null}
         </section> : null}
@@ -4317,14 +4515,13 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
 }
 
 
-function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, staffMap, latestNotificationByAppointmentId, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; staffMap?: Record<string, BootstrapPayload["staffMembers"][number]>; latestNotificationByAppointmentId?: Map<string, BootstrapPayload["notifications"][number]>; onOpenAppointment: (appointment: Appointment) => void; }) {
-  return <div className="overflow-hidden rounded-[10px] border border-[#e1e7ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#94a3b8]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} latestNotification={latestNotificationByAppointmentId?.get(appointment.id) ?? null} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
+function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, staffMap, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; staffMap?: Record<string, BootstrapPayload["staffMembers"][number]>; onOpenAppointment: (appointment: Appointment) => void; }) {
+  return <div className="overflow-hidden rounded-[10px] border border-[#e1e7ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#94a3b8]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
 }
 
-function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, latestNotification, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; latestNotification?: BootstrapPayload["notifications"][number] | null; onClick: () => void }) {
-  const notificationMeta = getNotificationResultMeta(latestNotification ?? null);
+function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#f8fafc]">
+    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-2.5 rounded-[12px] border border-[#e1e7ef] bg-white px-3 py-2 text-left transition hover:bg-[#f8fafc]">
       <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
       <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
@@ -4334,7 +4531,6 @@ function CompletedAppointmentRow({ appointment, pet, guardian, service, staffNam
           <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
         <p className="truncate text-[13px] font-normal leading-[17px] text-[#64748b]">{service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"}</p>
-        {latestNotification ? <span className={`mt-1 inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${notificationMeta.className}`}>{notificationMeta.label}</span> : null}
       </div>
       <AppointmentListTrailing status="completed" />
     </button>

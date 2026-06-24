@@ -2,6 +2,15 @@
 
 export const defaultShopNotificationSettings: ShopNotificationSettings = {
   enabled: true,
+  alimtalk_sender_mode: "petmanager",
+  alimtalk_shop_channel_status: "not_requested",
+  alimtalk_shop_channel_name: "",
+  alimtalk_shop_channel_url: "",
+  alimtalk_sender_profile_key: "",
+  alimtalk_channel_requested_at: null,
+  alimtalk_channel_admin_note: "",
+  alimtalk_template_request_note: "",
+  alimtalk_template_request_updated_at: null,
   revisit_enabled: true,
   booking_confirmed_enabled: true,
   booking_rejected_enabled: true,
@@ -39,9 +48,25 @@ function normalizeMinuteValue(value: unknown, fallback: number) {
 }
 
 export function normalizeShopNotificationSettings(settings: Partial<ShopNotificationSettings> | null | undefined): ShopNotificationSettings {
+  const senderMode = settings?.alimtalk_sender_mode === "shop_channel" ? "shop_channel" : "petmanager";
+  const channelStatus = ["requested", "reviewing", "active", "rejected"].includes(
+    settings?.alimtalk_shop_channel_status ?? "",
+  )
+    ? settings?.alimtalk_shop_channel_status
+    : "not_requested";
+
   return {
     ...defaultShopNotificationSettings,
     ...(settings ?? {}),
+    alimtalk_sender_mode: senderMode,
+    alimtalk_shop_channel_status: channelStatus ?? "not_requested",
+    alimtalk_shop_channel_name: settings?.alimtalk_shop_channel_name?.trim() ?? "",
+    alimtalk_shop_channel_url: settings?.alimtalk_shop_channel_url?.trim() ?? "",
+    alimtalk_sender_profile_key: settings?.alimtalk_sender_profile_key?.trim() ?? "",
+    alimtalk_channel_requested_at: settings?.alimtalk_channel_requested_at ?? null,
+    alimtalk_channel_admin_note: settings?.alimtalk_channel_admin_note?.trim() ?? "",
+    alimtalk_template_request_note: settings?.alimtalk_template_request_note?.trim() ?? "",
+    alimtalk_template_request_updated_at: settings?.alimtalk_template_request_updated_at ?? null,
     appointment_reminder_10m_mode:
       settings?.appointment_reminder_10m_mode === "auto" ? "auto" : "manual",
     visit_reminder_offset_minutes: normalizeMinuteValue(

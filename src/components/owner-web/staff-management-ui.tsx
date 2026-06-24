@@ -5,7 +5,6 @@ import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
 import { getStaffChipTone, staffChipPalette } from "@/lib/staff-chip-colors";
-import { getStaffCustomerName, getStaffPositionName } from "@/lib/staff-display";
 import { cn } from "@/lib/utils";
 import {
   applyScheduleToCell,
@@ -230,18 +229,13 @@ export function StaffList({
   onSelect: (staff: StaffMember) => void;
 }) {
   return (
-    <div className="overflow-x-auto [scrollbar-width:thin]">
-      <div className="min-w-[1160px]">
-        <div className="grid grid-cols-[minmax(160px,1fr)_minmax(140px,0.85fr)_minmax(100px,0.62fr)_minmax(120px,0.72fr)_minmax(150px,0.9fr)_112px_112px_104px_104px] items-center gap-3 border-b border-[#edf2f7] bg-white px-5 py-2.5 text-center text-[16px] font-normal text-[#64748b]">
-          <span className="whitespace-nowrap">이름</span>
-          <span className="whitespace-nowrap">노출 이름</span>
-          <span className="whitespace-nowrap">직책</span>
-          <span className="whitespace-nowrap">역할</span>
-          <span className="whitespace-nowrap">연락처</span>
-          <span className="whitespace-nowrap text-center">상태</span>
-          <span className="whitespace-nowrap text-center">주간 근무</span>
-          <span className="whitespace-nowrap text-center">오늘 예약</span>
-          <span className="whitespace-nowrap text-center">휴무/연차</span>
+    <div className="overflow-hidden">
+      <div className="min-w-0">
+        <div className="grid grid-cols-[minmax(128px,1fr)_68px_68px_82px] items-center gap-2 border-b border-[#edf2f7] bg-white px-3 py-2.5 text-center text-[15px] font-normal text-[#64748b]">
+          <span className="text-left">직원</span>
+          <span className="whitespace-nowrap">주간</span>
+          <span className="whitespace-nowrap">오늘</span>
+          <span className="whitespace-nowrap">휴무/연차</span>
         </div>
         <div className="max-h-[560px] divide-y divide-[#edf2f7] overflow-x-hidden overflow-y-auto">
           {staff.map((staffMember) => {
@@ -255,26 +249,17 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full grid-cols-[minmax(160px,1fr)_minmax(140px,0.85fr)_minmax(100px,0.62fr)_minmax(120px,0.72fr)_minmax(150px,0.9fr)_112px_112px_104px_104px] items-center gap-3 px-5 py-3 text-center transition",
+                  "grid w-full grid-cols-[minmax(128px,1fr)_68px_68px_82px] items-center gap-2 px-3 py-3 text-center transition",
                   active ? "bg-white" : "bg-white hover:bg-white",
                 )}
               >
-                <div className="flex min-w-0 items-center justify-center gap-3">
+                <div className="flex min-w-0 items-center gap-2 text-left">
                   <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="sm" />
-                  <p className="truncate text-center text-[16px] font-normal text-[#111827]">{staffMember.name}</p>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</span>
+                    <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{availability}</span>
+                  </span>
                 </div>
-                <p className="truncate text-center text-[16px] text-[#334155]">{getStaffCustomerName(staffMember) || "-"}</p>
-                <p className="truncate text-center text-[16px] text-[#334155]">{staffMember.titlePrefix?.trim() || "-"}</p>
-                <p className="truncate text-center text-[16px] text-[#334155]">{getStaffPositionName(staffMember) || "-"}</p>
-                <p className="truncate text-center text-[16px] tabular-nums text-[#475569]">{staffMember.phone || "-"}</p>
-                <span
-                  className={cn(
-                    "justify-self-center rounded-full px-2.5 py-1 text-[16px] font-normal",
-                    availability === "근무 가능" ? "bg-[#f1f5f9] text-[#334155]" : "bg-[#f1f5f9] text-[#64748b]",
-                  )}
-                >
-                  {availability}
-                </span>
                 <p className="text-center text-[16px] text-[#334155]">{weeklyDays}일</p>
                 <p className="text-center text-[16px] text-[#334155]">{staffMember.todayBookings}건</p>
                 <p className="text-center text-[16px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
@@ -520,25 +505,36 @@ export function StaffMetric({ label, value }: { label: string; value: string }) 
   );
 }
 
-export function StaffBoardTabs({ activeTab, onChange }: { activeTab: StaffBoardTab; onChange: (tab: StaffBoardTab) => void }) {
+export function StaffBoardTabs({
+  activeTab,
+  onChange,
+  trailing,
+}: {
+  activeTab: StaffBoardTab;
+  onChange: (tab: StaffBoardTab) => void;
+  trailing?: ReactNode;
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-3 pb-2">
-      {[
-        { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
-        { key: "list" as StaffBoardTab, label: "직원 목록" },
-      ].map((tab) => (
-        <button
-          key={tab.key}
-          type="button"
-          onClick={() => onChange(tab.key)}
-          className={cn(
-            "h-10 rounded-[8px] px-4 text-[16px] transition",
-            activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className="relative flex min-h-10 flex-wrap items-center gap-3 pb-2">
+      <div className="flex flex-wrap items-center gap-3">
+        {[
+          { key: "monthly" as StaffBoardTab, label: "월간 근무표" },
+          { key: "list" as StaffBoardTab, label: "직원 목록" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onChange(tab.key)}
+            className={cn(
+              "h-10 rounded-[8px] px-4 text-[16px] transition",
+              activeTab === tab.key ? "border border-[#dbe2ea] bg-white text-[#111827] shadow-sm" : "text-[#475569] hover:bg-[#f8fafc]",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {trailing ? <div className="absolute left-1/2 top-0 shrink-0 -translate-x-1/2">{trailing}</div> : null}
     </div>
   );
 }

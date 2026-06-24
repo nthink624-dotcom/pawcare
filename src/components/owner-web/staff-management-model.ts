@@ -96,6 +96,16 @@ export const weekdayColumns: Array<{ key: WeekdayKey; label: string }> = [
   { key: "sun", label: "일" },
 ];
 
+export const monthlyWeekdayColumns: Array<{ key: WeekdayKey; label: string }> = [
+  { key: "sun", label: "일" },
+  { key: "mon", label: "월" },
+  { key: "tue", label: "화" },
+  { key: "wed", label: "수" },
+  { key: "thu", label: "목" },
+  { key: "fri", label: "금" },
+  { key: "sat", label: "토" },
+];
+
 export const timeSelectOptions = Array.from({ length: 29 }, (_, index) => {
   const totalMinutes = 8 * 60 + index * 30;
   const hour = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
@@ -181,15 +191,16 @@ export function formatMonthLabel(monthStart: string) {
 
 export function getMonthCalendarDates(monthStart: string) {
   const firstDate = parseDate(monthStart);
-  const firstDayOffset = firstDate.getDay() === 0 ? 6 : firstDate.getDay() - 1;
+  const firstDayOffset = firstDate.getDay();
   const gridStart = addDays(monthStart, -firstDayOffset);
   const currentMonth = firstDate.getMonth();
+  const daysInMonth = new Date(firstDate.getFullYear(), firstDate.getMonth() + 1, 0).getDate();
+  const cellCount = Math.max(35, Math.ceil((firstDayOffset + daysInMonth) / 7) * 7);
 
-  return Array.from({ length: 42 }, (_, index) => {
+  return Array.from({ length: cellCount }, (_, index) => {
     const date = addDays(gridStart, index);
     const parsed = parseDate(date);
-    const weekdayIndex = parsed.getDay() === 0 ? 6 : parsed.getDay() - 1;
-    const weekday = weekdayColumns[weekdayIndex];
+    const weekday = monthlyWeekdayColumns[parsed.getDay()];
 
     return {
       key: weekday.key,

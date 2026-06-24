@@ -4,7 +4,7 @@ import { Camera, Info, Save, Scissors, Settings2, Store, Trash2 } from "lucide-r
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import { cn } from "@/lib/utils";
 import type { OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -16,12 +16,7 @@ export type ShopInfoSettingRow = {
 };
 
 const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
-// Locked preview frame. Do not replace this with a CSS-drawn or generated phone frame.
-const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.svg";
-const CUSTOMER_PREVIEW_CONTENT_WIDTH = 430;
-const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 804;
-const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.569;
-const MAX_SHOP_PROFILE_IMAGES = 500;
+const MAX_SHOP_PROFILE_IMAGES = 10;
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -35,6 +30,7 @@ type ShopInfoSettingsPanelProps = {
   closedDaysSummary?: string;
   editable?: boolean;
   saving?: boolean;
+  feedbackMessage?: string;
   onSave?: () => void | Promise<void>;
   onProfileImagesAdd: (files: FileList | File[]) => void;
   onProfileImagesRemove: (indexes: number[]) => void;
@@ -128,10 +124,16 @@ function PanelCard({
   );
 }
 
-function SocialIcon({ label, className }: { label: string; className: string }) {
+function SocialIcon({ src, alt }: { src: string; alt: string }) {
   return (
-    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[12px] font-semibold", className)}>
-      {label}
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e8eaef] bg-white">
+      <Image
+        src={src}
+        alt={alt}
+        width={32}
+        height={32}
+        className="h-8 w-8 object-contain"
+      />
     </span>
   );
 }
@@ -275,106 +277,6 @@ function OptionCard({
   );
 }
 
-function ShopCustomerPagePreview({
-  shop,
-  services,
-  ownerProfile,
-}: {
-  shop: Shop | null;
-  services: Service[];
-  ownerProfile?: OwnerProfile | null;
-}) {
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center">
-      <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">미리보기</p>
-      <div className="relative aspect-[823/1677] w-[270px] max-w-full">
-        <div className="pointer-events-none absolute left-[3.4%] top-[1.25%] h-[97.4%] w-[93.2%] rounded-[40px] bg-[#070707]" />
-        <div className="absolute left-[4.62%] top-[1.91%] z-10 h-[96.48%] w-[90.64%] overflow-hidden rounded-[31px] bg-[#fdf7f5]">
-          {shop ? (
-            <div className="pm-preview-viewport absolute inset-0 overflow-hidden bg-[#fdf7f5]">
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[40px] items-center justify-between bg-[#fdf7f5] px-[24px] pt-[8px] text-[10.5px] font-semibold text-[#241916]">
-                <span>9:41</span>
-                <span className="flex items-center gap-[4px]">
-                  <span className="flex h-[9px] items-end gap-[1.5px]">
-                    <span className="block h-[3px] w-[2px] rounded-sm bg-[#241916]/85" />
-                    <span className="block h-[5px] w-[2px] rounded-sm bg-[#241916]/85" />
-                    <span className="block h-[7px] w-[2px] rounded-sm bg-[#241916]/85" />
-                    <span className="block h-[9px] w-[2px] rounded-sm bg-[#241916]/85" />
-                  </span>
-                  <span className="relative h-[9px] w-[12px] overflow-hidden">
-                    <span className="absolute left-1/2 top-[1px] h-[12px] w-[12px] -translate-x-1/2 rounded-full border-[1.5px] border-[#241916]/85" />
-                    <span className="absolute bottom-0 left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-[#241916]/85" />
-                  </span>
-                  <span className="relative h-[9px] w-[19px] rounded-[3px] border border-[#241916]/85">
-                    <span className="absolute -right-[3px] top-1/2 h-[4px] w-[2px] -translate-y-1/2 rounded-r bg-[#241916]/70" />
-                    <span className="absolute left-[2px] top-[2px] h-[3px] w-[12px] rounded-[2px] bg-[#241916]" />
-                  </span>
-                </span>
-              </div>
-              <div
-                className="absolute left-0 top-[40px] origin-top-left overflow-hidden"
-                style={{
-                  width: CUSTOMER_PREVIEW_CONTENT_WIDTH,
-                  height: CUSTOMER_PREVIEW_CONTENT_HEIGHT,
-                  transform: `scale(${CUSTOMER_PREVIEW_CONTENT_SCALE})`,
-                }}
-              >
-                <CustomerBookingEntryPage
-                  shop={shop}
-                  services={services}
-                  ownerProfile={ownerProfile}
-                  infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
-                />
-              </div>
-              <style>{`
-                .pm-preview-viewport .pm-entry-proto{
-                  max-width:none!important;
-                  width:${CUSTOMER_PREVIEW_CONTENT_WIDTH}px!important;
-                  min-height:100%!important;
-                  height:100%!important;
-                  padding-top:0!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .scroll{
-                  height:100%!important;
-                  padding-bottom:128px!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .dock{
-                  position:absolute!important;
-                  left:0!important;
-                  right:0!important;
-                  bottom:-12px!important;
-                  transform:none!important;
-                  width:100%!important;
-                  max-width:none!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .hours .list{
-                  width:calc(100% - 32px)!important;
-                  max-width:none!important;
-                }
-              `}</style>
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[34px] items-end justify-center bg-[#fdf7f5] pb-[8px]">
-                <span className="h-[4px] w-[92px] rounded-full bg-[#241916]/18" />
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center bg-[#fdf7f5] px-8 text-center text-[14px] leading-5 text-[#8a7a72]">
-              매장 정보를 불러오면 실제 고객 예약 첫 화면이 표시됩니다.
-            </div>
-          )}
-        </div>
-        <Image
-          src={CUSTOMER_PREVIEW_PHONE_FRAME_SRC}
-          alt=""
-          fill
-          priority
-          unoptimized
-          className="pointer-events-none z-20 select-none object-contain"
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function ShopInfoSettingsPanel({
   rows,
   shopProfileImages,
@@ -387,6 +289,7 @@ export default function ShopInfoSettingsPanel({
   closedDaysSummary = "",
   editable = true,
   saving = false,
+  feedbackMessage = "",
   onSave,
   onProfileImagesAdd,
   onProfileImagesRemove,
@@ -398,7 +301,7 @@ export default function ShopInfoSettingsPanel({
   const description = rowValue(rows, "description");
   const instagramUrl = rowValue(rows, "instagramUrl");
   const kakaoChannelUrl = rowValue(rows, "kakaoChannelUrl");
-  const tiktokUrl = rowValue(rows, "tiktokUrl");
+  const naverBlogUrl = rowValue(rows, "naverBlogUrl");
   const threadsUrl = rowValue(rows, "threadsUrl");
   const phone = rowValue(rows, "phone");
   const address = rowValue(rows, "address");
@@ -450,7 +353,8 @@ export default function ShopInfoSettingsPanel({
         social_links: {
           instagram_url: instagramUrl,
           kakao_channel_url: kakaoChannelUrl,
-          tiktok_url: tiktokUrl,
+          naver_blog_url: naverBlogUrl,
+          tiktok_url: "",
           threads_url: threadsUrl,
         },
         address_detail: addressDetail || shop.customer_page_settings.address_detail,
@@ -467,11 +371,11 @@ export default function ShopInfoSettingsPanel({
     effectiveDescription,
     instagramUrl,
     kakaoChannelUrl,
+    naverBlogUrl,
     phone,
     shop,
     shopName,
     threadsUrl,
-    tiktokUrl,
   ]);
 
   function handleProfileTouchStart(event: TouchEvent<HTMLButtonElement>) {
@@ -531,13 +435,14 @@ export default function ShopInfoSettingsPanel({
       }
 
       const containerTop = container.getBoundingClientRect().top;
+      const activeLine = Math.min(220, Math.max(120, container.clientHeight * 0.28));
       let nextSectionId = sectionTabs[0]?.id ?? "basic";
 
       for (const tab of sectionTabs) {
         const section = container.querySelector<HTMLElement>(`#shop-info-${tab.id}`);
         if (!section) continue;
         const sectionTop = section.getBoundingClientRect().top - containerTop;
-        if (sectionTop <= 44) {
+        if (sectionTop <= activeLine) {
           nextSectionId = tab.id;
         }
       }
@@ -621,9 +526,8 @@ export default function ShopInfoSettingsPanel({
   );
 
   return (
-    <div className="h-full min-h-0 overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
-      <div className="grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
-        <div className="flex min-h-0 min-w-0 flex-col border-r border-[#e1e4ea] bg-white">
+    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
               <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -656,6 +560,11 @@ export default function ShopInfoSettingsPanel({
                   <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
                   {saveAction}
                 </div>
+                {feedbackMessage ? (
+                  <div className="mb-4 rounded-[10px] border border-[#f0c7ce] bg-[#fff7f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">
+                    {feedbackMessage}
+                  </div>
+                ) : null}
                 <div className="space-y-4">
                   <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
                     <div className="min-w-0">
@@ -877,19 +786,19 @@ export default function ShopInfoSettingsPanel({
                   <p className="mb-3 text-[16px] font-medium text-[#3a3f48]">SNS · 채널 연결</p>
                   <div className="grid gap-3 lg:grid-cols-2">
                     <label className="flex min-w-0 items-center gap-2">
-                      <SocialIcon label="in" className="bg-[linear-gradient(135deg,#feda75,#d62976,#962fbf)] text-white" />
+                      <SocialIcon src="/icons/social/instagram-social.png" alt="인스타그램" />
                       <TextInput value={instagramUrl} disabled={!editable} placeholder="https://instagram.com/..." onChange={(value) => onRowChange("instagramUrl", value)} onCommit={(value) => onRowCommit("instagramUrl", value)} />
                     </label>
                     <label className="flex min-w-0 items-center gap-2">
-                      <SocialIcon label="k" className="bg-[#FEE500] text-[#3b1e1e]" />
+                      <SocialIcon src="/icons/social/kakao-social.png" alt="카카오톡" />
                       <TextInput value={kakaoChannelUrl} disabled={!editable} placeholder="https://pf.kakao.com/..." onChange={(value) => onRowChange("kakaoChannelUrl", value)} onCommit={(value) => onRowCommit("kakaoChannelUrl", value)} />
                     </label>
                     <label className="flex min-w-0 items-center gap-2">
-                      <SocialIcon label="T" className="bg-[#181b21] text-white" />
-                      <TextInput value={tiktokUrl} disabled={!editable} placeholder="https://tiktok.com/..." onChange={(value) => onRowChange("tiktokUrl", value)} onCommit={(value) => onRowCommit("tiktokUrl", value)} />
+                      <SocialIcon src="/icons/social/naver-blog-social.png" alt="네이버 블로그" />
+                      <TextInput value={naverBlogUrl} disabled={!editable} placeholder="https://blog.naver.com/..." onChange={(value) => onRowChange("naverBlogUrl", value)} onCommit={(value) => onRowCommit("naverBlogUrl", value)} />
                     </label>
                     <label className="flex min-w-0 items-center gap-2">
-                      <SocialIcon label="@" className="bg-[#181b21] text-white" />
+                      <SocialIcon src="/icons/social/threads-social.png" alt="쓰레드" />
                       <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
                     </label>
                   </div>
@@ -934,16 +843,15 @@ export default function ShopInfoSettingsPanel({
           </div>
         </div>
 
-        <aside className="hidden min-h-0 min-w-0 bg-white xl:flex xl:flex-col">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
-            <ShopCustomerPagePreview
+        <aside className="hidden min-h-0 min-w-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4">
+            <CustomerPagePhonePreview
               shop={customerPreviewShop}
               services={previewServices}
               ownerProfile={ownerProfile}
             />
           </div>
         </aside>
-      </div>
     </div>
   );
 }

@@ -240,8 +240,8 @@ function normalizeWeightBandLabel(value: string) {
 
 function normalizeWeightBands(value: unknown, fallback: string[]) {
   if (!Array.isArray(value) || value.length === 0) return [...fallback];
-  const labels = value.map((band) => (typeof band === "string" ? normalizeWeightBandLabel(band) : "")).filter(Boolean);
-  return labels;
+  const labels = value.filter((band): band is string => typeof band === "string");
+  return labels.length > 0 ? labels : [...fallback];
 }
 
 function normalizeGuideItems(items: ServicePriceGuideSection["items"]) {
@@ -251,6 +251,17 @@ function normalizeGuideItems(items: ServicePriceGuideSection["items"]) {
 function isLegacyDefaultGuide(value: unknown[]) {
   const legacySectionTitles = new Set(["소형견", "중형견", "특수견/대형견", "고양이 미용"]);
   const legacyItemLabels = new Set(["목욕", "부분미용", "부분+목욕", "썸머컷 추가", "전체 가위컷", "단모 목욕", "단모 미용", "장모 목욕", "장모 미용", "염색"]);
+  const hasModernPriceGuideShape = value.some((section) => {
+    if (!section || typeof section !== "object") return false;
+    const source = section as Partial<ServicePriceGuideSection>;
+    return Array.isArray(source.items) && source.items.some((item) => {
+      if (!item || typeof item !== "object") return false;
+      return "cells" in item;
+    });
+  });
+
+  if (hasModernPriceGuideShape) return false;
+
   return value.some((section) => {
     if (!section || typeof section !== "object") return false;
     const source = section as Partial<ServicePriceGuideSection>;
@@ -290,6 +301,30 @@ function mergeMissingDefaultItems(
   ];
 }
 
+function buildEmptySectionCells(weightBands: string[]) {
+  return Object.fromEntries(weightBands.map((band) => [band, { price: "", durationMinutes: "" }])) as Record<string, ServicePriceGuideCell>;
+}
+
+function createBlankSectionFromTemplate(
+  template: ServicePriceGuideSection,
+  title: string,
+): ServicePriceGuideSection {
+  const weightBands = template.weightBands.length > 0 ? [...template.weightBands] : [...basicWeightBands];
+  const sourceItems = template.items.length > 0 ? template.items : defaultGuideSections[0].items;
+
+  return {
+    id: createGuideSectionId(),
+    title,
+    note: "",
+    weightBands,
+    items: sourceItems.map((item) => ({
+      id: createGuideItemId(),
+      label: item.label.trim() || "새 항목",
+      cells: buildEmptySectionCells(weightBands),
+    })),
+  };
+}
+
 function normalizeSections(value: unknown): ServicePriceGuideSection[] {
   if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
   if (isLegacyDefaultGuide(value)) return cloneDefaultSections();
@@ -303,9 +338,12 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
       Array.isArray(source.items) && source.items.length > 0
         ? normalizeGuideItems(source.items as ServicePriceGuideSection["items"])
         : fallback.items;
+    const shouldMergeDefaultItems = source.id === fallback.id || source.title === fallback.title;
     const sourceItems =
       normalizedSourceItems.length > 0
-        ? mergeMissingDefaultItems(normalizedSourceItems, fallback.items)
+        ? shouldMergeDefaultItems
+          ? mergeMissingDefaultItems(normalizedSourceItems, fallback.items)
+          : normalizedSourceItems
         : fallback.items;
 
     return {
@@ -496,7 +534,7 @@ export function ServicePriceGuideEditor({
     updateSections(
       sections.map((section) => {
         if (section.id !== sectionId) return section;
-        const nextLabel = `${section.weightBands.length * 2 + 4}kg~`;
+        const nextLabel = `~${section.weightBands.length * 2 + 4}kg`;
         return {
           ...section,
           weightBands: [...section.weightBands, nextLabel],
@@ -585,17 +623,10 @@ export function ServicePriceGuideEditor({
   }
 
   function addSection() {
-    const nextBand = "~5kg";
-    updateSections([
-      ...sections,
-      {
-        id: createGuideSectionId(),
-        title: "새 그룹",
-        note: "",
-        weightBands: [nextBand],
-        items: [{ id: createGuideItemId(), label: "목욕", cells: { [nextBand]: { price: "", durationMinutes: "" } } }],
-      },
-    ]);
+    const template = sections[sections.length - 1] ?? defaultGuideSections[0];
+    const newGroupCount = sections.filter((section) => section.title.trim().startsWith("새 그룹")).length + 1;
+    const title = newGroupCount === 1 ? "새 그룹" : `새 그룹 ${newGroupCount}`;
+    updateSections([...sections, createBlankSectionFromTemplate(template, title)]);
   }
 
   function removeSection(sectionId: string) {
@@ -667,12 +698,12 @@ export function ServicePriceGuideEditor({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 104 + 116 + section.items.length * 176 + 34 }}>
+                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 104 + 116 + section.items.length * 196 + 34 }}>
                     <colgroup>
                       <col className="w-[104px]" />
                       <col className="w-[116px]" />
                       {section.items.map((item) => (
-                        <col key={item.id} className="w-[176px]" />
+                        <col key={item.id} className="w-[196px]" />
                       ))}
                       <col className="w-[34px]" />
                     </colgroup>
@@ -724,24 +755,24 @@ export function ServicePriceGuideEditor({
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
                               <td key={item.id} className="border-r border-t border-[#edf2f7] px-2 py-2 last:border-r-0">
-                                <div className="flex h-9 min-w-0 items-center justify-between gap-1.5 px-2">
+                                <div className="flex h-9 min-w-0 items-center justify-center gap-0.5 whitespace-nowrap px-1.5">
                                   <input
                                     type="text"
                                     inputMode="numeric"
                                     value={formatPriceInput(cell.price)}
                                     onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
                                     placeholder="-"
-                                    className="h-7 min-w-0 flex-1 bg-transparent text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                    className="h-7 w-[64px] shrink-0 bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                   />
                                   <span className="shrink-0 text-[16px] font-normal text-[#94a3b8]">/</span>
-                                  <div className="flex shrink-0 items-center gap-0.5">
+                                  <div className="flex w-[76px] shrink-0 items-center gap-0.5">
                                     <input
                                       type="text"
                                       inputMode="numeric"
                                       value={cell.durationMinutes}
                                       onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
                                       placeholder="-"
-                                      className="h-7 w-10 bg-transparent text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                      className="h-7 w-[34px] shrink-0 bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                     />
                                     <span className="shrink-0 text-[16px] font-normal text-[#64748b]">분 예상</span>
                                   </div>

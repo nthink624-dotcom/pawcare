@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, ExternalLink, Instagram, MessageCircle, Play, type LucideIcon } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 import type { Shop } from "@/types/domain";
 
@@ -8,7 +8,7 @@ type SocialLink = {
   key: string;
   label: string;
   href: string;
-  Icon: LucideIcon;
+  iconSrc: string;
 };
 
 function normalizeExternalHref(value: string | undefined) {
@@ -34,10 +34,10 @@ function getShowcaseBody(shop: Pick<Shop, "description" | "customer_page_setting
 function buildSocialLinks(settings: Shop["customer_page_settings"], kakaoInquiryUrl: string): SocialLink[] {
   const links = settings.social_links ?? {};
   return [
-    { key: "instagram", label: "인스타", href: normalizeExternalHref(links.instagram_url), Icon: Instagram },
-    { key: "kakao", label: "카톡", href: normalizeExternalHref(links.kakao_channel_url || kakaoInquiryUrl), Icon: MessageCircle },
-    { key: "tiktok", label: "틱톡", href: normalizeExternalHref(links.tiktok_url), Icon: Play },
-    { key: "threads", label: "쓰레드", href: normalizeExternalHref(links.threads_url), Icon: AtSign },
+    { key: "instagram", label: "인스타", href: normalizeExternalHref(links.instagram_url), iconSrc: "/icons/social/instagram-social.png" },
+    { key: "kakao", label: "카톡", href: normalizeExternalHref(links.kakao_channel_url || kakaoInquiryUrl), iconSrc: "/icons/social/kakao-social.png" },
+    { key: "naver-blog", label: "블로그", href: normalizeExternalHref(links.naver_blog_url), iconSrc: "/icons/social/naver-blog-social.png" },
+    { key: "threads", label: "쓰레드", href: normalizeExternalHref(links.threads_url), iconSrc: "/icons/social/threads-social.png" },
   ].filter((link) => link.href);
 }
 
@@ -68,7 +68,7 @@ export default function CustomerShopFrontPanel({
 
       {socialLinks.length > 0 ? (
         <div className="mt-2 grid grid-cols-2 gap-2">
-          {socialLinks.map(({ key, label, href, Icon }) => (
+          {socialLinks.map(({ key, label, href, iconSrc }) => (
             <a
               key={key}
               href={href}
@@ -76,7 +76,14 @@ export default function CustomerShopFrontPanel({
               rel="noreferrer"
               className="flex h-[44px] min-w-0 items-center justify-center gap-2 rounded-[12px] border border-[#efe2dc] bg-white px-2 text-[16px] font-semibold leading-none text-[#3a2e2a] hover:bg-[#fffaf8]"
             >
-              <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+              <span className="h-6 w-6 shrink-0 overflow-hidden rounded-[7px]">
+                <img
+                  src={iconSrc}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-contain"
+                />
+              </span>
               <span className="truncate">{label}</span>
               <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#b6a89f]" strokeWidth={1.8} />
             </a>

@@ -240,6 +240,23 @@ function shouldSendGuardianNotification(
   return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
 }
 
+function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
+  const settings = shop.notification_settings;
+  const canUseShopChannel =
+    settings.alimtalk_sender_mode === "shop_channel" &&
+    settings.alimtalk_shop_channel_status === "active" &&
+    Boolean(settings.alimtalk_sender_profile_key?.trim());
+
+  return {
+    mode: canUseShopChannel ? "shop_channel" : "petmanager",
+    requestedMode: settings.alimtalk_sender_mode,
+    status: settings.alimtalk_shop_channel_status,
+    senderProfileKey: canUseShopChannel ? settings.alimtalk_sender_profile_key?.trim() ?? null : null,
+    channelName: settings.alimtalk_shop_channel_name?.trim() || shop.name,
+    channelUrl: settings.alimtalk_shop_channel_url?.trim() || null,
+  } as const;
+}
+
 function normalizeMediaAssetIds(value: string[] | null | undefined) {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()))).slice(0, 10);
@@ -855,6 +872,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   let providerMessageId: string | null = null;
   let creditReservation: AlimtalkCreditReservation | null = null;
   let creditRefunded = false;
+  const alimtalkSenderConfig = getAlimtalkSenderConfig(bootstrap.shop);
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
@@ -997,6 +1015,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
             templateAlias,
             templateKey: templateKeyForDelivery,
             templateType,
+            senderChannelMode: alimtalkSenderConfig.mode,
+            senderProfileKey: alimtalkSenderConfig.senderProfileKey,
+            senderChannelName: alimtalkSenderConfig.channelName,
+            senderChannelUrl: alimtalkSenderConfig.channelUrl,
             recipientName,
             metadata: input.metadata ?? null,
             mediaAttachments,
@@ -1076,6 +1098,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       alimtalkCreditRemaining: creditReservation?.remainingCount ?? null,
       alimtalkCreditConsumed: status === "sent" && Boolean(creditReservation?.consumed),
       alimtalkCreditRefunded: creditRefunded,
+      alimtalkSenderMode: alimtalkSenderConfig.mode,
+      alimtalkSenderRequestedMode: alimtalkSenderConfig.requestedMode,
+      alimtalkShopChannelStatus: alimtalkSenderConfig.status,
+      alimtalkShopChannelName: alimtalkSenderConfig.channelName,
+      alimtalkShopChannelUrl: alimtalkSenderConfig.channelUrl,
     },
     sent_at: sentAt,
     created_at: nowIso(),

@@ -488,6 +488,10 @@ export default function CustomerManagementScreen({
   const [reservationSaving, setReservationSaving] = useState(false);
   const [reservationError, setReservationError] = useState("");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    onDataChange?.(bootstrapData);
+  }, [bootstrapData, onDataChange]);
   const [sort, setSort] = useState<CustomerSort>("recentDesc");
 
   useEffect(() => {
@@ -745,7 +749,6 @@ export default function CustomerManagementScreen({
           ...current,
           appointments: [...current.appointments.filter((item) => item.id !== appointment.id), appointment],
         };
-        onDataChange?.(nextData);
         return nextData;
       });
       setReservationDraft(null);
@@ -1032,9 +1035,8 @@ export default function CustomerManagementScreen({
                 updated_at: new Date().toISOString(),
               }
             : pet,
-        ),
+          ),
       };
-      onDataChange?.(nextData);
       return nextData;
     });
 
@@ -1065,7 +1067,6 @@ export default function CustomerManagementScreen({
               : pet,
           ),
         };
-        onDataChange?.(nextData);
         return nextData;
       });
     } catch (error) {
@@ -1249,7 +1250,6 @@ export default function CustomerManagementScreen({
         ...current,
         pets: current.pets.map((pet) => (pet.id === petId ? { ...pet, bite_level: normalizedBiteLevel, updated_at: new Date().toISOString() } : pet)),
       };
-      onDataChange?.(nextData);
       return nextData;
     });
 
@@ -1277,10 +1277,9 @@ export default function CustomerManagementScreen({
                   ...savedPet,
                   bite_level: savedPet.bite_level === undefined ? normalizedBiteLevel : normalizePetBiteLevel(savedPet.bite_level),
                 }
-              : pet,
+            : pet,
           ),
         };
-        onDataChange?.(nextData);
         return nextData;
       });
     } catch (error) {

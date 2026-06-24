@@ -25,6 +25,7 @@ const updateShopSchema = z.object({
     .object({
       instagram_url: z.string().trim().max(500).optional(),
       kakao_channel_url: z.string().trim().max(500).optional(),
+      naver_blog_url: z.string().trim().max(500).optional(),
       tiktok_url: z.string().trim().max(500).optional(),
       threads_url: z.string().trim().max(500).optional(),
     })
@@ -254,13 +255,18 @@ export async function PATCH(request: NextRequest) {
       }
 
       if (hasCustomerPageUpdates) {
+        const currentCustomerPageSettings = currentShopResult.data?.customer_page_settings ?? {};
+        const currentSocialLinks =
+          typeof currentCustomerPageSettings.social_links === "object" && currentCustomerPageSettings.social_links
+            ? currentCustomerPageSettings.social_links
+            : {};
         updates.customer_page_settings = {
-          ...(currentShopResult.data?.customer_page_settings ?? {}),
+          ...currentCustomerPageSettings,
           ...(body.name !== undefined ? { shop_name: body.name } : {}),
           ...(body.tagline !== undefined ? { tagline: body.tagline } : {}),
           ...(body.showcaseTitle !== undefined ? { showcase_title: body.showcaseTitle } : {}),
           ...(body.showcaseBody !== undefined ? { showcase_body: body.showcaseBody } : {}),
-          ...(body.socialLinks !== undefined ? { social_links: body.socialLinks } : {}),
+          ...(body.socialLinks !== undefined ? { social_links: { ...currentSocialLinks, ...body.socialLinks } } : {}),
           ...(body.businessCategory !== undefined ? { business_category: body.businessCategory } : {}),
           ...(body.additionalContact !== undefined ? { additional_contact: body.additionalContact } : {}),
           ...(body.postalCode !== undefined ? { postal_code: body.postalCode } : {}),

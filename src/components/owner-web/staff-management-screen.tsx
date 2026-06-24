@@ -13,11 +13,12 @@ import {
 } from "@/components/owner-web/staff-management-ui";
 import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
 import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
+import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { staffChipPalette } from "@/lib/staff-chip-colors";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
-import type { StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
+import type { OwnerProfile, Service, Shop, StaffScheduleOverride as BootstrapStaffScheduleOverride } from "@/types/domain";
 import {
   applyScheduleToCell,
   buildDraft,
@@ -45,6 +46,9 @@ import {
 
 type Props = {
   shopId?: string;
+  shop?: Shop;
+  services?: Service[];
+  ownerProfile?: OwnerProfile | null;
   staffMembers?: StaffMember[];
   staffScheduleOverrides?: BootstrapStaffScheduleOverride[];
   onStaffMembersChange?: (staff: StaffMember[]) => void | Promise<void>;
@@ -57,6 +61,9 @@ type OverrideResponse = {
 
 export default function StaffManagementScreen({
   shopId,
+  shop,
+  services = [],
+  ownerProfile,
   staffMembers,
   staffScheduleOverrides = [],
   onStaffMembersChange,
@@ -421,8 +428,48 @@ export default function StaffManagementScreen({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3">
-      <StaffBoardTabs activeTab={boardTab} onChange={setBoardTab} />
+    <CustomerPagePreviewLayout
+      shop={shop ?? null}
+      services={services}
+      ownerProfile={ownerProfile}
+      staffMembers={staff}
+      previewMode="staffSelection"
+      hidePreview={boardTab !== "list"}
+    >
+      <div className="flex h-full min-h-0 flex-col space-y-3">
+        <StaffBoardTabs
+          activeTab={boardTab}
+          onChange={setBoardTab}
+          trailing={
+            boardTab === "monthly" ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMonthStart((current) => formatMonthShift(current, -1))}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  aria-label="이전 달"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthStart(getMonthStart())}
+                  className="h-9 min-w-[72px] rounded-[8px] px-3 text-[18px] font-medium text-[#111827] hover:bg-[#f8fafc]"
+                >
+                  {formatMonthLabel(monthStart).replace(/^\d{4}년\s*/, "")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthStart((current) => formatMonthShift(current, 1))}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#475569] hover:bg-[#f8fafc]"
+                  aria-label="다음 달"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null
+          }
+        />
 
       <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-1">
         <div className="min-h-0 min-w-0">
@@ -480,12 +527,8 @@ export default function StaffManagementScreen({
               <StaffMonthlySchedule
                 staff={staff}
                 monthStart={monthStart}
-                monthLabel={formatMonthLabel(monthStart)}
                 requests={requests}
                 overrides={scheduleOverrides}
-                onPreviousMonth={() => setMonthStart((current) => formatMonthShift(current, -1))}
-                onNextMonth={() => setMonthStart((current) => formatMonthShift(current, 1))}
-                onCurrentMonth={() => setMonthStart(getMonthStart())}
                 onOpenScheduleEditor={openScheduleEditor}
               />
             ) : (
@@ -553,7 +596,8 @@ export default function StaffManagementScreen({
           onSave={persistScheduleOverride}
         />
       ) : null}
-    </div>
+      </div>
+    </CustomerPagePreviewLayout>
   );
 }
 

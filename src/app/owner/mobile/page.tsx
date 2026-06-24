@@ -43,7 +43,39 @@ type OwnerMobileAccessContext = {
   session: Session | null;
 };
 
+type MobileAppRole = "owner" | "staff";
+
+type MobileAppRoleContext = {
+  appRole: MobileAppRole;
+  currentStaffId: string | null;
+};
+
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
+
+function resolveMobileAppRoleContext(session: Session | null): MobileAppRoleContext {
+  const params = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
+  const roleParam = params?.get("role")?.trim().toLowerCase() ?? "";
+  const staffIdParam = params?.get("staffId")?.trim() || params?.get("staff_id")?.trim() || null;
+  const metadata = session?.user.user_metadata ?? {};
+  const metadataRole =
+    typeof metadata.app_role === "string"
+      ? metadata.app_role
+      : typeof metadata.role === "string"
+        ? metadata.role
+        : "";
+  const metadataStaffId =
+    typeof metadata.staff_id === "string"
+      ? metadata.staff_id
+      : typeof metadata.staffId === "string"
+        ? metadata.staffId
+        : null;
+  const appRole: MobileAppRole = roleParam === "staff" || metadataRole === "staff" ? "staff" : "owner";
+
+  return {
+    appRole,
+    currentStaffId: appRole === "staff" ? staffIdParam ?? metadataStaffId : null,
+  };
+}
 
 function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
   return summary.status === "expired" || summary.status === "past_due";
@@ -89,6 +121,10 @@ export default function OwnerMobilePage() {
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [mobileRoleContext, setMobileRoleContext] = useState<MobileAppRoleContext>({
+    appRole: "owner",
+    currentStaffId: null,
+  });
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
 
   async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
@@ -200,6 +236,7 @@ export default function OwnerMobilePage() {
       }
 
       setUserEmail(ownerAccess.session?.user.email ?? null);
+      setMobileRoleContext(resolveMobileAppRoleContext(ownerAccess.session));
 
       if (ownerAccess.session?.user.user_metadata?.account_suspended === true) {
         if (active) setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
@@ -317,6 +354,8 @@ export default function OwnerMobilePage() {
       subscriptionSummary={subscriptionSummary}
       userEmail={userEmail}
       onSwitchShop={handleSwitchShop}
+      appRole={mobileRoleContext.appRole}
+      currentStaffId={mobileRoleContext.currentStaffId}
       launchPhotoStatusAction={launchPhotoStatusAction}
     />
   );

@@ -1,16 +1,16 @@
 ﻿"use client";
 
-import { AtSign, ChevronDown, Copy, Instagram, MessageCircle, Navigation, Phone, UserRound, X } from "lucide-react";
+import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
-  applyCustomerServiceOverrides,
+  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { formatServicePrice } from "@/lib/utils";
-import type { BusinessHours, OwnerProfile, Service, Shop } from "@/types/domain";
+import type { BusinessHours, CustomerDiscountCoupon, OwnerProfile, Service, Shop } from "@/types/domain";
 
 export const DEFAULT_HERO_IMAGES = [
   "/images/customer-booking-hero-original.jpg",
@@ -217,6 +217,18 @@ function formatPriceGuideCell(cell: { price?: string; durationMinutes?: string }
   return { priceText, durationText };
 }
 
+function formatDiscountCouponValue(coupon: CustomerDiscountCoupon) {
+  if (coupon.discount_type === "percent") return `${coupon.discount_value}% 할인`;
+  return `${coupon.discount_value.toLocaleString("ko-KR")}원 할인`;
+}
+
+function isDiscountCouponVisible(coupon: CustomerDiscountCoupon, todayKey: string) {
+  if (!coupon.enabled || !coupon.visible || coupon.discount_value <= 0) return false;
+  if (coupon.starts_at && coupon.starts_at > todayKey) return false;
+  if (coupon.ends_at && coupon.ends_at < todayKey) return false;
+  return true;
+}
+
 function parseBreedGuideNote(note: string) {
   const breeds = note
     .split(/[,，、]/)
@@ -234,8 +246,8 @@ function parseBreedGuideNote(note: string) {
 
 function formatBreedGroupTitle(title: string, serviceName: string) {
   const label = (title || serviceName).trim();
-  if (!label) return "모종 기준";
-  return label.includes("모종") ? label : `${label} 모종`;
+  if (!label) return "그룹";
+  return label.includes("그룹") ? label : `${label} 그룹`;
 }
 
 function getTodayOperatingStatus(
@@ -284,7 +296,7 @@ export default function CustomerBookingEntryPage({
   const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
   const operatingStatus = getTodayOperatingStatus(shop, currentSeoulMinutes);
   const serviceOptions = useMemo(
-    () => applyCustomerServiceOverrides(
+    () => applyConfiguredCustomerServiceOverrides(
       buildCustomerServiceSourceOptions(
         services
           .slice()
@@ -296,11 +308,23 @@ export default function CustomerBookingEntryPage({
     [services, settings.customer_service_overrides],
   );
   const priceGuideSections = useMemo(
-    () => services.flatMap((service) => getPriceGuideSections(service).map((section) => ({ serviceId: service.id, serviceName: service.name, section }))),
+    () =>
+      services.flatMap((service) =>
+        getPriceGuideSections(service).map((section) => ({
+          serviceId: service.id,
+          serviceName: service.name,
+          section,
+        })),
+      ),
     [services],
   );
   const priceGuideExtraFeeGroups = useMemo(
-    () => dedupePriceGuideExtraFeeGroups(services.map(getPriceGuideExtraFeeGroup).filter((group): group is PriceGuideExtraFeeGroup => Boolean(group))),
+    () =>
+      dedupePriceGuideExtraFeeGroups(
+        services
+          .map(getPriceGuideExtraFeeGroup)
+          .filter((group): group is PriceGuideExtraFeeGroup => Boolean(group)),
+      ),
     [services],
   );
   const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url, settings.hero_image_urls), [settings.hero_image_url, settings.hero_image_urls]);
@@ -330,20 +354,40 @@ export default function CustomerBookingEntryPage({
         key: "instagram",
         label: "인스타그램",
         href: normalizeExternalHref(settings.social_links?.instagram_url),
-      },
-      {
-        key: "threads",
-        label: "쓰레드",
-        href: normalizeExternalHref(settings.social_links?.threads_url),
+        iconSrc: "/icons/social/instagram-social.png",
       },
       {
         key: "kakao",
         label: "카카오톡",
         href: normalizeExternalHref(settings.social_links?.kakao_channel_url),
+        iconSrc: "/icons/social/kakao-social.png",
+      },
+      {
+        key: "naver-blog",
+        label: "네이버 블로그",
+        href: normalizeExternalHref(settings.social_links?.naver_blog_url),
+        iconSrc: "/icons/social/naver-blog-social.png",
+      },
+      {
+        key: "threads",
+        label: "쓰레드",
+        href: normalizeExternalHref(settings.social_links?.threads_url),
+        iconSrc: "/icons/social/threads-social.png",
       },
     ].filter((link) => link.href.length > 0),
-    [settings.social_links?.instagram_url, settings.social_links?.threads_url, settings.social_links?.kakao_channel_url],
+    [
+      settings.social_links?.instagram_url,
+      settings.social_links?.kakao_channel_url,
+      settings.social_links?.naver_blog_url,
+      settings.social_links?.threads_url,
+    ],
   );
+  const visibleDiscountCoupons = useMemo(() => {
+    const todayKey = getSeoulDateKey();
+    return (settings.discount_coupons ?? [])
+      .filter((coupon) => isDiscountCouponVisible(coupon, todayKey))
+      .slice(0, 3);
+  }, [settings.discount_coupons]);
   const bookingHref = (serviceId?: string, serviceOptionId?: string) => {
     const href = new URL(`/book/${encodeURIComponent(shop.id)}`, "http://localhost");
     if (serviceId) href.searchParams.set("serviceId", serviceId);
@@ -400,10 +444,11 @@ export default function CustomerBookingEntryPage({
   }
 
   return (
-    <div className="pm-entry-proto mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]">
+    <div className={`pm-entry-proto${visibleDiscountCoupons.length > 0 ? " has-benefits" : ""} mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]`}>
       <style>{`
         .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
         .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
+        .pm-entry-proto.has-benefits .scroll{padding-bottom:176px}
         .pm-entry-proto .scroll::-webkit-scrollbar{display:none}
         .pm-entry-proto .gwrap{padding-top:14px}
         .pm-entry-proto .gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 14px;scrollbar-width:none}
@@ -426,7 +471,8 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .pbar .sub{font-size:13px;color:var(--textMuted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .pm-entry-proto .srow{display:flex;align-items:flex-start;gap:10px}
         .pm-entry-proto .socials{display:flex;gap:9px;margin-left:auto}
-        .pm-entry-proto .socials .chip{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(60,40,30,.16);cursor:pointer;border:none;background:var(--card);color:var(--primaryDk)}
+        .pm-entry-proto .socials .chip{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 9px rgba(60,40,30,.16);cursor:pointer;border:1px solid var(--border);background:var(--card);overflow:hidden}
+        .pm-entry-proto .socials .chip img{width:42px;height:42px;object-fit:contain;display:block}
         .pm-entry-proto .hours{position:relative}
         .pm-entry-proto .hours .top{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:16px;font-weight:600;color:var(--text);white-space:nowrap}
         .pm-entry-proto .hours .top .od{width:8px;height:8px;border-radius:50%;background:var(--open);display:block}
@@ -439,6 +485,12 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .hours .hrow .d{flex:0 0 62px;color:var(--textMid)}
         .pm-entry-proto .hours .hrow .t{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
         .pm-entry-proto .hours .hrow.today .d,.pm-entry-proto .hours .hrow.today .t{color:var(--primaryDk);font-weight:600}
+        .pm-entry-proto .benefits{width:100%}
+        .pm-entry-proto .benefits{display:flex;flex-direction:column;gap:6px}
+        .pm-entry-proto .benefit{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
+        .pm-entry-proto .benefit .txt{min-width:0}
+        .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
         .pm-entry-proto .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
         .pm-entry-proto .pcard .pr{display:flex;align-items:center;padding:13px 17px}
         .pm-entry-proto .pcard .pr + .pr{border-top:1px solid var(--borderSoft)}
@@ -446,7 +498,8 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .pcard .pr .d{font-size:12.5px;color:var(--textMuted);margin-left:8px;white-space:nowrap;overflow:hidden}
         .pm-entry-proto .pcard .pr .p{margin-left:auto;font-size:16px;font-weight:600;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:8px}
         .pm-entry-proto .pcard .full{display:flex;align-items:center;justify-content:center;gap:5px;padding:14px;border-top:1px solid var(--borderSoft);font-size:13.5px;color:var(--textMid);cursor:pointer}
-        .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;align-items:center;gap:9px}
+        .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+        .pm-entry-proto .dock .actions{display:flex;width:100%;align-items:center;gap:9px}
         .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
         .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
       `}</style>
@@ -522,9 +575,7 @@ export default function CustomerBookingEntryPage({
               <div className="socials">
                 {socialLinks.map((link) => (
                   <a key={link.key} className={`chip social-${link.key}`} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
-                    {link.key === "instagram" ? <Instagram className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
-                    {link.key === "threads" ? <AtSign className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
-                    {link.key === "kakao" ? <MessageCircle className="h-4.5 w-4.5" strokeWidth={1.9} /> : null}
+                    <img src={link.iconSrc} alt="" aria-hidden="true" />
                   </a>
                 ))}
               </div>
@@ -544,13 +595,27 @@ export default function CustomerBookingEntryPage({
       </div>
 
       <div className="dock">
-        <a className="quick" href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`} aria-label="전화하기">
-          <Phone className="h-5 w-5" strokeWidth={1.9} />
-        </a>
-        <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
-          <Navigation className="h-5 w-5" strokeWidth={1.9} />
-        </button>
-        <a className="cta" href={bookingHref()}>간편예약 시작</a>
+        {visibleDiscountCoupons.length > 0 ? (
+          <div className="benefits">
+            {visibleDiscountCoupons.map((coupon) => (
+              <div className="benefit" key={coupon.id}>
+                <div className="txt">
+                  <div className="name">{coupon.name}</div>
+                </div>
+                <div className="val">{formatDiscountCouponValue(coupon)}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="actions">
+          <a className="quick" href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`} aria-label="전화하기">
+            <Phone className="h-5 w-5" strokeWidth={1.9} />
+          </a>
+          <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
+            <Navigation className="h-5 w-5" strokeWidth={1.9} />
+          </button>
+          <a className="cta" href={bookingHref()}>간편예약 시작</a>
+        </div>
       </div>
 
       {priceSheetOpen ? (
@@ -586,26 +651,26 @@ export default function CustomerBookingEntryPage({
                           <button
                             type="button"
                             onClick={() => toggleBreedGuide(breedGuideKey)}
-                            className="flex w-full items-start justify-between gap-3 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#fff4f1]"
+                            className="flex w-full items-start justify-between gap-2 rounded-[10px] px-2 py-1 text-left transition hover:bg-[#fff4f1]"
                             aria-expanded={breedGuideOpen}
                           >
                             <span className="min-w-0">
-                              <span className="block text-[16px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
-                              <span className="mt-1 block truncate text-[15px] font-normal leading-6 text-[#9a7168]">대표 품종: {breedGuide.summary}</span>
+                              <span className="block text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
+                              <span className="mt-0.5 block truncate text-[12px] font-normal leading-5 text-[#9a7168]">대표 품종: {breedGuide.summary}</span>
                             </span>
-                            <span className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] text-[#e76557]">
-                              <ChevronDown className={`h-4 w-4 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
+                            <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] text-[#e76557]">
+                              <ChevronDown className={`h-3.5 w-3.5 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
                             </span>
                           </button>
                         ) : (
-                          <div className="px-2 py-1.5">
-                            <p className="text-[16px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</p>
+                          <div className="px-2 py-1">
+                            <p className="text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</p>
                           </div>
                         )}
                         {breedGuide && breedGuideOpen ? (
                           <div className="mt-1 flex flex-wrap gap-1.5 px-2 pb-1">
                             {breedGuide.breeds.map((breed) => (
-                              <span key={`${breedGuideKey}-${breed}`} className="inline-flex h-8 items-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] px-2.5 text-[15px] font-normal text-[#6d4b43]">
+                              <span key={`${breedGuideKey}-${breed}`} className="inline-flex h-7 items-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] px-2 text-[13px] font-normal text-[#6d4b43]">
                                 {breed}
                               </span>
                             ))}
@@ -613,12 +678,12 @@ export default function CustomerBookingEntryPage({
                         ) : null}
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="min-w-[560px] w-full border-collapse text-center">
+                        <table className="min-w-[430px] w-full border-collapse text-center">
                           <thead>
-                            <tr className="bg-[#fff8f6] text-[15px] font-normal text-[#8b6259]">
-                              <th className="w-[96px] border-b border-r border-[#f6e2dd] px-3 py-2 text-center font-normal">무게</th>
+                            <tr className="bg-[#fff8f6] text-[12px] font-normal text-[#8b6259]">
+                              <th className="w-[64px] border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center font-normal">무게</th>
                               {section.items.map((item) => (
-                                <th key={item.id} className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center font-normal last:border-r-0">
+                                <th key={item.id} className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center font-normal last:border-r-0">
                                   {item.label}
                                 </th>
                               ))}
@@ -626,14 +691,14 @@ export default function CustomerBookingEntryPage({
                           </thead>
                           <tbody>
                             {section.weightBands.map((band) => (
-                              <tr key={band} className="text-[16px] text-[#2b241f]">
-                                <td className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center text-[#7f625b]">{band}</td>
+                              <tr key={band} className="text-[13px] text-[#2b241f]">
+                                <td className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center text-[#7f625b]">{band}</td>
                                 {section.items.map((item) => {
                                   const { priceText, durationText } = formatPriceGuideCell(item.cells[band]);
                                   return (
-                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#f6e2dd] px-3 py-2 text-center last:border-r-0">
-                                      <span className="block whitespace-nowrap text-[16px] font-normal text-[#2f211d]">{priceText}</span>
-                                      {durationText ? <span className="mt-0.5 block whitespace-nowrap text-[15px] font-normal text-[#9a7168]">{durationText}</span> : null}
+                                    <td key={`${item.id}-${band}`} className="border-b border-r border-[#f6e2dd] px-2 py-1.5 text-center last:border-r-0">
+                                      <span className="block whitespace-nowrap text-[13px] font-normal text-[#2f211d]">{priceText}</span>
+                                      {durationText ? <span className="block whitespace-nowrap text-[12px] font-normal text-[#9a7168]">{durationText}</span> : null}
                                     </td>
                                   );
                                 })}

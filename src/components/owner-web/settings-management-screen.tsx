@@ -4,8 +4,9 @@ import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
+import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
 import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
-import DiscountCouponEditor from "@/components/owner-web/discount-coupon-editor";
+import DiscountCouponEditor, { type DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
@@ -17,7 +18,7 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import {
-  applyCustomerServiceOverrides,
+  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceMenuConnectionOptions,
   buildCustomerServiceSourceOptions,
   normalizeCustomerServiceOverrides,
@@ -100,6 +101,15 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
   const normalized = normalizeShopNotificationSettings(settings);
   return {
     enabled: normalized.enabled,
+    alimtalkSenderMode: normalized.alimtalk_sender_mode,
+    alimtalkShopChannelStatus: normalized.alimtalk_shop_channel_status,
+    alimtalkShopChannelName: normalized.alimtalk_shop_channel_name ?? "",
+    alimtalkShopChannelUrl: normalized.alimtalk_shop_channel_url ?? "",
+    alimtalkSenderProfileKey: normalized.alimtalk_sender_profile_key ?? "",
+    alimtalkChannelRequestedAt: normalized.alimtalk_channel_requested_at ?? null,
+    alimtalkChannelAdminNote: normalized.alimtalk_channel_admin_note ?? "",
+    alimtalkTemplateRequestNote: normalized.alimtalk_template_request_note ?? "",
+    alimtalkTemplateRequestUpdatedAt: normalized.alimtalk_template_request_updated_at ?? null,
     revisitEnabled: normalized.revisit_enabled,
     bookingConfirmedEnabled: normalized.booking_confirmed_enabled,
     bookingRejectedEnabled: normalized.booking_rejected_enabled,
@@ -120,6 +130,15 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
 function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotificationSettings {
   return {
     enabled: draft.enabled,
+    alimtalk_sender_mode: draft.alimtalkSenderMode,
+    alimtalk_shop_channel_status: draft.alimtalkShopChannelStatus,
+    alimtalk_shop_channel_name: draft.alimtalkShopChannelName,
+    alimtalk_shop_channel_url: draft.alimtalkShopChannelUrl,
+    alimtalk_sender_profile_key: draft.alimtalkSenderProfileKey,
+    alimtalk_channel_requested_at: draft.alimtalkChannelRequestedAt,
+    alimtalk_channel_admin_note: draft.alimtalkChannelAdminNote,
+    alimtalk_template_request_note: draft.alimtalkTemplateRequestNote,
+    alimtalk_template_request_updated_at: draft.alimtalkTemplateRequestUpdatedAt,
     revisit_enabled: draft.revisitEnabled,
     booking_confirmed_enabled: draft.bookingConfirmedEnabled,
     booking_rejected_enabled: draft.bookingRejectedEnabled,
@@ -144,18 +163,50 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: "alerts", label: "알림 설정" },
 ];
 
-function createDiscountCouponDraft(index: number): CustomerDiscountCoupon {
+function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset = "first_visit"): CustomerDiscountCoupon {
+  const presets: Record<DiscountCouponPreset, Pick<CustomerDiscountCoupon, "name" | "discount_type" | "discount_value" | "audience" | "per_customer_limit">> = {
+    first_visit: {
+      name: "첫 방문 할인",
+      discount_type: "fixed",
+      discount_value: 10000,
+      audience: "first_visit",
+      per_customer_limit: true,
+    },
+    revisit: {
+      name: "재방문 할인",
+      discount_type: "percent",
+      discount_value: 10,
+      audience: "revisit",
+      per_customer_limit: false,
+    },
+    all: {
+      name: "전체 고객 할인",
+      discount_type: "fixed",
+      discount_value: 5000,
+      audience: "all",
+      per_customer_limit: false,
+    },
+    custom: {
+      name: "기타 할인",
+      discount_type: "fixed",
+      discount_value: 5000,
+      audience: "custom",
+      per_customer_limit: false,
+    },
+  };
+  const template = presets[preset];
+
   return {
     id: `coupon-${Date.now()}-${index}`,
-    name: "첫 방문 할인",
+    name: template.name,
     enabled: true,
     visible: true,
-    discount_type: "fixed",
-    discount_value: 10000,
-    audience: "first_visit",
+    discount_type: template.discount_type,
+    discount_value: template.discount_value,
+    audience: template.audience,
     service_scope: "all",
     service_option_ids: [],
-    per_customer_limit: true,
+    per_customer_limit: template.per_customer_limit,
     starts_at: "",
     ends_at: "",
   };
@@ -218,10 +269,10 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         control: "text",
       },
       {
-        id: "tiktokUrl",
-        label: "틱톡",
+        id: "naverBlogUrl",
+        label: "네이버 블로그",
         value: "",
-        description: "고객에게 노출할 틱톡 링크",
+        description: "고객에게 노출할 네이버 블로그 링크",
         control: "text",
       },
       {
@@ -386,7 +437,7 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
         if (row.id === "showcaseBody") return { ...row, value: shop.customer_page_settings.showcase_body || "" };
         if (row.id === "instagramUrl") return { ...row, value: shop.customer_page_settings.social_links?.instagram_url || "" };
         if (row.id === "kakaoChannelUrl") return { ...row, value: shop.customer_page_settings.social_links?.kakao_channel_url || "" };
-        if (row.id === "tiktokUrl") return { ...row, value: shop.customer_page_settings.social_links?.tiktok_url || "" };
+        if (row.id === "naverBlogUrl") return { ...row, value: shop.customer_page_settings.social_links?.naver_blog_url || "" };
         if (row.id === "threadsUrl") return { ...row, value: shop.customer_page_settings.social_links?.threads_url || "" };
         if (row.id === "businessCategory") return { ...row, value: shop.customer_page_settings.business_category || "애견미용" };
         if (row.id === "phone") return { ...row, value: shop.phone };
@@ -408,7 +459,7 @@ const ownerWebSettingsStorageKey = "petmanager.ownerWeb.settings";
 const ownerWebShopProfileImageStorageKey = "petmanager.ownerWeb.shopProfileImage";
 const ownerWebShopProfileImagesStorageKey = "petmanager.ownerWeb.shopProfileImages";
 const ownerWebShopProfileImagesStorageLimit = 900_000;
-const ownerWebShopProfileImagesMaxCount = 500;
+const ownerWebShopProfileImagesMaxCount = 10;
 
 function normalizeShopProfileImages(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -461,7 +512,8 @@ function readShopProfileFromSettings(settings: Record<SettingsTabKey, SettingsTa
     socialLinks: {
       instagram_url: String(rows.find((row) => row.id === "instagramUrl")?.value ?? "").trim(),
       kakao_channel_url: String(rows.find((row) => row.id === "kakaoChannelUrl")?.value ?? "").trim(),
-      tiktok_url: String(rows.find((row) => row.id === "tiktokUrl")?.value ?? "").trim(),
+      naver_blog_url: String(rows.find((row) => row.id === "naverBlogUrl")?.value ?? "").trim(),
+      tiktok_url: "",
       threads_url: String(rows.find((row) => row.id === "threadsUrl")?.value ?? "").trim(),
     },
     businessCategory: String(rows.find((row) => row.id === "businessCategory")?.value ?? "").trim(),
@@ -477,6 +529,26 @@ function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab
     approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
     cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
     pendingHoldLimit: 1,
+  };
+}
+
+function mergeCustomerPageSettings(
+  current: Shop["customer_page_settings"],
+  incoming: Partial<Shop["customer_page_settings"]> | null | undefined,
+): Shop["customer_page_settings"] {
+  if (!incoming) return current;
+  return {
+    ...current,
+    ...incoming,
+    social_links: {
+      ...(current.social_links ?? {}),
+      ...(incoming.social_links ?? {}),
+    },
+    customer_service_overrides: {
+      ...(current.customer_service_overrides ?? {}),
+      ...(incoming.customer_service_overrides ?? {}),
+    },
+    discount_coupons: incoming.discount_coupons ?? current.discount_coupons,
   };
 }
 
@@ -870,12 +942,20 @@ export default function SettingsManagementScreen({
   const [shopProfileImageAssetIds, setShopProfileImageAssetIds] = useState<string[]>([]);
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
+  const [shopInfoFeedback, setShopInfoFeedback] = useState("");
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
   const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
     normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
   );
   const [customerServiceActionId, setCustomerServiceActionId] = useState<string | null>(null);
   const [, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
+  const [discountCouponDrafts, setDiscountCouponDrafts] = useState<CustomerDiscountCoupon[]>(() =>
+    normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
+  );
+  const [savedDiscountCoupons, setSavedDiscountCoupons] = useState<CustomerDiscountCoupon[]>(() =>
+    normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
+  );
+  const [discountCouponSaveStatus, setDiscountCouponSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -936,6 +1016,13 @@ export default function SettingsManagementScreen({
     setCustomerServiceSaveStatus((currentStatus) => (currentStatus === "pending" ? currentStatus : "saved"));
   }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
+  useEffect(() => {
+    const nextCoupons = normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons);
+    setSavedDiscountCoupons(nextCoupons);
+    setDiscountCouponDrafts(nextCoupons);
+    setDiscountCouponSaveStatus("saved");
+  }, [shop?.id, shop?.customer_page_settings.discount_coupons]);
+
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const current = useMemo(() => {
     return draftSettings[activeTab] ?? initialSettings[activeTab];
@@ -946,12 +1033,24 @@ export default function SettingsManagementScreen({
     [rawCustomerServiceConnectionOptions],
   );
   const customerServiceOptions = useMemo(
-    () => applyCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
+    () => applyConfiguredCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
     [rawCustomerServiceConnectionOptions, customerServiceOverrides],
   );
-  const discountCoupons = useMemo(
-    () => normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
-    [shop?.customer_page_settings.discount_coupons],
+  const discountCoupons = discountCouponDrafts;
+  const customerPagePreviewShop = useMemo<Shop | null>(() => {
+    if (!shop) return null;
+    return {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        customer_service_overrides: customerServiceOverrides,
+        discount_coupons: discountCoupons,
+      },
+    };
+  }, [customerServiceOverrides, discountCoupons, shop]);
+  const discountCouponsDirty = useMemo(
+    () => JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons),
+    [discountCouponDrafts, savedDiscountCoupons],
   );
 
   async function saveShopSettings(
@@ -1052,8 +1151,7 @@ export default function SettingsManagementScreen({
     onShopChange?.({
       ...optimisticShop,
       ...result.shop,
-      customer_page_settings: {
-        ...optimisticShop.customer_page_settings,
+      customer_page_settings: mergeCustomerPageSettings(optimisticShop.customer_page_settings, {
         ...result.shop.customer_page_settings,
         ...(heroMediaAssetIds.length > 0
           ? {
@@ -1063,7 +1161,7 @@ export default function SettingsManagementScreen({
               hero_media_asset_ids: heroMediaAssetIds,
             }
           : {}),
-      },
+      }),
     });
     if (policyPatch) {
       onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
@@ -1110,10 +1208,10 @@ export default function SettingsManagementScreen({
         .then((result) => {
           onShopChange?.({
             ...optimisticShop,
-            customer_page_settings: {
-              ...optimisticShop.customer_page_settings,
-              ...result.shop.customer_page_settings,
-            },
+            customer_page_settings: mergeCustomerPageSettings(
+              optimisticShop.customer_page_settings,
+              result.shop.customer_page_settings,
+            ),
           });
           setCustomerServiceSaveStatus("saved");
         })
@@ -1127,16 +1225,15 @@ export default function SettingsManagementScreen({
 
   function updateDiscountCoupons(nextCoupons: CustomerDiscountCoupon[]) {
     const normalizedCoupons = normalizeDiscountCoupons(nextCoupons);
+    setDiscountCouponDrafts(normalizedCoupons);
+    setDiscountCouponSaveStatus("idle");
+  }
 
-    if (customerServiceSaveTimerRef.current) {
-      clearTimeout(customerServiceSaveTimerRef.current);
-      customerServiceSaveTimerRef.current = null;
-    }
+  async function saveDiscountCoupons() {
+    if (!shop || discountCouponSaveStatus === "pending") return;
 
-    if (!shop) {
-      setCustomerServiceSaveStatus("idle");
-      return;
-    }
+    const normalizedCoupons = normalizeDiscountCoupons(discountCouponDrafts);
+    setDiscountCouponSaveStatus("pending");
 
     const optimisticShop: Shop = {
       ...shop,
@@ -1145,38 +1242,47 @@ export default function SettingsManagementScreen({
         discount_coupons: normalizedCoupons,
       },
     };
-    onShopChange?.(optimisticShop);
 
     if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setCustomerServiceSaveStatus("saved");
+      setDiscountCouponDrafts(normalizedCoupons);
+      setSavedDiscountCoupons(normalizedCoupons);
+      onShopChange?.(optimisticShop);
+      setDiscountCouponSaveStatus("saved");
+      showSaveCompletePopup();
       return;
     }
 
-    setCustomerServiceSaveStatus("pending");
-    customerServiceSaveTimerRef.current = setTimeout(() => {
-      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+    try {
+      const result = await fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
         method: "PATCH",
         body: JSON.stringify({
           shopId: shop.id,
           discountCoupons: normalizedCoupons,
         }),
-      })
-        .then((result) => {
-          onShopChange?.({
-            ...optimisticShop,
-            customer_page_settings: {
-              ...optimisticShop.customer_page_settings,
-              ...result.shop.customer_page_settings,
-            },
-          });
-          setCustomerServiceSaveStatus("saved");
-        })
-        .catch((error) => {
-          console.error("[OWNER SETTINGS] failed to save discount coupons", error);
-          setCustomerServiceSaveStatus("error");
-        });
-      customerServiceSaveTimerRef.current = null;
-    }, 500);
+      });
+      const savedCoupons = normalizeDiscountCoupons(result.shop.customer_page_settings.discount_coupons);
+      const nextShop: Shop = {
+        ...optimisticShop,
+        customer_page_settings: {
+          ...mergeCustomerPageSettings(optimisticShop.customer_page_settings, result.shop.customer_page_settings),
+          discount_coupons: savedCoupons,
+        },
+      };
+      setDiscountCouponDrafts(savedCoupons);
+      setSavedDiscountCoupons(savedCoupons);
+      onShopChange?.(nextShop);
+      setDiscountCouponSaveStatus("saved");
+      showSaveCompletePopup();
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to save discount coupons", error);
+      setDiscountCouponSaveStatus("error");
+    }
+  }
+
+  function reloadSavedDiscountCoupons() {
+    const normalizedCoupons = normalizeDiscountCoupons(savedDiscountCoupons);
+    setDiscountCouponDrafts(normalizedCoupons);
+    setDiscountCouponSaveStatus("saved");
   }
 
   function updateDiscountCoupon(couponId: string, patch: Partial<CustomerDiscountCoupon>) {
@@ -1192,8 +1298,8 @@ export default function SettingsManagementScreen({
     );
   }
 
-  function addDiscountCoupon() {
-    updateDiscountCoupons([...discountCoupons, createDiscountCouponDraft(discountCoupons.length + 1)]);
+  function addDiscountCoupon(preset: DiscountCouponPreset = "first_visit") {
+    updateDiscountCoupons([...discountCoupons, createDiscountCouponDraft(discountCoupons.length + 1, preset)]);
   }
 
   function deleteDiscountCoupon(couponId: string) {
@@ -1356,6 +1462,7 @@ export default function SettingsManagementScreen({
 
   async function saveShopInfoFromDraft() {
     if (savingShopInfo) return;
+    setShopInfoFeedback("");
     if (!isShopInfoDirty) {
       showSaveCompletePopup();
       return;
@@ -1363,11 +1470,12 @@ export default function SettingsManagementScreen({
     const settingsToSave = draftSettings;
     setSavingShopInfo(true);
     setIsShopInfoDirty(false);
-    showSaveCompletePopup();
     try {
       await saveShopSettings(settingsToSave, { profile: true, policy: true });
+      showSaveCompletePopup();
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save shop profile", error);
+      setShopInfoFeedback(error instanceof Error ? error.message : "매장 정보를 저장하지 못했습니다.");
       setIsShopInfoDirty(true);
     } finally {
       setSavingShopInfo(false);
@@ -1426,10 +1534,17 @@ export default function SettingsManagementScreen({
   async function addShopProfileImages(files: FileList | File[]) {
     if (!shop) return;
     const remainingCount = Math.max(ownerWebShopProfileImagesMaxCount - shopProfileImages.length, 0);
-    if (remainingCount === 0) return;
+    setShopInfoFeedback("");
+    if (remainingCount === 0) {
+      setShopInfoFeedback(`매장 사진은 최대 ${ownerWebShopProfileImagesMaxCount}장까지 등록할 수 있습니다.`);
+      return;
+    }
 
     const selectedFiles = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, remainingCount);
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) {
+      setShopInfoFeedback("이미지 파일만 추가할 수 있습니다.");
+      return;
+    }
 
     setSavingShopInfo(true);
     try {
@@ -1446,6 +1561,9 @@ export default function SettingsManagementScreen({
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
       setIsShopInfoDirty(true);
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to upload shop profile images", error);
+      setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
       setSavingShopInfo(false);
     }
@@ -1509,7 +1627,10 @@ export default function SettingsManagementScreen({
       });
       if (alertAutoSaveSeqRef.current === saveSeq) {
         setAlertSettings(buildAlertSettingsDraft(savedShop.notification_settings));
-        onShopChange?.(savedShop);
+        onShopChange?.({
+          ...savedShop,
+          customer_page_settings: mergeCustomerPageSettings(shop.customer_page_settings, savedShop.customer_page_settings),
+        });
       }
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save notification settings", error);
@@ -1529,7 +1650,7 @@ export default function SettingsManagementScreen({
         </div>
       ) : null}
 
-      <div className={cn("grid min-h-0 gap-6", activeTab === "shop" && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
+      <div className={cn("grid min-h-0 gap-6", (activeTab === "shop" || activeTab === "benefits") && "h-full", showTabNavigation && "xl:grid-cols-[316px_minmax(0,1fr)]")}>
         {showTabNavigation ? (
           <WebSurface className="p-3">
             <div className="space-y-1.5">
@@ -1551,7 +1672,7 @@ export default function SettingsManagementScreen({
           </WebSurface>
         ) : null}
 
-        <div className={cn("min-w-0 space-y-4", activeTab === "shop" && "h-full min-h-0")}>
+        <div className={cn("min-w-0 space-y-4", (activeTab === "shop" || activeTab === "benefits") && "h-full min-h-0")}>
           {activeTab === "alerts" ? (
             <SettingsAlertsPanel
               value={alertSettings}
@@ -1587,6 +1708,7 @@ export default function SettingsManagementScreen({
                   closedDaysSummary={String(closedDayRow?.value ?? "")}
                 editable
                 saving={savingShopInfo}
+                feedbackMessage={shopInfoFeedback}
                 onSave={saveShopInfoFromDraft}
                 onProfileImagesAdd={addShopProfileImages}
                 onProfileImagesRemove={removeShopProfileImages}
@@ -1624,28 +1746,68 @@ export default function SettingsManagementScreen({
               </ShopInfoSettingsPanel>
             </>
           ) : activeTab === "benefits" ? (
+            <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={services} ownerProfile={ownerProfile}>
             <WebSurface className="p-6">
-              <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="mb-5 flex items-start justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
                 <div>
                   <h2 className="text-[20px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
+                  <p
+                    className={cn(
+                      "mt-1 text-[14px] font-normal",
+                      discountCouponSaveStatus === "error"
+                        ? "text-[#a04455]"
+                        : discountCouponSaveStatus === "pending" || discountCouponsDirty
+                          ? "text-[#8a5b11]"
+                          : "text-[#2f7866]",
+                    )}
+                  >
+                    {discountCouponSaveStatus === "pending"
+                      ? "혜택을 저장하는 중입니다."
+                      : discountCouponSaveStatus === "error"
+                        ? "저장하지 못했습니다. 다시 시도해 주세요."
+                        : discountCouponsDirty
+                          ? "저장하지 않은 변경사항이 있습니다."
+                          : "저장된 혜택을 불러온 상태입니다."}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addDiscountCoupon}
-                  className="inline-flex h-10 shrink-0 items-center rounded-[8px] border border-[#607080] bg-[#607080] px-4 text-[15px] font-normal text-white transition hover:border-[#526170] hover:bg-[#526170]"
-                >
-                  혜택 추가
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={reloadSavedDiscountCoupons}
+                    disabled={!discountCouponsDirty || discountCouponSaveStatus === "pending"}
+                    className="inline-flex h-10 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866] disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    기존 혜택 불러오기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addDiscountCoupon()}
+                    disabled={discountCouponSaveStatus === "pending"}
+                    className="inline-flex h-10 items-center rounded-[8px] border border-[#c8ded8] bg-[#f4faf8] px-4 text-[15px] font-normal text-[#2f7866] transition hover:border-[#8bbcaf] hover:bg-[#eef7f4] disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    혜택 추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveDiscountCoupons()}
+                    disabled={!discountCouponsDirty || discountCouponSaveStatus === "pending"}
+                    className="inline-flex h-10 items-center rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-4 text-[15px] font-normal text-white transition hover:border-[#286a5a] hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:border-[#cbd5e1] disabled:bg-[#cbd5e1]"
+                  >
+                    {discountCouponSaveStatus === "pending" ? "저장 중" : "혜택 저장"}
+                  </button>
+                </div>
               </div>
               <DiscountCouponEditor
                 coupons={discountCoupons}
                 serviceOptions={customerServiceConnectionOptions}
-                disabled={false}
-                onAdd={addDiscountCoupon}
+                disabled={discountCouponSaveStatus === "pending"}
+                onAdd={() => addDiscountCoupon()}
+                onAddPreset={addDiscountCoupon}
                 onDelete={deleteDiscountCoupon}
                 onUpdate={updateDiscountCoupon}
               />
             </WebSurface>
+            </CustomerPagePreviewLayout>
           ) : (
             <WebSurface className="p-6">
               <div className="divide-y divide-[#f1e8e0]">

@@ -177,6 +177,8 @@ export default function OwnerShell({
   subscriptionSummary,
   userEmail,
   onSwitchShop,
+  appRole = "owner",
+  currentStaffId = null,
   launchPhotoStatusAction = null,
 }: {
   initialData: BootstrapPayload;
@@ -185,6 +187,8 @@ export default function OwnerShell({
   subscriptionSummary: OwnerSubscriptionSummary | null;
   userEmail: string | null;
   onSwitchShop: (shopId: string) => Promise<void>;
+  appRole?: "owner" | "staff";
+  currentStaffId?: string | null;
   launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
 }) {
   const router = useRouter();
@@ -279,6 +283,8 @@ export default function OwnerShell({
         initialData={initialData}
         ownedShops={ownedShops}
         selectedShopId={selectedShopId}
+        appRole={appRole}
+        currentStaffId={currentStaffId}
         subscriptionSummary={summary}
         onLogout={handleLogout}
         onSwitchShop={onSwitchShop}

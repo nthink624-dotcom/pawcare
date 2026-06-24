@@ -10,10 +10,24 @@ import {
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
 import { cn } from "@/lib/utils";
-import type { NotificationDeliveryMode, NotificationType } from "@/types/domain";
+import type {
+  AlimtalkSenderMode,
+  AlimtalkShopChannelStatus,
+  NotificationDeliveryMode,
+  NotificationType,
+} from "@/types/domain";
 
 export type AlertSettingsDraft = {
   enabled: boolean;
+  alimtalkSenderMode: AlimtalkSenderMode;
+  alimtalkShopChannelStatus: AlimtalkShopChannelStatus;
+  alimtalkShopChannelName: string;
+  alimtalkShopChannelUrl: string;
+  alimtalkSenderProfileKey: string;
+  alimtalkChannelRequestedAt: string | null;
+  alimtalkChannelAdminNote: string;
+  alimtalkTemplateRequestNote: string;
+  alimtalkTemplateRequestUpdatedAt: string | null;
   revisitEnabled: boolean;
   bookingConfirmedEnabled: boolean;
   bookingRejectedEnabled: boolean;
@@ -33,6 +47,15 @@ export type AlertSettingsDraft = {
 type AlertToggleKey = Exclude<
   keyof AlertSettingsDraft,
   | "enabled"
+  | "alimtalkSenderMode"
+  | "alimtalkShopChannelStatus"
+  | "alimtalkShopChannelName"
+  | "alimtalkShopChannelUrl"
+  | "alimtalkSenderProfileKey"
+  | "alimtalkChannelRequestedAt"
+  | "alimtalkChannelAdminNote"
+  | "alimtalkTemplateRequestNote"
+  | "alimtalkTemplateRequestUpdatedAt"
   | "visitReminderOffsetMinutes"
   | "pickupReadyEtaMinutes"
   | "groomingStartWithoutPhotoEnabled"
@@ -306,6 +329,29 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
   );
 }
 
+const shopChannelStatusLabels: Record<AlimtalkShopChannelStatus, string> = {
+  not_requested: "신청 전",
+  requested: "신청 접수",
+  reviewing: "심사 중",
+  active: "사용 가능",
+  rejected: "보완 필요",
+};
+
+function getNextShopChannelSettings(value: AlertSettingsDraft): AlertSettingsDraft {
+  const now = new Date().toISOString();
+  const nextStatus =
+    value.alimtalkShopChannelStatus === "active" || value.alimtalkShopChannelStatus === "reviewing"
+      ? value.alimtalkShopChannelStatus
+      : "requested";
+
+  return {
+    ...value,
+    alimtalkSenderMode: "shop_channel",
+    alimtalkShopChannelStatus: nextStatus,
+    alimtalkChannelRequestedAt: value.alimtalkChannelRequestedAt ?? now,
+  };
+}
+
 export default function SettingsAlertsPanel({
   value,
   onChange,
@@ -327,6 +373,120 @@ export default function SettingsAlertsPanel({
     <section className="rounded-[16px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
+          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[16px] text-[#111827]">알림톡 발신 채널</p>
+                <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
+                  결제와 잔여 건수는 펫매니저에서 관리하고, 발신자만 매장 채널로 바꿀 수 있습니다.
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-[14px]",
+                  value.alimtalkShopChannelStatus === "active"
+                    ? "bg-[#e9f5f0] text-[#287667]"
+                    : value.alimtalkShopChannelStatus === "rejected"
+                      ? "bg-[#fff1f2] text-[#a04455]"
+                      : value.alimtalkShopChannelStatus === "requested" ||
+                          value.alimtalkShopChannelStatus === "reviewing"
+                        ? "bg-[#fff7ed] text-[#9a6619]"
+                        : "bg-[#f1f5f9] text-[#64748b]",
+                )}
+              >
+                {shopChannelStatusLabels[value.alimtalkShopChannelStatus]}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => onChange({ ...value, alimtalkSenderMode: "petmanager" })}
+                className={cn(
+                  "rounded-[10px] border px-4 py-3 text-left transition",
+                  value.alimtalkSenderMode === "petmanager"
+                    ? "border-[#2f7d68] bg-[#f6fbf9]"
+                    : "border-[#dbe2ea] bg-white hover:border-[#cbd5e1]",
+                )}
+              >
+                <span className="block text-[16px] text-[#111827]">펫매니저 기본 채널</span>
+                <span className="mt-1 block text-[14px] leading-5 text-[#64748b]">
+                  바로 사용합니다. 고객에게는 펫매니저 기본 발신 채널로 보입니다.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange(getNextShopChannelSettings(value))}
+                className={cn(
+                  "rounded-[10px] border px-4 py-3 text-left transition",
+                  value.alimtalkSenderMode === "shop_channel"
+                    ? "border-[#2f7d68] bg-[#f6fbf9]"
+                    : "border-[#dbe2ea] bg-white hover:border-[#cbd5e1]",
+                )}
+              >
+                <span className="block text-[16px] text-[#111827]">내 매장 채널 사용 신청</span>
+                <span className="mt-1 block text-[14px] leading-5 text-[#64748b]">
+                  카카오 채널/발신 프로필 심사 후 고객에게 매장명으로 알림톡이 보입니다.
+                </span>
+              </button>
+            </div>
+            {value.alimtalkSenderMode === "shop_channel" ? (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[15px] text-[#334155]">카카오 채널명</span>
+                    <input
+                      value={value.alimtalkShopChannelName}
+                      onChange={(event) =>
+                        onChange({
+                          ...getNextShopChannelSettings(value),
+                          alimtalkShopChannelName: event.target.value,
+                        })
+                      }
+                      placeholder="예: 우진만세"
+                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[15px] text-[#334155]">채널 URL 또는 검색명</span>
+                    <input
+                      value={value.alimtalkShopChannelUrl}
+                      onChange={(event) =>
+                        onChange({
+                          ...getNextShopChannelSettings(value),
+                          alimtalkShopChannelUrl: event.target.value,
+                        })
+                      }
+                      placeholder="카카오 채널 링크 또는 검색 가능한 이름"
+                      className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7d68]"
+                    />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-[15px] text-[#334155]">희망 알림톡 문구 / 요청사항</span>
+                  <textarea
+                    value={value.alimtalkTemplateRequestNote}
+                    onChange={(event) =>
+                      onChange({
+                        ...getNextShopChannelSettings(value),
+                        alimtalkTemplateRequestNote: event.target.value,
+                        alimtalkTemplateRequestUpdatedAt: new Date().toISOString(),
+                      })
+                    }
+                    rows={4}
+                    placeholder="원하는 말투, 꼭 들어갔으면 하는 문구, 매장명 표기 방식 등을 적어주세요. 실제 발송 문구는 카카오 템플릿 심사 기준에 맞춰 조정될 수 있어요."
+                    className="w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[16px] leading-6 text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7d68]"
+                  />
+                  <span className="mt-1 block text-right text-[13px] text-[#94a3b8]">
+                    {value.alimtalkTemplateRequestNote.length} / 1500
+                  </span>
+                </label>
+              </div>
+            ) : null}
+            <p className="mt-3 text-[14px] leading-5 text-[#64748b]">
+              매장 채널을 사용해도 알림톡 결제, 잔여 건수, 발송 이력은 펫매니저에서 그대로 관리됩니다.
+            </p>
+          </div>
+
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">

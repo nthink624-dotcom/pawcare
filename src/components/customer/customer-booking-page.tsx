@@ -11,7 +11,7 @@ import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchApiJson } from "@/lib/api";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import {
-  applyCustomerServiceOverrides,
+  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
@@ -387,7 +387,7 @@ export default function CustomerBookingPage({
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const customerServiceOptions = useMemo(
     () =>
-      applyCustomerServiceOverrides(
+      applyConfiguredCustomerServiceOverrides(
         buildCustomerServiceSourceOptions(
           services
             .slice()

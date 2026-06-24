@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
 import {
-  applyCustomerServiceOverrides,
+  applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import {
@@ -542,7 +542,7 @@ export async function createCustomerBooking(input: unknown) {
 
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
-  const customerServiceOptions = applyCustomerServiceOverrides(
+  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
     buildCustomerServiceSourceOptions(bootstrap.services, { priceGuideOnly: true }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );

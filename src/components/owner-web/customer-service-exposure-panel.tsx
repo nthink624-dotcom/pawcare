@@ -41,10 +41,14 @@ function getOptionRows(options: CustomerServiceSourceOption[], overrides: Custom
     .sort((left, right) => left.order - right.order || left.option.sourceName.localeCompare(right.option.sourceName, "ko"));
 }
 
-function cleanOverride(option: CustomerServiceSourceOption, override: CustomerServiceDisplayOverrides[string]) {
+function cleanOverride(
+  option: CustomerServiceSourceOption,
+  override: CustomerServiceDisplayOverrides[string],
+  options: { preserveOrder?: boolean } = {},
+) {
   const next = { ...override };
   if (next.visible === true) delete next.visible;
-  if (next.order === option.order) delete next.order;
+  if (!options.preserveOrder && next.order === option.order) delete next.order;
   if (next.displayName?.trim() === option.sourceName) delete next.displayName;
   if (!next.displayName?.trim()) delete next.displayName;
   if (!next.description?.trim()) delete next.description;
@@ -52,7 +56,8 @@ function cleanOverride(option: CustomerServiceSourceOption, override: CustomerSe
 }
 
 function getOptionSelectLabel(option: CustomerServiceSourceOption) {
-  return `${option.category} / ${option.sourceName} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
+  const name = option.sourceName.startsWith(`${option.category} /`) ? option.sourceName : `${option.category} / ${option.sourceName}`;
+  return `${name} · ${option.durationMinutes}분 · ${formatServicePrice(option.price, option.priceType)}`;
 }
 
 function buildGroupedSelectOptions(options: CustomerServiceSourceOption[]) {
@@ -107,10 +112,14 @@ export default function CustomerServiceExposurePanel({
 
     const nextOverrides = { ...normalizedOverrides };
     reordered.forEach((row, rowIndex) => {
-      const nextOverride = cleanOverride(row.option, {
-        ...(nextOverrides[row.option.id] ?? {}),
-        order: rowIndex + 1,
-      });
+      const nextOverride = cleanOverride(
+        row.option,
+        {
+          ...(nextOverrides[row.option.id] ?? {}),
+          order: rowIndex + 1,
+        },
+        { preserveOrder: true },
+      );
       if (Object.keys(nextOverride).length > 0) {
         nextOverrides[row.option.id] = nextOverride;
       } else {

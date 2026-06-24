@@ -529,6 +529,15 @@ export async function updateShopSettings(input: unknown) {
   const payload = shopSettingsSchema.parse(input);
   const nextNotificationSettings = {
     enabled: payload.notificationSettings.enabled,
+    alimtalk_sender_mode: payload.notificationSettings.alimtalkSenderMode,
+    alimtalk_shop_channel_status: payload.notificationSettings.alimtalkShopChannelStatus,
+    alimtalk_shop_channel_name: payload.notificationSettings.alimtalkShopChannelName,
+    alimtalk_shop_channel_url: payload.notificationSettings.alimtalkShopChannelUrl,
+    alimtalk_sender_profile_key: payload.notificationSettings.alimtalkSenderProfileKey,
+    alimtalk_channel_requested_at: payload.notificationSettings.alimtalkChannelRequestedAt,
+    alimtalk_channel_admin_note: payload.notificationSettings.alimtalkChannelAdminNote,
+    alimtalk_template_request_note: payload.notificationSettings.alimtalkTemplateRequestNote,
+    alimtalk_template_request_updated_at: payload.notificationSettings.alimtalkTemplateRequestUpdatedAt,
     revisit_enabled: payload.notificationSettings.revisitEnabled,
     booking_confirmed_enabled: payload.notificationSettings.bookingConfirmedEnabled,
     booking_rejected_enabled: payload.notificationSettings.bookingRejectedEnabled,

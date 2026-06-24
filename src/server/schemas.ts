@@ -196,6 +196,17 @@ export const shopSettingsSchema = z.object({
     .optional(),
   notificationSettings: z.object({
     enabled: z.boolean(),
+    alimtalkSenderMode: z.enum(["petmanager", "shop_channel"]).default("petmanager"),
+    alimtalkShopChannelStatus: z
+      .enum(["not_requested", "requested", "reviewing", "active", "rejected"])
+      .default("not_requested"),
+    alimtalkShopChannelName: z.string().trim().max(80).default(""),
+    alimtalkShopChannelUrl: z.string().trim().max(500).default(""),
+    alimtalkSenderProfileKey: z.string().trim().max(120).default(""),
+    alimtalkChannelRequestedAt: z.string().nullable().optional().default(null),
+    alimtalkChannelAdminNote: z.string().trim().max(500).default(""),
+    alimtalkTemplateRequestNote: z.string().trim().max(1500).default(""),
+    alimtalkTemplateRequestUpdatedAt: z.string().nullable().optional().default(null),
     revisitEnabled: z.boolean(),
     bookingConfirmedEnabled: z.boolean(),
     bookingRejectedEnabled: z.boolean(),

@@ -53,6 +53,30 @@ const screenBySettingsTab: Record<SettingsTabKey, OwnerWebScreenKey> = {
   alerts: "alerts",
 };
 
+type OwnerWebShop = BootstrapPayload["shop"];
+
+function mergeOwnerWebShop(current: OwnerWebShop, incoming: OwnerWebShop): OwnerWebShop {
+  return {
+    ...current,
+    ...incoming,
+    reservation_policy_settings: incoming.reservation_policy_settings ?? current.reservation_policy_settings,
+    customer_page_settings: {
+      ...current.customer_page_settings,
+      ...incoming.customer_page_settings,
+      social_links: {
+        ...(current.customer_page_settings.social_links ?? {}),
+        ...(incoming.customer_page_settings.social_links ?? {}),
+      },
+      customer_service_overrides: {
+        ...(current.customer_page_settings.customer_service_overrides ?? {}),
+        ...(incoming.customer_page_settings.customer_service_overrides ?? {}),
+      },
+      discount_coupons:
+        incoming.customer_page_settings.discount_coupons ?? current.customer_page_settings.discount_coupons,
+    },
+  };
+}
+
 function renderScreen(
   screen: OwnerWebScreenKey,
   manualApprovalEnabled: boolean,
@@ -100,6 +124,7 @@ function renderScreen(
         <ServiceManagementScreen
           shopId={initialData.shop.id}
           shop={initialData.shop}
+          ownerProfile={initialData.ownerProfile ?? null}
           initialServices={initialData.services}
           staffMembers={staffMembers}
           demoMode={isDemoOwnerWebData(initialData)}
@@ -111,6 +136,9 @@ function renderScreen(
       return (
         <StaffManagementScreen
           shopId={initialData.shop.id}
+          shop={initialData.shop}
+          services={initialData.services}
+          ownerProfile={initialData.ownerProfile ?? null}
           staffMembers={staffMembers}
           staffScheduleOverrides={initialData.staffScheduleOverrides ?? []}
           onStaffMembersChange={onStaffMembersChange}
@@ -282,10 +310,14 @@ export default function OwnerWebPreview({
   }
 
   function handleShopProfileChange(shop: BootstrapPayload["shop"]) {
-    setOwnerData((current) => ({
-      ...current,
-      shop,
-    }));
+    setOwnerData((current) => {
+      const nextData = {
+        ...current,
+        shop: mergeOwnerWebShop(current.shop, shop),
+      };
+      onDataChange?.(nextData);
+      return nextData;
+    });
   }
 
   async function handleStaffMembersChange(nextStaff: OwnerWebStaffMember[]) {

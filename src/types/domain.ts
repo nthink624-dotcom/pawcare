@@ -29,6 +29,8 @@ export type NotificationType =
 export type ChannelType = "alimtalk" | "sms" | "in_app" | "mock";
 export type NotificationStatus = "queued" | "sent" | "failed" | "mocked" | "skipped";
 export type NotificationDeliveryMode = "manual" | "auto";
+export type AlimtalkSenderMode = "petmanager" | "shop_channel";
+export type AlimtalkShopChannelStatus = "not_requested" | "requested" | "reviewing" | "active" | "rejected";
 export type PetBiteLevel = "none" | "mild" | "watch" | "bite" | "strong";
 export type MediaKind =
   | "grooming_before"
@@ -48,6 +50,15 @@ export type MediaSendStatus = "queued" | "sent" | "failed" | "skipped";
 
 export type ShopNotificationSettings = {
   enabled: boolean;
+  alimtalk_sender_mode: AlimtalkSenderMode;
+  alimtalk_shop_channel_status: AlimtalkShopChannelStatus;
+  alimtalk_shop_channel_name?: string;
+  alimtalk_shop_channel_url?: string;
+  alimtalk_sender_profile_key?: string;
+  alimtalk_channel_requested_at?: string | null;
+  alimtalk_channel_admin_note?: string;
+  alimtalk_template_request_note?: string;
+  alimtalk_template_request_updated_at?: string | null;
   revisit_enabled: boolean;
   booking_confirmed_enabled: boolean;
   booking_rejected_enabled: boolean;
@@ -90,6 +101,7 @@ export type CustomerPageSettings = {
   social_links?: {
     instagram_url?: string;
     kakao_channel_url?: string;
+    naver_blog_url?: string;
     tiktok_url?: string;
     threads_url?: string;
   };
@@ -130,7 +142,7 @@ export type CustomerDiscountCoupon = {
   visible: boolean;
   discount_type: "fixed" | "percent";
   discount_value: number;
-  audience: "all" | "first_visit" | "revisit";
+  audience: "all" | "first_visit" | "revisit" | "custom";
   service_scope: "all" | "specific";
   service_option_ids: string[];
   per_customer_limit: boolean;

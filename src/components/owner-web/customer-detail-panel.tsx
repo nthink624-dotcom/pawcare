@@ -56,9 +56,18 @@ type MediaAssetListResponse = {
   items: Array<{ mediaAsset: MediaAsset }>;
 };
 
+type MediaSignedUrlResponse = {
+  signedUrl: string;
+};
+
+type GroomingPhotoPreview = {
+  asset: MediaAsset;
+  url: string;
+};
+
 type GroomingPhotoSummary = {
-  before: MediaAsset | null;
-  after: MediaAsset | null;
+  before: GroomingPhotoPreview | null;
+  after: GroomingPhotoPreview | null;
 };
 
 const primaryButtonClass = "border-[#2f7866] bg-[#2f7866] text-white shadow-[0_8px_18px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]";
@@ -80,7 +89,10 @@ export default function CustomerDetailPanel({
   const [copied, setCopied] = useState(false);
   const [activeAction, setActiveAction] = useState<DetailAction>(null);
   const [photoSummaries, setPhotoSummaries] = useState<Record<string, GroomingPhotoSummary>>({});
+  const [selectedGroomingRecordId, setSelectedGroomingRecordId] = useState<string | null>(null);
+  const [expandedPhoto, setExpandedPhoto] = useState<{ preview: GroomingPhotoPreview; label: string } | null>(null);
   const selectedPet = detail.selectedPet;
+  const selectedGroomingRecord = detail.recentGroomingRecords.find((record) => record.id === selectedGroomingRecordId) ?? null;
   const profileInitial = selectedPet?.name.slice(0, 1) || "P";
   const phone = formatPhoneNumber(detail.guardian.phone);
   const petWeightLabel = typeof selectedPet?.weight === "number" ? `${selectedPet.weight} kg` : "몸무게 미입력";
@@ -135,11 +147,13 @@ export default function CustomerDetailPanel({
             });
             const result = await fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${params.toString()}`);
             const assets = result.items.map((item) => item.mediaAsset);
+            const before = getMediaByKind(assets, "grooming_before");
+            const after = getMediaByKind(assets, "grooming_after");
             return [
               record.id,
               {
-                before: getMediaByKind(assets, "grooming_before"),
-                after: getMediaByKind(assets, "grooming_after"),
+                before: before ? await getMediaPreview(before) : null,
+                after: after ? await getMediaPreview(after) : null,
               },
             ] as const;
           } catch {
@@ -155,6 +169,11 @@ export default function CustomerDetailPanel({
       cancelled = true;
     };
   }, [detail.recentGroomingRecords]);
+
+  useEffect(() => {
+    setSelectedGroomingRecordId(null);
+    setExpandedPhoto(null);
+  }, [selectedPet?.id]);
 
   async function copyPhone() {
     try {
@@ -231,7 +250,7 @@ export default function CustomerDetailPanel({
                   onSavePetNotes={(notes) => savePetPatch({ notes })}
                 />
 
-                <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} />
+                <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} onOpenRecord={setSelectedGroomingRecordId} />
               </div>
             ) : (
               <EmptyState title="반려동물이 없습니다" description="이 보호자에게 등록된 반려동물 정보가 아직 없습니다." />
@@ -251,6 +270,19 @@ export default function CustomerDetailPanel({
             }}
           />
         ) : null}
+        {selectedGroomingRecord ? (
+          <GroomingRecordDetailPanel
+            detail={detail}
+            record={selectedGroomingRecord}
+            photoSummary={photoSummaries[selectedGroomingRecord.id] ?? { before: null, after: null }}
+            onClose={() => {
+              setSelectedGroomingRecordId(null);
+              setExpandedPhoto(null);
+            }}
+            onExpandPhoto={(preview, label) => setExpandedPhoto({ preview, label })}
+          />
+        ) : null}
+        {expandedPhoto ? <PhotoLightbox photo={expandedPhoto} onClose={() => setExpandedPhoto(null)} /> : null}
       </section>
     </div>
   );
@@ -398,15 +430,7 @@ function PetOverviewSection({
   const birthdayLabel = selectedPet.birthday ? formatDate(selectedPet.birthday) : "미입력";
   const fullAgeLabel = selectedPet.birthday ? calculateFullAgeLabel(selectedPet.birthday) : "";
   const weightLabel = typeof selectedPet.weight === "number" ? `${selectedPet.weight}kg` : "미입력";
-  const petInfo = parsePetInfoNotes(selectedPet.notes);
-  const styleFallback = splitNotes(selectedPet.latestGroomingRecord?.style_notes || selectedPet.recentStyleLabel)
-    .filter((item) => !item.includes("최근 스타일 없음"))
-    .join("\n");
-  const memoFallback = splitNotes(selectedPet.latestGroomingRecord?.memo || detail.guardian.memo || "").join("\n");
-
-  function savePetInfo(field: PetInfoField, value: string) {
-    return onSavePetNotes(buildPetInfoNotes(selectedPet.notes, { ...petInfo, [field]: value }));
-  }
+  const petMemo = selectedPet.notes?.trim() || "";
 
   return (
     <section className="relative rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
@@ -480,24 +504,11 @@ function PetOverviewSection({
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-3 divide-x divide-[#e5e7eb] border-l border-[#e5e7eb]">
-          <PetInfoColumn
-            title="특징 / 주의사항"
-            value={petInfo.caution}
-            placeholder="주의사항을 입력해 주세요."
-            onCommit={(value) => savePetInfo("caution", value)}
-          />
-          <PetInfoColumn
-            title="미용 스타일 선호"
-            value={petInfo.style || styleFallback}
-            placeholder="미용 스타일을 입력해 주세요."
-            onCommit={(value) => savePetInfo("style", value)}
-          />
-          <PetInfoColumn
-            title="메모"
-            value={petInfo.memo || memoFallback}
-            placeholder="메모를 입력해 주세요."
-            onCommit={(value) => savePetInfo("memo", value)}
+        <div className="min-w-0 border-l border-[#e5e7eb] pl-4">
+          <PetInfoMemo
+            value={petMemo}
+            placeholder="주의사항, 성향, 미용 스타일, 보호자 요청을 메모로 남겨주세요."
+            onCommit={onSavePetNotes}
           />
         </div>
 
@@ -525,79 +536,21 @@ function PetAvatar({ name, size, initial }: { name: string; size: "sm" | "lg"; i
   );
 }
 
-function PetInfoColumn({
-  title,
-  value,
-  placeholder,
-  onCommit,
-}: {
-  title: string;
-  value: string;
-  placeholder: string;
-  onCommit: (value: string) => void | Promise<void>;
-}) {
+function PetInfoMemo({ value, placeholder, onCommit }: { value: string; placeholder: string; onCommit: (value: string) => void | Promise<void> }) {
   return (
-    <div className="min-w-0 px-4 pt-0.5">
-      <p className="mb-1 text-[15px] font-semibold leading-5 text-[#111827]">{title}</p>
+    <div className="min-w-0 pt-0.5">
+      <p className="mb-1 text-[15px] font-semibold leading-5 text-[#111827]">메모</p>
       <InlineEditableText
         value={value}
         placeholder={placeholder}
-        ariaLabel={`${title} 수정`}
+        ariaLabel="반려동물 메모 수정"
         multiline
-        className="min-h-[48px] w-full px-0 py-0 text-[15px] leading-6 text-[#334155]"
+        className="min-h-[64px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[15px] leading-6 text-[#334155]"
         inputClassName="text-[15px]"
         onCommit={onCommit}
       />
     </div>
   );
-}
-
-type PetInfoField = "caution" | "style" | "memo";
-
-function parsePetInfoNotes(notes: string | null | undefined): Record<PetInfoField, string> {
-  const sections: Record<PetInfoField, string[]> = {
-    caution: [],
-    style: [],
-    memo: [],
-  };
-  let currentField: PetInfoField = "caution";
-
-  for (const rawLine of (notes ?? "").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    const matched = line.match(/^(특징|주의사항|미용\s*스타일|스타일|메모)\s*[:：]\s*(.*)$/);
-    if (matched) {
-      const label = matched[1].replace(/\s/g, "");
-      currentField = label.includes("스타일") ? "style" : label.includes("메모") ? "memo" : "caution";
-      if (matched[2]) sections[currentField].push(matched[2]);
-      continue;
-    }
-
-    sections[currentField].push(line);
-  }
-
-  return {
-    caution: sections.caution.join("\n"),
-    style: sections.style.join("\n"),
-    memo: sections.memo.join("\n"),
-  };
-}
-
-function buildPetInfoNotes(previousNotes: string | null | undefined, nextInfo: Record<PetInfoField, string>) {
-  const parsed = parsePetInfoNotes(previousNotes);
-  const merged = { ...parsed, ...nextInfo };
-  return [
-    ["특징", merged.caution],
-    ["미용 스타일", merged.style],
-    ["메모", merged.memo],
-  ]
-    .map(([label, value]) => {
-      const trimmed = String(value ?? "").trim();
-      return trimmed ? `${label}: ${trimmed}` : "";
-    })
-    .filter(Boolean)
-    .join("\n");
 }
 
 function buildPetSummary(pet: Pick<NonNullable<CustomerDetailModel["selectedPet"]>, "breed" | "age" | "weight">) {
@@ -995,16 +948,24 @@ function RecentAppointmentsCard({ detail, onViewAll }: { detail: CustomerDetailM
   );
 }
 
-function GroomingRecordsCard({ detail, photoSummaries }: { detail: CustomerDetailModel; photoSummaries: Record<string, GroomingPhotoSummary> }) {
+function GroomingRecordsCard({
+  detail,
+  photoSummaries,
+  onOpenRecord,
+}: {
+  detail: CustomerDetailModel;
+  photoSummaries: Record<string, GroomingPhotoSummary>;
+  onOpenRecord: (recordId: string) => void;
+}) {
   return (
     <SectionCard title="미용 기록">
       {detail.recentGroomingRecords.length > 0 ? (
         <div className="overflow-hidden">
-          <div className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]">
+          <div className="grid grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px] items-center border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3 text-center text-[16px] font-medium text-[#64748b]">
             <span>날짜</span>
             <span>반려동물</span>
             <span>서비스</span>
-            <span>스타일</span>
+            <span>고객 요청 메시지</span>
             <span>메모</span>
             <span>사진</span>
             <span>금액</span>
@@ -1012,21 +973,24 @@ function GroomingRecordsCard({ detail, photoSummaries }: { detail: CustomerDetai
           </div>
           {detail.recentGroomingRecords.map((record) => {
             const photoSummary = photoSummaries[record.id] ?? { before: null, after: null };
-            const linkedAppointment = record.appointment_id
-              ? (detail.appointments.find((appointment) => appointment.id === record.appointment_id) ?? null)
-              : null;
+            const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
             const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
             return (
-              <div key={record.id} className="grid min-h-[88px] grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_140px_86px_110px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] last:border-b-0">
+              <button
+                key={record.id}
+                type="button"
+                onClick={() => onOpenRecord(record.id)}
+                className="grid min-h-[88px] w-full grid-cols-[92px_96px_110px_minmax(0,1fr)_minmax(0,0.9fr)_132px_86px_110px] items-center border-b border-[#edf2f7] px-4 py-3 text-center text-[16px] transition last:border-b-0 hover:bg-[#fbfcfd] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d6e7e2]"
+              >
                 <span className="truncate tabular-nums text-[#334155]">{formatDate(record.groomed_at)}</span>
                 <span className="truncate text-[#334155]">{petName}</span>
                 <span className="truncate text-[#334155]">{getServiceName(detail.servicesById, record.service_id)}</span>
-                <span className="truncate text-[#334155]">{record.style_notes || "-"}</span>
+                <span className="truncate text-[#334155]">{linkedAppointment?.memo || "-"}</span>
                 <span className="truncate text-[#64748b]">{record.memo || "-"}</span>
                 <GroomingPhotoCell summary={photoSummary} />
                 <span className="tabular-nums text-[#334155]">{formatMoney(record.price_paid)}</span>
                 <ActualGroomingTimeCell appointment={linkedAppointment} fallbackDuration={formatDuration(getServiceDuration(detail.servicesById, record.service_id))} />
-              </div>
+              </button>
             );
           })}
         </div>
@@ -1082,24 +1046,165 @@ function ActualGroomingTimeCell({
 }
 
 function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
-  const hasBefore = Boolean(summary.before);
-  const hasAfter = Boolean(summary.after);
-
   return (
-    <div className="flex min-w-0 flex-col items-center justify-center text-center">
-      <div className="flex flex-wrap justify-center gap-1.5">
-        <PhotoBadge label="미용 전" active={hasBefore} />
-        <PhotoBadge label="완료" active={hasAfter} />
-      </div>
+    <div className="flex min-w-0 items-center justify-center gap-2 text-center">
+      <PhotoPreviewSlot label="전" preview={summary.before} />
+      <PhotoPreviewSlot label="후" preview={summary.after} />
     </div>
   );
 }
 
-function PhotoBadge({ label, active }: { label: string; active: boolean }) {
+function PhotoPreviewSlot({ label, preview }: { label: string; preview: GroomingPhotoPreview | null }) {
   return (
-    <span className={cn("inline-flex h-6 items-center rounded-[6px] px-2 text-[16px] font-medium", active ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#f1f5f9] text-[#94a3b8]")}>
-      {label} 사진
-    </span>
+    <div className={cn("relative h-12 w-12 overflow-hidden rounded-[8px] border bg-[#f8fafc]", preview ? "border-[#c8ded8]" : "border-dashed border-[#dbe2ea]")}>
+      {preview?.url ? (
+        <img src={preview.url} alt={`미용 ${label} 사진`} className="h-full w-full object-cover" />
+      ) : (
+        <div className="h-full w-full bg-[#f8fafc]" />
+      )}
+      <span className="absolute left-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-[5px] bg-white/90 px-1 text-[12px] font-semibold text-[#334155] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function GroomingRecordDetailPanel({
+  detail,
+  record,
+  photoSummary,
+  onClose,
+  onExpandPhoto,
+}: {
+  detail: CustomerDetailModel;
+  record: CustomerDetailModel["groomingRecords"][number];
+  photoSummary: GroomingPhotoSummary;
+  onClose: () => void;
+  onExpandPhoto: (preview: GroomingPhotoPreview, label: string) => void;
+}) {
+  const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
+  const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
+  const serviceName = getServiceName(detail.servicesById, record.service_id);
+  const duration = linkedAppointment
+    ? formatDuration(getServiceDuration(detail.servicesById, linkedAppointment.service_id))
+    : formatDuration(getServiceDuration(detail.servicesById, record.service_id));
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/24 px-6 py-6" onClick={onClose}>
+      <section
+        className="flex max-h-full w-full max-w-[980px] flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[#edf2f7] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[14px] text-[#607080]">{petName} · {serviceName}</p>
+            <h3 className="mt-1 text-[22px] font-semibold text-[#111827]">{formatDate(record.groomed_at)} 미용 기록</h3>
+            <p className="mt-1 text-[14px] text-[#64748b]">전후 사진은 촬영 후 30일 동안 보관되는 자료입니다.</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]" aria-label="닫기">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="min-h-0 overflow-y-auto p-5">
+          <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <GroomingPhotoDetailCard label="미용 전" preview={photoSummary.before} onExpand={onExpandPhoto} />
+                <GroomingPhotoDetailCard label="미용 후" preview={photoSummary.after} onExpand={onExpandPhoto} />
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 rounded-[8px] border border-[#dbe2ea] bg-white p-3">
+                <DetailMetric label="서비스" value={serviceName} />
+                <DetailMetric label="금액" value={formatMoney(record.price_paid)} />
+                <DetailMetric label="소요시간" value={duration} />
+              </div>
+              <LongTextBlock title="고객 요청 메시지" value={linkedAppointment?.memo ?? ""} emptyText="예약에 남겨진 고객 요청 메시지가 없습니다." />
+              <LongTextBlock title="스타일 메모" value={record.style_notes} emptyText="스타일 메모가 없습니다." />
+              <LongTextBlock title="작업 메모" value={record.memo} emptyText="작업 메모가 없습니다." />
+              {linkedAppointment ? <AppointmentActualTimes appointment={linkedAppointment} /> : null}
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function GroomingPhotoDetailCard({
+  label,
+  preview,
+  onExpand,
+}: {
+  label: string;
+  preview: GroomingPhotoPreview | null;
+  onExpand: (preview: GroomingPhotoPreview, label: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white">
+      <div className="flex items-center justify-between border-b border-[#edf2f7] px-3 py-2">
+        <span className="text-[14px] font-medium text-[#334155]">{label}</span>
+        {preview?.url ? (
+          <button type="button" onClick={() => onExpand(preview, label)} className="text-[14px] text-[#2f7866] hover:underline">
+            확대
+          </button>
+        ) : null}
+      </div>
+      {preview?.url ? (
+        <button type="button" onClick={() => onExpand(preview, label)} className="block aspect-[4/3] w-full overflow-hidden bg-[#f8fafc]">
+          <img src={preview.url} alt={`${label} 사진`} className="h-full w-full object-cover transition duration-200 hover:scale-[1.02]" />
+        </button>
+      ) : (
+        <div className="flex aspect-[4/3] items-center justify-center bg-[#f8fafc] text-[14px] text-[#94a3b8]">사진 없음</div>
+      )}
+      <p className="px-3 py-2 text-[13px] text-[#64748b]">{preview ? formatPhotoRetention(preview.asset) : "사진이 등록되지 않았습니다."}</p>
+    </div>
+  );
+}
+
+function DetailMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[13px] text-[#64748b]">{label}</p>
+      <p className="mt-1 truncate text-[16px] font-medium text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function LongTextBlock({ title, value, emptyText }: { title: string; value: string | null | undefined; emptyText: string }) {
+  const content = value?.trim();
+  return (
+    <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-3">
+      <h4 className="text-[15px] font-medium text-[#111827]">{title}</h4>
+      {content ? (
+        <p className="mt-2 whitespace-pre-wrap break-words text-[16px] leading-7 text-[#334155]">{content}</p>
+      ) : (
+        <p className="mt-2 text-[16px] text-[#94a3b8]">{emptyText}</p>
+      )}
+    </section>
+  );
+}
+
+function PhotoLightbox({ photo, onClose }: { photo: { preview: GroomingPhotoPreview; label: string }; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-6" onClick={onClose}>
+      <section className="max-h-full w-full max-w-[1080px] overflow-hidden rounded-[10px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.35)]" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[#edf2f7] px-4 py-3">
+          <div>
+            <h3 className="text-[18px] font-semibold text-[#111827]">{photo.label} 사진</h3>
+            <p className="text-[13px] text-[#64748b]">{formatPhotoRetention(photo.preview.asset)}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]" aria-label="닫기">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex max-h-[calc(100vh-150px)] items-center justify-center bg-[#0f172a]">
+          <img src={photo.preview.url} alt={`${photo.label} 사진 확대`} className="max-h-[calc(100vh-150px)] w-auto max-w-full object-contain" />
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1529,6 +1634,33 @@ function InfoRow({ label, value, alignTop = false }: { label: string; value: Rea
 
 function getMediaByKind(assets: MediaAsset[], mediaKind: MediaKind) {
   return assets.find((asset) => asset.media_kind === mediaKind) ?? null;
+}
+
+function getLinkedAppointmentForGroomingRecord(detail: CustomerDetailModel, record: CustomerDetailModel["groomingRecords"][number]) {
+  if (record.appointment_id) {
+    const linkedAppointment = detail.appointments.find((appointment) => appointment.id === record.appointment_id);
+    if (linkedAppointment) return linkedAppointment;
+  }
+
+  const groomedDate = record.groomed_at.slice(0, 10);
+  return detail.appointments.find((appointment) => appointment.pet_id === record.pet_id && appointment.appointment_date === groomedDate) ?? null;
+}
+
+async function getMediaPreview(asset: MediaAsset): Promise<GroomingPhotoPreview> {
+  try {
+    const params = new URLSearchParams({
+      mediaAssetId: asset.id,
+      variant: "preview",
+    });
+    const result = await fetchApiJsonWithAuth<MediaSignedUrlResponse>(`/api/owner/media/signed-url?${params.toString()}`);
+    return { asset, url: result.signedUrl };
+  } catch {
+    return { asset, url: "" };
+  }
+}
+
+function formatPhotoRetention(asset: MediaAsset) {
+  return asset.expires_at ? `${formatDate(asset.expires_at)}까지 보관` : "촬영 후 30일간 보관";
 }
 
 function InlinePetInfo({ label, value }: { label: string; value: string }) {

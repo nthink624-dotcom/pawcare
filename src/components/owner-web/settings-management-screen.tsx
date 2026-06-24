@@ -466,6 +466,33 @@ function normalizeShopProfileImages(value: unknown) {
   return value.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.length > 0).slice(0, ownerWebShopProfileImagesMaxCount);
 }
 
+function isLocalPreviewImageUrl(imageUrl: string) {
+  return imageUrl.startsWith("data:");
+}
+
+function isRemotePersistableImageUrl(imageUrl: string) {
+  return !isLocalPreviewImageUrl(imageUrl) && imageUrl.length <= 2000;
+}
+
+function readImageFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error ?? new Error("이미지를 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function shouldFallbackToLocalProfileImage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("R2_ACCOUNT_ID") ||
+    message.includes("media storage") ||
+    message.includes("storage") ||
+    message.includes("Supabase 서버 설정")
+  );
+}
+
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
   const nextSettings = applyShopToSettings(cloneSettings(initialSettings), shop);
 
@@ -1074,7 +1101,7 @@ export default function SettingsManagementScreen({
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
     const heroMediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
-    const persistentHeroImageUrls = heroMediaAssetIds.length > 0 ? [] : heroImageUrls;
+    const persistentHeroImageUrls = heroMediaAssetIds.length > 0 ? [] : heroImageUrls.filter(isRemotePersistableImageUrl);
     const heroImageUrl = heroImageUrls[0] ?? "";
     const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
     const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
@@ -1563,6 +1590,16 @@ export default function SettingsManagementScreen({
       setIsShopInfoDirty(true);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to upload shop profile images", error);
+      if (shouldFallbackToLocalProfileImage(error)) {
+        const localImageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
+        const nextImages = normalizeShopProfileImages([...shopProfileImages, ...localImageUrls]);
+        setShopProfileImages(nextImages);
+        setShopProfileImageAssetIds((currentIds) => currentIds.slice(0, nextImages.length));
+        persistSettings(draftSettings, nextImages);
+        setIsShopInfoDirty(true);
+        setShopInfoFeedback("");
+        return;
+      }
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
       setSavingShopInfo(false);

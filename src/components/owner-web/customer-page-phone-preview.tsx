@@ -3,14 +3,65 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
-import { cn } from "@/lib/utils";
+import { cn, formatServicePrice } from "@/lib/utils";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
 const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.svg";
 const CUSTOMER_PREVIEW_CONTENT_WIDTH = 430;
 const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 804;
 const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.569;
+
+function StorefrontOnlyPreview({ shop, services }: { shop: Shop; services: Service[] }) {
+  const settings = shop.customer_page_settings;
+  const shopName = settings.shop_name || shop.name;
+  const tagline = settings.tagline || shop.description || "반려동물 미용 예약";
+  const heroImage = settings.hero_image_urls?.find((imageUrl) => imageUrl.trim().length > 0) || settings.hero_image_url || "/images/customer-booking-hero-original.jpg";
+  const visibleServices = services
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko"))
+    .slice(0, 5);
+
+  return (
+    <div className="relative h-full overflow-hidden bg-[#fdf7f5] text-[#2f2521]">
+      <div className="h-full overflow-hidden px-5 pb-[108px] pt-4">
+        <div className="relative h-[184px] overflow-hidden rounded-[18px] bg-[#eadfd8] shadow-[0_10px_26px_rgba(47,37,33,0.12)]">
+          <img src={heroImage} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/50" />
+          <div className="absolute bottom-4 left-4 right-4">
+            <p className="text-[22px] font-semibold tracking-[-0.04em] text-white">{shopName}</p>
+            <p className="mt-1 line-clamp-1 text-[13px] text-white/85">{tagline}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-[18px] border border-[#f0e2dc] bg-white shadow-[0_10px_24px_rgba(48,31,24,0.06)]">
+          {visibleServices.length > 0 ? (
+            visibleServices.map((service) => (
+              <div key={service.id} className="flex min-h-[52px] items-center justify-between gap-3 border-b border-[#f3e9e4] px-4 last:border-b-0">
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-semibold text-[#2f2521]">{service.name}</p>
+                  <p className="mt-0.5 text-[11px] text-[#9a8b84]">{service.duration_minutes}분</p>
+                </div>
+                <p className="shrink-0 text-[13px] font-semibold text-[#ec7f72]">{formatServicePrice(service.price, service.price_type)}~</p>
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-8 text-center text-[14px] text-[#9a8b84]">노출할 서비스 메뉴가 없습니다.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-[34px] z-20 border-t border-[#efe2dc] bg-[#fdf7f5]/95 px-5 py-3">
+        <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] gap-2">
+          <button type="button" className="h-[50px] rounded-[12px] border border-[#f0e2dc] bg-white text-[18px] text-[#ec7f72]">☎</button>
+          <button type="button" className="h-[50px] rounded-[12px] border border-[#f0e2dc] bg-white text-[18px] text-[#ec7f72]">↗</button>
+          <button type="button" className="h-[50px] rounded-[12px] bg-[#ec7f72] text-[15px] font-semibold text-white shadow-[0_10px_18px_rgba(236,127,114,0.24)]">
+            간편예약 시작
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StaffSelectionOnlyPreview({ shop, staffMembers }: { shop: Shop; staffMembers: BootstrapStaffMember[] }) {
   const visibleStaff = staffMembers.length > 0 ? staffMembers : [];
@@ -55,6 +106,8 @@ export function CustomerPagePhonePreview({
   previewMode?: "entry" | "staffSelection";
   className?: string;
 }) {
+  void ownerProfile;
+
   return (
     <div className={cn("flex h-full w-full flex-col items-center justify-center", className)}>
       <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{"\uBBF8\uB9AC\uBCF4\uAE30"}</p>
@@ -90,43 +143,13 @@ export function CustomerPagePhonePreview({
                   transform: `scale(${CUSTOMER_PREVIEW_CONTENT_SCALE})`,
                 }}
               >
+                {/* Owner preview must never mount the legacy 1/4 customer booking form flow. */}
                 {previewMode === "staffSelection" ? (
                   <StaffSelectionOnlyPreview shop={shop} staffMembers={staffMembers} />
                 ) : (
-                  <CustomerBookingEntryPage
-                    shop={shop}
-                    services={services}
-                    ownerProfile={ownerProfile}
-                    infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
-                  />
+                  <StorefrontOnlyPreview shop={shop} services={services} />
                 )}
               </div>
-              <style>{`
-                .pm-preview-viewport .pm-entry-proto{
-                  max-width:none!important;
-                  width:${CUSTOMER_PREVIEW_CONTENT_WIDTH}px!important;
-                  min-height:100%!important;
-                  height:100%!important;
-                  padding-top:0!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .scroll{
-                  height:100%!important;
-                  padding-bottom:128px!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .dock{
-                  position:absolute!important;
-                  left:0!important;
-                  right:0!important;
-                  bottom:-12px!important;
-                  transform:none!important;
-                  width:100%!important;
-                  max-width:none!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .hours .list{
-                  width:calc(100% - 32px)!important;
-                  max-width:none!important;
-                }
-              `}</style>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[34px] items-end justify-center bg-[#fdf7f5] pb-[8px]">
                 <span className="h-[4px] w-[92px] rounded-full bg-[#241916]/18" />
               </div>

@@ -1,9 +1,9 @@
 ﻿"use client";
 
-import { ArrowDown, ArrowUp, Clock, Eye, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
+import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
@@ -739,23 +739,12 @@ export default function CustomerBookingPageManagementScreen({
       </div>
 
       <WebSurface className="sticky top-[72px] flex h-[calc(100vh-96px)] flex-col overflow-hidden p-3">
-        <div className="mb-3 flex items-center gap-2">
-          <Eye className="h-5 w-5 text-[#2f7866]" />
-          <h2 className="text-[18px] font-semibold text-[#111827]">미리보기</h2>
-        </div>
-        <div className="mx-auto flex min-h-0 w-full max-w-[330px] flex-1 justify-center">
-          <div className="h-full max-h-[720px] min-h-0 w-full overflow-hidden rounded-[32px] border-[5px] border-[#111827] bg-white shadow-[0_18px_36px_rgba(15,23,42,0.18)]">
-            <div className="relative h-full overflow-y-auto">
-              <div className="sticky top-0 z-20 flex h-7 items-center justify-center bg-white/95 backdrop-blur">
-                <span className="h-1.5 w-12 rounded-full bg-[#d8d1c8]" />
-              </div>
-                <CustomerFirstVisitPreview
-                  shop={previewShop}
-                  services={previewServices}
-                  staffMembers={initialData.staffMembers}
-                />
-            </div>
-          </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <CustomerPagePhonePreview
+            shop={previewShop}
+            services={previewServices}
+            staffMembers={initialData.staffMembers}
+          />
         </div>
       </WebSurface>
     </div>

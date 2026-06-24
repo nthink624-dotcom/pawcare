@@ -145,7 +145,7 @@ function MonthlyDayCell({
         </span>
         {day.isToday ? <span className="text-[12px] text-[#6f747a]">오늘</span> : null}
       </div>
-      <div className="min-h-0 min-w-0 flex-1 space-y-[2px] overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
+      <div className="min-h-0 min-w-0 flex-1 space-y-[3px] overflow-y-auto overscroll-contain py-1 pr-1 [scrollbar-width:thin]">
         {workingCells.map(({ staffMember, staffIndex, cell }) => {
           const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
           return (
@@ -157,7 +157,7 @@ function MonthlyDayCell({
                 onOpenScheduleEditor(staffMember, day);
               }}
               className={cn(
-                "pm-wrap-indicator flex h-[18px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[6px] text-left text-[11px] leading-none transition hover:bg-[#f7f7f4]",
+                "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
               style={

@@ -99,6 +99,13 @@ function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary)
   return summary.status === "expired" || summary.status === "past_due";
 }
 
+function shouldUseOwnerDemoFallback(message?: string) {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+  return isLocalhost && (!message || message.includes("Supabase 설정을 확인"));
+}
+
 function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
   let timeoutId: number | null = null;
 
@@ -126,6 +133,14 @@ export default function OwnerPage() {
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
+
+  function loadOwnerDemoFallback() {
+    const demoBootstrap = buildOwnerDemoBootstrap();
+    setSelectedShopId(demoBootstrap.shop.id);
+    setSubscriptionSummary(null);
+    setAccessToken(null);
+    setData(demoBootstrap);
+  }
 
   async function getOwnerAccessContext(): Promise<OwnerAccessContext | null> {
     if (!supabase) return null;
@@ -218,11 +233,7 @@ export default function OwnerPage() {
       }
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active) {
-          const demoBootstrap = buildOwnerDemoBootstrap();
-          setSelectedShopId(demoBootstrap.shop.id);
-          setData(demoBootstrap);
-        }
+        if (active) loadOwnerDemoFallback();
         return;
       }
 
@@ -332,6 +343,11 @@ export default function OwnerPage() {
 
         if (nextMessage.includes("일시 중지")) {
           setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
+          return;
+        }
+
+        if (shouldUseOwnerDemoFallback(nextMessage)) {
+          loadOwnerDemoFallback();
           return;
         }
 

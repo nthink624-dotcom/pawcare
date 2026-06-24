@@ -248,6 +248,11 @@ export default function OwnerPage() {
         });
 
         if (!ownerAccess?.accessToken) {
+          if (shouldUseOwnerDemoFallback()) {
+            loadOwnerDemoFallback();
+            return;
+          }
+
           router.replace("/login" as never);
           router.refresh();
           return;

@@ -20,6 +20,7 @@ import {
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
+import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 import type { OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
@@ -223,7 +224,22 @@ export default function OwnerMobilePage() {
 
     async function load() {
       if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active) setMessage("Supabase 설정을 확인해 주세요. .env.local 값이 필요합니다.");
+        if (active) {
+          const demoBootstrap = buildOwnerDemoBootstrap();
+          setOwnedShops([
+            {
+              id: demoBootstrap.shop.id,
+              name: demoBootstrap.shop.name,
+              address: demoBootstrap.shop.address,
+              heroImageUrl: demoBootstrap.shop.customer_page_settings.hero_image_url,
+            },
+          ]);
+          setSelectedShopId(demoBootstrap.shop.id);
+          setData(demoBootstrap);
+          setSubscriptionSummary(null);
+          setUserEmail(null);
+          setMobileRoleContext({ appRole: "owner", currentStaffId: null });
+        }
         return;
       }
 

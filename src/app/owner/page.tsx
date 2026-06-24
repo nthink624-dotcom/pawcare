@@ -21,6 +21,7 @@ import {
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
+import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -218,7 +219,9 @@ export default function OwnerPage() {
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active) {
-          setMessage("Supabase 설정을 확인해 주세요. .env.local 값이 필요합니다.");
+          const demoBootstrap = buildOwnerDemoBootstrap();
+          setSelectedShopId(demoBootstrap.shop.id);
+          setData(demoBootstrap);
         }
         return;
       }

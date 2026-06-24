@@ -3,8 +3,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
-import CustomerFirstVisitPreview from "@/components/customer/customer-first-visit-preview";
 import { cn } from "@/lib/utils";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -12,6 +10,80 @@ const CUSTOMER_PREVIEW_PHONE_FRAME_SRC = "/images/iphone-14-pro-phone-template.s
 const CUSTOMER_PREVIEW_CONTENT_WIDTH = 430;
 const CUSTOMER_PREVIEW_CONTENT_HEIGHT = 804;
 const CUSTOMER_PREVIEW_CONTENT_SCALE = 0.569;
+
+function resolveHeroImage(shop: Shop) {
+  return shop.customer_page_settings.hero_image_urls?.[0] || shop.customer_page_settings.hero_image_url || "/images/customer-booking-hero-original.jpg";
+}
+
+function CustomerStorePreview({ shop, services }: { shop: Shop; services: Service[] }) {
+  const settings = shop.customer_page_settings;
+  const visibleServices = services.slice(0, 5);
+
+  return (
+    <div className="h-full overflow-hidden bg-[#fdf7f5] px-5 pb-24 pt-5 text-[#2f2521]">
+      <div className="overflow-hidden rounded-[18px] bg-white shadow-[0_10px_30px_rgba(48,31,24,0.12)]">
+        <div className="relative h-[190px] overflow-hidden">
+          <img src={resolveHeroImage(shop)} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 py-4">
+            <p className="text-[24px] font-semibold tracking-[-0.03em] text-white">{settings.shop_name || shop.name}</p>
+            <p className="mt-1 line-clamp-2 text-[14px] leading-5 text-white/85">{settings.tagline || shop.description}</p>
+          </div>
+        </div>
+        <div className="space-y-3 px-4 py-4">
+          <div>
+            <p className="text-[17px] font-semibold">{settings.showcase_title || "매장 소개"}</p>
+            <p className="mt-1 line-clamp-3 text-[14px] leading-5 text-[#7b6d66]">
+              {settings.showcase_body || shop.description || "고객에게 보여지는 실제 매장 첫 화면 미리보기입니다."}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {visibleServices.map((service) => (
+              <div key={service.id} className="flex h-11 items-center justify-between rounded-[12px] border border-[#efe2dc] bg-[#fffdfc] px-3">
+                <span className="truncate text-[14px] font-medium">{service.name}</span>
+                <span className="shrink-0 text-[13px] font-semibold text-[#ec7f72]">
+                  {service.price ? `${service.price.toLocaleString()}원~` : "가격 안내"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="absolute inset-x-0 bottom-[34px] z-20 border-t border-[#efe2dc] bg-[#fdf7f5]/95 px-5 py-3">
+        <button type="button" className="h-[52px] w-full rounded-[14px] bg-[#ec7f72] text-[16px] font-semibold text-white shadow-[0_8px_18px_rgba(236,127,114,0.26)]">
+          {settings.booking_button_label || "간편예약 시작"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StaffSelectionOnlyPreview({ shop, staffMembers }: { shop: Shop; staffMembers: BootstrapStaffMember[] }) {
+  const visibleStaff = staffMembers.length > 0 ? staffMembers : [];
+
+  return (
+    <div className="h-full overflow-hidden bg-[#fdf7f5] px-5 pb-24 pt-5 text-[#2f2521]">
+      <div className="mb-5">
+        <p className="text-[13px] font-medium text-[#9a8b84]">{shop.customer_page_settings.shop_name || shop.name}</p>
+        <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em]">직원 선택</p>
+        <p className="mt-1 text-[14px] leading-5 text-[#7b6d66]">예약을 담당할 직원을 선택하는 고객 화면입니다.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {visibleStaff.slice(0, 8).map((staff) => (
+          <div key={staff.id} className="flex min-h-[132px] flex-col items-center justify-center rounded-[16px] border border-[#efe2dc] bg-white px-3 text-center shadow-[0_8px_22px_rgba(48,31,24,0.07)]">
+            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#f7eee9] text-[22px] font-semibold text-[#7b6d66]">
+              {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" className="h-full w-full object-cover" /> : staff.name.slice(0, 1)}
+            </div>
+            <p className="mt-2 max-w-full truncate text-[16px] font-semibold">{staff.displayName || staff.name}</p>
+            <p className="mt-0.5 max-w-full truncate text-[13px] text-[#9a8b84]">{staff.position || staff.role || "디자이너"}</p>
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-x-0 bottom-[34px] z-20 border-t border-[#efe2dc] bg-[#fdf7f5]/95 px-5 py-3">
+        <button type="button" className="h-[52px] w-full rounded-[14px] bg-[#2f7866] text-[16px] font-semibold text-white">다음</button>
+      </div>
+    </div>
+  );
+}
 
 export function CustomerPagePhonePreview({
   shop,
@@ -64,48 +136,11 @@ export function CustomerPagePhonePreview({
                 }}
               >
                 {previewMode === "staffSelection" ? (
-                  <CustomerFirstVisitPreview
-                    shop={shop}
-                    services={services}
-                    staffMembers={staffMembers}
-                    initialMode="booking"
-                    initialStep={3}
-                  />
+                  <StaffSelectionOnlyPreview shop={shop} staffMembers={staffMembers} />
                 ) : (
-                  <CustomerBookingEntryPage
-                    shop={shop}
-                    services={services}
-                    ownerProfile={ownerProfile}
-                    infoHref={`/book/${encodeURIComponent(shop.id)}/info`}
-                  />
+                  <CustomerStorePreview shop={shop} services={services} />
                 )}
               </div>
-              <style>{`
-                .pm-preview-viewport .pm-entry-proto{
-                  max-width:none!important;
-                  width:${CUSTOMER_PREVIEW_CONTENT_WIDTH}px!important;
-                  min-height:100%!important;
-                  height:100%!important;
-                  padding-top:0!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .scroll{
-                  height:100%!important;
-                  padding-bottom:128px!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .dock{
-                  position:absolute!important;
-                  left:0!important;
-                  right:0!important;
-                  bottom:-12px!important;
-                  transform:none!important;
-                  width:100%!important;
-                  max-width:none!important;
-                }
-                .pm-preview-viewport .pm-entry-proto .hours .list{
-                  width:calc(100% - 32px)!important;
-                  max-width:none!important;
-                }
-              `}</style>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[34px] items-end justify-center bg-[#fdf7f5] pb-[8px]">
                 <span className="h-[4px] w-[92px] rounded-full bg-[#241916]/18" />
               </div>

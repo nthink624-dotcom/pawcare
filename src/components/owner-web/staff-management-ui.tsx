@@ -1,11 +1,11 @@
 ﻿import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { getWrapIndicatorClass } from "@/components/owner-web/status-indicators";
 import { getStaffChipTone, staffChipPalette } from "@/lib/staff-chip-colors";
-import { cn } from "@/lib/utils";
+import { cn, currentDateInTimeZone } from "@/lib/utils";
 import {
   applyScheduleToCell,
   buildDraft,
@@ -17,6 +17,7 @@ import {
   getScheduledLeaveCount,
   getStaffRank,
   getStaffAvailability,
+  getTodayKey,
   getWeeklyWorkDays,
   parseWeekdayText,
   timeSelectOptions,
@@ -72,13 +73,13 @@ function StaffPhotoField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2">
-      <label className="group relative flex h-[84px] w-[104px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[12px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20">
-        <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]">
+    <div className="flex items-center justify-center gap-3">
+      <label className="group relative flex h-[136px] w-[118px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20">
+        <span className="relative flex h-[54px] w-[54px] items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]">
           {value ? (
             <img src={value} alt={`${name || "스태프"} 프로필`} className="h-full w-full rounded-full object-cover" />
           ) : (
-            <ImagePlus className="h-5 w-5" strokeWidth={1.8} />
+            <ImagePlus className="h-6 w-6" strokeWidth={1.8} />
           )}
           {value ? (
             <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#475569] shadow-[0_1px_4px_rgba(15,23,42,0.12)]">
@@ -86,9 +87,9 @@ function StaffPhotoField({
             </span>
           ) : null}
         </span>
-        <span className="mt-1.5 max-w-full truncate text-[15px] font-normal leading-[17px]">{title}</span>
-        {subtitle ? <span className="mt-0.5 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
-        <span className="pointer-events-none absolute inset-0 rounded-[12px] bg-black/0 transition group-hover:bg-black/[0.025]" />
+        <span className="mt-3 max-w-full truncate text-[16px] font-medium leading-[19px]">{title}</span>
+        {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
+        <span className="pointer-events-none absolute inset-0 rounded-[14px] bg-black/0 transition group-hover:bg-black/[0.025]" />
         <input
           type="file"
           accept="image/*"
@@ -155,12 +156,7 @@ export function ScheduleTable({
                     getCellTone(cell.status),
                     getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
                   )}
-                  style={
-                    {
-                      borderColor: staffTone.border,
-                      "--pm-wrap-indicator-color": staffTone.border,
-                    } as any
-                  }
+                  style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
                 >
                   <span className="min-w-0 flex-1 truncate whitespace-nowrap font-normal [word-break:keep-all]" style={{ color: staffTone.text }}>
                     {staffMember.name}
@@ -228,20 +224,21 @@ export function StaffList({
   weekStart: string;
   onSelect: (staff: StaffMember) => void;
 }) {
+  const todayKey = getTodayKey();
+  const todayDate = currentDateInTimeZone();
+
   return (
-    <div className="overflow-hidden">
-      <div className="min-w-0">
-        <div className="grid grid-cols-[minmax(128px,1fr)_68px_68px_82px] items-center gap-2 border-b border-[#edf2f7] bg-white px-3 py-2.5 text-center text-[15px] font-normal text-[#64748b]">
-          <span className="text-left">직원</span>
-          <span className="whitespace-nowrap">주간</span>
-          <span className="whitespace-nowrap">오늘</span>
-          <span className="whitespace-nowrap">휴무/연차</span>
-        </div>
-        <div className="max-h-[560px] divide-y divide-[#edf2f7] overflow-x-hidden overflow-y-auto">
-          {staff.map((staffMember) => {
+    <div className="max-h-[560px] overflow-y-auto px-4 py-4">
+      <div className="grid gap-3 2xl:grid-cols-2">
+          {staff.map((staffMember, staffIndex) => {
             const active = selectedStaffId === staffMember.id;
-            const availability = getStaffAvailability(staffMember, requests, overrides);
+            const staffTone = getStaffChipTone(staffMember.id, staffMember.chipColorIndex ?? staffIndex);
             const weeklyDays = getWeeklyWorkDays(staffMember, weekStart, requests, overrides);
+            const todayCell = applyScheduleToCell(staffMember, todayKey, todayDate, requests, overrides);
+            const annualUsage = getAnnualLeaveUsage(staffMember, requests);
+            const upcomingLeave = getUpcomingStaffLeave(staffMember, requests, todayDate);
+            const defaultDaysLabel = formatWeekdayKeys(staffMember.defaultDays);
+            const todayStatusLabel = todayCell.status === "work" ? todayCell.label : todayCell.label || getStaffAvailability(staffMember, requests, overrides);
 
             return (
               <button
@@ -249,27 +246,81 @@ export function StaffList({
                 type="button"
                 onClick={() => onSelect(staffMember)}
                 className={cn(
-                  "grid w-full grid-cols-[minmax(128px,1fr)_68px_68px_82px] items-center gap-2 px-3 py-3 text-center transition",
-                  active ? "bg-white" : "bg-white hover:bg-white",
+                  "grid w-full gap-3 rounded-[10px] border bg-white p-4 text-left transition hover:border-[#cbd5e1] hover:bg-[#fbfcfd]",
+                  getWrapIndicatorClass(getCellIndicatorTone(todayCell.status)),
+                  active ? "border-[#cbd5e1] shadow-[0_10px_26px_rgba(15,23,42,0.06)]" : "border-[#dbe2ea]",
                 )}
+                style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
               >
-                <div className="flex min-w-0 items-center gap-2 text-left">
-                  <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="sm" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[16px] font-normal text-[#111827]">{staffMember.name}</span>
-                    <span className="mt-0.5 block truncate text-[12px] text-[#64748b]">{availability}</span>
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <StaffAvatar name={staffMember.name} imageUrl={staffMember.profileImageUrl} size="md" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[17px] font-medium text-[#111827]">{staffMember.name}</span>
+                      <span className="mt-0.5 block truncate text-[13px] text-[#64748b]">
+                        {staffMember.position || staffMember.role || "직원"}
+                        {staffMember.phone ? ` · ${staffMember.phone}` : ""}
+                      </span>
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2.5 py-1 text-[13px] font-medium",
+                      todayCell.status === "work"
+                        ? "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]"
+                        : "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]",
+                    )}
+                  >
+                    {todayCell.status === "work" ? "오늘 근무" : "오늘 휴무"}
                   </span>
                 </div>
-                <p className="text-center text-[16px] text-[#334155]">{weeklyDays}일</p>
-                <p className="text-center text-[16px] text-[#334155]">{staffMember.todayBookings}건</p>
-                <p className="text-center text-[16px] text-[#334155]">{getScheduledLeaveCount(staffMember, requests)}건</p>
+
+                <div className="grid grid-cols-4 gap-2">
+                  <StaffListMetric label="오늘 예약" value={`${staffMember.todayBookings ?? 0}건`} />
+                  <StaffListMetric label="주간 예약" value={`${staffMember.weekBookings ?? 0}건`} />
+                  <StaffListMetric label="주간 근무" value={`${weeklyDays}일`} />
+                  <StaffListMetric label="남은 연차" value={`${annualUsage.remaining}일`} />
+                </div>
+
+                <div className="grid gap-1.5 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[13px] leading-5 text-[#475569]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">오늘 일정</span>
+                    <span className="truncate text-right font-medium text-[#111827]">{todayStatusLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">고정 근무일</span>
+                    <span className="truncate text-right font-medium text-[#111827]">
+                      {defaultDaysLabel || "미설정"} · {staffMember.startTime}-{staffMember.endTime}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#64748b]">다음 휴무/연차</span>
+                    <span className="truncate text-right font-medium text-[#111827]">
+                      {upcomingLeave ? `${formatShortDate(upcomingLeave.date)} ${upcomingLeave.type}` : "예정 없음"}
+                    </span>
+                  </div>
+                </div>
               </button>
             );
           })}
-        </div>
       </div>
     </div>
   );
+}
+
+function StaffListMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="min-w-0 rounded-[8px] border border-[#e2e8f0] bg-white px-2.5 py-2 text-center">
+      <span className="block truncate text-[12px] text-[#64748b]">{label}</span>
+      <span className="mt-0.5 block truncate text-[16px] font-medium text-[#111827]">{value}</span>
+    </span>
+  );
+}
+
+function getUpcomingStaffLeave(staffMember: StaffMember, requests: LeaveRequest[], today: string) {
+  return requests
+    .filter((request) => request.staffId === staffMember.id && request.status !== "거절" && request.date >= today)
+    .sort((first, second) => first.date.localeCompare(second.date))[0];
 }
 
 export function StaffDetailPanel({
@@ -312,6 +363,13 @@ export function StaffDetailPanel({
         <Field label="고객에게 노출할 이름">
           <TextInput value={draft.displayName} onChange={(displayName) => onDraftChange((current) => ({ ...current, displayName }))} placeholder="예: 진" />
         </Field>
+        <Field label="직원 프로필 메시지">
+          <TextAreaInput
+            value={draft.profileMessage}
+            onChange={(profileMessage) => onDraftChange((current) => ({ ...current, profileMessage }))}
+            placeholder="예: 아이 성향에 맞춰 차분하게 미용해드려요."
+          />
+        </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="직책">
             <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onDraftChange((current) => ({ ...current, titlePrefix }))} placeholder="예: 대표, 수석, 원장" />
@@ -329,14 +387,14 @@ export function StaffDetailPanel({
         <Field label="연락처">
           <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
         </Field>
-        <Field label="기본 근무 요일">
+        <Field label="고정 근무일">
           <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => ({ ...current, defaultDaysText }))} />
         </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="기본 출근 시간">
+          <Field label="고정 출근 시간">
             <TimeSelect value={draft.startTime} onChange={(startTime) => onDraftChange((current) => ({ ...current, startTime }))} align="left" buttonClassName="h-10" />
           </Field>
-          <Field label="기본 퇴근 시간">
+          <Field label="고정 퇴근 시간">
             <TimeSelect value={draft.endTime} onChange={(endTime) => onDraftChange((current) => ({ ...current, endTime }))} align="left" buttonClassName="h-10" />
           </Field>
         </div>
@@ -395,6 +453,18 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#94a3b8] focus:bg-white"
+    />
+  );
+}
+
+export function TextAreaInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <textarea
+      value={value}
+      onChange={(event) => onChange(event.target.value.slice(0, 80))}
+      placeholder={placeholder}
+      rows={2}
+      className="min-h-[72px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none transition placeholder:text-[#9aa8bb] focus:border-[#94a3b8]"
     />
   );
 }
@@ -552,6 +622,13 @@ export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { dr
       <Field label="고객에게 노출할 이름">
         <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 진" />
       </Field>
+      <Field label="직원 프로필 메시지">
+        <TextAreaInput
+          value={draft.profileMessage}
+          onChange={(profileMessage) => onChange({ ...draft, profileMessage })}
+          placeholder="예: 아이 성향에 맞춰 차분하게 미용해드려요."
+        />
+      </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="직책">
           <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onChange({ ...draft, titlePrefix })} placeholder="예: 대표, 수석, 원장" />
@@ -566,14 +643,14 @@ export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { dr
       <Field label="연락처">
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>
-      <Field label="기본 근무 요일">
+      <Field label="고정 근무일">
         <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onChange({ ...draft, defaultDaysText })} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="기본 출근">
+        <Field label="고정 출근 시간">
           <TimeSelect value={draft.startTime} onChange={(startTime) => onChange({ ...draft, startTime })} align="left" />
         </Field>
-        <Field label="기본 퇴근">
+        <Field label="고정 퇴근 시간">
           <TimeSelect value={draft.endTime} onChange={(endTime) => onChange({ ...draft, endTime })} align="left" />
         </Field>
       </div>

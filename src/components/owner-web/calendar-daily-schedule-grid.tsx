@@ -45,9 +45,13 @@ type DailyBooking = {
   start: number;
   duration: number;
   staffKey: StaffKey;
+  actualTimeLabel?: string;
+  scheduledTimeLabel?: string;
+  displayMode?: "reservation-chip";
+  sourceAppointmentId?: string;
 };
 
-const scheduleStartHour = 10;
+const scheduleStartHour = 0;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
 const scheduleBodyInsetY = 8;
@@ -58,7 +62,7 @@ const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
 const bookingCardHorizontalInset = "2.5%";
-const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => `${scheduleStartHour + index}:00`);
+const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => formatHourLabel(scheduleStartHour + index));
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -151,48 +155,48 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (status === "승인 대기") return "border-[#fde68a] bg-[#fffbeb] text-[#b45309]";
-  if (isOverduePendingBookingStatus(status)) return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
-  if (status === "시작 지연") return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
-  if (status === "확정") return "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]";
-  if (status === "진행 중") return "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]";
-  if (status === "픽업 준비") return "border-[#a5f3fc] bg-[#ecfeff] text-[#0e7490]";
+  if (status === "승인 대기") return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
+  if (isOverduePendingBookingStatus(status)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (status === "시작 지연") return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (status === "확정") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
+  if (status === "진행 중") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
+  if (status === "픽업 준비") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (status === "완료") return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
-  if (status.includes("변경")) return "border-[#ddd6fe] bg-[#f5f3ff] text-[#6d28d9]";
-  if (status.includes("취소")) return "border-[#fecdd3] bg-[#fff1f2] text-[#be123c]";
-  if (status.includes("거절")) return "border-[#fecaca] bg-[#fef2f2] text-[#991b1b]";
-  if (status.includes("노쇼")) return "border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]";
+  if (status.includes("변경")) return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
+  if (status.includes("취소")) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (status.includes("거절")) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (status.includes("노쇼")) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
   return "border-[#dbe2ea] bg-[#f8fafc] text-[#334155]";
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#f59e0b]/72";
-  if (tone === "confirmed") return "bg-[#2563eb]/70";
-  if (tone === "active") return "bg-[#16a34a]/72";
-  if (tone === "pickupReady") return "bg-[#0891b2]/72";
+  if (tone === "pending") return "bg-[#b98121]/70";
+  if (tone === "confirmed") return "bg-[#607080]/70";
+  if (tone === "active") return "bg-[#607080]/70";
+  if (tone === "pickupReady") return "bg-[#607080]/70";
   if (tone === "completed") return "bg-[#64748b]/62";
-  if (tone === "changed") return "bg-[#7c3aed]/70";
-  if (tone === "cancelled") return "bg-[#e11d48]/68";
-  if (tone === "rejected") return "bg-[#b91c1c]/68";
-  if (tone === "noshow") return "bg-[#ea580c]/70";
-  return "bg-[#db2777]/70";
+  if (tone === "changed") return "bg-[#b98121]/70";
+  if (tone === "cancelled") return "bg-[#a04455]/68";
+  if (tone === "rejected") return "bg-[#a04455]/68";
+  if (tone === "noshow") return "bg-[#a04455]/68";
+  return "bg-[#a04455]/68";
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#b45309]";
-  if (tone === "confirmed") return "text-[#1d4ed8]";
-  if (tone === "active") return "text-[#15803d]";
-  if (tone === "pickupReady") return "text-[#0e7490]";
+  if (tone === "pending") return "text-[#8a5b11]";
+  if (tone === "confirmed") return "text-[#607080]";
+  if (tone === "active") return "text-[#607080]";
+  if (tone === "pickupReady") return "text-[#607080]";
   if (tone === "completed") return "text-[#64748b]";
-  if (tone === "changed") return "text-[#6d28d9]";
-  if (tone === "cancelled") return "text-[#be123c]";
-  if (tone === "rejected") return "text-[#991b1b]";
-  if (tone === "noshow") return "text-[#c2410c]";
-  return "text-[#be185d]";
+  if (tone === "changed") return "text-[#8a5b11]";
+  if (tone === "cancelled") return "text-[#a04455]";
+  if (tone === "rejected") return "text-[#a04455]";
+  if (tone === "noshow") return "text-[#a04455]";
+  return "text-[#a04455]";
 }
 
 function getBookingTop(start: number) {
-  return scheduleBodyInsetY + (start - scheduleStartHour) * pixelsPerHour;
+  return scheduleBodyInsetY + Math.max(0, (start - scheduleStartHour) * pixelsPerHour);
 }
 
 function getBookingHeight(duration: number) {
@@ -233,6 +237,26 @@ function getBookingLayoutStyle(lane: number, laneCount: number) {
   return { left, width };
 }
 
+function getNonOperatingBlocks(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }) {
+  if (!operatingWindow.enabled) {
+    return [{ start: scheduleStartHour, end: scheduleEndHour }];
+  }
+
+  const openHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.openHour));
+  const closeHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.closeHour));
+  return [
+    { start: scheduleStartHour, end: openHour },
+    { start: closeHour, end: scheduleEndHour },
+  ].filter((block) => block.end > block.start);
+}
+
+function getTimeBlockStyle(block: { start: number; end: number }) {
+  return {
+    top: getBookingTop(block.start),
+    height: Math.max(0, (block.end - block.start) * pixelsPerHour),
+  };
+}
+
 function getSnappedBookingStart(pointerY: number, columnTop: number, duration: number) {
   const rawHour = scheduleStartHour + (pointerY - columnTop - scheduleBodyInsetY) / pixelsPerHour;
   const snapped = Math.round(rawHour * scheduleSnapSegmentsPerHour) / scheduleSnapSegmentsPerHour;
@@ -257,9 +281,10 @@ export function DailyScheduleGrid({
   visibleStaff,
   activeMetric,
   manualApprovalEnabled,
-  selectedBookingId,
-  selectedDate,
-  currentHour,
+    selectedBookingId,
+    selectedDate,
+    operatingWindow,
+    currentHour,
   conflictBookings,
   selectedStaffKey,
   onSelectBooking,
@@ -272,9 +297,10 @@ export function DailyScheduleGrid({
   visibleStaff: OwnerWebStaffColumn[];
   activeMetric: SummaryMetricKey;
   manualApprovalEnabled: boolean;
-  selectedBookingId: string;
-  selectedDate: string;
-  currentHour: number;
+    selectedBookingId: string;
+    selectedDate: string;
+    operatingWindow: { enabled: boolean; openHour: number; closeHour: number };
+    currentHour: number;
   conflictBookings: DailyBooking[];
   selectedStaffKey: StaffKey | null;
   onSelectBooking: (id: string) => void;
@@ -293,7 +319,8 @@ export function DailyScheduleGrid({
   const [resizingBooking, setResizingBooking] = useState<BookingResizeState | null>(null);
   const [boardPanning, setBoardPanning] = useState(false);
   const [expandedMicroBookingId, setExpandedMicroBookingId] = useState<string | null>(null);
-  const scheduleStaff = staff === "전체 직원" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
+    const scheduleStaff = staff === "전체 직원" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
+    const nonOperatingBlocks = getNonOperatingBlocks(operatingWindow);
   const staffScopedBookings = bookings.filter((booking) => scheduleStaff.some((item) => item.key === booking.staffKey));
   const visibleBookings = staffScopedBookings;
   const columnCount = scheduleStaff.length;
@@ -620,6 +647,14 @@ export function DailyScheduleGrid({
         <div className="flex">
           <div className="w-[64px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
+              {nonOperatingBlocks.map((block) => (
+                <div
+                  key={`time-rail-off-${block.start}-${block.end}`}
+                  className="absolute inset-x-0 bg-[#f8fafc]"
+                  style={getTimeBlockStyle(block)}
+                  aria-hidden="true"
+                />
+              ))}
               {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
                 <div
                   key={`time-rail-line-${index}`}
@@ -679,6 +714,14 @@ export function DailyScheduleGrid({
                     style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
+                      {nonOperatingBlocks.map((block) => (
+                        <div
+                          key={`${staffMember.key}-off-${block.start}-${block.end}`}
+                          className="pointer-events-none absolute inset-x-0 bg-[#f8fafc]/80"
+                          style={getTimeBlockStyle(block)}
+                          aria-hidden="true"
+                        />
+                      ))}
                       {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
                         <div
                           key={`${staffMember.key}-line-${index}`}
@@ -710,6 +753,30 @@ export function DailyScheduleGrid({
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
                           const statusPillClass = getReservationStatusPillClass(booking, selectedDate, currentHour);
                           const pendingOverlapLabel = getPendingOverlapLabel(booking, conflictBookings);
+
+                          if (booking.displayMode === "reservation-chip") {
+                            return (
+                              <button
+                                key={booking.id}
+                                type="button"
+                                data-booking-id={booking.id}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (booking.sourceAppointmentId) onSelectBooking(booking.sourceAppointmentId);
+                                  onSelectStaff(booking.staffKey);
+                                }}
+                                className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-white/90 px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
+                                style={{
+                                  ...bookingLayoutStyle,
+                                  top: getBookingTop(booking.start),
+                                }}
+                              >
+                                <span className="min-w-0 truncate tabular-nums">
+                                  예약 {booking.scheduledTimeLabel ?? timeLabel}
+                                </span>
+                              </button>
+                            );
+                          }
 
                           return (
                             <button
@@ -789,7 +856,7 @@ export function DailyScheduleGrid({
                                         </span>
                                       ) : null}
                                       <p className="min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
-                                        {booking.service}
+                                        {booking.scheduledTimeLabel ? `${booking.service} · 예약 ${booking.scheduledTimeLabel}` : booking.service}
                                       </p>
                                     </div>
                                   ) : null}

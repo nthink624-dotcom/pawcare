@@ -22,7 +22,7 @@ type LookupPayload = {
   };
 };
 
-type AvailabilityPayload = { slots: string[] };
+type AvailabilityPayload = { slots: string[]; recommendedSlots?: string[] };
 
 type DateOption = {
   value: string;
@@ -216,6 +216,7 @@ export default function CustomerBookingManagePanel({
   const [openAppointmentId, setOpenAppointmentId] = useState<string | null>(null);
   const [manageForm, setManageForm] = useState<ManageForm | null>(null);
   const [manageSlots, setManageSlots] = useState<string[]>([]);
+  const [manageRecommendedSlots, setManageRecommendedSlots] = useState<string[]>([]);
   const [loadingManageSlots, setLoadingManageSlots] = useState(false);
 
   const petMap = useMemo(
@@ -241,6 +242,7 @@ export default function CustomerBookingManagePanel({
     async function load() {
       if (!manageForm?.date || !manageForm.serviceId || !manageForm.appointmentId) {
         setManageSlots([]);
+        setManageRecommendedSlots([]);
         return;
       }
 
@@ -255,6 +257,7 @@ export default function CustomerBookingManagePanel({
         const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`, { cache: "no-store" });
         if (!active) return;
         setManageSlots(result.slots);
+        setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 2));
         if (!result.slots.includes(manageForm.timeSlot)) {
           setManageForm((prev) => (prev ? { ...prev, timeSlot: "" } : prev));
         }
@@ -368,6 +371,7 @@ export default function CustomerBookingManagePanel({
     setOpenAppointmentId(null);
     setManageForm(null);
     setManageSlots([]);
+    setManageRecommendedSlots([]);
   }
 
   async function cancelAppointment(appointmentId: string) {
@@ -613,17 +617,43 @@ export default function CustomerBookingManagePanel({
                           ) : manageSlots.length === 0 ? (
                             <div className="rounded-[12px] bg-white px-4 py-5 text-sm text-[#8a7a72]">선택한 날짜에 가능한 시간이 없어요.</div>
                           ) : (
-                            <div className="grid grid-cols-3 gap-2">
-                              {manageSlots.map((slot) => (
-                                <button
-                                  key={slot}
-                                  type="button"
-                                  onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                  className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
-                                >
-                                  {slot}
-                                </button>
-                              ))}
+                            <div className="space-y-3">
+                              {manageRecommendedSlots.length > 0 ? (
+                                <div>
+                                  <p className="text-[13px] font-medium text-[#3a2e2a]">추천 시간</p>
+                                  <div className="mt-2 grid grid-cols-2 gap-2">
+                                    {manageRecommendedSlots.map((slot) => {
+                                      const selected = manageForm?.timeSlot === slot;
+                                      return (
+                                        <button
+                                          key={`recommended-${slot}`}
+                                          type="button"
+                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
+                                          className={`h-12 rounded-[8px] border px-3 text-[14px] font-bold transition ${
+                                            selected
+                                              ? "border-[#ec7f72] bg-[#ec7f72] text-white shadow-[0_8px_18px_rgba(236,127,114,.18)]"
+                                              : "border-[#ec7f72] bg-[#fff0ed] text-[#d9685d]"
+                                          }`}
+                                        >
+                                          {slot} <span className={selected ? "text-white/85" : "text-[#d9685d]/85"}>추천</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                              <div className="grid grid-cols-3 gap-2">
+                                {manageSlots.map((slot) => (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
+                                    className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
+                                  >
+                                    {slot}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>

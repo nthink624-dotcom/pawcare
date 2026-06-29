@@ -51,6 +51,7 @@ export function buildDefaultOwnerStaffMembers(params: {
       shop_id: shopId,
       name: "원장",
       display_name: "원장",
+      profile_message: "아이 성향에 맞춰 차분하게 미용해드려요.",
       title_prefix: "",
       chip_color_index: 0,
       phone: ownerPhone?.trim() || "",

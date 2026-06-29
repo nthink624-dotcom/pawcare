@@ -88,23 +88,39 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
   const mediaAssetIds = (shop.customer_page_settings.hero_media_asset_ids ?? [])
     .filter(Boolean)
     .slice(0, 10);
-  if (!mediaAssetIds.length) return shop;
+  const existingHeroImageUrls = (
+    shop.customer_page_settings.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ??
+    (shop.customer_page_settings.hero_image_url ? [shop.customer_page_settings.hero_image_url] : [])
+  ).slice(0, 10);
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return shop;
 
-  const assetsResult = await supabase
+  const configuredAssetsResult = mediaAssetIds.length
+    ? await supabase
+        .from("media_assets")
+        .select("id,bucket,storage_path,created_at")
+        .eq("shop_id", shop.id)
+        .eq("status", "ready")
+        .is("deleted_at", null)
+        .in("id", mediaAssetIds)
+    : { data: [], error: null };
+  const fallbackAssetsResult = await supabase
     .from("media_assets")
-    .select("id,bucket,storage_path")
+    .select("id,bucket,storage_path,created_at")
     .eq("shop_id", shop.id)
+    .eq("media_kind", "shop_profile")
     .eq("status", "ready")
     .is("deleted_at", null)
-    .in("id", mediaAssetIds);
+    .order("created_at", { ascending: false })
+    .limit(10);
 
-  if (assetsResult.error || !assetsResult.data?.length) return shop;
+  if (configuredAssetsResult.error && fallbackAssetsResult.error) return shop;
 
+  const configuredAssets = configuredAssetsResult.data ?? [];
+  const fallbackAssets = fallbackAssetsResult.data ?? [];
   const assetsById = new Map(
-    assetsResult.data.map((asset) => [
+    configuredAssets.concat(fallbackAssets).map((asset) => [
       String(asset.id),
       {
         bucket: String(asset.bucket),
@@ -112,33 +128,44 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
       },
     ]),
   );
+  const orderedMediaAssetIds = mediaAssetIds
+    .concat(fallbackAssets.map((asset) => String(asset.id)).filter((mediaAssetId) => !mediaAssetIds.includes(mediaAssetId)))
+    .slice(0, 10);
 
-  const signedUrls = (
-    await Promise.all(
-      mediaAssetIds.map(async (mediaAssetId) => {
-        const asset = assetsById.get(mediaAssetId);
-        if (!asset) return "";
-        try {
-          return await createMediaSignedReadUrl({
-            bucket: asset.bucket,
-            path: asset.storagePath,
-            expiresInSeconds: 10 * 60,
-          });
-        } catch {
-          return "";
-        }
-      }),
-    )
-  ).filter(Boolean);
+  const signedUrls = await Promise.all(
+    orderedMediaAssetIds.map(async (mediaAssetId, index) => {
+      const asset = assetsById.get(mediaAssetId);
+      if (!asset) return existingHeroImageUrls[index] ?? "";
+      try {
+        return await createMediaSignedReadUrl({
+          bucket: asset.bucket,
+          path: asset.storagePath,
+          expiresInSeconds: 10 * 60,
+        });
+      } catch {
+        return existingHeroImageUrls[index] ?? "";
+      }
+    }),
+  );
+  const seenImageUrls = new Set<string>();
+  const resolvedUrls = signedUrls
+    .concat(existingHeroImageUrls)
+    .filter((imageUrl) => {
+      const trimmed = imageUrl.trim();
+      if (!trimmed || seenImageUrls.has(trimmed)) return false;
+      seenImageUrls.add(trimmed);
+      return true;
+    })
+    .slice(0, 10);
 
-  if (!signedUrls.length) return shop;
+  if (!resolvedUrls.length) return shop;
 
   return {
     ...shop,
     customer_page_settings: {
       ...shop.customer_page_settings,
-      hero_image_url: signedUrls[0] ?? "",
-      hero_image_urls: signedUrls,
+      hero_image_url: resolvedUrls[0] ?? "",
+      hero_image_urls: resolvedUrls,
     },
   };
 }
@@ -193,6 +220,7 @@ type StaffMemberRow = {
   name: string;
   display_name?: string | null;
   profile_image_url?: string | null;
+  profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
   role: string;
@@ -251,6 +279,7 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
     profileImageUrl: row.profile_image_url?.trim() || "",
+    profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
     role: row.role,
@@ -272,6 +301,7 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
     name: "원장",
     displayName: "원장",
     profileImageUrl: "",
+    profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
     chipColorIndex: 0,
     phone: shop.phone ?? "",
     role: "원장 / 전체 미용",
@@ -312,6 +342,7 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
     message.includes("staff_members") &&
     (message.includes("display_name") ||
       message.includes("profile_image_url") ||
+      message.includes("profile_message") ||
       message.includes("chip_color_index") ||
       message.includes("title_prefix") ||
       message.includes("position") ||
@@ -327,6 +358,50 @@ function isMissingAppointmentChangeEventsError(error: { code?: string | null; me
     message.includes("appointment_change_events") ||
     message.includes("schema cache")
   );
+}
+
+function getEventActualTimestamp(event: AppointmentChangeEvent, key: "actual_started_at" | "actual_completed_at") {
+  const value = event.next_values?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : event.created_at;
+}
+
+function hydrateAppointmentActualTimesFromEvents(
+  appointments: Appointment[],
+  appointmentChangeEvents: AppointmentChangeEvent[],
+) {
+  if (appointmentChangeEvents.length === 0) return appointments;
+
+  const actualTimesByAppointmentId = new Map<string, { actual_started_at?: string; actual_completed_at?: string }>();
+  const orderedEvents = [...appointmentChangeEvents].sort((first, second) => first.created_at.localeCompare(second.created_at));
+
+  for (const event of orderedEvents) {
+    if (event.event_type !== "status") continue;
+
+    const status = event.next_values?.status;
+    if (status !== "in_progress" && status !== "completed") continue;
+
+    const actualTimes = actualTimesByAppointmentId.get(event.appointment_id) ?? {};
+    if (status === "in_progress" && !actualTimes.actual_started_at) {
+      actualTimes.actual_started_at = getEventActualTimestamp(event, "actual_started_at");
+    }
+    if (status === "completed") {
+      actualTimes.actual_completed_at = getEventActualTimestamp(event, "actual_completed_at");
+    }
+    actualTimesByAppointmentId.set(event.appointment_id, actualTimes);
+  }
+
+  if (actualTimesByAppointmentId.size === 0) return appointments;
+
+  return appointments.map((appointment) => {
+    const actualTimes = actualTimesByAppointmentId.get(appointment.id);
+    if (!actualTimes) return appointment;
+
+    return {
+      ...appointment,
+      actual_started_at: appointment.actual_started_at ?? actualTimes.actual_started_at ?? null,
+      actual_completed_at: appointment.actual_completed_at ?? actualTimes.actual_completed_at ?? null,
+    };
+  });
 }
 
 export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptions = {}): Promise<BootstrapPayload> {
@@ -422,7 +497,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
       supabase
         .from("staff_members")
-        .select("id,name,display_name,profile_image_url,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
+        .select("id,name,display_name,profile_image_url,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("sort_order")
@@ -501,6 +576,11 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   } else {
     appointmentChangeEvents = (appointmentChangeEventsRes.data ?? []) as AppointmentChangeEvent[];
   }
+  const appointments = hydrateAppointmentActualTimesFromEvents(
+    ((appointmentsRes.data ?? []) as Appointment[])
+      .filter((appointment) => activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id)),
+    appointmentChangeEvents,
+  ).map(normalizeAppointmentForBootstrap);
 
   return normalizeBootstrapNotifications({
     mode: "supabase",
@@ -512,9 +592,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
     services: (servicesRes.data ?? []) as Service[],
     staffMembers: staffMembers.length > 0 ? staffMembers : [buildDefaultBootstrapOwnerStaffMember(normalizedShop)],
     staffScheduleOverrides: ((staffScheduleOverridesRes.data ?? []) as StaffScheduleOverrideRow[]).map(normalizeStaffScheduleOverride),
-    appointments: ((appointmentsRes.data ?? []) as Appointment[])
-      .filter((appointment) => activeGuardianIds.has(appointment.guardian_id) && activePetIds.has(appointment.pet_id))
-      .map(normalizeAppointmentForBootstrap),
+    appointments,
     appointmentChangeEvents,
     groomingRecords: ((recordsRes.data ?? []) as GroomingRecord[]).filter((record) =>
       activeGuardianIds.has(record.guardian_id) && activePetIds.has(record.pet_id),

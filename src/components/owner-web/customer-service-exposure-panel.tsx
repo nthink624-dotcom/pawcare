@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Info, Plus, Trash2 } from "lucide-react";
 
 import {
   normalizeCustomerServiceOverrides,
@@ -14,6 +14,7 @@ type CustomerServiceExposurePanelProps = {
   overrides: CustomerServiceDisplayOverrides;
   title?: string;
   embedded?: boolean;
+  hideHeader?: boolean;
   busyOptionId?: string | null;
   onChange: (overrides: CustomerServiceDisplayOverrides) => void;
   connectionOptions?: CustomerServiceSourceOption[];
@@ -86,6 +87,7 @@ export default function CustomerServiceExposurePanel({
   overrides,
   title,
   embedded = false,
+  hideHeader = false,
   busyOptionId = null,
   onChange,
   connectionOptions,
@@ -131,7 +133,7 @@ export default function CustomerServiceExposurePanel({
 
   return (
     <section className={cn("rounded-[8px] border border-[#dbe2ea] bg-white p-3", embedded && "border-0 bg-transparent p-0")}>
-      {title || onAddOption ? (
+      {!hideHeader && (title || onAddOption) ? (
         <div className="mb-3 flex items-center justify-between gap-3">
           {title ? <p className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">{title}</p> : <span />}
           {onAddOption ? (
@@ -147,6 +149,21 @@ export default function CustomerServiceExposurePanel({
           ) : null}
         </div>
       ) : null}
+
+      <div className="mb-3 rounded-[8px] border border-[#dbe2ea] bg-gradient-to-r from-[#fbfcfd] to-white px-3.5 py-3">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eef7f4] text-[#2f7866]">
+            <Info className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-medium text-[#334155]">처음 보이는 가격은 고객의 기대 기준이 됩니다.</p>
+            <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
+              최저가만 앞에 두면 실제 상담 때 가격 차이가 크게 느껴질 수 있어요. 많이 선택되는 무게나 옵션 기준을 먼저 보여주고,
+              세부 가격은 상담이나 상세 안내에서 자연스럽게 설명하는 편이 좋습니다.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {rows.length > 0 ? (
         <div className="overflow-x-auto px-1">

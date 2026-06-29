@@ -53,6 +53,12 @@ type MobileAppRoleContext = {
 
 const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 
+function shouldUseLocalMobilePreview() {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
 function resolveMobileAppRoleContext(session: Session | null): MobileAppRoleContext {
   const params = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
   const roleParam = params?.get("role")?.trim().toLowerCase() ?? "";
@@ -127,6 +133,23 @@ export default function OwnerMobilePage() {
     currentStaffId: null,
   });
   const [message, setMessage] = useState("모바일 오너 화면을 불러오는 중입니다.");
+
+  function loadOwnerMobileDemoFallback() {
+    const demoBootstrap = buildOwnerDemoBootstrap();
+    setOwnedShops([
+      {
+        id: demoBootstrap.shop.id,
+        name: demoBootstrap.shop.name,
+        address: demoBootstrap.shop.address,
+        heroImageUrl: demoBootstrap.shop.customer_page_settings.hero_image_url,
+      },
+    ]);
+    setSelectedShopId(demoBootstrap.shop.id);
+    setData(demoBootstrap);
+    setSubscriptionSummary(null);
+    setUserEmail(null);
+    setMobileRoleContext({ appRole: "owner", currentStaffId: null });
+  }
 
   async function getOwnerAccessContext(): Promise<OwnerMobileAccessContext | null> {
     if (!supabase) return null;
@@ -225,20 +248,7 @@ export default function OwnerMobilePage() {
     async function load() {
       if (!hasSupabaseBrowserEnv() || !supabase) {
         if (active) {
-          const demoBootstrap = buildOwnerDemoBootstrap();
-          setOwnedShops([
-            {
-              id: demoBootstrap.shop.id,
-              name: demoBootstrap.shop.name,
-              address: demoBootstrap.shop.address,
-              heroImageUrl: demoBootstrap.shop.customer_page_settings.hero_image_url,
-            },
-          ]);
-          setSelectedShopId(demoBootstrap.shop.id);
-          setData(demoBootstrap);
-          setSubscriptionSummary(null);
-          setUserEmail(null);
-          setMobileRoleContext({ appRole: "owner", currentStaffId: null });
+          loadOwnerMobileDemoFallback();
         }
         return;
       }
@@ -246,6 +256,10 @@ export default function OwnerMobilePage() {
       const ownerAccess = await getOwnerAccessContext();
 
       if (!ownerAccess?.accessToken) {
+        if (shouldUseLocalMobilePreview()) {
+          if (active) loadOwnerMobileDemoFallback();
+          return;
+        }
         router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
         router.refresh();
         return;
@@ -303,6 +317,10 @@ export default function OwnerMobilePage() {
         const nextMessage = error instanceof Error ? error.message : "모바일 오너 화면을 불러오지 못했습니다.";
 
         if (isOwnerAuthRecoveryError(nextMessage)) {
+          if (shouldUseLocalMobilePreview()) {
+            loadOwnerMobileDemoFallback();
+            return;
+          }
           clearOwnerAuthTokenCache();
           router.replace(`/login?next=${encodeURIComponent(requestedOwnerMobilePath)}` as never);
           router.refresh();

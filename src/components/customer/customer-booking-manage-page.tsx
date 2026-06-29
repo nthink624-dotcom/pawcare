@@ -47,14 +47,14 @@ export default function CustomerBookingManagePage({
         {
           "--background": "#ffffff",
           "--surface": "#fffaf8",
-          "--border": "#FFE1B0",
-          "--muted": "#8B6F4D",
+          "--border": "#f1d7d1",
+          "--muted": "#8a7a72",
           "--text": "#2b241f",
-          "--accent": "#F5A623",
-          "--accent-soft": "#FFF6E6",
-          "--selection-soft": "rgba(245,166,35,0.10)",
-          "--cta": "#F5A623",
-          "--cta-hover": "#E99718",
+          "--accent": "#ec7f72",
+          "--accent-soft": "#fce9e4",
+          "--selection-soft": "rgba(236,127,114,0.10)",
+          "--cta": "#ec7f72",
+          "--cta-hover": "#d35f50",
           "--shadow-soft": "none",
         } as CSSProperties
       }

@@ -163,6 +163,7 @@ const rejectionReasonTemplates = [
   "\uB9E4\uC7A5 \uC0AC\uC815\uC73C\uB85C \uC608\uC57D\uC774 \uC5B4\uB824\uC6CC\uC694",
   "\uAE30\uD0C0 \uC9C1\uC811 \uC785\uB825",
 ] as const;
+const directRejectionReasonTemplate = rejectionReasonTemplates[4];
 
 const statusMeta: Record<AppointmentStatus, { label: string; color: string; bg: string }> = {
   pending: { label: "\uB300\uAE30", color: "#9a6a16", bg: "#fff8eb" },
@@ -1858,7 +1859,10 @@ export default function OwnerApp({
 
   return (
     <div
-      className="pm-mobile-owner mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]"
+      className={cn(
+        "pm-mobile-owner mx-auto flex w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]",
+        isHomeTab && !isCustomerDetailView ? "h-dvh overflow-hidden" : "min-h-screen",
+      )}
     >
       {!isCustomerDetailView ? (
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-white/90 px-2 py-2 backdrop-blur-xl">
@@ -1953,11 +1957,11 @@ export default function OwnerApp({
       </header>
       ) : null}
 
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main className={cn("flex-1", isHomeTab && !isCustomerDetailView ? "min-h-0 overflow-hidden pb-0" : "overflow-y-auto pb-24")}>
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
-          <section className="flex min-h-[calc(100dvh-132px)] flex-col gap-3 px-2.5 py-3 pb-5">
+          <section className="flex h-full min-h-0 flex-col gap-3 px-2.5 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3">
             {isOnboardingIncomplete ? (
               <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
                 <div className="space-y-2.5">
@@ -2981,7 +2985,7 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
 }
 
 function AppointmentDetail({ data, appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
-  const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(rejectionReasonTemplates[0]);
+  const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(directRejectionReasonTemplate);
   const [customReason, setCustomReason] = useState("");
   const [reminderSent, setReminderSent] = useState(false);
   const canEditSchedule = ["pending", "confirmed", "cancelled"].includes(appointment.status);
@@ -3028,6 +3032,36 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
         .slice(0, 4),
     [appointment.id, data.notifications],
   );
+  const appointmentFooter =
+    canEditSchedule && isEditingSchedule ? (
+      <ActionButton
+        disabled={!canSaveSchedule}
+        onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}
+      >
+        예약 수정 저장
+      </ActionButton>
+    ) : appointment.status === "pending" ? (
+      <div className="space-y-2.5">
+        <RejectionReasonEditor
+          template={template}
+          customReason={customReason}
+          onTemplateChange={(value) => setTemplate(value || directRejectionReasonTemplate)}
+          onCustomReasonChange={setCustomReason}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>
+            {ownerHomeCopy.pendingApprove}
+          </ActionButton>
+          <ActionButton
+            onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: directRejectionReasonTemplate, rejectionReasonCustom: customReason.trim() })}
+            variant="secondary"
+            disabled={saving}
+          >
+            {"미승인"}
+          </ActionButton>
+        </div>
+      </div>
+    ) : undefined;
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -3048,16 +3082,7 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
     <Sheet
       title={ownerHomeCopy.appointmentDetailTitle}
       onClose={onClose}
-      footer={
-        canEditSchedule && isEditingSchedule ? (
-          <ActionButton
-            disabled={!canSaveSchedule}
-            onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}
-          >
-            예약 수정 저장
-          </ActionButton>
-        ) : undefined
-      }
+      footer={appointmentFooter}
     >
       <div className="space-y-3.5">
         <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5 text-sm">
@@ -3166,22 +3191,6 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
             </div>
           ) : null}
         </div>
-        <AppointmentDetailMediaHistory shopId={data.shop.id} appointment={appointment} />
-        <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[14px] font-medium text-[var(--text)]">알림톡 이력</p>
-            <span className="text-[12px] text-[var(--muted)]">{appointmentNotifications.length}건</span>
-          </div>
-          <div className="mt-3 overflow-hidden rounded-[12px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
-            {appointmentNotifications.length === 0 ? (
-              <p className="px-3.5 py-3 text-[13px] leading-5 text-[var(--muted)]">이 예약으로 발송된 알림톡이 아직 없어요.</p>
-            ) : (
-              appointmentNotifications.map((notification) => (
-                <NotificationHistoryRow key={notification.id} notification={notification} pet={pet} />
-              ))
-            )}
-          </div>
-        </div>
         <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
           <p className="text-[14px] font-medium text-[var(--text)]">빠른 연락</p>
           <QuickContactRow
@@ -3216,7 +3225,22 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
             </div>
           </div>
         ) : null}
-        {appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}
+        <AppointmentDetailMediaHistory shopId={data.shop.id} appointment={appointment} />
+        <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-medium text-[var(--text)]">알림톡 이력</p>
+            <span className="text-[12px] text-[var(--muted)]">{appointmentNotifications.length}건</span>
+          </div>
+          <div className="mt-3 overflow-hidden rounded-[12px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+            {appointmentNotifications.length === 0 ? (
+              <p className="px-3.5 py-3 text-[13px] leading-5 text-[var(--muted)]">이 예약으로 발송된 알림톡이 아직 없어요.</p>
+            ) : (
+              appointmentNotifications.map((notification) => (
+                <NotificationHistoryRow key={notification.id} notification={notification} pet={pet} />
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </Sheet>
   );
@@ -4227,13 +4251,12 @@ function StatDetail({
 }
 
 function PendingApprovalCard({ appointment, pet, guardian, service, staffName, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose, hideTime = false, sequenceLabel }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; staffName?: string; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void; hideTime?: boolean; sequenceLabel?: string }) {
-  const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>("");
+  const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>(directRejectionReasonTemplate);
   const [customReason, setCustomReason] = useState("");
-  const requiresCustomReason = template === "기타 직접 입력";
-  const canSubmitReject = Boolean(template) && (!requiresCustomReason || customReason.trim().length > 0);
+  const canSubmitReject = Boolean(template);
 
   const handleRejectCancel = () => {
-    setTemplate("");
+    setTemplate(directRejectionReasonTemplate);
     setCustomReason("");
     onRejectClose();
   };
@@ -4283,8 +4306,7 @@ function PendingApprovalCard({ appointment, pet, guardian, service, staffName, s
       </div>
       {isRejectOpen ? (
         <div className="mt-3 space-y-3 rounded-[12px] border border-[var(--border)] bg-[#fcfaf7] p-3">
-          <p className="text-xs font-semibold text-[var(--text)]">사유를 선택해주세요</p>
-          <RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} />
+          <RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || directRejectionReasonTemplate)} onCustomReasonChange={setCustomReason} />
           <div className="grid grid-cols-2 gap-2">
             <ActionButton onClick={handleRejectCancel} variant="ghost" disabled={saving}>{"취소"}</ActionButton>
             <ActionButton onClick={handleRejectConfirm} variant="secondary" disabled={saving || !canSubmitReject}>{"미승인 확정"}</ActionButton>
@@ -4323,7 +4345,7 @@ function AppointmentTimeGroupHeader({ time, count, label }: { time: string; coun
 
 function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle }: { title: string; dotClassName: string; expanded: boolean; onToggle: () => void }) {
   return (
-    <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between gap-3 text-left ${expanded ? "mb-4" : ""}`}>
+    <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between gap-3 px-1 pb-0.5 pt-1.5 text-left ${expanded ? "mb-3" : ""}`}>
       <span className="flex min-w-0 items-center gap-2">
         <span className={`h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
         <span className="truncate text-[16px] font-medium leading-[22px] tracking-[-0.02em] text-[var(--text)]">{title}</span>
@@ -4350,7 +4372,14 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
   const shouldShowSection = (section: HomeReservationSectionKey) => focusedSection === section;
 
   useEffect(() => {
-    setExpandedSections((prev) => ({ ...prev, [focusedSection]: true }));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setExpandedSections((prev) => ({ ...prev, [focusedSection]: true }));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [focusedSection]);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -4415,13 +4444,14 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
 
   const openSectionClassName = "flex min-h-[360px] flex-1 flex-col";
   const openSectionBodyClassName = "min-h-0 flex-1 overflow-y-auto";
-  const emptySectionClassName = "flex min-h-[260px] flex-1 items-center justify-center bg-[#f8fafc]";
+  const emptySectionClassName = "min-h-[72px] bg-[#f8fafc] px-3.5 py-4";
+  const sectionShellClassName = cn("rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", openSectionClassName);
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} />
-      <div className="flex min-h-[calc(100dvh-288px)] flex-1 flex-col" style={contentSlideStyle}>
-        {shouldShowSection("pending") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.pending ? openSectionClassName : "")}>
+      <div className="flex h-full min-h-0 flex-1 flex-col" style={contentSlideStyle}>
+        {shouldShowSection("pending") ? <section className={expandedSections.pending ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
           <HomeReservationSectionHeader title={ownerHomeCopy.pendingSectionTitle} dotClassName="bg-[#c79a37]" expanded={expandedSections.pending} onToggle={() => toggleSection("pending")} />
           {expandedSections.pending ? (
             <div className={openSectionBodyClassName}>
@@ -4447,7 +4477,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("current") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.current ? openSectionClassName : "")}>
+        {shouldShowSection("current") ? <section className={expandedSections.current ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
           <HomeReservationSectionHeader title={ownerHomeCopy.currentSectionTitle} dotClassName="bg-[var(--accent)]" expanded={expandedSections.current} onToggle={() => toggleSection("current")} />
           {expandedSections.current ? (
             <div className={openSectionBodyClassName}>
@@ -4473,7 +4503,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("cancelChange") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.cancelChange ? openSectionClassName : "")}>
+        {shouldShowSection("cancelChange") ? <section className={expandedSections.cancelChange ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
           <HomeReservationSectionHeader title={ownerHomeCopy.statCancelChange} dotClassName="bg-[#b76d7b]" expanded={expandedSections.cancelChange} onToggle={() => toggleSection("cancelChange")} />
           {expandedSections.cancelChange ? (
             <div className={openSectionBodyClassName}>
@@ -4499,7 +4529,7 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
             </div>
           ) : null}
         </section> : null}
-        {shouldShowSection("completed") ? <section className={cn("rounded-[16px] border border-[var(--border)] bg-white p-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]", expandedSections.completed ? openSectionClassName : "")}>
+        {shouldShowSection("completed") ? <section className={expandedSections.completed ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
           <HomeReservationSectionHeader title={ownerHomeCopy.historySectionTitle} dotClassName="bg-[#8c98aa]" expanded={expandedSections.completed} onToggle={() => toggleSection("completed")} />
           {expandedSections.completed ? (
             <div className={openSectionBodyClassName}>
@@ -4792,13 +4822,24 @@ function MobilePhotoStatusSheet({
 }
 
 function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
+  useEffect(() => {
+    if (template !== directRejectionReasonTemplate) {
+      onTemplateChange(directRejectionReasonTemplate);
+    }
+  }, [onTemplateChange, template]);
+
   return (
-    <div className="mt-2 space-y-2">
-      <select className="field" value={template} onChange={(event) => onTemplateChange(event.target.value as "" | (typeof rejectionReasonTemplates)[number])}>
-        <option value="">사유를 선택해주세요</option>
-        {rejectionReasonTemplates.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
-      {template === "기타 직접 입력" && <input className="field" value={customReason} onChange={(event) => onCustomReasonChange(event.target.value)} placeholder="고객에게 보낼 사유를 입력해 주세요" />}
+    <div className="space-y-1.5">
+      <label className="text-[12px] font-medium text-[var(--muted)]" htmlFor="owner-rejection-reason">
+        미승인 사유
+      </label>
+      <textarea
+        id="owner-rejection-reason"
+        className="field min-h-[66px] resize-none"
+        value={customReason}
+        onChange={(event) => onCustomReasonChange(event.target.value)}
+        placeholder="필요할 때만 고객에게 보낼 사유를 적어주세요"
+      />
     </div>
   );
 }

@@ -915,6 +915,14 @@ async function buildSsodaaTemplateCatalog() {
     });
   }
 
+  const allTemplates = listRecords
+    .map((record) => {
+      const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
+      if (!code) return null;
+      return normalizeSsodaaTemplateDetail(code, record);
+    })
+    .filter((item): item is SsodaaTemplateDetail => Boolean(item));
+
   const detailEntries = await Promise.all(
     aliasEntries.map(async ({ alias, configuredCode }) => {
       if (!configuredCode) {
@@ -959,7 +967,10 @@ async function buildSsodaaTemplateCatalog() {
     }),
   );
 
-  return detailEntries;
+  return {
+    items: detailEntries,
+    allTemplates,
+  };
 }
 
 function selectFinalStatusRow(rows: SsodaaSentListRow[], criteria: { msgId: string | null; destPhone: string; message?: string | null }) {
@@ -1237,11 +1248,11 @@ app.get("/admin/templates", async (request, response) => {
     requireRelaySecret(request.headers["x-relay-secret"]?.toString() ?? null);
     ensureProviderConfig();
 
-    const items = await buildSsodaaTemplateCatalog();
+    const catalog = await buildSsodaaTemplateCatalog();
 
     response.json({
       ok: true,
-      items,
+      ...catalog,
     });
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 500;
@@ -1549,6 +1560,15 @@ app.post("/alimtalk/send", async (request, response) => {
     if (finalDelivery.fatal) {
       return response.status(502).json({
         message: finalDelivery.message || "쏘다 최종 발송 단계에서 실패했습니다.",
+        providerMessageId,
+        providerResponse: responseBody,
+        deliveryLookup: finalDelivery.response,
+      });
+    }
+
+    if (!finalDelivery.found) {
+      return response.status(502).json({
+        message: "쏘다 발송내역에서 방금 요청한 알림톡을 확인하지 못했습니다.",
         providerMessageId,
         providerResponse: responseBody,
         deliveryLookup: finalDelivery.response,

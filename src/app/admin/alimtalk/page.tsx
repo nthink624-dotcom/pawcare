@@ -19,7 +19,7 @@ export default async function AdminAlimtalkPage() {
     <AdminAlimtalkScreen
       sessionLoginId={session.loginId}
       appConfig={getAppAlimtalkConfig()}
-      appTemplateDrafts={getAppTemplateDrafts()}
+      appTemplateDrafts={await getAppTemplateDrafts()}
       notificationActivity={await getAdminNotificationActivity()}
     />
   );

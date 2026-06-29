@@ -5,11 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
-import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import DiscountCouponEditor, { type DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
 import { Switch } from "@/components/ui/switch";
@@ -108,6 +108,7 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     alimtalkSenderProfileKey: normalized.alimtalk_sender_profile_key ?? "",
     alimtalkChannelRequestedAt: normalized.alimtalk_channel_requested_at ?? null,
     alimtalkChannelAdminNote: normalized.alimtalk_channel_admin_note ?? "",
+    alimtalkBusinessChannelVerified: Boolean(normalized.alimtalk_business_channel_verified),
     alimtalkTemplateRequestNote: normalized.alimtalk_template_request_note ?? "",
     alimtalkTemplateRequestUpdatedAt: normalized.alimtalk_template_request_updated_at ?? null,
     revisitEnabled: normalized.revisit_enabled,
@@ -137,6 +138,7 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     alimtalk_sender_profile_key: draft.alimtalkSenderProfileKey,
     alimtalk_channel_requested_at: draft.alimtalkChannelRequestedAt,
     alimtalk_channel_admin_note: draft.alimtalkChannelAdminNote,
+    alimtalk_business_channel_verified: draft.alimtalkBusinessChannelVerified,
     alimtalk_template_request_note: draft.alimtalkTemplateRequestNote,
     alimtalk_template_request_updated_at: draft.alimtalkTemplateRequestUpdatedAt,
     revisit_enabled: draft.revisitEnabled,
@@ -164,30 +166,34 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
 ];
 
 function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset = "first_visit"): CustomerDiscountCoupon {
-  const presets: Record<DiscountCouponPreset, Pick<CustomerDiscountCoupon, "name" | "discount_type" | "discount_value" | "audience" | "per_customer_limit">> = {
+  const presets: Record<DiscountCouponPreset, Pick<CustomerDiscountCoupon, "name" | "owner_label" | "discount_type" | "discount_value" | "audience" | "per_customer_limit">> = {
     first_visit: {
-      name: "첫 방문 할인",
+      name: "첫 방문 혜택",
+      owner_label: "첫 방문 혜택",
       discount_type: "fixed",
       discount_value: 10000,
       audience: "first_visit",
       per_customer_limit: true,
     },
     revisit: {
-      name: "재방문 할인",
+      name: "재방문 혜택",
+      owner_label: "재방문 혜택",
       discount_type: "percent",
       discount_value: 10,
       audience: "revisit",
       per_customer_limit: false,
     },
     all: {
-      name: "전체 고객 할인",
+      name: "상시 혜택",
+      owner_label: "상시 혜택",
       discount_type: "fixed",
       discount_value: 5000,
       audience: "all",
       per_customer_limit: false,
     },
     custom: {
-      name: "기타 할인",
+      name: "직접 설정 혜택",
+      owner_label: "직접 설정 혜택",
       discount_type: "fixed",
       discount_value: 5000,
       audience: "custom",
@@ -199,6 +205,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
   return {
     id: `coupon-${Date.now()}-${index}`,
     name: template.name,
+    owner_label: template.owner_label,
     enabled: true,
     visible: true,
     discount_type: template.discount_type,
@@ -383,7 +390,7 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
     key: "alerts",
     label: "알림 설정",
     title: "알림 설정",
-    description: "고객과 오너에게 발송되는 자동 안내 조건을 관리합니다.",
+    description: "오너가 직접 발송하는 고객 안내 조건을 관리합니다.",
     rows: [
       {
         id: "alimtalkEnabled",
@@ -987,6 +994,7 @@ export default function SettingsManagementScreen({
   const alertAutoSaveSeqRef = useRef(0);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileImageServerSyncKeyRef = useRef("");
 
   useEffect(() => {
     if (isShopInfoDirty || savingShopInfo || addressSheetOpen) {
@@ -1003,14 +1011,14 @@ export default function SettingsManagementScreen({
           setDraftSettings(cloneSettings(nextSettings));
         }
 
-        if (storedProfileImages) {
-          setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
-        } else if (storedProfileImage) {
-          setShopProfileImages([storedProfileImage]);
-        } else if (shop?.customer_page_settings.hero_image_urls?.length) {
+        if (shop?.customer_page_settings.hero_image_urls?.length) {
           setShopProfileImages(normalizeShopProfileImages(shop.customer_page_settings.hero_image_urls));
         } else if (shop?.customer_page_settings.hero_image_url) {
           setShopProfileImages([shop.customer_page_settings.hero_image_url]);
+        } else if (storedProfileImages) {
+          setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
+        } else if (storedProfileImage) {
+          setShopProfileImages([storedProfileImage]);
         }
         setShopProfileImageAssetIds((shop?.customer_page_settings.hero_media_asset_ids ?? []).filter(Boolean).slice(0, 10));
       });
@@ -1066,15 +1074,21 @@ export default function SettingsManagementScreen({
   const discountCoupons = discountCouponDrafts;
   const customerPagePreviewShop = useMemo<Shop | null>(() => {
     if (!shop) return null;
+    const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
+    const heroMediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
     return {
       ...shop,
       customer_page_settings: {
         ...shop.customer_page_settings,
         customer_service_overrides: customerServiceOverrides,
         discount_coupons: discountCoupons,
+        hero_image_url: heroImageUrls[0] ?? shop.customer_page_settings.hero_image_url,
+        hero_image_urls: heroImageUrls.length > 0 ? heroImageUrls : shop.customer_page_settings.hero_image_urls,
+        hero_media_asset_id: heroMediaAssetIds[0] ?? shop.customer_page_settings.hero_media_asset_id,
+        hero_media_asset_ids: heroMediaAssetIds.length > 0 ? heroMediaAssetIds : shop.customer_page_settings.hero_media_asset_ids,
       },
     };
-  }, [customerServiceOverrides, discountCoupons, shop]);
+  }, [customerServiceOverrides, discountCoupons, shop, shopProfileImageAssetIds, shopProfileImages]);
   const discountCouponsDirty = useMemo(
     () => JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons),
     [discountCouponDrafts, savedDiscountCoupons],
@@ -1101,7 +1115,7 @@ export default function SettingsManagementScreen({
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
     const heroMediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
-    const persistentHeroImageUrls = heroMediaAssetIds.length > 0 ? [] : heroImageUrls.filter(isRemotePersistableImageUrl);
+    const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
     const heroImageUrl = heroImageUrls[0] ?? "";
     const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
     const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
@@ -1194,6 +1208,58 @@ export default function SettingsManagementScreen({
       onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
     }
   }
+
+  async function persistShopProfileImageSettings(nextImages: string[], nextMediaAssetIds: string[]) {
+    if (!shop || !persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") return;
+
+    const heroImageUrls = normalizeShopProfileImages(nextImages);
+    const heroMediaAssetIds = nextMediaAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
+    const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
+    const result = await fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+      method: "PATCH",
+      body: JSON.stringify({
+        shopId: shop.id,
+        heroImageUrl: persistentHeroImageUrls[0] ?? "",
+        heroImageUrls: persistentHeroImageUrls,
+        heroMediaAssetIds,
+      }),
+    });
+
+    onShopChange?.({
+      ...shop,
+      customer_page_settings: mergeCustomerPageSettings(shop.customer_page_settings, {
+        ...result.shop.customer_page_settings,
+        hero_image_url: heroImageUrls[0] ?? "",
+        hero_image_urls: heroImageUrls,
+        hero_media_asset_id: heroMediaAssetIds[0] ?? "",
+        hero_media_asset_ids: heroMediaAssetIds,
+      }),
+    });
+  }
+
+  useEffect(() => {
+    if (!shop || !persistShopProfile || savingShopInfo) return;
+
+    const localHeroImages = normalizeShopProfileImages(shopProfileImages);
+    const serverHeroImages = normalizeShopProfileImages(
+      shop.customer_page_settings.hero_image_urls?.length
+        ? shop.customer_page_settings.hero_image_urls
+        : shop.customer_page_settings.hero_image_url
+          ? [shop.customer_page_settings.hero_image_url]
+          : [],
+    );
+
+    if (localHeroImages.length <= serverHeroImages.length) return;
+
+    const syncKey = `${shop.id}:${localHeroImages.join("|")}:${shopProfileImageAssetIds.join("|")}`;
+    if (profileImageServerSyncKeyRef.current === syncKey) return;
+    profileImageServerSyncKeyRef.current = syncKey;
+
+    void persistShopProfileImageSettings(localHeroImages, shopProfileImageAssetIds).catch((error) => {
+      console.error("[OWNER SETTINGS] failed to backfill shop profile images", error);
+      setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 고객 페이지에 반영하지 못했습니다.");
+    });
+  }, [persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
 
   function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
     const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
@@ -1587,6 +1653,7 @@ export default function SettingsManagementScreen({
       setShopProfileImages(nextImages);
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
+      await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
       setIsShopInfoDirty(true);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to upload shop profile images", error);
@@ -1606,7 +1673,7 @@ export default function SettingsManagementScreen({
     }
   }
 
-  function removeShopProfileImages(indexes: number[]) {
+  async function removeShopProfileImages(indexes: number[]) {
     const removeIndexes = new Set(indexes);
     if (removeIndexes.size === 0) return;
     const nextImages = shopProfileImages.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
@@ -1614,7 +1681,17 @@ export default function SettingsManagementScreen({
     setShopProfileImages(nextImages);
     setShopProfileImageAssetIds(nextMediaAssetIds);
     persistSettings(draftSettings, nextImages);
-    setIsShopInfoDirty(true);
+    setSavingShopInfo(true);
+    try {
+      await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
+      setIsShopInfoDirty(true);
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to persist shop profile image removal", error);
+      setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진 변경사항을 저장하지 못했습니다.");
+      setIsShopInfoDirty(true);
+    } finally {
+      setSavingShopInfo(false);
+    }
   }
 
   async function updateAlertSettings(nextSettings: AlertSettingsDraft) {
@@ -1753,18 +1830,15 @@ export default function SettingsManagementScreen({
                 onRowCommit={(rowId, value) => updateRow(rowId, value)}
                 onOpenAddressSearch={() => setAddressSheetOpen(true)}
                 serviceMenuContent={
-                  <CustomerServiceExposurePanel
-                    options={customerServiceOptions}
-                    overrides={customerServiceOverrides}
-                    title="서비스 메뉴"
+                  <ServiceManagementScreen
+                    shopId={shop?.id ?? "demo-shop"}
+                    shop={customerPagePreviewShop ?? shop}
+                    ownerProfile={ownerProfile}
+                    initialServices={services}
+                    demoMode={!persistShopProfile || shop?.id === "demo-shop" || shop?.id === "owner-demo"}
                     embedded
-                    busyOptionId={customerServiceActionId}
-                    onChange={updateCustomerServiceOverrides}
-                    connectionOptions={customerServiceConnectionOptions}
-                    onAddOption={addCustomerServiceOption}
-                    onDeleteOption={deleteCustomerServiceOption}
-                    onRenameOption={renameCustomerServiceOption}
-                    onRelinkOption={relinkCustomerServiceOption}
+                    onServicesChange={onServicesChange}
+                    onShopChange={onShopChange}
                   />
                 }
               >
@@ -1784,7 +1858,7 @@ export default function SettingsManagementScreen({
             </>
           ) : activeTab === "benefits" ? (
             <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={services} ownerProfile={ownerProfile}>
-            <WebSurface className="p-6">
+            <WebSurface className="flex h-full min-h-[640px] flex-col p-6">
               <div className="mb-5 flex items-start justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
                 <div>
                   <h2 className="text-[20px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
@@ -1834,15 +1908,17 @@ export default function SettingsManagementScreen({
                   </button>
                 </div>
               </div>
-              <DiscountCouponEditor
-                coupons={discountCoupons}
-                serviceOptions={customerServiceConnectionOptions}
-                disabled={discountCouponSaveStatus === "pending"}
-                onAdd={() => addDiscountCoupon()}
-                onAddPreset={addDiscountCoupon}
-                onDelete={deleteDiscountCoupon}
-                onUpdate={updateDiscountCoupon}
-              />
+              <div className="min-h-0 flex-1">
+                <DiscountCouponEditor
+                  coupons={discountCoupons}
+                  serviceOptions={customerServiceConnectionOptions}
+                  disabled={discountCouponSaveStatus === "pending"}
+                  onAdd={() => addDiscountCoupon()}
+                  onAddPreset={addDiscountCoupon}
+                  onDelete={deleteDiscountCoupon}
+                  onUpdate={updateDiscountCoupon}
+                />
+              </div>
             </WebSurface>
             </CustomerPagePreviewLayout>
           ) : (

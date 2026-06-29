@@ -618,20 +618,6 @@ export async function createCustomerBooking(input: unknown) {
     },
   });
 
-  if (appointment.status === "pending") {
-    scheduleCustomerBookingNotification({
-      shopId: appointment.shop_id,
-      appointmentId: appointment.id,
-      guardianId: appointment.guardian_id,
-      petId: appointment.pet_id,
-      type: "booking_received",
-      channel: "alimtalk",
-      recipientPhone: payload.phone,
-      recipientName: payload.guardianName.trim(),
-      skipIfExists: true,
-    });
-  }
-
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,
     guardianId: entityIds.guardianId,

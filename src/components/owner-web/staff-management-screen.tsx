@@ -139,7 +139,7 @@ export default function StaffManagementScreen({
   async function saveStaff() {
     if (!selectedStaff) return;
     if (!isValidTimeRange(draft.startTime, draft.endTime)) {
-      setNotice("기본 출근 시간은 퇴근 시간보다 빨라야 합니다.");
+      setNotice("고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다.");
       return;
     }
     const nextDays = parseDefaultDays(draft.defaultDaysText);
@@ -151,6 +151,7 @@ export default function StaffManagementScreen({
               name: draft.name.trim() || item.name,
               displayName: draft.displayName.trim(),
               profileImageUrl: draft.profileImageUrl.trim(),
+              profileMessage: draft.profileMessage.trim(),
               chipColorIndex: draft.chipColorIndex,
               phone: draft.phone.trim(),
               role: draft.role.trim() || item.role || "직원",
@@ -172,7 +173,7 @@ export default function StaffManagementScreen({
 
   async function addStaff() {
     if (!isValidTimeRange(newStaffDraft.startTime, newStaffDraft.endTime)) {
-      setNotice("기본 출근 시간은 퇴근 시간보다 빨라야 합니다.");
+      setNotice("고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다.");
       return;
     }
     const nextDays = parseDefaultDays(newStaffDraft.defaultDaysText);
@@ -181,6 +182,7 @@ export default function StaffManagementScreen({
       name: newStaffDraft.name.trim() || "신규 직원",
       displayName: newStaffDraft.displayName.trim(),
       profileImageUrl: newStaffDraft.profileImageUrl.trim(),
+      profileMessage: newStaffDraft.profileMessage.trim(),
       chipColorIndex: newStaffDraft.chipColorIndex ?? staff.length % staffChipPalette.length,
       phone: newStaffDraft.phone.trim(),
       role: newStaffDraft.role.trim() || newStaffDraft.position.trim() || "직원",
@@ -329,7 +331,7 @@ export default function StaffManagementScreen({
   async function saveStaffDefaultScheduleFromDraft() {
     if (!scheduleEditDraft) return;
     if (!isValidTimeRange(scheduleEditDraft.defaultStartTime, scheduleEditDraft.defaultEndTime)) {
-      setNotice("기본 출근 시간은 퇴근 시간보다 빨라야 합니다.");
+      setNotice("고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다.");
       return;
     }
     const nextDays = parseDefaultDays(scheduleEditDraft.defaultDaysText);
@@ -347,7 +349,7 @@ export default function StaffManagementScreen({
       ),
     );
     if (saved) {
-      setNotice("기본 근무 설정을 저장했습니다.");
+      setNotice("고정 근무 설정을 저장했습니다.");
     }
   }
 
@@ -418,7 +420,7 @@ export default function StaffManagementScreen({
           staffScheduleOverrides.filter((item) => !(item.staff_id === scheduleEditDraft.staffId && item.work_date === scheduleEditDraft.date)),
         );
       }
-      setNotice("선택한 날짜를 기본 근무 설정으로 되돌렸습니다.");
+      setNotice("선택한 날짜를 고정 근무 설정으로 되돌렸습니다.");
       setScheduleEditDraft(null);
     } catch (error) {
       setScheduleOverrides(previousOverrides);

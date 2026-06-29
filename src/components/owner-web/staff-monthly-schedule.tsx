@@ -39,12 +39,12 @@ export function StaffMonthlySchedule({
 
   return (
     <>
-      <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white pt-1">
+      <div className="flex h-full min-h-0 max-w-full flex-col overflow-hidden bg-white">
         <div className="min-h-0 max-w-full flex-1 overflow-hidden">
           <div className="flex h-full w-full min-w-[980px] flex-col">
-            <div className="grid min-w-0 shrink-0 grid-cols-7 border-y border-[#e1e1dd] bg-[#f7f7f4] text-[14px] leading-none text-[#6f747a]">
+            <div className="grid min-w-0 shrink-0 grid-cols-7 border-l border-t border-[#e1e1dd] bg-[#f7f7f4] text-[14px] leading-none text-[#6f747a]">
               {monthlyWeekdayColumns.map((day, index) => (
-                <div key={day.key} className={cn("flex h-[34px] items-center justify-center border-[#e1e1dd] pt-px", index < monthlyWeekdayColumns.length - 1 && "border-r")}>
+                <div key={day.key} className={cn("flex h-[34px] items-center justify-center border-b border-r border-[#e1e1dd] pt-px", index === 0 && "border-l-0")}>
                   {day.label}
                 </div>
               ))}
@@ -160,12 +160,7 @@ function MonthlyDayCell({
                 "pm-wrap-indicator flex h-[21px] w-full min-w-0 items-center justify-between gap-1.5 overflow-hidden rounded-[6px] border bg-white px-[7px] text-left text-[12px] leading-none transition hover:bg-[#f7f7f4]",
                 getWrapIndicatorClass(getCellIndicatorTone(cell.status)),
               )}
-              style={
-                {
-                  borderColor: staffTone.border,
-                  "--pm-wrap-indicator-color": staffTone.border,
-                } as CSSProperties
-              }
+              style={{ "--pm-wrap-indicator-color": staffTone.selectedBackground } as CSSProperties}
             >
               <span className="inline-flex min-w-0 items-center truncate font-normal leading-none" style={{ color: staffTone.text }}>
                 {staffMember.name}

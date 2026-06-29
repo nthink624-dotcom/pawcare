@@ -14,6 +14,7 @@ const staffMemberSchema = z.object({
   name: z.string().trim().min(1),
   displayName: z.string().trim().default(""),
   profileImageUrl: z.string().trim().default(""),
+  profileMessage: z.string().trim().max(160).default(""),
   chipColorIndex: z.number().int().min(0).max(7).nullable().optional().default(null),
   phone: z.string().trim().default(""),
   role: z.string().trim().optional().transform((value) => value || "직원"),
@@ -46,6 +47,7 @@ type StaffMemberDbRow = {
   name: string;
   display_name?: string | null;
   profile_image_url?: string | null;
+  profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
   role: string;
@@ -59,7 +61,7 @@ type StaffMemberDbRow = {
 };
 
 const staffMembersProfileSelect =
-  "id,name,display_name,profile_image_url,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
+  "id,name,display_name,profile_image_url,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
 const staffMembersLegacySelect = "id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain";
 
 function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
@@ -69,6 +71,7 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
     message.includes("staff_members") &&
     (message.includes("display_name") ||
       message.includes("profile_image_url") ||
+      message.includes("profile_message") ||
       message.includes("chip_color_index") ||
       message.includes("title_prefix") ||
       message.includes("position") ||
@@ -82,6 +85,7 @@ function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): Bootstr
     name: row.name,
     displayName: row.displayName,
     profileImageUrl: row.profileImageUrl,
+    profileMessage: row.profileMessage,
     chipColorIndex: row.chipColorIndex,
     phone: row.phone,
     role: row.role,
@@ -103,6 +107,7 @@ function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMemb
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
     profileImageUrl: row.profile_image_url?.trim() || "",
+    profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
     role: row.role,
@@ -386,6 +391,7 @@ export async function PATCH(request: NextRequest) {
       name: staffMember.name,
       display_name: staffMember.displayName,
       profile_image_url: staffMember.profileImageUrl,
+      profile_message: staffMember.profileMessage,
       chip_color_index: staffMember.chipColorIndex,
       phone: staffMember.phone,
       role: staffMember.role,
@@ -408,7 +414,7 @@ export async function PATCH(request: NextRequest) {
           throw new OwnerApiError(upsertResult.error.message, 500);
         }
 
-        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, chip_color_index: _chipColorIndex, title_prefix: _titlePrefix, position: _position, ...row }) => row);
+        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, profile_message: _profileMessage, chip_color_index: _chipColorIndex, title_prefix: _titlePrefix, position: _position, ...row }) => row);
         const legacyUpsertResult = await supabase.from("staff_members").upsert(legacyRows, { onConflict: "id" });
         if (legacyUpsertResult.error) {
           throw new OwnerApiError(legacyUpsertResult.error.message, 500);

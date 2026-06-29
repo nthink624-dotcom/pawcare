@@ -21,7 +21,7 @@ function isMissingStaffProfileColumnsError(error: { code?: string; message?: str
   return (
     error?.code === "PGRST204" &&
     message.includes("staff_members") &&
-    (message.includes("display_name") || message.includes("title_prefix") || message.includes("position") || message.includes("chip_color_index") || message.includes("schema cache"))
+    (message.includes("display_name") || message.includes("profile_message") || message.includes("title_prefix") || message.includes("position") || message.includes("chip_color_index") || message.includes("schema cache"))
   );
 }
 
@@ -50,7 +50,7 @@ export async function insertOwnerDefaultSetup(
 
     if (isMissingStaffProfileColumnsError(staffInsert.error)) {
       const legacyStaffMembers = buildDefaultOwnerStaffMembers(params).map(
-        ({ display_name: _displayName, title_prefix: _titlePrefix, position: _position, chip_color_index: _chipColorIndex, ...staffMember }) => staffMember,
+        ({ display_name: _displayName, profile_message: _profileMessage, title_prefix: _titlePrefix, position: _position, chip_color_index: _chipColorIndex, ...staffMember }) => staffMember,
       );
       const legacyStaffInsert = (await supabase.from("staff_members").insert(legacyStaffMembers)) as SupabaseWriteResult;
       if (legacyStaffInsert.error) {

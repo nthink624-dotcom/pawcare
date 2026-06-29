@@ -18,6 +18,8 @@
     "status:last": "node --experimental-transform-types ./scripts/job-status.ts last",
     "status:list": "node --experimental-transform-types ./scripts/job-status.ts list",
     "check:supabase-env": "node scripts/check-supabase-env-consistency.cjs",
+    "check:alimtalk-env": "node scripts/check-alimtalk-template-env-consistency.cjs",
+    "check:alimtalk-env:vercel": "node scripts/check-alimtalk-template-env-consistency.cjs --pull-vercel-production",
     "check:owner-auth-guards": "node scripts/check-owner-auth-guards.cjs",
     "smoke:owner-login": "node scripts/smoke-owner-login.cjs",
     "smoke:owner-auth-recovery": "node scripts/smoke-owner-auth-recovery.cjs",

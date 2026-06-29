@@ -84,9 +84,10 @@ export function getAppointmentEffectiveWindow(
     const actualEndMinute =
       appointment.status === "completed" &&
       actualCompleted &&
-      actualCompleted.date === actualStart.date &&
-      actualCompleted.minuteOfDay > actualStart.minuteOfDay
-        ? actualCompleted.minuteOfDay
+      actualCompleted.date === actualStart.date
+        ? Math.max(actualStart.minuteOfDay + 1, actualCompleted.minuteOfDay)
+        : appointment.status === "completed" && actualCompleted && actualCompleted.date > actualStart.date
+          ? 24 * 60
         : actualStart.minuteOfDay + scheduledDurationMinutes;
 
     return {
@@ -101,13 +102,28 @@ export function getAppointmentEffectiveWindow(
   if (
     appointment.status === "completed" &&
     actualCompleted &&
-    actualCompleted.date === appointment.appointment_date &&
-    actualCompleted.minuteOfDay > scheduledStartMinute
+    actualStart &&
+    actualStart.date < appointment.appointment_date &&
+    actualCompleted.date === appointment.appointment_date
+  ) {
+    return {
+      date: appointment.appointment_date,
+      startMinute: 0,
+      endMinute: Math.max(1, actualCompleted.minuteOfDay),
+      durationMinutes: Math.max(1, actualCompleted.minuteOfDay),
+      usesActualTime: true,
+    };
+  }
+
+  if (
+    appointment.status === "completed" &&
+    actualCompleted &&
+    actualCompleted.date === appointment.appointment_date
   ) {
     return {
       date: appointment.appointment_date,
       startMinute: scheduledStartMinute,
-      endMinute: actualCompleted.minuteOfDay,
+      endMinute: Math.max(scheduledStartMinute + 1, actualCompleted.minuteOfDay),
       durationMinutes: Math.max(1, actualCompleted.minuteOfDay - scheduledStartMinute),
       usesActualTime: true,
     };

@@ -536,6 +536,7 @@ export async function updateShopSettings(input: unknown) {
     alimtalk_sender_profile_key: payload.notificationSettings.alimtalkSenderProfileKey,
     alimtalk_channel_requested_at: payload.notificationSettings.alimtalkChannelRequestedAt,
     alimtalk_channel_admin_note: payload.notificationSettings.alimtalkChannelAdminNote,
+    alimtalk_business_channel_verified: payload.notificationSettings.alimtalkBusinessChannelVerified,
     alimtalk_template_request_note: payload.notificationSettings.alimtalkTemplateRequestNote,
     alimtalk_template_request_updated_at: payload.notificationSettings.alimtalkTemplateRequestUpdatedAt,
     revisit_enabled: payload.notificationSettings.revisitEnabled,
@@ -1823,6 +1824,8 @@ export async function updateAppointmentStatus(input: unknown) {
       resolvedAppointment = {
         ...fallback.data,
         rejection_reason: rejectionReason,
+        ...(payload.status === "in_progress" ? { actual_started_at: statusChangedAt } : {}),
+        ...(payload.status === "completed" ? { actual_completed_at: statusChangedAt } : {}),
       };
     } else {
       if (error.code === "PGRST116" || error.message.includes("JSON object requested")) {

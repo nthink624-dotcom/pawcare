@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { PencilLine, Plus } from "lucide-react";
 
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 import { cn } from "@/lib/utils";
@@ -642,7 +642,15 @@ export function ServicePriceGuideEditor({
           {showHeader ? (
             <div>
               <p className="text-[16px] font-normal text-[#111827]">실제 요금표</p>
-              <p className="mt-1 text-[16px] font-normal leading-6 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="text-[16px] font-normal leading-6 text-[#64748b]">그룹과 무게별로 금액 / 예상시간을 함께 관리합니다.</p>
+                {guide.enabled ? (
+                  <span className="inline-flex h-7 items-center gap-1 rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[14px] font-normal text-[#607080]">
+                    <PencilLine className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    입력칸을 클릭해 수정
+                  </span>
+                ) : null}
+              </div>
             </div>
           ) : (
             <span />
@@ -670,19 +678,27 @@ export function ServicePriceGuideEditor({
                 <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
                   <div className="min-w-[240px] flex-1">
                     <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
-                      <input
-                        type="text"
-                        value={section.title}
-                        onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                        className="h-9 rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none focus:border-[var(--accent)]"
-                      />
-                      <input
-                        type="text"
-                        value={section.note}
-                        onChange={(event) => updateSection(section.id, { note: event.target.value })}
-                        placeholder="예: 말티, 요키, 시츄"
-                        className="h-9 rounded-[8px] border border-[#d1d5db] bg-white px-3 text-[16px] font-normal text-[#334155] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)]"
-                      />
+                      <div className="group relative">
+                        <input
+                          type="text"
+                          value={section.title}
+                          onChange={(event) => updateSection(section.id, { title: event.target.value })}
+                          aria-label="서비스 그룹명 수정"
+                          className="h-9 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-9 text-[16px] font-normal text-[#111827] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
+                        />
+                        <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                      </div>
+                      <div className="group relative">
+                        <input
+                          type="text"
+                          value={section.note}
+                          onChange={(event) => updateSection(section.id, { note: event.target.value })}
+                          placeholder="예: 말티, 요키, 시츄"
+                          aria-label="노출 견종 설명 수정"
+                          className="h-9 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-9 text-[16px] font-normal text-[#334155] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
+                        />
+                        <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -713,12 +729,14 @@ export function ServicePriceGuideEditor({
                         <th className="whitespace-nowrap border-b border-r border-[var(--acc-dk,var(--accent))] px-3 py-2 text-center font-normal">무게</th>
                         {section.items.map((item) => (
                           <th key={item.id} className="border-b border-r border-[var(--acc-dk,var(--accent))] px-2 py-2 text-center last:border-r-0">
-                            <div className="flex items-center justify-center gap-1.5">
+                            <div className="group flex items-center justify-center gap-1.5">
                               <input
                                 type="text"
                                 value={item.label}
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
-                                className="h-7 min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-white outline-none placeholder:text-white/50 focus:border-[#d1d5db] focus:bg-white focus:text-[#111827]"
+                                aria-label={`${item.label} 항목명 수정`}
+                                title="클릭해서 항목명 수정"
+                                className="h-7 min-w-0 flex-1 cursor-text rounded-[7px] border border-white/20 bg-white/10 px-2 text-center text-[16px] font-normal text-white outline-none transition placeholder:text-white/50 hover:border-white/45 hover:bg-white/15 focus:border-[#d1d5db] focus:bg-white focus:text-[#111827]"
                               />
                               <button
                                 type="button"
@@ -744,25 +762,31 @@ export function ServicePriceGuideEditor({
                             </td>
                           ) : null}
                           <td className="border-r border-t border-[#edf2f7] px-2 py-2">
-                            <input
-                              type="text"
-                              value={band}
-                              onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
-                              className="h-8 w-full rounded-[8px] border border-transparent bg-transparent px-2 text-center text-[16px] font-normal text-[#111827] outline-none focus:border-[var(--accent)] focus:bg-white"
-                            />
+                            <div className="group relative">
+                              <input
+                                type="text"
+                                value={band}
+                                onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
+                                aria-label={`${band} 무게 구간 수정`}
+                                title="클릭해서 무게 구간 수정"
+                                className="h-8 w-full cursor-text rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] px-2 pr-7 text-center text-[16px] font-normal text-[#111827] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:bg-white focus:ring-2 focus:ring-[#e8f0f7]"
+                              />
+                              <PencilLine className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] opacity-80 transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                            </div>
                           </td>
                           {section.items.map((item) => {
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
                               <td key={item.id} className="border-r border-t border-[#edf2f7] px-2 py-2 last:border-r-0">
-                                <div className="flex h-9 min-w-0 items-center justify-center gap-0.5 whitespace-nowrap px-1.5">
+                                <div className="group flex h-9 min-w-0 items-center justify-center gap-0.5 whitespace-nowrap rounded-[8px] border border-transparent px-1.5 transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]" title="클릭해서 가격과 시간을 수정">
                                   <input
                                     type="text"
                                     inputMode="numeric"
                                     value={formatPriceInput(cell.price)}
                                     onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
                                     placeholder="-"
-                                    className="h-7 w-[64px] shrink-0 bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                    aria-label={`${item.label} ${band} 가격 수정`}
+                                    className="h-7 w-[64px] shrink-0 cursor-text bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                   />
                                   <span className="shrink-0 text-[16px] font-normal text-[#94a3b8]">/</span>
                                   <div className="flex w-[76px] shrink-0 items-center gap-0.5">
@@ -772,7 +796,8 @@ export function ServicePriceGuideEditor({
                                       value={cell.durationMinutes}
                                       onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
                                       placeholder="-"
-                                      className="h-7 w-[34px] shrink-0 bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
+                                      aria-label={`${item.label} ${band} 예상 시간 수정`}
+                                      className="h-7 w-[34px] shrink-0 cursor-text bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
                                     />
                                     <span className="shrink-0 text-[16px] font-normal text-[#64748b]">분 예상</span>
                                   </div>

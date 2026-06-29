@@ -31,6 +31,7 @@ function serializeShopChannel(row: ShopChannelRow) {
     senderProfileKey: settings.alimtalk_sender_profile_key ?? "",
     requestedAt: settings.alimtalk_channel_requested_at ?? null,
     adminNote: settings.alimtalk_channel_admin_note ?? "",
+    businessChannelVerified: Boolean(settings.alimtalk_business_channel_verified),
     templateRequestNote: settings.alimtalk_template_request_note ?? "",
     templateRequestUpdatedAt: settings.alimtalk_template_request_updated_at ?? null,
   };

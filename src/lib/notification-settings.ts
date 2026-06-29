@@ -9,6 +9,7 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   alimtalk_sender_profile_key: "",
   alimtalk_channel_requested_at: null,
   alimtalk_channel_admin_note: "",
+  alimtalk_business_channel_verified: false,
   alimtalk_template_request_note: "",
   alimtalk_template_request_updated_at: null,
   revisit_enabled: true,
@@ -65,6 +66,7 @@ export function normalizeShopNotificationSettings(settings: Partial<ShopNotifica
     alimtalk_sender_profile_key: settings?.alimtalk_sender_profile_key?.trim() ?? "",
     alimtalk_channel_requested_at: settings?.alimtalk_channel_requested_at ?? null,
     alimtalk_channel_admin_note: settings?.alimtalk_channel_admin_note?.trim() ?? "",
+    alimtalk_business_channel_verified: Boolean(settings?.alimtalk_business_channel_verified),
     alimtalk_template_request_note: settings?.alimtalk_template_request_note?.trim() ?? "",
     alimtalk_template_request_updated_at: settings?.alimtalk_template_request_updated_at ?? null,
     appointment_reminder_10m_mode:

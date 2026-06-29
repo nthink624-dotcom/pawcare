@@ -388,6 +388,7 @@ export const ALIMTALK_NOTIFICATION_REGISTRY = NOTIFICATION_REGISTRY.filter(
     templateConfigKey: AlimtalkTemplateConfigKey;
     draftBody: string;
   } =>
+    item.type !== "booking_received" &&
     item.channel === "alimtalk" &&
     Boolean(item.templateAlias) &&
     Boolean(item.templateConfigKey) &&

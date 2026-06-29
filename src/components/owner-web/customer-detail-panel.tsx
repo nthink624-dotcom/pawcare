@@ -171,8 +171,15 @@ export default function CustomerDetailPanel({
   }, [detail.recentGroomingRecords]);
 
   useEffect(() => {
-    setSelectedGroomingRecordId(null);
-    setExpandedPhoto(null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSelectedGroomingRecordId(null);
+      setExpandedPhoto(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedPet?.id]);
 
   async function copyPhone() {

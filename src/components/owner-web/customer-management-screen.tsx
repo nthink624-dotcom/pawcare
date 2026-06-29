@@ -6,6 +6,7 @@ import { Bell, CalendarPlus, Check, ChevronRight, MessageSquareText, Trash2, X }
 import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
+import CustomerExcelTools from "@/components/owner-web/customer-excel-tools";
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -629,6 +630,17 @@ export default function CustomerManagementScreen({
     } finally {
       setCreatingCustomer(false);
     }
+  }
+
+  function handleCustomersImported({ guardians, pets }: { guardians: Guardian[]; pets: Pet[] }) {
+    if (guardians.length === 0 && pets.length === 0) return;
+
+    setBootstrapData((current) => ({
+      ...current,
+      guardians: [...current.guardians.filter((guardian) => !guardians.some((item) => item.id === guardian.id)), ...guardians],
+      pets: [...current.pets.filter((pet) => !pets.some((item) => item.id === pet.id)), ...pets],
+    }));
+    setSelectedCustomerId((current) => current || guardians[0]?.id || pets[0]?.guardian_id || "");
   }
 
   function toggleDelete(id: string) {
@@ -1303,6 +1315,13 @@ export default function CustomerManagementScreen({
                 placeholder="보호자명, 연락처, 반려동물 이름 검색"
               />
             </label>
+            <CustomerExcelTools
+              shopId={initialData.shop.id}
+              guardians={bootstrapData.guardians}
+              pets={bootstrapData.pets}
+              disabled={deleteMode}
+              onImported={handleCustomersImported}
+            />
             <button
               type="button"
               onClick={openNewCustomerModal}

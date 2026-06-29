@@ -72,7 +72,7 @@ import {
   type StatusIndicatorTone,
 } from "@/components/owner-web/status-indicators";
 import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
-import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
+import { getDateTimePartsInTimeZone } from "@/lib/appointment-time";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
@@ -151,7 +151,7 @@ export type OwnerScheduleCreateRequest = {
   petId: string | null;
   date?: string;
 };
-const scheduleStartHour = 10;
+const scheduleStartHour = 0;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
 const scheduleBodyInsetY = 8;
@@ -162,7 +162,7 @@ const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
 const bookingCardHorizontalInset = "2.5%";
-const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => `${scheduleStartHour + index}:00`);
+const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => formatHourLabel(scheduleStartHour + index));
 const todayScheduleDate = currentDateInTimeZone();
 const todayScheduleDateLabel = formatScheduleDateLabel(todayScheduleDate);
 const weekdayShortLabels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -272,6 +272,19 @@ function isOutsideShopOperatingHours(shop: BootstrapPayload["shop"], date: strin
   if (!hours?.enabled) return true;
 
   return start < timeToHour(hours.open) || start + duration > timeToHour(hours.close);
+}
+
+function getScheduleOperatingWindow(shop: BootstrapPayload["shop"], date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
+  const hours = shop.business_hours[weekday];
+  if (!hours?.enabled) return { enabled: false, openHour: 0, closeHour: 0 };
+
+  return {
+    enabled: true,
+    openHour: timeToHour(hours.open),
+    closeHour: timeToHour(hours.close),
+  };
 }
 
 function buildOwnerCreateAvailableSlots({
@@ -558,43 +571,43 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const sourceStatus = booking.sourceStatus ?? booking.status;
-  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
-  if (isOverduePendingBookingStatus(sourceStatus)) return "border-[#fbcfe8] bg-[#fdf2f8] text-[#be185d]";
-  if (isPendingBookingStatus(sourceStatus)) return "border-[#fde68a] bg-[#fffbeb] text-[#b45309]";
-  if (sourceStatus === "진행 중" || booking.status === "진행 중") return "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]";
-  if (sourceStatus === "픽업 준비" || booking.status === "픽업 준비") return "border-[#a5f3fc] bg-[#ecfeff] text-[#0e7490]";
+  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (isOverduePendingBookingStatus(sourceStatus)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (isPendingBookingStatus(sourceStatus)) return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
+  if (sourceStatus === "진행 중" || booking.status === "진행 중") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
+  if (sourceStatus === "픽업 준비" || booking.status === "픽업 준비") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status)) return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
-  if (sourceStatus === "변경") return "border-[#ddd6fe] bg-[#f5f3ff] text-[#6d28d9]";
-  if (sourceStatus === "취소") return "border-[#fecdd3] bg-[#fff1f2] text-[#be123c]";
-  if (sourceStatus === "거절") return "border-[#fecaca] bg-[#fef2f2] text-[#991b1b]";
-  if (sourceStatus === "노쇼") return "border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]";
-  return "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]";
+  if (sourceStatus === "변경") return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
+  if (sourceStatus === "취소") return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (sourceStatus === "거절") return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (sourceStatus === "노쇼") return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#f59e0b]/72";
-  if (tone === "confirmed") return "bg-[#2563eb]/70";
-  if (tone === "active") return "bg-[#16a34a]/72";
-  if (tone === "pickupReady") return "bg-[#0891b2]/72";
+  if (tone === "pending") return "bg-[#b98121]/70";
+  if (tone === "confirmed") return "bg-[#607080]/70";
+  if (tone === "active") return "bg-[#607080]/70";
+  if (tone === "pickupReady") return "bg-[#607080]/70";
   if (tone === "completed") return "bg-[#64748b]/62";
-  if (tone === "changed") return "bg-[#7c3aed]/70";
-  if (tone === "cancelled") return "bg-[#e11d48]/68";
-  if (tone === "rejected") return "bg-[#b91c1c]/68";
-  if (tone === "noshow") return "bg-[#ea580c]/70";
-  return "bg-[#db2777]/70";
+  if (tone === "changed") return "bg-[#b98121]/70";
+  if (tone === "cancelled") return "bg-[#a04455]/68";
+  if (tone === "rejected") return "bg-[#a04455]/68";
+  if (tone === "noshow") return "bg-[#a04455]/68";
+  return "bg-[#a04455]/68";
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#b45309]";
-  if (tone === "confirmed") return "text-[#1d4ed8]";
-  if (tone === "active") return "text-[#15803d]";
-  if (tone === "pickupReady") return "text-[#0e7490]";
+  if (tone === "pending") return "text-[#8a5b11]";
+  if (tone === "confirmed") return "text-[#607080]";
+  if (tone === "active") return "text-[#607080]";
+  if (tone === "pickupReady") return "text-[#607080]";
   if (tone === "completed") return "text-[#64748b]";
-  if (tone === "changed") return "text-[#6d28d9]";
-  if (tone === "cancelled") return "text-[#be123c]";
-  if (tone === "rejected") return "text-[#991b1b]";
-  if (tone === "noshow") return "text-[#c2410c]";
-  return "text-[#be185d]";
+  if (tone === "changed") return "text-[#8a5b11]";
+  if (tone === "cancelled") return "text-[#a04455]";
+  if (tone === "rejected") return "text-[#a04455]";
+  if (tone === "noshow") return "text-[#a04455]";
+  return "text-[#a04455]";
 }
 
 function getBookingTop(start: number) {
@@ -780,6 +793,59 @@ function findPreviewBookingStart(
   return null;
 }
 
+function getScheduledDurationMinutes(appointment: Appointment, service?: Service) {
+  return minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
+}
+
+function getScheduledTimeLabel(appointment: Appointment, durationMinutes: number) {
+  const startMinute = timeToHour(appointment.appointment_time) * 60;
+  return `${formatHourLabel(startMinute / 60)}-${formatHourLabel((startMinute + durationMinutes) / 60)}`;
+}
+
+function getActualAppointmentWindowForDate(
+  appointment: Appointment,
+  selectedDate: string,
+  scheduledDurationMinutes: number,
+) {
+  const actualStart = getDateTimePartsInTimeZone(appointment.actual_started_at);
+  const actualCompleted = getDateTimePartsInTimeZone(appointment.actual_completed_at);
+
+  if (!actualStart) return null;
+
+  const minimumDurationMinutes = 15;
+
+  if (actualStart.date === selectedDate) {
+    let endMinute: number;
+    if (actualCompleted?.date === selectedDate) {
+      endMinute = actualCompleted.minuteOfDay;
+    } else if (actualCompleted && actualCompleted.date > selectedDate) {
+      endMinute = 24 * 60;
+    } else if (selectedDate === currentDateInTimeZone() && ["in_progress", "almost_done"].includes(appointment.status)) {
+      endMinute = Math.round(getCurrentDayHour() * 60);
+    } else {
+      endMinute = actualStart.minuteOfDay + scheduledDurationMinutes;
+    }
+
+    return {
+      startMinute: actualStart.minuteOfDay,
+      durationMinutes: Math.max(minimumDurationMinutes, Math.min(24 * 60, endMinute) - actualStart.minuteOfDay),
+    };
+  }
+
+  if (actualStart.date < selectedDate && actualCompleted?.date === selectedDate) {
+    return {
+      startMinute: 0,
+      durationMinutes: Math.max(minimumDurationMinutes, actualCompleted.minuteOfDay),
+    };
+  }
+
+  return null;
+}
+
+function hasActualAppointmentWindowOnDate(appointment: Appointment, selectedDate: string, scheduledDurationMinutes: number) {
+  return Boolean(getActualAppointmentWindowForDate(appointment, selectedDate, scheduledDurationMinutes));
+}
+
 function appointmentToDailyBooking(
   appointment: Appointment,
   data: BootstrapPayload,
@@ -796,13 +862,20 @@ function appointmentToDailyBooking(
     ? staffColumns.find((item) => item.key === persistedStaffKey)
     : null;
   const staffColumn = assignedStaff ?? fallbackStaff;
-  const effectiveWindow = getAppointmentEffectiveWindow(appointment, data.services);
-  const startMinute =
-    effectiveWindow?.date === selectedDate ? effectiveWindow.startMinute : timeToHour(appointment.appointment_time) * 60;
-  const durationMinutes =
-    effectiveWindow?.date === selectedDate
-      ? effectiveWindow.durationMinutes
-      : minutesBetween(appointment.start_at, appointment.end_at) ?? service?.duration_minutes ?? 60;
+  const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
+  const actualWindow =
+    ["in_progress", "almost_done", "completed"].includes(appointment.status)
+      ? getActualAppointmentWindowForDate(appointment, selectedDate, scheduledDurationMinutes)
+      : null;
+  const startMinute = actualWindow?.startMinute ?? timeToHour(appointment.appointment_time) * 60;
+  const durationMinutes = actualWindow?.durationMinutes ?? scheduledDurationMinutes;
+  const scheduledTimeLabel = getScheduledTimeLabel(appointment, scheduledDurationMinutes);
+  const actualStart = getDateTimePartsInTimeZone(appointment.actual_started_at);
+  const actualCompleted = getDateTimePartsInTimeZone(appointment.actual_completed_at);
+  const actualTimeLabel =
+    actualStart || actualCompleted
+      ? `실제 ${actualStart?.time ?? "--:--"}-${actualCompleted?.time ?? "--:--"}`
+      : undefined;
 
   return {
     id: appointment.id,
@@ -832,6 +905,8 @@ function appointmentToDailyBooking(
     visitReminderOffsetMinutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickupReadyEtaMinutes: appointment.pickup_ready_eta_minutes ?? 5,
     source: appointment.source,
+    actualTimeLabel,
+    scheduledTimeLabel,
   };
 }
 
@@ -914,6 +989,10 @@ type DailyBooking = {
   previousStart?: number;
   previousDuration?: number;
   changeAcknowledged?: boolean;
+  actualTimeLabel?: string;
+  scheduledTimeLabel?: string;
+  displayMode?: "reservation-chip";
+  sourceAppointmentId?: string;
 };
 
 type PendingOutOfHoursMove = {
@@ -1192,18 +1271,54 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
   if (staffColumns.length === 0) return [];
 
   const selectedDateAppointments = data.appointments
-    .filter((appointment) => appointment.appointment_date === selectedDate)
+    .filter((appointment) => {
+      const service = data.services.find((item) => item.id === appointment.service_id);
+      const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
+      return appointment.appointment_date === selectedDate || hasActualAppointmentWindowOnDate(appointment, selectedDate, scheduledDurationMinutes);
+    })
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
   const appointmentIds = new Set(selectedDateAppointments.map((appointment) => appointment.id));
+  const reservationChips = data.appointments
+    .filter((appointment) => appointment.appointment_date === selectedDate)
+    .filter((appointment) => ["in_progress", "almost_done", "completed"].includes(appointment.status))
+    .filter((appointment) => {
+      const service = data.services.find((item) => item.id === appointment.service_id);
+      return Boolean(getDateTimePartsInTimeZone(appointment.actual_started_at) && getScheduledDurationMinutes(appointment, service));
+    })
+    .map((appointment, index) => {
+      const service = data.services.find((item) => item.id === appointment.service_id);
+      const staffColumn = staffColumnForIndex(index, staffColumns);
+      const booking = appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
+      const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
+      return {
+        ...booking,
+        id: `${appointment.id}__reservation-chip`,
+        sourceAppointmentId: appointment.id,
+        displayMode: "reservation-chip" as const,
+        start: timeToHour(appointment.appointment_time),
+        duration: 0.25,
+        status: "예약 시간",
+        sourceStatus: appointmentStatusLabels[appointment.status],
+        scheduledTimeLabel: getScheduledTimeLabel(appointment, scheduledDurationMinutes),
+      };
+    });
   const recordOnlyBookings = data.groomingRecords
     .filter((record) => record.groomed_at.slice(0, 10) === selectedDate)
     .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
     .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, staffColumns[0]));
 
   return [
-    ...selectedDateAppointments.map((appointment, index) => {
+    ...reservationChips,
+    ...selectedDateAppointments.flatMap((appointment, index) => {
+      const service = data.services.find((item) => item.id === appointment.service_id);
+      const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
+      const actualStart = getDateTimePartsInTimeZone(appointment.actual_started_at);
+      const actualWindow = getActualAppointmentWindowForDate(appointment, selectedDate, scheduledDurationMinutes);
+      if (actualStart && ["in_progress", "almost_done", "completed"].includes(appointment.status) && !actualWindow) {
+        return [];
+      }
       const staffColumn = staffColumnForIndex(index, staffColumns);
-      return appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
+      return [appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns)];
     }),
     ...recordOnlyBookings,
   ].sort((first, second) => first.start - second.start || first.id.localeCompare(second.id));
@@ -1272,7 +1387,6 @@ function hasScheduleItemsOnDate(data: BootstrapPayload, selectedDate: string) {
   );
 }
 
-const staffCommentStorageKey = "petmanager.ownerWeb.staffComments";
 const initialStaffComments: Record<string, string> = {
   "우유|정유진": "첫 방문 때 긴장했음. 목 주변은 잡아주면 안정됨.",
   "몽이|김민지": "물 온도 낮으면 싫어함. 시작 전에 충분히 적셔주기.",
@@ -1360,6 +1474,7 @@ function BookingSidePanel({
   approvalModeBookings,
   onManualApprovalChange,
   onChangeStatus,
+  onRequestBeforePhotoStatusChange,
   onSuggestAlternativeTime,
   onSelectBooking,
   onAcknowledgeChange,
@@ -1383,6 +1498,7 @@ function BookingSidePanel({
   approvalModeBookings: DailyBooking[];
   onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
+  onRequestBeforePhotoStatusChange: (booking: DailyBooking) => void;
   onSuggestAlternativeTime: (bookingId: string) => void;
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
@@ -1423,14 +1539,22 @@ function BookingSidePanel({
   const finishEnabled = selectedBooking ? sourceStatus === "픽업 준비" || (displayStatus === "완료" && sourceStatus !== "완료") : false;
   const finalActionEnabled = pickupReadyEnabled || finishEnabled;
   const finalActionStatus = finishEnabled ? "완료" : "픽업 준비";
-  const startLabel = startEnabled ? "미용 시작" : displayStatus === "진행 중" ? "자동 진행 중" : displayStatus === "완료" ? "완료됨" : "확정 후 시작";
+  const startLabel = startEnabled ? "미용 시작" : displayStatus === "진행 중" ? "진행 중" : displayStatus === "완료" ? "완료됨" : "확정 후 시작";
   const finalActionLabel =
     finishEnabled ? "완료 처리" : pickupReadyEnabled ? "픽업 준비 알림" : displayStatus === "완료" ? "완료됨" : "진행 후 완료";
   const [activePanelTab, setActivePanelTab] = useState<"details" | "comments">("details");
   const [notificationSending, setNotificationSending] = useState(false);
   const [notificationSendingType, setNotificationSendingType] = useState<NotificationType | null>(null);
   const [notificationFeedbackType, setNotificationFeedbackType] = useState<NotificationType | null>(null);
-  const [notificationNotice, setNotificationNotice] = useState("");
+  const [notificationDialog, setNotificationDialog] = useState<{ title: string; message: string } | null>(null);
+  const [statusConfirmAction, setStatusConfirmAction] = useState<{
+    bookingId: string;
+    nextStatus: string;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger?: boolean;
+  } | null>(null);
   const [editableStartTime, setEditableStartTime] = useState("");
   const [editableEndTime, setEditableEndTime] = useState("");
   const [editablePhone, setEditablePhone] = useState("");
@@ -1484,29 +1608,74 @@ function BookingSidePanel({
   function getNotificationDeliveryNotice(notification: Notification) {
     if (notification.status === "sent") {
       if (notification.channel === "alimtalk" && !notification.provider_message_id) {
-        return "알림톡 발송은 처리됐지만 공급자 접수번호를 확인하지 못했어요. 실제 도착 여부를 확인해 주세요.";
+        return "알림톡 요청은 처리됐지만 공급자 접수번호를 확인하지 못했습니다. 쏘다 발송 이력에서 도착 여부를 확인해 주세요.";
       }
       return "";
     }
 
     if (notification.status === "mocked") {
-      return "테스트 모드로 처리되었습니다. 실제 알림톡은 발송되지 않았어요.";
+      return "테스트 모드로 처리되어 실제 알림톡은 발송되지 않았습니다.";
     }
 
     if (notification.provider === "pending_template") {
-      return "알림톡 템플릿 승인 또는 연결이 필요해 발송 대기 상태입니다.";
+      return "알림톡 템플릿 승인 또는 코드 연결이 필요해 발송 대기 상태로 저장했습니다.";
     }
 
     if (notification.status === "queued") {
-      return notification.fail_reason || "발송 요청은 저장됐지만 아직 실제 발송은 완료되지 않았어요.";
+      return getFriendlyNotificationMessage(notification.fail_reason) || "발송 요청은 저장했지만 아직 실제 발송은 완료되지 않았습니다.";
     }
 
-    return notification.fail_reason || "알림톡 발송 상태를 확인해 주세요.";
+    return getFriendlyNotificationMessage(notification.fail_reason) || "알림톡 발송 상태를 확인해 주세요.";
+  }
+
+  function getFriendlyNotificationMessage(message?: string | null) {
+    const value = message?.trim();
+    if (!value) return "";
+    if (value.includes("중복") || value.includes("이미 같은 예약") || value.includes("발송 대기")) {
+      return "이미 이 예약에 같은 알림을 보냈거나 발송 대기 중입니다. 고객에게 같은 알림이 반복해서 가지 않도록 이번 요청은 보내지 않았습니다.";
+    }
+    return value;
+  }
+
+  function openNotificationDialog(title: string, message: string) {
+    setNotificationDialog({ title, message });
+  }
+
+  function buildStatusConfirmCopy(nextStatus: string) {
+    const petName = selectedBooking?.pet ?? "선택한 예약";
+    if (nextStatus === "진행 중") {
+      return {
+        title: "미용을 시작할까요?",
+        message: `${petName} 예약이 미용 시작 상태로 변경됩니다. 설정에 따라 고객에게 미용 시작 알림톡이 발송됩니다.`,
+        confirmLabel: "미용 시작",
+      };
+    }
+    if (nextStatus === "픽업 준비") {
+      return {
+        title: "픽업 준비로 변경할까요?",
+        message: `${petName} 예약이 픽업 준비 상태로 변경됩니다. 설정에 따라 고객에게 픽업 준비 알림톡이 발송됩니다.`,
+        confirmLabel: "픽업 준비",
+      };
+    }
+    return {
+      title: "상태를 변경할까요?",
+      message: `${petName} 예약 상태를 ${nextStatus}(으)로 변경합니다.`,
+      confirmLabel: "변경",
+    };
+  }
+
+  function requestStatusChange(bookingId: string, nextStatus: string) {
+    if (nextStatus !== "진행 중" && nextStatus !== "픽업 준비") {
+      onChangeStatus(bookingId, nextStatus);
+      return;
+    }
+    setStatusConfirmAction({ bookingId, nextStatus, ...buildStatusConfirmCopy(nextStatus) });
   }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setActivePanelTab("details"));
-    setNotificationNotice("");
+    setNotificationDialog(null);
+    setStatusConfirmAction(null);
     setNotificationSendingType(null);
     setNotificationFeedbackType(null);
     setPhoneEditing(false);
@@ -1588,24 +1757,6 @@ function BookingSidePanel({
   const rawRequestText = selectedBooking.memo?.trim() || getCustomerRequest(selectedBooking.id);
   const hasRequestText = Boolean(rawRequestText);
   const requestText = rawRequestText || "고객 요청사항이 없습니다.";
-  const overduePending = isOverduePendingBookingStatus(sourceStatus);
-  const mainAction = isPendingBookingStatus(sourceStatus)
-      ? { label: "예약 확정", onClick: () => onChangeStatus(selectedBooking.id, "확정"), enabled: true }
-      : overduePending
-        ? { label: "누락", onClick: () => {}, enabled: false }
-      : startEnabled
-      ? { label: "미용 시작", onClick: () => onChangeStatus(selectedBooking.id, "진행 중"), enabled: true }
-      : finalActionEnabled
-        ? { label: finalActionLabel, onClick: () => onChangeStatus(selectedBooking.id, finalActionStatus), enabled: true }
-        : changeEventSelected
-          ? { label: "요청 확인", onClick: () => onAcknowledgeChange(selectedBooking.id), enabled: true }
-          : { label: isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus) ? "처리 완료" : "처리할 액션 없음", onClick: () => {}, enabled: false };
-  const previousAction =
-    sourceStatus === "진행 중"
-      ? { label: "이전", onClick: () => onChangeStatus(selectedBooking.id, "확정") }
-      : sourceStatus === "픽업 준비"
-        ? { label: "이전", onClick: () => onChangeStatus(selectedBooking.id, "진행 중") }
-        : null;
   const workflowPending = isApprovalQueueBookingStatus(sourceStatus);
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
   const canResendCurrentNotification = !workflowPending && !changeEventSelected;
@@ -1750,7 +1901,7 @@ function BookingSidePanel({
     setNotificationSending(true);
     setNotificationSendingType(type);
     setNotificationFeedbackType(null);
-    setNotificationNotice("");
+    setNotificationDialog(null);
     try {
       const notification = await postOwnerNotification({
         shopId,
@@ -1762,12 +1913,14 @@ function BookingSidePanel({
       });
       const deliveryNotice = getNotificationDeliveryNotice(notification);
       if (deliveryNotice) {
-        setNotificationNotice(deliveryNotice);
+        openNotificationDialog("알림톡 발송 상태", deliveryNotice);
         return;
       }
       flashNotificationFeedback(type);
     } catch (error) {
-      setNotificationNotice(getApiErrorMessage(error, "알림톡 발송 중 문제가 발생했습니다."));
+      const message = getFriendlyNotificationMessage(getApiErrorMessage(error, "알림톡 발송 중 문제가 발생했습니다."));
+      const title = message.includes("반복해서 가지 않도록") ? "중복 발송을 막았습니다" : "알림톡을 보내지 못했습니다";
+      openNotificationDialog(title, message);
     } finally {
       setNotificationSending(false);
       setNotificationSendingType(null);
@@ -1777,7 +1930,7 @@ function BookingSidePanel({
   async function saveNotificationTiming(values: { visitReminderOffsetMinutes?: number; pickupReadyEtaMinutes?: number }) {
     if (!selectedBooking || timingSaving) return;
     setTimingSaving(true);
-    setNotificationNotice("");
+    setNotificationDialog(null);
     try {
       await onSaveNotificationTiming(selectedBooking, values);
       setTimingPickerOpen(null);
@@ -1977,16 +2130,16 @@ function BookingSidePanel({
                       disabled={!canSendVisitReminder || notificationSending}
                       onClick={() => void sendWorkflowAlimtalk("appointment_reminder_10m")}
                       className={cn(
-                        "inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-[#1d4ed8] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50",
+                        "inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-[#607080] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50",
                         showVisitReminderTiming ? "rounded-l-[8px]" : "rounded-[8px]",
                       )}
                     >
                       {visitReminderDone ? (
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1d4ed8]" />
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#607080]" />
                       ) : visitReminderSending ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#1d4ed8]" />
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#607080]" />
                       ) : (
-                        <Send className="h-4 w-4 shrink-0 text-[#1d4ed8]" />
+                        <Send className="h-4 w-4 shrink-0 text-[#607080]" />
                       )}
                       <span className="text-[15px]">
                         {visitReminderDone ? "요청됨" : visitReminderSending ? "전송 중" : "방문 전 알림"}
@@ -2016,10 +2169,13 @@ function BookingSidePanel({
                   <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2">
                     <button
                       type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
+                      onClick={() => onRequestBeforePhotoStatusChange(selectedBooking)}
                       className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
                     >
-                      미용 시작
+                      <span className="inline-flex items-center justify-center gap-1.5">
+                        <ImagePlus className="h-4 w-4 shrink-0" />
+                        미용 전 사진 촬영
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -2031,6 +2187,13 @@ function BookingSidePanel({
                       <ChevronDown className={cn("h-4 w-4 transition-transform", actionMoreOpen ? "rotate-180" : "")} />
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => requestStatusChange(selectedBooking.id, "진행 중")}
+                    className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
+                  >
+                    사진 없이 바로 시작
+                  </button>
                   {actionMoreOpen ? (
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -2065,7 +2228,7 @@ function BookingSidePanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
+                      onClick={() => requestStatusChange(selectedBooking.id, "픽업 준비")}
                       className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-r-[8px] bg-[#2f6fd6] px-3 text-[15px] font-medium text-white transition hover:bg-[#255fc1] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Send className="h-4 w-4 shrink-0" />
@@ -2081,25 +2244,9 @@ function BookingSidePanel({
                       />
                     ) : null}
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <button
-                      type="button"
-                      onClick={previousAction?.onClick}
-                      className="inline-flex h-10 min-w-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
-                    >
-                      이전
-                    </button>
-                  </div>
                 </>
               ) : sourceStatus === "픽업 준비" ? (
-                <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
-                  <button
-                    type="button"
-                    onClick={previousAction?.onClick}
-                    className="inline-flex h-10 min-w-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
-                  >
-                    이전
-                  </button>
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "완료")}
@@ -2120,24 +2267,12 @@ function BookingSidePanel({
               )}
 
               {sourceStatus !== "확정" && !isActiveBookingStatus(sourceStatus) ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {previousAction && !changeEventSelected && !workflowCompleted ? (
-                    <button
-                      type="button"
-                      onClick={previousAction.onClick}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] px-3 text-[15px] text-[#334155] transition hover:bg-[#f8fafc]"
-                    >
-                      이전
-                    </button>
-                  ) : null}
+                <div className="grid grid-cols-1 gap-2">
                   {!workflowCompleted && !changeEventSelected ? (
                     <button
                       type="button"
                       onClick={() => onChangeStatus(selectedBooking.id, workflowPending ? "거절" : "취소")}
-                      className={cn(
-                        "inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]",
-                        previousAction || sourceStatus === "확정" ? "" : "col-span-2",
-                      )}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
                     >
                       <X className="h-4 w-4 text-[#64748b]" />
                       {workflowPending ? "예약 거절" : "예약 취소"}
@@ -2145,11 +2280,31 @@ function BookingSidePanel({
                   ) : null}
                 </div>
               ) : null}
-              {notificationNotice ? <p className="text-[15px] leading-6 text-[#64748b]">{notificationNotice}</p> : null}
             </div>
           </section>
           ) : null}
       </WebSurface>
+      {notificationDialog ? (
+        <OwnerNoticeDialog
+          title={notificationDialog.title}
+          message={notificationDialog.message}
+          onClose={() => setNotificationDialog(null)}
+        />
+      ) : null}
+      {statusConfirmAction ? (
+        <OwnerConfirmDialog
+          title={statusConfirmAction.title}
+          message={statusConfirmAction.message}
+          confirmLabel={statusConfirmAction.confirmLabel}
+          danger={statusConfirmAction.danger}
+          onClose={() => setStatusConfirmAction(null)}
+          onConfirm={() => {
+            const action = statusConfirmAction;
+            setStatusConfirmAction(null);
+            onChangeStatus(action.bookingId, action.nextStatus);
+          }}
+        />
+      ) : null}
     </aside>
   );
 
@@ -2162,6 +2317,68 @@ const timeProposalDefaultMessage =
 
 const cancelDefaultMessage =
   "신청해주신 예약은 매장 사정으로 인해 부득이하게 취소 처리되었습니다. 이용에 불편을 드려 죄송합니다.";
+
+function OwnerNoticeDialog({ title, message, onClose }: { title: string; message: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
+        <p className="mt-3 whitespace-pre-wrap text-[15px] leading-6 text-[#475569]">{message}</p>
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] bg-[#2f6fd6] px-5 text-[15px] font-medium text-white transition hover:bg-[#255fc1]">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  danger,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
+        <p className="mt-3 text-[15px] leading-6 text-[#475569]">{message}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-medium text-[#334155] transition hover:bg-[#f8fafc]">
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={cn(
+              "h-11 rounded-[8px] text-[15px] font-semibold text-white transition",
+              danger ? "bg-[#a04455] hover:bg-[#8f3547]" : "bg-[#2f6fd6] hover:bg-[#255fc1]",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatPanelDateLabel(date: string) {
   if (date === currentDateInTimeZone()) return "오늘";
@@ -2679,7 +2896,6 @@ function MissedStartAlert({
               나중에
             </button>
           </div>
-          {/* TODO: 시작 알림 사용 여부, 1차/2차 알림 시간, 자동 시작 처리 기본 OFF 설정을 매장 설정에 연결합니다. */}
         </div>
       </div>
     </div>
@@ -2758,7 +2974,7 @@ function PersistentBookingPanelHero({
             onClick={() => onChangeStatus(booking.id, "거절")}
             className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-2 text-[13px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
           >
-            예약 취소
+            예약 거절
           </button>
         </div>
       ) : (
@@ -2785,7 +3001,7 @@ function PersistentBookingPanelHero({
               예약 변경
             </button>
             <button type="button" onClick={() => onChangeStatus(booking.id, "거절")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
-              예약 취소
+              예약 거절
             </button>
           </div>
         </div>
@@ -2796,6 +3012,7 @@ function PersistentBookingPanelHero({
 
 function ReservationDetailSheet({
   booking,
+  shopId,
   selectedDate,
   currentHour,
   staffComments,
@@ -2804,6 +3021,7 @@ function ReservationDetailSheet({
   onChangeStaffComment,
 }: {
   booking: DailyBooking;
+  shopId: string;
   selectedDate: string;
   currentHour: number;
   staffComments: Record<string, string>;
@@ -2833,6 +3051,7 @@ function ReservationDetailSheet({
           {isPending ? (
             <PendingReservationDetail
               booking={booking}
+              shopId={shopId}
               selectedDate={selectedDate}
               staffComments={staffComments}
               onChangeStatus={onChangeStatus}
@@ -2956,12 +3175,14 @@ function ConfirmedReservationDetail({
 
 function PendingReservationDetail({
   booking,
+  shopId,
   selectedDate,
   staffComments,
   onChangeStatus,
   onChangeStaffComment,
 }: {
   booking: DailyBooking;
+  shopId: string;
   selectedDate: string;
   staffComments: Record<string, string>;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
@@ -3012,13 +3233,18 @@ function PendingReservationDetail({
             다른 시간 제안
           </button>
           <button type="button" onClick={() => setCancelOpen(true)} className="h-11 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] font-medium text-[#b42318]">
-            예약 취소
+            예약 거절
           </button>
         </div>
       </section>
 
       {proposalOpen ? (
-        <TimeProposalForm booking={booking} onClose={() => setProposalOpen(false)} />
+        <AlternativeTimeGuideDialog
+          booking={booking}
+          shopId={shopId}
+          selectedDate={selectedDate}
+          onClose={() => setProposalOpen(false)}
+        />
       ) : null}
 
       <ReservationInfoSections
@@ -3033,6 +3259,7 @@ function PendingReservationDetail({
 
       {cancelOpen ? (
         <CancelReservationDialog
+          mode="reject"
           onClose={() => setCancelOpen(false)}
           onConfirm={() => {
             onChangeStatus(booking.id, "거절");
@@ -3171,7 +3398,6 @@ function TimeProposalForm({ booking, onClose }: { booking: DailyBooking; onClose
       <button
         type="button"
         onClick={() => {
-          // TODO: time_proposed 상태 전환 API가 준비되면 추천 시간과 메시지를 함께 저장/발송합니다.
           setSent(true);
         }}
         className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#b98121] text-[15px] font-semibold text-white"
@@ -3179,24 +3405,35 @@ function TimeProposalForm({ booking, onClose }: { booking: DailyBooking; onClose
         <Send className="h-4 w-4" />
         제안 보내기
       </button>
-      {sent ? <p className="mt-2 text-[13px] font-medium text-[#9a640f]">제안 보내기 mock 처리 완료. API 연결 전까지 화면 상태만 확인합니다.</p> : null}
+      {sent ? <p className="mt-2 text-[13px] font-medium text-[#9a640f]">이전 제안 화면입니다. 예약 상세에서는 실제 알림톡 발송 창을 사용합니다.</p> : null}
     </section>
   );
 }
 
-function CancelReservationDialog({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
+function CancelReservationDialog({
+  mode = "cancel",
+  onClose,
+  onConfirm,
+}: {
+  mode?: "cancel" | "reject";
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
   const [reason, setReason] = useState("매장 일정상 어려움");
   const [message, setMessage] = useState(cancelDefaultMessage);
+  const isReject = mode === "reject";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
       <div className="w-full max-w-[460px] rounded-[12px] border border-[#ead6dc] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
-        <h3 className="text-[22px] font-semibold text-[#111827]">예약을 취소하시겠어요?</h3>
+        <h3 className="text-[22px] font-semibold text-[#111827]">{isReject ? "예약을 거절하시겠어요?" : "예약을 취소하시겠어요?"}</h3>
         <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-          이 예약은 고객에게 취소 안내가 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요.
+          {isReject
+            ? "이 예약은 고객에게 예약 거절 알림톡이 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요."
+            : "이 예약은 고객에게 취소 안내가 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요."}
         </p>
         <label className="mt-4 block space-y-1.5">
-          <span className="text-[13px] font-medium text-[#64748b]">취소 사유</span>
+          <span className="text-[13px] font-medium text-[#64748b]">{isReject ? "거절 사유" : "취소 사유"}</span>
           <select value={reason} onChange={(event) => setReason(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827]">
             <option>매장 일정상 어려움</option>
             <option>서비스 제공이 어려움</option>
@@ -3210,7 +3447,9 @@ function CancelReservationDialog({ onClose, onConfirm }: { onClose: () => void; 
         </label>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">닫기</button>
-          <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[14px] font-semibold text-white">취소 안내 보내기</button>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[14px] font-semibold text-white">
+            {isReject ? "거절 알림 보내기" : "취소 안내 보내기"}
+          </button>
         </div>
         <p className="mt-2 text-[12px] text-[#94a3b8]">선택 사유: {reason}</p>
       </div>
@@ -3698,31 +3937,6 @@ export default function CalendarManagementScreen({
   }
 
   useEffect(() => {
-    console.log("[OWNER DEBUG] calendar-management-screen", {
-      mode: bootstrapData.mode,
-      shopId: bootstrapData.shop.id,
-      selectedDate,
-      bootstrapAppointmentsCount: bootstrapData.appointments?.length ?? 0,
-      selectedDateAppointmentsCount: bootstrapData.appointments.filter((appointment) => appointment.appointment_date === selectedDate).length,
-      bootstrapStaffCount: 0,
-      staffColumnsSource: staffMembers.length > 0 ? "owner-web-preview-props" : "empty",
-      finalStaffColumns: visibleStaff,
-      dailyBookingsSource: selectedDateBookingSource,
-      finalDailyBookingsCount: selectedDateBookings.length,
-      finalDailyBookings: selectedDateBookings.map((booking) => ({
-        id: booking.id,
-        staffKey: booking.staffKey,
-        staffName: booking.staffName,
-        pet: booking.pet,
-        customer: booking.customer,
-        start: booking.start,
-        duration: booking.duration,
-        status: booking.status,
-      })),
-    });
-  }, [bootstrapData, selectedDate, selectedDateBookingSource, selectedDateBookings, staffMembers.length, visibleStaff]);
-
-  useEffect(() => {
     if (statusChangeInFlightRef.current) return;
     setBootstrapData(applyRecentStatusOverrides(initialData));
   }, [initialData]);
@@ -3825,17 +4039,6 @@ export default function CalendarManagementScreen({
   }, [manualApprovalEnabled, selectedDateBookings]);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(staffCommentStorageKey);
-      if (stored) {
-        setStaffComments((current) => ({ ...current, ...(JSON.parse(stored) as Record<string, string>) }));
-      }
-    } catch {
-      window.localStorage.removeItem(staffCommentStorageKey);
-    }
-  }, []);
-
-  useEffect(() => {
     setStaffComments((current) => ({ ...current, ...buildStaffCommentsFromBootstrap(bootstrapData) }));
   }, [bootstrapData.petStaffNotes]);
 
@@ -3847,9 +4050,7 @@ export default function CalendarManagementScreen({
 
   function handleStaffCommentChange(commentKey: string, value: string, booking?: DailyBooking) {
     setStaffComments((current) => {
-      const next = { ...current, [commentKey]: value };
-      window.localStorage.setItem(staffCommentStorageKey, JSON.stringify(next));
-      return next;
+      return { ...current, [commentKey]: value };
     });
 
     if (!booking?.guardianId) return;
@@ -4315,7 +4516,7 @@ export default function CalendarManagementScreen({
       nextStatus: "진행 중",
       mediaKind: "grooming_before",
       title: "미용 전 사진",
-      description: "",
+      description: "미용 전 모습을 한 장 촬영하면 사진이 저장되고 바로 미용 시작으로 처리됩니다.",
       buttonLabel: "사진 선택",
       skipLabel: "사진 없이 미용 시작",
       mobileDescription: "휴대폰으로 QR을 스캔해 미용 전 상태를 촬영하고 미용을 시작하세요.",
@@ -4778,8 +4979,9 @@ export default function CalendarManagementScreen({
             activeMetric={activeMetric}
             manualApprovalEnabled={manualApprovalEnabled}
             selectedBookingId={selectedBookingId}
-            selectedDate={selectedDate}
-            currentHour={scheduleStatusHour}
+              selectedDate={selectedDate}
+              operatingWindow={getScheduleOperatingWindow(bootstrapData.shop, selectedDate)}
+              currentHour={scheduleStatusHour}
             conflictBookings={displayScopedBookings}
             selectedStaffKey={selectedBoardStaffKey}
             onSelectBooking={setSelectedBookingId}
@@ -4803,6 +5005,7 @@ export default function CalendarManagementScreen({
           approvalModeBookings={[]}
           onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
+          onRequestBeforePhotoStatusChange={requestBeforePhotoStatusChange}
           onSuggestAlternativeTime={handleSuggestAlternativeTime}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}

@@ -205,6 +205,7 @@ export const shopSettingsSchema = z.object({
     alimtalkSenderProfileKey: z.string().trim().max(120).default(""),
     alimtalkChannelRequestedAt: z.string().nullable().optional().default(null),
     alimtalkChannelAdminNote: z.string().trim().max(500).default(""),
+    alimtalkBusinessChannelVerified: z.boolean().default(false),
     alimtalkTemplateRequestNote: z.string().trim().max(1500).default(""),
     alimtalkTemplateRequestUpdatedAt: z.string().nullable().optional().default(null),
     revisitEnabled: z.boolean(),

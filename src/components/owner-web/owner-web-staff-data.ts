@@ -5,6 +5,7 @@ export type OwnerWebStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;
   role: string;
@@ -27,6 +28,7 @@ export type OwnerWebStaffColumn = {
   titlePrefix?: string;
   position?: string;
   profileImageUrl?: string;
+  profileMessage?: string;
   chipColorIndex?: number | null;
 };
 
@@ -38,6 +40,7 @@ export const defaultOwnerWebStaff: OwnerWebStaffMember[] = [
     id: "staff-1",
     name: "정우진",
     displayName: "정우진",
+    profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
     titlePrefix: "대표",
     phone: "010-8498-2077",
     role: "대표 디자이너 / 전체 미용",
@@ -153,6 +156,7 @@ export function toOwnerWebStaffColumn(staff: OwnerWebStaffMember): OwnerWebStaff
     titlePrefix: staff.titlePrefix,
     position: staff.position,
     profileImageUrl: staff.profileImageUrl,
+    profileMessage: staff.profileMessage,
     chipColorIndex: staff.chipColorIndex ?? null,
   };
 }
@@ -175,6 +179,7 @@ export function parseStoredOwnerWebStaff(value: string | null): OwnerWebStaffMem
           ...item,
           displayName: item.displayName ?? "",
           profileImageUrl: item.profileImageUrl ?? "",
+          profileMessage: item.profileMessage ?? "",
           chipColorIndex: item.chipColorIndex ?? null,
           titlePrefix: item.titlePrefix ?? "",
           position: item.position?.trim() || item.role.split(/[/.|]/)[0]?.trim() || "스태프",

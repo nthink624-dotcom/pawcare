@@ -59,6 +59,7 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
       const source = item as Record<string, unknown>;
       const id = normalizeCouponText(source.id, 80) || `coupon-${index + 1}`;
       const name = normalizeCouponText(source.name, 40) || "할인 쿠폰";
+      const ownerLabel = normalizeCouponText(source.owner_label, 40);
       const discountType = source.discount_type === "percent" ? "percent" : "fixed";
       const discountValue = normalizeCouponNumber(source.discount_value, discountType === "percent" ? 100 : 1_000_000);
       const audience =
@@ -77,6 +78,7 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
         {
           id,
           name,
+          owner_label: ownerLabel || name,
           enabled: source.enabled !== false,
           visible: true,
           discount_type: discountType,

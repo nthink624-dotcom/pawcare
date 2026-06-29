@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { getBootstrap } from "@/server/bootstrap";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function EntryPage({
   params,
   searchParams,
@@ -40,6 +43,7 @@ export default async function EntryPage({
     <CustomerBookingEntryPage
       shop={data.shop}
       services={data.services}
+      staffMembers={data.staffMembers}
       ownerProfile={data.ownerProfile}
       infoHref={`/book/${encodedShopId}/info`}
     />

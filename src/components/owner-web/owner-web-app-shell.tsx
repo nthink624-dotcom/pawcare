@@ -48,10 +48,9 @@ const ownerWebNavigationGroups: Array<{
   {
     label: "설정",
     items: [
-      { key: "services", label: "미용 요금" },
+      { key: "shopInfo", label: "매장 정보" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
-      { key: "shopInfo", label: "매장 정보" },
       { key: "alerts", label: "알림 설정" },
     ],
   },
@@ -74,7 +73,6 @@ const ownerWebSidebarGroups: Array<{
     label: "설정",
     items: [
       { key: "shopInfo", label: "매장 정보" },
-      { key: "services", label: "서비스/가격" },
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },

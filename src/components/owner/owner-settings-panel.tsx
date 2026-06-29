@@ -917,7 +917,7 @@ export default function OwnerSettingsPanel({
         label="알림톡 발송"
         labelAccessory={
           <InfoTip ariaLabel="알림톡 설정 안내" popoverClassName="w-[248px]">
-            매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 자동 안내가 발송돼요.
+            매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 오너가 직접 알림을 보낼 수 있어요.
           </InfoTip>
         }
       >
@@ -1143,7 +1143,7 @@ export default function OwnerSettingsPanel({
         className="pb-3 pt-2.5"
         labelAccessory={
           <InfoTip ariaLabel="부가기능 안내" popoverClassName="w-[248px]">
-            부가기능을 켜면 현재 계정에서 업장 추가나 자동화 기능을 확장해서 사용할 수 있어요.
+            부가기능을 켜면 현재 계정에서 업장 추가 같은 확장 기능을 사용할 수 있어요.
           </InfoTip>
         }
       >

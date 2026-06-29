@@ -2,10 +2,12 @@
 
 import { Fragment, type HTMLAttributes, type ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 
 import { serviceRows } from "@/components/owner-web/owner-web-data";
 import type { OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
+import CustomerServiceExposurePanel from "@/components/owner-web/customer-service-exposure-panel";
 import {
   ServicePriceGuideEditor,
   buildDefaultServicePriceGuide,
@@ -20,6 +22,14 @@ import {
   WebSurface,
 } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceMenuConnectionOptions,
+  buildCustomerServiceSourceOptions,
+  normalizeCustomerServiceOverrides,
+  type CustomerServiceDisplayOverrides,
+  type CustomerServiceSourceOption,
+} from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
 import type { OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -204,6 +214,35 @@ function staffLabelToSelectionMode(staff: string): "all" | "unassigned" | "speci
   return "specific";
 }
 
+function buildCustomerServiceOverrideBaseline(
+  options: CustomerServiceSourceOption[],
+  overrides: CustomerServiceDisplayOverrides,
+) {
+  const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
+
+  const baseline = Object.fromEntries(
+    options.map((option) => [
+      option.id,
+      {
+        visible: true,
+        order: option.order,
+        displayName: option.sourceName,
+        description: option.description,
+        linkedOptionId: option.linkedOptionId ?? option.id,
+      },
+    ]),
+  ) satisfies CustomerServiceDisplayOverrides;
+
+  return {
+    ...baseline,
+    ...normalizedOverrides,
+  };
+}
+
+function createCustomerServiceMenuRowId() {
+  return `menu-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
@@ -302,6 +341,7 @@ export default function ServiceManagementScreen({
   initialServices = [],
   staffMembers = [],
   demoMode = false,
+  embedded = false,
   onServicesChange,
   onShopChange,
 }: {
@@ -311,6 +351,7 @@ export default function ServiceManagementScreen({
   initialServices?: Service[];
   staffMembers?: OwnerWebStaffMember[];
   demoMode?: boolean;
+  embedded?: boolean;
   onServicesChange?: (services: Service[]) => void;
   onShopChange?: (shop: Shop) => void;
 }) {
@@ -323,8 +364,14 @@ export default function ServiceManagementScreen({
   const [serviceForm, setServiceForm] = useState<ServiceForm>(() => buildForm(services[0] ?? normalizeServices(serviceRows)[0]));
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
+  const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
+    normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
+  );
+  const [customerServiceActionId] = useState<string | null>(null);
+  const [customerServiceSaveStatus, setCustomerServiceSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [storageReady, setStorageReady] = useState(false);
   const autosaveTimerRef = useRef<number | null>(null);
+  const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedSignatureRef = useRef("");
   const latestServiceFormSignatureRef = useRef("");
   const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
@@ -332,6 +379,22 @@ export default function ServiceManagementScreen({
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+
+  useEffect(() => {
+    return () => {
+      if (customerServiceSaveTimerRef.current) {
+        clearTimeout(customerServiceSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextOverrides = normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides);
+    setCustomerServiceOverrides((currentOverrides) =>
+      JSON.stringify(currentOverrides) === JSON.stringify(nextOverrides) ? currentOverrides : nextOverrides,
+    );
+    setCustomerServiceSaveStatus((currentStatus) => (currentStatus === "pending" ? currentStatus : "saved"));
+  }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   useEffect(() => {
     if (!demoMode) {
@@ -609,6 +672,125 @@ export default function ServiceManagementScreen({
     }
   }
 
+  function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
+    const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
+    setCustomerServiceOverrides(normalizedOverrides);
+
+    if (customerServiceSaveTimerRef.current) {
+      clearTimeout(customerServiceSaveTimerRef.current);
+      customerServiceSaveTimerRef.current = null;
+    }
+
+    if (!shop) {
+      setCustomerServiceSaveStatus("idle");
+      return;
+    }
+
+    const optimisticShop: Shop = {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        customer_service_overrides: normalizedOverrides,
+      },
+    };
+    onShopChange?.(optimisticShop);
+
+    if (demoMode || shop.id === "demo-shop" || shop.id === "owner-demo") {
+      setCustomerServiceSaveStatus("saved");
+      return;
+    }
+
+    setCustomerServiceSaveStatus("pending");
+    customerServiceSaveTimerRef.current = setTimeout(() => {
+      void fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+        method: "PATCH",
+        body: JSON.stringify({
+          shopId: shop.id,
+          customerServiceOverrides: normalizedOverrides,
+        }),
+      })
+        .then((result) => {
+          onShopChange?.({
+            ...optimisticShop,
+            customer_page_settings: {
+              ...optimisticShop.customer_page_settings,
+              ...result.shop.customer_page_settings,
+            },
+          });
+          setCustomerServiceSaveStatus("saved");
+        })
+        .catch((error) => {
+          console.error("[OWNER SERVICES] failed to save customer service exposure", error);
+          setCustomerServiceSaveStatus("error");
+        });
+      customerServiceSaveTimerRef.current = null;
+    }, 500);
+  }
+
+  function addCustomerServiceOption() {
+    if (!shop || customerServiceActionId) return;
+
+    const usedConnectionOptionIds = new Set(customerServiceOptions.map((option) => option.linkedOptionId ?? option.id));
+    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionIds.has(option.linkedOptionId ?? option.id));
+    if (!defaultConnectionOption) return;
+
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    const rowId = createCustomerServiceMenuRowId();
+    const nextOrder =
+      Math.max(
+        0,
+        ...customerServiceOptions.map((option) => baselineOverrides[option.id]?.order ?? option.order),
+      ) + 1;
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [rowId]: {
+        visible: true,
+        order: nextOrder,
+        displayName: defaultConnectionOption.sourceName,
+        description: defaultConnectionOption.description,
+        linkedOptionId: defaultConnectionOption.linkedOptionId ?? defaultConnectionOption.id,
+      },
+    });
+  }
+
+  function deleteCustomerServiceOption(option: CustomerServiceSourceOption) {
+    if (!shop || customerServiceActionId) return;
+
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [option.id]: {
+        ...(baselineOverrides[option.id] ?? {}),
+        visible: false,
+        order: baselineOverrides[option.id]?.order ?? option.order,
+        displayName: baselineOverrides[option.id]?.displayName ?? option.sourceName,
+        description: baselineOverrides[option.id]?.description ?? option.description,
+      },
+    });
+  }
+
+  function relinkCustomerServiceOption(option: CustomerServiceSourceOption, nextOptionId: string) {
+    if (!nextOptionId) return;
+
+    const nextOption = rawCustomerServiceConnectionOptions.find((item) => item.id === nextOptionId);
+    if (!nextOption) return;
+
+    const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
+    const currentOverride = baselineOverrides[option.id] ?? {};
+
+    updateCustomerServiceOverrides({
+      ...baselineOverrides,
+      [option.id]: {
+        ...currentOverride,
+        visible: true,
+        displayName: nextOption.sourceName,
+        description: currentOverride.description ?? option.description,
+        order: currentOverride.order ?? option.order,
+        linkedOptionId: nextOption.id,
+      },
+    });
+  }
+
   const previewServices = useMemo(() => {
     const draftName = serviceForm.name.trim();
     const draftService: ManagedService | null = draftName
@@ -636,24 +818,72 @@ export default function ServiceManagementScreen({
     return managedServicesToDomain(nextServices, shopId);
   }, [selectedService?.order, serviceForm, services, shopId]);
 
-  return (
-    <CustomerPagePreviewLayout shop={shop ?? null} services={previewServices} ownerProfile={ownerProfile}>
-      <div className="space-y-5">
-        <section className="space-y-6">
-          <div>
-            <ServicePriceGuideEditor
-              value={{ ...serviceForm.priceGuide, enabled: true }}
-              onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
-              framed={false}
-              showHeader={false}
-              showEnabledToggle={false}
-            />
-          </div>
-        </section>
+  const rawCustomerServiceConnectionOptions = useMemo(
+    () => buildCustomerServiceSourceOptions(previewServices, { priceGuideOnly: true }),
+    [previewServices],
+  );
+  const customerServiceConnectionOptions = useMemo(
+    () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
+    [rawCustomerServiceConnectionOptions],
+  );
+  const customerServiceOptions = useMemo(
+    () => applyConfiguredCustomerServiceOverrides(rawCustomerServiceConnectionOptions, customerServiceOverrides),
+    [rawCustomerServiceConnectionOptions, customerServiceOverrides],
+  );
+  const customerPagePreviewShop = useMemo<Shop | null>(() => {
+    if (!shop) return null;
+    return {
+      ...shop,
+      customer_page_settings: {
+        ...shop.customer_page_settings,
+        customer_service_overrides: customerServiceOverrides,
+      },
+    };
+  }, [customerServiceOverrides, shop]);
+
+  const content = (
+    <div className="space-y-5">
+      <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">서비스/가격</h2>
+          <button
+            type="button"
+            onClick={() => void addCustomerServiceOption()}
+            disabled={customerServiceActionId === "__add__"}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[9px] border border-[#2f6bd4] bg-[#2f6bd4] px-4 text-[15px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Plus className="h-4 w-4" />
+            서비스 추가
+          </button>
+        </div>
+
+        <div className="mb-5">
+          <CustomerServiceExposurePanel
+            options={customerServiceOptions}
+            overrides={customerServiceOverrides}
+            embedded
+            busyOptionId={customerServiceActionId}
+            onChange={updateCustomerServiceOverrides}
+            connectionOptions={customerServiceConnectionOptions}
+            onAddOption={addCustomerServiceOption}
+            hideHeader
+            onDeleteOption={deleteCustomerServiceOption}
+            onRelinkOption={relinkCustomerServiceOption}
+          />
+        </div>
+
+        <ServicePriceGuideEditor
+          value={{ ...serviceForm.priceGuide, enabled: true }}
+          onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
+          framed={false}
+          showHeader={false}
+          showEnabledToggle={false}
+        />
+      </section>
 
       {formError ? <p className="text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
 
-      <div className="flex justify-end">
+      <div className="hidden justify-end">
         <span
           className={cn(
             "inline-flex h-9 min-w-[108px] items-center justify-center rounded-[8px] border px-3 text-[13px] font-semibold",
@@ -838,6 +1068,13 @@ export default function ServiceManagementScreen({
         </WebSurface>
       </div>
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} ownerProfile={ownerProfile}>
+      {content}
     </CustomerPagePreviewLayout>
   );
 }

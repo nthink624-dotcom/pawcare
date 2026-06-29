@@ -110,14 +110,21 @@ export function ScheduleCreateDialog({
     { value: "new", label: "신규 고객 입력", meta: "고객명, 연락처, 반려동물명을 직접 입력" },
     { value: "existing", label: "기존 고객 선택", meta: "등록된 고객과 반려동물에서 선택" },
   ];
-  const customerOptions = customerRows.map(({ value, guardianName, phone, pets }) => ({
-    value,
-    label: `${guardianName} · ${pets.map((pet) => pet.name).join(", ")}`,
-    meta: phone ? formatSchedulePhone(phone) : undefined,
-    searchText: `${guardianName} ${phone ?? ""} ${phone ? formatSchedulePhone(phone) : ""} ${pets
-      .map((pet) => pet.name)
-      .join(" ")}`,
-  }));
+  const customerOptions = customerRows.map(({ value, guardianName, phone, pets }) => {
+    const primaryPet = pets[0];
+    const petLabel = primaryPet ? `${primaryPet.name}${pets.length > 1 ? ` 외 ${pets.length - 1}마리` : ""}` : "반려동물 없음";
+    const petDetails = pets.map((pet) => [pet.name, pet.breed].filter(Boolean).join(" / ")).join(", ");
+    const phoneLabel = phone ? formatSchedulePhone(phone) : "연락처 없음";
+
+    return {
+      value,
+      label: `${guardianName} · ${petLabel}`,
+      meta: `${phoneLabel} · ${pets.length}마리 · ${petDetails}`,
+      searchText: `${guardianName} ${phone ?? ""} ${phone ? formatSchedulePhone(phone) : ""} ${pets
+        .map((pet) => `${pet.name} ${pet.breed ?? ""}`)
+        .join(" ")}`,
+    };
+  });
   const selectedPet = data.pets.find((pet) => pet.id === form.petId);
   const selectedCustomerRow = selectedPet
     ? customerRows.find((row) => row.pets.some((pet) => pet.id === selectedPet.id))
@@ -226,11 +233,11 @@ export function ScheduleCreateDialog({
           {form.customerMode === "existing" ? (
             <div className="space-y-2">
               <ScheduleDropdown
-                label="고객 / 반려동물"
+                label="보호자 / 반려동물 찾기"
                 value={selectedCustomerRow?.value ?? ""}
                 options={customerOptions}
                 placeholder="기존 고객을 선택해 주세요"
-                showMeta={false}
+                showMeta
                 showOptionMeta
                 searchable
                 searchPlaceholder="고객명, 반려동물명, 연락처 검색"

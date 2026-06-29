@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 
 import {
   getAlimtalkTemplateAlias,
-  renderNotificationTemplateBody,
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
@@ -15,6 +14,7 @@ import {
 } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
+import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
@@ -607,7 +607,7 @@ function buildNotificationTemplateValues(params: {
   };
 }
 
-function buildNotificationMessage(params: {
+async function buildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
   appointment: Appointment | null;
@@ -621,7 +621,7 @@ function buildNotificationMessage(params: {
   bookingManageUrl: string | null;
   directionsUrl: string | null;
 }) {
-  const rendered = renderNotificationTemplateBody(
+  const rendered = await renderNotificationTemplateBodyWithOverrides(
     params.type,
     buildNotificationTemplateValues({
       appointment: params.appointment,
@@ -692,12 +692,54 @@ function buildNotificationButtons(params: {
     ];
   }
 
-  if (params.type === "booking_confirmed" || params.type === "booking_cancelled") {
+  if (params.type === "appointment_reminder_10m") {
+    const buttons: AlimtalkButton[] = [];
+    if (params.directionsUrl) {
+      buttons.push({
+        type: "WL",
+        name: "길찾기",
+        linkMobile: params.directionsUrl,
+        linkPc: params.directionsUrl,
+      });
+    }
+    if (params.bookingManageUrl) {
+      buttons.push({
+        type: "WL",
+        name: "예약확인",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      });
+    }
+    return buttons;
+  }
+
+  if (params.type === "booking_rescheduled_confirmed") {
+    if (!params.bookingManageUrl) return [];
+    return [
+      {
+        type: "WL",
+        name: "예약 확인",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      },
+      {
+        type: "WL",
+        name: "예약 다시 변경",
+        linkMobile: params.bookingManageUrl,
+        linkPc: params.bookingManageUrl,
+      },
+    ];
+  }
+
+  if (
+    params.type === "booking_confirmed" ||
+    params.type === "booking_rejected"
+  ) {
     const buttons: AlimtalkButton[] = [];
     if (params.bookingManageUrl) {
       buttons.push({
         type: "WL",
-        name: "예약 확인",
+        name: params.type === "booking_rejected" ? "예약 변경" : "예약 확인",
         linkMobile: params.bookingManageUrl,
         linkPc: params.bookingManageUrl,
       });
@@ -840,7 +882,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           petName: pet?.name ?? "pet",
           bookingManageUrl,
         })
-      : buildNotificationMessage({
+      : await buildNotificationMessage({
           type: input.type,
           shopName: bootstrap.shop.name,
           shopAddress: bootstrap.shop.address ?? null,

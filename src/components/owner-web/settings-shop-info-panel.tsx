@@ -328,7 +328,7 @@ export default function ShopInfoSettingsPanel({
     () => [
       { id: "basic", label: "기본 정보" },
       { id: "hours", label: "영업 시간", hidden: !children },
-      { id: "menu", label: "서비스 메뉴", hidden: !serviceMenuContent },
+      { id: "menu", label: "서비스/가격", hidden: !serviceMenuContent },
       { id: "policy", label: "예약 정책" },
     ].filter((tab) => !tab.hidden),
     [children, serviceMenuContent],
@@ -417,9 +417,16 @@ export default function ShopInfoSettingsPanel({
   }
 
   useEffect(() => {
-    setSelectedProfileImageIndexes((current) =>
-      current.filter((index) => index >= 0 && index < carouselProfileImages.length),
-    );
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSelectedProfileImageIndexes((current) =>
+        current.filter((index) => index >= 0 && index < carouselProfileImages.length),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [carouselProfileImages.length]);
 
   useEffect(() => {
@@ -526,7 +533,7 @@ export default function ShopInfoSettingsPanel({
   );
 
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
@@ -585,14 +592,14 @@ export default function ShopInfoSettingsPanel({
                         onTouchEnd={handleProfileTouchEnd}
                         disabled={!editable}
                         className={cn(
-                          "group relative aspect-[16/10] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
+                          "group relative aspect-[189/119] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
                           activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
                         )}
                         aria-label="대표 매장 사진"
                       >
                         {activeProfileImage ? (
                           <>
-                            <Image src={activeProfileImage} alt="매장 사진" width={360} height={360} unoptimized className="h-full w-full object-cover" />
+                            <Image src={activeProfileImage} alt="매장 사진" width={378} height={238} unoptimized className="h-full w-full object-cover" />
                             <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
                               대표
                             </span>
@@ -821,7 +828,7 @@ export default function ShopInfoSettingsPanel({
                 <PanelCard
                   id="shop-info-menu"
                   icon={<Scissors className="h-[17px] w-[17px]" />}
-                  title="서비스 메뉴"
+                  title="서비스/가격"
                   hideHeader
                 >
                   <div>{serviceMenuContent}</div>
@@ -843,8 +850,8 @@ export default function ShopInfoSettingsPanel({
           </div>
         </div>
 
-        <aside className="hidden min-h-0 min-w-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4">
+        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={customerPreviewShop}
               services={previewServices}

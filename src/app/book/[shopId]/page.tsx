@@ -5,16 +5,15 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ shopId: string }>;
-  searchParams?: Promise<{ mode?: string; token?: string; t?: string; date?: string; time?: string; serviceId?: string; serviceOptionId?: string; step?: string }>;
+  searchParams?: Promise<{ mode?: string; token?: string; t?: string }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const requestedMode = resolvedSearchParams?.mode;
   const encodedShopId = encodeURIComponent(shopId);
 
-  if (requestedMode === "manage") {
+  if (resolvedSearchParams?.mode === "manage") {
     const manageUrl = new URL(`/book/${encodedShopId}/manage`, "http://localhost");
-    const accessToken = resolvedSearchParams?.t || resolvedSearchParams?.token;
+    const accessToken = resolvedSearchParams.t || resolvedSearchParams.token;
 
     if (accessToken) {
       manageUrl.searchParams.set("t", accessToken);

@@ -57,6 +57,7 @@ export type ShopNotificationSettings = {
   alimtalk_sender_profile_key?: string;
   alimtalk_channel_requested_at?: string | null;
   alimtalk_channel_admin_note?: string;
+  alimtalk_business_channel_verified?: boolean;
   alimtalk_template_request_note?: string;
   alimtalk_template_request_updated_at?: string | null;
   revisit_enabled: boolean;
@@ -138,6 +139,7 @@ export type CustomerPageSettings = {
 export type CustomerDiscountCoupon = {
   id: string;
   name: string;
+  owner_label?: string;
   enabled: boolean;
   visible: boolean;
   discount_type: "fixed" | "percent";
@@ -335,6 +337,7 @@ export type BootstrapStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;
   role: string;

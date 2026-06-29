@@ -1,6 +1,6 @@
 create table if not exists public.appointment_change_events (
   id uuid primary key,
-  shop_id uuid not null references public.shops(id) on delete cascade,
+  shop_id text not null references public.shops(id) on delete cascade,
   appointment_id uuid not null references public.appointments(id) on delete cascade,
   event_type text not null check (event_type in ('status', 'details')),
   previous_values jsonb not null default '{}'::jsonb,

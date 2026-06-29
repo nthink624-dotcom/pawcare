@@ -11,6 +11,7 @@
 - Preserve extensibility for owner-triggered notification and owner workflows.
 - Notification delivery for customer-facing appointment events is owner-action/manual only by default. Do not add background cron, scheduled auto-send, or automatic reminder dispatch unless the owner explicitly re-approves that product direction.
 - Alimtalk usage is accounted per shop inside PetManager, not by separate Ssodaa accounts. Ssodaa balance is the platform pool; each shop has an internal credit balance, sends must be blocked when the shop has no remaining credits, and successful sends consume one shop credit with a ledger event. Failed provider sends must refund the reserved credit. Monthly/plan-included Alimtalk credits reset at each paid period and unused included credits do not carry over. Separately purchased paid credits must not expire or reset unless the owner explicitly requests a refund, adjustment, or policy change.
+- Alimtalk relay/template environment values must stay identical between local development and Vercel production by default. When a Ssodaa template code is approved or changed, update both `.env.local` and Vercel Production environment variables in the same work session, then run `npm run check:alimtalk-env:vercel`. Do not leave dev/prod template mappings intentionally different unless the owner explicitly approves a temporary test split.
 
 ## Implementation defaults
 - Frontend: Next.js App Router + TypeScript + Tailwind CSS.

@@ -870,9 +870,9 @@ export default function OperatingHoursSettings({
               <p className="text-[15px] font-normal text-[#111827]">공통 적용</p>
               <p className="mt-0.5 text-[12px] font-normal text-[#94a3b8]">예외 요일만 따로 수정</p>
             </div>
-            <div className="flex items-center justify-end gap-2">
+            <div className="grid grid-cols-[88px_20px_88px_auto] items-center justify-end gap-2">
               <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact />
-              <span className="text-center text-[13px] font-normal text-[#94a3b8]">~</span>
+              <span className="inline-flex h-8 items-center justify-center text-[13px] font-normal text-[#94a3b8]">~</span>
               <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact />
               <button
                 type="button"
@@ -893,9 +893,9 @@ export default function OperatingHoursSettings({
                     <span className={cn("whitespace-nowrap text-[14px] font-normal", day.enabled ? "text-[#334155]" : "text-[#64748b]")}>{day.enabled ? "영업" : "휴무"}</span>
                   </div>
                   {day.enabled ? (
-                    <div className="ml-auto grid grid-cols-[82px_14px_82px] items-center justify-end gap-1.5">
+                    <div className="ml-auto grid grid-cols-[88px_20px_88px] items-center justify-end gap-2">
                       <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact />
-                      <span className="text-center text-[13px] font-normal text-[#94a3b8]">~</span>
+                      <span className="inline-flex h-8 items-center justify-center text-[13px] font-normal text-[#94a3b8]">~</span>
                       <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact />
                     </div>
                   ) : (
@@ -1056,7 +1056,7 @@ export default function OperatingHoursSettings({
                 </div>
                 <div className={cn("grid items-center", compact ? "grid-cols-[96px_24px_96px_auto] justify-start gap-2" : "grid-cols-[116px_24px_116px_auto] justify-start gap-3")}>
                   <TimeInput value={bulkOpenTime} onChange={setBulkOpenTime} compact={compact} />
-                  <span className={cn("text-center font-normal text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>-</span>
+                  <span className={cn("inline-flex items-center justify-center font-normal text-[#94a3b8]", compact ? "h-8 text-[14px]" : "h-10 text-[16px]")}>-</span>
                   <TimeInput value={bulkCloseTime} onChange={setBulkCloseTime} compact={compact} />
                   <button
                     type="button"
@@ -1089,7 +1089,7 @@ export default function OperatingHoursSettings({
                     {day.enabled ? (
                       <>
                         <TimeInput value={day.open} onChange={(value) => updateBusinessDay(day.key, { open: value })} compact={compact} />
-                        <span className={cn("text-center font-normal text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>-</span>
+                        <span className={cn("inline-flex items-center justify-center font-normal text-[#94a3b8]", compact ? "h-8 text-[14px]" : "h-10 text-[16px]")}>-</span>
                         <TimeInput value={day.close} onChange={(value) => updateBusinessDay(day.key, { close: value })} compact={compact} />
                       </>
                     ) : (
@@ -1203,7 +1203,7 @@ export default function OperatingHoursSettings({
               {bookingSettings.blockedWindows.map((windowItem) => (
                 <div key={windowItem.id} className={cn("grid items-center rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd]", compact ? "grid-cols-[88px_16px_88px_minmax(0,1fr)_32px] gap-2 p-1.5" : "grid-cols-[116px_20px_116px_minmax(0,1fr)_36px] gap-3 p-2")}>
                   <TimeInput value={windowItem.start} onChange={(value) => updateBlockedWindow(windowItem.id, { start: value })} compact={compact} />
-                  <span className={cn("text-center font-normal text-[#94a3b8]", compact ? "text-[14px]" : "text-[16px]")}>~</span>
+                  <span className={cn("inline-flex items-center justify-center font-normal text-[#94a3b8]", compact ? "h-8 text-[14px]" : "h-10 text-[16px]")}>~</span>
                   <TimeInput value={windowItem.end} onChange={(value) => updateBlockedWindow(windowItem.id, { end: value })} compact={compact} />
                   <input
                     value={windowItem.label}

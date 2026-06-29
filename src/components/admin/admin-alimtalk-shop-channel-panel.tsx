@@ -16,6 +16,7 @@ type ShopChannelRequest = {
   senderProfileKey: string;
   requestedAt: string | null;
   adminNote: string;
+  businessChannelVerified: boolean;
   templateRequestNote: string;
   templateRequestUpdatedAt: string | null;
 };
@@ -162,6 +163,9 @@ export default function AdminAlimtalkShopChannelPanel() {
                   {request.channelUrl ? (
                     <p className="break-all text-[14px] leading-6 text-[#6f665f]">채널 URL {request.channelUrl}</p>
                   ) : null}
+                  <p className="mt-1 text-[14px] leading-6 text-[#6f665f]">
+                    비즈니스 채널 인증 {request.businessChannelVerified ? "완료" : "미확인"}
+                  </p>
                   {request.templateRequestNote ? (
                     <div className="mt-3 rounded-[8px] border border-[#e6e3dd] bg-[#faf9f7] px-3 py-2">
                       <p className="text-[13px] font-semibold text-[#8a8277]">오너 희망 알림톡 문구 / 요청사항</p>

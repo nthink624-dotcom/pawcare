@@ -375,19 +375,14 @@ export default function LoginForm({
         writeOwnerAuthSessionCache(result.session);
 
         if (supabase) {
-          void supabase.auth
-            .setSession({
-              access_token: result.session.accessToken,
-              refresh_token: result.session.refreshToken,
-            })
-            .then((sessionResult: { error: { message: string } | null }) => {
-              if (sessionResult.error) {
-                console.warn("[auth/login] browser Supabase session persistence failed", sessionResult.error.message);
-              }
-            })
-            .catch((error: unknown) => {
-              console.warn("[auth/login] browser Supabase session persistence threw", error);
-            });
+          const { error } = await supabase.auth.setSession({
+            access_token: result.session.accessToken,
+            refresh_token: result.session.refreshToken,
+          });
+
+          if (error) {
+            console.warn("[auth/login] browser Supabase session persistence failed", error.message);
+          }
         }
       }
 

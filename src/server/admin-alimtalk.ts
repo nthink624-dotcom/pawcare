@@ -3,12 +3,19 @@ import {
   type AlimtalkTemplateAlias,
   type AlimtalkTemplateConfigKey,
   getNotificationTitle,
-  renderNotificationTemplateBody,
 } from "@/lib/notification-registry";
 import { hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { sendAlimtalkMessage } from "@/server/alimtalk-provider";
+import { sendAlimtalkMessage, type AlimtalkButton } from "@/server/alimtalk-provider";
+import {
+  getAppTemplateDrafts,
+  renderNotificationTemplateBodyWithOverrides,
+  type AppTemplateDraft,
+} from "@/server/alimtalk-template-overrides";
 import type { ChannelType, NotificationStatus, NotificationType } from "@/types/domain";
+
+export { getAppTemplateDrafts };
+export type { AppTemplateDraft };
 
 export type RelayAdminConfig = {
   relaySecret: string;
@@ -46,6 +53,7 @@ export type RelaySsodaaTemplateItem = {
 export type RelayTemplateCatalogResponse = {
   ok: true;
   items: RelaySsodaaTemplateItem[];
+  allTemplates?: RelaySsodaaTemplateDetail[];
 };
 
 export type RelayTemplateCodeCheckInput = {
@@ -118,12 +126,6 @@ export type AppAlimtalkConfig = {
   tokenKey: string;
   senderKey: string;
 } & Record<AlimtalkTemplateConfigKey, string>;
-
-export type AppTemplateDraft = {
-  alias: AlimtalkTemplateAlias;
-  title: string;
-  body: string;
-};
 
 export type AdminNotificationActivityItem = {
   id: string;
@@ -324,6 +326,29 @@ function getRelayHost() {
   }
 }
 
+function getRelayConnectionErrorMessage(actionLabel: string, error: unknown) {
+  const host = getRelayHost() ?? "릴레이 서버";
+  const rawMessage = error instanceof Error ? error.message : "";
+  const isNetworkError =
+    !rawMessage ||
+    rawMessage === "fetch failed" ||
+    /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|network|connect/i.test(rawMessage);
+
+  if (isNetworkError) {
+    return `${actionLabel}에 실패했습니다. ${host}에 연결할 수 없습니다. 로컬에서는 알림톡 릴레이 터널/서버가 켜져 있는지 확인해 주세요.`;
+  }
+
+  return `${actionLabel}에 실패했습니다. ${rawMessage}`;
+}
+
+async function fetchRelay(url: string, init: RequestInit, actionLabel: string) {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw new Error(getRelayConnectionErrorMessage(actionLabel, error));
+  }
+}
+
 function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string> {
   return {
     templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived || "",
@@ -342,13 +367,17 @@ function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string>
 }
 
 export async function getRelayAdminConfig() {
-  const response = await fetch(getRelayAdminUrl(), {
-    method: "GET",
-    headers: {
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminUrl(),
+    {
+      method: "GET",
+      headers: {
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-  });
+    "릴레이 설정 조회",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -363,15 +392,19 @@ export async function getRelayAdminConfig() {
 }
 
 export async function updateRelayAdminConfig(input: RelayAdminConfig) {
-  const response = await fetch(getRelayAdminUrl(), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminUrl(),
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      body: JSON.stringify(input),
+      cache: "no-store",
     },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
+    "릴레이 설정 저장",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -386,13 +419,17 @@ export async function updateRelayAdminConfig(input: RelayAdminConfig) {
 }
 
 export async function getRelayTemplateCatalog() {
-  const response = await fetch(getRelayAdminTemplatesUrl(), {
-    method: "GET",
-    headers: {
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminTemplatesUrl(),
+    {
+      method: "GET",
+      headers: {
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-  });
+    "쏘다 템플릿 조회",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -407,15 +444,19 @@ export async function getRelayTemplateCatalog() {
 }
 
 export async function checkRelayTemplateCode(input: RelayTemplateCodeCheckInput) {
-  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/code-check"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminTemplateActionUrl("/admin/templates/code-check"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      body: JSON.stringify(input),
+      cache: "no-store",
     },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
+    "쏘다 템플릿 코드 검증",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -430,15 +471,19 @@ export async function checkRelayTemplateCode(input: RelayTemplateCodeCheckInput)
 }
 
 export async function registerRelayTemplate(input: RelayTemplateRegisterInput) {
-  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/register"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminTemplateActionUrl("/admin/templates/register"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      body: JSON.stringify(input),
+      cache: "no-store",
     },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
+    "쏘다 템플릿 등록",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -453,13 +498,17 @@ export async function registerRelayTemplate(input: RelayTemplateRegisterInput) {
 }
 
 export async function getRelayTemplateCategories() {
-  const response = await fetch(getRelayAdminTemplateActionUrl("/admin/templates/categories"), {
-    method: "GET",
-    headers: {
-      "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+  const response = await fetchRelay(
+    getRelayAdminTemplateActionUrl("/admin/templates/categories"),
+    {
+      method: "GET",
+      headers: {
+        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-  });
+    "쏘다 템플릿 카테고리 조회",
+  );
 
   const body = await parseRelayResponse(response);
   if (!response.ok) {
@@ -484,14 +533,6 @@ export function getAppAlimtalkConfig(): AppAlimtalkConfig {
     senderKey: serverEnv.alimtalkSenderKey || "",
     ...getAppTemplateConfigValues(),
   };
-}
-
-export function getAppTemplateDrafts(): AppTemplateDraft[] {
-  return ALIMTALK_NOTIFICATION_REGISTRY.map((item) => ({
-    alias: item.templateAlias,
-    title: item.title,
-    body: item.draftBody,
-  }));
 }
 
 async function fetchRelayDiagnostic(pathname: string, requiresSecret = false): Promise<{
@@ -616,6 +657,96 @@ function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
   };
 }
 
+function buildAdminTestButtons(alias: AlimtalkTemplateAlias, input: AdminAlimtalkTestInput): AlimtalkButton[] {
+  const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
+  const shopAddress = "서울시 강남구 테헤란로 123";
+  const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo";
+  const directionsUrl = `https://map.naver.com/p/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
+
+  if (alias === "booking_time_proposed") {
+    return [
+      {
+        type: "WL",
+        name: "예약 시간 변경",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+    ];
+  }
+
+  if (alias === "grooming_completed") {
+    return [
+      {
+        type: "WL",
+        name: "사진 확인",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+    ];
+  }
+
+  if (alias === "appointment_reminder_10m") {
+    return [
+      {
+        type: "WL",
+        name: "길찾기",
+        linkMobile: directionsUrl,
+        linkPc: directionsUrl,
+      },
+      {
+        type: "WL",
+        name: "예약확인",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+    ];
+  }
+
+  if (alias === "booking_rescheduled_confirmed") {
+    return [
+      {
+        type: "WL",
+        name: "예약 확인",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+      {
+        type: "WL",
+        name: "예약 다시 변경",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+    ];
+  }
+
+  if (
+    alias === "booking_confirmed" ||
+    alias === "booking_rejected"
+  ) {
+    const buttons: AlimtalkButton[] = [
+      {
+        type: "WL",
+        name: alias === "booking_rejected" ? "예약 변경" : "예약 확인",
+        linkMobile: bookingManageUrl,
+        linkPc: bookingManageUrl,
+      },
+    ];
+
+    if (alias === "booking_confirmed") {
+      buttons.push({
+        type: "WL",
+        name: "길찾기",
+        linkMobile: directionsUrl,
+        linkPc: directionsUrl,
+      });
+    }
+
+    return buttons;
+  }
+
+  return [];
+}
+
 function fillTemplateDraft(template: string, values: Record<string, string>) {
   return Object.entries(values).reduce(
     (message, [key, value]) => message.replaceAll(new RegExp(`#\\{${key}\\}`, "g"), value),
@@ -644,12 +775,13 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     길찾기링크: `https://map.naver.com/p/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
   });
 
-  const message = renderNotificationTemplateBody(spec.type, buildAdminTestTemplateValues(input)) ?? fallbackMessage;
+  const message = (await renderNotificationTemplateBodyWithOverrides(spec.type, buildAdminTestTemplateValues(input))) ?? fallbackMessage;
 
   const delivery = await sendAlimtalkMessage({
     to: normalizedPhone,
     message,
     templateAlias: spec.templateAlias,
+    buttons: buildAdminTestButtons(spec.templateAlias, input),
     recipientName: input.recipientName?.trim() || "보호자",
     metadata: {
       source: "admin-alimtalk-test",

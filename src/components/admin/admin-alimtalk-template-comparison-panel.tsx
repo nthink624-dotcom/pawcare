@@ -32,7 +32,9 @@ const aliasTemplateKeywords: Record<AlimtalkTemplateAlias, string[]> = {
   booking_cancelled: ["예약 취소"],
   booking_time_proposed: ["다른 시간", "예약 시간 변경", "예약 일정 변경"],
   booking_rescheduled_confirmed: ["예약 변경 확정"],
-  appointment_reminder_10m: ["방문 전"],
+  appointment_reminder_10m: ["방문 전", "방문 안내"],
+  visit_schedule_notice: ["예약 일정 안내", "방문 일정 안내"],
+  visit_reminder_notice: ["방문 예정 안내", "방문 안내"],
   grooming_started: ["미용 시작"],
   grooming_almost_done: ["픽업 준비"],
   grooming_completed: ["미용 완료"],
@@ -78,6 +80,8 @@ function getAppButtons(alias: AlimtalkTemplateAlias): TemplateButton[] {
         { type: "WL", name: "길찾기", link: "#{길찾기링크}" },
       ];
     case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
       return [
         { type: "WL", name: "길찾기", link: "#{길찾기링크}" },
         { type: "WL", name: "예약확인", link: "#{예약관리링크}" },
@@ -136,21 +140,21 @@ function ButtonList({
   caption?: string;
 }) {
   return (
-    <div className="mt-3 flex min-h-[196px] flex-col rounded-[6px] border border-[#ece8e2] bg-white px-3 py-3">
+    <div className="mt-2 flex max-h-[120px] min-h-[72px] flex-col overflow-auto rounded-[6px] border border-[#ece8e2] bg-white px-3 py-2">
       <p className="text-[13px] font-semibold text-[#6f665f]">{title}</p>
       {caption ? <p className="mt-1 text-[12px] leading-5 text-[#8a8277]">{caption}</p> : null}
       {buttons.length ? (
-        <div className="mt-2 grid flex-1 content-start gap-2">
+        <div className="mt-2 grid flex-1 content-start gap-1.5">
           {buttons.map((button, index) => (
             <div
               key={`${button.name ?? "button"}-${index}`}
-              className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-3 py-2 text-[13px] leading-5 text-[#5c554d]"
+              className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-2.5 py-1.5 text-[12px] leading-4 text-[#5c554d]"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold text-[#171411]">{button.name || "-"}</p>
                 <span className="text-[12px] font-semibold text-[#8a8277]">{button.type || "WL"}</span>
               </div>
-              <p className="mt-1 break-all text-[#7a7268]">{button.linkMobile || button.linkPc || button.link || "-"}</p>
+              <p className="mt-0.5 break-all text-[#7a7268]">{button.linkMobile || button.linkPc || button.link || "-"}</p>
             </div>
           ))}
         </div>
@@ -341,49 +345,66 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                 </div>
 
                 {isOpen ? (
-                  <div className="grid gap-3 border-t border-[#e6e3dd] p-3">
-                    <section className="rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-4">
+                  <div className="grid gap-2 border-t border-[#e6e3dd] p-2.5">
+                    <section className="rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-[15px] font-semibold text-[#171411]">연결 가능한 쏘다 템플릿</p>
                         <span className="text-[13px] text-[#8a8277]">{candidates.length}개</span>
                       </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-2 grid max-h-[150px] gap-2 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                         {candidates.length ? (
                           candidates.map((template) => {
                             const isConnected = template.templateCode === relayItem?.configuredCode;
                             return (
                               <div
                                 key={template.templateCode}
-                                className={`rounded-[6px] border px-3 py-3 ${
-                                  isConnected ? "border-[#cfe3dc] bg-white text-[#1f6b5b]" : "border-[#ece8e2] bg-white text-[#5c554d]"
+                                role={isConnected ? undefined : "button"}
+                                tabIndex={isConnected ? undefined : 0}
+                                onClick={() => {
+                                  if (!isConnected) void handleSelectTemplate(draft.alias, template.templateCode);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (isConnected) return;
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    void handleSelectTemplate(draft.alias, template.templateCode);
+                                  }
+                                }}
+                                className={`rounded-[6px] border px-3 py-2 transition ${
+                                  isConnected
+                                    ? "border-[#cfe3dc] bg-white text-[#1f6b5b]"
+                                    : "cursor-pointer border-[#ece8e2] bg-white text-[#5c554d] hover:border-[#d8d4ce] hover:bg-[#fbfaf8]"
                                 }`}
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="text-[12px] font-semibold text-[#8a8277]">템플릿명</p>
-                                    <p className="mt-1 truncate text-[15px] font-semibold text-[#171411]">{template.templateName || "이름 없음"}</p>
-                                    <p className="mt-2 text-[12px] font-semibold text-[#8a8277]">템플릿 코드</p>
-                                    <p className="mt-1 break-all font-mono text-[12px] text-[#6f665f]">{template.templateCode}</p>
-                                  </div>
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <span className="shrink-0 text-[11px] font-semibold text-[#8a8277]">템플릿명</span>
+                                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[#171411]">{template.templateName || "이름 없음"}</span>
                                   {isConnected ? (
                                     <span className="shrink-0 rounded-[999px] border border-[#cfe3dc] bg-[#f5fbf8] px-2 py-1 text-[12px] font-semibold text-[#1f6b5b]">
                                       현재 연결
                                     </span>
                                   ) : null}
                                 </div>
-                                <p className="mt-2 text-[12px] font-semibold text-[#7a7268]">
-                                  {formatSsodaaStatus(template.inspectionStatus || template.serviceStatus)}
-                                </p>
-                                {!isConnected ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleSelectTemplate(draft.alias, template.templateCode)}
-                                    disabled={Boolean(selectingTemplateCode)}
-                                    className="mt-3 h-8 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[12px] font-semibold text-[#5c554d] disabled:opacity-60"
-                                  >
-                                    {selectingTemplateCode === template.templateCode ? "연결 중" : "이 템플릿 연결"}
-                                  </button>
-                                ) : null}
+                                <div className="mt-1.5 flex min-w-0 items-center gap-2">
+                                  <span className="shrink-0 text-[11px] font-semibold text-[#8a8277]">코드</span>
+                                  <span className="min-w-0 flex-1 truncate font-mono text-[14px] text-[#5c554d]">{template.templateCode}</span>
+                                  <span className="shrink-0 text-[14px] font-semibold text-[#7a7268]">
+                                    {formatSsodaaStatus(template.inspectionStatus || template.serviceStatus)}
+                                  </span>
+                                  {!isConnected ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        void handleSelectTemplate(draft.alias, template.templateCode);
+                                      }}
+                                      disabled={Boolean(selectingTemplateCode)}
+                                      className="h-7 shrink-0 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[14px] font-semibold text-[#5c554d] disabled:opacity-60"
+                                    >
+                                      {selectingTemplateCode === template.templateCode ? "연결 중" : "연결"}
+                                    </button>
+                                  ) : null}
+                                </div>
                               </div>
                             );
                           })
@@ -396,21 +417,21 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                     </section>
 
                     <div className="grid gap-3 xl:grid-cols-2">
-                      <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-4">
-                        <div className="flex h-10 items-center justify-between gap-3">
+                      <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
+                        <div className="flex h-8 items-center justify-between gap-3">
                           <p className="text-[15px] font-semibold text-[#171411]">쏘다 템플릿</p>
                           <span className="min-w-0 truncate text-[15px] font-semibold text-[#5c554d]">
                             {relayItem?.detail?.templateName || "등록명 없음"}
                           </span>
                         </div>
-                        <pre className="mt-3 h-[288px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[14px] leading-6 text-[#171411]">
+                        <pre className="mt-2 h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-3 py-2.5 font-[inherit] text-[13px] leading-5 text-[#171411]">
                           {ssodaaBody || relayItem?.error || "쏘다 등록 본문을 아직 불러오지 못했습니다."}
                         </pre>
                         <ButtonList title="쏘다 버튼" buttons={ssodaaButtons} caption="쏘다에 등록된 버튼 URL 형식입니다." />
                       </section>
 
-                      <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-4">
-                        <div className="flex h-10 items-center justify-between gap-3">
+                      <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
+                        <div className="flex h-8 items-center justify-between gap-3">
                           <p className="text-[15px] font-semibold text-[#171411]">우리 템플릿</p>
                           <div className="flex items-center gap-2">
                           {draft.isOverride ? (
@@ -477,10 +498,10 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                             value={editingBody}
                             onChange={(event) => setEditingBody(event.target.value)}
                             rows={8}
-                            className="mt-3 h-[288px] w-full resize-none overflow-auto rounded-[6px] border border-[#d8d4ce] bg-white px-4 py-4 font-[inherit] text-[14px] leading-6 text-[#171411] outline-none focus:border-[#1f6b5b]"
+                            className="mt-2 h-[132px] w-full resize-none overflow-auto rounded-[6px] border border-[#d8d4ce] bg-white px-3 py-2.5 font-[inherit] text-[13px] leading-5 text-[#171411] outline-none focus:border-[#1f6b5b]"
                           />
                         ) : (
-                          <pre className="mt-3 h-[288px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-4 py-4 font-[inherit] text-[14px] leading-6 text-[#171411]">
+                          <pre className="mt-2 h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-3 py-2.5 font-[inherit] text-[13px] leading-5 text-[#171411]">
                             {appBody}
                           </pre>
                         )}

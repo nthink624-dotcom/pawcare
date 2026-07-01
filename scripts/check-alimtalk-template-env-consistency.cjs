@@ -9,6 +9,8 @@ const TEMPLATE_KEYS = [
   "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
   "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
   "ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M",
+  "ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE",
+  "ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE",
   "ALIMTALK_TEMPLATE_GROOMING_STARTED",
   "ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE",
   "ALIMTALK_TEMPLATE_GROOMING_COMPLETED",
@@ -17,6 +19,7 @@ const TEMPLATE_KEYS = [
 ];
 
 const RELAY_KEYS = ["ALIMTALK_RELAY_URL", "ALIMTALK_RELAY_ADMIN_URL", "ALIMTALK_RELAY_SECRET"];
+const SENSITIVE_PULL_KEYS = new Set(["ALIMTALK_RELAY_SECRET"]);
 const args = new Set(process.argv.slice(2));
 const shouldPullVercel = args.has("--pull-vercel-production");
 const localEnvFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
@@ -52,7 +55,8 @@ function parseEnvFile(filePath) {
   return values;
 }
 
-function valueStatus(localValue, productionValue) {
+function valueStatus(key, localValue, productionValue) {
+  if (SENSITIVE_PULL_KEYS.has(key) && localValue && !productionValue) return "present-sensitive";
   if (!localValue && !productionValue) return "both-missing";
   if (!localValue) return "local-missing";
   if (!productionValue) return "production-missing";
@@ -65,8 +69,8 @@ function printGroup(title, keys, localValues, productionValues) {
   let hasIssue = false;
 
   keys.forEach((key) => {
-    const status = valueStatus(localValues[key], productionValues[key]);
-    const isIssue = status !== "same" && status !== "both-missing";
+    const status = valueStatus(key, localValues[key], productionValues[key]);
+    const isIssue = status !== "same" && status !== "both-missing" && status !== "present-sensitive";
     hasIssue ||= isIssue;
     console.log(`${isIssue ? "ERROR" : "OK"} ${key}: ${status}`);
   });

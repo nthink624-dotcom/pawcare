@@ -22,6 +22,8 @@ type SubscriptionPlanRecord = {
   subscription_status: string | null;
 };
 
+type AutomaticVisitNoticeType = "visit_schedule_notice" | "visit_reminder_notice";
+
 export type ProcessVisitReminderResult = {
   ok: boolean;
   scanned: number;
@@ -35,6 +37,8 @@ export type ProcessVisitReminderResult = {
 };
 
 const MAX_VISIT_REMINDER_OFFSET_MINUTES = 180;
+const VISIT_SCHEDULE_NOTICE_MIN_AHEAD_MINUTES = 24 * 60;
+const VISIT_SCHEDULE_NOTICE_MAX_AHEAD_MINUTES = 72 * 60;
 const DEFAULT_LOOKBACK_MINUTES = 15;
 const DEFAULT_LIMIT = 100;
 
@@ -61,6 +65,21 @@ function isDueForVisitReminder(appointment: ReminderCandidate, now: Date, lookba
   return dueAt.getTime() <= now.getTime() && dueAt.getTime() >= oldestDueAt.getTime();
 }
 
+function getMinutesUntilStart(appointment: ReminderCandidate, now: Date) {
+  const startAt = new Date(appointment.start_at);
+  if (Number.isNaN(startAt.getTime())) return null;
+  return Math.floor((startAt.getTime() - now.getTime()) / 60_000);
+}
+
+function isDueForVisitScheduleNotice(appointment: ReminderCandidate, now: Date) {
+  const minutesUntilStart = getMinutesUntilStart(appointment, now);
+  if (minutesUntilStart === null) return false;
+  return (
+    minutesUntilStart >= VISIT_SCHEDULE_NOTICE_MIN_AHEAD_MINUTES &&
+    minutesUntilStart <= VISIT_SCHEDULE_NOTICE_MAX_AHEAD_MINUTES
+  );
+}
+
 function isPlanActiveForAutomaticReminders(record: SubscriptionPlanRecord | null | undefined) {
   const planCode = record?.current_plan_code ?? "quarterly";
   if (!ownerPlanAllowsAutomaticVisitReminder(planCode)) return false;
@@ -75,6 +94,26 @@ function pushReason(
   reason: string,
 ) {
   result.reasons.push({ appointmentId, reason });
+}
+
+async function dispatchAutomaticVisitNotice(params: {
+  appointment: ReminderCandidate;
+  type: AutomaticVisitNoticeType;
+}) {
+  return dispatchNotification({
+    shopId: params.appointment.shop_id,
+    appointmentId: params.appointment.id,
+    guardianId: params.appointment.guardian_id,
+    petId: params.appointment.pet_id,
+    type: params.type,
+    channel: "alimtalk",
+    metadata: {
+      source:
+        params.type === "visit_schedule_notice"
+          ? "automatic_visit_schedule_notice_processor"
+          : "automatic_visit_reminder_processor",
+    },
+  });
 }
 
 export async function processAutomaticVisitReminders(options?: {
@@ -106,7 +145,7 @@ export async function processAutomaticVisitReminders(options?: {
   const lookbackMinutes = Math.min(Math.max(Math.round(options?.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES), 1), 60);
   const limit = normalizeLimit(options?.limit);
   const startLowerBound = addMinutes(now, -lookbackMinutes).toISOString();
-  const startUpperBound = addMinutes(now, MAX_VISIT_REMINDER_OFFSET_MINUTES).toISOString();
+  const startUpperBound = addMinutes(now, VISIT_SCHEDULE_NOTICE_MAX_AHEAD_MINUTES).toISOString();
 
   const { data: appointments, error: appointmentsError } = await supabase
     .from("appointments")
@@ -122,8 +161,10 @@ export async function processAutomaticVisitReminders(options?: {
     return { ...result, reasons: [{ appointmentId: "system", reason: appointmentsError.message }] };
   }
 
-  const candidates = ((appointments ?? []) as ReminderCandidate[]).filter((appointment) =>
-    isDueForVisitReminder(appointment, now, lookbackMinutes),
+  const candidates = ((appointments ?? []) as ReminderCandidate[]).filter(
+    (appointment) =>
+      isDueForVisitScheduleNotice(appointment, now) ||
+      isDueForVisitReminder(appointment, now, lookbackMinutes),
   );
 
   result.scanned = candidates.length;
@@ -174,31 +215,31 @@ export async function processAutomaticVisitReminders(options?: {
       continue;
     }
 
-    try {
-      const dispatchResult = await dispatchNotification({
-        shopId: appointment.shop_id,
-        appointmentId: appointment.id,
-        guardianId: appointment.guardian_id,
-        petId: appointment.pet_id,
-        type: "appointment_reminder_10m",
-        channel: "alimtalk",
-        metadata: {
-          source: "automatic_visit_reminder_processor",
-        },
-      });
+    const noticeTypes: AutomaticVisitNoticeType[] = [];
+    if (isDueForVisitScheduleNotice(appointment, now)) {
+      noticeTypes.push("visit_schedule_notice");
+    }
+    if (isDueForVisitReminder(appointment, now, lookbackMinutes)) {
+      noticeTypes.push("visit_reminder_notice");
+    }
 
-      if (dispatchResult.notification.status === "sent" || dispatchResult.notification.status === "mocked") {
-        result.dispatched += 1;
-      } else if (dispatchResult.notification.status === "failed") {
+    for (const type of noticeTypes) {
+      try {
+        const dispatchResult = await dispatchAutomaticVisitNotice({ appointment, type });
+
+        if (dispatchResult.notification.status === "sent" || dispatchResult.notification.status === "mocked") {
+          result.dispatched += 1;
+        } else if (dispatchResult.notification.status === "failed") {
+          result.failed += 1;
+          pushReason(result, appointment.id, dispatchResult.notification.fail_reason ?? "Notification dispatch failed.");
+        } else {
+          result.skipped += 1;
+          pushReason(result, appointment.id, dispatchResult.notification.fail_reason ?? dispatchResult.notification.status);
+        }
+      } catch (error) {
         result.failed += 1;
-        pushReason(result, appointment.id, dispatchResult.notification.fail_reason ?? "Notification dispatch failed.");
-      } else {
-        result.skipped += 1;
-        pushReason(result, appointment.id, dispatchResult.notification.fail_reason ?? dispatchResult.notification.status);
+        pushReason(result, appointment.id, error instanceof Error ? error.message : String(error));
       }
-    } catch (error) {
-      result.failed += 1;
-      pushReason(result, appointment.id, error instanceof Error ? error.message : String(error));
     }
   }
 

@@ -79,6 +79,12 @@ function normalizeBeforeCreatedAt(value: string | null | undefined) {
   return parsed.toISOString();
 }
 
+function shouldRetryMediaAssetQueryWithoutDeletedAt(error: { message?: string; code?: string } | null | undefined) {
+  if (!error) return false;
+  const message = error.message ?? "";
+  return error.code === "PGRST204" || message.includes("deleted_at") || message.includes("schema cache");
+}
+
 async function getVariants(mediaAssetIds: string[]) {
   if (!mediaAssetIds.length) return new Map<string, MediaVariant[]>();
 
@@ -115,28 +121,35 @@ export async function listOwnerMediaAssets(
   const appointmentId = optionalUuid(input.appointmentId, "appointmentId");
   const groomingRecordId = optionalUuid(input.groomingRecordId, "groomingRecordId");
 
-  let query = admin
-    .from("media_assets")
-    .select("*")
-    .eq("shop_id", owner.shopId)
-    .eq("status", "ready")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit + 1);
+  const buildQuery = (includeDeletedAtFilter: boolean) => {
+    let query = admin
+      .from("media_assets")
+      .select("*")
+      .eq("shop_id", owner.shopId)
+      .eq("status", "ready")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit + 1);
 
-  if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
-  if (mediaKind) query = query.eq("media_kind", mediaKind);
-  if (guardianId) query = query.eq("guardian_id", guardianId);
-  if (petId) query = query.eq("pet_id", petId);
-  if (appointmentId && groomingRecordId) {
-    query = query.or(`appointment_id.eq.${appointmentId},grooming_record_id.eq.${groomingRecordId}`);
-  } else {
-    if (appointmentId) query = query.eq("appointment_id", appointmentId);
-    if (groomingRecordId) query = query.eq("grooming_record_id", groomingRecordId);
+    if (includeDeletedAtFilter) query = query.is("deleted_at", null);
+    if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
+    if (mediaKind) query = query.eq("media_kind", mediaKind);
+    if (guardianId) query = query.eq("guardian_id", guardianId);
+    if (petId) query = query.eq("pet_id", petId);
+    if (appointmentId && groomingRecordId) {
+      query = query.or(`appointment_id.eq.${appointmentId},grooming_record_id.eq.${groomingRecordId}`);
+    } else {
+      if (appointmentId) query = query.eq("appointment_id", appointmentId);
+      if (groomingRecordId) query = query.eq("grooming_record_id", groomingRecordId);
+    }
+
+    return query;
+  };
+
+  let result = await buildQuery(true);
+  if (result.error && shouldRetryMediaAssetQueryWithoutDeletedAt(result.error)) {
+    result = await buildQuery(false);
   }
-
-  const result = await query;
   if (result.error) {
     throw new OwnerApiError(result.error.message, 500);
   }

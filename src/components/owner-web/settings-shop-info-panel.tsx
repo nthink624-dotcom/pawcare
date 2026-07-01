@@ -1,12 +1,13 @@
 ﻿"use client";
 
-import { Camera, Info, Save, Scissors, Settings2, Store, Trash2 } from "lucide-react";
+import { Camera, Info, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
+import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
 import { cn } from "@/lib/utils";
-import type { OwnerProfile, Service, Shop } from "@/types/domain";
+import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
 export type ShopInfoSettingRow = {
   id: string;
@@ -25,6 +26,7 @@ type ShopInfoSettingsPanelProps = {
   serviceMenuContent?: ReactNode;
   shop?: Shop;
   previewServices?: Service[];
+  staffMembers?: BootstrapStaffMember[];
   ownerProfile?: OwnerProfile | null;
   businessHoursSummary?: string;
   closedDaysSummary?: string;
@@ -34,13 +36,45 @@ type ShopInfoSettingsPanelProps = {
   onSave?: () => void | Promise<void>;
   onProfileImagesAdd: (files: FileList | File[]) => void;
   onProfileImagesRemove: (indexes: number[]) => void;
+  onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
   onRowChange: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onRowCommit: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onOpenAddressSearch: () => void;
 };
 
+type StaffProfileDraft = {
+  profileImageUrls: string[];
+  profileImageAssetIds: string[];
+  profileMessage: string;
+};
+
+const MAX_STAFF_PROFILE_IMAGES = 3;
+
 function rowValue(rows: ShopInfoSettingRow[], rowId: string) {
   return String(rows.find((row) => row.id === rowId)?.value ?? "");
+}
+
+function buildStaffProfileDrafts(staffMembers: BootstrapStaffMember[]) {
+  return Object.fromEntries(
+    staffMembers.map((staffMember) => [
+      staffMember.id,
+      {
+        profileImageUrls: normalizeStaffProfileImages(staffMember.profileImageUrls, staffMember.profileImageUrl),
+        profileImageAssetIds: normalizeStaffProfileImages(staffMember.profileImageAssetIds),
+        profileMessage: staffMember.profileMessage ?? "",
+      },
+    ]),
+  ) as Record<string, StaffProfileDraft>;
+}
+
+function normalizeStaffProfileImages(images: unknown, fallback = "") {
+  const normalized = (Array.isArray(images) ? images : [])
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, MAX_STAFF_PROFILE_IMAGES);
+  const fallbackUrl = fallback.trim();
+  return normalized.length > 0 ? normalized : fallbackUrl ? [fallbackUrl] : [];
 }
 
 function TextInput({
@@ -284,6 +318,7 @@ export default function ShopInfoSettingsPanel({
   serviceMenuContent,
   shop,
   previewServices = [],
+  staffMembers = [],
   ownerProfile,
   businessHoursSummary = "",
   closedDaysSummary = "",
@@ -293,6 +328,7 @@ export default function ShopInfoSettingsPanel({
   onSave,
   onProfileImagesAdd,
   onProfileImagesRemove,
+  onStaffMembersChange,
   onRowChange,
   onRowCommit,
   onOpenAddressSearch,
@@ -306,9 +342,6 @@ export default function ShopInfoSettingsPanel({
   const phone = rowValue(rows, "phone");
   const address = rowValue(rows, "address");
   const addressDetail = rowValue(rows, "addressDetail");
-  const approvalMode = rowValue(rows, "approvalMode");
-  const autoApproval = approvalMode === "諛붾줈 ?뱀씤" || approvalMode === "auto";
-  const manualApproval = !autoApproval;
   const profileImages = shopProfileImages.slice(0, MAX_SHOP_PROFILE_IMAGES);
   const carouselProfileImages = useMemo(() => {
     return profileImages.filter(Boolean).slice(0, MAX_SHOP_PROFILE_IMAGES);
@@ -317,6 +350,11 @@ export default function ShopInfoSettingsPanel({
   const [selectedProfileImageIndexes, setSelectedProfileImageIndexes] = useState<number[]>([]);
   const profileTouchStartXRef = useRef<number | null>(null);
   const profileDidSwipeRef = useRef(false);
+  const [staffProfileDrafts, setStaffProfileDrafts] = useState<Record<string, StaffProfileDraft>>(() =>
+    buildStaffProfileDrafts(staffMembers),
+  );
+  const [savingStaffProfileId, setSavingStaffProfileId] = useState<string | null>(null);
+  const [staffProfileFeedback, setStaffProfileFeedback] = useState("");
   const visibleProfileImageIndex = Math.min(activeProfileImageIndex, Math.max(carouselProfileImages.length - 1, 0));
   const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] ?? "";
   const selectedProfileImageIndexSet = useMemo(() => new Set(selectedProfileImageIndexes), [selectedProfileImageIndexes]);
@@ -327,9 +365,9 @@ export default function ShopInfoSettingsPanel({
   const sectionTabs = useMemo(
     () => [
       { id: "basic", label: "기본 정보" },
+      { id: "staff-profile", label: "프로필 관리" },
       { id: "hours", label: "영업 시간", hidden: !children },
       { id: "menu", label: "서비스/가격", hidden: !serviceMenuContent },
-      { id: "policy", label: "예약 정책" },
     ].filter((tab) => !tab.hidden),
     [children, serviceMenuContent],
   );
@@ -346,7 +384,7 @@ export default function ShopInfoSettingsPanel({
       phone: phone || shop.phone,
       address: address || shop.address,
       description: effectiveDescription,
-      approval_mode: autoApproval ? ("auto" as const) : ("manual" as const),
+      approval_mode: "auto" as const,
       customer_page_settings: {
         ...shop.customer_page_settings,
         tagline: effectiveDescription || shop.customer_page_settings.tagline,
@@ -366,7 +404,6 @@ export default function ShopInfoSettingsPanel({
     activeProfileImage,
     address,
     addressDetail,
-    autoApproval,
     carouselProfileImages,
     effectiveDescription,
     instagramUrl,
@@ -416,6 +453,88 @@ export default function ShopInfoSettingsPanel({
     setActiveProfileImageIndex(0);
   }
 
+  function updateStaffProfileDraft(staffId: string, patch: Partial<StaffProfileDraft>) {
+    setStaffProfileDrafts((current) => ({
+      ...current,
+      [staffId]: {
+        profileImageUrls: current[staffId]?.profileImageUrls ?? [],
+        profileImageAssetIds: current[staffId]?.profileImageAssetIds ?? [],
+        profileMessage: current[staffId]?.profileMessage ?? "",
+        ...patch,
+      },
+    }));
+    setStaffProfileFeedback("");
+  }
+
+  async function uploadStaffProfileImageFromFile(staffId: string, file: File | undefined) {
+    if (!file || !editable || !shop?.id) return;
+    const currentDraft = staffProfileDrafts[staffId];
+    const currentImages = currentDraft?.profileImageUrls ?? [];
+    if (currentImages.length >= MAX_STAFF_PROFILE_IMAGES) {
+      setStaffProfileFeedback("프로필 사진은 최대 3장까지 등록할 수 있습니다.");
+      return;
+    }
+
+    setSavingStaffProfileId(staffId);
+    setStaffProfileFeedback("");
+    try {
+      const uploaded = await createOwnerStaffProfileImageFromFile({ shopId: shop.id, staffId }, file);
+      updateStaffProfileDraft(staffId, {
+        profileImageUrls: [...currentImages, uploaded.signedUrl].slice(0, MAX_STAFF_PROFILE_IMAGES),
+        profileImageAssetIds: [...(currentDraft?.profileImageAssetIds ?? []), uploaded.mediaAsset.id].slice(
+          0,
+          MAX_STAFF_PROFILE_IMAGES,
+        ),
+      });
+    } catch (error) {
+      setStaffProfileFeedback(error instanceof Error ? error.message : "프로필 사진을 업로드하지 못했습니다.");
+    } finally {
+      setSavingStaffProfileId(null);
+    }
+  }
+
+  function removeStaffProfileImage(staffId: string, index: number) {
+    const draft = staffProfileDrafts[staffId];
+    if (!draft || !editable) return;
+    updateStaffProfileDraft(staffId, {
+      profileImageUrls: draft.profileImageUrls.filter((_, itemIndex) => itemIndex !== index),
+      profileImageAssetIds: draft.profileImageAssetIds.filter((_, itemIndex) => itemIndex !== index),
+    });
+  }
+
+  async function saveStaffProfile(staffId: string) {
+    const draft = staffProfileDrafts[staffId];
+    if (!draft || !onStaffMembersChange) return;
+
+    setSavingStaffProfileId(staffId);
+    setStaffProfileFeedback("");
+    try {
+      const nextStaffMembers = staffMembers.map((staffMember) =>
+        staffMember.id === staffId
+          ? {
+              ...staffMember,
+              profileImageUrl: draft.profileImageUrls[0]?.trim() ?? "",
+              profileImageUrls: draft.profileImageUrls
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, MAX_STAFF_PROFILE_IMAGES),
+              profileImageAssetIds: draft.profileImageAssetIds
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, MAX_STAFF_PROFILE_IMAGES),
+              profileMessage: draft.profileMessage.trim(),
+            }
+          : staffMember,
+      );
+      await onStaffMembersChange(nextStaffMembers);
+      setStaffProfileFeedback("프로필을 저장했습니다.");
+    } catch (error) {
+      setStaffProfileFeedback(error instanceof Error ? error.message : "직원 프로필을 저장하지 못했습니다.");
+    } finally {
+      setSavingStaffProfileId(null);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
@@ -428,6 +547,10 @@ export default function ShopInfoSettingsPanel({
       cancelled = true;
     };
   }, [carouselProfileImages.length]);
+
+  useEffect(() => {
+    setStaffProfileDrafts(buildStaffProfileDrafts(staffMembers));
+  }, [staffMembers]);
 
   useEffect(() => {
     const scrollContainer = settingsScrollRef.current;
@@ -487,54 +610,9 @@ export default function ShopInfoSettingsPanel({
       {saving ? "저장 중" : "저장"}
     </button>
   ) : null;
-  const reservationPolicySection = (
-    <div className="rounded-[10px] border border-[#e5e7eb] bg-white p-3">
-      <div className="grid items-start gap-1.5 xl:grid-cols-[78px_minmax(0,1fr)]">
-        <span className="pt-2 text-[16px] font-normal text-[#111827]">승인 방식</span>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <OptionCard
-            selected={autoApproval}
-            disabled={saving}
-            title="바로 승인"
-            helpText="고객이 가능한 시간을 선택하면 예약이 즉시 확정됩니다."
-            compact
-            onClick={() => onRowCommit("approvalMode", "바로 승인")}
-          />
-          <div
-            className={cn(
-              "rounded-[8px] border bg-white transition",
-              manualApproval ? "border-[#2f7866] bg-white" : "border-[#dbe2ea] hover:border-[#bad8cd]",
-              saving && "opacity-80",
-            )}
-          >
-            <div className="grid items-center gap-2 px-2.5 py-2">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => onRowCommit("approvalMode", "직접 승인")}
-                className="flex min-w-0 items-center gap-2 text-left"
-              >
-                <span className={cn("h-3.5 w-3.5 shrink-0 rounded-full border", manualApproval ? "border-[#2f7866] bg-[#2f7866] shadow-[inset_0_0_0_3.5px_white]" : "border-[#cbd5e1]")} />
-                <span className="inline-flex min-w-0 items-center gap-1.5 text-[15px] font-normal leading-5 text-[#111827]">
-                  <span className="truncate">직접 승인</span>
-                  <span className="group relative inline-flex h-6 w-4 shrink-0 items-center justify-center">
-                    <Info className="block h-4 w-4 translate-y-[0.5px] text-[#94a3b8]" aria-hidden="true" />
-                    <span className="pointer-events-none absolute left-1/2 top-6 z-30 w-[240px] -translate-x-1/2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569] opacity-0 shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition group-hover:opacity-100 group-focus-within:opacity-100">
-                      고객 예약은 승인 대기로 들어오고, 오너가 확인 후 확정하거나 거절합니다.
-                    </span>
-                  </span>
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#e1e4ea,0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
               <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -599,7 +677,7 @@ export default function ShopInfoSettingsPanel({
                       >
                         {activeProfileImage ? (
                           <>
-                            <Image src={activeProfileImage} alt="매장 사진" width={378} height={238} unoptimized className="h-full w-full object-cover" />
+                            <Image src={activeProfileImage} alt="매장 사진" width={378} height={238} unoptimized className="h-full w-full object-cover object-center" />
                             <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
                               대표
                             </span>
@@ -613,7 +691,7 @@ export default function ShopInfoSettingsPanel({
                                 )}
                                 aria-hidden="true"
                               >
-                                ✓
+                                선택
                               </span>
                             ) : null}
                           </>
@@ -660,7 +738,7 @@ export default function ShopInfoSettingsPanel({
                             )}
                             aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
                           >
-                            <Image src={imageUrl} alt="" width={112} height={112} unoptimized className="h-full w-full object-cover" />
+                            <Image src={imageUrl} alt="" width={112} height={112} unoptimized className="h-full w-full object-cover object-center" />
                             {isProfileImageSelectionActive ? (
                               <span
                                 className={cn(
@@ -671,7 +749,7 @@ export default function ShopInfoSettingsPanel({
                                 )}
                                 aria-hidden="true"
                               >
-                                ✓
+                                선택
                               </span>
                             ) : null}
                           </button>
@@ -684,7 +762,7 @@ export default function ShopInfoSettingsPanel({
                           className="relative aspect-square w-full overflow-hidden rounded-[10px] border border-[#e1e5ec] bg-white transition hover:border-[#9bb8f4]"
                           aria-label={`숨겨진 매장 사진 ${carouselProfileImages.length - 8}장 보기`}
                         >
-                          <Image src={carouselProfileImages[8]} alt="" width={96} height={96} unoptimized className="h-full w-full object-cover" />
+                          <Image src={carouselProfileImages[8]} alt="" width={96} height={96} unoptimized className="h-full w-full object-cover object-center" />
                           <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[14px] font-semibold text-white">
                             +{carouselProfileImages.length - 8}
                           </span>
@@ -722,7 +800,7 @@ export default function ShopInfoSettingsPanel({
                           }}
                           className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {profileImageSelectionMode ? "선택 종료" : "부분선택"}
+                          {profileImageSelectionMode ? "선택 종료" : "부분 선택"}
                         </button>
                         <button
                           type="button"
@@ -782,7 +860,7 @@ export default function ShopInfoSettingsPanel({
                         onChange={(event) => onRowChange("description", event.target.value)}
                         onBlur={(event) => onRowCommit("description", event.target.value)}
                         className="min-h-[94px] w-full resize-none rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 py-2.5 pb-7 text-[16px] font-normal leading-6 text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
-                        placeholder="매장을 짧게 소개해 주세요"
+                        placeholder="매장을 짧게 소개해 주세요."
                       />
                       <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#646a74]">{description.length} / 100</span>
                     </div>
@@ -790,7 +868,7 @@ export default function ShopInfoSettingsPanel({
                 </div>
 
                 <div className="mt-5 border-t border-[#e8eaef] pt-4">
-                  <p className="mb-3 text-[16px] font-medium text-[#3a3f48]">SNS · 채널 연결</p>
+                  <p className="mb-3 text-[16px] font-medium text-[#3a3f48]">SNS 채널 연결</p>
                   <div className="grid gap-3 lg:grid-cols-2">
                     <label className="flex min-w-0 items-center gap-2">
                       <SocialIcon src="/icons/social/instagram-social.png" alt="인스타그램" />
@@ -805,11 +883,155 @@ export default function ShopInfoSettingsPanel({
                       <TextInput value={naverBlogUrl} disabled={!editable} placeholder="https://blog.naver.com/..." onChange={(value) => onRowChange("naverBlogUrl", value)} onCommit={(value) => onRowCommit("naverBlogUrl", value)} />
                     </label>
                     <label className="flex min-w-0 items-center gap-2">
-                      <SocialIcon src="/icons/social/threads-social.png" alt="쓰레드" />
+                      <SocialIcon src="/icons/social/threads-social.png" alt="스레드" />
                       <TextInput value={threadsUrl} disabled={!editable} placeholder="https://threads.net/..." onChange={(value) => onRowChange("threadsUrl", value)} onCommit={(value) => onRowCommit("threadsUrl", value)} />
                     </label>
                   </div>
                 </div>
+              </PanelCard>
+
+              <PanelCard
+                id="shop-info-staff-profile"
+                icon={<UserRound className="h-[17px] w-[17px]" />}
+                title="프로필 관리"
+                hideHeader
+              >
+                <CardSectionTitle>프로필 관리</CardSectionTitle>
+                {staffProfileFeedback ? (
+                  <div
+                    className={cn(
+                      "mb-4 rounded-[10px] border px-3 py-2 text-[14px] leading-5",
+                      staffProfileFeedback.includes("저장")
+                        ? "border-[#bad8cd] bg-[#f4fbf8] text-[#2f7866]"
+                        : "border-[#f0c7ce] bg-[#fff7f8] text-[#a04455]",
+                    )}
+                  >
+                    {staffProfileFeedback}
+                  </div>
+                ) : null}
+                {staffMembers.length > 0 ? (
+                  <div className="grid gap-3">
+                    {staffMembers.map((staffMember) => {
+                      const draft = staffProfileDrafts[staffMember.id] ?? {
+                        profileImageUrls: normalizeStaffProfileImages(staffMember.profileImageUrls, staffMember.profileImageUrl),
+                        profileImageAssetIds: normalizeStaffProfileImages(staffMember.profileImageAssetIds),
+                        profileMessage: staffMember.profileMessage ?? "",
+                      };
+                      const visibleName = staffMember.displayName?.trim() || staffMember.name;
+                      const profileSubText = [staffMember.titlePrefix, staffMember.position || staffMember.role]
+                        .filter(Boolean)
+                        .join(" ");
+                      const isSaving = savingStaffProfileId === staffMember.id;
+
+                      return (
+                        <div key={staffMember.id} className="rounded-[14px] border border-[#e1e5ec] bg-[#fbfcfd] p-4">
+                          <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)]">
+                            <div className="grid gap-3">
+                              <div className="flex justify-center lg:justify-start">
+                                <label className="group relative flex h-[172px] w-[128px] cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center transition hover:border-[#9bb8f4] hover:bg-[#f8fafc]">
+                                  <span className="relative flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-full bg-[#f6f8fb] text-[#64748b]">
+                                    {draft.profileImageUrls[0] ? (
+                                      <img src={draft.profileImageUrls[0]} alt={`${visibleName} 프로필`} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <UserRound className="h-7 w-7" strokeWidth={1.8} />
+                                    )}
+                                  </span>
+                                  <span className="mt-3 max-w-full truncate text-[16px] font-semibold leading-5 text-[#181b21]">
+                                    {visibleName}
+                                  </span>
+                                  {profileSubText ? (
+                                    <span className="mt-1 max-w-full truncate text-[13px] leading-4 text-[#64748b]">
+                                      {profileSubText}
+                                    </span>
+                                  ) : null}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="sr-only"
+                                    disabled={!editable || isSaving || draft.profileImageUrls.length >= MAX_STAFF_PROFILE_IMAGES}
+                                    aria-label={`${visibleName} 프로필 사진 추가`}
+                                    onChange={(event) => {
+                                      void uploadStaffProfileImageFromFile(staffMember.id, event.target.files?.[0]);
+                                      event.currentTarget.value = "";
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                {Array.from({ length: MAX_STAFF_PROFILE_IMAGES }).map((_, imageIndex) => {
+                                  const imageUrl = draft.profileImageUrls[imageIndex] ?? "";
+                                  return imageUrl ? (
+                                    <div
+                                      key={imageIndex}
+                                      className="relative aspect-square overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white"
+                                    >
+                                      <img src={imageUrl} alt={`${visibleName} 프로필 ${imageIndex + 1}`} className="h-full w-full object-cover" />
+                                      <button
+                                        type="button"
+                                        disabled={!editable || isSaving}
+                                        onClick={() => removeStaffProfileImage(staffMember.id, imageIndex)}
+                                        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-[#64748b] shadow-[0_1px_4px_rgba(15,23,42,0.18)] transition hover:text-[#a04455] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
+                                        aria-label={`${visibleName} 프로필 사진 ${imageIndex + 1} 삭제`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label
+                                      key={imageIndex}
+                                      className="flex aspect-square cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-[#cfd7e3] bg-white text-[#64748b] transition hover:border-[#9bb8f4] hover:text-[#2f6bd4]"
+                                    >
+                                      <UserRound className="h-5 w-5" strokeWidth={1.8} />
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="sr-only"
+                                        disabled={!editable || isSaving}
+                                        aria-label={`${visibleName} 프로필 사진 ${imageIndex + 1} 추가`}
+                                        onChange={(event) => {
+                                          void uploadStaffProfileImageFromFile(staffMember.id, event.target.files?.[0]);
+                                          event.currentTarget.value = "";
+                                        }}
+                                      />
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <div className="grid min-w-0 gap-3">
+                              <label className="grid gap-1.5">
+                                <FieldLabel>프로필 메시지</FieldLabel>
+                                <textarea
+                                  value={draft.profileMessage}
+                                  maxLength={160}
+                                  disabled={!editable || isSaving}
+                                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { profileMessage: event.target.value })}
+                                  className="min-h-[92px] w-full resize-none rounded-[10px] border border-[#d8dce3] bg-white px-3 py-2.5 pb-7 text-[16px] font-normal leading-6 text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:ring-4 focus:ring-[#2f6bd4]/10"
+                                  placeholder="아이 성향에 맞춰 차분하게 미용해드려요."
+                                />
+                              </label>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  disabled={!editable || isSaving || !onStaffMembersChange}
+                                  onClick={() => void saveStaffProfile(staffMember.id)}
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#2f6bd4] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:bg-[#bdc2cb]"
+                                >
+                                  <Save className="h-3.5 w-3.5" />
+                                  {isSaving ? "저장 중" : "저장"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-[12px] border border-dashed border-[#cfd7e3] bg-[#f8fafc] px-4 py-8 text-center text-[15px] text-[#64748b]">
+                    등록된 직원이 없습니다.
+                  </div>
+                )}
               </PanelCard>
 
               {children ? (
@@ -835,26 +1057,17 @@ export default function ShopInfoSettingsPanel({
                 </PanelCard>
               ) : null}
 
-              <PanelCard
-                id="shop-info-policy"
-                icon={<Settings2 className="h-[17px] w-[17px]" />}
-                title="예약 정책"
-                hideHeader
-              >
-                <CardSectionTitle>예약 정책</CardSectionTitle>
-                <div>{reservationPolicySection}</div>
-              </PanelCard>
-
               <p className="text-[13px] font-normal text-[#969ba4]">* 표시는 필수 입력 항목입니다.</p>
             </div>
           </div>
         </div>
 
-        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
+        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#e1e4ea,0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={customerPreviewShop}
               services={previewServices}
+              staffMembers={staffMembers}
               ownerProfile={ownerProfile}
             />
           </div>

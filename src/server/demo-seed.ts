@@ -90,7 +90,7 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
       concurrent_capacity: 1,
       booking_slot_interval_minutes: 30,
       booking_slot_offset_minutes: 0,
-      approval_mode: "manual",
+      approval_mode: "auto",
       notification_settings: normalizeShopNotificationSettings({
         enabled: true,
         revisit_enabled: true,
@@ -144,7 +144,7 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
         concurrent_capacity: 1,
         booking_slot_interval_minutes: 30,
         booking_slot_offset_minutes: 0,
-        approval_mode: "manual",
+        approval_mode: "auto",
         updated_at: now,
       })
       .eq("id", shopId);
@@ -185,10 +185,10 @@ export async function seedDemoDataForShop(shopId: string, shopName: string, shop
     { id: appointmentIds.a5, shop_id: shopId, guardian_id: guardianIds.g2, pet_id: petIds.p3, service_id: serviceIds.full, appointment_date: today, appointment_time: "15:00", status: "confirmed", memo: "다리 컷 유지", start_at: at(today, "15:00"), end_at: at(today, "17:00"), source: "customer", created_at: now, updated_at: now },
     { id: appointmentIds.a6, shop_id: shopId, guardian_id: guardianIds.g3, pet_id: petIds.p4, service_id: serviceIds.care, appointment_date: tomorrow, appointment_time: "17:00", status: "confirmed", memo: "", start_at: at(tomorrow, "17:00"), end_at: at(tomorrow, "17:30"), source: "owner", created_at: now, updated_at: now },
     { id: appointmentIds.a7, shop_id: shopId, guardian_id: guardianIds.g1, pet_id: petIds.p1, service_id: serviceIds.bath, appointment_date: dayAfterTomorrow, appointment_time: "11:00", status: "confirmed", memo: "짧게", start_at: at(dayAfterTomorrow, "11:00"), end_at: at(dayAfterTomorrow, "12:20"), source: "customer", created_at: now, updated_at: now },
-    { id: appointmentIds.a8, shop_id: shopId, guardian_id: guardianIds.g1, pet_id: petIds.p2, service_id: serviceIds.bathOnly, appointment_date: today, appointment_time: "16:30", status: "pending", memo: "", start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
+    { id: appointmentIds.a8, shop_id: shopId, guardian_id: guardianIds.g1, pet_id: petIds.p2, service_id: serviceIds.bathOnly, appointment_date: today, appointment_time: "16:30", status: "confirmed", memo: "", start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
     { id: appointmentIds.a9, shop_id: shopId, guardian_id: guardianIds.g2, pet_id: petIds.p3, service_id: serviceIds.bathOnly, appointment_date: twoDaysAgo, appointment_time: "09:30", status: "confirmed", memo: "", start_at: at(twoDaysAgo, "09:30"), end_at: at(twoDaysAgo, "10:15"), source: "customer", created_at: now, updated_at: now },
     { id: appointmentIds.a10, shop_id: shopId, guardian_id: guardianIds.g1, pet_id: petIds.p1, service_id: serviceIds.care, appointment_date: addDate(today, 3), appointment_time: "10:00", status: "confirmed", memo: "발톱 짧게", start_at: at(addDate(today, 3), "10:00"), end_at: at(addDate(today, 3), "10:30"), source: "customer", created_at: now, updated_at: now },
-    { id: appointmentIds.a11, shop_id: shopId, guardian_id: guardianIds.g2, pet_id: petIds.p3, service_id: serviceIds.bath, appointment_date: addDate(today, 4), appointment_time: "14:00", status: "pending", memo: "미간 정리", start_at: at(addDate(today, 4), "14:00"), end_at: at(addDate(today, 4), "15:20"), source: "customer", created_at: now, updated_at: now },
+    { id: appointmentIds.a11, shop_id: shopId, guardian_id: guardianIds.g2, pet_id: petIds.p3, service_id: serviceIds.bath, appointment_date: addDate(today, 4), appointment_time: "14:00", status: "confirmed", memo: "미간 정리", start_at: at(addDate(today, 4), "14:00"), end_at: at(addDate(today, 4), "15:20"), source: "customer", created_at: now, updated_at: now },
     { id: appointmentIds.a12, shop_id: shopId, guardian_id: guardianIds.g3, pet_id: petIds.p4, service_id: serviceIds.full, appointment_date: addDate(today, 5), appointment_time: "12:30", status: "confirmed", memo: "짧은 스타일", start_at: at(addDate(today, 5), "12:30"), end_at: at(addDate(today, 5), "14:30"), source: "customer", created_at: now, updated_at: now },
     { id: appointmentIds.a13, shop_id: shopId, guardian_id: guardianIds.g1, pet_id: petIds.p2, service_id: serviceIds.bathOnly, appointment_date: addDate(today, 7), appointment_time: "15:30", status: "confirmed", memo: "", start_at: at(addDate(today, 7), "15:30"), end_at: at(addDate(today, 7), "16:15"), source: "owner", created_at: now, updated_at: now },
     { id: appointmentIds.a14, shop_id: shopId, guardian_id: guardianIds.g2, pet_id: petIds.p3, service_id: serviceIds.full, appointment_date: addDate(today, 12), appointment_time: "11:30", status: "confirmed", memo: "다리 볼륨 유지", start_at: at(addDate(today, 12), "11:30"), end_at: at(addDate(today, 12), "13:30"), source: "customer", created_at: now, updated_at: now },

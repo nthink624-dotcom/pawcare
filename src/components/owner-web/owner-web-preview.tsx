@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -20,12 +20,9 @@ import StaffManagementScreen from "@/components/owner-web/staff-management-scree
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { ownerPlanAllowsAutomaticVisitReminder, type OwnerPlanCode } from "@/lib/billing/owner-plans";
-import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
-
-const approvalModeStorageKey = "petmanager.ownerWeb.approvalMode";
 
 function isDemoOwnerWebData(data: BootstrapPayload) {
   return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
@@ -138,8 +135,8 @@ function renderScreen(
           shopId={initialData.shop.id}
           shop={initialData.shop}
           services={initialData.services}
-          ownerProfile={initialData.ownerProfile ?? null}
           staffMembers={staffMembers}
+          ownerProfile={initialData.ownerProfile ?? null}
           staffScheduleOverrides={initialData.staffScheduleOverrides ?? []}
           onStaffMembersChange={onStaffMembersChange}
           onStaffScheduleOverridesChange={handleStaffScheduleOverridesChange}
@@ -156,10 +153,12 @@ function renderScreen(
           showTabNavigation={false}
           shop={initialData.shop}
           services={initialData.services}
+          staffMembers={staffMembers}
           ownerProfile={initialData.ownerProfile ?? null}
           onShopChange={onShopChange}
           onOwnerProfileChange={onOwnerProfileChange}
           onServicesChange={(services: BootstrapPayload["services"]) => onDataChange({ ...initialData, services })}
+          onStaffMembersChange={onStaffMembersChange}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
           manualApprovalEnabled={manualApprovalEnabled}
           onManualApprovalChange={onManualApprovalChange}
@@ -183,7 +182,7 @@ export default function OwnerWebPreview({
   currentPlanCode?: OwnerPlanCode | null;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
-  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(initialData.shop.approval_mode !== "auto");
+  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -205,7 +204,7 @@ export default function OwnerWebPreview({
   const automaticVisitReminderAvailable = ownerPlanAllowsAutomaticVisitReminder(currentPlanCode ?? "quarterly");
 
   useEffect(() => {
-    setManualApprovalEnabled(initialData.shop.approval_mode !== "auto");
+    setManualApprovalEnabled(false);
     setOwnerData(initialData);
     if (!isDemoOwnerWebData(initialData)) {
       setLiveStaffMembers(initialData.staffMembers ?? []);
@@ -230,21 +229,6 @@ export default function OwnerWebPreview({
       ownerWebStorageKeys,
     });
   }, [demoMode, initialData, staffMembers, staffSource]);
-
-  useEffect(() => {
-    if (!demoMode) return;
-    try {
-      const storedApprovalMode = window.localStorage.getItem(approvalModeStorageKey);
-      if (storedApprovalMode === "instant") {
-        setManualApprovalEnabled(false);
-      }
-      if (storedApprovalMode === "manual") {
-        setManualApprovalEnabled(true);
-      }
-    } catch {
-      window.localStorage.removeItem(approvalModeStorageKey);
-    }
-  }, [demoMode]);
 
   useEffect(() => {
     if (!storeMenuOpen) return;
@@ -274,28 +258,18 @@ export default function OwnerWebPreview({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [alimtalkCreditMenuOpen]);
 
-  function handleManualApprovalChange(enabled: boolean) {
-    setManualApprovalEnabled(enabled);
-    const nextMode = enabled ? "manual" : "auto";
+  function handleManualApprovalChange(_enabled: boolean) {
+    setManualApprovalEnabled(false);
+    const nextMode = "auto";
     setOwnerData((current) => ({
       ...current,
       shop: {
         ...current.shop,
         approval_mode: nextMode,
-        concurrent_capacity: concurrentCapacityForApprovalMode(nextMode),
+        concurrent_capacity: 1,
       },
-      appointments:
-        nextMode === "auto"
-          ? current.appointments.map((appointment) =>
-              appointment.status === "pending" ? { ...appointment, status: "confirmed" } : appointment,
-            )
-          : current.appointments,
+      appointments: current.appointments,
     }));
-    try {
-      window.localStorage.setItem(approvalModeStorageKey, enabled ? "manual" : "instant");
-    } catch {
-      // Keep the mode active for the current session even if local storage is blocked.
-    }
     if (!demoMode) {
       void fetchApiJsonWithAuth("/api/owner/shops", {
         method: "PATCH",

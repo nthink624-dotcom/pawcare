@@ -93,8 +93,8 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
   const ownerStaffId = "staff-1";
 
   const appointments: Appointment[] = [
-    makeAppointment("demo-a-1", dates[0], "09:30", "pending", g1.id, p1.id, "svc-care", "첫 방문 상담 포함", ownerStaffId),
-    makeAppointment("demo-a-2", dates[0], "10:15", "pending", g2.id, p3.id, "svc-care", "피부가 예민해요", ownerStaffId),
+    makeAppointment("demo-a-1", dates[0], "09:30", "confirmed", g1.id, p1.id, "svc-care", "첫 방문 상담 포함", ownerStaffId),
+    makeAppointment("demo-a-2", dates[0], "10:15", "confirmed", g2.id, p3.id, "svc-care", "피부가 예민해요", ownerStaffId),
     makeAppointment("demo-a-3", dates[0], "11:00", "confirmed", g1.id, p2.id, "svc-bath-only", "짧게 정리"),
     makeAppointment("demo-a-4", dates[0], "13:00", "in_progress", g3.id, p4.id, "svc-full", "얼굴 라인 정리"),
     makeAppointment("demo-a-5", dates[0], "15:00", "almost_done", g2.id, p3.id, "svc-care", "발 관리 추가"),
@@ -102,37 +102,37 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
     makeAppointment("demo-a-7", dates[0], "17:30", "cancelled", g3.id, p4.id, "svc-bath-only", "보호자 일정 변경"),
 
     makeAppointment("demo-a-8", dates[1], "09:30", "confirmed", g1.id, p2.id, "svc-full", "스포팅 5mm"),
-    makeAppointment("demo-a-9", dates[1], "11:00", "pending", g2.id, p3.id, "svc-bath", "강아지 긴장 많음"),
+    makeAppointment("demo-a-9", dates[1], "11:00", "confirmed", g2.id, p3.id, "svc-bath", "강아지 긴장 많음"),
     makeAppointment("demo-a-10", dates[1], "13:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-11", dates[1], "15:00", "confirmed", g1.id, p1.id, "svc-care"),
     makeAppointment("demo-a-12", dates[1], "17:00", "cancelled", g2.id, p3.id, "svc-full", "시간 변경 요청"),
 
     makeAppointment("demo-a-13", dates[2], "09:00", "confirmed", g1.id, p1.id, "svc-bath"),
     makeAppointment("demo-a-14", dates[2], "10:30", "confirmed", g2.id, p3.id, "svc-full"),
-    makeAppointment("demo-a-15", dates[2], "12:00", "pending", g3.id, p4.id, "svc-bath-only"),
+    makeAppointment("demo-a-15", dates[2], "12:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-16", dates[2], "14:00", "confirmed", g1.id, p2.id, "svc-care"),
     makeAppointment("demo-a-17", dates[2], "16:00", "confirmed", g2.id, p3.id, "svc-bath"),
 
     makeAppointment("demo-a-18", dates[3], "09:00", "confirmed", g1.id, p1.id, "svc-full"),
-    makeAppointment("demo-a-19", dates[3], "10:30", "pending", g2.id, p3.id, "svc-bath"),
+    makeAppointment("demo-a-19", dates[3], "10:30", "confirmed", g2.id, p3.id, "svc-bath"),
     makeAppointment("demo-a-20", dates[3], "12:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-21", dates[3], "14:00", "confirmed", g1.id, p2.id, "svc-care"),
     makeAppointment("demo-a-22", dates[3], "16:00", "confirmed", g2.id, p3.id, "svc-full"),
 
     makeAppointment("demo-a-23", dates[4], "09:00", "confirmed", g1.id, p1.id, "svc-full"),
     makeAppointment("demo-a-24", dates[4], "10:30", "confirmed", g2.id, p3.id, "svc-bath"),
-    makeAppointment("demo-a-25", dates[4], "12:00", "pending", g3.id, p4.id, "svc-bath-only"),
+    makeAppointment("demo-a-25", dates[4], "12:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-26", dates[4], "14:00", "confirmed", g1.id, p2.id, "svc-care"),
     makeAppointment("demo-a-27", dates[4], "16:00", "cancelled", g2.id, p3.id, "svc-full"),
 
     makeAppointment("demo-a-28", dates[5], "09:00", "confirmed", g1.id, p1.id, "svc-bath"),
     makeAppointment("demo-a-29", dates[5], "10:30", "confirmed", g2.id, p3.id, "svc-full"),
-    makeAppointment("demo-a-30", dates[5], "12:00", "pending", g3.id, p4.id, "svc-bath-only"),
+    makeAppointment("demo-a-30", dates[5], "12:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-31", dates[5], "14:00", "confirmed", g1.id, p2.id, "svc-care"),
     makeAppointment("demo-a-32", dates[5], "16:00", "confirmed", g2.id, p3.id, "svc-bath"),
 
     makeAppointment("demo-a-33", dates[6], "09:00", "confirmed", g1.id, p1.id, "svc-full"),
-    makeAppointment("demo-a-34", dates[6], "10:30", "pending", g2.id, p3.id, "svc-bath"),
+    makeAppointment("demo-a-34", dates[6], "10:30", "confirmed", g2.id, p3.id, "svc-bath"),
     makeAppointment("demo-a-35", dates[6], "12:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
     makeAppointment("demo-a-36", dates[6], "14:00", "confirmed", g1.id, p2.id, "svc-care"),
     makeAppointment("demo-a-37", dates[6], "16:00", "confirmed", g2.id, p3.id, "svc-full"),

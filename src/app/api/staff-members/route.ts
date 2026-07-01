@@ -14,6 +14,8 @@ const staffMemberSchema = z.object({
   name: z.string().trim().min(1),
   displayName: z.string().trim().default(""),
   profileImageUrl: z.string().trim().default(""),
+  profileImageUrls: z.array(z.string().trim()).max(3).default([]),
+  profileImageAssetIds: z.array(z.string().trim()).max(3).default([]),
   profileMessage: z.string().trim().max(160).default(""),
   chipColorIndex: z.number().int().min(0).max(7).nullable().optional().default(null),
   phone: z.string().trim().default(""),
@@ -39,7 +41,7 @@ const deletePayloadSchema = z.object({
   staffId: z.string().min(1),
 });
 
-const blockingAppointmentStatuses = ["pending", "confirmed", "in_progress", "almost_done"] as const;
+const blockingAppointmentStatuses = ["confirmed", "in_progress", "almost_done"] as const;
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 type StaffMemberDbRow = {
@@ -47,6 +49,8 @@ type StaffMemberDbRow = {
   name: string;
   display_name?: string | null;
   profile_image_url?: string | null;
+  profile_image_urls?: unknown;
+  profile_image_asset_ids?: unknown;
   profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
@@ -61,7 +65,7 @@ type StaffMemberDbRow = {
 };
 
 const staffMembersProfileSelect =
-  "id,name,display_name,profile_image_url,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
+  "id,name,display_name,profile_image_url,profile_image_urls,profile_image_asset_ids,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain";
 const staffMembersLegacySelect = "id,name,phone,role,default_days,start_time,end_time,regular_off,annual_remain";
 
 function isMissingStaffProfileColumnsError(error: { code?: string | null; message?: string | null } | null | undefined) {
@@ -71,6 +75,8 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
     message.includes("staff_members") &&
     (message.includes("display_name") ||
       message.includes("profile_image_url") ||
+      message.includes("profile_image_urls") ||
+      message.includes("profile_image_asset_ids") ||
       message.includes("profile_message") ||
       message.includes("chip_color_index") ||
       message.includes("title_prefix") ||
@@ -79,12 +85,38 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
   );
 }
 
+function normalizeProfileImageUrls(value: unknown, fallback = "") {
+  const urls = Array.isArray(value) ? value : [];
+  const normalized = urls
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const fallbackUrl = fallback.trim();
+  return normalized.length > 0 ? normalized : fallbackUrl ? [fallbackUrl] : [];
+}
+
+function normalizeProfileImageAssetIds(value: unknown) {
+  return (Array.isArray(value) ? value : [])
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): BootstrapStaffMember {
   return {
+    ...(() => {
+      const profileImageUrls = normalizeProfileImageUrls(row.profileImageUrls, row.profileImageUrl);
+      return {
+        profileImageUrl: profileImageUrls[0] ?? "",
+        profileImageUrls,
+        profileImageAssetIds: normalizeProfileImageAssetIds(row.profileImageAssetIds),
+      };
+    })(),
     id: row.id,
     name: row.name,
     displayName: row.displayName,
-    profileImageUrl: row.profileImageUrl,
     profileMessage: row.profileMessage,
     chipColorIndex: row.chipColorIndex,
     phone: row.phone,
@@ -102,11 +134,14 @@ function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): Bootstr
 }
 
 function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMember {
+  const profileImageUrls = normalizeProfileImageUrls(row.profile_image_urls, row.profile_image_url ?? "");
   return {
     id: row.id,
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
-    profileImageUrl: row.profile_image_url?.trim() || "",
+    profileImageUrl: profileImageUrls[0] ?? "",
+    profileImageUrls,
+    profileImageAssetIds: normalizeProfileImageAssetIds(row.profile_image_asset_ids),
     profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -390,7 +425,9 @@ export async function PATCH(request: NextRequest) {
       shop_id: owner.shopId,
       name: staffMember.name,
       display_name: staffMember.displayName,
-      profile_image_url: staffMember.profileImageUrl,
+      profile_image_url: normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl)[0] ?? "",
+      profile_image_urls: normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl),
+      profile_image_asset_ids: normalizeProfileImageAssetIds(staffMember.profileImageAssetIds),
       profile_message: staffMember.profileMessage,
       chip_color_index: staffMember.chipColorIndex,
       phone: staffMember.phone,
@@ -414,7 +451,7 @@ export async function PATCH(request: NextRequest) {
           throw new OwnerApiError(upsertResult.error.message, 500);
         }
 
-        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, profile_message: _profileMessage, chip_color_index: _chipColorIndex, title_prefix: _titlePrefix, position: _position, ...row }) => row);
+        const legacyRows = rows.map(({ display_name: _displayName, profile_image_url: _profileImageUrl, profile_image_urls: _profileImageUrls, profile_image_asset_ids: _profileImageAssetIds, profile_message: _profileMessage, chip_color_index: _chipColorIndex, title_prefix: _titlePrefix, position: _position, ...row }) => row);
         const legacyUpsertResult = await supabase.from("staff_members").upsert(legacyRows, { onConflict: "id" });
         if (legacyUpsertResult.error) {
           throw new OwnerApiError(legacyUpsertResult.error.message, 500);

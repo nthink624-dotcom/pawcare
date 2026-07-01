@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -112,7 +112,6 @@ const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
-  pending: "승인 대기",
   confirmed: "확정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",
@@ -121,10 +120,8 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   rejected: "거절",
   noshow: "노쇼",
 };
-const overduePendingStatusLabel = "누락";
-
 function isOverduePendingStatus(status: string) {
-  return status === overduePendingStatusLabel;
+  return false;
 }
 
 function buildBootstrapLookup(data: BootstrapPayload) {
@@ -181,10 +178,7 @@ function buildReservationsFromBootstrap(data: BootstrapPayload): ReservationRow[
     const customerRequest = appointment.memo?.trim() ?? "";
     const staffComment = staffNoteByPetId.get(appointment.pet_id)?.note?.trim() ?? "";
     const notifications = notificationsByAppointmentId.get(appointment.id);
-    const status =
-      appointment.status === "pending" && isPastPendingReservation(appointment.appointment_date, appointment.appointment_time)
-        ? overduePendingStatusLabel
-        : appointmentStatusLabels[appointment.status];
+    const status = appointmentStatusLabels[appointment.status] ?? appointment.status;
 
     return {
       id: appointment.id,
@@ -430,69 +424,83 @@ function buildDayItems(records: GroomingCalendarRecord[], reservations: Reservat
         .filter((reservation) => reservation.date === date)
         .filter((reservation) => reservation.status !== "완료")
         .filter((reservation) => !recordAppointmentIds.has(reservation.id))
-        .map((reservation) => ({
-          id: reservation.id,
-          type: "reservation" as const,
-          guardianId: reservation.guardianId,
-          petId: reservation.petId,
-          appointmentId: reservation.id,
-          groomingRecordId: null,
-          pet: reservation.pet,
-          breed: reservation.breed,
-          customer: reservation.customer,
-          service: reservation.service,
-          status: reservation.status,
-          note: reservation.note,
-          customerRequest: reservation.customerRequest,
-          staffComment: reservation.staffComment,
-          time: reservation.time,
-          staffId: reservation.staffId,
-          staff: reservation.staff,
-          phone: reservation.phone,
-          channel: reservation.channel,
-          eventReceivedAt: reservation.eventReceivedAt,
-          eventUpdatedAt: reservation.eventUpdatedAt,
-          reservationConfirmedAt: reservation.reservationConfirmedAt,
-          groomingStartedAt: reservation.groomingStartedAt,
-          pickupReadyAt: reservation.pickupReadyAt,
-          groomingCompletedAt: reservation.groomingCompletedAt,
-          actualCompletedAt: reservation.actualCompletedAt,
-          date,
-        }))
+        .map((reservation) => {
+          const status = reservation.status;
+
+          return {
+            id: reservation.id,
+            type: "reservation" as const,
+            guardianId: reservation.guardianId,
+            petId: reservation.petId,
+            appointmentId: reservation.id,
+            groomingRecordId: null,
+            pet: reservation.pet,
+            breed: reservation.breed,
+            customer: reservation.customer,
+            service: reservation.service,
+            status,
+            note: reservation.note,
+            customerRequest: reservation.customerRequest,
+            staffComment: reservation.staffComment,
+            time: reservation.time,
+            staffId: reservation.staffId,
+            staff: reservation.staff,
+            phone: reservation.phone,
+            channel: reservation.channel,
+            eventReceivedAt: reservation.eventReceivedAt,
+            eventUpdatedAt: reservation.eventUpdatedAt,
+            reservationConfirmedAt: reservation.reservationConfirmedAt,
+            groomingStartedAt: reservation.groomingStartedAt,
+            pickupReadyAt: reservation.pickupReadyAt,
+            groomingCompletedAt: reservation.groomingCompletedAt,
+            actualCompletedAt: reservation.actualCompletedAt,
+            date,
+          };
+        })
     : reservations
         .filter((reservation) => reservation.date === date)
         .filter((reservation) => reservation.status !== "완료")
-        .filter((reservation) => reservation.status.includes("취소") || reservation.status.includes("거절") || reservation.status.includes("노쇼") || reservation.status.includes("변경") || isOverduePendingStatus(reservation.status))
+        .filter(
+          (reservation) =>
+            reservation.status.includes("취소") ||
+            reservation.status.includes("거절") ||
+            reservation.status.includes("노쇼") ||
+            reservation.status.includes("변경"),
+        )
         .filter((reservation) => !recordAppointmentIds.has(reservation.id))
-        .map((reservation) => ({
-          id: reservation.id,
-          type: "reservation" as const,
-          guardianId: reservation.guardianId,
-          petId: reservation.petId,
-          appointmentId: reservation.id,
-          groomingRecordId: null,
-          pet: reservation.pet,
-          breed: reservation.breed,
-          customer: reservation.customer,
-          service: reservation.service,
-          status: reservation.status,
-          note: reservation.note,
-          customerRequest: reservation.customerRequest,
-          staffComment: reservation.staffComment,
-          time: reservation.time,
-          staffId: reservation.staffId,
-          staff: reservation.staff,
-          phone: reservation.phone,
-          channel: reservation.channel,
-          eventReceivedAt: reservation.eventReceivedAt,
-          eventUpdatedAt: reservation.eventUpdatedAt,
-          reservationConfirmedAt: reservation.reservationConfirmedAt,
-          groomingStartedAt: reservation.groomingStartedAt,
-          pickupReadyAt: reservation.pickupReadyAt,
-          groomingCompletedAt: reservation.groomingCompletedAt,
-          actualCompletedAt: reservation.actualCompletedAt,
-          date,
-        }));
+        .map((reservation) => {
+          const status = reservation.status;
+
+          return {
+            id: reservation.id,
+            type: "reservation" as const,
+            guardianId: reservation.guardianId,
+            petId: reservation.petId,
+            appointmentId: reservation.id,
+            groomingRecordId: null,
+            pet: reservation.pet,
+            breed: reservation.breed,
+            customer: reservation.customer,
+            service: reservation.service,
+            status,
+            note: reservation.note,
+            customerRequest: reservation.customerRequest,
+            staffComment: reservation.staffComment,
+            time: reservation.time,
+            staffId: reservation.staffId,
+            staff: reservation.staff,
+            phone: reservation.phone,
+            channel: reservation.channel,
+            eventReceivedAt: reservation.eventReceivedAt,
+            eventUpdatedAt: reservation.eventUpdatedAt,
+            reservationConfirmedAt: reservation.reservationConfirmedAt,
+            groomingStartedAt: reservation.groomingStartedAt,
+            pickupReadyAt: reservation.pickupReadyAt,
+            groomingCompletedAt: reservation.groomingCompletedAt,
+            actualCompletedAt: reservation.actualCompletedAt,
+            date,
+          };
+        });
 
   return sortOperationalItems([...reservationItems, ...completedReservationRecordItems, ...recordItems]);
 }
@@ -510,29 +518,21 @@ function matchesCalendarSearch(fields: Array<string | undefined | null>, query: 
 
 function getRecordTone(item: DayItem) {
   if (item.type === "record") return "border-[#dbe2ea]";
-  if (isOverduePendingStatus(item.status)) return "border-[#ead6dc]";
-  if (item.status === "승인 대기") return "border-[#ead28e]";
   return "border-[#c8ded6]";
 }
 
 function getBadgeTone(item: DayItem) {
   if (item.type === "record") return "text-[#475569]";
-  if (isOverduePendingStatus(item.status)) return "text-[#8f2438]";
-  if (item.status === "승인 대기") return "text-[#8a5a00]";
   return "text-[#1f6b5b]";
 }
 
 function getTimeTone(item: DayItem) {
   if (item.type === "record") return "text-[#475569]";
-  if (isOverduePendingStatus(item.status)) return "text-[#8f2438]";
-  if (item.status === "승인 대기") return "text-[#8a5a00]";
   return "text-[#1f6b5b]";
 }
 
 function getStatusAccent(item: DayItem): StatusIndicatorTone {
   if (item.type === "record") return "slate";
-  if (isOverduePendingStatus(item.status)) return "burgundy";
-  if (item.status === "승인 대기") return "amber";
   if (item.status === "취소" || item.status === "거절" || item.status === "노쇼") return "burgundy";
   return "teal";
 }
@@ -545,18 +545,17 @@ function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolea
   return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_72%,#fcfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.032)] hover:border-[#dbe8e2] hover:bg-white hover:shadow-[0_5px_14px_rgba(15,23,42,0.05)]";
 }
 
+type CalendarStatusKey = "confirmed" | "completed" | "changed" | "cancelled";
+type CalendarStatusFilter = "all" | CalendarStatusKey;
+type CalendarStaffFilter = "all" | string;
+
 type CalendarStatusIndicator = {
-  key: "overdue" | "pending" | "confirmed" | "completed" | "changed" | "cancelled";
+  key: CalendarStatusKey;
   label: string;
   tone: StatusIndicatorTone;
 };
 
-type CalendarStatusFilter = "all" | CalendarStatusIndicator["key"];
-type CalendarStaffFilter = "all" | string;
-
 const calendarStatusIndicators: CalendarStatusIndicator[] = [
-  { key: "overdue", label: "누락", tone: "burgundy" },
-  { key: "pending", label: "예약요청", tone: "amber" },
   { key: "confirmed", label: "확정", tone: "teal" },
   { key: "changed", label: "변경", tone: "amber" },
   { key: "cancelled", label: "취소", tone: "burgundy" },
@@ -567,8 +566,6 @@ function getCalendarStatusCounts(items: DayItem[]) {
   const reservationItems = items.filter((item) => item.type === "reservation");
 
   return {
-    overdue: reservationItems.filter((item) => isOverduePendingStatus(item.status)).length,
-    pending: reservationItems.filter((item) => item.status.includes("승인") && !isOverduePendingStatus(item.status)).length,
     confirmed: reservationItems.filter((item) => item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비").length,
     completed: items.filter((item) => item.type === "record" || item.status.includes("완료")).length,
     changed: reservationItems.filter((item) => item.status.includes("변경")).length,
@@ -583,19 +580,15 @@ function getCalendarStatusSummaryClass(tone: StatusIndicatorTone) {
   return "border-[#b9c3cf] bg-[#f8fafc] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.12)]";
 }
 
-function getCalendarStatusShortLabel(key: CalendarStatusIndicator["key"]) {
-  if (key === "overdue") return "누락";
-  if (key === "pending") return "요청";
+function getCalendarStatusShortLabel(key: CalendarStatusKey) {
   if (key === "confirmed") return "확정";
   if (key === "completed") return "완료";
   if (key === "changed") return "변경";
   return "취소";
 }
 
-function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarStatusIndicator["key"] {
+function getItemStatusGroup(item: Pick<DayItem, "type" | "status">): CalendarStatusKey {
   if (item.type === "record" || item.status.includes("완료")) return "completed";
-  if (isOverduePendingStatus(item.status)) return "overdue";
-  if (item.status.includes("승인")) return "pending";
   if (item.status.includes("변경")) return "changed";
   if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return "cancelled";
   return "confirmed";
@@ -606,12 +599,10 @@ function matchesStatusFilter(item: Pick<DayItem, "type" | "status">, filter: Cal
 }
 
 function getOperationalPriority(item: Pick<DayItem, "type" | "status">) {
-  if (isOverduePendingStatus(item.status)) return 0;
-  if (item.status.includes("승인")) return 1;
-  if (item.status.includes("변경")) return 2;
-  if (item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비") return 3;
-  if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return 4;
-  return item.type === "record" ? 5 : 4;
+  if (item.status.includes("변경")) return 1;
+  if (item.status === "확정" || item.status === "진행 중" || item.status === "픽업 준비") return 2;
+  if (item.status.includes("취소") || item.status.includes("거절") || item.status.includes("노쇼")) return 3;
+  return item.type === "record" ? 4 : 3;
 }
 
 function sortOperationalItems(items: DayItem[]) {
@@ -727,7 +718,13 @@ export default function CalendarRecordsScreen({
         query,
       ) &&
       (staffFilter === "all" || reservation.staffId === staffFilter) &&
-      matchesStatusFilter({ type: "reservation", status: reservation.status }, statusFilter),
+      matchesStatusFilter(
+        {
+          type: "reservation",
+          status: reservation.status,
+        },
+        statusFilter,
+      ),
     );
   }, [query, reservations, staffFilter, statusFilter]);
 
@@ -761,8 +758,6 @@ export default function CalendarRecordsScreen({
   );
   const statusOptions: Array<{ value: CalendarStatusFilter; label: string }> = [
     { value: "all", label: "전체 상태" },
-    { value: "overdue", label: "누락" },
-    { value: "pending", label: "예약요청" },
     { value: "confirmed", label: "확정/진행" },
     { value: "changed", label: "변경" },
     { value: "cancelled", label: "취소/거절" },
@@ -1163,10 +1158,7 @@ function DayItemSection({
         <div className="space-y-1">
           {items.map((item) => {
             const confirming = confirmingReservationId === item.id;
-            const confirmable =
-              item.type === "reservation" &&
-              item.status === "승인 대기" &&
-              !isPastPendingReservation(item.date, item.time);
+            const confirmable = false;
             return (
             <div
               key={`${item.type}-${item.id}`}
@@ -1534,7 +1526,7 @@ function buildRecordHistoryTimeline(item: DayItem, sourceLabel: string): RecordH
   const groomingStartedTime = historyTime(item.groomingStartedAt);
   const pickupReadyTime = historyTime(item.pickupReadyAt);
   const groomingCompletedTime = historyTime(item.recordCompletedAt ?? item.groomingCompletedAt ?? item.actualCompletedAt);
-  const shouldShowConfirmed = item.type === "record" || (!item.status.includes("승인") && !isOverduePendingStatus(item.status));
+  const shouldShowConfirmed = item.type === "record" || !isOverduePendingStatus(item.status);
   const shouldShowGroomingStarted = item.type === "record" || item.status === "진행 중" || item.status === "픽업 준비" || item.status === "완료";
   const shouldShowPickupReady = Boolean(item.pickupReadyAt) || item.status === "픽업 준비";
   const shouldShowCompleted = item.type === "record" || item.status === "완료";

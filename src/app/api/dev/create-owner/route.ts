@@ -117,7 +117,7 @@ export async function POST() {
       booking_slot_offset_minutes: 0,
       booking_available_start_time: "10:00",
       booking_available_end_time: "17:00",
-      approval_mode: "manual",
+      approval_mode: "auto",
       notification_settings: defaultShopNotificationSettings,
       customer_page_settings: buildDefaultCustomerPageSettings({
         shopName: DEV_OWNER.shopName,

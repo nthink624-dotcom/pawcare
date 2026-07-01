@@ -11,7 +11,7 @@ import type {
   Service,
 } from "@/types/domain";
 
-const activeAppointmentStatuses = new Set<AppointmentStatus>(["pending", "confirmed", "in_progress", "almost_done"]);
+const activeAppointmentStatuses = new Set<AppointmentStatus>(["confirmed", "in_progress", "almost_done"]);
 
 export type CustomerDetailPet = Pet & {
   latestGroomingRecord: GroomingRecord | null;
@@ -145,7 +145,6 @@ export function buildCustomerDetailFromBootstrap(
 
 export function getAppointmentStatusMeta(status: AppointmentStatus | string) {
   const map: Record<string, { label: string; className: string }> = {
-    pending: { label: "승인 대기", className: "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]" },
     confirmed: { label: "예약 확정", className: "border-[#c8ded8] bg-[#f4faf8] text-[#256b59]" },
     in_progress: { label: "진행 중", className: "border-[#c8ded8] bg-[#f4faf8] text-[#256b59]" },
     almost_done: { label: "픽업 준비", className: "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]" },

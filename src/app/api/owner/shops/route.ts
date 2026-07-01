@@ -164,8 +164,8 @@ export async function PATCH(request: NextRequest) {
           phone: body.phone ?? "",
           address: body.address ?? "",
           description: body.description ?? "",
-          approval_mode: body.approvalMode ?? "manual",
-          concurrent_capacity: concurrentCapacityForApprovalMode(body.approvalMode ?? "manual"),
+          approval_mode: body.approvalMode ?? "auto",
+          concurrent_capacity: concurrentCapacityForApprovalMode(body.approvalMode ?? "auto"),
           reservation_policy_settings: {
             cancel_window: body.cancelWindow ?? "2h",
             customer_change_enabled: body.cancelWindow !== "none",

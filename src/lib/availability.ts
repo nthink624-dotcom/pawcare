@@ -4,7 +4,6 @@ import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffSchedu
 import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import {
   confirmedSlotCapacity,
-  normalizePendingHoldLimit,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
 } from "@/lib/booking-slot-settings";
@@ -21,7 +20,6 @@ type ShopClosedPolicy = Pick<
   Partial<Pick<Shop, "reservation_policy_settings">>;
 
 const slotBlockingAppointmentStatuses = new Set<Appointment["status"]>([
-  "pending",
   "confirmed",
   "in_progress",
   "almost_done",
@@ -166,8 +164,6 @@ export function computeAvailableSlots(params: {
             durationMinutes,
             appointments,
             services,
-            approvalMode: shop.approval_mode,
-            pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
             excludeAppointmentId,
           });
 
@@ -182,8 +178,6 @@ export function computeAvailableSlots(params: {
         staffScheduleOverrides,
         appointments,
         services,
-        approvalMode: shop.approval_mode,
-        pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
         excludeAppointmentId,
       })
     ) {
@@ -246,11 +240,9 @@ function isStaffSlotAvailable(params: {
   staffScheduleOverrides: StaffScheduleOverride[];
   appointments: Appointment[];
   services: Service[];
-  approvalMode: Shop["approval_mode"];
-  pendingHoldLimit?: number | null;
   excludeAppointmentId?: string;
 }): boolean {
-  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, approvalMode, pendingHoldLimit, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, staffId, staffMembers, staffScheduleOverrides, appointments, services, excludeAppointmentId } = params;
   if (!staffId) {
     if (staffMembers.length === 0) return true;
     const unassignedAvailable = isSlotAvailable({
@@ -259,8 +251,6 @@ function isStaffSlotAvailable(params: {
       durationMinutes,
       appointments: appointments.filter((appointment) => !appointment.staff_id),
       services,
-      approvalMode,
-      pendingHoldLimit,
       excludeAppointmentId,
     });
     if (!unassignedAvailable) return false;
@@ -303,8 +293,6 @@ function isStaffSlotAvailable(params: {
     durationMinutes,
     appointments: appointments.filter((appointment) => appointment.staff_id === staffId),
     services,
-    approvalMode,
-    pendingHoldLimit,
     excludeAppointmentId,
   });
 }
@@ -315,11 +303,9 @@ export function isSlotAvailable(params: {
   durationMinutes: number;
   appointments: Appointment[];
   services: Service[];
-  approvalMode: Shop["approval_mode"];
-  pendingHoldLimit?: number | null;
   excludeAppointmentId?: string;
 }) {
-  const { date, startMinute, durationMinutes, appointments, services, approvalMode, pendingHoldLimit, excludeAppointmentId } = params;
+  const { date, startMinute, durationMinutes, appointments, services, excludeAppointmentId } = params;
   const endMinute = startMinute + durationMinutes;
   const activeAppointments = appointments.filter(
     (appointment) =>
@@ -357,13 +343,7 @@ export function isSlotAvailable(params: {
         appointmentStart <= probeMinute && probeMinute < appointmentEnd,
     );
 
-    const confirmedLikeOverlaps = overlaps.filter(({ status }) => status !== "pending");
-    if (confirmedLikeOverlaps.length >= confirmedSlotCapacity) {
-      return false;
-    }
-
-    const allowedHolds = approvalMode === "manual" ? normalizePendingHoldLimit(pendingHoldLimit) : confirmedSlotCapacity;
-    if (overlaps.length >= allowedHolds) {
+    if (overlaps.length >= confirmedSlotCapacity) {
       return false;
     }
   }

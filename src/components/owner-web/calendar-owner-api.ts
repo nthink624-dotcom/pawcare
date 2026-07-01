@@ -15,7 +15,6 @@ export type OwnerScheduleCreateResponse = {
 };
 
 const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
-  "승인 대기": "pending",
   "확정": "confirmed",
   "진행 중": "in_progress",
   "픽업 준비": "almost_done",

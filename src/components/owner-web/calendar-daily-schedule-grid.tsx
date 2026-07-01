@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -10,7 +11,6 @@ import { cn } from "@/lib/utils";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type BookingCardTone =
-  | "pending"
   | "confirmed"
   | "active"
   | "pickupReady"
@@ -35,6 +35,21 @@ type BookingResizeState = {
   initialDuration: number;
   nextDuration: number;
 };
+type OffHoursRangeKey = "before" | "after" | "allDay";
+type ExpandedOffHours = Record<OffHoursRangeKey, boolean>;
+type ScheduleDisplaySegment = {
+  key: OffHoursRangeKey | "business";
+  kind: "business" | "off";
+  start: number;
+  end: number;
+  top: number;
+  height: number;
+  collapsed: boolean;
+};
+type ScheduleDisplayLayout = {
+  segments: ScheduleDisplaySegment[];
+  bodyHeight: number;
+};
 type DailyBooking = {
   id: string;
   pet: string;
@@ -54,15 +69,13 @@ type DailyBooking = {
 const scheduleStartHour = 0;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
-const scheduleBodyInsetY = 8;
-const scheduleGridHeight = (scheduleEndHour - scheduleStartHour) * pixelsPerHour;
-const scheduleBodyHeight = scheduleGridHeight + scheduleBodyInsetY * 2;
+const scheduleBodyInsetY = 0;
 const quarterSlotHeight = pixelsPerHour / 4;
+const collapsedOffHoursHeight = 18;
 const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
 const bookingCardHorizontalInset = "2.5%";
-const timeRailHours = Array.from({ length: scheduleEndHour - scheduleStartHour + 1 }, (_, index) => formatHourLabel(scheduleStartHour + index));
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -75,15 +88,11 @@ function isActiveBookingStatus(status: string) {
 }
 
 function isPendingBookingStatus(status: string) {
-  return status === "승인 대기";
+  return false;
 }
 
 function isOverduePendingBookingStatus(status: string) {
   return status === "누락";
-}
-
-function isApprovalQueueBookingStatus(status: string) {
-  return isPendingBookingStatus(status) || isOverduePendingBookingStatus(status);
 }
 
 function getStaffInitial(name: string) {
@@ -103,16 +112,22 @@ function isChangeBookingStatus(status: string) {
 }
 
 function getTimedBookingStatus(booking: DailyBooking, selectedDate: string, currentHour: number) {
-  if (booking.status !== "확정") return booking.status;
-  if (selectedDate !== new Date().toLocaleDateString("en-CA")) return booking.status;
-  if (currentHour > booking.start + booking.duration) return "시작 지연";
+  const today = new Date().toLocaleDateString("en-CA");
+  if (booking.status === "확정") {
+    if (selectedDate < today) return "방문 확인 필요";
+    if (selectedDate === today && currentHour >= booking.start) return "방문 확인 필요";
+    return booking.status;
+  }
+  if (booking.status === "진행 중") {
+    if (selectedDate < today) return "완료 확인 필요";
+    if (selectedDate === today && currentHour >= booking.start + booking.duration) return "완료 확인 필요";
+  }
   return booking.status;
 }
 
 function getBookingCardTone(status: string): BookingCardTone {
-  if (status === "시작 지연") return "missed";
+  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "missed";
   if (isOverduePendingBookingStatus(status)) return "missed";
-  if (isPendingBookingStatus(status)) return "pending";
   if (status === "진행 중") return "active";
   if (status === "픽업 준비") return "pickupReady";
   if (isCompletedBookingStatus(status)) return "completed";
@@ -127,7 +142,6 @@ function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
   const base = "border-[#dbe2ea] hover:border-[#c5d0dc]";
   const selectedClass = selected ? "ring-1 ring-[#94a3b8]/35" : "";
   const backgroundClass: Record<BookingCardTone, string> = {
-    pending: "bg-[#fffdf7]",
     confirmed: "bg-[#fbfdff]",
     active: "bg-[#fbfffc]",
     pickupReady: "bg-[#faffff]",
@@ -147,17 +161,16 @@ function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
 
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (status === "시작 지연") return "지연";
+  if (status === "방문 확인 필요") return "방문 확인";
+  if (status === "완료 확인 필요") return "완료 확인";
   if (isOverduePendingBookingStatus(status)) return "누락";
-  if (status === "승인 대기") return "대기";
   return status;
 }
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
   const status = getTimedBookingStatus(booking, selectedDate, currentHour);
-  if (status === "승인 대기") return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
   if (isOverduePendingBookingStatus(status)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
-  if (status === "시작 지연") return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
+  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
   if (status === "확정") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (status === "진행 중") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (status === "픽업 준비") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
@@ -170,7 +183,6 @@ function getReservationStatusPillClass(booking: DailyBooking, selectedDate: stri
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#b98121]/70";
   if (tone === "confirmed") return "bg-[#607080]/70";
   if (tone === "active") return "bg-[#607080]/70";
   if (tone === "pickupReady") return "bg-[#607080]/70";
@@ -183,7 +195,6 @@ function getBookingResizeHandleClass(tone: BookingCardTone) {
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#8a5b11]";
   if (tone === "confirmed") return "text-[#607080]";
   if (tone === "active") return "text-[#607080]";
   if (tone === "pickupReady") return "text-[#607080]";
@@ -195,8 +206,116 @@ function getBookingTimeTextClass(tone: BookingCardTone) {
   return "text-[#a04455]";
 }
 
-function getBookingTop(start: number) {
-  return scheduleBodyInsetY + Math.max(0, (start - scheduleStartHour) * pixelsPerHour);
+function getScheduleDisplayLayout(
+  operatingWindow: { enabled: boolean; openHour: number; closeHour: number },
+  expandedOffHours: ExpandedOffHours,
+): ScheduleDisplayLayout {
+  const segments: ScheduleDisplaySegment[] = [];
+  let nextTop = scheduleBodyInsetY;
+  const pushSegment = (segment: Omit<ScheduleDisplaySegment, "top" | "height">) => {
+    const expandedHeight = (segment.end - segment.start) * pixelsPerHour;
+    const height = segment.collapsed ? collapsedOffHoursHeight : expandedHeight;
+    segments.push({ ...segment, top: nextTop, height });
+    nextTop += height;
+  };
+
+  if (!operatingWindow.enabled) {
+    pushSegment({
+      key: "allDay",
+      kind: "off",
+      start: scheduleStartHour,
+      end: scheduleEndHour,
+      collapsed: !expandedOffHours.allDay,
+    });
+
+    return { segments, bodyHeight: nextTop + scheduleBodyInsetY };
+  }
+
+  const openHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.openHour));
+  const closeHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.closeHour));
+  const normalizedOpen = Math.min(openHour, closeHour);
+  const normalizedClose = Math.max(openHour, closeHour);
+
+  if (normalizedOpen > scheduleStartHour) {
+    pushSegment({
+      key: "before",
+      kind: "off",
+      start: scheduleStartHour,
+      end: normalizedOpen,
+      collapsed: !expandedOffHours.before,
+    });
+  }
+
+  if (normalizedClose > normalizedOpen) {
+    pushSegment({
+      key: "business",
+      kind: "business",
+      start: normalizedOpen,
+      end: normalizedClose,
+      collapsed: false,
+    });
+  }
+
+  if (normalizedClose < scheduleEndHour) {
+    pushSegment({
+      key: "after",
+      kind: "off",
+      start: normalizedClose,
+      end: scheduleEndHour,
+      collapsed: !expandedOffHours.after,
+    });
+  }
+
+  return { segments, bodyHeight: nextTop + scheduleBodyInsetY };
+}
+
+function getSegmentLabel(segment: ScheduleDisplaySegment) {
+  if (segment.key === "before") return `영업 전 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
+  if (segment.key === "after") return `영업 후 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
+  if (segment.key === "allDay") return `휴무 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
+  return "";
+}
+
+function getHourTop(hour: number, layout: ScheduleDisplayLayout) {
+  const clampedHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, hour));
+  const segment =
+    layout.segments.find((item) => clampedHour >= item.start && (clampedHour < item.end || (item.end === scheduleEndHour && clampedHour === item.end))) ??
+    layout.segments[layout.segments.length - 1];
+  if (!segment) return scheduleBodyInsetY;
+
+  if (segment.collapsed) {
+    return segment.top + segment.height / 2;
+  }
+
+  return segment.top + (clampedHour - segment.start) * pixelsPerHour;
+}
+
+function getHourFromTop(pointerY: number, columnTop: number, layout: ScheduleDisplayLayout) {
+  const y = Math.max(scheduleBodyInsetY, Math.min(layout.bodyHeight - scheduleBodyInsetY, pointerY - columnTop));
+  const segment = layout.segments.find((item) => y >= item.top && y <= item.top + item.height) ?? layout.segments[layout.segments.length - 1];
+  if (!segment) return scheduleStartHour;
+  if (segment.collapsed) return segment.end;
+  return segment.start + (y - segment.top) / pixelsPerHour;
+}
+
+function getBookingTop(start: number, layout: ScheduleDisplayLayout) {
+  return getHourTop(start, layout);
+}
+
+function isBookingVisibleInDisplayLayout(booking: { start: number }, layout: ScheduleDisplayLayout) {
+  const clampedStart = Math.max(scheduleStartHour, Math.min(scheduleEndHour, booking.start));
+  const segment =
+    layout.segments.find((item) => clampedStart >= item.start && (clampedStart < item.end || (item.end === scheduleEndHour && clampedStart === item.end))) ??
+    layout.segments[layout.segments.length - 1];
+
+  return !segment?.collapsed;
+}
+
+function getOffHoursBarTop(segment: ScheduleDisplaySegment) {
+  const barHeight = 8;
+  if (segment.collapsed) return segment.top + Math.max(0, (segment.height - barHeight) / 2);
+  if (segment.key === "after") return segment.top + Math.max(0, segment.height - barHeight - 4);
+  return segment.top + 4;
 }
 
 function getBookingHeight(duration: number) {
@@ -237,28 +356,8 @@ function getBookingLayoutStyle(lane: number, laneCount: number) {
   return { left, width };
 }
 
-function getNonOperatingBlocks(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }) {
-  if (!operatingWindow.enabled) {
-    return [{ start: scheduleStartHour, end: scheduleEndHour }];
-  }
-
-  const openHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.openHour));
-  const closeHour = Math.max(scheduleStartHour, Math.min(scheduleEndHour, operatingWindow.closeHour));
-  return [
-    { start: scheduleStartHour, end: openHour },
-    { start: closeHour, end: scheduleEndHour },
-  ].filter((block) => block.end > block.start);
-}
-
-function getTimeBlockStyle(block: { start: number; end: number }) {
-  return {
-    top: getBookingTop(block.start),
-    height: Math.max(0, (block.end - block.start) * pixelsPerHour),
-  };
-}
-
-function getSnappedBookingStart(pointerY: number, columnTop: number, duration: number) {
-  const rawHour = scheduleStartHour + (pointerY - columnTop - scheduleBodyInsetY) / pixelsPerHour;
+function getSnappedBookingStart(pointerY: number, columnTop: number, duration: number, layout: ScheduleDisplayLayout) {
+  const rawHour = getHourFromTop(pointerY, columnTop, layout);
   const snapped = Math.round(rawHour * scheduleSnapSegmentsPerHour) / scheduleSnapSegmentsPerHour;
   return Math.max(scheduleStartHour, Math.min(scheduleEndHour - duration, snapped));
 }
@@ -319,10 +418,16 @@ export function DailyScheduleGrid({
   const [resizingBooking, setResizingBooking] = useState<BookingResizeState | null>(null);
   const [boardPanning, setBoardPanning] = useState(false);
   const [expandedMicroBookingId, setExpandedMicroBookingId] = useState<string | null>(null);
+  const [expandedOffHours, setExpandedOffHours] = useState<ExpandedOffHours>({
+    before: false,
+    after: false,
+    allDay: false,
+  });
     const scheduleStaff = staff === "전체 직원" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
-    const nonOperatingBlocks = getNonOperatingBlocks(operatingWindow);
   const staffScopedBookings = bookings.filter((booking) => scheduleStaff.some((item) => item.key === booking.staffKey));
-  const visibleBookings = staffScopedBookings;
+    const scheduleDisplayLayout = getScheduleDisplayLayout(operatingWindow, expandedOffHours);
+    const nonOperatingBlocks = scheduleDisplayLayout.segments.filter((segment) => segment.kind === "off");
+  const visibleBookings = staffScopedBookings.filter((booking) => isBookingVisibleInDisplayLayout(booking, scheduleDisplayLayout));
   const columnCount = scheduleStaff.length;
   const scrollable = columnCount > 4;
   const compactCards = columnCount >= 3;
@@ -337,6 +442,67 @@ export function DailyScheduleGrid({
         booking.id === resizingBooking.bookingId ? { ...booking, duration: resizingBooking.nextDuration } : booking,
       )
     : visibleBookings;
+  const scheduleBodyHeight = Math.max(
+    scheduleDisplayLayout.bodyHeight,
+    ...displayedVisibleBookings.map((booking) => getBookingTop(booking.start, scheduleDisplayLayout) + getBookingHeight(booking.duration) + 16),
+  );
+  const expandedTimeHours = Array.from(
+    new Set(
+      scheduleDisplayLayout.segments.flatMap((segment) => {
+        if (segment.collapsed) return [];
+        const start = Math.ceil(segment.start);
+        const end = Math.floor(segment.end);
+        return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index).filter((hour) => hour >= segment.start && hour <= segment.end);
+      }),
+    ),
+  );
+
+  function toggleOffHours(key: OffHoursRangeKey) {
+    setExpandedOffHours((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function renderScheduleLines(prefix: string) {
+    return scheduleDisplayLayout.segments.flatMap((segment) => {
+      if (segment.collapsed) return [];
+      const segmentCount = Math.round((segment.end - segment.start) * 4);
+      return Array.from({ length: segmentCount + 1 }).map((_, index) => (
+        <div
+          key={`${prefix}-line-${segment.key}-${index}`}
+          className={cn(
+            "absolute left-0 right-0 border-t",
+            index % 4 === 0 ? "border-[#edf2f7]" : "border-[#f6f8fa]",
+          )}
+          style={{ top: segment.top + index * quarterSlotHeight }}
+        />
+      ));
+    });
+  }
+
+  function renderOffHoursBodyBars(prefix: string) {
+    return nonOperatingBlocks.map((segment) => (
+      <button
+        key={`${prefix}-off-toggle-${segment.key}`}
+        type="button"
+        aria-label={`${getSegmentLabel(segment)} ${segment.collapsed ? "펼치기" : "접기"}`}
+        title={`${getSegmentLabel(segment)} ${segment.collapsed ? "펼치기" : "접기"}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleOffHours(segment.key as OffHoursRangeKey);
+        }}
+        className={cn(
+          "absolute z-[5] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
+          segment.collapsed
+            ? "left-2 right-4 bg-[#dbe2ea] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.2)] hover:bg-[#cbd5e1]"
+            : "right-3 w-[24px] bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
+        )}
+        style={{ top: getOffHoursBarTop(segment), height: segment.collapsed ? 8 : 22 }}
+      >
+        <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[#c4ceda] bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)]">
+          {segment.collapsed ? <ChevronDown className="h-[13px] w-[13px]" strokeWidth={2.8} /> : <ChevronUp className="h-[13px] w-[13px]" strokeWidth={2.8} />}
+        </span>
+      </button>
+    ));
+  }
 
   useEffect(() => {
     if (!expandedMicroBookingId) return;
@@ -480,7 +646,7 @@ export function DailyScheduleGrid({
     }
 
     const columnRect = event.currentTarget.getBoundingClientRect();
-    const nextStart = getSnappedBookingStart(event.clientY, columnRect.top, booking.duration);
+    const nextStart = getSnappedBookingStart(event.clientY, columnRect.top, booking.duration, scheduleDisplayLayout);
     if (
       hasStaffBookingConflict(conflictBookings, bookingId, {
         staffKey: staffMember.key,
@@ -569,12 +735,11 @@ export function DailyScheduleGrid({
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
-          className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-w-0 flex-1 overflow-x-clip"
         >
           <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-4" style={scheduleTrackStyle}>
             {scheduleStaff.map((staffMember, staffIndex) => {
               const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
-                const pendingStatusCount = staffBookings.filter((booking) => isApprovalQueueBookingStatus(booking.status)).length;
               const selectedStaff = selectedStaffKey === staffMember.key;
               const staffTone = getStaffChipTone(staffMember.key, staffMember.chipColorIndex ?? staffIndex);
 
@@ -618,7 +783,7 @@ export function DailyScheduleGrid({
                         className="min-w-0 truncate text-[11px] leading-[15px]"
                         style={{ color: "rgba(255,255,255,0.84)" }}
                       >
-                        예약 {staffBookings.length}건 · 대기 {pendingStatusCount}건
+                        예약 {staffBookings.length}건
                       </p>
                     </div>
                   </div>
@@ -647,32 +812,15 @@ export function DailyScheduleGrid({
         <div className="flex">
           <div className="w-[64px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
-              {nonOperatingBlocks.map((block) => (
-                <div
-                  key={`time-rail-off-${block.start}-${block.end}`}
-                  className="absolute inset-x-0 bg-[#f8fafc]"
-                  style={getTimeBlockStyle(block)}
-                  aria-hidden="true"
-                />
-              ))}
-              {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
-                <div
-                  key={`time-rail-line-${index}`}
-                  className={cn(
-                    "absolute left-0 right-0 border-t",
-                    index % 4 === 0 ? "border-[#e5eaf0]" : "border-[#f2f5f8]",
-                  )}
-                  style={{ top: scheduleBodyInsetY + index * quarterSlotHeight }}
-                />
-              ))}
-              {timeRailHours.map((hour) => (
+              {renderScheduleLines("time-rail")}
+              {expandedTimeHours.map((hour) => (
                 <div
                   key={hour}
                   className="absolute inset-x-0 flex items-center gap-1 text-[12px] leading-none text-[#64748b]"
-                  style={{ top: scheduleBodyInsetY + (Number(hour.slice(0, 2)) - scheduleStartHour) * pixelsPerHour, transform: "translateY(-50%)" }}
+                  style={{ top: getHourTop(hour, scheduleDisplayLayout), transform: "translateY(-50%)" }}
                 >
                   <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
-                  <span className="shrink-0 bg-white px-1">{hour}</span>
+                  <span className="shrink-0 bg-white px-1">{formatHourLabel(hour)}</span>
                   <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
                 </div>
               ))}
@@ -683,9 +831,11 @@ export function DailyScheduleGrid({
             ref={bodyScrollerRef}
             data-schedule-scroller="true"
             onScroll={() => syncHorizontalScroll("body")}
-            className="min-w-0 flex-1 overflow-x-auto scroll-px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="min-w-0 flex-1 overflow-x-clip scroll-px-4"
           >
-            <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4" style={scheduleTrackStyle}>
+            <div className="relative min-w-full" style={scheduleTrackStyle}>
+              {renderOffHoursBodyBars("schedule-body")}
+              <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4">
               {scheduleStaff.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
@@ -714,24 +864,7 @@ export function DailyScheduleGrid({
                     style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
-                      {nonOperatingBlocks.map((block) => (
-                        <div
-                          key={`${staffMember.key}-off-${block.start}-${block.end}`}
-                          className="pointer-events-none absolute inset-x-0 bg-[#f8fafc]/80"
-                          style={getTimeBlockStyle(block)}
-                          aria-hidden="true"
-                        />
-                      ))}
-                      {Array.from({ length: (scheduleEndHour - scheduleStartHour) * 4 + 1 }).map((_, index) => (
-                        <div
-                          key={`${staffMember.key}-line-${index}`}
-                          className={cn(
-                            "absolute left-0 right-0 border-t",
-                            index % 4 === 0 ? "border-[#edf2f7]" : "border-[#f6f8fa]",
-                          )}
-                          style={{ top: scheduleBodyInsetY + index * quarterSlotHeight }}
-                        />
-                      ))}
+                      {renderScheduleLines(staffMember.key)}
                       {staffBookings.length === 0 ? (
                         <div className="rounded-[8px] border border-dashed border-[#e5eaf0] bg-white px-3 py-4 text-center text-[12px] text-[#94a3b8]">
                           예약 없음
@@ -768,7 +901,7 @@ export function DailyScheduleGrid({
                                 className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-white/90 px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
                                 style={{
                                   ...bookingLayoutStyle,
-                                  top: getBookingTop(booking.start),
+                                  top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 }}
                               >
                                 <span className="min-w-0 truncate tabular-nums">
@@ -791,26 +924,24 @@ export function DailyScheduleGrid({
                                 event.stopPropagation();
                                 onSelectBooking(booking.id);
                                 onSelectStaff(booking.staffKey);
-                                setExpandedMicroBookingId(density === "micro" && cardTone !== "pending" ? booking.id : null);
+                                setExpandedMicroBookingId(density === "micro" ? booking.id : null);
                               }}
                               className={cn(
                                 "absolute z-20 box-border cursor-grab overflow-hidden rounded-[8px] border p-0 text-left transition-all active:cursor-grabbing",
                                 !canAdjustBookingTime && "cursor-pointer active:cursor-pointer",
                                 resizingBooking?.bookingId === booking.id && "cursor-ns-resize",
-                                cardTone !== "pending" && canAdjustBookingTime && "hover:-translate-y-0.5",
+                                canAdjustBookingTime && "hover:-translate-y-0.5",
                                 draggingBookingId === booking.id && "opacity-70 ring-1 ring-[#8ab9ab]/24",
                                 expandedMicro &&
-                                  (cardTone === "pending"
-                                    ? "z-50 ring-1 ring-[#f2c94c]/18"
-                                    : cardTone === "active"
-                                      ? "z-50 shadow-none ring-1 ring-[#8ab9ab]/22"
-                                      : "z-50 shadow-[0_16px_28px_rgba(15,23,42,0.12)] ring-1 ring-[#8ab9ab]/22"),
+                                  (cardTone === "active"
+                                    ? "z-50 shadow-none ring-1 ring-[#8ab9ab]/22"
+                                    : "z-50 shadow-[0_16px_28px_rgba(15,23,42,0.12)] ring-1 ring-[#8ab9ab]/22"),
                                 getBookingCardToneClass(cardTone, selected),
                                 getWrapIndicatorClass(getBookingIndicatorTone(cardTone)),
                               )}
                               style={{
                                 ...bookingLayoutStyle,
-                                top: getBookingTop(booking.start),
+                                top: getBookingTop(booking.start, scheduleDisplayLayout),
                                 height: bookingHeight,
                               }}
                             >
@@ -856,7 +987,7 @@ export function DailyScheduleGrid({
                                         </span>
                                       ) : null}
                                       <p className="min-w-0 truncate text-[13px] leading-[16px] text-[#64748b]">
-                                        {booking.scheduledTimeLabel ? `${booking.service} · 예약 ${booking.scheduledTimeLabel}` : booking.service}
+                                        {booking.service}
                                       </p>
                                     </div>
                                   ) : null}
@@ -871,9 +1002,9 @@ export function DailyScheduleGrid({
                                   onPointerMove={handleResizePointerMove}
                                   onPointerUp={finishResizeBooking}
                                   onPointerCancel={finishResizeBooking}
-                                  className="absolute inset-x-3 bottom-0 z-30 flex h-3 cursor-ns-resize touch-none items-end justify-center pb-1"
+                                  className="absolute inset-x-3 bottom-0.5 z-30 flex h-4 cursor-ns-resize touch-none items-center justify-center"
                                 >
-                                  <span className={cn("h-1 w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
+                                  <span className={cn("h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
                                 </div>
                               ) : null}
                             </button>
@@ -884,6 +1015,7 @@ export function DailyScheduleGrid({
                   </section>
                 );
               })}
+              </div>
             </div>
           </div>
         </div>

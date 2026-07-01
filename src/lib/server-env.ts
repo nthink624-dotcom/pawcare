@@ -1,4 +1,4 @@
-import { ALIMTALK_NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
+import { NOTIFICATION_REGISTRY } from "@/lib/notification-registry";
 
 export class ServerEnvError extends Error {
   constructor(
@@ -60,6 +60,8 @@ export const serverEnv = {
   alimtalkTemplateBookingTimeProposed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED),
   alimtalkTemplateBookingRescheduledConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED),
   alimtalkTemplateAppointmentReminder10m: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M),
+  alimtalkTemplateVisitScheduleNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE),
+  alimtalkTemplateVisitReminderNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE),
   alimtalkTemplateGroomingStarted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED),
   alimtalkTemplateGroomingAlmostDone: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE),
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
@@ -141,6 +143,8 @@ export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefine
     templateBookingTimeProposed: serverEnv.alimtalkTemplateBookingTimeProposed ?? null,
     templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed ?? null,
     templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m ?? null,
+    templateVisitScheduleNotice: serverEnv.alimtalkTemplateVisitScheduleNotice ?? null,
+    templateVisitReminderNotice: serverEnv.alimtalkTemplateVisitReminderNotice ?? null,
     templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted ?? null,
     templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone ?? null,
     templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted ?? null,
@@ -148,8 +152,8 @@ export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefine
     templateBirthdayGreeting: serverEnv.alimtalkTemplateBirthdayGreeting ?? null,
   } as const;
 
-  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
-  if (!spec) {
+  const spec = NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
+  if (!spec?.templateConfigKey) {
     return null;
   }
 

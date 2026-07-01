@@ -2,7 +2,7 @@
 
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
@@ -13,13 +13,14 @@ import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription"
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
-import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
+import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } from "@/types/domain";
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
   onSave: (payload: unknown) => Promise<unknown> | void;
   onSaveService: (payload: unknown) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
+  onSaveStaffMembers: (payload: unknown) => Promise<unknown> | void;
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
@@ -33,9 +34,18 @@ type SaveFeedback = {
   message: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "addons" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "account" | null;
 
 type PriceType = "fixed" | "starting";
+type StaffProfileDraft = {
+  name: string;
+  displayName: string;
+  profileImageUrl: string;
+  titlePrefix: string;
+  position: string;
+  chipColorIndex: number | null;
+  profileMessage: string;
+};
 type ShopNotificationSettingsState = {
   enabled: boolean;
   revisitEnabled: boolean;
@@ -51,6 +61,23 @@ type ShopNotificationSettingsState = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
+const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
+
+function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfileDraft {
+  return {
+    name: staffMember.name,
+    displayName: staffMember.displayName ?? "",
+    profileImageUrl: staffMember.profileImageUrl ?? "",
+    titlePrefix: staffMember.titlePrefix ?? "",
+    position: staffMember.position ?? "",
+    chipColorIndex: staffMember.chipColorIndex ?? null,
+    profileMessage: staffMember.profileMessage ?? "",
+  };
+}
+
+function createStaffProfileDrafts(staffMembers: BootstrapStaffMember[]): Record<string, StaffProfileDraft> {
+  return Object.fromEntries(staffMembers.map((staffMember) => [staffMember.id, createStaffProfileDraft(staffMember)]));
+}
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
     Array.from({ length: 7 }, (_, day) => {
@@ -171,6 +198,7 @@ export default function OwnerSettingsPanel({
   onSave,
   onSaveService,
   onSaveCustomerPageSettings,
+  onSaveStaffMembers,
   onLogout,
   loggingOut = false,
   userEmail,
@@ -228,6 +256,11 @@ export default function OwnerSettingsPanel({
   const [editingServiceDuration, setEditingServiceDuration] = useState("");
   const [editingServicePriceType, setEditingServicePriceType] = useState<PriceType>("starting");
   const [editingServiceIsActive, setEditingServiceIsActive] = useState(true);
+  const [staffProfileDrafts, setStaffProfileDrafts] = useState<Record<string, StaffProfileDraft>>(() =>
+    createStaffProfileDrafts(data.staffMembers),
+  );
+  const [savingStaffId, setSavingStaffId] = useState<string | null>(null);
+  const [staffFeedback, setStaffFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
@@ -243,6 +276,11 @@ export default function OwnerSettingsPanel({
     setIsNotificationSettingsDirty(false);
     setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
   }, [data.shop.id]);
+
+  useEffect(() => {
+    setStaffProfileDrafts(createStaffProfileDrafts(data.staffMembers));
+    setStaffFeedback({ type: "idle", message: "" });
+  }, [data.staffMembers]);
 
   useEffect(() => {
     setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
@@ -467,6 +505,58 @@ export default function OwnerSettingsPanel({
     setEditingServiceIsActive(true);
   }
 
+  function updateStaffProfileDraft(staffMemberId: string, patch: Partial<StaffProfileDraft>) {
+    setStaffProfileDrafts((prev) => ({
+      ...prev,
+      [staffMemberId]: {
+        ...(prev[staffMemberId] ?? {
+          name: "",
+          displayName: "",
+          profileImageUrl: "",
+          titlePrefix: "",
+          position: "",
+          chipColorIndex: null,
+          profileMessage: "",
+        }),
+        ...patch,
+      },
+    }));
+  }
+
+  function handleStaffProfileImageChange(staffMemberId: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        updateStaffProfileDraft(staffMemberId, { profileImageUrl: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function buildStaffMembersPayload(targetStaffMember: BootstrapStaffMember): BootstrapStaffMember[] {
+    const targetDraft = staffProfileDrafts[targetStaffMember.id] ?? createStaffProfileDraft(targetStaffMember);
+    const name = targetDraft.name.trim() || targetStaffMember.name;
+
+    return data.staffMembers.map((staffMember) => {
+      if (staffMember.id !== targetStaffMember.id) return staffMember;
+
+      return {
+        ...staffMember,
+        name,
+        displayName: targetDraft.displayName.trim(),
+        profileImageUrl: targetDraft.profileImageUrl.trim(),
+        titlePrefix: targetDraft.titlePrefix.trim(),
+        position: targetDraft.position.trim() || staffMember.position || staffMember.role || "직원",
+        chipColorIndex: targetDraft.chipColorIndex,
+        profileMessage: targetDraft.profileMessage.trim(),
+      };
+    });
+  }
+
   async function saveBasicInfo() {
     setSavingBasicInfo(true);
     setBasicInfoFeedback({ type: "idle", message: "" });
@@ -570,6 +660,28 @@ export default function OwnerSettingsPanel({
     );
     setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
     setIsNewServiceFormOpen(false);
+  }
+
+  async function handleStaffProfileSave(staffMember: BootstrapStaffMember) {
+    setSavingStaffId(staffMember.id);
+    setStaffFeedback({ type: "idle", message: "" });
+
+    try {
+      await Promise.resolve(
+        onSaveStaffMembers({
+          shopId: data.shop.id,
+          staffMembers: buildStaffMembersPayload(staffMember),
+        }),
+      );
+      setStaffFeedback({ type: "success", message: "직원 프로필이 저장되었어요." });
+    } catch (error) {
+      setStaffFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "직원 프로필을 저장하지 못했어요.",
+      });
+    } finally {
+      setSavingStaffId(null);
+    }
   }
 
   const subscriptionSection = subscriptionSummary ? (
@@ -1136,6 +1248,127 @@ export default function OwnerSettingsPanel({
     </SettingsCard>
   ) : null;
 
+  const staffSection = (
+    <SettingsCard contentClassName="space-y-3">
+      <div className="space-y-1">
+        <p className="text-[16px] font-semibold tracking-[-0.03em] text-[var(--text)]">직원 프로필</p>
+        <p className="text-[13px] leading-5 text-[var(--muted)]">
+          고객 예약 첫 화면에 보일 직원 사진, 표시 이름, 상태메시지를 관리해요.
+        </p>
+      </div>
+      {data.staffMembers.map((staffMember) => {
+        const draft = staffProfileDrafts[staffMember.id] ?? createStaffProfileDraft(staffMember);
+        const displayName = draft.displayName.trim() || draft.name.trim() || staffMember.name;
+        const avatarLabel = displayName.slice(0, 1);
+        const imageInputId = `staff-profile-image-${staffMember.id}`;
+
+        return (
+          <SettingsFieldCard key={staffMember.id} label={displayName} className="pb-3 pt-3">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-[62px] w-[62px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-[var(--accent-soft)] text-[22px] font-semibold text-[var(--accent)]">
+                  {draft.profileImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={draft.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    avatarLabel
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{displayName}</p>
+                  <p className="mt-0.5 truncate text-[12px] leading-4 text-[var(--muted)]">
+                    {[draft.titlePrefix, draft.position].filter(Boolean).join(" · ") || "고객에게 보일 프로필"}
+                  </p>
+                  <input
+                    id={imageInputId}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => handleStaffProfileImageChange(staffMember.id, event)}
+                  />
+                  <label
+                    htmlFor={imageInputId}
+                    className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--border)] bg-white px-3 text-[12px] font-semibold text-[var(--text)]"
+                  >
+                    <Camera className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    사진 올리기
+                  </label>
+                  {draft.profileImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => updateStaffProfileDraft(staffMember.id, { profileImageUrl: "" })}
+                      className="ml-2 inline-flex h-9 items-center rounded-[10px] px-2 text-[12px] font-semibold text-[var(--muted)]"
+                    >
+                      사진 지우기
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <StaffProfileEditField label="직원 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.name}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { name: event.target.value })}
+                  placeholder="직원 이름"
+                />
+              </StaffProfileEditField>
+
+              <StaffProfileEditField label="고객 표시 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.displayName}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { displayName: event.target.value })}
+                  placeholder="예: 정우진 원장"
+                />
+              </StaffProfileEditField>
+
+              <div className="grid grid-cols-2 gap-2">
+                <StaffProfileEditField label="호칭">
+                  <input
+                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.titlePrefix}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { titlePrefix: event.target.value })}
+                    placeholder="원장"
+                  />
+                </StaffProfileEditField>
+                <StaffProfileEditField label="역할">
+                  <input
+                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.position}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { position: event.target.value })}
+                    placeholder="대표 미용사"
+                  />
+                </StaffProfileEditField>
+              </div>
+
+              <StaffProfileEditField label="상태메시지">
+                <textarea
+                  className="min-h-[82px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.profileMessage}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { profileMessage: event.target.value })}
+                  placeholder={defaultStaffProfileMessage}
+                />
+              </StaffProfileEditField>
+
+              <SolidButton
+                onClick={() => void handleStaffProfileSave(staffMember)}
+                disabled={savingStaffId === staffMember.id}
+              >
+                {savingStaffId === staffMember.id ? "저장 중..." : "프로필 저장"}
+              </SolidButton>
+            </div>
+          </SettingsFieldCard>
+        );
+      })}
+      {staffFeedback.message ? (
+        <p className={`text-[13px] leading-5 ${staffFeedback.type === "error" ? "text-[#c43d3d]" : "text-[var(--accent)]"}`}>
+          {staffFeedback.message}
+        </p>
+      ) : null}
+    </SettingsCard>
+  );
+
   const addonsSection = (
     <SettingsCard>
       <SettingsFieldCard
@@ -1187,6 +1420,7 @@ export default function OwnerSettingsPanel({
     closures: { title: "영업 시간 설정", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
     services: { title: "미용 요금", content: servicesSection },
+    staff: { title: "직원관리", content: staffSection },
     addons: { title: "부가기능", content: addonsSection },
     account: { title: "계정", content: accountSection },
   };
@@ -1329,6 +1563,11 @@ export default function OwnerSettingsPanel({
           icon={Plus}
           title="부가기능"
           onClick={() => updateActiveScreen("addons")}
+        />
+        <SettingsNavRow
+          icon={UserRound}
+          title="직원관리"
+          onClick={() => updateActiveScreen("staff")}
         />
         {onLogout ? (
           <SettingsNavRow
@@ -1667,6 +1906,21 @@ function ToggleRow({
     >
       <p className="text-[15px] font-normal text-[var(--text)]">{label}</p>
       <Switch checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+function StaffProfileEditField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block rounded-[10px] border border-[var(--border)] bg-white px-3 py-2">
+      <span className="mb-1 block text-[11px] font-semibold leading-4 text-[var(--muted)]">{label}</span>
+      {children}
     </label>
   );
 }

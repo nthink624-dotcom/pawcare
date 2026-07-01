@@ -21,7 +21,7 @@ import {
 
 type ReservationFilterStatus = ReservationStatus | "전체";
 
-const statusOrder: ReservationFilterStatus[] = ["전체", "승인 대기", "확정", "진행 중", "픽업 준비", "완료", "취소"];
+const statusOrder: ReservationFilterStatus[] = ["전체", "확정", "진행 중", "픽업 준비", "완료", "취소"];
 
 export default function ReservationManagementScreen() {
   const [selectedReservationId, setSelectedReservationId] = useState(reservationRows[1]?.id ?? "");
@@ -94,9 +94,7 @@ export default function ReservationManagementScreen() {
                 <p key="staff" className="text-[14px] text-[#17211f]">{row.staff}</p>,
                 <div key="status">
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-medium ${
-                    row.status === "승인 대기"
-                      ? "bg-[#fff3ea] text-[#9f654c]"
-                      : row.status === "확정"
+                    row.status === "확정"
                         ? "bg-[#eef7f3] text-[#2f7866]"
                         : row.status === "진행 중"
                           ? "bg-[#eef3ff] text-[#4561a8]"

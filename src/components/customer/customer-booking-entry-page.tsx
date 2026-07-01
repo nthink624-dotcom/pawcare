@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
@@ -40,7 +40,34 @@ type StaffProfileCard = {
   name: string;
   caption: string;
   imageUrl: string;
+  imageUrls: string[];
 };
+
+function normalizeStaffProfileImages(images: unknown, fallback = "") {
+  const normalized = (Array.isArray(images) ? images : [])
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const fallbackUrl = fallback.trim();
+  return normalized.length > 0 ? normalized : fallbackUrl ? [fallbackUrl] : [];
+}
+
+function getLockedHeroCardTargetLeft({
+  activeIndex,
+  imageCount,
+  galleryWidth,
+  cardWidth,
+}: {
+  activeIndex: number;
+  imageCount: number;
+  galleryWidth: number;
+  cardWidth: number;
+}) {
+  if (activeIndex >= imageCount - 1) return galleryWidth - heroSidePaddingPx - cardWidth;
+  if (activeIndex > 0) return (galleryWidth - cardWidth) / 2;
+  return heroSidePaddingPx;
+}
 
 function getTodayWeekdayInSeoul() {
   const weekday = new Intl.DateTimeFormat("en-US", {
@@ -308,18 +335,21 @@ export default function CustomerBookingEntryPage({
   const todayWeekday = getTodayWeekdayInSeoul();
   const [currentSeoulMinutes, setCurrentSeoulMinutes] = useState(() => getSeoulTimeMinutes());
   const operatingStatus = getTodayOperatingStatus(shop, currentSeoulMinutes);
-  const serviceOptions = useMemo(
-    () => applyConfiguredCustomerServiceOverrides(
+  const sourceServiceOptions = useMemo(
+    () =>
       buildCustomerServiceSourceOptions(
         services
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
         { priceGuideOnly: true },
       ),
-      settings.customer_service_overrides,
-    ),
-    [services, settings.customer_service_overrides],
+    [services],
   );
+  const serviceOptions = useMemo(
+    () => applyConfiguredCustomerServiceOverrides(sourceServiceOptions, settings.customer_service_overrides),
+    [settings.customer_service_overrides, sourceServiceOptions],
+  );
+  const fullServiceOptions = serviceOptions.length > 0 ? serviceOptions : sourceServiceOptions;
   const priceGuideSections = useMemo(
     () =>
       services.flatMap((service) =>
@@ -346,11 +376,13 @@ export default function CustomerBookingEntryPage({
       .map((staff) => {
         const name = staff.displayName?.trim() || staff.name.trim();
         if (!name) return null;
+        const imageUrls = normalizeStaffProfileImages(staff.profileImageUrls, staff.profileImageUrl);
         return {
           id: staff.id,
           name,
           caption: staff.profileMessage?.trim() || defaultStaffProfileMessage,
-          imageUrl: staff.profileImageUrl?.trim() || "",
+          imageUrl: imageUrls[0] ?? "",
+          imageUrls,
         };
       })
       .filter((card): card is StaffProfileCard => Boolean(card));
@@ -366,6 +398,7 @@ export default function CustomerBookingEntryPage({
       name: ownerProfile?.name?.trim() || "오너",
       caption: defaultStaffProfileMessage,
       imageUrl: ownerProfileImage,
+      imageUrls: normalizeStaffProfileImages([], ownerProfileImage),
     }];
   }, [ownerProfile, staffMembers]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -374,11 +407,14 @@ export default function CustomerBookingEntryPage({
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [activeStaffProfileIndex, setActiveStaffProfileIndex] = useState(0);
+  const [profileViewer, setProfileViewer] = useState<StaffProfileCard | null>(null);
+  const [profileViewerImageIndex, setProfileViewerImageIndex] = useState(0);
   const [heroTrackTranslatePx, setHeroTrackTranslatePx] = useState(0);
   const [expandedBreedGuideKeys, setExpandedBreedGuideKeys] = useState<string[]>([]);
   const heroGalleryRef = useRef<HTMLDivElement | null>(null);
   const heroTouchStartXRef = useRef<number | null>(null);
   const staffProfileTouchStartXRef = useRef<number | null>(null);
+  const staffProfilePointerStartXRef = useRef<number | null>(null);
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
@@ -444,17 +480,17 @@ export default function CustomerBookingEntryPage({
         return;
       }
 
-      const galleryWidth = gallery.clientWidth;
-      const cardWidth = activeCard.offsetWidth;
+      // Locked hero carousel contract:
+      // first image = left aligned with next sliver, last image = right aligned with previous sliver,
+      // middle images = centered with both side slivers. Keep this measured in pixels; do not replace
+      // it with percentage-based translate because card width changes with the rendered viewport.
       const activeLeft = activeCard.offsetLeft;
-      let targetLeft = heroSidePaddingPx;
-
-      if (visibleHeroIndex >= heroImages.length - 1) {
-        targetLeft = galleryWidth - heroSidePaddingPx - cardWidth;
-      } else if (visibleHeroIndex > 0) {
-        targetLeft = (galleryWidth - cardWidth) / 2;
-      }
-
+      const targetLeft = getLockedHeroCardTargetLeft({
+        activeIndex: visibleHeroIndex,
+        imageCount: heroImages.length,
+        galleryWidth: gallery.clientWidth,
+        cardWidth: activeCard.offsetWidth,
+      });
       const nextTranslatePx = Math.round(targetLeft - activeLeft);
       setHeroTrackTranslatePx((current) => (current === nextTranslatePx ? current : nextTranslatePx));
     };
@@ -530,10 +566,32 @@ export default function CustomerBookingEntryPage({
     const deltaX = (event.changedTouches[0]?.clientX ?? staffProfileTouchStartXRef.current) - staffProfileTouchStartXRef.current;
     staffProfileTouchStartXRef.current = null;
     if (Math.abs(deltaX) < 28) return;
+    moveStaffProfile(deltaX);
+  }
+
+  function moveStaffProfile(deltaX: number) {
     setActiveStaffProfileIndex((current) => {
       if (deltaX < 0) return (current + 1) % staffProfileCards.length;
       return (current - 1 + staffProfileCards.length) % staffProfileCards.length;
     });
+  }
+
+  function handleStaffProfilePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (staffProfileCards.length <= 1 || event.pointerType === "touch") return;
+    staffProfilePointerStartXRef.current = event.clientX;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleStaffProfilePointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (staffProfileCards.length <= 1 || staffProfilePointerStartXRef.current === null) return;
+    const deltaX = event.clientX - staffProfilePointerStartXRef.current;
+    staffProfilePointerStartXRef.current = null;
+    if (Math.abs(deltaX) < 24) return;
+    moveStaffProfile(deltaX);
+  }
+
+  function handleStaffProfilePointerCancel() {
+    staffProfilePointerStartXRef.current = null;
   }
 
   return (
@@ -549,7 +607,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gwrap{padding-top:14px;overflow:hidden}
         .pm-entry-proto .gallery{display:flex;gap:8px;overflow:visible;padding:0 14px;scrollbar-width:none;transition:transform .45s ease}
         .pm-entry-proto .gallery::-webkit-scrollbar{display:none}
-        .pm-entry-proto .gcard{flex:0 0 88%;scroll-snap-align:center;height:238px;border-radius:16px;position:relative;overflow:hidden;background-size:cover;background-position:center}
+        .pm-entry-proto .gcard{flex:0 0 88%;scroll-snap-align:center;height:238px;border-radius:16px;position:relative;overflow:hidden;background-size:cover;background-position:center;background-repeat:no-repeat}
         .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#f4e6fb 0,#f4e6fb 9px,#ecd8f7 9px,#ecd8f7 18px);opacity:.78}
         .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
         .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
@@ -561,14 +619,15 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gdots i.on{width:18px;background:var(--primary);opacity:1}
         .pm-entry-proto .body{padding:12px 16px 6px;display:flex;flex-direction:column;gap:16px}
         .pm-entry-proto .pbar{position:relative;overflow:hidden}
-        .pm-entry-proto .pbar .ptrack{display:flex;transition:transform .28s ease;touch-action:pan-y}
-        .pm-entry-proto .pbar .pcard-profile{display:flex;min-width:100%;align-items:center;gap:12px}
-        .pm-entry-proto .pbar .av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background-size:cover;background-position:center;background:#fff0ec;color:var(--primaryDk);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .pbar .ptrack{display:flex;transition:transform .28s ease;touch-action:pan-y;cursor:grab}
+        .pm-entry-proto .pbar:active .ptrack{cursor:grabbing}
+        .pm-entry-proto .pbar .pcard-profile{display:flex;min-width:100%;align-items:center;gap:12px;border:0;background:transparent;padding:0;text-align:left;color:inherit;font-family:inherit;cursor:pointer}
+        .pm-entry-proto .pbar .av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#fff0ec;color:var(--primaryDk);display:flex;align-items:center;justify-content:center}
         .pm-entry-proto .pbar .who{min-width:0;flex:1}
         .pm-entry-proto .pbar .nm{font-size:17px;font-weight:600;letter-spacing:-.02em}
         .pm-entry-proto .pbar .sub{font-size:13px;color:var(--textMuted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .pm-entry-proto .pdots{display:flex;align-items:center;gap:4px;margin-left:62px;margin-top:7px}
-        .pm-entry-proto .pdots i{display:block;width:5px;height:5px;border-radius:999px;background:#efd8d1;transition:width .18s,background-color .18s}
+        .pm-entry-proto .pdots i{display:block;width:5px;height:5px;border-radius:999px;background:#efd8d1;transition:width .18s,background-color .18s;cursor:pointer}
         .pm-entry-proto .pdots i.on{width:14px;background:var(--primary)}
         .pm-entry-proto .srow{display:flex;align-items:flex-start;gap:10px}
         .pm-entry-proto .socials{display:flex;gap:9px;margin-left:auto}
@@ -603,12 +662,24 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .dock .actions{display:flex;width:100%;align-items:center;gap:9px}
         .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
         .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .staff-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.3);padding:18px 16px}
+        .pm-entry-proto.is-preview .staff-modal{position:absolute}
+        .pm-entry-proto .staff-sheet{width:100%;max-width:398px;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(42,25,17,.18);padding:16px}
+        .pm-entry-proto .staff-sheet .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+        .pm-entry-proto .staff-sheet .head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.03em;color:#2f211d}
+        .pm-entry-proto .staff-sheet .close{width:38px;height:38px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:#8b6259;display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .staff-sheet .photo{height:252px;border-radius:18px;background:#fff0ec;background-size:cover;background-position:center;background-repeat:no-repeat;display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
+        .pm-entry-proto .staff-sheet .photo-dots{display:flex;justify-content:center;gap:5px;margin:10px 0 12px}
+        .pm-entry-proto .staff-sheet .photo-dots button{width:7px;height:7px;border-radius:999px;border:0;background:#efd8d1;padding:0}
+        .pm-entry-proto .staff-sheet .photo-dots button.on{width:18px;background:var(--primary)}
+        .pm-entry-proto .staff-sheet .msg{border:1px solid #f1d7d1;border-radius:15px;background:#fff;padding:13px 14px;color:#4a342f;font-size:14.5px;line-height:1.6;white-space:pre-wrap}
       `}</style>
       <div className="scroll">
         <div className="gwrap">
           <div
             ref={heroGalleryRef}
             className="gallery"
+            data-carousel-contract="measured-edge-align"
             style={{ transform: `translate3d(${heroTrackTranslatePx}px, 0, 0)` }}
             onTouchStart={handleHeroTouchStart}
             onTouchEnd={handleHeroTouchEnd}
@@ -652,11 +723,23 @@ export default function CustomerBookingEntryPage({
             className="pbar"
             onTouchStart={handleStaffProfileTouchStart}
             onTouchEnd={handleStaffProfileTouchEnd}
+            onPointerDown={handleStaffProfilePointerDown}
+            onPointerUp={handleStaffProfilePointerUp}
+            onPointerCancel={handleStaffProfilePointerCancel}
             aria-label="직원 프로필"
           >
             <div className="ptrack" style={{ transform: `translate3d(-${visibleStaffProfileIndex * 100}%, 0, 0)` }}>
-              {staffProfileCards.map((profile) => (
-                <div className="pcard-profile" key={profile.id}>
+              {staffProfileCards.map((profile, index) => (
+                <button
+                  type="button"
+                  className="pcard-profile"
+                  key={profile.id}
+                  onClick={() => {
+                    setActiveStaffProfileIndex(index);
+                    setProfileViewer(profile);
+                    setProfileViewerImageIndex(0);
+                  }}
+                >
                   <div className="av" style={profile.imageUrl ? { backgroundImage: `url(${profile.imageUrl})` } : undefined}>
                     {profile.imageUrl ? null : <UserRound className="h-6 w-6" strokeWidth={1.8} />}
                   </div>
@@ -664,13 +747,26 @@ export default function CustomerBookingEntryPage({
                     <div className="nm">{profile.name}</div>
                     <div className="sub">{profile.caption}</div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
             {staffProfileCards.length > 1 ? (
-              <div className="pdots" aria-hidden="true">
+              <div className="pdots" aria-label="직원 프로필 선택">
                 {staffProfileCards.map((profile, index) => (
-                  <i key={`${profile.id}-dot`} className={index === visibleStaffProfileIndex ? "on" : ""} />
+                  <i
+                    key={`${profile.id}-dot`}
+                    className={index === visibleStaffProfileIndex ? "on" : ""}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${profile.name} 프로필 보기`}
+                    onClick={() => setActiveStaffProfileIndex(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setActiveStaffProfileIndex(index);
+                      }
+                    }}
+                  />
                 ))}
               </div>
             ) : null}
@@ -714,7 +810,7 @@ export default function CustomerBookingEntryPage({
                 <span className="p">{formatServicePrice(service.price, service.priceType)}</span>
               </div>
             ))}
-            <div className="full" onClick={() => setPriceSheetOpen(true)}>전체 요금표 보기 ›</div>
+            <div className="full" onClick={() => setPriceSheetOpen(true)}>서비스 안내 전체보기 ›</div>
           </div>
         </div>
       </div>
@@ -743,19 +839,56 @@ export default function CustomerBookingEntryPage({
         </div>
       </div>
 
+      {profileViewer ? (
+        <div className="staff-modal" onClick={() => setProfileViewer(null)}>
+          <div className="staff-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="head">
+              <h3>{profileViewer.name}</h3>
+              <button type="button" className="close" onClick={() => setProfileViewer(null)} aria-label="직원 프로필 닫기">
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+              </button>
+            </div>
+            <div
+              className="photo"
+              style={
+                profileViewer.imageUrls[profileViewerImageIndex]
+                  ? { backgroundImage: `url(${profileViewer.imageUrls[profileViewerImageIndex]})` }
+                  : undefined
+              }
+            >
+              {profileViewer.imageUrls[profileViewerImageIndex] ? null : <UserRound className="h-12 w-12" strokeWidth={1.7} />}
+            </div>
+            {profileViewer.imageUrls.length > 1 ? (
+              <div className="photo-dots" aria-label="직원 프로필 사진 선택">
+                {profileViewer.imageUrls.map((imageUrl, index) => (
+                  <button
+                    key={`${imageUrl}-${index}`}
+                    type="button"
+                    className={index === profileViewerImageIndex ? "on" : ""}
+                    onClick={() => setProfileViewerImageIndex(index)}
+                    aria-label={`${profileViewer.name} 프로필 사진 ${index + 1}`}
+                  />
+                ))}
+              </div>
+            ) : null}
+            <div className="msg">{profileViewer.caption}</div>
+          </div>
+        </div>
+      ) : null}
+
       {priceSheetOpen ? (
         <div className={`${previewMode ? "absolute" : "fixed"} inset-0 z-40 flex items-end justify-center bg-black/35 px-4`} onClick={() => setPriceSheetOpen(false)}>
           <div className="max-h-[82vh] w-full max-w-[430px] overflow-hidden rounded-t-[22px] bg-[#fff8f6] shadow-[0_-18px_55px_rgba(42,25,17,0.18)]" onClick={(event) => event.stopPropagation()}>
             <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#f3d8d1]" />
             <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
               <div>
-                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">요금표 전체보기</h3>
+                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">서비스 안내</h3>
               </div>
               <button
                 type="button"
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#f1d7d1] bg-white text-[#8b6259] shadow-sm"
                 onClick={() => setPriceSheetOpen(false)}
-                aria-label="요금표 닫기"
+                aria-label="서비스 안내 닫기"
               >
                 <X className="h-4.5 w-4.5" strokeWidth={1.8} />
               </button>
@@ -836,10 +969,24 @@ export default function CustomerBookingEntryPage({
                     );
                   })}
                 </div>
+              ) : fullServiceOptions.length > 0 ? (
+                <div className="space-y-2">
+                  {fullServiceOptions.map((service) => (
+                    <div key={`sheet-${service.id}`} className="rounded-[14px] border border-[#f1d7d1] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[16px] font-normal text-[#2f211d]">{service.name}</p>
+                          <p className="mt-1 text-[13px] font-normal text-[#9a7168]">예상 {service.durationMinutes}분</p>
+                        </div>
+                        <p className="shrink-0 text-[17px] font-medium text-[#2f211d]">{formatServicePrice(service.price, service.priceType)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="rounded-[16px] border border-[#f1d7d1] bg-white">
                   <a href={infoHref} className="flex h-14 items-center justify-center text-[16px] font-normal text-[#6d4b43]">
-                    등록된 전체 요금표가 없습니다.
+                    등록된 서비스 안내가 없습니다.
                   </a>
                 </div>
               )}

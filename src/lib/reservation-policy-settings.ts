@@ -1,4 +1,3 @@
-import { normalizePendingHoldLimit } from "@/lib/booking-slot-settings";
 import { minutesFromTime } from "@/lib/utils";
 import type { BookingBlockedWindow, RegularClosedCycle, ReservationPolicySettings } from "@/types/domain";
 
@@ -8,7 +7,6 @@ const regularClosedCycles = new Set<RegularClosedCycle>(["weekly", "biweekly", "
 export const defaultReservationPolicySettings: ReservationPolicySettings = {
   cancel_window: "2h",
   customer_change_enabled: true,
-  pending_hold_limit: 1,
   booking_blocked_windows: [
     { id: "lunch", start: "13:00", end: "14:00", label: "점심시간" },
     { id: "cleaning", start: "16:00", end: "16:30", label: "정리 시간" },
@@ -57,7 +55,6 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     cancel_window: cancelWindow,
     customer_change_enabled:
       typeof source.customer_change_enabled === "boolean" ? source.customer_change_enabled : cancelWindow !== "none",
-    pending_hold_limit: normalizePendingHoldLimit(source.pending_hold_limit) as 1,
     booking_blocked_windows: hasBlockedWindows
       ? normalizeBookingBlockedWindows(source.booking_blocked_windows)
       : defaultReservationPolicySettings.booking_blocked_windows,

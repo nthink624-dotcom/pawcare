@@ -86,7 +86,6 @@ function assertPhotoRequirementForAppointmentStatus(params: {
 
 function getAppointmentStatusLabel(status: AppointmentStatus) {
   const labels: Record<AppointmentStatus, string> = {
-    pending: "승인 대기",
     confirmed: "예약 확정",
     in_progress: "미용 시작",
     almost_done: "픽업 준비",
@@ -95,7 +94,7 @@ function getAppointmentStatusLabel(status: AppointmentStatus) {
     rejected: "거절",
     noshow: "노쇼",
   };
-  return labels[status] ?? status;
+  return labels[status];
 }
 
 function assertAppointmentStatusIsNotRepeated(params: {
@@ -247,8 +246,6 @@ function ensureAppointmentCanBeConfirmed(params: {
     date: appointment.appointment_date,
     startMinute: appointmentStartMinute,
     durationMinutes: service.duration_minutes,
-    approvalMode: shop.approval_mode,
-    pendingHoldLimit: shop.reservation_policy_settings?.pending_hold_limit,
     services,
     appointments: appointment.staff_id
       ? appointments.filter((item) => item.staff_id === appointment.staff_id)
@@ -1490,7 +1487,7 @@ export async function createAppointment(input: unknown) {
     durationMinutes: service.duration_minutes,
   });
 
-  const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
+  const status = "confirmed";
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
   const shopNotificationSettings = normalizeShopNotificationSettings(data.shop.notification_settings);
   const appointment: Appointment = {
@@ -1946,8 +1943,8 @@ export async function updateAppointmentDetails(input: unknown) {
   if (!appointment) throw new Error("예약 정보를 찾을 수 없습니다.");
   const scheduleBoardAdjustment = payload.preserveStatus || !payload.notifyCustomer || payload.enforceShopCapacity === false;
   const editableStatuses = scheduleBoardAdjustment
-    ? ["pending", "confirmed", "in_progress", "almost_done"]
-    : ["pending", "confirmed", "cancelled"];
+    ? ["confirmed", "in_progress", "almost_done"]
+    : ["confirmed", "cancelled"];
   if (!editableStatuses.includes(appointment.status)) {
     throw new Error("현재 예약 상태에서는 일정 수정이 어렵습니다.");
   }
@@ -2136,4 +2133,3 @@ export async function updateAppointmentDetails(input: unknown) {
 
   return resolvedAppointment;
 }
-

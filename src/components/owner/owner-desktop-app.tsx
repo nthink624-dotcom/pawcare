@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { CalendarDays, CheckCircle2, Clock3, PawPrint, Settings, Store, Users, XCircle } from "lucide-react";
+import { CalendarDays, CheckCircle2, PawPrint, Settings, Store, Users, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -24,7 +24,6 @@ type OwnerDesktopAppProps = {
 };
 
 const statusLabels: Record<Appointment["status"], string> = {
-  pending: "승인 대기",
   confirmed: "예약 확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
@@ -35,7 +34,6 @@ const statusLabels: Record<Appointment["status"], string> = {
 };
 
 const statusClassNames: Record<Appointment["status"], string> = {
-  pending: "border-[#ead5c5] bg-[#fff8f1] text-[#9a664b]",
   confirmed: "border-[#d8e6df] bg-[#f4fbf8] text-[#2f7866]",
   in_progress: "border-[#d8e6df] bg-[#f4fbf8] text-[#2f7866]",
   almost_done: "border-[#e6dfd7] bg-[#fbf8f3] text-[#6d665f]",
@@ -118,7 +116,6 @@ export default function OwnerDesktopApp({
         .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)),
     [data.appointments, today],
   );
-  const pendingCount = todayAppointments.filter((appointment) => appointment.status === "pending").length;
   const activeCount = todayAppointments.filter((appointment) => ["confirmed", "in_progress", "almost_done"].includes(appointment.status)).length;
   const completedCount = todayAppointments.filter((appointment) => appointment.status === "completed").length;
   const cancelledCount = todayAppointments.filter((appointment) => ["cancelled", "rejected", "noshow"].includes(appointment.status)).length;
@@ -210,8 +207,7 @@ export default function OwnerDesktopApp({
             </div>
           </header>
 
-          <div className="mt-5 grid grid-cols-4 gap-3">
-            <MetricTile label="승인 대기" value={`${pendingCount}`} icon={Clock3} />
+          <div className="mt-5 grid grid-cols-3 gap-3">
             <MetricTile label="진행 예약" value={`${activeCount}`} icon={CalendarDays} />
             <MetricTile label="완료" value={`${completedCount}`} icon={CheckCircle2} />
             <MetricTile label="취소/거절" value={`${cancelledCount}`} icon={XCircle} />
@@ -310,7 +306,7 @@ export default function OwnerDesktopApp({
                 <div className="mt-4 space-y-3 text-[14px]">
                   <p><span className="text-[#81786f]">매장명</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.name}</span></p>
                   <p><span className="text-[#81786f]">주소</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.address}</span></p>
-                  <p><span className="text-[#81786f]">동일 시간 예약</span><span className="ml-3 font-medium text-[#17211f]">{data.shop.approval_mode === "manual" ? "승인 대기 2건" : "확정 1건"}</span></p>
+                  <p><span className="text-[#81786f]">동일 시간 예약</span><span className="ml-3 font-medium text-[#17211f]">확정 1건</span></p>
                 </div>
               </DesktopSurface>
               <DesktopSurface className="px-5 py-4">

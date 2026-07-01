@@ -23,7 +23,10 @@ export default function AdminAlimtalkRuntimePanel({
   appTemplateDrafts: AppTemplateDraft[];
 }) {
   const defaultAlias =
-    appTemplateDrafts.find((item) => item.alias === "appointment_reminder_10m")?.alias ?? appTemplateDrafts[0]?.alias ?? "";
+    appTemplateDrafts.find((item) => item.alias === "visit_reminder_notice")?.alias ??
+    appTemplateDrafts.find((item) => item.alias === "appointment_reminder_10m")?.alias ??
+    appTemplateDrafts[0]?.alias ??
+    "";
 
   const [diagnostics, setDiagnostics] = useState<RelayRuntimeDiagnostics | null>(null);
   const [loadingDiagnostics, setLoadingDiagnostics] = useState(true);

@@ -181,6 +181,8 @@ function getNotificationTypeLabel(type: NotificationType) {
     booking_time_proposed: "다른 시간 제안",
     booking_rescheduled_confirmed: "예약 변경",
     appointment_reminder_10m: "방문 전 안내",
+    visit_schedule_notice: "방문 일정 안내",
+    visit_reminder_notice: "방문 전 알림",
     grooming_started: "미용 시작",
     grooming_almost_done: "픽업 준비",
     grooming_completed: "미용 완료",

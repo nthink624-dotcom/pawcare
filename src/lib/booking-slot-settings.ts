@@ -11,8 +11,8 @@ export const defaultManualPendingHoldLimit = 1;
 export const maxManualPendingHoldCapacity = 1;
 export const defaultConcurrentCapacity = confirmedSlotCapacity;
 
-export function concurrentCapacityForApprovalMode(approvalMode: "manual" | "auto" | null | undefined) {
-  return approvalMode === "manual" ? manualPendingHoldCapacity : confirmedSlotCapacity;
+export function concurrentCapacityForApprovalMode(_approvalMode: "manual" | "auto" | null | undefined) {
+  return confirmedSlotCapacity;
 }
 
 export function normalizeConcurrentCapacity(value: number | null | undefined) {

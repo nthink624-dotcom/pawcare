@@ -14,10 +14,8 @@ import {
   ImagePlus,
   Loader2,
   MessageCircle,
-  MoreVertical,
   NotebookPen,
   PawPrint,
-  Phone,
   Play,
   QrCode,
   Scissors,
@@ -80,9 +78,8 @@ import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, Notification, NotificationType, Pet, PetBiteLevel, PetStaffNote, Service } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
-type ReservationStatusFilter = "all" | "pending" | "confirmed";
+type ReservationStatusFilter = "all" | "confirmed";
 type BookingCardTone =
-  | "pending"
   | "confirmed"
   | "active"
   | "pickupReady"
@@ -92,8 +89,6 @@ type BookingCardTone =
   | "rejected"
   | "noshow"
   | "missed";
-const overduePendingStatusLabel = "누락";
-
 async function postOwnerNotification(payload: unknown) {
   try {
     return await fetchApiJsonWithAuth<Notification>("/api/notifications", {
@@ -167,8 +162,7 @@ const todayScheduleDate = currentDateInTimeZone();
 const todayScheduleDateLabel = formatScheduleDateLabel(todayScheduleDate);
 const weekdayShortLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
-const appointmentStatusLabels: Record<AppointmentStatus, string> = {
-  pending: "승인 대기",
+const appointmentStatusLabels: Partial<Record<AppointmentStatus, string>> = {
   confirmed: "확정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",
@@ -179,7 +173,6 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
 };
 
 const bookingStatusToAppointmentStatus: Partial<Record<string, AppointmentStatus>> = {
-  "승인 대기": "pending",
   확정: "confirmed",
   "진행 중": "in_progress",
   "픽업 준비": "almost_done",
@@ -341,11 +334,11 @@ function isActiveBookingStatus(status: string) {
 }
 
 function isPendingBookingStatus(status: string) {
-  return status === "승인 대기";
+  return false;
 }
 
 function isOverduePendingBookingStatus(status: string) {
-  return status === overduePendingStatusLabel;
+  return false;
 }
 
 function isApprovalQueueBookingStatus(status: string) {
@@ -389,36 +382,29 @@ function getTimedBookingStatus(
   selectedDate: string,
   currentHour: number,
 ) {
-  if (isPendingBookingStatus(booking.status)) {
-    const today = currentDateInTimeZone();
-    if (selectedDate < today || (selectedDate === today && currentHour >= booking.start)) return overduePendingStatusLabel;
-    return booking.status;
-  }
-
-  if (isPendingBookingStatus(booking.status) || isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
+  if (isChangeBookingStatus(booking.status) || isCompletedBookingStatus(booking.status)) {
     return booking.status;
   }
 
   const today = currentDateInTimeZone();
   const endHour = booking.start + booking.duration;
-  const autoCompletable = isConfirmedBookingStatus(booking.status) || isActiveBookingStatus(booking.status);
-  if (selectedDate < today && autoCompletable) return "완료";
-  if (selectedDate === today && autoCompletable && currentHour >= endHour) return "완료";
+  if (selectedDate < today && isConfirmedBookingStatus(booking.status)) return "방문 확인 필요";
+  if (selectedDate < today && booking.status === "진행 중") return "완료 확인 필요";
+  if (selectedDate === today && isConfirmedBookingStatus(booking.status) && currentHour >= booking.start) return "방문 확인 필요";
+  if (selectedDate === today && booking.status === "진행 중" && currentHour >= endHour) return "완료 확인 필요";
   if (isActiveBookingStatus(booking.status)) return booking.status;
   if (booking.changeAcknowledged && isConfirmedBookingStatus(booking.status)) return booking.status;
   if (selectedDate !== today) return booking.status;
 
-  if (isConfirmedBookingStatus(booking.status) && currentHour >= booking.start && currentHour < endHour) return "진행 중";
   return "확정";
 }
 
 function canSendCompletionNotice(sourceStatus: string, displayStatus: string) {
-  return sourceStatus === "진행 중" && (displayStatus === "진행 중" || displayStatus === "픽업 준비" || displayStatus === "완료");
+  return sourceStatus === "진행 중" && (displayStatus === "진행 중" || displayStatus === "완료 확인 필요" || displayStatus === "픽업 준비" || displayStatus === "완료");
 }
 
 function normalizeBookingForApprovalMode(booking: DailyBooking, manualApprovalEnabled: boolean): DailyBooking {
-  if (manualApprovalEnabled || !isPendingBookingStatus(booking.status)) return booking;
-  return { ...booking, status: "확정" };
+  return booking;
 }
 
 function buildScheduleMetrics(bookings: DailyBooking[]): ScheduleMetric[] {
@@ -441,10 +427,6 @@ function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEna
     { key: "all", label: "전체", count: bookableBookings.length + changeBookings.length },
   ];
 
-  if (manualApprovalEnabled) {
-    options.push({ key: "pending", label: "대기", count: bookableBookings.filter((booking) => isApprovalQueueBookingStatus(booking.status)).length });
-  }
-
   options.push(
     { key: "confirmed", label: "확정", count: bookableBookings.filter((booking) => isConfirmedBookingStatus(booking.status)).length },
   );
@@ -455,7 +437,6 @@ function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEna
 function matchesReservationFilter(booking: DailyBooking, filter: ReservationStatusFilter) {
   if (filter === "all" && isChangeBookingStatus(booking.status)) return true;
   if (!isBookableStatus(booking.status)) return false;
-  if (filter === "pending") return isApprovalQueueBookingStatus(booking.status);
   if (filter === "confirmed") return isConfirmedBookingStatus(booking.status);
   return true;
 }
@@ -516,12 +497,11 @@ function getPhaseLabel(phase: "now" | "upcoming" | "past") {
 
 function getBookingCardTone(status: string): BookingCardTone {
   if (status === "완료") return "completed";
+  if (status === "방문 확인 필요" || status === "완료 확인 필요") return "missed";
   if (isRescheduledBookingStatus(status)) return "changed";
   if (status === "취소") return "cancelled";
   if (status === "거절") return "rejected";
   if (status === "노쇼") return "noshow";
-  if (isOverduePendingBookingStatus(status)) return "missed";
-  if (isPendingBookingStatus(status)) return "pending";
   if (status === "픽업 준비") return "pickupReady";
   if (status === "진행 중") return "active";
   return "confirmed";
@@ -529,7 +509,6 @@ function getBookingCardTone(status: string): BookingCardTone {
 
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
   const backgrounds: Record<BookingCardTone, string> = {
-    pending: "bg-[#fffdf7]",
     confirmed: "bg-[#fbfdff]",
     active: "bg-[#fbfffc]",
     pickupReady: "bg-[#faffff]",
@@ -557,11 +536,20 @@ function isMissedStartBooking(
   return selectedDate === currentDateInTimeZone() && canStartGrooming(sourceStatus) && currentHour >= booking.start + minutesAfterStart / 60;
 }
 
-function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
+function isCompletionCheckNeededBooking(booking: Pick<DailyBooking, "status" | "sourceStatus" | "start" | "duration">, selectedDate: string, currentHour: number) {
   const sourceStatus = booking.sourceStatus ?? booking.status;
-  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "시작 확인 필요";
-  if (isOverduePendingBookingStatus(sourceStatus)) return overduePendingStatusLabel;
-  if (isPendingBookingStatus(sourceStatus)) return "승인대기";
+  return (
+    selectedDate === currentDateInTimeZone() &&
+    sourceStatus === "진행 중" &&
+    currentHour >= booking.start + booking.duration
+  );
+}
+
+function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
+  if (booking.status === "방문 확인 필요" || booking.status === "완료 확인 필요") return booking.status;
+  const sourceStatus = booking.sourceStatus ?? booking.status;
+  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "방문 확인 필요";
+  if (isCompletionCheckNeededBooking(booking, selectedDate, currentHour)) return "완료 확인 필요";
   if (sourceStatus === "진행 중" || booking.status === "진행 중") return "진행중";
   if (isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status)) return "완료";
   if (isChangeBookingStatus(sourceStatus)) return sourceStatus;
@@ -570,10 +558,9 @@ function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, 
 }
 
 function getReservationStatusPillClass(booking: DailyBooking, selectedDate: string, currentHour: number) {
+  if (booking.status === "방문 확인 필요" || booking.status === "완료 확인 필요") return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
   const sourceStatus = booking.sourceStatus ?? booking.status;
-  if (isMissedStartBooking(booking, selectedDate, currentHour)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
-  if (isOverduePendingBookingStatus(sourceStatus)) return "border-[#e5c7cf] bg-[#fff8fa] text-[#a04455]";
-  if (isPendingBookingStatus(sourceStatus)) return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
+  if (isMissedStartBooking(booking, selectedDate, currentHour) || isCompletionCheckNeededBooking(booking, selectedDate, currentHour)) return "border-[#ead9b8] bg-[#fffaf0] text-[#8a5b11]";
   if (sourceStatus === "진행 중" || booking.status === "진행 중") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (sourceStatus === "픽업 준비" || booking.status === "픽업 준비") return "border-[#c8d2dc] bg-[#f8fafc] text-[#607080]";
   if (isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status)) return "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]";
@@ -585,7 +572,6 @@ function getReservationStatusPillClass(booking: DailyBooking, selectedDate: stri
 }
 
 function getBookingResizeHandleClass(tone: BookingCardTone) {
-  if (tone === "pending") return "bg-[#b98121]/70";
   if (tone === "confirmed") return "bg-[#607080]/70";
   if (tone === "active") return "bg-[#607080]/70";
   if (tone === "pickupReady") return "bg-[#607080]/70";
@@ -598,7 +584,6 @@ function getBookingResizeHandleClass(tone: BookingCardTone) {
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#8a5b11]";
   if (tone === "confirmed") return "text-[#607080]";
   if (tone === "active") return "text-[#607080]";
   if (tone === "pickupReady") return "text-[#607080]";
@@ -896,7 +881,7 @@ function appointmentToDailyBooking(
     petNotes: pet?.notes ?? "",
     petBiteLevel: normalizePetBiteLevel(pet?.bite_level),
     staff: staffColumn.name,
-    status: appointmentStatusLabels[appointment.status],
+    status: appointmentStatusLabels[appointment.status] ?? appointment.status,
     date: formatScheduleDateLabel(selectedDate),
     staffKey: staffColumn.key,
     staffName: staffColumn.name,
@@ -1102,7 +1087,7 @@ const extraDailyBookings = [
     pet: "모카",
     service: "목욕",
     staff: "디자이너",
-    status: "승인 대기",
+    status: "확정",
     date: todayScheduleDateLabel,
     staffKey: "staff-3",
     staffName: "민서윤",
@@ -1192,7 +1177,7 @@ const extraDailyBookings = [
     pet: "초코",
     service: "위생 미용",
     staff: "디자이너",
-    status: "승인 대기",
+    status: "확정",
     date: todayScheduleDateLabel,
     staffKey: "staff-3",
     staffName: "민서윤",
@@ -1257,7 +1242,6 @@ function getPreviewBookingsForBucket(bookings: DailyBooking[], bucketIndex: numb
 function getBookingCounts(bookings: DailyBooking[]) {
   return {
     total: bookings.length,
-    pending: bookings.filter((booking) => isApprovalQueueBookingStatus(booking.status)).length,
     changes: bookings.filter((booking) => booking.status === "취소").length,
     completed: bookings.filter((booking) => booking.status === "완료").length,
   };
@@ -1265,6 +1249,63 @@ function getBookingCounts(bookings: DailyBooking[]) {
 
 function staffColumnForIndex(index: number, staffColumns: OwnerWebStaffColumn[]) {
   return staffColumns[index % staffColumns.length] ?? staffColumns[0]!;
+}
+
+function isPlacementBlockingBooking(booking: DailyBooking) {
+  return booking.displayMode !== "reservation-chip" && isTimelineBookingStatus(booking.status);
+}
+
+function moveBookingToStaffColumn(booking: DailyBooking, staffColumn: OwnerWebStaffColumn): DailyBooking {
+  return {
+    ...booking,
+    staff: staffColumn.name,
+    staffKey: staffColumn.key,
+    staffName: staffColumn.name,
+  };
+}
+
+function resolveStaffBookingConflicts(bookings: DailyBooking[], staffColumns: OwnerWebStaffColumn[]) {
+  if (staffColumns.length <= 1) return bookings;
+
+  const placed: DailyBooking[] = [];
+  const placedByAppointmentId = new Map<string, OwnerWebStaffColumn>();
+  const sorted = [...bookings].sort((first, second) => {
+    const firstChip = first.displayMode === "reservation-chip" ? 1 : 0;
+    const secondChip = second.displayMode === "reservation-chip" ? 1 : 0;
+    return first.start - second.start || firstChip - secondChip || first.id.localeCompare(second.id);
+  });
+
+  sorted.forEach((booking) => {
+    const sourceAppointmentId = booking.sourceAppointmentId ?? booking.id;
+    const existingColumn = placedByAppointmentId.get(sourceAppointmentId);
+    if (existingColumn) {
+      placed.push(moveBookingToStaffColumn(booking, existingColumn));
+      return;
+    }
+
+    const currentColumnIndex = Math.max(0, staffColumns.findIndex((staffColumn) => staffColumn.key === booking.staffKey));
+    const candidateColumns = [
+      ...staffColumns.slice(currentColumnIndex),
+      ...staffColumns.slice(0, currentColumnIndex),
+    ];
+    const targetColumn =
+      booking.displayMode === "reservation-chip"
+        ? candidateColumns[0]
+        : candidateColumns.find(
+            (staffColumn) =>
+              !placed.some(
+                (item) =>
+                  item.staffKey === staffColumn.key &&
+                  isPlacementBlockingBooking(item) &&
+                  bookingTimesOverlap(item, booking),
+              ),
+          ) ?? candidateColumns[0];
+
+    placedByAppointmentId.set(sourceAppointmentId, targetColumn);
+    placed.push(moveBookingToStaffColumn(booking, targetColumn));
+  });
+
+  return placed.sort((first, second) => first.start - second.start || first.id.localeCompare(second.id));
 }
 
 function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: string, staffAssignments: StaffAssignments = {}, staffColumns: OwnerWebStaffColumn[] = []): DailyBooking[] {
@@ -1298,7 +1339,7 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
         start: timeToHour(appointment.appointment_time),
         duration: 0.25,
         status: "예약 시간",
-        sourceStatus: appointmentStatusLabels[appointment.status],
+        sourceStatus: appointmentStatusLabels[appointment.status] ?? appointment.status,
         scheduledTimeLabel: getScheduledTimeLabel(appointment, scheduledDurationMinutes),
       };
     });
@@ -1307,7 +1348,7 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
     .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
     .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, staffColumns[0]));
 
-  return [
+  return resolveStaffBookingConflicts([
     ...reservationChips,
     ...selectedDateAppointments.flatMap((appointment, index) => {
       const service = data.services.find((item) => item.id === appointment.service_id);
@@ -1321,7 +1362,7 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
       return [appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns)];
     }),
     ...recordOnlyBookings,
-  ].sort((first, second) => first.start - second.start || first.id.localeCompare(second.id));
+  ], staffColumns);
 }
 
 function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
@@ -1336,7 +1377,7 @@ function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: Owne
         ...booking,
         id: `${booking.id}-extra-${index + 1}`,
         start: Math.min(scheduleEndHour - booking.duration, booking.start + offset),
-        status: index % 5 === 0 ? "승인 대기" : booking.status,
+        status: booking.status,
       };
     }),
   ];
@@ -1519,7 +1560,7 @@ function BookingSidePanel({
   ) => Promise<void>;
 }) {
   const timeRange = selectedBooking
-    ? `${formatHourLabel(selectedBooking.start)} - ${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
+    ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
   const pendingOverlapLabel = selectedBooking ? getPendingOverlapLabel(selectedBooking, bookings) : "";
   const previousTimeRange =
@@ -1766,6 +1807,8 @@ function BookingSidePanel({
     ? getRecentVisitHistory(bootstrapData, selectedBooking)
     : { totalCount: 0, items: [] };
   const panelPhoneLabel = formatPanelPhoneNumber(editablePhone || selectedBooking.guardianPhone || "") || "연락처 없음";
+  const staffLabel = selectedBooking.staffName || selectedBooking.staff || "담당 미지정";
+  const hasStaffComment = Boolean(staffComment.trim());
   const visitReminderSending = notificationSendingType === "appointment_reminder_10m";
   const visitReminderDone = notificationFeedbackType === "appointment_reminder_10m";
   const visitReminderMode =
@@ -1857,7 +1900,11 @@ function BookingSidePanel({
     const phone = normalizeSchedulePhone(editablePhone);
     const serviceName = editableServiceName.trim();
     const priceText = editablePrice.replace(/\D/g, "");
-    const price = priceText ? Number(priceText) : NaN;
+    const price = priceText
+      ? Number(priceText)
+      : typeof selectedBooking.servicePrice === "number"
+        ? selectedBooking.servicePrice
+        : 0;
 
     if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
       showTemporaryDetailNotice("예약 시간을 다시 확인해 주세요.");
@@ -1949,57 +1996,52 @@ function BookingSidePanel({
   return (
     <aside className="h-full min-h-0 min-w-0">
       <WebSurface className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="relative bg-white px-3 py-3">
-            <div className="rounded-[10px] border border-[#e1e5ea] bg-white p-3 shadow-[0_8px_22px_rgba(15,23,42,0.025)]">
-              <div className="flex items-start gap-3">
-                <div className="h-[56px] w-[56px] shrink-0 overflow-hidden rounded-[12px] border border-[#e1e5ea] bg-[#f8f8f6]">
-                  <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="grid min-w-0 grid-rows-[22px_20px_20px] items-center gap-y-0.5">
-                    <p className="flex h-[22px] min-w-0 items-center gap-1.5 leading-5">
-                      <span className="shrink-0 whitespace-nowrap text-[17px] font-semibold tracking-[-0.02em] text-[#111827]">{selectedBooking.pet}</span>
-                      <span className="shrink-0 text-[15px] text-[#cbd5e1]">|</span>
-                      <span className="relative top-px min-w-0 truncate text-[15px] font-normal text-[#64748b]">{breedLabel}</span>
-                    </p>
-                    <p className="flex h-[20px] min-w-0 items-center truncate text-[15px] leading-5 text-[#334155]">{selectedBooking.customer} 보호자</p>
-                    <p className="flex h-[20px] min-w-0 items-center gap-1.5 text-[15px] leading-5 text-[#64748b]">
-                      <Phone className="h-4 w-4 shrink-0 text-[#64748b]" />
-                      <span className="whitespace-nowrap tabular-nums">{panelPhoneLabel}</span>
-                    </p>
-                  </div>
-                </div>
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+          <div className="bg-white px-4 pb-4 pt-5">
+            <header className="flex min-w-0 items-start gap-3">
+              <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-[#f8f8f6]">
+                <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="flex min-w-0 items-baseline gap-1.5 leading-6">
+                  <span className="min-w-0 truncate text-[19px] font-semibold text-[#0f172a]">{selectedBooking.pet}</span>
+                  <span className="shrink-0 truncate text-[14px] font-normal text-[#64748b]">{breedLabel}</span>
+                </p>
+                <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[14px] font-normal leading-5 text-[#334155]">
+                  <span className="min-w-0 truncate">{selectedBooking.customer} 보호자</span>
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-[#cbd5e1]" aria-hidden="true" />
+                  <span className="shrink-0 tabular-nums">{panelPhoneLabel}</span>
+                </p>
+              </div>
+            </header>
 
-              <div className="mt-3 border-t border-[#edf1f5] pt-3">
-                <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-2.5">
-                  <label className="block min-w-0">
-                    <span className="mb-1 block text-[13px] leading-4 text-[#64748b]">몸무게</span>
-                    <input
-                      value={petProfileDraft.weight}
-                      onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
-                      inputMode="decimal"
-                      placeholder="kg"
-                      className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#607080]"
-                    />
-                  </label>
-                  <label className="block min-w-0">
-                    <span className="mb-1 block text-[13px] leading-4 text-[#64748b]">아이 생일</span>
-                    <input
-                      type="date"
-                      value={petProfileDraft.birthday}
-                      onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
-                      className="h-9 w-full min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] leading-5 text-[#0f172a] outline-none focus:border-[#607080]"
-                    />
-                  </label>
-                </div>
-                <div className="mt-2.5 grid grid-cols-[36px_minmax(0,1fr)_64px] items-center gap-2">
-                  <span className="shrink-0 text-[13px] leading-4 text-[#64748b]">입질</span>
+            <section className="mt-5 border-b border-[#e6edf2] pb-5">
+              <div className="grid grid-cols-[76px_minmax(0,1fr)_104px] gap-2">
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">몸무게</span>
+                  <input
+                    value={petProfileDraft.weight}
+                    onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
+                    inputMode="decimal"
+                    placeholder="kg"
+                    className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#607080]"
+                  />
+                </label>
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">생일</span>
+                  <input
+                    type="date"
+                    value={petProfileDraft.birthday}
+                    onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
+                    className="h-9 w-full min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#607080]"
+                  />
+                </label>
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">입질</span>
                   <select
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
-                    className="h-9 min-w-0 appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-3 pr-8 text-[15px] leading-5 text-[#0f172a] outline-none transition focus:border-[#607080]"
+                    className="h-9 w-full min-w-0 appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-3 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#607080]"
                   >
                     {(["none", "mild", "watch", "bite", "strong"] as PetBiteLevel[]).map((level) => (
                       <option key={level} value={level}>
@@ -2007,99 +2049,116 @@ function BookingSidePanel({
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => void savePetProfile()}
-                    disabled={petProfileSaving}
-                    className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[14px] text-[#334155] shadow-[0_1px_0_rgba(15,23,42,0.03)] transition hover:border-[#94a3b8] hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-70"
-                  >
-                    {petProfileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "저장"}
-                  </button>
+                </label>
+              </div>
+              {detailNotice ? (
+                <p className={cn("mt-1.5 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
+                  {detailNotice}
+                </p>
+              ) : null}
+            </section>
+
+            <section className="pt-5">
+              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">서비스 내역</h3>
+              <div className="mt-2 overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                <div className="flex min-w-0 items-center gap-3 bg-[#fafbfc] px-4 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
+                  <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#94a3b8]" />
+                    {timeRange}
+                  </span>
+                  <span className="h-4 w-px shrink-0 bg-[#e2e8f0]" aria-hidden="true" />
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 shrink-0 text-[#94a3b8]" />
+                    <span className="truncate">{staffLabel}</span>
+                  </span>
+                </div>
+                <div className="grid gap-2 px-4 py-3">
+                  <label className="grid gap-1.5">
+                    <span className="text-[12px] font-normal leading-4 text-[#64748b]">서비스명</span>
+                    <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-2">
+                      <input
+                        value={editableServiceName}
+                        onChange={(event) => setEditableServiceName(event.target.value)}
+                        onFocus={() => setDetailEditMode("service")}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void saveEditableDetail();
+                            setDetailEditMode(null);
+                          }
+                        }}
+                        className="h-9 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
+                        placeholder="서비스명을 입력해 주세요"
+                      />
+                      <button
+                        type="button"
+                        disabled={detailSaving || editableServiceName.trim().length === 0}
+                        onClick={() => {
+                          void saveEditableDetail();
+                          setDetailEditMode(null);
+                        }}
+                        className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </label>
                 </div>
               </div>
-            </div>
-          </div>
+              {detailSaving ? <p className="mt-1.5 text-[13px] leading-5 text-[#64748b]">저장 중입니다.</p> : null}
+            </section>
 
-          <div className="bg-white px-3 pb-3">
-            <div className="flex min-h-[22px] items-center gap-1.5 text-left">
-              <ClipboardList className="h-4 w-4 shrink-0 text-[#334155]" />
-              <span className="text-[15px] font-normal text-[#334155]">서비스 내역</span>
-            </div>
-            <section className="mt-1.5 rounded-[10px] border border-[#e1e5ea] bg-white px-3.5 py-2 shadow-[0_8px_22px_rgba(15,23,42,0.02)]">
-              <div className="divide-y divide-[#edf1f5]">
-                <BookingDetailInfoRow label="시술명" value={editableServiceName || "시술명 없음"} />
-                <BookingDetailInfoRow label="가격" value={editablePrice || "0"} tabular />
-                <BookingDetailInfoRow label="예약 시간" value={timeRange} tabular />
-                <BookingDetailInfoRow label="담당자" value={selectedBooking.staffName || selectedBooking.staff || "담당 미지정"} />
-                {detailSaving || detailNotice ? (
-                  <p className={cn("min-w-0 text-[13px] leading-5", detailNotice === "저장되었습니다." ? "text-[#2f7866]" : "text-[#64748b]")}>
-                    {detailSaving ? "저장 중입니다." : detailNotice}
+            <section className="pt-5">
+              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">요청사항</h3>
+              <div className="mt-2 min-h-[50px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-6 text-[#334155]">
+                {hasRequestText ? (
+                  requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
+                ) : (
+                  <p className="flex items-center gap-2 text-[#94a3b8]">
+                    <MessageCircle className="h-4 w-4 shrink-0" />
+                    고객 요청사항이 없습니다.
                   </p>
-                ) : null}
+                )}
               </div>
             </section>
 
-          <section className="pt-3">
-            <div className="flex min-h-[22px] items-center gap-1.5 text-left">
-              <ClipboardList className="h-4 w-4 shrink-0 text-[#334155]" />
-              <span className="shrink-0 text-[15px] font-normal text-[#334155]">요청사항</span>
-            </div>
-            <div
-              className={cn(
-                "mt-1.5 rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#334155]",
-                hasRequestText ? "min-h-[50px] max-h-[72px] overflow-hidden" : "min-h-[46px]",
-              )}
-            >
-              {requestText.split("\n").map((line, index) => (
-                <p key={`${line}-${index}`}>{line}</p>
-              ))}
-            </div>
-          </section>
+            <section className="pt-5">
+              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">코멘트</h3>
+              <div className="mt-2 min-h-[50px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-6 text-[#334155]">
+                {hasStaffComment ? (
+                  staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
+                ) : (
+                  <p className="flex items-center gap-2 text-[#94a3b8]">
+                    <NotebookPen className="h-4 w-4 shrink-0" />
+                    공유 코멘트가 없습니다.
+                  </p>
+                )}
+              </div>
+            </section>
 
-          <section className="pt-3">
-            <div className="flex min-h-[22px] items-center gap-1.5 text-left">
-              <NotebookPen className="h-4 w-4 shrink-0 text-[#334155]" />
-              <span className="shrink-0 text-[15px] font-normal text-[#334155]">코멘트</span>
-            </div>
-            <div className="mt-1.5 min-h-[50px] max-h-[72px] overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-2.5 text-[15px] leading-6 text-[#334155]">
-              {staffComment.trim() ? (
-                staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
-              ) : (
-                <p className="text-[#64748b]">공유 코멘트가 없습니다.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="pb-1 pt-3">
-            <div className="flex min-h-[22px] items-center gap-1.5 text-left">
-              <History className="h-4 w-4 shrink-0 text-[#334155]" />
-              <span className="shrink-0 text-[15px] font-normal text-[#334155]">최근 방문이력</span>
-              <span className="ml-auto text-[13px] text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
-            </div>
-            <div className="mt-1.5 rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-2">
-              {recentVisitHistory.items.length > 0 ? (
-                <div>
-                  <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 border-b border-[#edf2f7] pb-1.5 text-[12px] text-[#94a3b8]">
-                    <span>방문일</span>
-                    <span className="text-right">서비스</span>
-                  </div>
-                  {recentVisitHistory.items.map((visit) => (
-                    <div key={visit.id} className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 border-b border-[#edf2f7] py-1.5 last:border-b-0 last:pb-0">
-                      <span className="shrink-0 text-[15px] font-normal tabular-nums text-[#0f172a]">{visit.date}</span>
-                      <p className="min-w-0 truncate text-right text-[15px] font-normal text-[#64748b]">{visit.service}</p>
+            <section className="pb-2 pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">최근 방문이력</h3>
+                <span className="text-[13px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
+              </div>
+              <div className="mt-2 rounded-[10px] border border-[#dbe2ea] bg-white px-4 py-1">
+                {recentVisitHistory.items.length > 0 ? (
+                  recentVisitHistory.items.map((visit) => (
+                    <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#edf2f7] py-3 last:border-b-0">
+                      <span className="text-[14px] font-normal leading-5 tabular-nums text-[#64748b]">{visit.date}</span>
+                      <p className="min-w-0 truncate text-[15px] font-normal leading-5 text-[#0f172a]">{visit.service}</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[15px] leading-6 text-[#64748b]">방문이력이 없습니다.</p>
-              )}
-            </div>
-          </section>
+                  ))
+                ) : (
+                  <p className="py-3 text-[14px] font-normal leading-5 text-[#94a3b8]">방문이력이 없습니다.</p>
+                )}
+              </div>
+            </section>
           </div>
         </div>
 
           {showWorkflowFooter ? (
-          <section className="shrink-0 border-t border-[#e6edf2] bg-[#f7fbf9] px-3 pb-3 pt-3 shadow-[0_-8px_18px_rgba(15,23,42,0.035)]">
+          <section className="shrink-0 border-t border-[#e6edf2] bg-[#f2faf7] px-4 pb-4 pt-3 shadow-[0_-8px_18px_rgba(15,23,42,0.035)]">
             <div className="grid gap-2">
               {changeEventSelected ? (
                 <button
@@ -2119,138 +2178,46 @@ function BookingSidePanel({
                 </button>
               ) : sourceStatus === "확정" ? (
                 <>
-                  <div
-                    className={cn(
-                      "relative grid h-10 overflow-visible rounded-[8px] border border-[#dbe2ea] bg-white",
-                      showVisitReminderTiming ? "grid-cols-[minmax(0,1fr)_96px]" : "grid-cols-1",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      disabled={!canSendVisitReminder || notificationSending}
-                      onClick={() => void sendWorkflowAlimtalk("appointment_reminder_10m")}
-                      className={cn(
-                        "inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-3 text-[#607080] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50",
-                        showVisitReminderTiming ? "rounded-l-[8px]" : "rounded-[8px]",
-                      )}
-                    >
-                      {visitReminderDone ? (
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#607080]" />
-                      ) : visitReminderSending ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#607080]" />
-                      ) : (
-                        <Send className="h-4 w-4 shrink-0 text-[#607080]" />
-                      )}
-                      <span className="text-[15px]">
-                        {visitReminderDone ? "요청됨" : visitReminderSending ? "전송 중" : "방문 전 알림"}
-                      </span>
-                    </button>
-                    {showVisitReminderTiming ? (
-                      <button
-                        type="button"
-                        disabled={timingSaving}
-                        onClick={() => setTimingPickerOpen((current) => (current === "visit" ? null : "visit"))}
-                        className="inline-flex min-w-0 items-center justify-center border-l border-[#e2e8f0] px-2.5 text-[14px] text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="방문 전 알림 시간 선택"
-                      >
-                        {selectedBooking.visitReminderOffsetMinutes ?? 10}분 전
-                      </button>
-                    ) : null}
-                    {showVisitReminderTiming && timingPickerOpen === "visit" ? (
-                      <NotificationTimingPopover
-                        value={selectedBooking.visitReminderOffsetMinutes ?? 10}
-                        suffix="전"
-                        saving={timingSaving}
-                        className="bottom-10 right-0"
-                        onSave={(minutes) => void saveNotificationTiming({ visitReminderOffsetMinutes: minutes })}
-                      />
-                    ) : null}
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onRequestBeforePhotoStatusChange(selectedBooking)}
-                      className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
-                    >
-                      <span className="inline-flex items-center justify-center gap-1.5">
-                        <ImagePlus className="h-4 w-4 shrink-0" />
-                        미용 전 사진 촬영
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActionMoreOpen((current) => !current)}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:bg-[#f8fafc]"
-                      aria-label="보조 작업 펼치기"
-                      aria-expanded={actionMoreOpen}
-                    >
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", actionMoreOpen ? "rotate-180" : "")} />
-                    </button>
-                  </div>
                   <button
                     type="button"
-                    onClick={() => requestStatusChange(selectedBooking.id, "진행 중")}
-                    className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
+                    onClick={() => onRequestBeforePhotoStatusChange(selectedBooking)}
+                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
                   >
-                    사진 없이 바로 시작
+                    <Play className="h-4 w-4 shrink-0" />
+                    미용 시작하기
                   </button>
-                  {actionMoreOpen ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onSuggestAlternativeTime(selectedBooking.id)}
-                        className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
-                      >
-                        예약 변경
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onChangeStatus(selectedBooking.id, "취소")}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
-                      >
-                        <X className="h-4 w-4 text-[#64748b]" />
-                        예약 취소
-                      </button>
-                    </div>
-                  ) : null}
-                </>
-              ) : sourceStatus === "진행 중" ? (
-                <>
-                  <div className="relative grid h-10 grid-cols-[96px_minmax(0,1fr)] overflow-visible rounded-[8px] border border-[#dbe2ea] bg-white">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      disabled={timingSaving}
-                      onClick={() => setTimingPickerOpen((current) => (current === "pickup" ? null : "pickup"))}
-                      className="inline-flex min-w-0 items-center justify-center border-r border-[#e2e8f0] px-3 text-[15px] text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="예상 시간 선택"
+                      onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
+                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
                     >
-                      {selectedBooking.pickupReadyEtaMinutes ?? 5}분 후
+                      노쇼 처리
                     </button>
                     <button
                       type="button"
-                      onClick={() => requestStatusChange(selectedBooking.id, "픽업 준비")}
-                      className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-r-[8px] bg-[#2f6fd6] px-3 text-[15px] font-medium text-white transition hover:bg-[#255fc1] disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
+                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
                     >
-                      <Send className="h-4 w-4 shrink-0" />
-                      픽업 준비
+                      예약 취소
                     </button>
-                    {timingPickerOpen === "pickup" ? (
-                      <NotificationTimingPopover
-                        value={selectedBooking.pickupReadyEtaMinutes ?? 5}
-                        suffix="뒤"
-                        saving={timingSaving}
-                        className="bottom-10 left-0"
-                        onSave={(minutes) => void saveNotificationTiming({ pickupReadyEtaMinutes: minutes })}
-                      />
-                    ) : null}
                   </div>
                 </>
+              ) : sourceStatus === "진행 중" ? (
+                <button
+                  type="button"
+                  onClick={() => requestStatusChange(selectedBooking.id, "픽업 준비")}
+                  className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  미용 완료
+                </button>
               ) : sourceStatus === "픽업 준비" ? (
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "완료")}
-                    className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-[8px] bg-[#2f6fd6] px-3 text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
+                    className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     미용 완료
@@ -2876,17 +2843,17 @@ function MissedStartAlert({
         <AlertTriangle className={cn("mt-0.5 h-5 w-5", strong ? "text-[#b98121]" : "text-[#64748b]")} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#e8c67e] bg-white px-2 py-0.5 text-[12px] font-medium text-[#9a640f]">시작 확인 필요</span>
+            <span className="rounded-full border border-[#e8c67e] bg-white px-2 py-0.5 text-[12px] font-medium text-[#9a640f]">방문 확인 필요</span>
             <p className="text-[14px] font-medium text-[#111827]">
               {strong
-                ? `${booking.pet} 예약의 미용 시작 처리가 아직 되지 않았습니다.`
+                ? `${booking.pet} 예약의 방문 또는 미용 시작 처리가 아직 확인되지 않았습니다.`
                 : `${booking.pet} 예약 시간이 지났습니다.`}
             </p>
           </div>
           <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
             {strong
-              ? "진행 상태를 확인해 주세요."
-              : `미용을 시작했다면 '미용 시작하기'를 눌러주세요.`}
+              ? "고객이 방문했다면 미용 시작, 방문하지 않았다면 노쇼 처리를 해주세요."
+              : "고객 방문 여부를 확인해 주세요."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={onStart} className="h-9 rounded-[8px] bg-[#334155] px-3 text-[13px] font-medium text-white hover:bg-[#1f2937]">
@@ -2926,16 +2893,18 @@ function PersistentBookingPanelHero({
   onSuggestAlternativeTime: (bookingId: string) => void;
 }) {
   const profile = getPetProfile(booking);
-  const statusClass = isPending
+  const needsAttention = booking.status === "방문 확인 필요" || booking.status === "완료 확인 필요";
+  const statusClass = isPending || needsAttention
     ? "border-[#e8c67e] bg-[#fff7ed] text-[#9a640f]"
     : "border-[#b7d8cd] bg-[#eef8f4] text-[#1f6b5b]";
+  const statusLabel = isPending ? "예약 확인" : needsAttention ? booking.status : "예약 확정";
 
   return (
     <div className="border-b border-[#edf2f7] pb-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", statusClass)}>
-            {isPending ? "승인대기 예약" : "예약 확정"}
+            {statusLabel}
           </span>
           {pendingOverlapLabel ? (
             <span className="ml-2 inline-flex rounded-full border border-[#e8c67e] bg-[#fffaf0] px-3 py-1.5 text-[13px] font-medium text-[#9a640f]">
@@ -2996,12 +2965,15 @@ function PersistentBookingPanelHero({
             {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
             {startEnabled ? "미용 시작하기" : finalActionLabel}
           </button>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={() => onSuggestAlternativeTime(booking.id)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
               예약 변경
             </button>
-            <button type="button" onClick={() => onChangeStatus(booking.id, "거절")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
-              예약 거절
+            <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
+              노쇼 처리
+            </button>
+            <button type="button" onClick={() => onChangeStatus(booking.id, "취소")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
+              예약 취소
             </button>
           </div>
         </div>
@@ -3100,6 +3072,7 @@ function ConfirmedReservationDetail({
   const canComplete = sourceStatus === "진행 중" || booking.status === "진행 중";
   const canFinish = sourceStatus === "픽업 준비";
   const completed = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(booking.status);
+  const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
 
   return (
     <>
@@ -3108,7 +3081,7 @@ function ConfirmedReservationDetail({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", getReservationStatusPillClass(booking, selectedDate, currentHour))}>
-              {isMissedStartBooking(booking, selectedDate, currentHour) ? "시작 확인 필요" : "예약 확정"}
+              {statusLabel}
             </span>
             <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
             <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
@@ -3141,12 +3114,10 @@ function ConfirmedReservationDetail({
           ) : null}
         </div>
 
-        <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           <button type="button" className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">예약 변경</button>
+          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!canStart} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">노쇼 처리</button>
           <button type="button" onClick={() => setCancelOpen(true)} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438]">예약 취소</button>
-          <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b]" aria-label="더보기">
-            <MoreVertical className="h-4 w-4" />
-          </button>
         </div>
       </section>
 
@@ -3207,7 +3178,7 @@ function PendingReservationDetail({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", badgeClass)}>
-              {overdue ? overduePendingStatusLabel : "승인대기 예약"}
+              {overdue ? "확인 필요" : "예약 확인"}
             </span>
             <p className={cn("mt-3 text-[15px] font-medium", overdue ? "text-[#8f2438]" : "text-[#9a640f]")}>
               {overdue ? "처리 기한이 지난 예약입니다. 다른 시간 안내 또는 예약 거절로 정리해 주세요." : "고객이 예약 확정을 기다리는 중입니다."}
@@ -4443,15 +4414,17 @@ export default function CalendarManagementScreen({
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
     if (!targetBooking) return;
     const nextAppointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
+    const sourceStatus = targetBooking.sourceStatus ?? targetBooking.status;
 
     const displayStatus = getTimedBookingStatus(targetBooking, selectedDate, getCurrentDayHour());
-    const rollbackToInProgress = nextStatus === "진행 중" && targetBooking.status === "픽업 준비";
-    if (nextStatus === "진행 중" && !canStartGrooming(targetBooking.status) && !rollbackToInProgress) return;
-    if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(targetBooking.status)) return;
+    const rollbackToInProgress = nextStatus === "진행 중" && sourceStatus === "픽업 준비";
+    if (nextStatus === "진행 중" && !canStartGrooming(sourceStatus) && !rollbackToInProgress) return;
+    if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(sourceStatus)) return;
     if (
       nextStatus === "완료" &&
-      targetBooking.status !== "픽업 준비" &&
-      displayStatus !== "완료"
+      sourceStatus !== "픽업 준비" &&
+      displayStatus !== "완료" &&
+      displayStatus !== "완료 확인 필요"
     ) return;
 
     const nextBooking = { ...targetBooking, status: nextStatus };
@@ -4551,21 +4524,22 @@ export default function CalendarManagementScreen({
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
     const targetBooking = bookings.find((booking) => booking.id === bookingId);
+    const sourceStatus = targetBooking?.sourceStatus ?? targetBooking?.status;
     const rollback =
       Boolean(targetBooking) &&
-      ((targetBooking?.status === "진행 중" && nextStatus === "확정") ||
-        (targetBooking?.status === "픽업 준비" && nextStatus === "진행 중"));
+      ((sourceStatus === "진행 중" && nextStatus === "확정") ||
+        (sourceStatus === "픽업 준비" && nextStatus === "진행 중"));
     if (rollback) {
       void applyBookingStatusChange(bookingId, nextStatus, [], { notifyCustomer: false });
       return;
     }
 
-    if (targetBooking && nextStatus === "진행 중" && canStartGrooming(targetBooking.status) && isBeforeBookingStart(targetBooking)) {
+    if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus) && isBeforeBookingStart(targetBooking)) {
       setEarlyStartBooking(targetBooking);
       return;
     }
 
-    if (targetBooking && nextStatus === "진행 중" && canStartGrooming(targetBooking.status)) {
+    if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus)) {
       void applyBookingStatusChange(bookingId, nextStatus);
       return;
     }
@@ -4620,9 +4594,6 @@ export default function CalendarManagementScreen({
       setBookings((current) =>
         current.map((booking) => (isPendingBookingStatus(booking.status) ? { ...booking, status: "확정" } : booking)),
       );
-    }
-    if (!enabled && reservationStatusFilter === "pending") {
-      setReservationStatusFilter("all");
     }
   }
 
@@ -5069,9 +5040,3 @@ export default function CalendarManagementScreen({
     </div>
   );
 }
-
-
-
-
-
-

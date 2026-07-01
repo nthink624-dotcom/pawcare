@@ -12,7 +12,7 @@ import {
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime } from "@/lib/utils";
+import { formatClockTime } from "@/lib/utils";
 import { createMediaSignedReadUrl } from "@/server/media-storage";
 import type {
   Appointment,
@@ -82,7 +82,31 @@ function normalizeGuardianForBootstrap(guardian: Guardian): Guardian {
   };
 }
 
-const autoCompletedAppointmentStatuses = new Set<Appointment["status"]>(["confirmed", "in_progress", "almost_done"]);
+function shouldRetryMediaAssetQueryWithoutDeletedAt(error: { message?: string; details?: string | null; hint?: string | null } | null | undefined) {
+  if (!error) return false;
+  const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return message.includes("deleted_at") || message.includes("schema cache");
+}
+
+function isExpiringMediaSignedUrl(imageUrl: string) {
+  try {
+    const parsedUrl = new URL(imageUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+    const path = parsedUrl.pathname.toLowerCase();
+    const params = parsedUrl.searchParams;
+
+    return (
+      host.includes("r2.cloudflarestorage.com") ||
+      path.includes("/storage/v1/object/sign/") ||
+      params.has("X-Amz-Signature") ||
+      params.has("X-Amz-Credential") ||
+      params.has("X-Amz-Expires") ||
+      params.has("token")
+    );
+  } catch {
+    return false;
+  }
+}
 
 async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
   const mediaAssetIds = (shop.customer_page_settings.hero_media_asset_ids ?? [])
@@ -91,12 +115,15 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
   const existingHeroImageUrls = (
     shop.customer_page_settings.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ??
     (shop.customer_page_settings.hero_image_url ? [shop.customer_page_settings.hero_image_url] : [])
-  ).slice(0, 10);
+  )
+    .filter((imageUrl) => !isExpiringMediaSignedUrl(imageUrl))
+    .slice(0, 10);
+  if (!mediaAssetIds.length) return shop;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return shop;
 
-  const configuredAssetsResult = mediaAssetIds.length
+  let configuredAssetsResult = mediaAssetIds.length
     ? await supabase
         .from("media_assets")
         .select("id,bucket,storage_path,created_at")
@@ -105,22 +132,20 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
         .is("deleted_at", null)
         .in("id", mediaAssetIds)
     : { data: [], error: null };
-  const fallbackAssetsResult = await supabase
-    .from("media_assets")
-    .select("id,bucket,storage_path,created_at")
-    .eq("shop_id", shop.id)
-    .eq("media_kind", "shop_profile")
-    .eq("status", "ready")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(10);
+  if (mediaAssetIds.length && shouldRetryMediaAssetQueryWithoutDeletedAt(configuredAssetsResult.error)) {
+    configuredAssetsResult = await supabase
+      .from("media_assets")
+      .select("id,bucket,storage_path,created_at")
+      .eq("shop_id", shop.id)
+      .eq("status", "ready")
+      .in("id", mediaAssetIds);
+  }
 
-  if (configuredAssetsResult.error && fallbackAssetsResult.error) return shop;
+  if (configuredAssetsResult.error) return shop;
 
   const configuredAssets = configuredAssetsResult.data ?? [];
-  const fallbackAssets = fallbackAssetsResult.data ?? [];
   const assetsById = new Map(
-    configuredAssets.concat(fallbackAssets).map((asset) => [
+    configuredAssets.map((asset) => [
       String(asset.id),
       {
         bucket: String(asset.bucket),
@@ -128,12 +153,9 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
       },
     ]),
   );
-  const orderedMediaAssetIds = mediaAssetIds
-    .concat(fallbackAssets.map((asset) => String(asset.id)).filter((mediaAssetId) => !mediaAssetIds.includes(mediaAssetId)))
-    .slice(0, 10);
 
   const signedUrls = await Promise.all(
-    orderedMediaAssetIds.map(async (mediaAssetId, index) => {
+    mediaAssetIds.map(async (mediaAssetId, index) => {
       const asset = assetsById.get(mediaAssetId);
       if (!asset) return existingHeroImageUrls[index] ?? "";
       try {
@@ -148,8 +170,8 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
     }),
   );
   const seenImageUrls = new Set<string>();
-  const resolvedUrls = signedUrls
-    .concat(existingHeroImageUrls)
+  const resolvedUrls = existingHeroImageUrls
+    .concat(signedUrls)
     .filter((imageUrl) => {
       const trimmed = imageUrl.trim();
       if (!trimmed || seenImageUrls.has(trimmed)) return false;
@@ -170,29 +192,14 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
   };
 }
 
-function hasAppointmentWindowEnded(appointment: Appointment) {
-  const today = currentDateInTimeZone();
-  if (appointment.appointment_date < today) return true;
-  if (appointment.appointment_date > today) return false;
-
-  const endAtTime = new Date(appointment.end_at).getTime();
-  if (!Number.isNaN(endAtTime)) {
-    return endAtTime < Date.now();
-  }
-
-  const endClock = appointment.end_at.includes(":") ? formatClockTime(appointment.end_at) : formatClockTime(appointment.appointment_time);
-  return minutesFromTime(endClock) < currentMinutesInTimeZone();
-}
-
 function normalizeAppointmentForBootstrap(appointment: Appointment): Appointment {
+  const normalizedStatus = String(appointment.status) === "pending" ? "confirmed" : appointment.status;
+
   return {
     ...appointment,
     visit_reminder_offset_minutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickup_ready_eta_minutes: appointment.pickup_ready_eta_minutes ?? 5,
-    status:
-      autoCompletedAppointmentStatuses.has(appointment.status) && hasAppointmentWindowEnded(appointment)
-        ? "completed"
-        : appointment.status,
+    status: normalizedStatus,
     appointment_time: formatClockTime(appointment.appointment_time),
   };
 }
@@ -220,6 +227,8 @@ type StaffMemberRow = {
   name: string;
   display_name?: string | null;
   profile_image_url?: string | null;
+  profile_image_urls?: unknown;
+  profile_image_asset_ids?: unknown;
   profile_message?: string | null;
   chip_color_index?: number | null;
   phone: string | null;
@@ -273,12 +282,35 @@ function normalizeTime(value: string | null | undefined) {
   return (value ?? "").slice(0, 5) || "10:00";
 }
 
+function normalizeProfileImageUrls(value: unknown, fallback = "") {
+  const urls = Array.isArray(value) ? value : [];
+  const normalized = urls
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const fallbackUrl = fallback.trim();
+  return normalized.length > 0 ? normalized : fallbackUrl ? [fallbackUrl] : [];
+}
+
+function normalizeProfileImageAssetIds(value: unknown) {
+  return (Array.isArray(value) ? value : [])
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
+  const profileImageUrls = normalizeProfileImageUrls(row.profile_image_urls, row.profile_image_url ?? "");
+  const profileImageAssetIds = normalizeProfileImageAssetIds(row.profile_image_asset_ids);
   return {
     id: row.id,
     name: row.name,
     displayName: row.display_name?.trim() || row.name,
-    profileImageUrl: row.profile_image_url?.trim() || "",
+    profileImageUrl: profileImageUrls[0] ?? "",
+    profileImageUrls,
+    profileImageAssetIds,
     profileMessage: row.profile_message?.trim() || "",
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
@@ -316,6 +348,78 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
   };
 }
 
+async function resolveStaffProfileMediaImages(shopId: string, staffMembers: BootstrapStaffMember[]) {
+  const mediaAssetIds = Array.from(new Set(staffMembers.flatMap((staffMember) => staffMember.profileImageAssetIds ?? []).filter(Boolean)));
+  if (!mediaAssetIds.length) return staffMembers;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return staffMembers;
+
+  let assetsResult = await supabase
+    .from("media_assets")
+    .select("id,bucket,storage_path")
+    .eq("shop_id", shopId)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .in("id", mediaAssetIds);
+
+  if (shouldRetryMediaAssetQueryWithoutDeletedAt(assetsResult.error)) {
+    assetsResult = await supabase
+      .from("media_assets")
+      .select("id,bucket,storage_path")
+      .eq("shop_id", shopId)
+      .eq("status", "ready")
+      .in("id", mediaAssetIds);
+  }
+
+  if (assetsResult.error) return staffMembers;
+
+  const assetById = new Map(
+    (assetsResult.data ?? []).map((asset) => [
+      String(asset.id),
+      {
+        bucket: String(asset.bucket),
+        storagePath: String(asset.storage_path),
+      },
+    ]),
+  );
+  const signedUrlByAssetId = new Map<string, string>();
+
+  await Promise.all(
+    mediaAssetIds.map(async (mediaAssetId) => {
+      const asset = assetById.get(mediaAssetId);
+      if (!asset) return;
+      try {
+        signedUrlByAssetId.set(
+          mediaAssetId,
+          await createMediaSignedReadUrl({
+            bucket: asset.bucket,
+            path: asset.storagePath,
+            expiresInSeconds: 10 * 60,
+          }),
+        );
+      } catch {
+        // Keep existing fallback URL.
+      }
+    }),
+  );
+
+  return staffMembers.map((staffMember) => {
+    const resolvedImages = (staffMember.profileImageAssetIds ?? [])
+      .map((mediaAssetId, index) => signedUrlByAssetId.get(mediaAssetId) ?? staffMember.profileImageUrls?.[index] ?? "")
+      .filter(Boolean)
+      .slice(0, 3);
+    const fallbackImages = normalizeProfileImageUrls(staffMember.profileImageUrls, staffMember.profileImageUrl);
+    const profileImageUrls = resolvedImages.length > 0 ? resolvedImages : fallbackImages;
+
+    return {
+      ...staffMember,
+      profileImageUrl: profileImageUrls[0] ?? "",
+      profileImageUrls,
+    };
+  });
+}
+
 function normalizeStaffScheduleOverride(row: StaffScheduleOverrideRow): StaffScheduleOverride {
   return {
     ...row,
@@ -342,6 +446,8 @@ function isMissingStaffProfileColumnsError(error: { code?: string | null; messag
     message.includes("staff_members") &&
     (message.includes("display_name") ||
       message.includes("profile_image_url") ||
+      message.includes("profile_image_urls") ||
+      message.includes("profile_image_asset_ids") ||
       message.includes("profile_message") ||
       message.includes("chip_color_index") ||
       message.includes("title_prefix") ||
@@ -497,7 +603,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),
       supabase
         .from("staff_members")
-        .select("id,name,display_name,profile_image_url,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
+        .select("id,name,display_name,profile_image_url,profile_image_urls,profile_image_asset_ids,profile_message,chip_color_index,phone,role,title_prefix,position,default_days,start_time,end_time,regular_off,annual_remain")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("sort_order")
@@ -567,7 +673,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
       rawShop.description,
     ),
   });
-  const staffMembers = (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember);
+  const staffMembers = await resolveStaffProfileMediaImages(shopId, (staffMemberRows as StaffMemberRow[]).map(normalizeStaffMember));
   let appointmentChangeEvents: AppointmentChangeEvent[] = [];
   if (appointmentChangeEventsRes.error) {
     if (!isMissingAppointmentChangeEventsError(appointmentChangeEventsRes.error)) {

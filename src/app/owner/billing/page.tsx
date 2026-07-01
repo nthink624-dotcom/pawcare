@@ -15,6 +15,7 @@ function OwnerBillingPageContent() {
   const preferredPlan = (searchParams.get("plan") && getOwnerPlanByCode(searchParams.get("plan"))?.code) as OwnerPlanCode | null;
   const forcePlanPicker = searchParams.get("compare") === "1";
   const openPaymentSheet = searchParams.get("sheet") === "1";
+  const notice = searchParams.get("notice");
   const [summary, setSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [message, setMessage] = useState("구독 정보를 불러오는 중입니다.");
 
@@ -95,6 +96,9 @@ function OwnerBillingPageContent() {
   }
 
   const shouldForcePlanPicker = forcePlanPicker || openPaymentSheet || summary.status === "expired" || summary.status === "past_due";
+  const showPaymentRequiredNotice =
+    !openPaymentSheet &&
+    (notice === "expired" || notice === "past_due" || summary.status === "expired" || summary.status === "past_due");
 
   return (
     <OwnerBillingScreen
@@ -102,6 +106,7 @@ function OwnerBillingPageContent() {
       preferredPlanCode={preferredPlan}
       forcePlanPicker={shouldForcePlanPicker}
       openPaymentSheet={openPaymentSheet}
+      showPaymentRequiredNotice={showPaymentRequiredNotice}
     />
   );
 }

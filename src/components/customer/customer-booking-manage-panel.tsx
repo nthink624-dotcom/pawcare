@@ -44,8 +44,7 @@ type Feedback = {
   message: string;
 };
 
-const statusLabelMap: Record<Appointment["status"], string> = {
-  pending: "승인 대기",
+const statusLabelMap: Partial<Record<Appointment["status"], string>> = {
   confirmed: "확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
@@ -56,7 +55,6 @@ const statusLabelMap: Record<Appointment["status"], string> = {
 };
 
 const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
-  { status: "pending", label: "요청" },
   { status: "confirmed", label: "확정" },
   { status: "in_progress", label: "미용 중" },
   { status: "almost_done", label: "픽업 준비" },
@@ -65,7 +63,6 @@ const progressSteps: Array<{ status: Appointment["status"]; label: string }> = [
 
 function getStatusTone(status: Appointment["status"]) {
   if (status === "cancelled" || status === "rejected" || status === "noshow") return "border-[#f1d4cf] bg-[#fff7f4] text-[#b95045]";
-  if (status === "pending") return "border-[#f3ded8] bg-[#fff8f5] text-[#d35f50]";
   if (status === "completed") return "border-[#f0e3dd] bg-[#fffaf8] text-[#8a7a72]";
   return "border-[#f3ded8] bg-[#fff8f5] text-[#d35f50]";
 }
@@ -108,7 +105,7 @@ function buildDateOptions(shop: Shop): DateOption[] {
 }
 
 function canManageAppointment(appointment: Appointment) {
-  if (!["pending", "confirmed"].includes(appointment.status)) return false;
+  if (appointment.status !== "confirmed") return false;
 
   const today = currentDateInTimeZone();
   if (appointment.appointment_date > today) return true;
@@ -132,7 +129,6 @@ function formatVisitedAt(value: string) {
 }
 
 function getCustomerActionLabel(status: Appointment["status"]) {
-  if (status === "pending") return "예약 요청 취소";
   if (status === "confirmed") return "예약 취소 문의";
   if (status === "almost_done") return "매장에 문의하기";
   if (status === "completed") return "다시 예약하기";
@@ -434,8 +430,8 @@ export default function CustomerBookingManagePanel({
       closeRescheduleForm();
       setFeedback({
         type: "success",
-        title: shop.approval_mode === "auto" ? "예약 변경이 완료되었어요" : "예약 변경 요청을 보냈어요",
-        message: shop.approval_mode === "auto" ? "변경된 일정이 바로 반영되었습니다." : "매장에서 확인한 뒤 변경 여부를 안내해드려요.",
+        title: "예약 변경이 완료되었어요",
+        message: "변경된 일정이 바로 반영되었습니다.",
       });
     } catch (error) {
       setFeedback({
@@ -704,7 +700,7 @@ export default function CustomerBookingManagePanel({
                           disabled={submitting || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId}
                           className="rounded-[12px] bg-[#ec7f72] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50"
                         >
-                          {shop.approval_mode === "auto" ? "바로 변경하기" : "변경 요청 보내기"}
+                          바로 변경하기
                         </button>
                       </div>
                     </div>
@@ -719,4 +715,3 @@ export default function CustomerBookingManagePanel({
     </>
   );
 }
-

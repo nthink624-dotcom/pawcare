@@ -106,9 +106,9 @@ const alertItems: AlertItem[] = [
   },
   {
     key: "appointmentReminder10mEnabled",
-    title: "방문 전 안내",
+    title: "방문 안내",
     type: "appointment_reminder_10m",
-    role: "예약 시간 전 고객에게 방문 준비와 도착 시간을 다시 안내합니다.",
+    role: "예약일이 다가오면 일정 안내와 방문 예정 안내를 자동으로 보냅니다.",
   },
   {
     key: "groomingStartedEnabled",
@@ -142,7 +142,6 @@ const alertGroups: Array<{ title: string; items: AlertItem[] }> = [
     items: alertItems.filter((item) =>
       [
         "bookingConfirmedEnabled",
-        "bookingRejectedEnabled",
         "bookingCancelledEnabled",
         "bookingRescheduledEnabled",
         "appointmentReminder10mEnabled",
@@ -356,6 +355,7 @@ function getNextShopChannelSettings(value: AlertSettingsDraft): AlertSettingsDra
 export default function SettingsAlertsPanel({
   value,
   onChange,
+  automaticVisitReminderAvailable = true,
 }: {
   value: AlertSettingsDraft;
   onChange: (value: AlertSettingsDraft) => void | Promise<void>;
@@ -363,9 +363,19 @@ export default function SettingsAlertsPanel({
 }) {
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
-  const visitReminderMode = "manual";
+  const visitReminderEnabled =
+    automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
 
   function update(key: AlertToggleKey, checked: boolean) {
+    if (key === "appointmentReminder10mEnabled") {
+      onChange({
+        ...value,
+        appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
+        appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
+      });
+      return;
+    }
+
     onChange({ ...value, [key]: checked });
   }
 
@@ -532,8 +542,13 @@ export default function SettingsAlertsPanel({
               </div>
               <div className="grid gap-2 lg:grid-cols-2">
                 {group.items.map((item) => {
-                  const checked = Boolean(value[item.key]);
+                  const checked =
+                    item.key === "appointmentReminder10mEnabled"
+                      ? visitReminderEnabled
+                      : Boolean(value[item.key]);
                   const selected = previewItem.type === item.type;
+                  const disabled =
+                    !value.enabled || (item.key === "appointmentReminder10mEnabled" && !automaticVisitReminderAvailable);
                   return (
                     <Fragment key={`${item.key}-${item.type}`}>
                       <div
@@ -554,14 +569,14 @@ export default function SettingsAlertsPanel({
                             : checked
                               ? "border-[#dbe2ea]"
                               : "border-[#dbe2ea]",
-                          value.enabled ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
+                          !disabled ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
                         )}
                       >
                         <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
                         <span onClick={(event) => event.stopPropagation()}>
                           <Switch
                             checked={checked}
-                            disabled={!value.enabled}
+                            disabled={disabled}
                             aria-label={`${item.title} 알림`}
                             onCheckedChange={(nextChecked) => {
                               setSelectedAlertType(item.type);
@@ -589,7 +604,7 @@ export default function SettingsAlertsPanel({
             <div className="mb-4">
               <p className="text-[16px] font-semibold text-[#111827]">알림 발송 기준</p>
               <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
-                방문 전 알림은 직접 보내고, 픽업 안내에는 아래 기본 시간이 들어갑니다.
+                방문 안내는 기본 OFF입니다. 켜면 예약일 2~3일 전에는 예약 일정 안내, 예약 시간 전에는 방문 예정 안내가 자동 발송됩니다.
               </p>
             </div>
 
@@ -597,26 +612,48 @@ export default function SettingsAlertsPanel({
               <div className="rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[16px] font-semibold text-[#111827]">방문 전 알림</p>
+                    <p className="text-[16px] font-semibold text-[#111827]">방문 안내 자동 발송</p>
                     <p className="mt-2 text-[15px] leading-6 text-[#475569]">
-                      예약 상세에서 오너가 직접 누를 때만 발송됩니다.
+                      {visitReminderEnabled
+                        ? `예약 2~3일 전 일정 안내를 보내고, 예약 시간 ${value.visitReminderOffsetMinutes}분 전에는 방문 예정 안내를 보냅니다.`
+                        : "꺼져 있으면 스케줄 상세에 방문 안내 ON/OFF가 표시되지 않습니다."}
                     </p>
                   </div>
                   <button
                     type="button"
-                    aria-pressed={visitReminderMode === "manual"}
+                    aria-pressed={visitReminderEnabled}
+                    disabled={!automaticVisitReminderAvailable}
                     onClick={() =>
                       onChange({
                         ...value,
-                        appointmentReminder10mMode: "manual",
+                        appointmentReminder10mEnabled: !visitReminderEnabled,
+                        appointmentReminder10mMode: !visitReminderEnabled ? "auto" : "manual",
                       })
                     }
-                    className="h-9 shrink-0 rounded-[8px] bg-[#222222] px-4 text-[15px] font-semibold text-white"
+                    className={cn(
+                      "h-9 shrink-0 rounded-[8px] px-4 text-[15px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+                      visitReminderEnabled ? "bg-[#2f7866] text-white" : "border border-[#dbe2ea] bg-white text-[#334155]",
+                    )}
                   >
-                    수동 발송
+                    {visitReminderEnabled ? "사용 중" : "꺼짐"}
                   </button>
                 </div>
               </div>
+
+              <MinuteTimingControl
+                title="방문 안내 기본값"
+                value={value.visitReminderOffsetMinutes}
+                unitLabel="분 전"
+                options={[30, 60, 120, 180]}
+                min={0}
+                max={180}
+                onChange={(minutes) =>
+                  onChange({
+                    ...value,
+                    visitReminderOffsetMinutes: minutes,
+                  })
+                }
+              />
 
               <MinuteTimingControl
                 title="픽업 안내 기본값"

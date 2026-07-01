@@ -20,18 +20,6 @@ function getBenefitTypeName(audience: CustomerDiscountCoupon["audience"]) {
   return "직접 설정 혜택";
 }
 
-function getServiceScopeText(coupon: CustomerDiscountCoupon, serviceOptions: CustomerServiceSourceOption[]) {
-  if (coupon.service_scope !== "specific") return "전체 서비스";
-  if (coupon.service_option_ids.length === 0) return "서비스 선택 필요";
-  const selectedIds = new Set(coupon.service_option_ids);
-  const selectedNames = serviceOptions
-    .filter((option) => selectedIds.has(getLinkedOptionId(option)))
-    .map((option) => option.sourceName);
-  if (selectedNames.length === 0) return "선택한 서비스";
-  if (selectedNames.length === 1) return selectedNames[0] ?? "선택한 서비스";
-  return `${selectedNames[0]} 외 ${selectedNames.length - 1}개`;
-}
-
 function SelectFrame({
   children,
   className,
@@ -134,7 +122,13 @@ export default function DiscountCouponEditor({
       {coupons.map((coupon) => {
         const collapsed = collapsedCouponIds.has(coupon.id);
         return (
-        <section key={coupon.id} className="overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)]">
+        <section
+          key={coupon.id}
+          className={cn(
+            "overflow-hidden rounded-[12px] border bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
+            coupon.enabled ? "border-[#dbe2ea]" : "border-[#e2e8f0] opacity-70",
+          )}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#eef7f4] text-[#2f7866]">
@@ -179,7 +173,12 @@ export default function DiscountCouponEditor({
                   </select>
                 </SelectFrame>
               </label>
-              <ToggleChip label={coupon.enabled ? "사용 중" : "중지"} active={coupon.enabled} disabled={disabled} onClick={() => onUpdate(coupon.id, { enabled: !coupon.enabled })} />
+              <ToggleChip
+                label={coupon.enabled ? "사용 중지" : "다시 사용"}
+                active={coupon.enabled}
+                disabled={disabled}
+                onClick={() => onUpdate(coupon.id, { enabled: !coupon.enabled })}
+              />
               <button
                 type="button"
                 onClick={() => toggleCollapsed(coupon.id)}
@@ -202,13 +201,13 @@ export default function DiscountCouponEditor({
           </div>
 
           {!collapsed ? (
-          <div className="grid items-start gap-4 p-4 xl:grid-cols-[minmax(300px,0.78fr)_minmax(460px,1.22fr)]">
-            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-4 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
-              <div className="mb-3 flex items-center gap-2">
+          <div className="grid items-start gap-3 p-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(380px,1.05fr)]">
+            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+              <div className="mb-2 flex items-center gap-2">
                 <BadgePercent className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">할인 조건</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-[minmax(150px,0.8fr)_minmax(160px,1fr)]">
+              <div className="grid gap-2 sm:grid-cols-[minmax(150px,0.8fr)_minmax(160px,1fr)]">
                 <label className="space-y-1">
                   <span className={fieldLabelClassName}>할인 방식</span>
                   <SelectFrame>
@@ -250,79 +249,15 @@ export default function DiscountCouponEditor({
                   </div>
                 </label>
               </div>
-              <div className="mt-4 rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
+              <div className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-2">
                 <p className="text-[13px] font-normal text-[#64748b]">적용 할인</p>
-                <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-[#111827]">
+                <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#111827]">
                   {coupon.discount_type === "percent"
                     ? `${coupon.discount_value || 0}%`
                     : `${Number(coupon.discount_value || 0).toLocaleString("ko-KR")}원`}
                 </p>
               </div>
-            </div>
-
-            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-4 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
-              <div className="mb-3 flex items-center gap-2">
-                <CalendarDays className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
-                <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1 sm:col-span-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={fieldLabelClassName}>적용 서비스</span>
-                    <span className="truncate text-[13px] font-normal text-[#64748b]">{getServiceScopeText(coupon, serviceOptions)}</span>
-                  </div>
-                  <div className="rounded-[10px] border border-[#dbe2ea] bg-white p-2">
-                    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-2 text-[16px] font-semibold text-[#111827] transition hover:bg-[#f1f5f9]">
-                      <input
-                        type="checkbox"
-                        checked={coupon.service_scope !== "specific"}
-                        disabled={disabled}
-                        onChange={(event) =>
-                          onUpdate(coupon.id, {
-                            service_scope: event.target.checked ? "all" : "specific",
-                            service_option_ids: [],
-                          })
-                        }
-                        className="h-4 w-4 rounded border-[#cbd5e1] text-[#2f7866] focus:ring-[#dceee8]"
-                      />
-                      전체 서비스
-                    </label>
-                    <div className="mt-2 max-h-[236px] space-y-1 overflow-y-auto pr-1">
-                      {serviceOptions.map((option) => {
-                        const linkedOptionId = getLinkedOptionId(option);
-                        const selected = coupon.service_scope !== "specific" || coupon.service_option_ids.includes(linkedOptionId);
-                        return (
-                          <label
-                            key={`${option.id}-${linkedOptionId}`}
-                            className={cn(
-                              "flex min-h-10 cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2 text-[15px] font-normal transition",
-                              selected ? "bg-[#f8fbff] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              disabled={disabled}
-                              onChange={() => {
-                                const currentIds = coupon.service_scope === "specific" ? coupon.service_option_ids : allServiceOptionIds;
-                                const nextIds = selected
-                                  ? currentIds.filter((serviceOptionId) => serviceOptionId !== linkedOptionId)
-                                  : Array.from(new Set([...currentIds, linkedOptionId]));
-                                onUpdate(coupon.id, {
-                                  service_scope: nextIds.length === allServiceOptionIds.length ? "all" : "specific",
-                                  service_option_ids: nextIds.length === allServiceOptionIds.length ? [] : nextIds,
-                                });
-                              }}
-                              className="h-4 w-4 rounded border-[#cbd5e1] text-[#2f7866] focus:ring-[#dceee8]"
-                            />
-                            <span className="min-w-0 truncate">{option.sourceName}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className="space-y-1">
                   <span className={fieldLabelClassName}>시작일</span>
                   <input
@@ -345,6 +280,67 @@ export default function DiscountCouponEditor({
                 </label>
               </div>
             </div>
+
+            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+              <div className="mb-2 flex items-center gap-2">
+                <CalendarDays className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
+                <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
+              </div>
+              <div className="grid gap-2">
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
+                    <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-2.5 py-1.5 text-[15px] font-semibold text-[#111827] transition hover:bg-[#f1f5f9]">
+                      <input
+                        type="checkbox"
+                        checked={coupon.service_scope !== "specific"}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          onUpdate(coupon.id, {
+                            service_scope: event.target.checked ? "all" : "specific",
+                            service_option_ids: [],
+                          })
+                        }
+                        className="h-3.5 w-3.5 rounded border-[#cbd5e1] text-[#2f7866] focus:ring-[#dceee8]"
+                      />
+                      전체 서비스
+                    </label>
+                    <div className="mt-1 max-h-[132px] space-y-0.5 overflow-y-auto pr-1">
+                      {serviceOptions.map((option) => {
+                        const linkedOptionId = getLinkedOptionId(option);
+                        const selected = coupon.service_scope !== "specific" || coupon.service_option_ids.includes(linkedOptionId);
+                        return (
+                          <label
+                            key={`${option.id}-${linkedOptionId}`}
+                            className={cn(
+                              "flex min-h-8 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal transition",
+                              selected ? "bg-[#f8fbff] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              disabled={disabled}
+                              onChange={() => {
+                                const currentIds = coupon.service_scope === "specific" ? coupon.service_option_ids : allServiceOptionIds;
+                                const nextIds = selected
+                                  ? currentIds.filter((serviceOptionId) => serviceOptionId !== linkedOptionId)
+                                  : Array.from(new Set([...currentIds, linkedOptionId]));
+                                onUpdate(coupon.id, {
+                                  service_scope: nextIds.length === allServiceOptionIds.length ? "all" : "specific",
+                                  service_option_ids: nextIds.length === allServiceOptionIds.length ? [] : nextIds,
+                                });
+                              }}
+                              className="h-3.5 w-3.5 rounded border-[#cbd5e1] text-[#2f7866] focus:ring-[#dceee8]"
+                            />
+                            <span className="min-w-0 truncate">{option.sourceName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           ) : null}
         </section>
@@ -360,9 +356,12 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       type="button"
       disabled={disabled}
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "h-10 rounded-[8px] border px-3 text-[15px] font-normal transition disabled:opacity-40",
-        active ? "border-[#2f6bd4] bg-[#2f6bd4] text-white" : "border-[#dbe2ea] bg-white text-[#64748b] hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866]",
+        "h-11 rounded-[8px] border px-4 text-[15px] font-normal transition disabled:opacity-40",
+        active
+          ? "border-[#a04455] bg-white text-[#a04455] hover:bg-[#fffafa]"
+          : "border-[#2f7866] bg-[#2f7866] text-white hover:border-[#286a5a] hover:bg-[#286a5a]",
       )}
     >
       {label}

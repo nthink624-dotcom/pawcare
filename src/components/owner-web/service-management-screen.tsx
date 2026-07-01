@@ -220,27 +220,33 @@ function buildCustomerServiceOverrideBaseline(
 ) {
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
 
-  const baseline = Object.fromEntries(
-    options.map((option) => [
-      option.id,
-      {
-        visible: true,
-        order: option.order,
-        displayName: option.sourceName,
-        description: option.description,
-        linkedOptionId: option.linkedOptionId ?? option.id,
-      },
-    ]),
+  return Object.fromEntries(
+    options.map((option) => {
+      const currentOverride = normalizedOverrides[option.id] ?? {};
+      return [
+        option.id,
+        {
+          visible: currentOverride.visible ?? true,
+          order: currentOverride.order ?? option.order,
+          linkedOptionId: option.linkedOptionId ?? currentOverride.linkedOptionId ?? option.id,
+        },
+      ];
+    }),
   ) satisfies CustomerServiceDisplayOverrides;
-
-  return {
-    ...baseline,
-    ...normalizedOverrides,
-  };
 }
 
 function createCustomerServiceMenuRowId() {
   return `menu-custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
+  return [
+    option.category,
+    option.sourceName,
+    option.durationMinutes,
+    option.price,
+    option.priceType,
+  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -552,12 +558,10 @@ export default function ServiceManagementScreen({
     };
 
     const previousServices = services;
-    setServices((current) => {
-      const exists = current.some((service) => service.id === nextService.id);
-      return exists
-        ? current.map((service) => (service.id === nextService.id ? nextService : service))
-        : [...current, nextService];
-    });
+    const nextServicesSnapshot = previousServices.some((service) => service.id === nextService.id)
+      ? previousServices.map((service) => (service.id === nextService.id ? nextService : service))
+      : [...previousServices, nextService];
+    setServices(nextServicesSnapshot);
     setSelectedServiceId(nextService.id);
     setServiceForm(buildForm(nextService));
     setFormError("");
@@ -567,6 +571,7 @@ export default function ServiceManagementScreen({
         setAutosaveStatus("saved");
         lastSavedSignatureRef.current = saveSignature;
       }
+      onServicesChange?.(managedServicesToDomain(nextServicesSnapshot, shopId));
       return true;
     }
 
@@ -730,8 +735,8 @@ export default function ServiceManagementScreen({
   function addCustomerServiceOption() {
     if (!shop || customerServiceActionId) return;
 
-    const usedConnectionOptionIds = new Set(customerServiceOptions.map((option) => option.linkedOptionId ?? option.id));
-    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionIds.has(option.linkedOptionId ?? option.id));
+    const usedConnectionOptionKeys = new Set(customerServiceOptions.map(getCustomerServiceOptionDisplayKey));
+    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionKeys.has(getCustomerServiceOptionDisplayKey(option)));
     if (!defaultConnectionOption) return;
 
     const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
@@ -746,8 +751,6 @@ export default function ServiceManagementScreen({
       [rowId]: {
         visible: true,
         order: nextOrder,
-        displayName: defaultConnectionOption.sourceName,
-        description: defaultConnectionOption.description,
         linkedOptionId: defaultConnectionOption.linkedOptionId ?? defaultConnectionOption.id,
       },
     });
@@ -763,8 +766,6 @@ export default function ServiceManagementScreen({
         ...(baselineOverrides[option.id] ?? {}),
         visible: false,
         order: baselineOverrides[option.id]?.order ?? option.order,
-        displayName: baselineOverrides[option.id]?.displayName ?? option.sourceName,
-        description: baselineOverrides[option.id]?.description ?? option.description,
       },
     });
   }
@@ -783,8 +784,6 @@ export default function ServiceManagementScreen({
       [option.id]: {
         ...currentOverride,
         visible: true,
-        displayName: nextOption.sourceName,
-        description: currentOverride.description ?? option.description,
         order: currentOverride.order ?? option.order,
         linkedOptionId: nextOption.id,
       },
@@ -818,6 +817,11 @@ export default function ServiceManagementScreen({
     return managedServicesToDomain(nextServices, shopId);
   }, [selectedService?.order, serviceForm, services, shopId]);
 
+  useEffect(() => {
+    if (!storageReady || (!demoMode && !embedded)) return;
+    onServicesChange?.(previewServices);
+  }, [demoMode, embedded, onServicesChange, previewServices, storageReady]);
+
   const rawCustomerServiceConnectionOptions = useMemo(
     () => buildCustomerServiceSourceOptions(previewServices, { priceGuideOnly: true }),
     [previewServices],
@@ -846,39 +850,58 @@ export default function ServiceManagementScreen({
       <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">서비스/가격</h2>
-          <button
-            type="button"
-            onClick={() => void addCustomerServiceOption()}
-            disabled={customerServiceActionId === "__add__"}
-            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[9px] border border-[#2f6bd4] bg-[#2f6bd4] px-4 text-[15px] font-semibold text-white transition hover:bg-[#285bb3] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <Plus className="h-4 w-4" />
-            서비스 추가
-          </button>
         </div>
 
-        <div className="mb-5">
-          <CustomerServiceExposurePanel
-            options={customerServiceOptions}
-            overrides={customerServiceOverrides}
-            embedded
-            busyOptionId={customerServiceActionId}
-            onChange={updateCustomerServiceOverrides}
-            connectionOptions={customerServiceConnectionOptions}
-            onAddOption={addCustomerServiceOption}
-            hideHeader
-            onDeleteOption={deleteCustomerServiceOption}
-            onRelinkOption={relinkCustomerServiceOption}
-          />
-        </div>
+        <div className="space-y-5">
+          <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
+              <div>
+                <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
+                <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
+                  <span className="block">자주 예약되는 미용 항목의 예상 시간과 시작 가격을 등록하면 고객 예약페이지 첫 화면에 보여집니다.</span>
+                  <span className="block">아이의 크기나 털 상태에 따라 최종 금액은 달라질 수 있어요.</span>
+                </p>
+              </div>
+              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">
+                고객 화면
+              </span>
+            </div>
+            <CustomerServiceExposurePanel
+              options={customerServiceOptions}
+              overrides={customerServiceOverrides}
+              embedded
+              busyOptionId={customerServiceActionId}
+              onChange={updateCustomerServiceOverrides}
+              connectionOptions={customerServiceConnectionOptions}
+              onAddOption={addCustomerServiceOption}
+              hideHeader
+              hideGuidance
+              onDeleteOption={deleteCustomerServiceOption}
+              onRelinkOption={relinkCustomerServiceOption}
+            />
+          </div>
 
-        <ServicePriceGuideEditor
-          value={{ ...serviceForm.priceGuide, enabled: true }}
-          onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
-          framed={false}
-          showHeader={false}
-          showEnabledToggle={false}
-        />
+          <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-3.5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
+              <div>
+                <p className="text-[15px] font-medium text-[#334155]">상세 요금표 원본</p>
+                <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">
+                  그룹, 무게, 항목별 금액과 예상 시간을 편집합니다.
+                </p>
+              </div>
+              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-medium text-[#64748b]">
+                편집 원본
+              </span>
+            </div>
+            <ServicePriceGuideEditor
+              value={{ ...serviceForm.priceGuide, enabled: true }}
+              onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
+              framed={false}
+              showHeader={false}
+              showEnabledToggle={false}
+            />
+          </div>
+        </div>
       </section>
 
       {formError ? <p className="text-[13px] font-medium text-[#b91c1c]">{formError}</p> : null}
@@ -1073,7 +1096,7 @@ export default function ServiceManagementScreen({
   if (embedded) return content;
 
   return (
-    <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} ownerProfile={ownerProfile}>
+    <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
       {content}
     </CustomerPagePreviewLayout>
   );

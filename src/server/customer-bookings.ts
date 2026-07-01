@@ -76,6 +76,15 @@ const customerBookingUpdateSchema = z.discriminatedUnion("action", [
     appointmentTime: z.string().min(1),
     memo: z.string().optional().default(""),
   }),
+  z.object({
+    action: z.literal("update_memo"),
+    shopId: z.string().min(1),
+    appointmentId: z.string().min(1),
+    phone: z.string().trim().min(10),
+    guardianName: z.string().trim().min(1),
+    petName: z.string().trim().min(1),
+    memo: z.string().optional().default(""),
+  }),
 ]);
 
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
@@ -88,13 +97,19 @@ function buildAppointmentWindow(date: string, time: string, durationMinutes: num
 }
 
 function canManageAppointment(appointment: Appointment) {
-  if (!["pending", "confirmed"].includes(appointment.status)) return false;
+  if (appointment.status !== "confirmed") return false;
 
   const today = currentDateInTimeZone();
   if (appointment.appointment_date > today) return true;
   if (appointment.appointment_date < today) return false;
 
   return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
+}
+
+function getGuardianPetsForProfile(bootstrap: Awaited<ReturnType<typeof getBootstrap>>, guardianId: string) {
+  return bootstrap.pets
+    .filter((pet) => pet.guardian_id === guardianId)
+    .map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed }));
 }
 
 function cancelWindowMinutes(value: NonNullable<Shop["reservation_policy_settings"]>["cancel_window"] | string | null | undefined) {
@@ -600,12 +615,22 @@ export async function createCustomerBooking(input: unknown) {
     appointmentId: appointment.id,
     guardianId: appointment.guardian_id,
     petId: appointment.pet_id,
+    type: "booking_confirmed",
+    channel: "alimtalk",
+    skipIfExists: true,
+  });
+
+  scheduleCustomerBookingNotification({
+    shopId: appointment.shop_id,
+    appointmentId: appointment.id,
+    guardianId: appointment.guardian_id,
+    petId: appointment.pet_id,
     type: "owner_booking_requested",
     channel: "in_app",
     force: true,
     skipIfExists: true,
     message: [
-      "새 예약이 접수되었어요.",
+      "새 예약이 확정되었어요.",
       `${payload.guardianName.trim()} / ${payload.petName.trim()}`,
       `${payload.appointmentDate} ${formatClockTime(payload.appointmentTime)}`,
     ].join("\n"),
@@ -623,11 +648,17 @@ export async function createCustomerBooking(input: unknown) {
     guardianId: entityIds.guardianId,
     petId: entityIds.petId,
   });
+  const updatedBootstrap = await getBootstrap(payload.shopId, {
+    includeNotifications: false,
+    includeGroomingRecords: false,
+    includeLanding: false,
+  });
 
   return {
     appointment,
     bookingAccessToken,
     bookingManageUrl: buildBookingManageUrl(payload.shopId, bookingAccessToken),
+    profilePets: getGuardianPetsForProfile(updatedBootstrap, entityIds.guardianId),
   };
 }
 
@@ -665,6 +696,29 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
   };
 }
 
+export async function lookupCustomerBookingProfile(shopId: string, phone: string, guardianName: string) {
+  const normalizedPhone = normalizePhone(phone);
+  const normalizedGuardianName = normalizeName(guardianName);
+  const bootstrap = await getBootstrap(shopId);
+  const scopedGuardians = bootstrap.guardians.filter(
+    (guardian) => matchPhone(guardian.phone, normalizedPhone) && matchName(guardian.name, normalizedGuardianName),
+  );
+
+  if (scopedGuardians.length === 0) {
+    throw new Error("연락처와 보호자 이름이 일치하는 고객 정보를 찾지 못했어요.");
+  }
+
+  const scopedGuardianIds = new Set(scopedGuardians.map((guardian) => guardian.id));
+  const scopedPets = bootstrap.pets.filter((pet) => scopedGuardianIds.has(pet.guardian_id));
+
+  return {
+    guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
+    pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
+    appointments: [],
+    groomingRecords: [],
+  };
+}
+
 export async function lookupCustomerBookingsByToken(shopId: string, token: string) {
   const payload = verifyBookingAccessToken(token);
   if (payload.shopId !== shopId) {
@@ -679,12 +733,14 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     throw new Error("예약 정보를 찾지 못했어요.");
   }
 
-  const scopedAppointments = bootstrap.appointments.filter((appointment) => appointment.pet_id === pet.id);
-  const groomingRecords = bootstrap.groomingRecords.filter((record) => record.pet_id === pet.id);
+  const scopedPets = getGuardianPetsForProfile(bootstrap, guardian.id);
+  const scopedPetIds = new Set(scopedPets.map((item) => item.id));
+  const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedPetIds.has(appointment.pet_id));
+  const groomingRecords = bootstrap.groomingRecords.filter((record) => scopedPetIds.has(record.pet_id));
 
   return {
     guardians: [{ id: guardian.id, name: guardian.name, phone: guardian.phone }],
-    pets: [{ id: pet.id, name: pet.name, guardian_id: pet.guardian_id, breed: pet.breed }],
+    pets: scopedPets,
     appointments: scopedAppointments,
     groomingRecords,
     access: {
@@ -793,6 +849,19 @@ export async function updateCustomerBooking(input: unknown) {
     return updated;
   }
 
+  if (payload.action === "update_memo") {
+    const nextValues = {
+      memo: payload.memo.trim(),
+      updated_at: nowIso(),
+    };
+
+    if (bootstrap.mode !== "supabase" || !hasSupabaseServerEnv()) {
+      return updateMockAppointment(payload.appointmentId, (current) => ({ ...current, ...nextValues }));
+    }
+
+    return updateSupabaseAppointment(payload.appointmentId, nextValues);
+  }
+
   const service = bootstrap.services.find((item) => item.id === payload.serviceId);
   if (!service) {
     throw new Error("서비스 정보를 찾을 수 없습니다.");
@@ -820,7 +889,7 @@ export async function updateCustomerBooking(input: unknown) {
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     memo: payload.memo.trim(),
-    status: (bootstrap.shop.approval_mode === "auto" ? "confirmed" : "pending") as Appointment["status"],
+    status: "confirmed" as const,
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,
@@ -842,14 +911,12 @@ export async function updateCustomerBooking(input: unknown) {
   }
 
   const updated = await updateSupabaseAppointment(payload.appointmentId, nextValues);
-  if (updated.status === "confirmed") {
-    await dispatchNotification({
-      shopId: updated.shop_id,
-      appointmentId: updated.id,
-      guardianId: updated.guardian_id,
-      petId: updated.pet_id,
-      type: "booking_rescheduled_confirmed",
-    });
-  }
+  await dispatchNotification({
+    shopId: updated.shop_id,
+    appointmentId: updated.id,
+    guardianId: updated.guardian_id,
+    petId: updated.pet_id,
+    type: "booking_rescheduled_confirmed",
+  });
   return updated;
 }

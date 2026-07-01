@@ -1,6 +1,5 @@
 ﻿export type ApprovalMode = "manual" | "auto";
 export type AppointmentStatus =
-  | "pending"
   | "confirmed"
   | "in_progress"
   | "almost_done"
@@ -18,6 +17,8 @@ export type NotificationType =
   | "booking_time_proposed"
   | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
+  | "visit_schedule_notice"
+  | "visit_reminder_notice"
   | "grooming_started"
   | "grooming_almost_done"
   | "grooming_completed"
@@ -38,6 +39,7 @@ export type MediaKind =
   | "grooming_result"
   | "message_image"
   | "shop_profile"
+  | "staff_profile"
   | "customer_shared"
   | "memo_attachment";
 export type MediaVisibility = "private" | "customer_shared" | "public";
@@ -164,7 +166,6 @@ export type RegularClosedCycle = "weekly" | "biweekly" | "monthly_1_3" | "monthl
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
   customer_change_enabled: boolean;
-  pending_hold_limit?: 1;
   booking_blocked_windows?: BookingBlockedWindow[];
   regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
@@ -337,6 +338,8 @@ export type BootstrapStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  profileImageUrls?: string[];
+  profileImageAssetIds?: string[];
   profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;

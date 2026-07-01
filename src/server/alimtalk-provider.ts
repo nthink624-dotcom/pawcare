@@ -156,9 +156,19 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
   });
 
   if (serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) {
+    const relayTemplateKey = input.templateKey?.trim() || null;
+    if (serverEnv.alimtalkProvider === "ssodaa" && !relayTemplateKey) {
+      throw new Error(
+        input.templateAlias
+          ? `알림톡 템플릿 코드가 연결되지 않았습니다. 관리자 알림톡 설정에서 ${input.templateAlias} 템플릿 코드를 먼저 연결해 주세요.`
+          : "알림톡 템플릿 코드가 연결되지 않았습니다.",
+      );
+    }
+
     console.log("[alimtalk-provider] relay fetch start", {
       relayUrlHost,
       templateAlias: input.templateAlias ?? null,
+      templateKey: relayTemplateKey,
       phoneTail: getPhoneTail(input.to),
     });
 
@@ -172,8 +182,8 @@ export async function sendAlimtalkMessage(input: SendAlimtalkInput): Promise<Sen
         body: JSON.stringify({
           to: input.to,
           message: input.message,
-          templateAlias: input.templateAlias ?? null,
-          templateKey: input.templateKey ?? null,
+          templateAlias: relayTemplateKey ? null : input.templateAlias ?? null,
+          templateKey: relayTemplateKey,
           templateType: input.templateType ?? null,
           senderChannelMode: input.senderChannelMode ?? "petmanager",
           senderProfileKey: input.senderProfileKey ?? null,

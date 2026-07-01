@@ -9,7 +9,6 @@ import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-act
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
 import AdminAlimtalkShopChannelPanel from "@/components/admin/admin-alimtalk-shop-channel-panel";
 import AdminAlimtalkTemplateComparisonPanel from "@/components/admin/admin-alimtalk-template-comparison-panel";
-import AdminAlimtalkTemplateRegistrationPanel from "@/components/admin/admin-alimtalk-template-registration-panel";
 import { fetchApiJson } from "@/lib/api";
 import { ALIMTALK_NOTIFICATION_REGISTRY, type AlimtalkTemplateAlias, type AlimtalkTemplateConfigKey } from "@/lib/notification-registry";
 import type {
@@ -42,33 +41,38 @@ const relayFieldGroups: Array<{
   },
 ];
 
-const appFieldGroups: Array<{
+const appRuntimeFieldGroups: Array<{
   title: string;
   description: string;
-  fields: Array<{ key: keyof AppAlimtalkConfig; label: string }>;
+  fields: Array<{ key: keyof AppAlimtalkConfig; label: string; sensitive?: boolean }>;
 }> = [
   {
-    title: "앱 서버 연결값",
-    description: "Vercel 서버가 현재 읽고 있는 환경변수입니다. 이 영역은 확인용이며 저장 버튼으로 바뀌지 않습니다.",
+    title: "현재 발송 서버 설정",
+    description: "PetManager 서버가 실제 발송 시 읽는 값입니다. 확인용이라 이 화면에서 직접 수정하지 않습니다.",
     fields: [
-      { key: "provider", label: "Provider" },
-      { key: "relayUrl", label: "Relay URL" },
-      { key: "relaySecret", label: "Relay Secret" },
-      { key: "apiUrl", label: "API URL" },
-      { key: "apiKey", label: "API Key" },
-      { key: "tokenKey", label: "Token Key" },
-      { key: "senderKey", label: "Sender Key" },
+      { key: "provider", label: "발송 방식" },
+      { key: "relayUrl", label: "릴레이 발송 주소" },
+      { key: "relaySecret", label: "릴레이 인증값", sensitive: true },
+      { key: "apiUrl", label: "쏘다 API 주소" },
+      { key: "apiKey", label: "쏘다 API Key", sensitive: true },
+      { key: "tokenKey", label: "쏘다 Token Key", sensitive: true },
+      { key: "senderKey", label: "쏘다 Sender Key", sensitive: true },
     ],
   },
+];
+
+const appTemplateCodeFieldGroups: Array<{
+  fields: Array<{ key: AlimtalkTemplateConfigKey; label: string }>;
+}> = [
   {
-    title: "앱 서버 템플릿 코드",
-    description: "앱 서버 환경변수에 직접 들어있는 템플릿 코드입니다. 현재 구조에서는 릴레이 매핑이 우선 운영 기준입니다.",
     fields: [
       { key: "templateBookingConfirmed", label: "예약 확정" },
       { key: "templateBookingRejected", label: "예약 거절" },
       { key: "templateBookingCancelled", label: "예약 취소" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
-      { key: "templateAppointmentReminder10m", label: "방문 전 알림" },
+      { key: "templateAppointmentReminder10m", label: "방문 안내 호환용" },
+      { key: "templateVisitScheduleNotice", label: "예약 일정 안내" },
+      { key: "templateVisitReminderNotice", label: "방문 예정 안내" },
       { key: "templateGroomingStarted", label: "미용 시작" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진" },
@@ -88,6 +92,7 @@ function TextField({
   readOnly = false,
   placeholder,
   help,
+  sensitive = false,
 }: {
   label: string;
   value: string;
@@ -95,14 +100,19 @@ function TextField({
   readOnly?: boolean;
   placeholder?: string;
   help?: string;
+  sensitive?: boolean;
 }) {
+  const displayValue = readOnly && sensitive ? (value.trim() ? "설정됨" : "미설정") : value;
+
   return (
     <label className="space-y-2">
       <span className="text-[14px] font-semibold text-[#6f665f]">{label}</span>
       <textarea
-        value={value}
+        value={displayValue}
         readOnly={readOnly}
-        onChange={(event) => onChange?.(event.target.value)}
+        onChange={(event) => {
+          if (!readOnly) onChange?.(event.target.value);
+        }}
         placeholder={placeholder}
         rows={2}
         className={`w-full rounded-[6px] border px-4 py-3 font-mono text-[14px] leading-5 outline-none ${
@@ -111,6 +121,8 @@ function TextField({
             : "border-[#d8d4ce] bg-white text-[#171411] focus:border-[#1f6b5b]"
         }`}
       />
+      {help ? <p className="text-[12px] leading-5 text-[#8a8277]">{help}</p> : null}
+      {readOnly && sensitive ? <p className="text-[12px] leading-5 text-[#8a8277]">보안상 실제 값은 숨겨서 표시합니다.</p> : null}
     </label>
   );
 }
@@ -189,7 +201,7 @@ export default function AdminAlimtalkScreen({
       });
       setRelayTemplateItems(response.items);
       setAllSsodaaTemplates(response.allTemplates ?? []);
-      setTemplateError(null);
+      setTemplateError(response.relayError ?? null);
     } catch (nextError) {
       setTemplateError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 상세를 불러오지 못했습니다.");
     } finally {
@@ -230,6 +242,10 @@ export default function AdminAlimtalkScreen({
 
   function updateField(key: keyof RelayAdminConfig, value: string) {
     setRelayConfig((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  function getCurrentTemplateCode(key: AlimtalkTemplateConfigKey) {
+    return relayConfig?.[key] ?? appConfig[key] ?? "";
   }
 
   async function handleSaveAppTemplate(alias: AlimtalkTemplateAlias, body: string) {
@@ -324,14 +340,29 @@ export default function AdminAlimtalkScreen({
           onSelectTemplate={handleSelectRelayTemplate}
         />
 
+        <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] border border-[#e6e3dd] bg-white text-[#52667d]">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">템플릿 설정</p>
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">현재 발송에 사용하는 템플릿 코드</h2>
+              <p className="mt-2 text-[14px] leading-6 text-[#7a7268]">
+                여기 적힌 코드가 실제 발송 요청에 들어갑니다. 연결 가능한 쏘다 템플릿에서 연결하면 이 값도 함께 바뀝니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {appTemplateCodeFieldGroups.flatMap((group) => group.fields).map((field) => (
+              <TextField key={field.key} label={field.label} value={getCurrentTemplateCode(field.key)} readOnly />
+            ))}
+          </div>
+        </section>
+
         <AdminCollapsibleSection title="고급 설정">
           <section className="grid gap-5">
-            <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
-              <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[#171411]">템플릿 등록</h3>
-              <div className="mt-4">
-                <AdminAlimtalkTemplateRegistrationPanel onRegistered={() => void loadRelayTemplates()} />
-              </div>
-            </div>
             <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
               <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[#171411]">연결값</h3>
               <div className="mt-4">
@@ -401,20 +432,20 @@ export default function AdminAlimtalkScreen({
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">앱 서버(Vercel)</p>
-                  <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">현재 읽히는 환경변수</h3>
+                  <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">발송 서버</p>
+                  <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[#171411]">현재 적용 중인 설정</h3>
                 </div>
               </div>
 
               <div className="mt-5 space-y-5">
-                {appFieldGroups.map((group) => (
+                {appRuntimeFieldGroups.map((group) => (
                   <section key={group.title} className="rounded-[6px] border border-[#e6e3dd] bg-white p-5">
                     <div className="space-y-1">
                       <h4 className="text-[16px] font-semibold text-[#171411]">{group.title}</h4>
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {group.fields.map((field) => (
-                        <TextField key={field.key} label={field.label} value={appConfig[field.key]} readOnly />
+                        <TextField key={field.key} label={field.label} value={appConfig[field.key]} readOnly sensitive={field.sensitive} />
                       ))}
                     </div>
                   </section>

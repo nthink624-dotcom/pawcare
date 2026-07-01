@@ -13,7 +13,7 @@ type DailyBooking = {
   duration: number;
 };
 
-type BookingCardTone = "confirmed" | "active" | "pending" | "completed" | "changed" | "cancelled";
+type BookingCardTone = "confirmed" | "active" | "completed" | "changed" | "cancelled";
 
 type ScheduleDaySummary = {
   date: string;
@@ -78,7 +78,7 @@ function getScheduleMonthLabel(referenceDate = todayScheduleDate) {
 }
 
 function isPendingBookingStatus(status: string) {
-  return status === "승인 대기" || status === "예약 요청";
+  return false;
 }
 
 function isCompletedBookingStatus(status: string) {
@@ -90,7 +90,6 @@ function isChangeBookingStatus(status: string) {
 }
 
 function getBookingCardTone(status: string): BookingCardTone {
-  if (isPendingBookingStatus(status)) return "pending";
   if (status === "진행 중" || status === "픽업 준비") return "active";
   if (isCompletedBookingStatus(status)) return "completed";
   if (isChangeBookingStatus(status)) return "changed";
@@ -101,7 +100,6 @@ function getBookingCardTone(status: string): BookingCardTone {
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
   const base = "bg-white border-[#dbe2ea] hover:border-[#c5d0dc]";
   const selectedClass = selected ? "ring-1 ring-[#94a3b8]/35" : "";
-  if (tone === "pending") return cn(base, "border-[#e7c980]", selectedClass);
   if (tone === "active") return cn(base, "border-[#a8cfc4]", selectedClass);
   if (tone === "completed") return cn(base, "border-[#d2d9e3]", selectedClass);
   if (tone === "changed") return cn(base, "border-[#e0b7c1]", selectedClass);
@@ -110,7 +108,6 @@ function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
 }
 
 function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
-  if (tone === "pending") return "amber";
   if (tone === "changed" || tone === "cancelled") return "burgundy";
   if (tone === "completed") return "slate";
   if (tone === "active" || tone === "confirmed") return "teal";
@@ -118,7 +115,6 @@ function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
 }
 
 function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "pending") return "text-[#9f6f00]";
   if (tone === "changed" || tone === "cancelled") return "text-[#8f2438]";
   if (tone === "completed") return "text-[#64748b]";
   return "text-[#1f6b5b]";
@@ -132,11 +128,10 @@ function getBookingCounts(bookings: DailyBooking[]) {
   return bookings.reduce(
     (counts, booking) => ({
       total: counts.total + 1,
-      pending: counts.pending + (isPendingBookingStatus(booking.status) ? 1 : 0),
       changes: counts.changes + (isChangeBookingStatus(booking.status) ? 1 : 0),
       completed: counts.completed + (isCompletedBookingStatus(booking.status) ? 1 : 0),
     }),
-    { total: 0, pending: 0, changes: 0, completed: 0 },
+    { total: 0, changes: 0, completed: 0 },
   );
 }
 
@@ -169,11 +164,10 @@ function sumDayCounts(days: ScheduleDaySummary[]) {
   return days.reduce(
     (total, day) => ({
       total: total.total + day.counts.total,
-      pending: total.pending + day.counts.pending,
       changes: total.changes + day.counts.changes,
       completed: total.completed + day.counts.completed,
     }),
-    { total: 0, pending: 0, changes: 0, completed: 0 },
+    { total: 0, changes: 0, completed: 0 },
   );
 }
 
@@ -193,11 +187,9 @@ function WeeklySummaryMetric({ label, value }: { label: string; value: string })
   );
 }
 
-function SmallCount({ label, value, tone }: { label: string; value: number; tone: "pending" | "change" | "done" }) {
+function SmallCount({ label, value, tone }: { label: string; value: number; tone: "change" | "done" }) {
   const toneClass =
-    tone === "pending"
-      ? "bg-[#fff7d6] text-[#9f6f00]"
-      : tone === "change"
+    tone === "change"
         ? "bg-[#f8eef1] text-[#8f2438]"
         : "bg-[#e6f3ef] text-[#1f6b5b]";
 
@@ -232,11 +224,10 @@ export function WeeklyScheduleOverview({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[18px] font-semibold text-[#111827]">이번 주 예약 흐름</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">요일별 예약 밀도와 승인 대기, 변경/취소만 빠르게 확인합니다.</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">요일별 예약 밀도와 변경/취소, 완료 흐름을 빠르게 확인합니다.</p>
             </div>
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-2 text-center">
               <WeeklySummaryMetric label="예약" value={`${weekCounts.total}건`} />
-              <WeeklySummaryMetric label="대기" value={`${weekCounts.pending}건`} />
               <WeeklySummaryMetric label="변경/취소" value={`${weekCounts.changes}건`} />
               <WeeklySummaryMetric label="완료" value={`${weekCounts.completed}건`} />
             </div>
@@ -251,7 +242,7 @@ export function WeeklyScheduleOverview({
                 <div key={day.date} className="flex items-center justify-between rounded-[8px] bg-[#f8fafc] px-3 py-2">
                   <div>
                     <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
-                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 변경 {day.counts.changes}건</p>
                   </div>
                   <span className={cn("h-2.5 w-2.5 rounded-full", getLoadTone(day.counts.total))} />
                 </div>
@@ -288,8 +279,7 @@ export function WeeklyScheduleOverview({
                 <div className={cn("h-full rounded-full", getLoadTone(counts.total))} style={{ width: `${Math.min(100, counts.total * 12)}%` }} />
               </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-1 text-center">
-                <SmallCount label="대기" value={counts.pending} tone="pending" />
+              <div className="mt-3 grid grid-cols-2 gap-1 text-center">
                 <SmallCount label="변경" value={counts.changes} tone="change" />
                 <SmallCount label="완료" value={counts.completed} tone="done" />
               </div>
@@ -362,11 +352,10 @@ export function MonthlyScheduleOverview({
       <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <p className="text-[18px] font-medium text-[#111827]">{getScheduleMonthLabel(selectedDate)}</p>
-          <p className="mt-1 text-[13px] text-[#64748b]">한 달 예약 밀도와 승인 대기, 변경/취소가 있는 날짜를 확인합니다.</p>
-          <div className="mt-3 grid max-w-[520px] grid-cols-4 gap-2">
+          <p className="mt-1 text-[13px] text-[#64748b]">한 달 예약 밀도와 변경/취소가 있는 날짜를 확인합니다.</p>
+          <div className="mt-3 grid max-w-[520px] grid-cols-3 gap-2">
             <WeeklySummaryMetric label="예약" value={`${monthCounts.total}건`} />
             <WeeklySummaryMetric label="예약일" value={`${activeDayCount}일`} />
-            <WeeklySummaryMetric label="대기" value={`${monthCounts.pending}건`} />
             <WeeklySummaryMetric label="변경" value={`${monthCounts.changes}건`} />
           </div>
         </div>
@@ -384,7 +373,7 @@ export function MonthlyScheduleOverview({
                 >
                   <div>
                     <p className="text-[13px] font-medium text-[#111827]">{formatScheduleShortDate(day.date)}</p>
-                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 대기 {day.counts.pending}건</p>
+                    <p className="mt-0.5 text-[12px] text-[#64748b]">예약 {day.counts.total}건 · 변경 {day.counts.changes}건</p>
                   </div>
                   <span className="text-[12px] font-semibold text-[#1f6b5b]">{getLoadLabel(day.counts.total)}</span>
                 </button>
@@ -399,7 +388,6 @@ export function MonthlyScheduleOverview({
       <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] text-[#64748b]">
         <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("teal")} />예약 많음</span>
         <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("neutral")} />예약 있음</span>
-        <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("amber")} />승인 대기</span>
         <span className="inline-flex items-center gap-1"><span className={getMiniWrapIndicatorClass("burgundy")} />변경/취소</span>
       </div>
 
@@ -443,11 +431,9 @@ export function MonthlyScheduleOverview({
 
               <div className="mt-3 space-y-1">
                 {counts.total > 0 ? <p className="truncate text-[12px] font-medium text-[#111827]">{getLoadLabel(counts.total)}</p> : null}
-                {counts.pending > 0 ? <p className="truncate text-[11px] text-[#9f6f00]">승인 대기 {counts.pending}건</p> : null}
                 {counts.changes > 0 ? <p className="truncate text-[11px] text-[#8f2438]">변경/취소 {counts.changes}건</p> : null}
               </div>
               <div className="mt-3 flex gap-1">
-                {counts.pending > 0 ? <span className={getMiniWrapIndicatorClass("amber")} /> : null}
                 {counts.changes > 0 ? <span className={getMiniWrapIndicatorClass("burgundy")} /> : null}
                 {counts.completed > 0 ? <span className={getMiniWrapIndicatorClass("slate")} /> : null}
               </div>

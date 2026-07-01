@@ -10,6 +10,7 @@ type MediaStorageDirectoryInput = {
   guardianId?: string | null;
   petId?: string | null;
   appointmentId?: string | null;
+  staffId?: string | null;
 };
 
 function getYearMonth(createdAt: MediaStorageDateInput) {
@@ -25,6 +26,11 @@ function getYearMonth(createdAt: MediaStorageDateInput) {
 function mediaScopePath(params: MediaStorageDirectoryInput) {
   if (params.mediaKind === "shop_profile") {
     return "shop-profile";
+  }
+
+  if (params.mediaKind === "staff_profile") {
+    const staffId = params.staffId?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || "unassigned";
+    return `staff-profiles/${staffId}`;
   }
 
   if (params.appointmentId) {

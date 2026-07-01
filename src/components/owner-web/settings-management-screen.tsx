@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -25,10 +25,11 @@ import {
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
-import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
+import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
+import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { ApprovalMode, BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -116,8 +117,12 @@ function buildAlertSettingsDraft(settings: Partial<ShopNotificationSettings> | n
     bookingRejectedEnabled: normalized.booking_rejected_enabled,
     bookingCancelledEnabled: normalized.booking_cancelled_enabled,
     bookingRescheduledEnabled: normalized.booking_rescheduled_enabled,
-    appointmentReminder10mEnabled: normalized.appointment_reminder_10m_enabled,
-    appointmentReminder10mMode: normalized.appointment_reminder_10m_mode,
+    appointmentReminder10mEnabled:
+      normalized.appointment_reminder_10m_enabled && normalized.appointment_reminder_10m_mode === "auto",
+    appointmentReminder10mMode:
+      normalized.appointment_reminder_10m_enabled && normalized.appointment_reminder_10m_mode === "auto"
+        ? "auto"
+        : "manual",
     visitReminderOffsetMinutes: normalized.visit_reminder_offset_minutes,
     groomingStartedEnabled: normalized.grooming_started_enabled,
     groomingAlmostDoneEnabled: normalized.grooming_almost_done_enabled,
@@ -147,7 +152,7 @@ function alertSettingsDraftToShopSettings(draft: AlertSettingsDraft): ShopNotifi
     booking_cancelled_enabled: draft.bookingCancelledEnabled,
     booking_rescheduled_enabled: draft.bookingRescheduledEnabled,
     appointment_reminder_10m_enabled: draft.appointmentReminder10mEnabled,
-    appointment_reminder_10m_mode: draft.appointmentReminder10mMode,
+    appointment_reminder_10m_mode: draft.appointmentReminder10mEnabled ? "auto" : "manual",
     visit_reminder_offset_minutes: draft.visitReminderOffsetMinutes,
     grooming_started_enabled: draft.groomingStartedEnabled,
     grooming_almost_done_enabled: draft.groomingAlmostDoneEnabled,
@@ -334,18 +339,17 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
       },
       {
         id: "slotPolicy",
-        label: "승인 방식",
+        label: "예약 방식",
         value: "같은 시간대 1건만 접수",
-        description: "확정 예약과 승인대기 예약 모두 같은 시간 구간에 1건만 받을 수 있습니다.",
+        description: "고객에게 실제 가능한 시간만 보여주고, 선택 즉시 예약이 확정됩니다.",
         control: "readonly",
       },
       {
         id: "approvalMode",
-        label: "승인 방식",
-        value: "직접 승인",
-        description: "예약 요청 후 오너가 직접 확정하는 운영 방식",
-        control: "select",
-        options: ["직접 승인", "바로 승인"],
+        label: "예약 확정",
+        value: "자동 확정",
+        description: "고객 예약은 승인 대기 없이 바로 스케줄에 등록됩니다.",
+        control: "readonly",
       },
       {
         id: "cancelWindow",
@@ -477,8 +481,36 @@ function isLocalPreviewImageUrl(imageUrl: string) {
   return imageUrl.startsWith("data:");
 }
 
+function isExpiringMediaSignedUrl(imageUrl: string) {
+  try {
+    const parsedUrl = new URL(imageUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+    const path = parsedUrl.pathname.toLowerCase();
+    const params = parsedUrl.searchParams;
+
+    return (
+      host.includes("r2.cloudflarestorage.com") ||
+      path.includes("/storage/v1/object/sign/") ||
+      params.has("X-Amz-Signature") ||
+      params.has("X-Amz-Credential") ||
+      params.has("X-Amz-Expires") ||
+      params.has("token")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isRemotePersistableImageUrl(imageUrl: string) {
-  return !isLocalPreviewImageUrl(imageUrl) && imageUrl.length <= 2000;
+  return !isLocalPreviewImageUrl(imageUrl) && !isExpiringMediaSignedUrl(imageUrl) && imageUrl.length <= 2000;
+}
+
+function alignShopProfileImageAssetIds(imageCount: number, mediaAssetIds: string[]) {
+  const ids = mediaAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+  const count = Math.min(Math.max(imageCount, ids.length), ownerWebShopProfileImagesMaxCount);
+  if (count === 0) return [];
+  if (ids.length >= count) return ids.slice(0, count);
+  return Array.from({ length: count - ids.length }, () => "").concat(ids).slice(0, count);
 }
 
 function readImageFileAsDataUrl(file: File) {
@@ -498,6 +530,14 @@ function shouldFallbackToLocalProfileImage(error: unknown) {
     message.includes("storage") ||
     message.includes("Supabase 서버 설정")
   );
+}
+
+async function resolveShopProfileImageUrlFromAssetId(shopId: string, mediaAssetId: string) {
+  try {
+    return await getOwnerMediaSignedUrl(shopId, mediaAssetId, "provider_ready");
+  } catch {
+    return getOwnerMediaSignedUrl(shopId, mediaAssetId, "original");
+  }
 }
 
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
@@ -606,6 +646,16 @@ function buildServicePayload(shopId: string, service: Service, priceGuide: unkno
 
 function optionItemId(option: CustomerServiceSourceOption) {
   return option.id.includes(":") ? option.id.split(":").slice(1).join(":") : option.id;
+}
+
+function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
+  return [
+    option.category,
+    option.sourceName,
+    option.durationMinutes,
+    option.price,
+    option.priceType,
+  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
 }
 
 function buildCustomerServiceOverrideBaseline(
@@ -946,10 +996,12 @@ export default function SettingsManagementScreen({
   showTabNavigation = true,
   shop,
   services = [],
+  staffMembers = [],
   ownerProfile,
   onShopChange,
   onOwnerProfileChange,
   onServicesChange,
+  onStaffMembersChange,
   persistShopProfile = true,
   manualApprovalEnabled,
   onManualApprovalChange,
@@ -960,10 +1012,12 @@ export default function SettingsManagementScreen({
   showTabNavigation?: boolean;
   shop?: Shop;
   services?: Service[];
+  staffMembers?: BootstrapStaffMember[];
   ownerProfile?: OwnerProfile | null;
   onShopChange?: (shop: Shop) => void;
   onOwnerProfileChange?: (profile: OwnerProfile) => void;
   onServicesChange?: (services: Service[]) => void;
+  onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
   persistShopProfile?: boolean;
   manualApprovalEnabled?: boolean;
   onManualApprovalChange?: (enabled: boolean) => void;
@@ -977,6 +1031,7 @@ export default function SettingsManagementScreen({
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
   const [shopInfoFeedback, setShopInfoFeedback] = useState("");
+  const [previewServices, setPreviewServices] = useState<Service[]>(services);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
   const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
     normalizeCustomerServiceOverrides(shop?.customer_page_settings.customer_service_overrides),
@@ -995,6 +1050,8 @@ export default function SettingsManagementScreen({
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileImageServerSyncKeyRef = useRef("");
+  const profileImageAssetUrlSyncKeyRef = useRef("");
+  const profileImageMediaAssetRecoveryKeyRef = useRef("");
 
   useEffect(() => {
     if (isShopInfoDirty || savingShopInfo || addressSheetOpen) {
@@ -1006,21 +1063,23 @@ export default function SettingsManagementScreen({
       const storedProfileImages = window.localStorage.getItem(ownerWebShopProfileImagesStorageKey);
       const storedProfileImage = window.localStorage.getItem(ownerWebShopProfileImageStorageKey);
       const frame = window.requestAnimationFrame(() => {
+        let nextProfileImages: string[] = [];
         if (storedSettings) {
           const nextSettings = mergeSettingsWithDefaults(JSON.parse(storedSettings), shop);
           setDraftSettings(cloneSettings(nextSettings));
         }
 
         if (shop?.customer_page_settings.hero_image_urls?.length) {
-          setShopProfileImages(normalizeShopProfileImages(shop.customer_page_settings.hero_image_urls));
+          nextProfileImages = normalizeShopProfileImages(shop.customer_page_settings.hero_image_urls);
         } else if (shop?.customer_page_settings.hero_image_url) {
-          setShopProfileImages([shop.customer_page_settings.hero_image_url]);
+          nextProfileImages = [shop.customer_page_settings.hero_image_url];
         } else if (storedProfileImages) {
-          setShopProfileImages(normalizeShopProfileImages(JSON.parse(storedProfileImages)));
+          nextProfileImages = normalizeShopProfileImages(JSON.parse(storedProfileImages));
         } else if (storedProfileImage) {
-          setShopProfileImages([storedProfileImage]);
+          nextProfileImages = [storedProfileImage];
         }
-        setShopProfileImageAssetIds((shop?.customer_page_settings.hero_media_asset_ids ?? []).filter(Boolean).slice(0, 10));
+        setShopProfileImages(nextProfileImages);
+        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(nextProfileImages.length, shop?.customer_page_settings.hero_media_asset_ids ?? []));
       });
       setIsShopInfoDirty(false);
       setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
@@ -1052,6 +1111,12 @@ export default function SettingsManagementScreen({
   }, [shop?.id, shop?.customer_page_settings.customer_service_overrides]);
 
   useEffect(() => {
+    setPreviewServices((currentServices) =>
+      JSON.stringify(currentServices) === JSON.stringify(services) ? currentServices : services,
+    );
+  }, [services]);
+
+  useEffect(() => {
     const nextCoupons = normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons);
     setSavedDiscountCoupons(nextCoupons);
     setDiscountCouponDrafts(nextCoupons);
@@ -1062,7 +1127,7 @@ export default function SettingsManagementScreen({
   const current = useMemo(() => {
     return draftSettings[activeTab] ?? initialSettings[activeTab];
   }, [activeTab, draftSettings]);
-  const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(services, { priceGuideOnly: true }), [services]);
+  const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(previewServices, { priceGuideOnly: true }), [previewServices]);
   const customerServiceConnectionOptions = useMemo(
     () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
     [rawCustomerServiceConnectionOptions],
@@ -1114,7 +1179,9 @@ export default function SettingsManagementScreen({
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
-    const heroMediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
+    const heroMediaAssetIds = alignShopProfileImageAssetIds(heroImageUrls.length, shopProfileImageAssetIds)
+      .filter(Boolean)
+      .slice(0, heroImageUrls.length || 10);
     const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
     const heroImageUrl = heroImageUrls[0] ?? "";
     const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
@@ -1130,7 +1197,6 @@ export default function SettingsManagementScreen({
               ...shop.reservation_policy_settings,
               cancel_window: policyPatch.cancelWindow,
               customer_change_enabled: policyPatch.cancelWindow !== "none",
-              pending_hold_limit: policyPatch.pendingHoldLimit,
             },
           }
         : {}),
@@ -1213,7 +1279,8 @@ export default function SettingsManagementScreen({
     if (!shop || !persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") return;
 
     const heroImageUrls = normalizeShopProfileImages(nextImages);
-    const heroMediaAssetIds = nextMediaAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
+    const alignedMediaAssetIds = alignShopProfileImageAssetIds(heroImageUrls.length, nextMediaAssetIds);
+    const heroMediaAssetIds = alignedMediaAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
     const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
     const result = await fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
       method: "PATCH",
@@ -1260,6 +1327,117 @@ export default function SettingsManagementScreen({
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 고객 페이지에 반영하지 못했습니다.");
     });
   }, [persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
+
+  useEffect(() => {
+    if (!shop || !persistShopProfile || savingShopInfo) return;
+
+    const mediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+    const currentImages = normalizeShopProfileImages(shopProfileImages);
+    if (mediaAssetIds.length <= currentImages.length) return;
+
+    const syncKey = `${shop.id}:${mediaAssetIds.join("|")}:${currentImages.length}`;
+    if (profileImageAssetUrlSyncKeyRef.current === syncKey) return;
+    profileImageAssetUrlSyncKeyRef.current = syncKey;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void Promise.all(
+        mediaAssetIds.map((mediaAssetId) =>
+          resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
+            console.error("[OWNER SETTINGS] failed to recover a shop profile image URL", error);
+            return "";
+          }),
+        ),
+      )
+        .then((signedUrls) => {
+        if (cancelled) return;
+        const nextImages = normalizeShopProfileImages([...currentImages, ...signedUrls]);
+        if (nextImages.length <= currentImages.length) return;
+        const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, mediaAssetIds);
+        setShopProfileImages(nextImages);
+        setShopProfileImageAssetIds(nextMediaAssetIds);
+        persistSettings(draftSettings, nextImages);
+        void persistShopProfileImageSettings(nextImages, nextMediaAssetIds).catch((error) => {
+          console.error("[OWNER SETTINGS] failed to persist recovered shop profile images", error);
+          setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 고객 페이지에 반영하지 못했습니다.");
+        });
+      })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to recover shop profile image URLs", error);
+          setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
+        });
+    }, 900);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [draftSettings, persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
+
+  useEffect(() => {
+    if (!shop || !persistShopProfile || savingShopInfo || shop.id === "demo-shop" || shop.id === "owner-demo") return;
+
+    const currentImages = normalizeShopProfileImages(shopProfileImages);
+    const alignedCurrentAssetIds = alignShopProfileImageAssetIds(currentImages.length, shopProfileImageAssetIds);
+    const currentAssetIds = alignedCurrentAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+    if (currentImages.length > 1 && currentAssetIds.length > 0) return;
+
+    const syncKey = `${shop.id}:${currentAssetIds.join("|")}:${currentImages.length}`;
+    if (profileImageMediaAssetRecoveryKeyRef.current === syncKey) return;
+    profileImageMediaAssetRecoveryKeyRef.current = syncKey;
+
+    let cancelled = false;
+    const query = new URLSearchParams({
+      shopId: shop.id,
+      mediaKind: "shop_profile",
+      limit: String(ownerWebShopProfileImagesMaxCount),
+      includeVariants: "false",
+    });
+
+    const timer = window.setTimeout(() => {
+      void fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${query.toString()}`)
+        .then(async (result) => {
+        if (cancelled) return;
+        const recoveredAssetIds = result.items.map((item) => item.mediaAsset.id).filter(Boolean);
+        const nextAssetIds = [
+          ...alignedCurrentAssetIds,
+          ...recoveredAssetIds.filter((mediaAssetId) => !currentAssetIds.includes(mediaAssetId)),
+        ].slice(
+          0,
+          ownerWebShopProfileImagesMaxCount,
+        );
+        if (nextAssetIds.length <= currentAssetIds.length && currentImages.length > 0) return;
+
+        const signedUrls = await Promise.all(
+          nextAssetIds.filter(Boolean).map((mediaAssetId) =>
+            resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
+              console.error("[OWNER SETTINGS] failed to recover a shop profile image URL from media assets", error);
+              return "";
+            }),
+          ),
+        );
+        if (cancelled) return;
+
+        const nextImages = normalizeShopProfileImages([...currentImages, ...signedUrls]);
+        if (nextImages.length <= currentImages.length) return;
+        const alignedNextAssetIds = alignShopProfileImageAssetIds(nextImages.length, nextAssetIds);
+
+        setShopProfileImages(nextImages);
+        setShopProfileImageAssetIds(alignedNextAssetIds);
+        persistSettings(draftSettings, nextImages);
+        await persistShopProfileImageSettings(nextImages, alignedNextAssetIds);
+        })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to recover shop profile images from media assets", error);
+          setShopInfoFeedback(error instanceof Error ? error.message : "R2에 저장된 매장 사진을 다시 연결하지 못했습니다.");
+        });
+    }, 1400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [draftSettings, persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
 
   function updateCustomerServiceOverrides(nextOverrides: CustomerServiceDisplayOverrides) {
     const normalizedOverrides = normalizeCustomerServiceOverrides(nextOverrides);
@@ -1316,9 +1494,20 @@ export default function SettingsManagementScreen({
     }, 500);
   }
 
+  function handleServiceMenuShopChange(nextShop: Shop) {
+    setCustomerServiceOverrides(normalizeCustomerServiceOverrides(nextShop.customer_page_settings.customer_service_overrides));
+    onShopChange?.(nextShop);
+  }
+
+  function handleServiceMenuServicesChange(nextServices: Service[]) {
+    setPreviewServices((currentServices) =>
+      JSON.stringify(currentServices) === JSON.stringify(nextServices) ? currentServices : nextServices,
+    );
+    onServicesChange?.(nextServices);
+  }
+
   function updateDiscountCoupons(nextCoupons: CustomerDiscountCoupon[]) {
-    const normalizedCoupons = normalizeDiscountCoupons(nextCoupons);
-    setDiscountCouponDrafts(normalizedCoupons);
+    setDiscountCouponDrafts(nextCoupons);
     setDiscountCouponSaveStatus("idle");
   }
 
@@ -1402,8 +1591,8 @@ export default function SettingsManagementScreen({
   function addCustomerServiceOption() {
     if (!shop || customerServiceActionId) return;
 
-    const usedConnectionOptionIds = new Set(customerServiceOptions.map((option) => option.linkedOptionId ?? option.id));
-    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionIds.has(option.linkedOptionId ?? option.id));
+    const usedConnectionOptionKeys = new Set(customerServiceOptions.map(getCustomerServiceOptionDisplayKey));
+    const defaultConnectionOption = customerServiceConnectionOptions.find((option) => !usedConnectionOptionKeys.has(getCustomerServiceOptionDisplayKey(option)));
     if (!defaultConnectionOption) return;
 
     const baselineOverrides = buildCustomerServiceOverrideBaseline(customerServiceOptions, customerServiceOverrides);
@@ -1649,7 +1838,8 @@ export default function SettingsManagementScreen({
       if (imageUrls.length === 0) return;
 
       const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
-      const nextMediaAssetIds = [...shopProfileImageAssetIds, ...mediaAssetIds].slice(0, nextImages.length);
+      const currentMediaAssetIds = alignShopProfileImageAssetIds(shopProfileImages.length, shopProfileImageAssetIds);
+      const nextMediaAssetIds = [...currentMediaAssetIds, ...mediaAssetIds].slice(0, nextImages.length);
       setShopProfileImages(nextImages);
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
@@ -1661,7 +1851,7 @@ export default function SettingsManagementScreen({
         const localImageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
         const nextImages = normalizeShopProfileImages([...shopProfileImages, ...localImageUrls]);
         setShopProfileImages(nextImages);
-        setShopProfileImageAssetIds((currentIds) => currentIds.slice(0, nextImages.length));
+        setShopProfileImageAssetIds((currentIds) => alignShopProfileImageAssetIds(shopProfileImages.length, currentIds).slice(0, nextImages.length));
         persistSettings(draftSettings, nextImages);
         setIsShopInfoDirty(true);
         setShopInfoFeedback("");
@@ -1815,8 +2005,9 @@ export default function SettingsManagementScreen({
               <ShopInfoSettingsPanel
                 rows={current.rows}
                   shopProfileImages={shopProfileImages}
-                  shop={shop}
-                  previewServices={services}
+                  shop={customerPagePreviewShop ?? shop}
+                  previewServices={previewServices}
+                  staffMembers={staffMembers}
                   ownerProfile={ownerProfile}
                   businessHoursSummary={String(businessHoursRow?.value ?? "")}
                   closedDaysSummary={String(closedDayRow?.value ?? "")}
@@ -1826,6 +2017,7 @@ export default function SettingsManagementScreen({
                 onSave={saveShopInfoFromDraft}
                 onProfileImagesAdd={addShopProfileImages}
                 onProfileImagesRemove={removeShopProfileImages}
+                onStaffMembersChange={onStaffMembersChange}
                 onRowChange={(rowId, value) => updateRow(rowId, value)}
                 onRowCommit={(rowId, value) => updateRow(rowId, value)}
                 onOpenAddressSearch={() => setAddressSheetOpen(true)}
@@ -1834,11 +2026,12 @@ export default function SettingsManagementScreen({
                     shopId={shop?.id ?? "demo-shop"}
                     shop={customerPagePreviewShop ?? shop}
                     ownerProfile={ownerProfile}
-                    initialServices={services}
-                    demoMode={!persistShopProfile || shop?.id === "demo-shop" || shop?.id === "owner-demo"}
+                  initialServices={previewServices}
+                  staffMembers={staffMembers}
+                  demoMode={!persistShopProfile || shop?.id === "demo-shop" || shop?.id === "owner-demo"}
                     embedded
-                    onServicesChange={onServicesChange}
-                    onShopChange={onShopChange}
+                    onServicesChange={handleServiceMenuServicesChange}
+                    onShopChange={handleServiceMenuShopChange}
                   />
                 }
               >
@@ -1857,7 +2050,7 @@ export default function SettingsManagementScreen({
               </ShopInfoSettingsPanel>
             </>
           ) : activeTab === "benefits" ? (
-            <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={services} ownerProfile={ownerProfile}>
+            <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
             <WebSurface className="flex h-full min-h-[640px] flex-col p-6">
               <div className="mb-5 flex items-start justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
                 <div>

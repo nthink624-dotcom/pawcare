@@ -75,6 +75,8 @@ const oneShotAppointmentNotificationTypes = new Set<NotificationType>([
   "booking_rejected",
   "booking_cancelled",
   "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
@@ -260,47 +262,6 @@ function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
 function normalizeMediaAssetIds(value: string[] | null | undefined) {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()))).slice(0, 10);
-}
-
-function getRelayEndpointUrl(pathname: string) {
-  if (!serverEnv.alimtalkRelayUrl) return null;
-
-  const parsed = new URL(serverEnv.alimtalkRelayAdminUrl || serverEnv.alimtalkRelayUrl);
-  parsed.pathname = pathname;
-  parsed.search = "";
-  parsed.hash = "";
-  return parsed.toString();
-}
-
-async function isRelayTemplateConfigured(alias: string | null | undefined) {
-  if (!alias || !serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) return false;
-
-  const url = getRelayEndpointUrl("/debug/templates");
-  if (!url) return false;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-relay-secret": serverEnv.alimtalkRelaySecret,
-      },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    if (!response.ok) return false;
-
-    const body = (await response.json()) as {
-      templates?: Record<string, { configured?: boolean } | undefined>;
-    };
-    return Boolean(body.templates?.[alias]?.configured);
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 async function buildNotificationMediaAttachments(params: {
@@ -692,7 +653,11 @@ function buildNotificationButtons(params: {
     ];
   }
 
-  if (params.type === "appointment_reminder_10m") {
+  if (
+    params.type === "appointment_reminder_10m" ||
+    params.type === "visit_schedule_notice" ||
+    params.type === "visit_reminder_notice"
+  ) {
     const buttons: AlimtalkButton[] = [];
     if (params.directionsUrl) {
       buttons.push({
@@ -937,13 +902,8 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     (input.channel ?? "alimtalk") === "alimtalk" &&
     input.type === "grooming_completed" &&
     mediaAssetIds.length > 0;
-  const hasConfiguredPhotoAlimtalkTemplate =
-    Boolean(serverEnv.alimtalkTemplateGroomingCompleted) ||
-    (isPhotoAlimtalkRequest ? await isRelayTemplateConfigured(templateAlias) : false);
-  const templateKeyForDelivery =
-    isPhotoAlimtalkRequest && usesAlimtalkRelay && !configuredTemplateKey
-      ? null
-      : templateKey;
+  const hasConfiguredPhotoAlimtalkTemplate = Boolean(serverEnv.alimtalkTemplateGroomingCompleted);
+  const templateKeyForDelivery = templateKey;
 
   if (input.appointmentId && !appointment) {
     logNotificationSkipped({
@@ -1012,8 +972,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     });
   } else if (
     (input.channel ?? "alimtalk") === "alimtalk" &&
-    serverEnv.alimtalkProvider === "ssodaa" &&
-    !usesAlimtalkRelay &&
+    (serverEnv.alimtalkProvider === "ssodaa" || usesAlimtalkRelay) &&
     !templateKey
   ) {
     status = "failed";

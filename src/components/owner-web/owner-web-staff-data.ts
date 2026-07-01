@@ -5,6 +5,8 @@ export type OwnerWebStaffMember = {
   name: string;
   displayName?: string;
   profileImageUrl?: string;
+  profileImageUrls?: string[];
+  profileImageAssetIds?: string[];
   profileMessage?: string;
   chipColorIndex?: number | null;
   phone: string;
@@ -28,6 +30,8 @@ export type OwnerWebStaffColumn = {
   titlePrefix?: string;
   position?: string;
   profileImageUrl?: string;
+  profileImageUrls?: string[];
+  profileImageAssetIds?: string[];
   profileMessage?: string;
   chipColorIndex?: number | null;
 };
@@ -156,6 +160,8 @@ export function toOwnerWebStaffColumn(staff: OwnerWebStaffMember): OwnerWebStaff
     titlePrefix: staff.titlePrefix,
     position: staff.position,
     profileImageUrl: staff.profileImageUrl,
+    profileImageUrls: staff.profileImageUrls,
+    profileImageAssetIds: staff.profileImageAssetIds,
     profileMessage: staff.profileMessage,
     chipColorIndex: staff.chipColorIndex ?? null,
   };
@@ -179,6 +185,8 @@ export function parseStoredOwnerWebStaff(value: string | null): OwnerWebStaffMem
           ...item,
           displayName: item.displayName ?? "",
           profileImageUrl: item.profileImageUrl ?? "",
+          profileImageUrls: Array.isArray(item.profileImageUrls) ? item.profileImageUrls.filter(Boolean).slice(0, 3) : [],
+          profileImageAssetIds: Array.isArray(item.profileImageAssetIds) ? item.profileImageAssetIds.filter(Boolean).slice(0, 3) : [],
           profileMessage: item.profileMessage ?? "",
           chipColorIndex: item.chipColorIndex ?? null,
           titlePrefix: item.titlePrefix ?? "",

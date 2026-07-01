@@ -539,7 +539,7 @@ export default function CustomerBookingPageManagementScreen({
               </div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={heroDisplayImageUrl} alt="고객 예약페이지 대표 사진" className="h-full w-full object-cover" />
+                <img src={heroDisplayImageUrl} alt="고객 예약페이지 대표 사진" className="h-full w-full object-cover object-center" />
                 {isUsingDefaultHeroImage ? (
                   <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[12px] font-medium text-[#64748b] shadow-sm">
                     기본 이미지

@@ -156,11 +156,13 @@ export default function OwnerBillingScreen({
   preferredPlanCode,
   forcePlanPicker = false,
   openPaymentSheet = false,
+  showPaymentRequiredNotice = false,
 }: {
   initialSummary: OwnerSubscriptionSummary;
   preferredPlanCode?: OwnerPlanCode | null;
   forcePlanPicker?: boolean;
   openPaymentSheet?: boolean;
+  showPaymentRequiredNotice?: boolean;
 }) {
   const router = useRouter();
   const featuredPlan = useMemo(
@@ -171,7 +173,7 @@ export default function OwnerBillingScreen({
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
     preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode),
   );
-  const [isSelectingPlan, setIsSelectingPlan] = useState(forcePlanPicker || !preferredPlanCode);
+  const [isSelectingPlan, setIsSelectingPlan] = useState((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
   const [selectionStep, setSelectionStep] = useState<"plan" | "agreement">(
     openPaymentSheet ? "agreement" : "plan",
   );
@@ -258,10 +260,10 @@ export default function OwnerBillingScreen({
 
   useEffect(() => {
     setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode));
-    setIsSelectingPlan(forcePlanPicker || !preferredPlanCode);
+    setIsSelectingPlan((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
     setSelectionStep(openPaymentSheet ? "agreement" : "plan");
     setAgreementAccepted(false);
-  }, [featuredPlan.code, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode]);
+  }, [featuredPlan.code, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode, showPaymentRequiredNotice]);
 
   useEffect(() => {
     setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "saved" : "new");
@@ -566,7 +568,7 @@ export default function OwnerBillingScreen({
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 플랜 및 결제</p>
-        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>
+        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">{copy.title}</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
 
         <div className="mt-5 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">

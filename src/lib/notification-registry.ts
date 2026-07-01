@@ -30,6 +30,8 @@ export type AlimtalkTemplateAlias =
   | "booking_time_proposed"
   | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
+  | "visit_schedule_notice"
+  | "visit_reminder_notice"
   | "grooming_started"
   | "grooming_almost_done"
   | "grooming_completed"
@@ -44,6 +46,8 @@ export type AlimtalkTemplateConfigKey =
   | "templateBookingTimeProposed"
   | "templateBookingRescheduledConfirmed"
   | "templateAppointmentReminder10m"
+  | "templateVisitScheduleNotice"
+  | "templateVisitReminderNotice"
   | "templateGroomingStarted"
   | "templateGroomingAlmostDone"
   | "templateGroomingCompleted"
@@ -190,7 +194,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     title: "다른 시간 제안",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "오너가 승인대기 예약에서 다른 시간 제안을 직접 발송",
+    trigger: "오너가 예약 상세에서 다른 시간 제안을 직접 발송",
     dispatchSource: "src/components/owner-web/calendar-management-screen.tsx",
     templateAlias: "booking_time_proposed",
     templateConfigKey: "templateBookingTimeProposed",
@@ -240,16 +244,16 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "appointment_reminder_10m",
-    title: "방문 전 알림",
+    title: "방문 안내",
     target: "guardian",
     channel: "alimtalk",
-    trigger: "오너가 예약 상세에서 직접 발송",
-    dispatchSource: "src/server/notification-dispatch.ts / src/components/owner/owner-app.tsx",
+    trigger: "기존 방문 안내 호환용",
+    dispatchSource: "src/server/notification-dispatch.ts",
     templateAlias: "appointment_reminder_10m",
     templateConfigKey: "templateAppointmentReminder10m",
-    shopSettingKey: "enabled",
+    shopSettingKey: "appointment_reminder_10m_enabled",
     guardianSettingKey: "enabled",
-    notes: "오너가 직접 누른 경우에만 발송",
+    notes: "기존 10분 전 템플릿 호환용. 신규 자동 방문 안내는 visit_schedule_notice / visit_reminder_notice를 사용",
     draftBody: [
       "[#{매장명}] 예약 일정 안내",
       "",
@@ -261,6 +265,54 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
       "",
       "예약 시간에 맞춰 편하게 방문해 주세요.",
       "저희는 #{반려동물명}이 편안한 시간 보낼 수 있도록 준비하겠습니다.",
+    ].join("\n"),
+  },
+  {
+    type: "visit_schedule_notice",
+    title: "예약 일정 안내",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "방문 안내 자동 발송 ON 상태에서 예약일 2~3일 전",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_schedule_notice",
+    templateConfigKey: "templateVisitScheduleNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "방문 전 충분히 시간이 남았을 때 일정 확인용으로 발송",
+    draftBody: [
+      "[#{매장명}] 예약 일정 안내",
+      "",
+      "#{반려동물명} 보호자님, 예약 일정 안내드립니다.",
+      "",
+      "방문 일정: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "예약 시간에 맞춰 방문 부탁드립니다.",
+      "일정 변경이 필요하시면 매장으로 연락해 주세요.",
+    ].join("\n"),
+  },
+  {
+    type: "visit_reminder_notice",
+    title: "방문 예정 안내",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "방문 안내 자동 발송 ON 상태에서 예약 시간 전 설정된 시점",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_reminder_notice",
+    templateConfigKey: "templateVisitReminderNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "예약 시간이 가까워졌을 때 방문 준비 안내용으로 발송",
+    draftBody: [
+      "[#{매장명}] 방문 예정 안내",
+      "",
+      "#{반려동물명} 보호자님, 예약 시간이 가까워 안내드립니다.",
+      "",
+      "방문 일정: #{예약일시}",
+      "예약 서비스: #{서비스명}",
+      "",
+      "예약 시간에 맞춰 편하게 방문해 주세요.",
+      "매장에서 준비하고 있겠습니다.",
     ].join("\n"),
   },
   {
@@ -452,6 +504,8 @@ export function shouldSendByShopSettings(
     case "booking_received":
     case "owner_booking_requested":
     case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
       return settings.appointment_reminder_10m_enabled;
     case "grooming_started":
       return settings.grooming_started_enabled;
@@ -498,6 +552,8 @@ export function shouldSendByGuardianSettings(
     case "booking_rescheduled_confirmed":
       return settings.booking_rescheduled_enabled;
     case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
       return settings.appointment_reminder_10m_enabled;
     case "grooming_started":
       return settings.grooming_started_enabled;

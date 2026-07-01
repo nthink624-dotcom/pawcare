@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 type StatusTone = "neutral" | "success" | "warning" | "danger" | "info";
 
 export type StatusBadgeStatus =
-  | "pending"
   | "confirmed"
   | "completed"
   | "cancelled"
@@ -24,7 +23,6 @@ export type StatusBadgeProps = {
 };
 
 const STATUS_MAP: Record<StatusBadgeStatus, { label: string; tone: StatusTone }> = {
-  pending: { label: "예약 대기", tone: "warning" },
   confirmed: { label: "예약 확정", tone: "success" },
   completed: { label: "예약 완료", tone: "neutral" },
   cancelled: { label: "예약 취소", tone: "danger" },

@@ -47,7 +47,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, 
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "addons" | "account" | null;
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -111,7 +111,7 @@ type AppointmentEditPayload = {
   memo: string;
 };
 type AppointmentUpdatePayload = AppointmentStatusUpdatePayload | AppointmentEditPayload;
-type HomeReservationSectionKey = "pending" | "current" | "cancelChange" | "completed";
+type HomeReservationSectionKey = "current" | "cancelChange" | "completed";
 type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
@@ -119,7 +119,7 @@ type ModalState =
   | { type: "new-customer" }
   | { type: "add-pet"; guardianId: string }
   | { type: "edit-record"; record: GroomingRecord }
-  | { type: "stat"; kind: "today" | "pending" | "completed" | "cancel_change" }
+  | { type: "stat"; kind: "today" | "completed" | "cancel_change" }
   | null;
 type MobilePhotoStatusAction = {
   appointmentId: string;
@@ -152,6 +152,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   closures: "영업 시간 설정",
   notifications: "알림톡 설정",
   services: "미용 요금",
+  staff: "직원 관리",
   addons: "부가기능",
   account: "계정",
 };
@@ -165,8 +166,7 @@ const rejectionReasonTemplates = [
 ] as const;
 const directRejectionReasonTemplate = rejectionReasonTemplates[4];
 
-const statusMeta: Record<AppointmentStatus, { label: string; color: string; bg: string }> = {
-  pending: { label: "\uB300\uAE30", color: "#9a6a16", bg: "#fff8eb" },
+const statusMeta: Partial<Record<AppointmentStatus, { label: string; color: string; bg: string }>> = {
   confirmed: { label: "\uD655\uC815", color: "#2f6bd4", bg: "#eef4ff" },
   in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#2f6bd4", bg: "#eef4ff" },
   almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#4f5d73", bg: "#f3f6fb" },
@@ -573,7 +573,7 @@ export default function OwnerApp({
   const isOnboardingIncomplete = onboardingTasks.length > 0;
 
   const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeReservationDate]);
-  const homePendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && item.status === "pending"), [data.appointments, homeReservationDate]);
+  const homePendingAppointments = useMemo<Appointment[]>(() => [], [homeReservationDate]);
   const homeActionAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
   const homeHistoryAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
   const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments.filter((item) => item.status === "completed"), [homeHistoryAppointments]);
@@ -694,7 +694,7 @@ export default function OwnerApp({
     const latestRecord = records[0];
     const latestAppointment = appointments[0];
     const upcomingAppointment = [...appointments]
-      .filter((appointment) => appointment.appointment_date >= todayDate && ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status))
+      .filter((appointment) => appointment.appointment_date >= todayDate && ["confirmed", "in_progress", "almost_done"].includes(appointment.status))
       .sort((a, b) => `${a.appointment_date} ${a.appointment_time}`.localeCompare(`${b.appointment_date} ${b.appointment_time}`))[0];
     const latestPet = latestRecord ? petMap[latestRecord.pet_id] : latestAppointment ? petMap[latestAppointment.pet_id] : pets[0];
     const latestService = latestRecord ? serviceMap[latestRecord.service_id] : latestAppointment ? serviceMap[latestAppointment.service_id] : undefined;
@@ -1988,7 +1988,6 @@ export default function OwnerApp({
                 <MobileStatusSummary
                   activeKey={homeFocusedSection}
                   items={[
-                    { key: "pending", label: ownerHomeCopy.statPending, value: filteredHomePendingAppointments.length, tone: "warning", onClick: () => setHomeFocusedSection("pending") },
                     { key: "current", label: ownerHomeCopy.statUpcoming, value: filteredHomeActionAppointments.length, tone: "accent", onClick: () => setHomeFocusedSection("current") },
                     { key: "completed", label: ownerHomeCopy.statCompleted, value: filteredHomeCompletedHistoryAppointments.length, tone: "neutral", onClick: () => setHomeFocusedSection("completed") },
                     { key: "cancelChange", label: ownerHomeCopy.statCancelChange, value: filteredHomeCancelChangeAppointments.length, tone: "danger", onClick: () => setHomeFocusedSection("cancelChange") },
@@ -2582,7 +2581,7 @@ export default function OwnerApp({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaffMembers={(payload) => mutate("/api/staff-members", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
@@ -2697,8 +2696,6 @@ export default function OwnerApp({
 
 function badgeToneForAppointmentStatus(status: AppointmentStatus): "success" | "warning" | "danger" | "neutral" | "info" {
   switch (status) {
-    case "pending":
-      return "warning";
     case "confirmed":
     case "in_progress":
       return "success";
@@ -2741,14 +2738,6 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
     return (
       <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-[#f4f2ef] px-2.5 text-[11px] font-normal leading-none text-[#7b756e]">
         취소
-      </span>
-    );
-  }
-
-  if (status === "pending") {
-    return (
-      <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-[#f7f0e8] px-2.5 text-[11px] font-normal leading-none text-[#8b6b5d]">
-        대기
       </span>
     );
   }
@@ -2985,10 +2974,8 @@ function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string
 }
 
 function AppointmentDetail({ data, appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
-  const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(directRejectionReasonTemplate);
-  const [customReason, setCustomReason] = useState("");
   const [reminderSent, setReminderSent] = useState(false);
-  const canEditSchedule = ["pending", "confirmed", "cancelled"].includes(appointment.status);
+  const canEditSchedule = ["confirmed", "cancelled"].includes(appointment.status);
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [serviceId, setServiceId] = useState(appointment.service_id);
   const [date, setDate] = useState(appointment.appointment_date);
@@ -3020,10 +3007,10 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
     memo !== appointment.memo;
   const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
   const canSendReminder =
-    ["pending", "confirmed"].includes(appointment.status) &&
+    appointment.status === "confirmed" &&
     guardian.notification_settings.enabled &&
     guardian.notification_settings.appointment_reminder_10m_enabled;
-  const canCancelAppointment = ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status);
+  const canCancelAppointment = ["confirmed", "in_progress", "almost_done"].includes(appointment.status);
   const appointmentNotifications = useMemo(
     () =>
       data.notifications
@@ -3040,27 +3027,6 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
       >
         예약 수정 저장
       </ActionButton>
-    ) : appointment.status === "pending" ? (
-      <div className="space-y-2.5">
-        <RejectionReasonEditor
-          template={template}
-          customReason={customReason}
-          onTemplateChange={(value) => setTemplate(value || directRejectionReasonTemplate)}
-          onCustomReasonChange={setCustomReason}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>
-            {ownerHomeCopy.pendingApprove}
-          </ActionButton>
-          <ActionButton
-            onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: directRejectionReasonTemplate, rejectionReasonCustom: customReason.trim() })}
-            variant="secondary"
-            disabled={saving}
-          >
-            {"미승인"}
-          </ActionButton>
-        </div>
-      </div>
     ) : undefined;
 
   useEffect(() => {
@@ -4118,6 +4084,7 @@ function SettingsPanel({
   onSave,
   onSaveService,
   onSaveCustomerPageSettings,
+  onSaveStaffMembers,
   onLogout,
   loggingOut = false,
   userEmail,
@@ -4129,6 +4096,7 @@ function SettingsPanel({
   onSave: (payload: unknown) => void;
   onSaveService: (payload: unknown) => void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
+  onSaveStaffMembers: (payload: unknown) => void;
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
@@ -4142,6 +4110,7 @@ function SettingsPanel({
       onSave={onSave}
       onSaveService={onSaveService}
       onSaveCustomerPageSettings={onSaveCustomerPageSettings}
+      onSaveStaffMembers={onSaveStaffMembers}
       onLogout={onLogout}
       loggingOut={loggingOut}
       userEmail={userEmail}
@@ -4199,7 +4168,7 @@ function StatDetail({
   const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled");
 
   return (
-    <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}>
+    <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}>
       <div className="space-y-3">
         {kind === "today" && (
           <CurrentReservationsContent
@@ -4212,25 +4181,6 @@ function StatDetail({
             onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })}
           />
         )}
-        {kind === "pending" &&
-          pendingAppointments.map((appointment) => (
-            <PendingApprovalCard
-              key={appointment.id}
-              appointment={appointment}
-              pet={petMap[appointment.pet_id]}
-              guardian={guardianMap[appointment.guardian_id]}
-              service={serviceMap[appointment.service_id]}
-              saving={saving}
-              onOpen={() => onOpenAppointment(appointment)}
-              onStatusChange={(payload) => {
-                setOpenRejectAppointmentId(null);
-                onUpdate(appointment.id, payload);
-              }}
-              isRejectOpen={openRejectAppointmentId === appointment.id}
-              onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)}
-              onRejectClose={() => setOpenRejectAppointmentId(null)}
-            />
-          ))}
         {kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} />}
         {kind === "cancel_change" &&
           cancelChangeOnly.map((appointment) => (
@@ -4358,7 +4308,6 @@ function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle 
 function TodayConfirmedContent({ pendingAppointments, currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, saving, focusedSection, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onStartWithoutPhoto, onStartWithPhoto }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; }) {
   const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<HomeReservationSectionKey, boolean>>({
-    pending: true,
     current: true,
     cancelChange: true,
     completed: true,
@@ -4451,32 +4400,6 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, cance
     <div className="flex h-full min-h-0 flex-col">
       <div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} />
       <div className="flex h-full min-h-0 flex-1 flex-col" style={contentSlideStyle}>
-        {shouldShowSection("pending") ? <section className={expandedSections.pending ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
-          <HomeReservationSectionHeader title={ownerHomeCopy.pendingSectionTitle} dotClassName="bg-[#c79a37]" expanded={expandedSections.pending} onToggle={() => toggleSection("pending")} />
-          {expandedSections.pending ? (
-            <div className={openSectionBodyClassName}>
-              <div className="flex min-h-full flex-col space-y-3">
-                {pendingAppointments.length === 0 ? (
-                  <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.pendingSectionEmpty} />
-                ) : (
-                  pendingGroups.map((group) => {
-                    const isTimeGroup = group.items.length > 1;
-                    return (
-                    <div key={`pending-${group.time}`} className="space-y-2">
-                      {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 요청" /> : null}
-                      <div className="space-y-2">
-                        {group.items.map((appointment, index) => (
-                          <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} hideTime={isTimeGroup} sequenceLabel={isTimeGroup ? `요청 ${index + 1}` : undefined} />
-                        ))}
-                      </div>
-                    </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          ) : null}
-        </section> : null}
         {shouldShowSection("current") ? <section className={expandedSections.current ? sectionShellClassName : "rounded-[16px] border border-[var(--border)] bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"}>
           <HomeReservationSectionHeader title={ownerHomeCopy.currentSectionTitle} dotClassName="bg-[var(--accent)]" expanded={expandedSections.current} onToggle={() => toggleSection("current")} />
           {expandedSections.current ? (
@@ -4967,10 +4890,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
     </div>
   );
 }
-
-
-
-
 
 
 

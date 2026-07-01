@@ -11,8 +11,11 @@ export type ServicePriceGuideCell = {
   durationMinutes: string;
 };
 
+export type ServicePriceGuideSpecies = "dog" | "cat";
+
 export type ServicePriceGuideSection = {
   id: string;
+  species?: ServicePriceGuideSpecies;
   title: string;
   note: string;
   weightBands: string[];
@@ -62,6 +65,11 @@ const defaultExtraFees: ServicePriceGuideExtraFee[] = [
   { id: "coat_length_fee", label: "모량/기장 추가", price: "5,000" },
 ];
 
+const speciesOptions: Array<{ value: ServicePriceGuideSpecies; label: string; addLabel: string }> = [
+  { value: "dog", label: "강아지", addLabel: "강아지 그룹 추가" },
+  { value: "cat", label: "고양이", addLabel: "고양이 그룹 추가" },
+];
+
 function createGuideItemId() {
   return `price_item_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -102,12 +110,14 @@ function buildCells(weightBands: string[], prices: string[], durations: string[]
 
 function buildSection({
   id,
+  species = "dog",
   title,
   note,
   weightBands,
   items,
 }: {
   id: string;
+  species?: ServicePriceGuideSpecies;
   title: string;
   note: string;
   weightBands: string[];
@@ -115,6 +125,7 @@ function buildSection({
 }): ServicePriceGuideSection {
   return {
     id,
+    species,
     title,
     note,
     weightBands,
@@ -128,11 +139,13 @@ function buildSection({
 
 const basicWeightBands = ["4kg 이하", "6kg 이하", "8kg 이하"];
 const plusPremiumWeightBands = ["4kg 이하", "6kg 이하", "8kg 이하", "10kg 이하"];
+const catWeightBands = ["5kg 이하", "8kg 이하", "10kg 이하"];
 const removedDefaultItemLabels = new Set(["빡빡이"]);
 
 const defaultGuideSections: ServicePriceGuideSection[] = [
   buildSection({
     id: "basic",
+    species: "dog",
     title: "베이직",
     note: "말티즈, 포메라니안, 토이푸들, 시츄, 요크셔테리어, 치와와, 빠삐용 등",
     weightBands: basicWeightBands,
@@ -145,6 +158,7 @@ const defaultGuideSections: ServicePriceGuideSection[] = [
   }),
   buildSection({
     id: "plus",
+    species: "dog",
     title: "플러스",
     note: "미니어처푸들, 말티푸, 스피츠, 슈나우저, 비글, 패키니즈, 믹스견 등",
     weightBands: plusPremiumWeightBands,
@@ -157,6 +171,7 @@ const defaultGuideSections: ServicePriceGuideSection[] = [
   }),
   buildSection({
     id: "premium",
+    species: "dog",
     title: "프리미엄",
     note: "비숑프리제, 꼬똥드툴레아, 코카스파니엘, 웰시코기, 베들링턴테리어 등",
     weightBands: plusPremiumWeightBands,
@@ -165,6 +180,30 @@ const defaultGuideSections: ServicePriceGuideSection[] = [
       { id: "premium_clipping", label: "클리핑", prices: ["60000", "65000", "70000", "75000"], durations: ["120", "130", "140", "150"] },
       { id: "premium_spotting", label: "스포팅", prices: ["90000", "100000", "110000", "120000"], durations: ["160", "180", "200", "220"] },
       { id: "premium_scissor", label: "가위컷", prices: ["110000", "120000", "130000", "140000"], durations: ["190", "210", "230", "250"] },
+    ],
+  }),
+  buildSection({
+    id: "cat_short",
+    species: "cat",
+    title: "고양이 단모",
+    note: "코리안숏헤어, 러시안블루, 아비시니안 등",
+    weightBands: catWeightBands,
+    items: [
+      { id: "cat_short_bath", label: "목욕", prices: ["60000", "70000", "80000"], durations: ["90", "100", "110"] },
+      { id: "cat_short_hygiene", label: "위생미용", prices: ["50000", "60000", "70000"], durations: ["70", "80", "90"] },
+      { id: "cat_short_clipping", label: "클리핑", prices: ["90000", "100000", "110000"], durations: ["120", "140", "160"] },
+    ],
+  }),
+  buildSection({
+    id: "cat_long",
+    species: "cat",
+    title: "고양이 장모",
+    note: "페르시안, 랙돌, 메인쿤, 노르웨이숲 등",
+    weightBands: catWeightBands,
+    items: [
+      { id: "cat_long_bath", label: "목욕", prices: ["80000", "90000", "100000"], durations: ["110", "120", "140"] },
+      { id: "cat_long_hygiene", label: "위생미용", prices: ["70000", "80000", "90000"], durations: ["90", "100", "120"] },
+      { id: "cat_long_clipping", label: "클리핑", prices: ["120000", "130000", "140000"], durations: ["160", "180", "200"] },
     ],
   }),
 ];
@@ -284,6 +323,10 @@ function cloneSectionsSnapshot(source: ServicePriceGuideSection[]) {
   }));
 }
 
+function normalizeSpecies(value: unknown): ServicePriceGuideSpecies {
+  return value === "cat" ? "cat" : "dog";
+}
+
 function mergeMissingDefaultItems(
   sourceItems: ServicePriceGuideSection["items"],
   fallbackItems: ServicePriceGuideSection["items"],
@@ -308,12 +351,14 @@ function buildEmptySectionCells(weightBands: string[]) {
 function createBlankSectionFromTemplate(
   template: ServicePriceGuideSection,
   title: string,
+  species: ServicePriceGuideSpecies,
 ): ServicePriceGuideSection {
   const weightBands = template.weightBands.length > 0 ? [...template.weightBands] : [...basicWeightBands];
   const sourceItems = template.items.length > 0 ? template.items : defaultGuideSections[0].items;
 
   return {
     id: createGuideSectionId(),
+    species,
     title,
     note: "",
     weightBands,
@@ -329,7 +374,7 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
   if (!Array.isArray(value) || value.length === 0) return cloneDefaultSections();
   if (isLegacyDefaultGuide(value)) return cloneDefaultSections();
 
-  return value.map((section, sectionIndex) => {
+  const normalizedSections = value.map((section, sectionIndex) => {
     const source = section as Partial<ServicePriceGuideSection>;
     const fallback = defaultGuideSections[sectionIndex] ?? defaultGuideSections[0];
     const sourceWeightBands = Array.isArray(source.weightBands) ? source.weightBands.filter((band): band is string => typeof band === "string") : [];
@@ -348,6 +393,7 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
 
     return {
       id: typeof source.id === "string" && source.id ? source.id : createGuideSectionId(),
+      species: normalizeSpecies(source.species ?? fallback.species),
       title: typeof source.title === "string" ? source.title : fallback.title,
       note: typeof source.note === "string" ? source.note : fallback.note,
       weightBands,
@@ -368,6 +414,14 @@ function normalizeSections(value: unknown): ServicePriceGuideSection[] {
       }),
     };
   });
+
+  const hasCatSection = normalizedSections.some((section) => section.species === "cat");
+  if (hasCatSection) return normalizedSections;
+
+  return [
+    ...normalizedSections,
+    ...cloneDefaultSections().filter((section) => section.species === "cat"),
+  ];
 }
 
 export function buildDefaultServicePriceGuide(): ServicePriceGuide {
@@ -427,6 +481,9 @@ export function ServicePriceGuideEditor({
   const sections = guide.sections ?? [];
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
+  const [activeSpecies, setActiveSpecies] = useState<ServicePriceGuideSpecies>("dog");
+  const activeSpeciesOption = speciesOptions.find((option) => option.value === activeSpecies) ?? speciesOptions[0];
+  const activeSections = sections.filter((section) => normalizeSpecies(section.species) === activeSpecies);
 
   function updateSections(nextSections: ServicePriceGuideSection[]) {
     onChange({
@@ -623,10 +680,12 @@ export function ServicePriceGuideEditor({
   }
 
   function addSection() {
-    const template = sections[sections.length - 1] ?? defaultGuideSections[0];
-    const newGroupCount = sections.filter((section) => section.title.trim().startsWith("새 그룹")).length + 1;
-    const title = newGroupCount === 1 ? "새 그룹" : `새 그룹 ${newGroupCount}`;
-    updateSections([...sections, createBlankSectionFromTemplate(template, title)]);
+    const speciesDefaultSection = defaultGuideSections.find((section) => section.species === activeSpecies) ?? defaultGuideSections[0];
+    const template = activeSections[activeSections.length - 1] ?? speciesDefaultSection;
+    const baseTitle = activeSpecies === "cat" ? "새 고양이 그룹" : "새 강아지 그룹";
+    const newGroupCount = activeSections.filter((section) => section.title.trim().startsWith(baseTitle)).length + 1;
+    const title = newGroupCount === 1 ? baseTitle : `${baseTitle} ${newGroupCount}`;
+    updateSections([...sections, createBlankSectionFromTemplate(template, title, activeSpecies)]);
   }
 
   function removeSection(sectionId: string) {
@@ -661,7 +720,7 @@ export function ServicePriceGuideEditor({
               onClick={() => onChange({ ...guide, enabled: !guide.enabled })}
               className={cn(
                 "flex h-8 min-w-[64px] items-center justify-center rounded-[8px] border px-3 text-[16px] font-normal",
-                guide.enabled ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
+                guide.enabled ? "border-[#b9cff8] bg-[#f6f9ff] text-[var(--accent)]" : "border-[#dbe2ea] bg-[#f8fafc] text-[#64748b]",
               )}
             >
               {guide.enabled ? "사용" : "미사용"}
@@ -672,8 +731,29 @@ export function ServicePriceGuideEditor({
 
       {guide.enabled ? (
         <div className={cn("space-y-4", showHeader || showEnabledToggle ? "mt-4" : "")}>
+          <div className="inline-flex rounded-[8px] bg-[#f1f5f9] p-1">
+            {speciesOptions.map((option) => {
+              const selected = option.value === activeSpecies;
+              const count = sections.filter((section) => normalizeSpecies(section.species) === option.value).length;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setActiveSpecies(option.value)}
+                  className={cn(
+                    "inline-flex h-9 min-w-[104px] items-center justify-center gap-1.5 rounded-[7px] px-4 text-[16px] font-normal transition",
+                    selected ? "bg-white text-[#111827] shadow-[0_1px_4px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#111827]",
+                  )}
+                >
+                  {option.label}
+                  <span className={cn("text-[13px]", selected ? "text-[#607080]" : "text-[#94a3b8]")}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="space-y-3">
-            {sections.map((section) => (
+            {activeSections.map((section) => (
               <section key={section.id} className="overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white">
                 <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
                   <div className="min-w-[240px] flex-1">
@@ -702,11 +782,11 @@ export function ServicePriceGuideEditor({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
+                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
                       <Plus className="h-4 w-4" strokeWidth={1.9} />
                       무게
                     </button>
-                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
+                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
                       <Plus className="h-4 w-4" strokeWidth={1.9} />
                       항목
                     </button>
@@ -724,11 +804,11 @@ export function ServicePriceGuideEditor({
                       <col className="w-[34px]" />
                     </colgroup>
                     <thead>
-                      <tr className="bg-[var(--accent)] text-white">
-                        <th className="whitespace-nowrap border-b border-r border-[var(--acc-dk,var(--accent))] px-3 py-2 text-center font-normal">그룹</th>
-                        <th className="whitespace-nowrap border-b border-r border-[var(--acc-dk,var(--accent))] px-3 py-2 text-center font-normal">무게</th>
+                      <tr className="bg-[#f8fafc] text-[#334155]">
+                        <th className="whitespace-nowrap border-b border-r border-[#dbe2ea] px-3 py-2 text-center font-medium">그룹</th>
+                        <th className="whitespace-nowrap border-b border-r border-[#dbe2ea] px-3 py-2 text-center font-medium">무게</th>
                         {section.items.map((item) => (
-                          <th key={item.id} className="border-b border-r border-[var(--acc-dk,var(--accent))] px-2 py-2 text-center last:border-r-0">
+                          <th key={item.id} className="border-b border-r border-[#dbe2ea] px-2 py-2 text-center last:border-r-0">
                             <div className="group flex items-center justify-center gap-1.5">
                               <input
                                 type="text"
@@ -736,13 +816,13 @@ export function ServicePriceGuideEditor({
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
                                 aria-label={`${item.label} 항목명 수정`}
                                 title="클릭해서 항목명 수정"
-                                className="h-7 min-w-0 flex-1 cursor-text rounded-[7px] border border-white/20 bg-white/10 px-2 text-center text-[16px] font-normal text-white outline-none transition placeholder:text-white/50 hover:border-white/45 hover:bg-white/15 focus:border-[#d1d5db] focus:bg-white focus:text-[#111827]"
+                                className="h-7 min-w-0 flex-1 cursor-text rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-medium text-[#334155] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:text-[#111827] focus:ring-2 focus:ring-[#e8f0f7]"
                               />
                               <button
                                 type="button"
                                 onClick={() => removeItem(section.id, item.id)}
                                 disabled={section.items.length <= 1}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-white/65 hover:bg-white/10 hover:text-white disabled:opacity-35"
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-[#64748b] transition hover:bg-[#eef2f7] hover:text-[#334155] disabled:opacity-35"
                                 aria-label="요금 항목 삭제"
                               >
                                 <BasilIcon name="trash" className="h-5 w-5" />
@@ -750,7 +830,7 @@ export function ServicePriceGuideEditor({
                             </div>
                           </th>
                         ))}
-                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[var(--acc-dk,var(--accent))] bg-[var(--accent)] shadow-[-6px_0_10px_rgba(15,23,42,0.08)]" />
+                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[#dbe2ea] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.06)]" />
                       </tr>
                     </thead>
                     <tbody>
@@ -826,9 +906,9 @@ export function ServicePriceGuideEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]">
+            <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
               <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
-              그룹 추가
+              {activeSpeciesOption.addLabel}
             </button>
             {deleteHistory.length > 0 ? (
               <button
@@ -841,63 +921,65 @@ export function ServicePriceGuideEditor({
             ) : null}
           </div>
 
-          <label className="block">
-            <span className="text-[16px] font-normal text-[#334155]">추가 요금 안내</span>
-            <textarea
-              value={guide.extraNote}
-              onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
-              rows={4}
-              className="mt-2 w-full resize-none rounded-[8px] border border-[#d1d5db] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none focus:border-[var(--accent)]"
-            />
-          </label>
-
           <section className="overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
-              <p className="text-[16px] font-normal text-[#334155]">추가 비용</p>
+              <div>
+                <p className="text-[16px] font-normal text-[#334155]">추가 요금 안내</p>
+                <p className="mt-0.5 text-[13px] font-normal text-[#64748b]">상태별 안내 문구와 항목별 추가 요금을 함께 관리합니다.</p>
+              </div>
               <button
                 type="button"
                 onClick={addExtraFee}
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--accent)] px-3 text-[16px] font-normal text-white shadow-[0_4px_10px_rgba(47,107,212,0.16)] transition hover:bg-[var(--acc-dk,var(--accent))]"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]"
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
                 항목 추가
               </button>
             </div>
-            <div className="space-y-2 p-3">
+            <div className="space-y-3 p-3">
+              <textarea
+                value={guide.extraNote}
+                onChange={(event) => onChange({ ...guide, extraNote: event.target.value })}
+                rows={3}
+                aria-label="추가 요금 안내 문구"
+                className="w-full resize-none rounded-[8px] border border-[#d1d5db] bg-white px-3 py-2.5 text-[16px] font-normal leading-6 text-[#111827] outline-none transition focus:border-[var(--accent)]"
+              />
               {guide.extraFees.length > 0 ? (
-                guide.extraFees.map((row) => (
-                  <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_160px_32px] items-center gap-2">
-                    <input
-                      type="text"
-                      value={row.label}
-                      onChange={(event) => updateExtraFee(row.id, { label: event.target.value })}
-                      placeholder="예: 털엉킴"
-                      className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={row.price}
-                      onChange={(event) => updateExtraFee(row.id, { price: event.target.value })}
-                      placeholder="예: 5,000~"
-                      className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExtraFee(row.id)}
-                      className="inline-flex h-10 w-8 items-center justify-center rounded-[8px] text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#334155]"
-                      aria-label="추가 비용 삭제"
-                    >
-                      <BasilIcon name="trash" className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))
+                <div className="space-y-2 border-t border-[#edf2f7] pt-3">
+                  {guide.extraFees.map((row) => (
+                    <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_160px_32px] items-center gap-2">
+                      <input
+                        type="text"
+                        value={row.label}
+                        onChange={(event) => updateExtraFee(row.id, { label: event.target.value })}
+                        placeholder="예: 털엉킴"
+                        className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={row.price}
+                        onChange={(event) => updateExtraFee(row.id, { price: event.target.value })}
+                        placeholder="예: 5,000~"
+                        className="h-10 min-w-0 rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 text-right text-[16px] font-normal text-[#111827] outline-none placeholder:text-[#94a3b8] focus:border-[var(--accent)] focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeExtraFee(row.id)}
+                        className="inline-flex h-10 w-8 items-center justify-center rounded-[8px] text-[#94a3b8] transition hover:bg-[#f1f5f9] hover:text-[#334155]"
+                        aria-label="추가 요금 항목 삭제"
+                      >
+                        <BasilIcon name="trash" className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <button
                   type="button"
                   onClick={addExtraFee}
                   className="flex h-11 w-full items-center justify-center rounded-[8px] border border-dashed border-[#dbe2ea] text-[16px] font-normal text-[#64748b] transition hover:bg-[#f8fafc]"
                 >
-                  추가 비용 항목을 입력해 주세요.
+                  추가 요금 항목을 입력해 주세요.
                 </button>
               )}
             </div>

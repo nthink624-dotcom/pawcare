@@ -30,7 +30,7 @@ export const appointmentInputSchema = z.object({
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
@@ -188,7 +188,6 @@ export const shopSettingsSchema = z.object({
     .object({
       cancel_window: z.enum(["none", "1h", "2h", "6h", "24h"]).default("2h"),
       customer_change_enabled: z.boolean().default(true),
-      pending_hold_limit: z.coerce.number().int().min(1).max(3).default(1).transform(() => 1 as const),
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
       regular_closed_cycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),

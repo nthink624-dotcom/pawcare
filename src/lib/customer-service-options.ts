@@ -22,6 +22,7 @@ export type CustomerServiceSourceOption = {
   priceType: "fixed" | "starting";
   order: number;
   linkedOptionId?: string;
+  aliasIds?: string[];
 };
 
 function getPriceGuideSections(guide: unknown, options: { includeDisabled?: boolean } = {}) {
@@ -61,6 +62,10 @@ function buildPriceGuideOptionName(sectionTitle: string, itemLabel: string) {
   return label.startsWith(`${title} /`) ? label : `${title} / ${label}`;
 }
 
+function getPriceGuideSpeciesLabel(value: unknown) {
+  return value === "cat" ? "고양이" : "강아지";
+}
+
 function getPriceGuideItemGroupKey(option: CustomerServiceSourceOption) {
   const rawItemId = option.id.includes(":") ? option.id.split(":").pop() ?? "" : "";
   const semanticItemId = rawItemId.replace(/^(?:basic|plus|premium|default)_/, "");
@@ -71,15 +76,37 @@ function getPriceGuideItemGroupKey(option: CustomerServiceSourceOption) {
   return `label:${normalizeOptionLabelKey(option.sourceName)}`;
 }
 
-const defaultGroomingMenuItems = [
-  { id: "default_hygiene_bath", label: "위생미용+목욕", durationMinutes: 60, price: 30000 },
-  { id: "default_clipping", label: "클리핑", durationMinutes: 90, price: 45000 },
-  { id: "default_spotting", label: "스포팅", durationMinutes: 120, price: 70000 },
-  { id: "default_scissor", label: "가위컷", durationMinutes: 150, price: 90000 },
-] as const;
+function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
+  return [
+    option.category,
+    option.sourceName,
+    option.durationMinutes,
+    option.price,
+    option.priceType,
+  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
+}
 
-function shouldBackfillDefaultGroomingMenuItems(labels: Set<string>) {
-  return defaultGroomingMenuItems.some((item) => labels.has(normalizeOptionLabelKey(item.label)));
+function uniqueCustomerServiceOptions(options: CustomerServiceSourceOption[]) {
+  const seenKeys = new Set<string>();
+  return options.filter((option) => {
+    const key = getCustomerServiceOptionDisplayKey(option);
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+}
+
+function buildOptionLookup(options: CustomerServiceSourceOption[]) {
+  const optionById = new Map<string, CustomerServiceSourceOption>();
+
+  for (const option of options) {
+    optionById.set(option.id, option);
+    for (const aliasId of option.aliasIds ?? []) {
+      optionById.set(aliasId, option);
+    }
+  }
+
+  return optionById;
 }
 
 function normalizeOrder(value: unknown) {
@@ -128,11 +155,16 @@ export function buildCustomerServiceSourceOptions(
   for (const service of services) {
     if (!options.includeInactive && !service.is_active) continue;
 
+    const initialResultLength = result.length;
     const priceGuideSections = getPriceGuideSections(service.price_guide, { includeDisabled: options.priceGuideOnly });
     for (const section of priceGuideSections) {
       if (!section || typeof section !== "object") continue;
-      const source = section as { title?: unknown; weightBands?: unknown; items?: unknown };
+      const source = section as { id?: unknown; species?: unknown; title?: unknown; weightBands?: unknown; items?: unknown };
+      const speciesLabel = getPriceGuideSpeciesLabel(source.species);
       const sectionTitle = limitText(source.title, 60) || service.category || "미용";
+      const sectionCategory = `${speciesLabel} / ${sectionTitle}`;
+      const sectionId = String(source.id ?? "").trim();
+      const stableSectionKey = sectionId || normalizeOptionLabelKey(sectionTitle);
       const weightBands = Array.isArray(source.weightBands)
         ? source.weightBands.filter((band): band is string => typeof band === "string")
         : [];
@@ -155,51 +187,36 @@ export function buildCustomerServiceSourceOptions(
         if (!price) continue;
 
         const itemId = String(sourceItem.id ?? "").trim();
+        const itemKey = itemId || normalizeOptionLabelKey(label);
         const durationMinutes = numberFromText(firstCell?.durationMinutes) ?? service.duration_minutes;
-        const displayName = buildPriceGuideOptionName(sectionTitle, label);
+        const displayName = buildPriceGuideOptionName(sectionCategory, label);
+        const stableOptionId = `${service.id}:price-guide:${stableSectionKey}:${itemKey}`;
+        const aliasIds = Array.from(
+          new Set([
+            `${service.id}:price-guide:${sectionTitle}:${itemKey}`,
+            `${service.id}:price-guide:${sectionCategory}:${itemKey}`,
+          ]),
+        ).filter((aliasId) => aliasId !== stableOptionId);
         result.push({
-          id: `${service.id}:price-guide:${sectionTitle}:${itemId || normalizeOptionLabelKey(label)}`,
+          id: stableOptionId,
           serviceId: service.id,
           name: displayName,
           sourceName: displayName,
-          category: sectionTitle,
+          category: sectionCategory,
           description: "",
           durationMinutes,
           price,
           priceType: service.price_type ?? "starting",
           order: result.length + 1,
+          aliasIds,
         });
       }
 
-      if (options.priceGuideOnly) {
-        const existingLabels = new Set(
-          result
-            .filter((option) => option.serviceId === service.id && option.category === sectionTitle)
-            .map((option) => normalizeOptionLabelKey(option.sourceName)),
-        );
-        if (shouldBackfillDefaultGroomingMenuItems(existingLabels)) {
-          for (const item of defaultGroomingMenuItems) {
-            const labelKey = normalizeOptionLabelKey(item.label);
-            if (existingLabels.has(labelKey)) continue;
-            result.push({
-              id: `${service.id}:price-guide:${sectionTitle}:${item.id}`,
-              serviceId: service.id,
-              name: buildPriceGuideOptionName(sectionTitle, item.label),
-              sourceName: buildPriceGuideOptionName(sectionTitle, item.label),
-              category: sectionTitle,
-              description: "",
-              durationMinutes: item.durationMinutes,
-              price: item.price,
-              priceType: service.price_type ?? "starting",
-              order: result.length + 1,
-            });
-            existingLabels.add(labelKey);
-          }
-        }
-      }
     }
 
-    if (priceGuideSections.length > 0 || options.priceGuideOnly) continue;
+    if (priceGuideSections.length > 0 && result.length > initialResultLength) continue;
+    if (options.priceGuideOnly && result.length > initialResultLength) continue;
+    if (options.priceGuideOnly) continue;
 
     result.push({
       id: service.id,
@@ -255,7 +272,7 @@ export function applyCustomerServiceOverrides(
   overrides: unknown,
 ): CustomerServiceSourceOption[] {
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
-  const optionById = new Map(options.map((option) => [option.id, option]));
+  const optionById = buildOptionLookup(options);
   const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
   const defaultRowByLabelKey = new Map(defaultRows.map((option) => [normalizeOptionLabelKey(option.sourceName), option]));
 
@@ -271,13 +288,14 @@ export function applyCustomerServiceOverrides(
     consumedOverrideIds.add(defaultRow.id);
     if (override?.visible === false) continue;
 
-    const linkedOption = optionById.get(override?.linkedOptionId ?? defaultRow.linkedOptionId ?? "") ?? optionById.get(defaultRow.linkedOptionId ?? "") ?? defaultRow;
+    const linkedOption = optionById.get(override?.linkedOptionId ?? defaultRow.linkedOptionId ?? "") ?? optionById.get(defaultRow.linkedOptionId ?? "");
+    if (!linkedOption) continue;
     rows.push({
       ...linkedOption,
       id: defaultRow.id,
       name: linkedOption.sourceName,
       sourceName: linkedOption.sourceName,
-      description: override?.description ?? defaultRow.description,
+      description: linkedOption.description,
       order: override?.order ?? defaultRow.order,
       linkedOptionId: linkedOption.id,
     });
@@ -286,7 +304,7 @@ export function applyCustomerServiceOverrides(
   for (const [rowId, override] of Object.entries(normalizedOverrides)) {
     if (consumedOverrideIds.has(rowId) || override.visible === false) continue;
 
-    const linkedOption = optionById.get(override.linkedOptionId ?? rowId) ?? optionById.get(rowId) ?? options[0];
+    const linkedOption = optionById.get(override.linkedOptionId ?? rowId) ?? optionById.get(rowId);
     if (!linkedOption) continue;
 
     if (!rowId.startsWith("menu-custom-") && defaultRowByLabelKey.has(normalizeOptionLabelKey(linkedOption.sourceName))) {
@@ -298,13 +316,13 @@ export function applyCustomerServiceOverrides(
       id: rowId,
       name: linkedOption.sourceName,
       sourceName: linkedOption.sourceName,
-      description: override.description ?? linkedOption.description,
+      description: linkedOption.description,
       order: override.order ?? linkedOption.order,
       linkedOptionId: linkedOption.id,
     });
   }
 
-  return rows.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"));
+  return uniqueCustomerServiceOptions(rows.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko")));
 }
 
 export function applyConfiguredCustomerServiceOverrides(
@@ -312,11 +330,11 @@ export function applyConfiguredCustomerServiceOverrides(
   overrides: unknown,
 ): CustomerServiceSourceOption[] {
   const normalizedOverrides = normalizeCustomerServiceOverrides(overrides);
-  const optionById = new Map(options.map((option) => [option.id, option]));
+  const optionById = buildOptionLookup(options);
   const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
   const defaultRowById = new Map(defaultRows.map((option) => [option.id, option]));
 
-  return Object.entries(normalizedOverrides)
+  return uniqueCustomerServiceOptions(Object.entries(normalizedOverrides)
     .flatMap(([rowId, override]) => {
       if (override.visible === false) return [];
 
@@ -334,11 +352,11 @@ export function applyConfiguredCustomerServiceOverrides(
           id: rowId,
           name: linkedOption.sourceName,
           sourceName: linkedOption.sourceName,
-          description: override.description ?? defaultRow?.description ?? linkedOption.description,
+          description: linkedOption.description,
           order: override.order ?? defaultRow?.order ?? linkedOption.order,
           linkedOptionId: linkedOption.id,
         },
       ];
     })
-    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko"));
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "ko")));
 }

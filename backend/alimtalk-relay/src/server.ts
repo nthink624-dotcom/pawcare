@@ -28,6 +28,8 @@ type RelayConfig = {
   templateBookingCancelled: string;
   templateBookingRescheduledConfirmed: string;
   templateAppointmentReminder10m: string;
+  templateVisitScheduleNotice: string;
+  templateVisitReminderNotice: string;
   templateGroomingStarted: string;
   templateGroomingAlmostDone: string;
   templateGroomingCompleted: string;
@@ -49,6 +51,8 @@ const relayEnvKeys = [
   "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
   "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
   "ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M",
+  "ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE",
+  "ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE",
   "ALIMTALK_TEMPLATE_GROOMING_STARTED",
   "ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE",
   "ALIMTALK_TEMPLATE_GROOMING_COMPLETED",
@@ -73,6 +77,8 @@ function loadRelayConfig(): RelayConfig {
     templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
     templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
     templateAppointmentReminder10m: process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M || "",
+    templateVisitScheduleNotice: process.env.ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE || "",
+    templateVisitReminderNotice: process.env.ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE || "",
     templateGroomingStarted: process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED || "",
     templateGroomingAlmostDone: process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE || "",
     templateGroomingCompleted: process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED || "",
@@ -97,6 +103,8 @@ function getRelayConfigPayload() {
     templateBookingCancelled: env.templateBookingCancelled,
     templateBookingRescheduledConfirmed: env.templateBookingRescheduledConfirmed,
     templateAppointmentReminder10m: env.templateAppointmentReminder10m,
+    templateVisitScheduleNotice: env.templateVisitScheduleNotice,
+    templateVisitReminderNotice: env.templateVisitReminderNotice,
     templateGroomingStarted: env.templateGroomingStarted,
     templateGroomingAlmostDone: env.templateGroomingAlmostDone,
     templateGroomingCompleted: env.templateGroomingCompleted,
@@ -124,6 +132,8 @@ function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Re
     ALIMTALK_TEMPLATE_BOOKING_CANCELLED: config.templateBookingCancelled,
     ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED: config.templateBookingRescheduledConfirmed,
     ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M: config.templateAppointmentReminder10m,
+    ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE: config.templateVisitScheduleNotice,
+    ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE: config.templateVisitReminderNotice,
     ALIMTALK_TEMPLATE_GROOMING_STARTED: config.templateGroomingStarted,
     ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE: config.templateGroomingAlmostDone,
     ALIMTALK_TEMPLATE_GROOMING_COMPLETED: config.templateGroomingCompleted,
@@ -209,6 +219,8 @@ const relayTemplateConfigKeys = [
   "templateBookingCancelled",
   "templateBookingRescheduledConfirmed",
   "templateAppointmentReminder10m",
+  "templateVisitScheduleNotice",
+  "templateVisitReminderNotice",
   "templateGroomingStarted",
   "templateGroomingAlmostDone",
   "templateGroomingCompleted",
@@ -253,6 +265,8 @@ const adminConfigSchema = z.object({
   templateBookingCancelled: z.string(),
   templateBookingRescheduledConfirmed: z.string(),
   templateAppointmentReminder10m: z.string(),
+  templateVisitScheduleNotice: z.string(),
+  templateVisitReminderNotice: z.string(),
   templateGroomingStarted: z.string(),
   templateGroomingAlmostDone: z.string(),
   templateGroomingCompleted: z.string(),
@@ -274,6 +288,8 @@ const templateAliases = [
   "booking_cancelled",
   "booking_rescheduled_confirmed",
   "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
   "grooming_started",
   "grooming_almost_done",
   "grooming_completed",
@@ -1087,6 +1103,10 @@ function resolveTemplateKey(alias: string | null | undefined) {
       return env.templateBookingRescheduledConfirmed || null;
     case "appointment_reminder_10m":
       return env.templateAppointmentReminder10m || null;
+    case "visit_schedule_notice":
+      return env.templateVisitScheduleNotice || null;
+    case "visit_reminder_notice":
+      return env.templateVisitReminderNotice || null;
     case "grooming_started":
       return env.templateGroomingStarted || null;
     case "grooming_almost_done":
@@ -1127,6 +1147,14 @@ function getTemplateDebugMap() {
     appointment_reminder_10m: {
       configured: Boolean(env.templateAppointmentReminder10m),
       length: env.templateAppointmentReminder10m.length,
+    },
+    visit_schedule_notice: {
+      configured: Boolean(env.templateVisitScheduleNotice),
+      length: env.templateVisitScheduleNotice.length,
+    },
+    visit_reminder_notice: {
+      configured: Boolean(env.templateVisitReminderNotice),
+      length: env.templateVisitReminderNotice.length,
     },
     grooming_started: {
       configured: Boolean(env.templateGroomingStarted),
@@ -1596,6 +1624,11 @@ app.post("/alimtalk/send", async (request, response) => {
   }
 });
 
-app.listen(env.port, "0.0.0.0", () => {
+const server = app.listen(env.port, "0.0.0.0", () => {
   console.log(`PetManager Alimtalk Relay listening on port ${env.port}`);
+});
+
+server.on("error", (error) => {
+  console.error("[relay] server listen failed", error);
+  process.exitCode = 1;
 });

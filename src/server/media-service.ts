@@ -53,9 +53,16 @@ const mediaKinds = new Set<MediaKind>([
   "grooming_result",
   "message_image",
   "shop_profile",
+  "staff_profile",
   "customer_shared",
   "memo_attachment",
 ]);
+
+function shouldRetryMediaAssetQueryWithoutDeletedAt(error: { message?: string; code?: string } | null | undefined) {
+  if (!error) return false;
+  const message = error.message ?? "";
+  return error.code === "PGRST204" || message.includes("deleted_at") || message.includes("schema cache");
+}
 const visibilityValues = new Set<MediaVisibility>(["private", "customer_shared", "public"]);
 const retentionValues = new Set<MediaRetentionPolicy>(["transient", "standard", "archive"]);
 const uploadSources = new Set<MediaUploadSource>(["owner_web", "owner_mobile", "customer_page", "system"]);
@@ -273,6 +280,7 @@ function buildStoragePath(params: {
   guardianId?: string | null;
   petId?: string | null;
   appointmentId?: string | null;
+  staffId?: string | null;
 }) {
   const ext = extensionForContentType(params.contentType);
   const directory = buildMediaStorageDirectory(params);
@@ -514,6 +522,8 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
   const petId = optionalUuid(input.petId, "petId");
   const appointmentId = optionalUuid(input.appointmentId, "appointmentId");
   const groomingRecordId = optionalUuid(input.groomingRecordId, "groomingRecordId");
+  const metadata = normalizeMetadata(input.metadata);
+  const staffId = mediaKind === "staff_profile" && typeof metadata.staffId === "string" ? metadata.staffId : null;
   const mediaAssetId = randomUUID();
   const storagePath = buildStoragePath({
     shopId: owner.shopId,
@@ -523,6 +533,7 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     guardianId,
     petId,
     appointmentId,
+    staffId,
   });
 
   const signedUpload = await createMediaSignedUploadUrl({
@@ -553,7 +564,7 @@ export async function createOwnerMediaUploadIntent(owner: OwnerContext, input: C
     retention_policy: retentionPolicy,
     uploaded_by_user_id: owner.userId,
     uploaded_from: uploadedFrom,
-    metadata: normalizeMetadata(input.metadata),
+    metadata,
     expires_at: getExpiresAt(retentionPolicy, mediaLimitPolicy.transientRetentionDays),
   };
 
@@ -681,13 +692,20 @@ export async function getOwnerMediaSignedUrl(owner: OwnerContext, input: {
     ? (input.variantKey as MediaVariantKey)
     : null;
 
-  const assetResult = await admin
-    .from("media_assets")
-    .select("*")
-    .eq("id", mediaAssetId)
-    .eq("shop_id", owner.shopId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const buildAssetQuery = (includeDeletedAtFilter: boolean) => {
+    let query = admin
+      .from("media_assets")
+      .select("*")
+      .eq("id", mediaAssetId)
+      .eq("shop_id", owner.shopId);
+    if (includeDeletedAtFilter) query = query.is("deleted_at", null);
+    return query.maybeSingle();
+  };
+
+  let assetResult = await buildAssetQuery(true);
+  if (assetResult.error && shouldRetryMediaAssetQueryWithoutDeletedAt(assetResult.error)) {
+    assetResult = await buildAssetQuery(false);
+  }
 
   if (assetResult.error) {
     throw new OwnerApiError(assetResult.error.message, 500);

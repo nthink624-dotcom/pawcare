@@ -19,8 +19,8 @@ import { billableOwnerPlans } from "@/lib/billing/owner-plans";
 
 const features = [
   {
-    title: "예약 요청부터 승인까지",
-    body: "고객은 링크로 예약하고, 오너는 매장 상황에 맞춰 승인, 거절, 시간 변경을 처리합니다.",
+    title: "예약 선택부터 확정까지",
+    body: "고객은 가능한 시간만 보고 예약하고, 오너는 확정된 예약을 스케줄에서 바로 관리합니다.",
     icon: ClipboardCheck,
   },
   {
@@ -43,15 +43,15 @@ const features = [
 const workflow = [
   ["01", "예약 링크 공유", "스마트플레이스, 인스타, 카카오에 예약 링크를 올립니다."],
   ["02", "고객이 직접 선택", "서비스, 디자이너, 날짜, 시간을 고객이 모바일에서 고릅니다."],
-  ["03", "오너가 확인 후 승인", "예약은 바로 확정되지 않고 오너가 직접 확인합니다."],
+  ["03", "선택 즉시 확정", "고객이 가능한 시간을 선택하면 예약이 바로 확정됩니다."],
   ["04", "기록이 다음 예약으로", "반려동물 정보와 방문 기록이 쌓여 재방문 관리가 쉬워집니다."],
 ] as const;
 
 const faqs = [
   ["고객이 어려워하지 않을까요?", "앱 설치 없이 링크만 열면 됩니다. 모바일에서 서비스와 시간을 순서대로 고르는 흐름입니다."],
-  ["예약이 자동 확정되나요?", "기본은 직접 승인입니다. 오너가 확인한 예약만 확정되도록 설계했습니다."],
+  ["예약이 자동 확정되나요?", "네. 고객에게 가능한 시간만 보여주고, 고객이 시간을 선택하면 예약이 바로 확정됩니다."],
   ["전화 예약도 관리할 수 있나요?", "가능합니다. 오너가 직접 등록한 예약도 같은 예약판과 캘린더에서 확인할 수 있습니다."],
-  ["1인샵도 부담 없이 쓸 수 있나요?", "오늘 처리할 예약, 승인대기, 고객 기록처럼 자주 쓰는 기능부터 가볍게 시작할 수 있습니다."],
+  ["1인샵도 부담 없이 쓸 수 있나요?", "오늘 일정, 고객 기록, 미용 진행처럼 자주 쓰는 기능부터 가볍게 시작할 수 있습니다."],
 ] as const;
 
 function formatWon(value: number) {
@@ -115,7 +115,7 @@ function Hero() {
           넘치는 하루
         </h1>
         <p className="mt-6 max-w-[610px] text-[18px] leading-8 text-[#5f574f] md:text-[20px]">
-          넘친 day는 예약 요청, 승인, 알림톡, 고객 기록을 한 곳에 모아
+          넘친 day는 예약, 알림톡, 고객 기록을 한 곳에 모아
           오너가 덜 쫓기고 더 정확하게 운영하도록 돕습니다.
         </p>
         <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -127,7 +127,7 @@ function Hero() {
           </Link>
         </div>
         <div className="mt-8 grid max-w-[560px] grid-cols-3 gap-3">
-          <TrustItem label="예약 요청" value="자동 정리" />
+          <TrustItem label="예약" value="자동 확정" />
           <TrustItem label="알림톡" value="직접 발송" />
           <TrustItem label="재방문" value="고객 기록" />
         </div>
@@ -304,7 +304,7 @@ function OwnerDashboardMock() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-[14px] text-[#766b61]">오늘 예약 관리</p>
-          <p className="text-[24px] font-semibold">승인대기 3건</p>
+          <p className="text-[24px] font-semibold">오늘 예약 3건</p>
         </div>
         <button className="rounded-[10px] bg-[#232323] px-4 py-2 text-[14px] font-semibold text-white">예약 추가</button>
       </div>
@@ -376,7 +376,7 @@ function CustomerPagePreview() {
 
 function SchedulePreview() {
   return (
-    <PreviewCard title="오너 예약관리" body="승인대기, 진행 중, 픽업 준비를 한 화면에서 처리합니다.">
+    <PreviewCard title="오너 예약관리" body="확정 예약, 진행 중, 픽업 준비를 한 화면에서 처리합니다.">
       <div className="grid gap-3 rounded-[20px] bg-[#fbfaf7] p-4 md:grid-cols-3">
         {["정우진", "박수현", "수현"].map((name, index) => (
           <div key={name} className="min-h-[220px] rounded-[16px] border border-[#e3dbcf] bg-white">

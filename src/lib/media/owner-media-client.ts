@@ -15,6 +15,7 @@ export type OwnerMediaContext = {
   petId?: string | null;
   appointmentId?: string | null;
   groomingRecordId?: string | null;
+  staffId?: string | null;
 };
 
 export type MediaAssetListItem = {
@@ -133,13 +134,14 @@ async function createUploadIntent(context: OwnerMediaContext, mediaKind: MediaKi
       width: compressed.width,
       height: compressed.height,
       mediaKind,
-      visibility: mediaKind === "shop_profile" ? "public" : "customer_shared",
+      visibility: mediaKind === "shop_profile" || mediaKind === "staff_profile" ? "public" : "customer_shared",
       retentionPolicy: "standard",
       uploadedFrom: "owner_web",
       guardianId: context.guardianId ?? null,
       petId: context.petId ?? null,
       appointmentId: context.appointmentId ?? null,
       groomingRecordId: context.groomingRecordId ?? null,
+      metadata: context.staffId ? { staffId: context.staffId } : null,
     }),
   });
 }
@@ -243,6 +245,19 @@ export async function createOwnerShopProfileImageFromFile(
   file: File,
 ) {
   const uploaded = await createOwnerMediaAssetFromFile(context, "shop_profile", file);
+  const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
+
+  return {
+    ...uploaded,
+    signedUrl,
+  };
+}
+
+export async function createOwnerStaffProfileImageFromFile(
+  context: OwnerMediaContext,
+  file: File,
+) {
+  const uploaded = await createOwnerMediaAssetFromFile(context, "staff_profile", file);
   const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
 
   return {

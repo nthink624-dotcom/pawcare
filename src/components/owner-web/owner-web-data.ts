@@ -24,7 +24,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "alerts", label: "알림 설정" },
 ];
 
-export type ReservationStatus = "승인 대기" | "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";
+export type ReservationStatus = "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";
 
 export const reservationRows = [
   {
@@ -34,7 +34,7 @@ export const reservationRows = [
     pet: "우유",
     service: "전체 미용",
     staff: "원장",
-    status: "승인 대기" as ReservationStatus,
+    status: "확정" as ReservationStatus,
     phone: "010-8498-2077",
     channel: "네이버 예약",
     note: "첫 방문 / 피부 민감",
@@ -137,7 +137,7 @@ export const customerRows = [
 ];
 
 export const calendarBookings = [
-  { id: "C-01", day: "월", start: 10, duration: 1.5, lane: 0, customer: "정유진", pet: "우유", service: "전체 미용", staff: "원장", status: "승인 대기" },
+  { id: "C-01", day: "월", start: 10, duration: 1.5, lane: 0, customer: "정유진", pet: "우유", service: "전체 미용", staff: "원장", status: "확정" },
   { id: "C-02", day: "월", start: 13, duration: 1, lane: 1, customer: "김민지", pet: "몽이", service: "목욕", staff: "서브", status: "확정" },
   { id: "C-03", day: "화", start: 11, duration: 2, lane: 0, customer: "박서준", pet: "코코", service: "목욕 + 부분정리", staff: "원장", status: "진행 중" },
   { id: "C-04", day: "수", start: 14, duration: 1.5, lane: 0, customer: "이수현", pet: "보리", service: "위생 미용", staff: "서브", status: "픽업 준비" },

@@ -292,7 +292,10 @@ export default function OwnerPage() {
         );
 
         if (shouldBlockOwnerAccessBySubscription(subscription)) {
-          router.replace(`/owner/billing?compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never);
+          const billingReason = subscription.status === "past_due" ? "past_due" : "expired";
+          router.replace(
+            `/owner/billing?notice=${billingReason}&compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never,
+          );
           router.refresh();
           return;
         }
@@ -330,7 +333,7 @@ export default function OwnerPage() {
         }
 
         if (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인")) {
-          router.replace("/owner/billing?compare=1" as never);
+          router.replace("/owner/billing?notice=expired&compare=1" as never);
           router.refresh();
           return;
         }

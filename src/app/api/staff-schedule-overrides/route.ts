@@ -27,7 +27,7 @@ const deleteSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-const blockingAppointmentStatuses = ["pending", "confirmed", "in_progress", "almost_done"] as const;
+const blockingAppointmentStatuses = ["confirmed", "in_progress", "almost_done"] as const;
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 type StaffMemberRow = {

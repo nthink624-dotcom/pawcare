@@ -71,8 +71,8 @@ const appTemplateCodeFieldGroups: Array<{
       { key: "templateBookingCancelled", label: "예약 취소" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
       { key: "templateAppointmentReminder10m", label: "방문 안내 호환용" },
-      { key: "templateVisitScheduleNotice", label: "예약 일정 안내" },
-      { key: "templateVisitReminderNotice", label: "방문 예정 안내" },
+      { key: "templateVisitScheduleNotice", label: "예약 안내 - 일정" },
+      { key: "templateVisitReminderNotice", label: "예약 안내 - 방문 전" },
       { key: "templateGroomingStarted", label: "미용 시작" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진" },
@@ -270,13 +270,11 @@ export default function AdminAlimtalkScreen({
       throw new Error("연결할 알림톡 템플릿 설정을 찾지 못했습니다.");
     }
 
-    const currentConfig =
-      relayConfig ??
-      (
-        await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
-          cache: "no-store",
-        })
-      ).config;
+    const currentConfig = (
+      await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
+        cache: "no-store",
+      })
+    ).config;
     const nextConfig: RelayAdminConfig = {
       ...currentConfig,
       [templateConfigKey]: templateCode,

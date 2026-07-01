@@ -14,6 +14,16 @@ type TemplateButton = {
   linkPc?: string | null;
 };
 
+type TemplateDraftGroup = {
+  key: string;
+  title: string;
+  description?: string;
+  drafts: AppTemplateDraft[];
+};
+
+const mergedVisitNoticeAliases: AlimtalkTemplateAlias[] = ["visit_schedule_notice", "visit_reminder_notice"];
+const mergedVisitNoticeAliasSet = new Set<AlimtalkTemplateAlias>(mergedVisitNoticeAliases);
+
 const ssodaaStatusLabels: Record<string, string> = {
   REG: "등록",
   REQ: "검수 요청",
@@ -104,6 +114,47 @@ function getAppButtons(alias: AlimtalkTemplateAlias): TemplateButton[] {
   }
 }
 
+function getVisibleTemplateDraftGroups(drafts: AppTemplateDraft[]): TemplateDraftGroup[] {
+  const visibleDrafts = drafts.filter((draft) => draft.alias !== "booking_received");
+  const groups: TemplateDraftGroup[] = [];
+  let visitNoticeAdded = false;
+
+  for (const draft of visibleDrafts) {
+    if (mergedVisitNoticeAliasSet.has(draft.alias)) {
+      if (visitNoticeAdded) continue;
+      const mergedDrafts = mergedVisitNoticeAliases
+        .map((alias) => visibleDrafts.find((item) => item.alias === alias))
+        .filter((item): item is AppTemplateDraft => Boolean(item));
+      groups.push({
+        key: "visit_notice",
+        title: "예약 안내",
+        description: "예약 일정 안내와 방문 전 재안내를 한 템플릿으로 관리합니다.",
+        drafts: mergedDrafts.length ? mergedDrafts : [draft],
+      });
+      visitNoticeAdded = true;
+      continue;
+    }
+
+    groups.push({
+      key: draft.alias,
+      title: draft.title,
+      drafts: [draft],
+    });
+  }
+
+  return groups;
+}
+
+function uniqueTemplatesByCode(items: RelaySsodaaTemplateDetail[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.templateCode;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getTemplateCandidates({
   alias,
   connectedCode,
@@ -188,14 +239,16 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   const [editingBody, setEditingBody] = useState("");
   const [savingAlias, setSavingAlias] = useState<AlimtalkTemplateAlias | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [expandedAliases, setExpandedAliases] = useState<Set<AlimtalkTemplateAlias>>(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const [selectingTemplateCode, setSelectingTemplateCode] = useState<string | null>(null);
-  const visibleAppTemplateDrafts = appTemplateDrafts.filter((draft) => draft.alias !== "booking_received");
+  const visibleTemplateGroups = getVisibleTemplateDraftGroups(appTemplateDrafts);
 
-  async function handleSelectTemplate(alias: AlimtalkTemplateAlias, templateCode: string) {
+  async function handleSelectTemplateGroup(group: TemplateDraftGroup, templateCode: string) {
     setSelectingTemplateCode(templateCode);
     try {
-      await onSelectTemplate(alias, templateCode);
+      for (const draft of group.drafts) {
+        await onSelectTemplate(draft.alias, templateCode);
+      }
       setSaveError(null);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "쏘다 템플릿 연결에 실패했습니다.");
@@ -236,11 +289,23 @@ export default function AdminAlimtalkTemplateComparisonPanel({
     return { relayItem, ssodaaBody, appBody, ssodaaButtons, appButtons, candidates, hasCode, hasSsodaaBody, bodyMatches, buttonsMatch };
   }
 
-  function toggleAlias(alias: AlimtalkTemplateAlias) {
-    setExpandedAliases((current) => {
+  function getGroupComparisonState(group: TemplateDraftGroup) {
+    const states = group.drafts.map((draft) => ({ draft, ...getComparisonState(draft) }));
+    const primaryState = states[0];
+    const candidates = uniqueTemplatesByCode(states.flatMap((state) => state.candidates));
+    const hasCode = states.every((state) => state.hasCode);
+    const hasAnyCode = states.some((state) => state.hasCode);
+    const hasSsodaaBody = states.every((state) => state.hasSsodaaBody);
+    const bodyMatches = states.every((state) => state.bodyMatches);
+    const buttonsMatch = states.every((state) => state.buttonsMatch);
+    return { states, primaryState, candidates, hasCode, hasAnyCode, hasSsodaaBody, bodyMatches, buttonsMatch };
+  }
+
+  function toggleGroup(groupKey: string) {
+    setExpandedGroups((current) => {
       const next = new Set(current);
-      if (next.has(alias)) next.delete(alias);
-      else next.add(alias);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   }
@@ -252,7 +317,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setExpandedAliases(new Set(visibleAppTemplateDrafts.map((draft) => draft.alias)))}
+            onClick={() => setExpandedGroups(new Set(visibleTemplateGroups.map((group) => group.key)))}
             className="inline-flex h-9 items-center rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d]"
           >
             전체 펼침
@@ -260,14 +325,14 @@ export default function AdminAlimtalkTemplateComparisonPanel({
           <button
             type="button"
             onClick={() =>
-              setExpandedAliases(
+              setExpandedGroups(
                 new Set(
-                  visibleAppTemplateDrafts
-                    .filter((draft) => {
-                      const state = getComparisonState(draft);
+                  visibleTemplateGroups
+                    .filter((group) => {
+                      const state = getGroupComparisonState(group);
                       return !state.bodyMatches || !state.buttonsMatch || !state.hasCode;
                     })
-                    .map((draft) => draft.alias),
+                    .map((group) => group.key),
                 ),
               )
             }
@@ -277,7 +342,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
           </button>
           <button
             type="button"
-            onClick={() => setExpandedAliases(new Set())}
+            onClick={() => setExpandedGroups(new Set())}
             className="inline-flex h-9 items-center rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d]"
           >
             전체 접힘
@@ -311,20 +376,30 @@ export default function AdminAlimtalkTemplateComparisonPanel({
         </div>
       ) : (
         <div className="mt-4 grid gap-2">
-          {visibleAppTemplateDrafts.map((draft) => {
-            const { relayItem, ssodaaBody, appBody, ssodaaButtons, appButtons, candidates, hasCode, hasSsodaaBody, bodyMatches, buttonsMatch } =
-              getComparisonState(draft);
-            const isOpen = expandedAliases.has(draft.alias) || editingAlias === draft.alias;
+          {visibleTemplateGroups.map((group) => {
+            const { states, primaryState, candidates, hasCode, hasAnyCode, hasSsodaaBody, bodyMatches, buttonsMatch } = getGroupComparisonState(group);
+            const primaryDraft = primaryState.draft;
+            const { relayItem, ssodaaBody, appBody, ssodaaButtons, appButtons } = primaryState;
+            const isOpen = expandedGroups.has(group.key) || group.drafts.some((draft) => editingAlias === draft.alias);
             const bodyLabel = !hasCode ? "연결 후 본문 확인" : !hasSsodaaBody ? "본문 조회 실패" : bodyMatches ? "본문 일치" : "본문 불일치";
             const buttonLabel = !hasCode ? "연결 후 버튼 확인" : buttonsMatch ? "버튼 일치" : "버튼 불일치";
-            const codeLabel = hasCode ? "코드 연결됨" : "코드 연결 필요";
+            const codeLabel = hasCode ? "코드 연결됨" : hasAnyCode ? "일부 코드 연결" : "코드 연결 필요";
+            const statusLabel =
+              states.length > 1
+                ? states
+                    .map((state) => `${state.draft.title.replace(" 안내", "")} ${formatSsodaaStatus(state.relayItem?.detail?.inspectionStatus || state.relayItem?.detail?.serviceStatus)}`)
+                    .join(" · ")
+                : relayItem?.detail?.inspectionStatus || relayItem?.detail?.serviceStatus
+                  ? formatSsodaaStatus(relayItem.detail.inspectionStatus || relayItem.detail.serviceStatus)
+                  : relayItem?.error || "-";
 
             return (
-              <article key={draft.alias} className="rounded-[8px] border border-[#e6e3dd] bg-white">
+              <article key={group.key} className="rounded-[8px] border border-[#e6e3dd] bg-white">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <button type="button" onClick={() => toggleAlias(draft.alias)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={isOpen}>
+                  <button type="button" onClick={() => toggleGroup(group.key)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={isOpen}>
                     <ChevronDown className={`h-4 w-4 shrink-0 text-[#7a7268] transition ${isOpen ? "rotate-180" : ""}`} />
-                    <span className="min-w-[132px] text-[16px] font-semibold text-[#171411]">{draft.title}</span>
+                    <span className="min-w-[132px] text-[16px] font-semibold text-[#171411]">{group.title}</span>
+                    {group.description ? <span className="text-[13px] font-medium text-[#8a8277]">{group.description}</span> : null}
                     {candidates.length > 1 ? (
                       <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2.5 py-1 text-[12px] font-semibold text-[#6f665f]">
                         후보 {candidates.length}개
@@ -336,16 +411,22 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                   </button>
                   <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#6f665f]">
                     <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2.5 py-1">
-                      쏘다 상태{" "}
-                      {relayItem?.detail?.inspectionStatus || relayItem?.detail?.serviceStatus
-                        ? formatSsodaaStatus(relayItem.detail.inspectionStatus || relayItem.detail.serviceStatus)
-                        : relayItem?.error || "-"}
+                      쏘다 상태 {statusLabel}
                     </span>
                   </div>
                 </div>
 
                 {isOpen ? (
                   <div className="grid gap-2 border-t border-[#e6e3dd] p-2.5">
+                    {states.length > 1 ? (
+                      <div className="flex flex-wrap gap-2 rounded-[8px] border border-[#ece8e2] bg-[#fbfaf8] px-3 py-2">
+                        {states.map((state) => (
+                          <span key={state.draft.alias} className="rounded-[999px] border border-[#e6e3dd] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#6f665f]">
+                            {state.draft.title}: {state.hasCode ? "코드 연결됨" : "코드 연결 필요"}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <section className="rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-[15px] font-semibold text-[#171411]">연결 가능한 쏘다 템플릿</p>
@@ -354,20 +435,22 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                       <div className="mt-2 grid max-h-[150px] gap-2 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                         {candidates.length ? (
                           candidates.map((template) => {
-                            const isConnected = template.templateCode === relayItem?.configuredCode;
+                            const connectedCount = states.filter((state) => template.templateCode === state.relayItem?.configuredCode).length;
+                            const isConnected = connectedCount === states.length;
+                            const isPartiallyConnected = connectedCount > 0 && !isConnected;
                             return (
                               <div
                                 key={template.templateCode}
                                 role={isConnected ? undefined : "button"}
                                 tabIndex={isConnected ? undefined : 0}
                                 onClick={() => {
-                                  if (!isConnected) void handleSelectTemplate(draft.alias, template.templateCode);
+                                  if (!isConnected) void handleSelectTemplateGroup(group, template.templateCode);
                                 }}
                                 onKeyDown={(event) => {
                                   if (isConnected) return;
                                   if (event.key === "Enter" || event.key === " ") {
                                     event.preventDefault();
-                                    void handleSelectTemplate(draft.alias, template.templateCode);
+                                    void handleSelectTemplateGroup(group, template.templateCode);
                                   }
                                 }}
                                 className={`rounded-[6px] border px-3 py-2 transition ${
@@ -383,6 +466,10 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                                     <span className="shrink-0 rounded-[999px] border border-[#cfe3dc] bg-[#f5fbf8] px-2 py-1 text-[12px] font-semibold text-[#1f6b5b]">
                                       현재 연결
                                     </span>
+                                  ) : isPartiallyConnected ? (
+                                    <span className="shrink-0 rounded-[999px] border border-[#ead7b7] bg-[#fffaf0] px-2 py-1 text-[12px] font-semibold text-[#8a5b11]">
+                                      일부 연결
+                                    </span>
                                   ) : null}
                                 </div>
                                 <div className="mt-1.5 flex min-w-0 items-center gap-2">
@@ -396,12 +483,12 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                                       type="button"
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        void handleSelectTemplate(draft.alias, template.templateCode);
+                                        void handleSelectTemplateGroup(group, template.templateCode);
                                       }}
                                       disabled={Boolean(selectingTemplateCode)}
                                       className="h-7 shrink-0 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[14px] font-semibold text-[#5c554d] disabled:opacity-60"
                                     >
-                                      {selectingTemplateCode === template.templateCode ? "연결 중" : "연결"}
+                                      {selectingTemplateCode === template.templateCode ? "연결 중" : states.length > 1 ? "둘 다 연결" : "연결"}
                                     </button>
                                   ) : null}
                                 </div>
@@ -434,7 +521,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                         <div className="flex h-8 items-center justify-between gap-3">
                           <p className="text-[15px] font-semibold text-[#171411]">우리 템플릿</p>
                           <div className="flex items-center gap-2">
-                          {draft.isOverride ? (
+                          {primaryDraft.isOverride ? (
                             <span className="rounded-[999px] border border-[#cfe3dc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#1f6b5b]">
                               수정본 적용 중
                             </span>
@@ -445,25 +532,25 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                             <button
                               type="button"
                               onClick={() => {
-                                setEditingAlias(draft.alias);
+                                setEditingAlias(primaryDraft.alias);
                                 setEditingBody(ssodaaBody);
                                 setSaveError(null);
                               }}
-                              disabled={savingAlias === draft.alias}
+                              disabled={savingAlias === primaryDraft.alias}
                               className="h-8 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
                             >
                               쏘다 본문으로 맞추기
                             </button>
                           ) : null}
-                          {editingAlias === draft.alias ? (
+                          {editingAlias === primaryDraft.alias ? (
                             <>
                                 <button
                                   type="button"
-                                  onClick={() => void handleSave(draft.alias)}
-                                  disabled={savingAlias === draft.alias}
+                                  onClick={() => void handleSave(primaryDraft.alias)}
+                                  disabled={savingAlias === primaryDraft.alias}
                                   className="h-8 rounded-[6px] bg-[#1f6b5b] px-3 text-[13px] font-semibold text-white disabled:opacity-60"
                                 >
-                                  {savingAlias === draft.alias ? "저장 중" : "저장"}
+                                  {savingAlias === primaryDraft.alias ? "저장 중" : "저장"}
                                 </button>
                                 <button
                                   type="button"
@@ -472,7 +559,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                                     setEditingBody("");
                                     setSaveError(null);
                                   }}
-                                  disabled={savingAlias === draft.alias}
+                                  disabled={savingAlias === primaryDraft.alias}
                                   className="h-8 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
                                 >
                                   취소
@@ -482,8 +569,8 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setEditingAlias(draft.alias);
-                                  setEditingBody(draft.body);
+                                  setEditingAlias(primaryDraft.alias);
+                                  setEditingBody(primaryDraft.body);
                                   setSaveError(null);
                                 }}
                                 className="h-8 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d]"
@@ -493,7 +580,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                             )}
                           </div>
                         </div>
-                        {editingAlias === draft.alias ? (
+                        {editingAlias === primaryDraft.alias ? (
                           <textarea
                             value={editingBody}
                             onChange={(event) => setEditingBody(event.target.value)}

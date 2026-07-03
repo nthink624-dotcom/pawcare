@@ -478,7 +478,21 @@ export function DailyScheduleGrid({
     });
   }
 
-  function renderOffHoursBodyBars(prefix: string) {
+  function renderOffHoursColumnBars(prefix: string) {
+    return nonOperatingBlocks.map((segment) => (
+      <div
+        key={`${prefix}-off-bar-${segment.key}`}
+        className={cn(
+          "pointer-events-none absolute z-[4] rounded-full",
+          segment.collapsed ? "left-2 right-4 bg-[#dbe2ea]" : "right-3 w-[24px] bg-transparent",
+        )}
+        style={{ top: getOffHoursBarTop(segment), height: segment.collapsed ? 8 : 22 }}
+        aria-hidden="true"
+      />
+    ));
+  }
+
+  function renderOffHoursToggleControls(prefix: string) {
     return nonOperatingBlocks.map((segment) => (
       <button
         key={`${prefix}-off-toggle-${segment.key}`}
@@ -490,12 +504,12 @@ export function DailyScheduleGrid({
           toggleOffHours(segment.key as OffHoursRangeKey);
         }}
         className={cn(
-          "absolute z-[5] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
+          "absolute z-[30] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
           segment.collapsed
-            ? "left-2 right-4 bg-[#dbe2ea] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.2)] hover:bg-[#cbd5e1]"
+            ? "left-1/2 w-[24px] -translate-x-1/2 bg-transparent"
             : "right-3 w-[24px] bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
         )}
-        style={{ top: getOffHoursBarTop(segment), height: segment.collapsed ? 8 : 22 }}
+        style={{ top: getOffHoursBarTop(segment) - (segment.collapsed ? 7 : 0), height: 22 }}
       >
         <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[#c4ceda] bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)]">
           {segment.collapsed ? <ChevronDown className="h-[13px] w-[13px]" strokeWidth={2.8} /> : <ChevronUp className="h-[13px] w-[13px]" strokeWidth={2.8} />}
@@ -834,6 +848,7 @@ export function DailyScheduleGrid({
             className="min-w-0 flex-1 overflow-x-clip scroll-px-4"
           >
             <div className="relative min-w-full" style={scheduleTrackStyle}>
+              {renderOffHoursToggleControls("schedule-body")}
               <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4">
               {scheduleStaff.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
@@ -863,7 +878,7 @@ export function DailyScheduleGrid({
                     style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
-                      {renderOffHoursBodyBars(staffMember.key)}
+                      {renderOffHoursColumnBars(staffMember.key)}
                       {renderScheduleLines(staffMember.key)}
                       {staffBookings.length === 0 ? (
                         <div className="rounded-[8px] border border-dashed border-[#e5eaf0] bg-white px-3 py-4 text-center text-[12px] text-[#94a3b8]">

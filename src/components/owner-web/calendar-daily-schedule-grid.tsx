@@ -507,7 +507,7 @@ export function DailyScheduleGrid({
           "absolute z-[30] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
           segment.collapsed
             ? "left-1/2 w-[24px] -translate-x-1/2 bg-transparent"
-            : "right-3 w-[24px] bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
+            : "left-1/2 w-[24px] -translate-x-1/2 bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
         )}
         style={{ top: getOffHoursBarTop(segment) - (segment.collapsed ? 7 : 0), height: 22 }}
       >
@@ -741,7 +741,7 @@ export function DailyScheduleGrid({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white">
       <div className="flex shrink-0 bg-white">
-        <div className="flex w-[64px] shrink-0 items-center justify-center border-r border-[#edf2f7] bg-white px-2 pt-2">
+        <div className="flex w-[76px] shrink-0 items-center justify-center border-r border-[#edf2f7] bg-white px-2 pt-2">
           <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-white text-[12px] text-[#64748b]">
             시간
           </span>
@@ -824,7 +824,7 @@ export function DailyScheduleGrid({
         )}
       >
         <div className="flex">
-          <div className="w-[64px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
+          <div className="w-[76px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
               {renderScheduleLines("time-rail")}
               {expandedTimeHours.map((hour) => (

@@ -11,6 +11,12 @@ import type {
   RelayRuntimeDiagnostics,
 } from "@/server/admin-alimtalk";
 
+const reservationNoticeTitles: Partial<Record<AlimtalkTemplateAlias, string>> = {
+  visit_schedule_notice: "예약 안내 - 내일",
+  visit_reminder_notice: "예약 안내 - 오늘",
+  appointment_reminder_10m: "예약 안내 - 직전",
+};
+
 function statusTone(ok: boolean) {
   return ok
     ? "border-[#d8e7e1] bg-[#f5fbf8] text-[#2f7266]"
@@ -222,7 +228,7 @@ export default function AdminAlimtalkRuntimePanel({
             >
               {appTemplateDrafts.map((item) => (
                 <option key={item.alias} value={item.alias}>
-                  {item.title} ({item.alias})
+                  {reservationNoticeTitles[item.alias] ?? item.title} ({item.alias})
                 </option>
               ))}
             </select>

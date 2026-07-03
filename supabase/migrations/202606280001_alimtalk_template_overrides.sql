@@ -17,6 +17,8 @@ create table if not exists public.platform_alimtalk_template_overrides (
         'booking_time_proposed',
         'booking_rescheduled_confirmed',
         'appointment_reminder_10m',
+        'visit_schedule_notice',
+        'visit_reminder_notice',
         'grooming_started',
         'grooming_almost_done',
         'grooming_completed',

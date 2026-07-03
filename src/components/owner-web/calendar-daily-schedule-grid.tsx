@@ -834,7 +834,6 @@ export function DailyScheduleGrid({
             className="min-w-0 flex-1 overflow-x-clip scroll-px-4"
           >
             <div className="relative min-w-full" style={scheduleTrackStyle}>
-              {renderOffHoursBodyBars("schedule-body")}
               <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4">
               {scheduleStaff.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
@@ -864,6 +863,7 @@ export function DailyScheduleGrid({
                     style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
+                      {renderOffHoursBodyBars(staffMember.key)}
                       {renderScheduleLines(staffMember.key)}
                       {staffBookings.length === 0 ? (
                         <div className="rounded-[8px] border border-dashed border-[#e5eaf0] bg-white px-3 py-4 text-center text-[12px] text-[#94a3b8]">

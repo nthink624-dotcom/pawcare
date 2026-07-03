@@ -26,6 +26,7 @@ type RelayConfig = {
   templateBookingConfirmed: string;
   templateBookingRejected: string;
   templateBookingCancelled: string;
+  templateBookingTimeProposed: string;
   templateBookingRescheduledConfirmed: string;
   templateAppointmentReminder10m: string;
   templateVisitScheduleNotice: string;
@@ -49,6 +50,7 @@ const relayEnvKeys = [
   "ALIMTALK_TEMPLATE_BOOKING_CONFIRMED",
   "ALIMTALK_TEMPLATE_BOOKING_REJECTED",
   "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
+  "ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED",
   "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
   "ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M",
   "ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE",
@@ -75,6 +77,7 @@ function loadRelayConfig(): RelayConfig {
     templateBookingConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED || "",
     templateBookingRejected: process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED || "",
     templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
+    templateBookingTimeProposed: process.env.ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED || "",
     templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
     templateAppointmentReminder10m: process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M || "",
     templateVisitScheduleNotice: process.env.ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE || "",
@@ -101,6 +104,7 @@ function getRelayConfigPayload() {
     templateBookingConfirmed: env.templateBookingConfirmed,
     templateBookingRejected: env.templateBookingRejected,
     templateBookingCancelled: env.templateBookingCancelled,
+    templateBookingTimeProposed: env.templateBookingTimeProposed,
     templateBookingRescheduledConfirmed: env.templateBookingRescheduledConfirmed,
     templateAppointmentReminder10m: env.templateAppointmentReminder10m,
     templateVisitScheduleNotice: env.templateVisitScheduleNotice,
@@ -130,6 +134,7 @@ function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Re
     ALIMTALK_TEMPLATE_BOOKING_CONFIRMED: config.templateBookingConfirmed,
     ALIMTALK_TEMPLATE_BOOKING_REJECTED: config.templateBookingRejected,
     ALIMTALK_TEMPLATE_BOOKING_CANCELLED: config.templateBookingCancelled,
+    ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED: config.templateBookingTimeProposed,
     ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED: config.templateBookingRescheduledConfirmed,
     ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M: config.templateAppointmentReminder10m,
     ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE: config.templateVisitScheduleNotice,
@@ -217,6 +222,7 @@ const relayTemplateConfigKeys = [
   "templateBookingConfirmed",
   "templateBookingRejected",
   "templateBookingCancelled",
+  "templateBookingTimeProposed",
   "templateBookingRescheduledConfirmed",
   "templateAppointmentReminder10m",
   "templateVisitScheduleNotice",
@@ -263,6 +269,7 @@ const adminConfigSchema = z.object({
   templateBookingConfirmed: z.string(),
   templateBookingRejected: z.string(),
   templateBookingCancelled: z.string(),
+  templateBookingTimeProposed: z.string(),
   templateBookingRescheduledConfirmed: z.string(),
   templateAppointmentReminder10m: z.string(),
   templateVisitScheduleNotice: z.string(),
@@ -286,6 +293,7 @@ const templateAliases = [
   "booking_confirmed",
   "booking_rejected",
   "booking_cancelled",
+  "booking_time_proposed",
   "booking_rescheduled_confirmed",
   "appointment_reminder_10m",
   "visit_schedule_notice",
@@ -897,14 +905,38 @@ async function listSsodaaTemplateCategories() {
   };
 }
 
-async function fetchSsodaaTemplateList() {
+async function fetchSsodaaTemplateListPage(page: number, count: number) {
   const responseBody = await postSsodaaJson("/kakao/template/list", {
     senderKey: env.ssodaaSenderKey,
-    page: "1",
-    count: "100",
+    page: String(page),
+    count: String(count),
   });
 
   return extractTemplateRecords(responseBody);
+}
+
+async function fetchSsodaaTemplateList() {
+  const pageSize = 100;
+  const maxPages = 20;
+  const records: Record<string, unknown>[] = [];
+  const seenCodes = new Set<string>();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageRecords = await fetchSsodaaTemplateListPage(page, pageSize);
+    let addedCount = 0;
+
+    for (const record of pageRecords) {
+      const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
+      if (!code || seenCodes.has(code)) continue;
+      seenCodes.add(code);
+      records.push(record);
+      addedCount += 1;
+    }
+
+    if (pageRecords.length < pageSize || addedCount === 0) break;
+  }
+
+  return records;
 }
 
 function mapTemplateCodeToRelayConfig(configKey: RelayTemplateConfigKey, templateCode: string) {
@@ -1099,6 +1131,8 @@ function resolveTemplateKey(alias: string | null | undefined) {
       return env.templateBookingRejected || null;
     case "booking_cancelled":
       return env.templateBookingCancelled || null;
+    case "booking_time_proposed":
+      return env.templateBookingTimeProposed || null;
     case "booking_rescheduled_confirmed":
       return env.templateBookingRescheduledConfirmed || null;
     case "appointment_reminder_10m":
@@ -1139,6 +1173,10 @@ function getTemplateDebugMap() {
     booking_cancelled: {
       configured: Boolean(env.templateBookingCancelled),
       length: env.templateBookingCancelled.length,
+    },
+    booking_time_proposed: {
+      configured: Boolean(env.templateBookingTimeProposed),
+      length: env.templateBookingTimeProposed.length,
     },
     booking_rescheduled_confirmed: {
       configured: Boolean(env.templateBookingRescheduledConfirmed),

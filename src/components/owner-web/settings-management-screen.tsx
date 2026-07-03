@@ -1048,10 +1048,16 @@ export default function SettingsManagementScreen({
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const discountCouponSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const discountCouponSavingRef = useRef(false);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileImageServerSyncKeyRef = useRef("");
   const profileImageAssetUrlSyncKeyRef = useRef("");
   const profileImageMediaAssetRecoveryKeyRef = useRef("");
+  const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
+  const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
+  const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
+  const discountCouponShopIdRef = useRef(shop?.id ?? "");
 
   useEffect(() => {
     if (isShopInfoDirty || savingShopInfo || addressSheetOpen) {
@@ -1099,6 +1105,9 @@ export default function SettingsManagementScreen({
       if (customerServiceSaveTimerRef.current) {
         clearTimeout(customerServiceSaveTimerRef.current);
       }
+      if (discountCouponSaveTimerRef.current) {
+        clearTimeout(discountCouponSaveTimerRef.current);
+      }
     };
   }, []);
 
@@ -1118,9 +1127,25 @@ export default function SettingsManagementScreen({
 
   useEffect(() => {
     const nextCoupons = normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons);
+    const nextKey = JSON.stringify(nextCoupons);
+    const shopChanged = discountCouponShopIdRef.current !== (shop?.id ?? "");
+    const shouldKeepLocalDraft =
+      !shopChanged &&
+      discountCouponDraftKeyRef.current !== discountCouponSavedKeyRef.current &&
+      nextKey === discountCouponSavedKeyRef.current;
+
+    if (!shouldKeepLocalDraft) {
+      setDiscountCouponDrafts(nextCoupons);
+      discountCouponDraftKeyRef.current = nextKey;
+      discountCouponLatestDraftRef.current = nextCoupons;
+    }
     setSavedDiscountCoupons(nextCoupons);
-    setDiscountCouponDrafts(nextCoupons);
-    setDiscountCouponSaveStatus("saved");
+    discountCouponSavedKeyRef.current = nextKey;
+    discountCouponShopIdRef.current = shop?.id ?? "";
+    setDiscountCouponSaveStatus((currentStatus) => {
+      if (shouldKeepLocalDraft) return currentStatus;
+      return "saved";
+    });
   }, [shop?.id, shop?.customer_page_settings.discount_coupons]);
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
@@ -1506,15 +1531,44 @@ export default function SettingsManagementScreen({
     onServicesChange?.(nextServices);
   }
 
-  function updateDiscountCoupons(nextCoupons: CustomerDiscountCoupon[]) {
-    setDiscountCouponDrafts(nextCoupons);
-    setDiscountCouponSaveStatus("idle");
+  function scheduleDiscountCouponAutoSave(nextCoupons: CustomerDiscountCoupon[]) {
+    if (discountCouponSaveTimerRef.current) {
+      clearTimeout(discountCouponSaveTimerRef.current);
+    }
+
+    discountCouponSaveTimerRef.current = setTimeout(() => {
+      discountCouponSaveTimerRef.current = null;
+      void saveDiscountCoupons(nextCoupons);
+    }, 650);
   }
 
-  async function saveDiscountCoupons() {
-    if (!shop || discountCouponSaveStatus === "pending") return;
+  function updateDiscountCoupons(nextCoupons: CustomerDiscountCoupon[], options: { autoSave?: boolean } = {}) {
+    const normalizedCoupons = normalizeDiscountCoupons(nextCoupons);
+    const nextKey = JSON.stringify(normalizedCoupons);
+    discountCouponDraftKeyRef.current = nextKey;
+    discountCouponLatestDraftRef.current = normalizedCoupons;
+    setDiscountCouponDrafts(normalizedCoupons);
+    setDiscountCouponSaveStatus("idle");
+    if (options.autoSave !== false && nextKey !== discountCouponSavedKeyRef.current) {
+      scheduleDiscountCouponAutoSave(normalizedCoupons);
+    }
+  }
 
-    const normalizedCoupons = normalizeDiscountCoupons(discountCouponDrafts);
+  async function saveDiscountCoupons(couponsToSave: CustomerDiscountCoupon[] = discountCouponDrafts) {
+    if (!shop) return;
+
+    const normalizedCoupons = normalizeDiscountCoupons(couponsToSave);
+    const normalizedKey = JSON.stringify(normalizedCoupons);
+    if (normalizedKey === discountCouponSavedKeyRef.current) {
+      setDiscountCouponSaveStatus("saved");
+      return;
+    }
+    if (discountCouponSavingRef.current) {
+      scheduleDiscountCouponAutoSave(normalizedCoupons);
+      return;
+    }
+
+    discountCouponSavingRef.current = true;
     setDiscountCouponSaveStatus("pending");
 
     const optimisticShop: Shop = {
@@ -1526,11 +1580,16 @@ export default function SettingsManagementScreen({
     };
 
     if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setDiscountCouponDrafts(normalizedCoupons);
+      if (discountCouponDraftKeyRef.current === normalizedKey) {
+        setDiscountCouponDrafts(normalizedCoupons);
+        discountCouponDraftKeyRef.current = normalizedKey;
+        discountCouponLatestDraftRef.current = normalizedCoupons;
+      }
       setSavedDiscountCoupons(normalizedCoupons);
+      discountCouponSavedKeyRef.current = normalizedKey;
       onShopChange?.(optimisticShop);
       setDiscountCouponSaveStatus("saved");
-      showSaveCompletePopup();
+      discountCouponSavingRef.current = false;
       return;
     }
 
@@ -1543,6 +1602,7 @@ export default function SettingsManagementScreen({
         }),
       });
       const savedCoupons = normalizeDiscountCoupons(result.shop.customer_page_settings.discount_coupons);
+      const savedKey = JSON.stringify(savedCoupons);
       const nextShop: Shop = {
         ...optimisticShop,
         customer_page_settings: {
@@ -1550,20 +1610,32 @@ export default function SettingsManagementScreen({
           discount_coupons: savedCoupons,
         },
       };
-      setDiscountCouponDrafts(savedCoupons);
+      if (discountCouponDraftKeyRef.current === normalizedKey) {
+        setDiscountCouponDrafts(savedCoupons);
+        discountCouponDraftKeyRef.current = savedKey;
+        discountCouponLatestDraftRef.current = savedCoupons;
+      }
       setSavedDiscountCoupons(savedCoupons);
+      discountCouponSavedKeyRef.current = savedKey;
       onShopChange?.(nextShop);
       setDiscountCouponSaveStatus("saved");
-      showSaveCompletePopup();
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to save discount coupons", error);
       setDiscountCouponSaveStatus("error");
+    } finally {
+      discountCouponSavingRef.current = false;
+      if (discountCouponDraftKeyRef.current !== discountCouponSavedKeyRef.current) {
+        scheduleDiscountCouponAutoSave(discountCouponLatestDraftRef.current);
+      }
     }
   }
 
   function reloadSavedDiscountCoupons() {
     const normalizedCoupons = normalizeDiscountCoupons(savedDiscountCoupons);
     setDiscountCouponDrafts(normalizedCoupons);
+    discountCouponDraftKeyRef.current = JSON.stringify(normalizedCoupons);
+    discountCouponLatestDraftRef.current = normalizedCoupons;
+    discountCouponSavedKeyRef.current = discountCouponDraftKeyRef.current;
     setDiscountCouponSaveStatus("saved");
   }
 
@@ -1578,6 +1650,20 @@ export default function SettingsManagementScreen({
           : coupon,
       ),
     );
+  }
+
+  function toggleDiscountCouponEnabled(couponId: string) {
+    if (discountCouponSaveStatus === "pending") return;
+
+    const nextCoupons = discountCoupons.map((coupon) =>
+      coupon.id === couponId
+        ? {
+            ...coupon,
+            enabled: !coupon.enabled,
+          }
+        : coupon,
+    );
+    updateDiscountCoupons(nextCoupons);
   }
 
   function addDiscountCoupon(preset: DiscountCouponPreset = "first_visit") {
@@ -2055,30 +2141,12 @@ export default function SettingsManagementScreen({
               <div className="mb-5 flex items-start justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
                 <div>
                   <h2 className="text-[20px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
-                  <p
-                    className={cn(
-                      "mt-1 text-[14px] font-normal",
-                      discountCouponSaveStatus === "error"
-                        ? "text-[#a04455]"
-                        : discountCouponSaveStatus === "pending" || discountCouponsDirty
-                          ? "text-[#8a5b11]"
-                          : "text-[#2f7866]",
-                    )}
-                  >
-                    {discountCouponSaveStatus === "pending"
-                      ? "혜택을 저장하는 중입니다."
-                      : discountCouponSaveStatus === "error"
-                        ? "저장하지 못했습니다. 다시 시도해 주세요."
-                        : discountCouponsDirty
-                          ? "저장하지 않은 변경사항이 있습니다."
-                          : "저장된 혜택을 불러온 상태입니다."}
-                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
                     onClick={reloadSavedDiscountCoupons}
-                    disabled={!discountCouponsDirty || discountCouponSaveStatus === "pending"}
+                    disabled={!discountCouponsDirty}
                     className="inline-flex h-10 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866] disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     기존 혜택 불러오기
@@ -2086,18 +2154,9 @@ export default function SettingsManagementScreen({
                   <button
                     type="button"
                     onClick={() => addDiscountCoupon()}
-                    disabled={discountCouponSaveStatus === "pending"}
                     className="inline-flex h-10 items-center rounded-[8px] border border-[#c8ded8] bg-[#f4faf8] px-4 text-[15px] font-normal text-[#2f7866] transition hover:border-[#8bbcaf] hover:bg-[#eef7f4] disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     혜택 추가
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveDiscountCoupons()}
-                    disabled={!discountCouponsDirty || discountCouponSaveStatus === "pending"}
-                    className="inline-flex h-10 items-center rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-4 text-[15px] font-normal text-white transition hover:border-[#286a5a] hover:bg-[#286a5a] disabled:cursor-not-allowed disabled:border-[#cbd5e1] disabled:bg-[#cbd5e1]"
-                  >
-                    {discountCouponSaveStatus === "pending" ? "저장 중" : "혜택 저장"}
                   </button>
                 </div>
               </div>
@@ -2105,10 +2164,11 @@ export default function SettingsManagementScreen({
                 <DiscountCouponEditor
                   coupons={discountCoupons}
                   serviceOptions={customerServiceConnectionOptions}
-                  disabled={discountCouponSaveStatus === "pending"}
+                  disabled={false}
                   onAdd={() => addDiscountCoupon()}
                   onAddPreset={addDiscountCoupon}
                   onDelete={deleteDiscountCoupon}
+                  onToggleEnabled={toggleDiscountCouponEnabled}
                   onUpdate={updateDiscountCoupon}
                 />
               </div>

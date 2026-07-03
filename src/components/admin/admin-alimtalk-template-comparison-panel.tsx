@@ -18,11 +18,61 @@ type TemplateDraftGroup = {
   key: string;
   title: string;
   description?: string;
+  section: TemplateSectionKey;
   drafts: AppTemplateDraft[];
 };
 
-const mergedVisitNoticeAliases: AlimtalkTemplateAlias[] = ["visit_schedule_notice", "visit_reminder_notice"];
-const mergedVisitNoticeAliasSet = new Set<AlimtalkTemplateAlias>(mergedVisitNoticeAliases);
+type TemplateSectionKey = "booking" | "visit" | "grooming" | "customer";
+
+type TemplateDraftSection = {
+  key: TemplateSectionKey;
+  title: string;
+  description: string;
+  groups: TemplateDraftGroup[];
+};
+
+const reservationNoticeTitles: Partial<Record<AlimtalkTemplateAlias, string>> = {
+  visit_schedule_notice: "예약 안내 - 내일",
+  visit_reminder_notice: "예약 안내 - 오늘",
+  appointment_reminder_10m: "예약 안내 - 직전",
+};
+
+const templateSectionCopy: Record<TemplateSectionKey, { title: string; description: string }> = {
+  booking: {
+    title: "예약",
+    description: "예약 완료, 변경, 취소처럼 예약 상태가 바뀔 때 보내는 안내입니다.",
+  },
+  visit: {
+    title: "예약 안내",
+    description: "내일 예약, 오늘 예약, 방문 직전 예약 안내를 시점별로 나눠 관리합니다.",
+  },
+  grooming: {
+    title: "미용 진행",
+    description: "미용 시작, 픽업 준비, 완료 사진처럼 시술 흐름에 맞춰 보내는 안내입니다.",
+  },
+  customer: {
+    title: "고객 관리",
+    description: "재방문, 생일처럼 예약 건 밖에서 고객 관리용으로 보내는 안내입니다.",
+  },
+};
+
+function getTemplateSectionKey(alias: AlimtalkTemplateAlias): TemplateSectionKey {
+  switch (alias) {
+    case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
+      return "visit";
+    case "grooming_started":
+    case "grooming_almost_done":
+    case "grooming_completed":
+      return "grooming";
+    case "revisit_notice":
+    case "birthday_greeting":
+      return "customer";
+    default:
+      return "booking";
+  }
+}
 
 const ssodaaStatusLabels: Record<string, string> = {
   REG: "등록",
@@ -38,18 +88,47 @@ const ssodaaStatusLabels: Record<string, string> = {
 const aliasTemplateKeywords: Record<AlimtalkTemplateAlias, string[]> = {
   booking_received: ["예약 접수"],
   booking_confirmed: ["예약 확정", "펫매니저 예약 확정"],
-  booking_rejected: ["예약 거절", "예약 일정 변경"],
+  booking_rejected: ["예약 거절"],
   booking_cancelled: ["예약 취소"],
-  booking_time_proposed: ["다른 시간", "예약 시간 변경", "예약 일정 변경"],
+  booking_time_proposed: [
+    "다른 시간",
+    "다른시간",
+    "다른 시간 제안",
+    "다른시간제안",
+    "예약 시간 변경",
+    "예약시간변경",
+    "예약 시간 제안",
+    "예약시간제안",
+    "예약 일정 변경",
+    "예약일정변경",
+    "booking_time_proposed",
+    "time_proposed",
+  ],
   booking_rescheduled_confirmed: ["예약 변경 확정"],
-  appointment_reminder_10m: ["방문 전", "방문 안내"],
-  visit_schedule_notice: ["예약 일정 안내", "방문 일정 안내"],
-  visit_reminder_notice: ["방문 예정 안내", "방문 안내"],
+  appointment_reminder_10m: ["예약 안내 직전", "예약 안내_직전", "booking_soon_notice", "booking_soon_notice_v1"],
+  visit_schedule_notice: ["예약 안내 내일", "예약 안내_내일", "booking_tomorrow_notice", "booking_tomorrow_notice_v1"],
+  visit_reminder_notice: ["예약 안내 오늘", "예약 안내_오늘", "booking_today_notice", "booking_today_notice_v1"],
   grooming_started: ["미용 시작"],
   grooming_almost_done: ["픽업 준비"],
   grooming_completed: ["미용 완료"],
   revisit_notice: ["재방문"],
   birthday_greeting: ["생일"],
+};
+
+const aliasTemplateExcludedKeywords: Partial<Record<AlimtalkTemplateAlias, string[]>> = {
+  booking_rejected: [
+    "다른 시간",
+    "다른시간",
+    "예약 시간 변경",
+    "예약시간변경",
+    "예약 시간 제안",
+    "예약시간제안",
+    "예약 일정 변경",
+    "예약일정변경",
+    "booking_time_proposed",
+    "time_proposed",
+  ],
+  booking_time_proposed: ["예약 거절"],
 };
 
 function formatSsodaaStatus(value: string | null | undefined) {
@@ -117,32 +196,33 @@ function getAppButtons(alias: AlimtalkTemplateAlias): TemplateButton[] {
 function getVisibleTemplateDraftGroups(drafts: AppTemplateDraft[]): TemplateDraftGroup[] {
   const visibleDrafts = drafts.filter((draft) => draft.alias !== "booking_received");
   const groups: TemplateDraftGroup[] = [];
-  let visitNoticeAdded = false;
 
   for (const draft of visibleDrafts) {
-    if (mergedVisitNoticeAliasSet.has(draft.alias)) {
-      if (visitNoticeAdded) continue;
-      const mergedDrafts = mergedVisitNoticeAliases
-        .map((alias) => visibleDrafts.find((item) => item.alias === alias))
-        .filter((item): item is AppTemplateDraft => Boolean(item));
-      groups.push({
-        key: "visit_notice",
-        title: "예약 안내",
-        description: "예약 일정 안내와 방문 전 재안내를 한 템플릿으로 관리합니다.",
-        drafts: mergedDrafts.length ? mergedDrafts : [draft],
-      });
-      visitNoticeAdded = true;
-      continue;
-    }
-
     groups.push({
       key: draft.alias,
-      title: draft.title,
+      title: reservationNoticeTitles[draft.alias] ?? draft.title,
+      section: getTemplateSectionKey(draft.alias),
       drafts: [draft],
     });
   }
 
   return groups;
+}
+
+function getVisibleTemplateDraftSections(groups: TemplateDraftGroup[]): TemplateDraftSection[] {
+  const sectionOrder: TemplateSectionKey[] = ["booking", "visit", "grooming", "customer"];
+  return sectionOrder
+    .map((sectionKey) => {
+      const sectionGroups = groups.filter((group) => group.section === sectionKey);
+      const copy = templateSectionCopy[sectionKey];
+      return {
+        key: sectionKey,
+        title: copy.title,
+        description: copy.description,
+        groups: sectionGroups,
+      };
+    })
+    .filter((section) => section.groups.length > 0);
 }
 
 function uniqueTemplatesByCode(items: RelaySsodaaTemplateDetail[]) {
@@ -152,6 +232,18 @@ function uniqueTemplatesByCode(items: RelaySsodaaTemplateDetail[]) {
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
+  });
+}
+
+function normalizeTemplateSearchText(value: string) {
+  return value.toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function matchesTemplateKeywords(searchTarget: string, keywords: string[]) {
+  const normalizedSearchTarget = normalizeTemplateSearchText(searchTarget);
+  return keywords.some((keyword) => {
+    const lowerKeyword = keyword.toLowerCase();
+    return searchTarget.includes(lowerKeyword) || normalizedSearchTarget.includes(normalizeTemplateSearchText(lowerKeyword));
   });
 }
 
@@ -165,12 +257,15 @@ function getTemplateCandidates({
   allTemplates: RelaySsodaaTemplateDetail[];
 }) {
   const keywords = aliasTemplateKeywords[alias] ?? [];
+  const excludedKeywords = aliasTemplateExcludedKeywords[alias] ?? [];
   const connectedCodeValue = connectedCode?.trim();
   const candidates = allTemplates.filter((template) => {
     const templateName = template.templateName ?? "";
     const templateCode = template.templateCode ?? "";
+    const searchTarget = `${templateName} ${templateCode}`.toLowerCase();
+    if (matchesTemplateKeywords(searchTarget, excludedKeywords)) return false;
     if (connectedCodeValue && templateCode === connectedCodeValue) return true;
-    return keywords.some((keyword) => templateName.includes(keyword) || templateCode.toLowerCase().includes(keyword.toLowerCase()));
+    return matchesTemplateKeywords(searchTarget, keywords);
   });
 
   return candidates.sort((a, b) => {
@@ -223,7 +318,6 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   loadingTemplates,
   templateError,
   onReload,
-  onSaveTemplate,
   onSelectTemplate,
 }: {
   appTemplateDrafts: AppTemplateDraft[];
@@ -232,8 +326,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   loadingTemplates: boolean;
   templateError: string | null;
   onReload: () => void;
-  onSaveTemplate: (alias: AlimtalkTemplateAlias, body: string) => Promise<void>;
-  onSelectTemplate: (alias: AlimtalkTemplateAlias, templateCode: string) => Promise<void>;
+  onSelectTemplate: (alias: AlimtalkTemplateAlias, templateCode: string) => Promise<RelaySsodaaTemplateDetail | null>;
 }) {
   const [editingAlias, setEditingAlias] = useState<AlimtalkTemplateAlias | null>(null);
   const [editingBody, setEditingBody] = useState("");
@@ -242,16 +335,17 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const [selectingTemplateCode, setSelectingTemplateCode] = useState<string | null>(null);
   const visibleTemplateGroups = getVisibleTemplateDraftGroups(appTemplateDrafts);
+  const visibleTemplateSections = getVisibleTemplateDraftSections(visibleTemplateGroups);
 
-  async function handleSelectTemplateGroup(group: TemplateDraftGroup, templateCode: string) {
-    setSelectingTemplateCode(templateCode);
+  async function handleSelectTemplateGroup(group: TemplateDraftGroup, template: RelaySsodaaTemplateDetail) {
+    setSelectingTemplateCode(template.templateCode);
     try {
       for (const draft of group.drafts) {
-        await onSelectTemplate(draft.alias, templateCode);
+        await onSelectTemplate(draft.alias, template.templateCode);
       }
       setSaveError(null);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "쏘다 템플릿 연결에 실패했습니다.");
+      setSaveError(error instanceof Error ? error.message : "쏘다 템플릿 연결 또는 본문 자동 저장에 실패했습니다.");
     } finally {
       setSelectingTemplateCode(null);
     }
@@ -260,12 +354,12 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   async function handleSave(alias: AlimtalkTemplateAlias) {
     setSavingAlias(alias);
     try {
-      await onSaveTemplate(alias, editingBody);
+      void alias;
       setEditingAlias(null);
       setEditingBody("");
       setSaveError(null);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "우리 템플릿 저장에 실패했습니다.");
+      setSaveError(error instanceof Error ? error.message : "쏘다 템플릿 연결에 실패했습니다.");
     } finally {
       setSavingAlias(null);
     }
@@ -274,9 +368,10 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   function getComparisonState(draft: AppTemplateDraft) {
     const relayItem = relayTemplateItems.find((item) => item.alias === draft.alias) ?? null;
     const ssodaaBody = normalizeTemplateBody(relayItem?.detail?.templateContent);
-    const appBody = normalizeTemplateBody(draft.body);
+    const appBody = ssodaaBody || normalizeTemplateBody(draft.body);
+    const hasRelayDetail = Boolean(relayItem?.detail);
     const ssodaaButtons = relayItem?.detail?.buttons ?? [];
-    const appButtons = getAppButtons(draft.alias);
+    const appButtons = hasRelayDetail ? ssodaaButtons : [];
     const candidates = getTemplateCandidates({
       alias: draft.alias,
       connectedCode: relayItem?.configuredCode,
@@ -285,7 +380,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
     const hasCode = Boolean(relayItem?.configuredCode);
     const hasSsodaaBody = Boolean(ssodaaBody);
     const bodyMatches = hasSsodaaBody && ssodaaBody === appBody;
-    const buttonsMatch = normalizeButtons(ssodaaButtons) === normalizeButtons(appButtons);
+    const buttonsMatch = hasRelayDetail && normalizeButtons(ssodaaButtons) === normalizeButtons(appButtons);
     return { relayItem, ssodaaBody, appBody, ssodaaButtons, appButtons, candidates, hasCode, hasSsodaaBody, bodyMatches, buttonsMatch };
   }
 
@@ -375,8 +470,20 @@ export default function AdminAlimtalkTemplateComparisonPanel({
           쏘다 템플릿을 불러오는 중입니다.
         </div>
       ) : (
-        <div className="mt-4 grid gap-2">
-          {visibleTemplateGroups.map((group) => {
+        <div className="mt-3 grid gap-3">
+          {visibleTemplateSections.map((section) => (
+            <section key={section.key} className="rounded-[9px] border border-[#e6e3dd] bg-[#fbfaf8] p-2.5">
+              <div className="mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-[#ece8e2] pb-2">
+                <div>
+                  <h3 className="text-[16px] font-semibold text-[#171411]">{section.title}</h3>
+                  <p className="mt-0.5 text-[12px] leading-4 text-[#7a7268]">{section.description}</p>
+                </div>
+                <span className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
+                  {section.groups.length}개
+                </span>
+              </div>
+              <div className="grid gap-1.5">
+                {section.groups.map((group) => {
             const { states, primaryState, candidates, hasCode, hasAnyCode, hasSsodaaBody, bodyMatches, buttonsMatch } = getGroupComparisonState(group);
             const primaryDraft = primaryState.draft;
             const { relayItem, ssodaaBody, appBody, ssodaaButtons, appButtons } = primaryState;
@@ -394,45 +501,45 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                   : relayItem?.error || "-";
 
             return (
-              <article key={group.key} className="rounded-[8px] border border-[#e6e3dd] bg-white">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <button type="button" onClick={() => toggleGroup(group.key)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={isOpen}>
+              <article key={group.key} className="rounded-[7px] border border-[#e6e3dd] bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  <button type="button" onClick={() => toggleGroup(group.key)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-expanded={isOpen}>
                     <ChevronDown className={`h-4 w-4 shrink-0 text-[#7a7268] transition ${isOpen ? "rotate-180" : ""}`} />
-                    <span className="min-w-[132px] text-[16px] font-semibold text-[#171411]">{group.title}</span>
-                    {group.description ? <span className="text-[13px] font-medium text-[#8a8277]">{group.description}</span> : null}
+                    <span className="min-w-[126px] text-[15px] font-semibold text-[#171411]">{group.title}</span>
+                    {group.description ? <span className="text-[12px] font-medium text-[#8a8277]">{group.description}</span> : null}
                     {candidates.length > 1 ? (
-                      <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2.5 py-1 text-[12px] font-semibold text-[#6f665f]">
+                      <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
                         후보 {candidates.length}개
                       </span>
                     ) : null}
-                    <span className={`rounded-[999px] border px-2.5 py-1 text-[12px] font-semibold ${getCodeTone(hasCode)}`}>{codeLabel}</span>
-                    <span className={`rounded-[999px] border px-2.5 py-1 text-[12px] font-semibold ${getBodyTone({ hasCode, bodyMatches })}`}>{bodyLabel}</span>
-                    <span className={`rounded-[999px] border px-2.5 py-1 text-[12px] font-semibold ${hasCode ? getStatusTone(buttonsMatch) : getCodeTone(false)}`}>{buttonLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${getCodeTone(hasCode)}`}>{codeLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${getBodyTone({ hasCode, bodyMatches })}`}>{bodyLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${hasCode ? getStatusTone(buttonsMatch) : getCodeTone(false)}`}>{buttonLabel}</span>
                   </button>
                   <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#6f665f]">
-                    <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2.5 py-1">
+                    <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2 py-0.5">
                       쏘다 상태 {statusLabel}
                     </span>
                   </div>
                 </div>
 
                 {isOpen ? (
-                  <div className="grid gap-2 border-t border-[#e6e3dd] p-2.5">
+                  <div className="grid gap-2 border-t border-[#e6e3dd] p-2">
                     {states.length > 1 ? (
-                      <div className="flex flex-wrap gap-2 rounded-[8px] border border-[#ece8e2] bg-[#fbfaf8] px-3 py-2">
+                      <div className="flex flex-wrap gap-1.5 rounded-[7px] border border-[#ece8e2] bg-[#fbfaf8] px-2.5 py-1.5">
                         {states.map((state) => (
-                          <span key={state.draft.alias} className="rounded-[999px] border border-[#e6e3dd] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#6f665f]">
+                          <span key={state.draft.alias} className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
                             {state.draft.title}: {state.hasCode ? "코드 연결됨" : "코드 연결 필요"}
                           </span>
                         ))}
                       </div>
                     ) : null}
-                    <section className="rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
+                    <section className="rounded-[7px] border border-[#e6e3dd] bg-[#fbfaf8] p-2.5">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[15px] font-semibold text-[#171411]">연결 가능한 쏘다 템플릿</p>
-                        <span className="text-[13px] text-[#8a8277]">{candidates.length}개</span>
+                        <p className="text-[14px] font-semibold text-[#171411]">연결 가능한 쏘다 템플릿</p>
+                        <span className="text-[12px] text-[#8a8277]">{candidates.length}개</span>
                       </div>
-                      <div className="mt-2 grid max-h-[150px] gap-2 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-1.5 grid max-h-[132px] gap-1.5 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                         {candidates.length ? (
                           candidates.map((template) => {
                             const connectedCount = states.filter((state) => template.templateCode === state.relayItem?.configuredCode).length;
@@ -444,13 +551,13 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                                 role={isConnected ? undefined : "button"}
                                 tabIndex={isConnected ? undefined : 0}
                                 onClick={() => {
-                                  if (!isConnected) void handleSelectTemplateGroup(group, template.templateCode);
+                                  if (!isConnected) void handleSelectTemplateGroup(group, template);
                                 }}
                                 onKeyDown={(event) => {
                                   if (isConnected) return;
                                   if (event.key === "Enter" || event.key === " ") {
                                     event.preventDefault();
-                                    void handleSelectTemplateGroup(group, template.templateCode);
+                                    void handleSelectTemplateGroup(group, template);
                                   }
                                 }}
                                 className={`rounded-[6px] border px-3 py-2 transition ${
@@ -483,7 +590,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                                       type="button"
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        void handleSelectTemplateGroup(group, template.templateCode);
+                                        void handleSelectTemplateGroup(group, template);
                                       }}
                                       disabled={Boolean(selectingTemplateCode)}
                                       className="h-7 shrink-0 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[14px] font-semibold text-[#5c554d] disabled:opacity-60"
@@ -519,8 +626,11 @@ export default function AdminAlimtalkTemplateComparisonPanel({
 
                       <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
                         <div className="flex h-8 items-center justify-between gap-3">
-                          <p className="text-[15px] font-semibold text-[#171411]">우리 템플릿</p>
-                          <div className="flex items-center gap-2">
+                          <p className="text-[15px] font-semibold text-[#171411]">우리 발송 기준</p>
+                          <span className="rounded-[999px] border border-[#cfe3dc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#1f6b5b]">
+                            쏘다 연결본 자동 적용
+                          </span>
+                          <div className="hidden">
                           {primaryDraft.isOverride ? (
                             <span className="rounded-[999px] border border-[#cfe3dc] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#1f6b5b]">
                               수정본 적용 중
@@ -593,7 +703,7 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                           </pre>
                         )}
                         <ButtonList
-                          title="우리 발송 버튼"
+                          title="우리 발송 버튼 기준"
                           buttons={appButtons}
                           caption="실제 발송 때 예약별 링크로 채워집니다. 쏘다 등록 URL과 역할이 같으면 됩니다."
                         />
@@ -603,7 +713,10 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                 ) : null}
               </article>
             );
-          })}
+                })}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </section>

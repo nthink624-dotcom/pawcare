@@ -50,6 +50,7 @@ export default function DiscountCouponEditor({
   onAdd,
   onAddPreset,
   onDelete,
+  onToggleEnabled,
   onUpdate,
 }: {
   coupons: CustomerDiscountCoupon[];
@@ -58,6 +59,7 @@ export default function DiscountCouponEditor({
   onAdd: () => void;
   onAddPreset?: (preset: DiscountCouponPreset) => void;
   onDelete: (couponId: string) => void;
+  onToggleEnabled: (couponId: string) => void;
   onUpdate: (couponId: string, patch: Partial<CustomerDiscountCoupon>) => void;
 }) {
   const [collapsedCouponIds, setCollapsedCouponIds] = useState<Set<string>>(() => new Set());
@@ -125,25 +127,50 @@ export default function DiscountCouponEditor({
         <section
           key={coupon.id}
           className={cn(
-            "overflow-hidden rounded-[12px] border bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
-            coupon.enabled ? "border-[#dbe2ea]" : "border-[#e2e8f0] opacity-70",
+            "overflow-hidden rounded-[12px] border border-l-[3px] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
+            coupon.enabled ? "border-[#dbe2ea] border-l-[#2f7866]" : "border-[#e2e8f0] border-l-[#94a3b8] bg-[#fbfcfd]",
           )}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-3">
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
+              coupon.enabled ? "border-[#edf2f7] bg-white" : "border-[#e5eaf0] bg-[#f8fafc]",
+            )}
+          >
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#eef7f4] text-[#2f7866]">
+              <span
+                className={cn(
+                  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]",
+                  coupon.enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#eef2f7] text-[#64748b]",
+                )}
+              >
                 <Tag className="h-5 w-5" strokeWidth={1.8} />
               </span>
-              <label className="min-w-[220px] flex-1">
+              <div className="flex min-w-[220px] flex-1 items-center gap-2">
+              <label className="min-w-0 flex-1">
                 <span className="sr-only">관리명</span>
                 <input
                   value={coupon.owner_label ?? coupon.name}
                   disabled={disabled}
                   onChange={(event) => onUpdate(coupon.id, { owner_label: event.target.value })}
-                  className="h-11 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[18px] font-semibold tracking-[-0.01em] text-[#111827] outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#2f7866] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#dceee8] disabled:text-[#64748b]"
+                  className={cn(
+                    "h-10 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[18px] font-semibold tracking-[-0.01em] outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#2f7866] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#dceee8] disabled:text-[#64748b]",
+                    coupon.enabled ? "text-[#111827]" : "text-[#64748b]",
+                  )}
                   placeholder="혜택 이름"
                 />
               </label>
+              <span
+                className={cn(
+                  "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[13px] font-medium",
+                  coupon.enabled
+                    ? "border-[#c8ded8] bg-[#f4faf8] text-[#2f7866]"
+                    : "border-[#dbe2ea] bg-white text-[#64748b]",
+                )}
+              >
+                {coupon.enabled ? "사용 중" : "중지됨"}
+              </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -177,7 +204,7 @@ export default function DiscountCouponEditor({
                 label={coupon.enabled ? "사용 중지" : "다시 사용"}
                 active={coupon.enabled}
                 disabled={disabled}
-                onClick={() => onUpdate(coupon.id, { enabled: !coupon.enabled })}
+                onClick={() => onToggleEnabled(coupon.id)}
               />
               <button
                 type="button"
@@ -201,8 +228,8 @@ export default function DiscountCouponEditor({
           </div>
 
           {!collapsed ? (
-          <div className="grid items-start gap-3 p-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(380px,1.05fr)]">
-            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+          <div className="grid items-stretch gap-3 p-4 xl:grid-cols-2">
+            <div className="h-full rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
               <div className="mb-2 flex items-center gap-2">
                 <BadgePercent className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">할인 조건</p>
@@ -281,7 +308,7 @@ export default function DiscountCouponEditor({
               </div>
             </div>
 
-            <div className="self-start rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+            <div className="h-full rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
               <div className="mb-2 flex items-center gap-2">
                 <CalendarDays className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
@@ -358,9 +385,9 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "h-11 rounded-[8px] border px-4 text-[15px] font-normal transition disabled:opacity-40",
+        "h-10 rounded-[8px] border px-4 text-[15px] font-normal transition disabled:opacity-40",
         active
-          ? "border-[#a04455] bg-white text-[#a04455] hover:bg-[#fffafa]"
+          ? "border-[#ead6dc] bg-white text-[#a04455] hover:border-[#d9a9b5] hover:bg-[#fffafa]"
           : "border-[#2f7866] bg-[#2f7866] text-white hover:border-[#286a5a] hover:bg-[#286a5a]",
       )}
     >

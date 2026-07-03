@@ -847,8 +847,8 @@ export default function ServiceManagementScreen({
 
   const content = (
     <div className="space-y-5">
-      <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <section className="space-y-5">
+        <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">서비스/가격</h2>
         </div>
 

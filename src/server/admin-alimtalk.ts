@@ -8,7 +8,9 @@ import { getConfiguredAlimtalkTemplateKey, hasSupabaseServerEnv, serverEnv } fro
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendAlimtalkMessage, type AlimtalkButton } from "@/server/alimtalk-provider";
 import {
+  getConnectedSsodaaTemplateButtons,
   getAppTemplateDrafts,
+  requiresConnectedSsodaaTemplate,
   renderNotificationTemplateBodyWithOverrides,
   type AppTemplateDraft,
 } from "@/server/alimtalk-template-overrides";
@@ -805,7 +807,9 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     길찾기링크: `https://map.naver.com/p/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
   });
 
-  const message = (await renderNotificationTemplateBodyWithOverrides(spec.type, buildAdminTestTemplateValues(input))) ?? fallbackMessage;
+  const templateValues = buildAdminTestTemplateValues(input);
+  const message = (await renderNotificationTemplateBodyWithOverrides(spec.type, templateValues)) ?? fallbackMessage;
+  const connectedTemplateButtons = await getConnectedSsodaaTemplateButtons(spec.type, templateValues);
   const templateKey = getConfiguredAlimtalkTemplateKey(spec.templateAlias);
   const requiresExplicitTemplateCode = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) || serverEnv.alimtalkProvider === "ssodaa";
   if (requiresExplicitTemplateCode && !templateKey) {
@@ -817,7 +821,7 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     message,
     templateAlias: spec.templateAlias,
     templateKey,
-    buttons: buildAdminTestButtons(spec.templateAlias, input),
+    buttons: connectedTemplateButtons ?? (requiresConnectedSsodaaTemplate() ? [] : buildAdminTestButtons(spec.templateAlias, input)),
     recipientName: input.recipientName?.trim() || "보호자",
     metadata: {
       source: "admin-alimtalk-test",

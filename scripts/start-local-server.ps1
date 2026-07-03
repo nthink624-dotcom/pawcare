@@ -1,16 +1,23 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$port = 3000
 $hostName = "127.0.0.1"
+$appPort = 3000
+$relayPort = 14010
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$logPath = Join-Path $projectRoot ".next-start-live-$timestamp.log"
+$appLogPath = Join-Path $projectRoot ".next-start-live-$timestamp.log"
+$relayRoot = Join-Path $projectRoot "backend\alimtalk-relay"
+$relayLogPath = Join-Path $relayRoot ".tmp-relay-live-$timestamp.log"
 
-$existing = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
-  Select-Object -ExpandProperty OwningProcess -Unique
+function Stop-PortProcess($targetPort) {
+  $processIds = Get-NetTCPConnection -LocalPort $targetPort -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
 
-if ($existing) {
-  foreach ($processId in $existing) {
+  foreach ($processId in $processIds) {
+    if (-not $processId -or $processId -eq 0) {
+      continue
+    }
+
     try {
       Stop-Process -Id $processId -Force -ErrorAction Stop
     } catch {
@@ -18,35 +25,54 @@ if ($existing) {
   }
 }
 
-Push-Location $projectRoot
-try {
-  $command = "cd /d `"$projectRoot`" && npm.cmd run dev -- --webpack --hostname 127.0.0.1 --port 3000 > `"$logPath`" 2>&1"
-  Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden | Out-Null
-
-  Start-Sleep -Seconds 3
-
-  $ok = $false
-  for ($i = 0; $i -lt 10; $i++) {
+function Wait-HttpOk($url, $maxAttempts) {
+  for ($i = 0; $i -lt $maxAttempts; $i++) {
     try {
-      $response = Invoke-WebRequest -UseBasicParsing "http://$hostName`:$port/login" -TimeoutSec 5
+      $response = Invoke-WebRequest -UseBasicParsing $url -TimeoutSec 5
       if ($response.StatusCode -eq 200) {
-        $ok = $true
-        break
+        return $true
       }
     } catch {
       Start-Sleep -Seconds 1
     }
   }
 
-  if (-not $ok) {
-    Write-Host "서버 시작 실패. 로그 확인: $logPath"
-    if (Test-Path $logPath) {
-      Get-Content $logPath -Tail 80
+  return $false
+}
+
+Stop-PortProcess $appPort
+Stop-PortProcess $relayPort
+
+Push-Location $projectRoot
+try {
+  npm.cmd run sync:alimtalk-relay-env | Out-Null
+
+  $relayCommand = "cd /d `"$relayRoot`" && npm.cmd run start > `"$relayLogPath`" 2>&1"
+  Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $relayCommand -WindowStyle Hidden | Out-Null
+
+  $relayHealthUrl = "http://127.0.0.1:$relayPort/health"
+  if (-not (Wait-HttpOk $relayHealthUrl 12)) {
+    Write-Host "Alimtalk relay start failed. Log: $relayLogPath"
+    if (Test-Path $relayLogPath) {
+      Get-Content $relayLogPath -Tail 80
     }
     exit 1
   }
 
-  Write-Host "서버 실행 중: http://$hostName`:$port/owner"
+  $appCommand = "cd /d `"$projectRoot`" && npm.cmd run dev -- --webpack --hostname $hostName --port $appPort > `"$appLogPath`" 2>&1"
+  Start-Process -FilePath "C:\Windows\System32\cmd.exe" -ArgumentList "/c", $appCommand -WindowStyle Hidden | Out-Null
+
+  $appLoginUrl = "http://$hostName`:$appPort/login"
+  if (-not (Wait-HttpOk $appLoginUrl 12)) {
+    Write-Host "Next server start failed. Log: $appLogPath"
+    if (Test-Path $appLogPath) {
+      Get-Content $appLogPath -Tail 80
+    }
+    exit 1
+  }
+
+  Write-Host "Server running: http://$hostName`:$appPort/owner"
+  Write-Host "Alimtalk relay running: $relayHealthUrl"
 } finally {
   Pop-Location
 }

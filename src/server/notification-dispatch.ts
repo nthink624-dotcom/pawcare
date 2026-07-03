@@ -14,7 +14,11 @@ import {
 } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
-import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
+import {
+  getConnectedSsodaaTemplateButtons,
+  requiresConnectedSsodaaTemplate,
+  renderNotificationTemplateBodyWithOverrides,
+} from "@/server/alimtalk-template-overrides";
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
@@ -582,21 +586,19 @@ async function buildNotificationMessage(params: {
   bookingManageUrl: string | null;
   directionsUrl: string | null;
 }) {
-  const rendered = await renderNotificationTemplateBodyWithOverrides(
-    params.type,
-    buildNotificationTemplateValues({
-      appointment: params.appointment,
-      bookingAccessToken: params.bookingAccessToken,
-      bookingEntryUrl: params.bookingEntryUrl,
-      bookingManageUrl: params.bookingManageUrl,
-      directionsUrl: params.directionsUrl,
-      petName: params.petName,
-      recipientName: params.recipientName,
-      serviceName: params.serviceName,
-      shopAddress: params.shopAddress,
-      shopName: params.shopName,
-    }),
-  );
+  const templateValues = buildNotificationTemplateValues({
+    appointment: params.appointment,
+    bookingAccessToken: params.bookingAccessToken,
+    bookingEntryUrl: params.bookingEntryUrl,
+    bookingManageUrl: params.bookingManageUrl,
+    directionsUrl: params.directionsUrl,
+    petName: params.petName,
+    recipientName: params.recipientName,
+    serviceName: params.serviceName,
+    shopAddress: params.shopAddress,
+    shopName: params.shopName,
+  });
+  const rendered = await renderNotificationTemplateBodyWithOverrides(params.type, templateValues);
 
   if (rendered) {
     return rendered;
@@ -892,12 +894,29 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           mediaAssetIds,
         })
       : [];
-  const alimtalkButtons = buildNotificationButtons({
-    type: input.type,
+  const notificationTemplateValues = buildNotificationTemplateValues({
+    appointment,
+    bookingAccessToken,
+    bookingEntryUrl,
     bookingManageUrl,
     directionsUrl,
-    hasMediaAttachments: mediaAttachments.length > 0,
+    petName: pet?.name ?? "pet",
+    recipientName,
+    serviceName: service?.name ?? null,
+    shopAddress: bootstrap.shop.address ?? null,
+    shopName: bootstrap.shop.name,
   });
+  const connectedTemplateButtons = await getConnectedSsodaaTemplateButtons(input.type, notificationTemplateValues);
+  const alimtalkButtons =
+    connectedTemplateButtons ??
+    (requiresConnectedSsodaaTemplate()
+      ? []
+      : buildNotificationButtons({
+          type: input.type,
+          bookingManageUrl,
+          directionsUrl,
+          hasMediaAttachments: mediaAttachments.length > 0,
+        }));
   const isPhotoAlimtalkRequest =
     (input.channel ?? "alimtalk") === "alimtalk" &&
     input.type === "grooming_completed" &&

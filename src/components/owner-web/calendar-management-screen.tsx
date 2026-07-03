@@ -1516,7 +1516,6 @@ function BookingSidePanel({
   onManualApprovalChange,
   onChangeStatus,
   onRequestBeforePhotoStatusChange,
-  onSuggestAlternativeTime,
   onSelectBooking,
   onAcknowledgeChange,
   staffComments,
@@ -1540,7 +1539,6 @@ function BookingSidePanel({
   onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onRequestBeforePhotoStatusChange: (booking: DailyBooking) => void;
-  onSuggestAlternativeTime: (bookingId: string) => void;
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
@@ -2160,15 +2158,7 @@ function BookingSidePanel({
           {showWorkflowFooter ? (
           <section className="shrink-0 border-t border-[#e6edf2] bg-[#f2faf7] px-4 pb-4 pt-3 shadow-[0_-8px_18px_rgba(15,23,42,0.035)]">
             <div className="grid gap-2">
-              {changeEventSelected ? (
-                <button
-                  type="button"
-                  onClick={() => onAcknowledgeChange(selectedBooking.id)}
-                  className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
-                >
-                  변경/취소 확인
-                </button>
-                ) : isPendingBookingStatus(sourceStatus) ? (
+              {isPendingBookingStatus(sourceStatus) ? (
                 <button
                   type="button"
                   onClick={() => onChangeStatus(selectedBooking.id, "확정")}
@@ -2180,29 +2170,48 @@ function BookingSidePanel({
                 <>
                   <button
                     type="button"
-                    onClick={() => onRequestBeforePhotoStatusChange(selectedBooking)}
+                    onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
                     className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
                   >
                     <Play className="h-4 w-4 shrink-0" />
                     미용 시작하기
                   </button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
-                    >
-                      노쇼 처리
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
-                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
-                    >
-                      예약 취소
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={actionMoreOpen}
+                    onClick={() => setActionMoreOpen((open) => !open)}
+                    className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
+                  >
+                    예약 변경/취소/노쇼
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", actionMoreOpen ? "rotate-180" : "")} />
+                  </button>
+                  {actionMoreOpen ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
+                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
+                      >
+                        노쇼 처리
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onChangeStatus(selectedBooking.id, "취소")}
+                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
+                      >
+                        예약 취소
+                      </button>
+                    </div>
+                  ) : null}
                 </>
+              ) : changeEventSelected ? (
+                <button
+                  type="button"
+                  onClick={() => onAcknowledgeChange(selectedBooking.id)}
+                  className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
+                >
+                  변경/취소 확인
+                </button>
               ) : sourceStatus === "진행 중" ? (
                 <button
                   type="button"
@@ -2238,11 +2247,11 @@ function BookingSidePanel({
                   {!workflowCompleted && !changeEventSelected ? (
                     <button
                       type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, workflowPending ? "거절" : "취소")}
+                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
                       className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
                     >
                       <X className="h-4 w-4 text-[#64748b]" />
-                      {workflowPending ? "예약 거절" : "예약 취소"}
+                      예약 취소
                     </button>
                   ) : null}
                 </div>
@@ -2276,11 +2285,6 @@ function BookingSidePanel({
   );
 
 }
-
-type TimeProposalRow = { id: string; start: string; end: string };
-
-const timeProposalDefaultMessage =
-  "신청해주신 예약 시간은 매장 사정으로 인해 확정이 어려워, 가능한 다른 시간을 안내드립니다. 아래 추천 시간 중 편하신 일정을 선택해 주세요.";
 
 const cancelDefaultMessage =
   "신청해주신 예약은 매장 사정으로 인해 부득이하게 취소 처리되었습니다. 이용에 불편을 드려 죄송합니다.";
@@ -2879,7 +2883,6 @@ function PersistentBookingPanelHero({
   finalActionLabel,
   pendingOverlapLabel,
   onChangeStatus,
-  onSuggestAlternativeTime,
 }: {
   booking: DailyBooking;
   timeRange: string;
@@ -2890,7 +2893,6 @@ function PersistentBookingPanelHero({
   finalActionLabel: string;
   pendingOverlapLabel: string;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
-  onSuggestAlternativeTime: (bookingId: string) => void;
 }) {
   const profile = getPetProfile(booking);
   const needsAttention = booking.status === "방문 확인 필요" || booking.status === "완료 확인 필요";
@@ -2923,7 +2925,7 @@ function PersistentBookingPanelHero({
       </div>
 
       {isPending ? (
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => onChangeStatus(booking.id, "확정")}
@@ -2933,17 +2935,10 @@ function PersistentBookingPanelHero({
           </button>
           <button
             type="button"
-            onClick={() => onSuggestAlternativeTime(booking.id)}
-            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[13px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
-          >
-            다른 시간 제안
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeStatus(booking.id, "거절")}
+            onClick={() => onChangeStatus(booking.id, "취소")}
             className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-2 text-[13px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
           >
-            예약 거절
+            예약 취소
           </button>
         </div>
       ) : (
@@ -2965,10 +2960,7 @@ function PersistentBookingPanelHero({
             {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
             {startEnabled ? "미용 시작하기" : finalActionLabel}
           </button>
-          <div className="grid grid-cols-3 gap-2">
-            <button type="button" onClick={() => onSuggestAlternativeTime(booking.id)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[13px] font-medium text-[#334155] hover:bg-[#f8fafc]">
-              예약 변경
-            </button>
+          <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
               노쇼 처리
             </button>
@@ -3114,8 +3106,7 @@ function ConfirmedReservationDetail({
           ) : null}
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <button type="button" className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">예약 변경</button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!canStart} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">노쇼 처리</button>
           <button type="button" onClick={() => setCancelOpen(true)} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[14px] font-medium text-[#8f2438]">예약 취소</button>
         </div>
@@ -3159,7 +3150,6 @@ function PendingReservationDetail({
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
 }) {
-  const [proposalOpen, setProposalOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const profile = getPetProfile(booking);
   const visits = getVisitProfile(booking);
@@ -3181,7 +3171,7 @@ function PendingReservationDetail({
               {overdue ? "확인 필요" : "예약 확인"}
             </span>
             <p className={cn("mt-3 text-[15px] font-medium", overdue ? "text-[#8f2438]" : "text-[#9a640f]")}>
-              {overdue ? "처리 기한이 지난 예약입니다. 다른 시간 안내 또는 예약 거절로 정리해 주세요." : "고객이 예약 확정을 기다리는 중입니다."}
+              {overdue ? "처리 기한이 지난 예약입니다. 예약 취소 안내에서 다른 시간 조율을 함께 안내해 주세요." : "고객이 예약 확정을 기다리는 중입니다."}
             </p>
             <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
             <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
@@ -3200,23 +3190,11 @@ function PendingReservationDetail({
               예약 확정
             </button>
           )}
-          <button type="button" onClick={() => setProposalOpen((current) => !current)} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
-            다른 시간 제안
-          </button>
-          <button type="button" onClick={() => setCancelOpen(true)} className="h-11 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] font-medium text-[#b42318]">
-            예약 거절
+          <button type="button" onClick={() => setCancelOpen(true)} className="col-span-2 h-11 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] font-medium text-[#b42318]">
+            예약 취소/시간 조율
           </button>
         </div>
       </section>
-
-      {proposalOpen ? (
-        <AlternativeTimeGuideDialog
-          booking={booking}
-          shopId={shopId}
-          selectedDate={selectedDate}
-          onClose={() => setProposalOpen(false)}
-        />
-      ) : null}
 
       <ReservationInfoSections
         booking={booking}
@@ -3230,10 +3208,9 @@ function PendingReservationDetail({
 
       {cancelOpen ? (
         <CancelReservationDialog
-          mode="reject"
           onClose={() => setCancelOpen(false)}
           onConfirm={() => {
-            onChangeStatus(booking.id, "거절");
+            onChangeStatus(booking.id, "취소");
             setCancelOpen(false);
           }}
         />
@@ -3317,94 +3294,25 @@ function ReservationInfoSections({
   );
 }
 
-function TimeProposalForm({ booking, onClose }: { booking: DailyBooking; onClose: () => void }) {
-  const [rows, setRows] = useState<TimeProposalRow[]>(() => [
-    {
-      id: "proposal-1",
-      start: formatHourLabel(Math.min(booking.start + 1, scheduleEndHour - booking.duration)),
-      end: formatHourLabel(Math.min(booking.start + 1 + booking.duration, scheduleEndHour)),
-    },
-  ]);
-  const [message, setMessage] = useState(timeProposalDefaultMessage);
-  const [sent, setSent] = useState(false);
-  const currentTime = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
-
-  function updateRow(id: string, key: "start" | "end", value: string) {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
-  }
-
-  return (
-    <section className="rounded-[8px] border border-[#e8c67e] bg-[#fffaf0] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="text-[16px] font-semibold text-[#111827]">다른 시간 제안</h4>
-          <p className="mt-1 text-[13px] text-[#64748b]">기존 신청 시간: {currentTime}</p>
-        </div>
-        <button type="button" onClick={onClose} className="text-[13px] font-medium text-[#64748b]">취소</button>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {rows.map((row, index) => (
-          <div key={row.id} className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
-            <span className="text-[13px] font-medium text-[#64748b]">{index + 1}</span>
-            <input type="time" value={row.start} onChange={(event) => updateRow(row.id, "start", event.target.value)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]" />
-            <input type="time" value={row.end} onChange={(event) => updateRow(row.id, "end", event.target.value)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px]" />
-          </div>
-        ))}
-      </div>
-      {rows.length < 3 ? (
-        <button
-          type="button"
-          onClick={() => setRows((current) => [...current, { id: `proposal-${current.length + 1}`, start: current[current.length - 1]?.start ?? "14:00", end: current[current.length - 1]?.end ?? "15:00" }])}
-          className="mt-2 h-9 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155]"
-        >
-          추천 시간 추가
-        </button>
-      ) : null}
-
-      <label className="mt-4 block space-y-1.5">
-        <span className="text-[13px] font-medium text-[#64748b]">고객 안내 메시지</span>
-        <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[96px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[14px] leading-6 text-[#111827]" />
-      </label>
-      <button
-        type="button"
-        onClick={() => {
-          setSent(true);
-        }}
-        className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#b98121] text-[15px] font-semibold text-white"
-      >
-        <Send className="h-4 w-4" />
-        제안 보내기
-      </button>
-      {sent ? <p className="mt-2 text-[13px] font-medium text-[#9a640f]">이전 제안 화면입니다. 예약 상세에서는 실제 알림톡 발송 창을 사용합니다.</p> : null}
-    </section>
-  );
-}
-
 function CancelReservationDialog({
-  mode = "cancel",
   onClose,
   onConfirm,
 }: {
-  mode?: "cancel" | "reject";
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const [reason, setReason] = useState("매장 일정상 어려움");
   const [message, setMessage] = useState(cancelDefaultMessage);
-  const isReject = mode === "reject";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
       <div className="w-full max-w-[460px] rounded-[12px] border border-[#ead6dc] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]" onClick={(event) => event.stopPropagation()}>
-        <h3 className="text-[22px] font-semibold text-[#111827]">{isReject ? "예약을 거절하시겠어요?" : "예약을 취소하시겠어요?"}</h3>
+        <h3 className="text-[22px] font-semibold text-[#111827]">예약을 취소하시겠어요?</h3>
         <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-          {isReject
-            ? "이 예약은 고객에게 예약 거절 알림톡이 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요."
-            : "이 예약은 고객에게 취소 안내가 발송됩니다. 다른 시간으로 받을 수 있다면 ‘다른 시간 제안’을 이용해 주세요."}
+          고객에게 예약 취소 안내가 발송됩니다. 안내문에는 다른 시간 조율을 위해 예약 확인 링크를 다시 확인해 달라는 내용이 함께 포함됩니다.
         </p>
         <label className="mt-4 block space-y-1.5">
-          <span className="text-[13px] font-medium text-[#64748b]">{isReject ? "거절 사유" : "취소 사유"}</span>
+          <span className="text-[13px] font-medium text-[#64748b]">취소 사유</span>
           <select value={reason} onChange={(event) => setReason(event.target.value)} className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] text-[#111827]">
             <option>매장 일정상 어려움</option>
             <option>서비스 제공이 어려움</option>
@@ -3419,7 +3327,7 @@ function CancelReservationDialog({
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" onClick={onClose} className="h-11 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">닫기</button>
           <button type="button" onClick={onConfirm} className="h-11 rounded-[8px] bg-[#a04455] text-[14px] font-semibold text-white">
-            {isReject ? "거절 알림 보내기" : "취소 안내 보내기"}
+            취소 안내 보내기
           </button>
         </div>
         <p className="mt-2 text-[12px] text-[#94a3b8]">선택 사유: {reason}</p>
@@ -3550,193 +3458,6 @@ function PhotoStatusDialog({
   );
 }
 
-function AlternativeTimeGuideDialog({
-  booking,
-  shopId,
-  selectedDate,
-  onClose,
-}: {
-  booking: DailyBooking;
-  shopId: string;
-  selectedDate: string;
-  onClose: () => void;
-}) {
-  const suggestedStarts = [booking.start + 0.5, booking.start + 1, booking.start + 1.5]
-    .filter((start) => start + booking.duration <= scheduleEndHour)
-    .slice(0, 3);
-  const [selectedStarts, setSelectedStarts] = useState<number[]>(() => suggestedStarts.slice(0, 2));
-  const [message, setMessage] = useState(timeProposalDefaultMessage);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
-
-  const selectedTimeLabels = selectedStarts.map((start) => `${formatHourLabel(start)}-${formatHourLabel(start + booking.duration)}`);
-  const proposalMessage = [
-    `[${booking.pet} 예약 시간 안내]`,
-    "",
-    message.trim(),
-    "",
-    "신청 시간",
-    `${formatScheduleDateLabel(selectedDate)} · ${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`,
-    "",
-    "추천 시간",
-    ...selectedTimeLabels.map((item, index) => `${index + 1}. ${item}`),
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  function toggleSuggestedStart(start: number) {
-    setSent(false);
-    setError("");
-    setSelectedStarts((current) => {
-      if (current.includes(start)) return current.filter((item) => item !== start);
-      if (current.length >= 3) return current;
-      return [...current, start].sort((first, second) => first - second);
-    });
-  }
-
-  async function sendProposal() {
-    if (selectedStarts.length === 0) {
-      setError("추천 시간을 1개 이상 선택해 주세요.");
-      return;
-    }
-
-    setSending(true);
-    setSent(false);
-    setError("");
-
-    try {
-      await fetchApiJsonWithAuth("/api/notifications", {
-        method: "POST",
-        body: JSON.stringify({
-          shopId,
-          appointmentId: booking.id,
-          type: "booking_time_proposed",
-          channel: "alimtalk",
-          message: proposalMessage,
-          metadata: {
-            proposalDate: selectedDate,
-            proposalTimes: selectedTimeLabels.join(", "),
-            source: "owner_schedule_board",
-          },
-          force: true,
-        }),
-      });
-      setSent(true);
-    } catch (sendError) {
-      setError(getApiErrorMessage(sendError, "다른 시간 제안 알림톡 발송에 실패했습니다."));
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
-      <div
-        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-medium text-[#64748b]">예약 응대</p>
-            <h3 className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">다른 시간 안내</h3>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-              {booking.pet} · {booking.customer} 예약에 안내할 후보 시간을 고릅니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-3">
-          <p className="text-[12px] text-[#94a3b8]">기존 신청</p>
-          <p className="mt-1 text-[17px] font-medium tabular-nums text-[#111827]">
-            {formatScheduleDateLabel(selectedDate)} · {formatHourLabel(booking.start)}-{formatHourLabel(booking.start + booking.duration)}
-          </p>
-          <p className="mt-1 text-[13px] text-[#64748b]">{booking.service}</p>
-        </div>
-
-        <div className="mt-4">
-          <p className="text-[13px] font-medium text-[#111827]">추천 시간</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {suggestedStarts.length > 0 ? (
-              suggestedStarts.map((start) => (
-                <button
-                  key={start}
-                  type="button"
-                  onClick={() => toggleSuggestedStart(start)}
-                  className={cn(
-                    "inline-flex h-11 items-center justify-center rounded-[8px] border px-2 text-[13px] font-medium tabular-nums transition",
-                    selectedStarts.includes(start)
-                      ? "border-[#b98121] bg-[#fff7ed] text-[#9a640f]"
-                      : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
-                  )}
-                >
-                  {formatHourLabel(start)}-{formatHourLabel(start + booking.duration)}
-                </button>
-              ))
-            ) : (
-              <p className="col-span-3 rounded-[8px] border border-dashed border-[#dbe2ea] bg-[#f8fafc] px-3 py-3 text-center text-[13px] text-[#94a3b8]">
-                오늘 남은 추천 시간이 없습니다.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <label className="mt-4 block space-y-1.5">
-          <span className="text-[13px] font-medium text-[#111827]">고객 안내 문구</span>
-          <textarea
-            value={message}
-            onChange={(event) => {
-              setMessage(event.target.value);
-              setSent(false);
-              setError("");
-            }}
-            className="min-h-[120px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2 text-[14px] leading-6 text-[#111827] outline-none focus:border-[#2f7866] focus:bg-white"
-          />
-        </label>
-
-        {error ? (
-          <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
-            {error}
-          </p>
-        ) : null}
-        {sent ? (
-          <p className="mt-3 rounded-[8px] border border-[#d8eadf] bg-[#f3fbf8] px-3 py-2 text-[13px] leading-5 text-[#1f6b5b]">
-            추천 시간 안내 알림톡 발송을 요청했습니다.
-          </p>
-        ) : null}
-
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={sending}
-            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
-          >
-            닫기
-          </button>
-          <button
-            type="button"
-            onClick={sendProposal}
-            disabled={sending}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#334155] px-3 text-[14px] font-medium text-white transition hover:bg-[#1f2937] disabled:cursor-wait disabled:opacity-70"
-          >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            알림톡 보내기
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function buildDefaultScheduleForm(data: BootstrapPayload, visibleStaff: OwnerWebStaffColumn[], selectedDate: string, staff: StaffFilter): ScheduleCreateFormState {
   const initialStaff = staff === "전체 직원" ? visibleStaff[0] : visibleStaff.find((item) => item.key === staff) ?? visibleStaff[0];
   return {
@@ -3805,7 +3526,6 @@ export default function CalendarManagementScreen({
   const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [photoStatusAction, setPhotoStatusAction] = useState<PhotoStatusAction | null>(null);
-  const [alternativeTimeBooking, setAlternativeTimeBooking] = useState<DailyBooking | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleCreateFormState>(() =>
     buildDefaultScheduleForm(initialData, visibleStaff, currentDateInTimeZone(), "전체 직원"),
@@ -4048,23 +3768,26 @@ export default function CalendarManagementScreen({
     }, 500);
   }
 
-  const filteredBookings = displayScopedBookings.filter((booking) => isTimelineBookingStatus(booking.status));
+  const filteredBookings = useMemo(
+    () => displayScopedBookings.filter((booking) => isTimelineBookingStatus(booking.status)),
+    [displayScopedBookings],
+  );
 
-  const selectedBooking = displayScopedBookings.find((item) => item.id === selectedBookingId);
+  const selectedBooking = filteredBookings.find((item) => item.id === selectedBookingId);
 
   useEffect(() => {
-    if (displayScopedBookings.length === 0) {
+    if (filteredBookings.length === 0) {
       if (selectedBookingId) setSelectedBookingId("");
       return;
     }
 
-    if (selectedBookingId && displayScopedBookings.some((booking) => booking.id === selectedBookingId)) return;
+    if (selectedBookingId && filteredBookings.some((booking) => booking.id === selectedBookingId)) return;
 
-    const firstBooking = [...displayScopedBookings].sort(
+    const firstBooking = [...filteredBookings].sort(
       (a, b) => a.start - b.start || a.staffName.localeCompare(b.staffName) || a.id.localeCompare(b.id),
     )[0];
     setSelectedBookingId(firstBooking.id);
-  }, [displayScopedBookings, selectedBookingId]);
+  }, [filteredBookings, selectedBookingId]);
 
   function handleMetricSelect(metric: SummaryMetricKey) {
     setActiveMetric(metric);
@@ -4557,12 +4280,6 @@ export default function CalendarManagementScreen({
     void applyBookingStatusChange(bookingId, nextStatus);
   }
 
-  function handleSuggestAlternativeTime(bookingId: string) {
-    const targetBooking = bookings.find((booking) => booking.id === bookingId);
-    if (!targetBooking) return;
-    setAlternativeTimeBooking(targetBooking);
-  }
-
   function handleAcknowledgeChangeBooking(bookingId: string) {
     const booking = bookings.find((item) => item.id === bookingId);
     if (booking && isRescheduledBookingStatus(booking.status)) {
@@ -4972,12 +4689,11 @@ export default function CalendarManagementScreen({
           selectedBookingId={selectedBookingId}
           selectedDate={selectedDate}
           currentHour={scheduleStatusHour}
-          bookings={displayScopedBookings}
+          bookings={filteredBookings}
           approvalModeBookings={[]}
           onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
           onRequestBeforePhotoStatusChange={requestBeforePhotoStatusChange}
-          onSuggestAlternativeTime={handleSuggestAlternativeTime}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
@@ -4999,14 +4715,6 @@ export default function CalendarManagementScreen({
             setPhotoStatusAction(null);
             await applyBookingStatusChange(action.bookingId, action.nextStatus);
           }}
-        />
-      ) : null}
-      {alternativeTimeBooking ? (
-        <AlternativeTimeGuideDialog
-          booking={alternativeTimeBooking}
-          shopId={bootstrapData.shop.id}
-          selectedDate={selectedDate}
-          onClose={() => setAlternativeTimeBooking(null)}
         />
       ) : null}
       {earlyStartBooking ? (

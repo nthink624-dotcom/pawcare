@@ -1,16 +1,24 @@
-$connections = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue |
-  Select-Object -ExpandProperty OwningProcess -Unique
+$ports = @(3000, 14010)
 
-if (-not $connections) {
-  Write-Host "3000 포트에서 실행 중인 서버가 없습니다."
-  exit 0
-}
+foreach ($port in $ports) {
+  $processIds = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
 
-foreach ($processId in $connections) {
-  try {
-    Stop-Process -Id $processId -Force -ErrorAction Stop
-    Write-Host "종료됨: PID $processId"
-  } catch {
-    Write-Host "종료 실패: PID $processId"
+  if (-not $processIds) {
+    Write-Host "No server is running on port $port."
+    continue
+  }
+
+  foreach ($processId in $processIds) {
+    if (-not $processId -or $processId -eq 0) {
+      continue
+    }
+
+    try {
+      Stop-Process -Id $processId -Force -ErrorAction Stop
+      Write-Host "Stopped PID $processId on port $port."
+    } catch {
+      Write-Host "Failed to stop PID $processId on port $port."
+    }
   }
 }

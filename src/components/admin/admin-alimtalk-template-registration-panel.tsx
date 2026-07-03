@@ -69,8 +69,45 @@ const relayMappingOptions: Array<{ value: NonNullable<RelayTemplateRegisterInput
   { value: "templateGroomingAlmostDone", label: "픽업 준비" },
   { value: "templateBookingConfirmed", label: "예약 확정" },
   { value: "templateBookingCancelled", label: "예약 취소" },
+  { value: "templateVisitScheduleNotice", label: "예약 안내 - 내일" },
+  { value: "templateVisitReminderNotice", label: "예약 안내 - 오늘" },
+  { value: "templateAppointmentReminder10m", label: "예약 안내 - 직전" },
   { value: "templateRevisitNotice", label: "재방문 안내" },
 ];
+
+type RelayTemplateConfigKey = NonNullable<RelayTemplateRegisterInput["templateConfigKey"]>;
+
+const templateCodePrefixByMapping: Partial<Record<RelayTemplateConfigKey, string>> = {
+  templateBookingConfirmed: "booking_confirmed",
+  templateBookingCancelled: "booking_cancelled",
+  templateBookingRescheduledConfirmed: "booking_rescheduled_confirmed",
+  templateAppointmentReminder10m: "booking_soon_notice",
+  templateVisitScheduleNotice: "booking_tomorrow_notice",
+  templateVisitReminderNotice: "booking_today_notice",
+  templateGroomingStarted: "grooming_started",
+  templateGroomingAlmostDone: "grooming_almost_done",
+  templateGroomingCompleted: "grooming_completed_photo",
+  templateRevisitNotice: "revisit_notice",
+};
+
+function normalizeTemplateCodeSegment(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return normalized || "custom_template";
+}
+
+function buildTemplateCodeSuggestion(form: RelayTemplateRegisterInput) {
+  const base = form.templateConfigKey
+    ? templateCodePrefixByMapping[form.templateConfigKey] ?? normalizeTemplateCodeSegment(form.templateName)
+    : normalizeTemplateCodeSegment(form.templateName);
+
+  return /_v\d+$/i.test(base) ? base : `${base}_v1`;
+}
 
 function AdminTemplateInput({
   label,
@@ -169,6 +206,28 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
 
   function update<K extends keyof RelayTemplateRegisterInput>(key: K, value: RelayTemplateRegisterInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleGenerateTemplateCode() {
+    setForm((prev) => ({
+      ...prev,
+      templateCode: buildTemplateCodeSuggestion(prev),
+    }));
+    setProviderResponse(null);
+    setError(null);
+  }
+
+  function handleTemplateConfigKeyChange(value: RelayTemplateRegisterInput["templateConfigKey"]) {
+    setForm((prev) => {
+      const next = { ...prev, templateConfigKey: value || null };
+      if (prev.templateCode.trim()) return next;
+      return {
+        ...next,
+        templateCode: buildTemplateCodeSuggestion(next),
+      };
+    });
+    setProviderResponse(null);
+    setError(null);
   }
 
   function updateTemplateButton(field: "buttonName" | "linkMobile" | "linkPc", value: string) {
@@ -373,6 +432,14 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
             />
             <button
               type="button"
+              onClick={handleGenerateTemplateCode}
+              disabled={checking || submitting}
+              className="inline-flex h-10 shrink-0 items-center rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#334155] disabled:opacity-60"
+            >
+              자동 생성
+            </button>
+            <button
+              type="button"
               onClick={() => void handleCodeCheck()}
               disabled={!canCodeCheck || checking || submitting}
               className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#334155] disabled:opacity-60"
@@ -438,8 +505,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
           <select
             value={form.templateConfigKey ?? ""}
             onChange={(event) =>
-              update(
-                "templateConfigKey",
+              handleTemplateConfigKeyChange(
                 (event.target.value || null) as RelayTemplateRegisterInput["templateConfigKey"],
               )
             }

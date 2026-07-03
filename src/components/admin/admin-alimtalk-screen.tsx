@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, RefreshCcw, Save, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ChevronDown, RefreshCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
-import AdminAlimtalkShopChannelPanel from "@/components/admin/admin-alimtalk-shop-channel-panel";
 import AdminAlimtalkTemplateComparisonPanel from "@/components/admin/admin-alimtalk-template-comparison-panel";
 import { fetchApiJson } from "@/lib/api";
 import { ALIMTALK_NOTIFICATION_REGISTRY, type AlimtalkTemplateAlias, type AlimtalkTemplateConfigKey } from "@/lib/notification-registry";
@@ -67,12 +66,11 @@ const appTemplateCodeFieldGroups: Array<{
   {
     fields: [
       { key: "templateBookingConfirmed", label: "예약 확정" },
-      { key: "templateBookingRejected", label: "예약 거절" },
       { key: "templateBookingCancelled", label: "예약 취소" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
-      { key: "templateAppointmentReminder10m", label: "방문 안내 호환용" },
-      { key: "templateVisitScheduleNotice", label: "예약 안내 - 일정" },
-      { key: "templateVisitReminderNotice", label: "예약 안내 - 방문 전" },
+      { key: "templateVisitScheduleNotice", label: "예약 안내 - 내일" },
+      { key: "templateVisitReminderNotice", label: "예약 안내 - 오늘" },
+      { key: "templateAppointmentReminder10m", label: "예약 안내 - 직전" },
       { key: "templateGroomingStarted", label: "미용 시작" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진" },
@@ -176,6 +174,7 @@ export default function AdminAlimtalkScreen({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [templateCodesOpen, setTemplateCodesOpen] = useState(false);
 
   async function loadRelayConfig() {
     setLoading(true);
@@ -202,8 +201,10 @@ export default function AdminAlimtalkScreen({
       setRelayTemplateItems(response.items);
       setAllSsodaaTemplates(response.allTemplates ?? []);
       setTemplateError(response.relayError ?? null);
+      return response;
     } catch (nextError) {
       setTemplateError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 상세를 불러오지 못했습니다.");
+      return null;
     } finally {
       setLoadingTemplates(false);
     }
@@ -248,6 +249,65 @@ export default function AdminAlimtalkScreen({
     return relayConfig?.[key] ?? appConfig[key] ?? "";
   }
 
+  function getTemplateCodeStatus(templateCode: string) {
+    if (!templateCode.trim()) {
+      return {
+        label: "미설정",
+        className: "border-[#e2e8f0] bg-[#f8fafc] text-[#64748b]",
+      };
+    }
+
+    const detail = allSsodaaTemplates.find((item) => item.templateCode === templateCode);
+    if (!detail) {
+      return {
+        label: "쏘다 미확인",
+        className: "border-[#f1d7a7] bg-[#fff9ed] text-[#b98121]",
+      };
+    }
+
+    const status = [detail.inspectionStatus, detail.serviceStatus].filter(Boolean).join(" / ");
+    const isUsable = detail.serviceStatus === "ACT" || detail.serviceStatus === "RDY";
+    const isRejected = detail.inspectionStatus === "REJ" || detail.serviceStatus === "REJ";
+
+    return {
+      label: status || "상태 확인됨",
+      className: isRejected
+        ? "border-[#f0d1d1] bg-[#fff7f7] text-[#a04455]"
+        : isUsable
+          ? "border-[#cfe3dc] bg-[#f4fbf8] text-[#1f6b5b]"
+          : "border-[#f1d7a7] bg-[#fff9ed] text-[#b98121]",
+    };
+  }
+
+  async function saveTemplateCodeField(key: AlimtalkTemplateConfigKey, label: string, nextCode: string) {
+    if (!relayConfig) return;
+
+    const nextConfig: RelayAdminConfig = {
+      ...relayConfig,
+      [key]: nextCode.trim(),
+    };
+
+    setSaving(true);
+    try {
+      const response = await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(nextConfig),
+      });
+      setRelayConfig(response.config);
+      void loadRelayTemplates();
+      setMessage(nextCode.trim() ? `${label} 템플릿 코드를 저장했습니다.` : `${label} 템플릿 코드를 비웠습니다.`);
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : `${label} 템플릿 코드 저장에 실패했습니다.`);
+      setMessage(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveAppTemplate(alias: AlimtalkTemplateAlias, body: string) {
     const response = await fetchApiJson<{ item: AppTemplateDraft }>("/api/admin/alimtalk/templates", {
       method: "PUT",
@@ -290,9 +350,14 @@ export default function AdminAlimtalkScreen({
         body: JSON.stringify(nextConfig),
       });
       setRelayConfig(response.config);
-      await loadRelayTemplates();
+      const templateCatalog = await loadRelayTemplates();
+      const selectedTemplate =
+        templateCatalog?.items.find((item) => item.alias === alias && item.configuredCode === templateCode)?.detail ??
+        templateCatalog?.allTemplates?.find((item) => item.templateCode === templateCode) ??
+        null;
       setMessage(`${spec?.title ?? alias} 템플릿을 ${templateCode}로 연결했습니다.`);
       setError(null);
+      return selectedTemplate;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 연결 저장에 실패했습니다.");
       setMessage(null);
@@ -334,11 +399,87 @@ export default function AdminAlimtalkScreen({
           loadingTemplates={loadingTemplates}
           templateError={templateError}
           onReload={() => void loadRelayTemplates()}
-          onSaveTemplate={handleSaveAppTemplate}
           onSelectTemplate={handleSelectRelayTemplate}
         />
 
-        <section className="rounded-[8px] border border-[#e6e3dd] bg-white p-6 shadow-[0_6px_16px_rgba(23,20,17,0.025)]">
+        <section className="rounded-[8px] border border-[#eceff3] bg-[#fbfcfd] shadow-[0_3px_10px_rgba(15,23,42,0.015)]">
+          <button
+            type="button"
+            onClick={() => setTemplateCodesOpen((current) => !current)}
+            className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left"
+            aria-expanded={templateCodesOpen}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#b9c3cf]" />
+              <span className="text-[13px] font-medium text-[#7b8491]">템플릿 코드 설정</span>
+              <span className="rounded-full bg-[#eef1f5] px-2 py-0.5 text-[12px] font-medium text-[#969ba4]">
+                {appTemplateCodeFieldGroups.flatMap((group) => group.fields).length}개
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 text-[12px] text-[#969ba4]">
+              <span>{templateCodesOpen ? "열림" : "접힘"}</span>
+              <ChevronDown className={`h-4 w-4 transition ${templateCodesOpen ? "rotate-180" : ""}`} />
+            </div>
+          </button>
+
+          {templateCodesOpen ? (
+            <div className="grid gap-2 border-t border-[#eef1f5] px-4 py-3 lg:grid-cols-2">
+              {appTemplateCodeFieldGroups.flatMap((group) => group.fields).map((field) => {
+                const currentCode = getCurrentTemplateCode(field.key);
+                const status = getTemplateCodeStatus(currentCode);
+                const datalistId = `ssodaa-template-code-${field.key}`;
+
+                return (
+                  <div key={field.key} className="min-w-0 rounded-[6px] border border-[#e6eaf0] bg-white px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium text-[#334155]">{field.label}</span>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-medium ${status.className}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        list={datalistId}
+                        value={relayConfig?.[field.key] ?? ""}
+                        onChange={(event) => updateField(field.key, event.target.value)}
+                        placeholder={appConfig[field.key] || "템플릿 코드 입력"}
+                        className="h-9 min-w-0 flex-1 rounded-[6px] border border-[#dbe2ea] bg-white px-2.5 font-mono text-[13px] text-[#111827] outline-none focus:border-[#607080]"
+                      />
+                      <datalist id={datalistId}>
+                        {allSsodaaTemplates.map((item) => (
+                          <option
+                            key={`${field.key}-${item.templateCode}`}
+                            value={item.templateCode}
+                            label={`${item.templateName ?? "이름 없음"} ${item.serviceStatus ? `(${item.serviceStatus})` : ""}`}
+                          />
+                        ))}
+                      </datalist>
+                      <button
+                        type="button"
+                        onClick={() => void saveTemplateCodeField(field.key, field.label, relayConfig?.[field.key] ?? "")}
+                        disabled={!relayConfig || saving}
+                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-[6px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#334155] disabled:opacity-60"
+                      >
+                        저장
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveTemplateCodeField(field.key, field.label, "")}
+                        disabled={!relayConfig || saving}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-[#dbe2ea] bg-white text-[#64748b] disabled:opacity-60"
+                        aria-label={`${field.label} 템플릿 코드 삭제`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="hidden">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] border border-[#e6e3dd] bg-white text-[#52667d]">
               <ShieldCheck className="h-5 w-5" />
@@ -362,11 +503,7 @@ export default function AdminAlimtalkScreen({
         <AdminCollapsibleSection title="고급 설정">
           <section className="grid gap-5">
             <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-5">
-              <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[#171411]">연결값</h3>
-              <div className="mt-4">
-            <AdminAlimtalkShopChannelPanel />
-              </div>
-          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <div className="rounded-[8px] border border-[#e6e3dd] bg-white p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>

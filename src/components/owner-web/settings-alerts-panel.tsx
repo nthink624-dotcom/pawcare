@@ -81,22 +81,10 @@ const alertItems: AlertItem[] = [
     role: "오너가 예약을 확정했을 때 고객에게 방문 일시와 예약 내용을 안내합니다.",
   },
   {
-    key: "bookingRejectedEnabled",
-    title: "예약 거절",
-    type: "booking_rejected",
-    role: "요청받은 예약을 받을 수 없을 때 고객에게 확정 불가 상태를 안내합니다.",
-  },
-  {
     key: "bookingCancelledEnabled",
     title: "예약 취소",
     type: "booking_cancelled",
-    role: "확정된 예약이 취소되었을 때 고객에게 취소 사실을 안내합니다.",
-  },
-  {
-    key: "bookingRescheduledEnabled",
-    title: "다른 시간 안내",
-    type: "booking_time_proposed",
-    role: "요청 시간 확정이 어려울 때 오너가 가능한 다른 시간을 제안합니다.",
+    role: "예약을 취소했을 때 고객에게 취소 사실과 다른 시간 조율 안내를 함께 보냅니다.",
   },
   {
     key: "bookingRescheduledEnabled",
@@ -379,10 +367,13 @@ export default function SettingsAlertsPanel({
     onChange({ ...value, [key]: checked });
   }
 
+  const showSenderChannelSettings = false;
+
   return (
     <section className="rounded-[16px] border border-[#e5e7eb] bg-white p-5 shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
+          {showSenderChannelSettings ? (
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -515,6 +506,7 @@ export default function SettingsAlertsPanel({
               매장 채널을 사용해도 알림톡 결제, 잔여 건수, 발송 이력은 펫매니저에서 그대로 관리됩니다.
             </p>
           </div>
+          ) : null}
 
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex items-center justify-between gap-4">

@@ -4,6 +4,7 @@ import {
   type AlimtalkTemplateAlias,
   type NotificationTemplateVariables,
 } from "@/lib/notification-registry";
+import { getConfiguredAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import type { NotificationType } from "@/types/domain";
 
@@ -30,6 +31,28 @@ type SupabaseLikeError = {
   hint?: string | null;
 };
 
+type ConnectedTemplateButton = {
+  type: "WL";
+  name: string;
+  linkMobile: string;
+  linkPc?: string | null;
+};
+
+type ConnectedTemplateDetail = {
+  templateCode: string;
+  templateContent: string | null;
+  buttons: ConnectedTemplateButton[];
+};
+
+type RelayTemplateCatalogBody = {
+  items?: Array<{
+    alias?: AlimtalkTemplateAlias | null;
+    configuredCode?: string | null;
+    detail?: ConnectedTemplateDetail | null;
+  }>;
+  allTemplates?: ConnectedTemplateDetail[];
+};
+
 const TEMPLATE_OVERRIDE_SELECT = "template_alias, template_body, is_active, updated_at";
 
 function isMissingTemplateOverrideTableError(error: SupabaseLikeError) {
@@ -43,6 +66,114 @@ function isTemplateAlias(value: string): value is AlimtalkTemplateAlias {
 
 function getRegistryItemByAlias(alias: AlimtalkTemplateAlias) {
   return ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias) ?? null;
+}
+
+export function requiresConnectedSsodaaTemplate() {
+  return serverEnv.alimtalkProvider === "ssodaa" || Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
+}
+
+function getRelayAdminUrlCandidates(pathname: string) {
+  if (!serverEnv.alimtalkRelayUrl || !serverEnv.alimtalkRelaySecret) return [];
+
+  return Array.from(
+    new Set(
+      [serverEnv.alimtalkRelayAdminUrl, serverEnv.alimtalkRelayUrl]
+        .filter((url): url is string => Boolean(url?.trim()))
+        .map((url) => {
+          const parsed = new URL(url);
+          parsed.pathname = pathname;
+          parsed.search = "";
+          return parsed.toString();
+        }),
+    ),
+  );
+}
+
+async function parseJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeConnectedButton(button: ConnectedTemplateButton): ConnectedTemplateButton | null {
+  const name = button.name?.trim();
+  const linkMobile = button.linkMobile?.trim();
+  if (!name || !linkMobile) return null;
+
+  return {
+    type: button.type || "WL",
+    name,
+    linkMobile,
+    linkPc: button.linkPc?.trim() || linkMobile,
+  };
+}
+
+async function getConnectedSsodaaTemplate(alias: AlimtalkTemplateAlias): Promise<ConnectedTemplateDetail | null> {
+  const templateCode = getConfiguredAlimtalkTemplateKey(alias)?.trim();
+  if (!templateCode) return null;
+
+  const urls = getRelayAdminUrlCandidates("/admin/templates");
+  if (!urls.length) return null;
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
+        },
+        cache: "no-store",
+      });
+      if (!response.ok) continue;
+
+      const body = (await parseJsonResponse(response)) as RelayTemplateCatalogBody | null;
+      const detail =
+        body?.items?.find((item) => item.alias === alias && item.configuredCode === templateCode)?.detail ??
+        body?.allTemplates?.find((item) => item.templateCode === templateCode) ??
+        null;
+
+      if (!detail) continue;
+
+      return {
+        templateCode,
+        templateContent: detail.templateContent ?? null,
+        buttons: (detail.buttons ?? []).map(normalizeConnectedButton).filter((item): item is ConnectedTemplateButton => Boolean(item)),
+      };
+    } catch {
+      // Try the next relay URL candidate.
+    }
+  }
+
+  return null;
+}
+
+function fillTemplateValue(value: string, variables: NotificationTemplateVariables) {
+  return Object.entries(variables).reduce((result, [key, variableValue]) => {
+    const resolvedValue = variableValue ?? "";
+    return result.replaceAll(`#{${key}}`, resolvedValue);
+  }, value);
+}
+
+export async function getConnectedSsodaaTemplateButtons(
+  type: NotificationType,
+  values: NotificationTemplateVariables,
+): Promise<ConnectedTemplateButton[] | null> {
+  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
+  if (!spec) return null;
+
+  const detail = await getConnectedSsodaaTemplate(spec.templateAlias);
+  if (!detail) return null;
+
+  return detail.buttons.map((button) => ({
+    ...button,
+    linkMobile: fillTemplateValue(button.linkMobile, values),
+    linkPc: button.linkPc ? fillTemplateValue(button.linkPc, values) : fillTemplateValue(button.linkMobile, values),
+  }));
 }
 
 async function getActiveTemplateOverrides() {
@@ -144,7 +275,11 @@ export async function renderNotificationTemplateBodyWithOverrides(type: Notifica
   const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
-  const overrides = await getActiveTemplateOverrides();
-  const template = overrides.get(spec.templateAlias)?.template_body || spec.draftBody;
+  const connectedTemplate = await getConnectedSsodaaTemplate(spec.templateAlias);
+  if (requiresConnectedSsodaaTemplate() && !connectedTemplate?.templateContent) {
+    throw new Error(`${spec.title} 쏘다 템플릿 본문을 확인하지 못해 발송을 중단했습니다.`);
+  }
+
+  const template = connectedTemplate?.templateContent || spec.draftBody;
   return fillNotificationTemplate(template, values);
 }

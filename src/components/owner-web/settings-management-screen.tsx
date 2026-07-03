@@ -26,7 +26,6 @@ import {
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
 import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
-import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
 import type { ApprovalMode, BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
@@ -475,6 +474,14 @@ const ownerWebShopProfileImagesMaxCount = 10;
 function normalizeShopProfileImages(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.length > 0).slice(0, ownerWebShopProfileImagesMaxCount);
+}
+
+function normalizeShopProfileImageAssetIds(settings: Shop["customer_page_settings"] | undefined) {
+  const mediaAssetIds = Array.isArray(settings?.hero_media_asset_ids)
+    ? settings.hero_media_asset_ids.filter((mediaAssetId): mediaAssetId is string => typeof mediaAssetId === "string" && mediaAssetId.trim().length > 0)
+    : [];
+  const singleMediaAssetId = settings?.hero_media_asset_id?.trim() || "";
+  return (mediaAssetIds.length > 0 ? mediaAssetIds : singleMediaAssetId ? [singleMediaAssetId] : []).slice(0, ownerWebShopProfileImagesMaxCount);
 }
 
 function isLocalPreviewImageUrl(imageUrl: string) {
@@ -1053,7 +1060,6 @@ export default function SettingsManagementScreen({
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileImageServerSyncKeyRef = useRef("");
   const profileImageAssetUrlSyncKeyRef = useRef("");
-  const profileImageMediaAssetRecoveryKeyRef = useRef("");
   const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
@@ -1075,17 +1081,18 @@ export default function SettingsManagementScreen({
           setDraftSettings(cloneSettings(nextSettings));
         }
 
+        const serverMediaAssetIds = normalizeShopProfileImageAssetIds(shop?.customer_page_settings);
         if (shop?.customer_page_settings.hero_image_urls?.length) {
           nextProfileImages = normalizeShopProfileImages(shop.customer_page_settings.hero_image_urls);
         } else if (shop?.customer_page_settings.hero_image_url) {
           nextProfileImages = [shop.customer_page_settings.hero_image_url];
-        } else if (storedProfileImages) {
+        } else if (!persistShopProfile && storedProfileImages) {
           nextProfileImages = normalizeShopProfileImages(JSON.parse(storedProfileImages));
-        } else if (storedProfileImage) {
+        } else if (!persistShopProfile && storedProfileImage) {
           nextProfileImages = [storedProfileImage];
         }
         setShopProfileImages(nextProfileImages);
-        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(nextProfileImages.length, shop?.customer_page_settings.hero_media_asset_ids ?? []));
+        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(nextProfileImages.length, serverMediaAssetIds));
       });
       setIsShopInfoDirty(false);
       setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
@@ -1358,9 +1365,9 @@ export default function SettingsManagementScreen({
 
     const mediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
     const currentImages = normalizeShopProfileImages(shopProfileImages);
-    if (mediaAssetIds.length <= currentImages.length) return;
+    if (mediaAssetIds.length === 0) return;
 
-    const syncKey = `${shop.id}:${mediaAssetIds.join("|")}:${currentImages.length}`;
+    const syncKey = `${shop.id}:${mediaAssetIds.join("|")}`;
     if (profileImageAssetUrlSyncKeyRef.current === syncKey) return;
     profileImageAssetUrlSyncKeyRef.current = syncKey;
 
@@ -1376,8 +1383,8 @@ export default function SettingsManagementScreen({
       )
         .then((signedUrls) => {
         if (cancelled) return;
-        const nextImages = normalizeShopProfileImages([...currentImages, ...signedUrls]);
-        if (nextImages.length <= currentImages.length) return;
+        const nextImages = normalizeShopProfileImages(signedUrls);
+        if (nextImages.length === 0 || JSON.stringify(nextImages) === JSON.stringify(currentImages)) return;
         const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, mediaAssetIds);
         setShopProfileImages(nextImages);
         setShopProfileImageAssetIds(nextMediaAssetIds);
@@ -1392,71 +1399,6 @@ export default function SettingsManagementScreen({
           setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
         });
     }, 900);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [draftSettings, persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
-
-  useEffect(() => {
-    if (!shop || !persistShopProfile || savingShopInfo || shop.id === "demo-shop" || shop.id === "owner-demo") return;
-
-    const currentImages = normalizeShopProfileImages(shopProfileImages);
-    const alignedCurrentAssetIds = alignShopProfileImageAssetIds(currentImages.length, shopProfileImageAssetIds);
-    const currentAssetIds = alignedCurrentAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
-    if (currentImages.length > 1 && currentAssetIds.length > 0) return;
-
-    const syncKey = `${shop.id}:${currentAssetIds.join("|")}:${currentImages.length}`;
-    if (profileImageMediaAssetRecoveryKeyRef.current === syncKey) return;
-    profileImageMediaAssetRecoveryKeyRef.current = syncKey;
-
-    let cancelled = false;
-    const query = new URLSearchParams({
-      shopId: shop.id,
-      mediaKind: "shop_profile",
-      limit: String(ownerWebShopProfileImagesMaxCount),
-      includeVariants: "false",
-    });
-
-    const timer = window.setTimeout(() => {
-      void fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${query.toString()}`)
-        .then(async (result) => {
-        if (cancelled) return;
-        const recoveredAssetIds = result.items.map((item) => item.mediaAsset.id).filter(Boolean);
-        const nextAssetIds = [
-          ...alignedCurrentAssetIds,
-          ...recoveredAssetIds.filter((mediaAssetId) => !currentAssetIds.includes(mediaAssetId)),
-        ].slice(
-          0,
-          ownerWebShopProfileImagesMaxCount,
-        );
-        if (nextAssetIds.length <= currentAssetIds.length && currentImages.length > 0) return;
-
-        const signedUrls = await Promise.all(
-          nextAssetIds.filter(Boolean).map((mediaAssetId) =>
-            resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
-              console.error("[OWNER SETTINGS] failed to recover a shop profile image URL from media assets", error);
-              return "";
-            }),
-          ),
-        );
-        if (cancelled) return;
-
-        const nextImages = normalizeShopProfileImages([...currentImages, ...signedUrls]);
-        if (nextImages.length <= currentImages.length) return;
-        const alignedNextAssetIds = alignShopProfileImageAssetIds(nextImages.length, nextAssetIds);
-
-        setShopProfileImages(nextImages);
-        setShopProfileImageAssetIds(alignedNextAssetIds);
-        persistSettings(draftSettings, nextImages);
-        await persistShopProfileImageSettings(nextImages, alignedNextAssetIds);
-        })
-        .catch((error) => {
-          console.error("[OWNER SETTINGS] failed to recover shop profile images from media assets", error);
-          setShopInfoFeedback(error instanceof Error ? error.message : "R2에 저장된 매장 사진을 다시 연결하지 못했습니다.");
-        });
-    }, 1400);
 
     return () => {
       cancelled = true;

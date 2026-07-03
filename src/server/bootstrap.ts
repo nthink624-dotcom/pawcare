@@ -170,8 +170,8 @@ async function resolveCustomerPageMediaImages(shop: Shop): Promise<Shop> {
     }),
   );
   const seenImageUrls = new Set<string>();
-  const resolvedUrls = existingHeroImageUrls
-    .concat(signedUrls)
+  const resolvedUrls = signedUrls
+    .concat(existingHeroImageUrls)
     .filter((imageUrl) => {
       const trimmed = imageUrl.trim();
       if (!trimmed || seenImageUrls.has(trimmed)) return false;

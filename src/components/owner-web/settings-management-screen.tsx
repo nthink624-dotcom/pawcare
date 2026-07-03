@@ -26,6 +26,7 @@ import {
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
 import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
+import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
 import type { ApprovalMode, BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
@@ -1060,6 +1061,7 @@ export default function SettingsManagementScreen({
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileImageServerSyncKeyRef = useRef("");
   const profileImageAssetUrlSyncKeyRef = useRef("");
+  const profileImageMissingAssetRecoveryKeyRef = useRef("");
   const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
@@ -1211,9 +1213,9 @@ export default function SettingsManagementScreen({
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
-    const heroMediaAssetIds = alignShopProfileImageAssetIds(heroImageUrls.length, shopProfileImageAssetIds)
+    const heroMediaAssetIds = alignShopProfileImageAssetIds(Math.max(heroImageUrls.length, shopProfileImageAssetIds.length), shopProfileImageAssetIds)
       .filter(Boolean)
-      .slice(0, heroImageUrls.length || 10);
+      .slice(0, ownerWebShopProfileImagesMaxCount);
     const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
     const heroImageUrl = heroImageUrls[0] ?? "";
     const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
@@ -1311,8 +1313,8 @@ export default function SettingsManagementScreen({
     if (!shop || !persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") return;
 
     const heroImageUrls = normalizeShopProfileImages(nextImages);
-    const alignedMediaAssetIds = alignShopProfileImageAssetIds(heroImageUrls.length, nextMediaAssetIds);
-    const heroMediaAssetIds = alignedMediaAssetIds.filter(Boolean).slice(0, heroImageUrls.length || 10);
+    const alignedMediaAssetIds = alignShopProfileImageAssetIds(Math.max(heroImageUrls.length, nextMediaAssetIds.length), nextMediaAssetIds);
+    const heroMediaAssetIds = alignedMediaAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
     const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
     const result = await fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
       method: "PATCH",
@@ -1397,6 +1399,65 @@ export default function SettingsManagementScreen({
         .catch((error) => {
           console.error("[OWNER SETTINGS] failed to recover shop profile image URLs", error);
           setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
+        });
+    }, 900);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [draftSettings, persistShopProfile, savingShopInfo, shop, shopProfileImageAssetIds, shopProfileImages]);
+
+  useEffect(() => {
+    if (!shop || !persistShopProfile || savingShopInfo || shop.id === "demo-shop" || shop.id === "owner-demo") return;
+
+    const currentImages = normalizeShopProfileImages(shopProfileImages);
+    const currentAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+    if (currentImages.length !== 1 || currentAssetIds.length !== 1) return;
+
+    const syncKey = `${shop.id}:${currentAssetIds[0]}`;
+    if (profileImageMissingAssetRecoveryKeyRef.current === syncKey) return;
+    profileImageMissingAssetRecoveryKeyRef.current = syncKey;
+
+    let cancelled = false;
+    const query = new URLSearchParams({
+      shopId: shop.id,
+      mediaKind: "shop_profile",
+      limit: "10",
+      includeVariants: "false",
+    });
+
+    const timer = window.setTimeout(() => {
+      void fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${query.toString()}`)
+        .then(async (result) => {
+          if (cancelled) return;
+          const recoveredAssetIds = result.items.map((item) => item.mediaAsset.id).filter(Boolean);
+          if (recoveredAssetIds.length !== 2 || !recoveredAssetIds.includes(currentAssetIds[0])) return;
+
+          const nextAssetIds = [
+            currentAssetIds[0],
+            ...recoveredAssetIds.filter((mediaAssetId) => mediaAssetId !== currentAssetIds[0]),
+          ].slice(0, ownerWebShopProfileImagesMaxCount);
+          const signedUrls = await Promise.all(
+            nextAssetIds.map((mediaAssetId) =>
+              resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
+                console.error("[OWNER SETTINGS] failed to recover a missing shop profile image URL", error);
+                return "";
+              }),
+            ),
+          );
+          if (cancelled) return;
+
+          const nextImages = normalizeShopProfileImages(signedUrls);
+          if (nextImages.length !== 2) return;
+          setShopProfileImages(nextImages);
+          setShopProfileImageAssetIds(nextAssetIds);
+          persistSettings(draftSettings, nextImages);
+          await persistShopProfileImageSettings(nextImages, nextAssetIds);
+        })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to recover missing shop profile images from R2", error);
+          setShopInfoFeedback(error instanceof Error ? error.message : "R2에 저장된 매장 사진을 다시 연결하지 못했습니다.");
         });
     }, 900);
 

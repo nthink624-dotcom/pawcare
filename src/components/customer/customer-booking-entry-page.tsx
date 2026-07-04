@@ -597,7 +597,7 @@ export default function CustomerBookingEntryPage({
   return (
     <div className={`pm-entry-proto${visibleDiscountCoupons.length > 0 ? " has-benefits" : ""}${previewMode ? " is-preview" : ""} mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]`}>
       <style>{`
-        .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
+        .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--closed:#a04455;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
         .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
         .pm-entry-proto.has-benefits .scroll{padding-bottom:176px}
         .pm-entry-proto.is-preview{height:100%;min-height:0}
@@ -636,6 +636,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .hours{position:relative}
         .pm-entry-proto .hours .top{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 14px;border:1px solid var(--border);border-radius:13px;background:var(--card);cursor:pointer;user-select:none;font-size:16px;font-weight:600;color:var(--text);white-space:nowrap}
         .pm-entry-proto .hours .top .od{width:8px;height:8px;border-radius:50%;background:var(--open);display:block}
+        .pm-entry-proto .hours .top.closed .od{background:var(--closed)}
         .pm-entry-proto .hours .top .chev{width:14px;height:14px;color:var(--textMuted);transition:transform .25s;flex-shrink:0}
         .pm-entry-proto .hours.open .top .chev{transform:rotate(180deg)}
         .pm-entry-proto .hours .list{position:absolute;left:0;top:50px;z-index:10;width:calc(min(100vw,430px) - 32px);max-width:398px;animation:hdrop .18s ease}
@@ -774,7 +775,7 @@ export default function CustomerBookingEntryPage({
 
           <div className="srow">
             <div className={`hours${hoursOpen ? " open" : ""}`}>
-              <div className="top" onClick={() => setHoursOpen((value) => !value)}>
+              <div className={`top${operatingStatus.label === "휴무" ? " closed" : ""}`} onClick={() => setHoursOpen((value) => !value)}>
                 <span className="od" />{operatingStatus.label}<ChevronDown className="chev" strokeWidth={2} />
               </div>
               {hoursOpen ? (

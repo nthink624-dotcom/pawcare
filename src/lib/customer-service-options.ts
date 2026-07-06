@@ -3,8 +3,6 @@ import type { Service } from "@/types/domain";
 export type CustomerServiceDisplayOverride = {
   visible?: boolean;
   order?: number;
-  displayName?: string;
-  description?: string;
   linkedOptionId?: string;
 };
 
@@ -66,16 +64,6 @@ function getPriceGuideSpeciesLabel(value: unknown) {
   return value === "cat" ? "고양이" : "강아지";
 }
 
-function getPriceGuideItemGroupKey(option: CustomerServiceSourceOption) {
-  const rawItemId = option.id.includes(":") ? option.id.split(":").pop() ?? "" : "";
-  const semanticItemId = rawItemId.replace(/^(?:basic|plus|premium|default)_/, "");
-  if (["clipping", "hygiene_bath", "spotting", "scissor"].includes(semanticItemId)) {
-    return `price-guide:${semanticItemId}`;
-  }
-
-  return `label:${normalizeOptionLabelKey(option.sourceName)}`;
-}
-
 function getCustomerServiceOptionDisplayKey(option: CustomerServiceSourceOption) {
   return [
     option.category,
@@ -131,12 +119,6 @@ export function normalizeCustomerServiceOverrides(value: unknown): CustomerServi
 
       const order = normalizeOrder(source.order);
       if (order !== undefined) override.order = order;
-
-      const displayName = limitText(source.displayName, 80);
-      if (displayName) override.displayName = displayName;
-
-      const description = limitText(source.description, 120);
-      if (description) override.description = description;
 
       const linkedOptionId = limitText(source.linkedOptionId, 180);
       if (linkedOptionId) override.linkedOptionId = linkedOptionId;
@@ -236,17 +218,10 @@ export function buildCustomerServiceSourceOptions(
 }
 
 function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOption[]) {
-  const groupedOptions = new Map<string, CustomerServiceSourceOption>();
+  const firstCategory = options[0]?.category;
+  const defaultOptions = firstCategory ? options.filter((option) => option.category === firstCategory) : [];
 
-  for (const option of options) {
-    const key = getPriceGuideItemGroupKey(option);
-    const existing = groupedOptions.get(key);
-    if (!existing || option.price < existing.price || (option.price === existing.price && option.durationMinutes < existing.durationMinutes)) {
-      groupedOptions.set(key, option);
-    }
-  }
-
-  return Array.from(groupedOptions.values()).map((option, index) => ({
+  return uniqueCustomerServiceOptions(defaultOptions).map((option, index) => ({
     ...option,
     id: createMenuOptionId(option.sourceName),
     name: option.sourceName,

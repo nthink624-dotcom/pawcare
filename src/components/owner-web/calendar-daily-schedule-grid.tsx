@@ -92,7 +92,7 @@ function isPendingBookingStatus(status: string) {
 }
 
 function isOverduePendingBookingStatus(status: string) {
-  return status === "누락";
+  return false;
 }
 
 function getStaffInitial(name: string) {
@@ -318,6 +318,13 @@ function getOffHoursBarTop(segment: ScheduleDisplaySegment) {
   return segment.top + 4;
 }
 
+function getOffHoursToggleTop(segment: ScheduleDisplaySegment, bodyHeight: number) {
+  if (segment.collapsed && (segment.key === "after" || segment.key === "allDay")) {
+    return Math.max(segment.top, bodyHeight - 30);
+  }
+  return segment.collapsed ? segment.top + Math.max(0, (segment.height - 22) / 2) : getOffHoursBarTop(segment);
+}
+
 function getBookingHeight(duration: number) {
   return Math.max(24, duration * pixelsPerHour - 4);
 }
@@ -506,10 +513,10 @@ export function DailyScheduleGrid({
         className={cn(
           "absolute z-[30] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
           segment.collapsed
-            ? "left-1/2 w-[24px] -translate-x-1/2 bg-transparent"
-            : "left-1/2 w-[24px] -translate-x-1/2 bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
+            ? "right-1 w-[24px] bg-transparent"
+            : "right-1 w-[24px] bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
         )}
-        style={{ top: getOffHoursBarTop(segment) - (segment.collapsed ? 7 : 0), height: 22 }}
+        style={{ top: getOffHoursToggleTop(segment, scheduleBodyHeight), height: 22 }}
       >
         <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[#c4ceda] bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)]">
           {segment.collapsed ? <ChevronDown className="h-[13px] w-[13px]" strokeWidth={2.8} /> : <ChevronUp className="h-[13px] w-[13px]" strokeWidth={2.8} />}
@@ -749,9 +756,9 @@ export function DailyScheduleGrid({
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
-          className="min-w-0 flex-1 overflow-x-clip"
+          className="no-scrollbar min-w-0 flex-1 overflow-x-auto"
         >
-          <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-4" style={scheduleTrackStyle}>
+          <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-9" style={scheduleTrackStyle}>
             {scheduleStaff.map((staffMember, staffIndex) => {
               const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
               const selectedStaff = selectedStaffKey === staffMember.key;
@@ -845,11 +852,11 @@ export function DailyScheduleGrid({
             ref={bodyScrollerRef}
             data-schedule-scroller="true"
             onScroll={() => syncHorizontalScroll("body")}
-            className="min-w-0 flex-1 overflow-x-clip scroll-px-4"
+            className="no-scrollbar min-w-0 flex-1 overflow-x-auto scroll-px-4"
           >
             <div className="relative min-w-full" style={scheduleTrackStyle}>
               {renderOffHoursToggleControls("schedule-body")}
-              <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-4">
+              <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-9">
               {scheduleStaff.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
@@ -888,6 +895,7 @@ export function DailyScheduleGrid({
                         staffBookings.map((booking) => {
                           const selected = selectedBookingId === booking.id;
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
+                          const displayTimeLabel = booking.actualTimeLabel?.replace(/^실제\s*/, "") || timeLabel;
                           const changeStatus = isChangeBookingStatus(booking.status);
                           const cardTone = getBookingCardTone(booking.status);
                           const completedBooking = isCompletedBookingStatus(booking.sourceStatus ?? booking.status);
@@ -984,7 +992,7 @@ export function DailyScheduleGrid({
                                         : `relative -top-px whitespace-nowrap font-medium tabular-nums ${getBookingTimeTextClass(cardTone)}`,
                                     )}
                                   >
-                                    {microCard ? booking.service : timeLabel}
+                                    {microCard ? booking.service : displayTimeLabel}
                                   </span>
                                   {!microCard ? (
                                     <div className="col-span-2 flex min-w-0 items-center gap-1.5">

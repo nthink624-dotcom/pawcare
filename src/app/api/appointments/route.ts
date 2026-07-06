@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     await requireOwnerShop(request, body?.shopId);
-    const result = await createAppointment(body);
+    const result = await createAppointment({ ...body, source: "owner" });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {

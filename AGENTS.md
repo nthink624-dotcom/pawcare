@@ -1,4 +1,4 @@
-# PetManager Unified Agent Instructions
+﻿# PetManager Unified Agent Instructions
 
 ## Purpose
 - This is the single canonical instruction file for the PetManager workspace.
@@ -35,6 +35,7 @@
   D:\petmanager-shared\sync-agents.ps1
   ```
 - The project-root `.env.local` and `AGENTS.md` files must still exist because local tools read them from each project root. Treat them as synced copies from `D:\petmanager-shared`.
+- If a request or file change targets a project-root `AGENTS.md` directly, treat it as the wrong workflow. Do not manually edit project-root `AGENTS.md` files; update `D:\petmanager-shared\AGENTS.md` and sync it down instead.
 - Never commit real `.env.local` secrets to git.
 
 ## Product Intent
@@ -69,13 +70,13 @@
 - Schedule boards should stay quiet and operational: white/neutral cards, light grid lines, compact staff headers, and no saturated full-card backgrounds.
 - Date navigation on owner web work surfaces should use the schedule pattern: left chevron, centered plain date text, right chevron.
 - Staff weekly schedule cells should remain compact and fixed height (`h-9`) unless explicitly approved otherwise.
-- Staff weekly schedule edit modal: keep `�⺻ �ٹ� ����` collapsed by default. Show weekday/time controls only after the owner opens the dropdown header.
-- Staff weekly schedule columns are `��������` plus weekday columns (`��`, `ȭ`, `��`, `��`, `��`, `��`, `��`). Staff cells show name in bold and role/service as smaller muted text underneath.
+- Staff weekly schedule edit modal: keep `기본 근무 설정` collapsed by default. Show weekday/time controls only after the owner opens the dropdown header.
+- Staff weekly schedule columns are `스태프명` plus weekday columns (`월`, `화`, `수`, `목`, `금`, `토`, `일`). Staff cells show name in bold and role/service as smaller muted text underneath.
 
 ## Status Indicator Rules
 - PetManager has exactly two reusable status indicator shapes:
-  - `���� ��`: a small filled dot for compact rows and badges, usually `h-2 w-2 rounded-full`.
-  - `���� ���� �ε�������`: a colored left border edge used on cards, schedule items, calendar items, and staff weekly schedule cells.
+  - `상태 점`: a small filled dot for compact rows and badges, usually `h-2 w-2 rounded-full`.
+  - `좌측 엣지 인디케이터`: a colored left border edge used on cards, schedule items, calendar items, and staff weekly schedule cells.
 - The canonical card indicator is `PM_STATUS_LEFT_EDGE`.
 - `PM_STATUS_LEFT_EDGE` CSS contract:
   - parent element has `position: relative`
@@ -89,10 +90,12 @@
 - Do not alter `PM_STATUS_LEFT_EDGE` without explicit owner approval.
 - Forbidden regressions: interior vertical line, detached rail, bracket rail, pill chip, thick border, colored full-card background, gradient, heavy shadow, `border-2`, saturated focus ring, or dot-only status on schedule cards.
 - Fixed status colors:
-  - calm blue-gray `#607080`: confirmed, active work, �ٹ�, success
-  - amber `#b98121`: pending, ���δ��, ����, ����, ����, warning
-  - burgundy `#a04455`: �޹�, ���, ����, failure
-  - slate `#64748b`: �Ϸ�, completed
+  - emerald green `#1f9d55`: confirmed, success
+  - clear blue `#2563eb`: active work, 진행 중
+  - violet `#7c3aed`: pickup ready, 픽업 준비
+  - calm blue-gray `#607080`: 근무`r`n  - amber `#b98121`: pending, 승인대기, 예정, 반차, 변경, warning
+  - burgundy `#a04455`: 휴무, 취소, 거절, failure
+  - slate `#64748b`: 완료, completed
   - neutral `#b9c3cf`: unknown or inactive only
 - In PC/admin web, reuse `src/components/owner-web/status-indicators.ts` for status indicator shapes and colors. Do not hard-code alternative indicator colors in schedule, calendar, staff, or customer screens.
 
@@ -103,19 +106,31 @@
 - Grooming start and pickup-ready status changes require an owner/staff-captured photo before the status update.
 - This applies to PC web, mobile web, demo seeds, manual API calls, and future owner/staff surfaces unless the owner explicitly changes the product rule.
 - The schedule board current-work anchor must be the earliest-starting active booking whose scheduled time window contains the current time.
-- Active work statuses include `���� ��` and `�Ⱦ� �غ�`.
+- Active work statuses include `진행 중` and `픽업 준비`.
 - Expired active-status bookings must not become anchors.
 
 ## Staff And Schedule Data Rules
 - Owner schedule staff columns and staff filter options must come only from saved staff members.
-- Do not add synthetic columns/options such as `�̹���` unless explicitly requested for that specific surface.
-- If exactly one staff member exists, the ��� filter should be fixed to that staff member and should not show `��ü ������`.
+- Do not add synthetic columns/options such as `미배정` unless explicitly requested for that specific surface.
+- If exactly one staff member exists, the 담당 filter should be fixed to that staff member and should not show `전체 스태프`.
 - Dense schedule views should preserve vertical time placement and non-overlap first.
 - If density increases, assign bookings to available staff/time windows rather than visually stacking overlapping cards.
 
 ## Notification And Alimtalk Rules
-- Customer-facing appointment notifications are owner-action/manual by default.
-- Do not add background cron, scheduled auto-send, or automatic reminder dispatch unless the owner explicitly approves that product direction.
+- Customer-facing appointment notifications are owner-action/manual by default, except for reservation visit 안내 reminders defined below.
+- Reservation visit 안내 Alimtalk is an approved automatic product flow. Do not describe it as an owner manual-send flow.
+- Reservation visit 안내 must send at most one automatic 안내 Alimtalk per appointment, at the most appropriate timing for that appointment.
+- Do not send multiple automatic reservation 안내 messages for the same appointment just because several timing windows exist.
+- Automatic reservation 안내 timing policy:
+  - If the appointment was made well ahead of time, send one "내일 예약 안내" on the day before the appointment.
+  - If the appointment is made on the same day and there is enough time before the visit, send one "오늘 예약 안내".
+  - If the appointment is made close to the start time, send one "직전 예약 안내" shortly before the visit.
+  - Once any one of the reservation 안내 types has been automatically sent for an appointment, do not automatically send another reservation 안내 for that appointment.
+- Example: if a customer books three days ahead, do not send an immediate 안내, a today 안내, and a 직전 안내. Send only the one scheduled day-before 안내 at the right timing.
+- Example: if a customer books shortly before the appointment, skip the day-before/today 안내 and send only the 직전 안내 if it is still useful.
+- Manual owner buttons for reservation 안내, if present, are secondary controls such as resend/test/manual override and must not be treated as the primary flow.
+- Automatic reservation 안내 must still respect shop notification settings, guardian/shop-level opt-out, duplicate-send prevention, approved Ssodaa template mappings, and shop Alimtalk credit balance.
+- Do not add new background cron or automatic notification categories beyond the approved reservation visit 안내 flow unless the owner explicitly approves that product direction.
 - Alimtalk usage is accounted per shop inside PetManager, not by separate Ssodaa accounts.
 - Ssodaa balance is the platform pool.
 - Each shop has an internal credit balance.
@@ -160,3 +175,5 @@
 - When extracting components, do not change API calls, state logic, validation, routing, billing, auth, notification, or data models.
 - If splitting or UI changes may affect behavior, stop and report it as deferred.
 - Detailed rules live in `docs/engineering/file-structure-standard.md` when present.
+
+

@@ -17,8 +17,8 @@ export const defaultShopNotificationSettings: ShopNotificationSettings = {
   booking_rejected_enabled: true,
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
-  appointment_reminder_10m_enabled: false,
-  appointment_reminder_10m_mode: "manual",
+  appointment_reminder_10m_enabled: true,
+  appointment_reminder_10m_mode: "auto",
   visit_reminder_offset_minutes: 10,
   grooming_started_enabled: true,
   grooming_almost_done_enabled: true,
@@ -70,7 +70,7 @@ export function normalizeShopNotificationSettings(settings: Partial<ShopNotifica
     alimtalk_template_request_note: settings?.alimtalk_template_request_note?.trim() ?? "",
     alimtalk_template_request_updated_at: settings?.alimtalk_template_request_updated_at ?? null,
     appointment_reminder_10m_mode:
-      settings?.appointment_reminder_10m_mode === "auto" ? "auto" : "manual",
+      settings?.appointment_reminder_10m_mode === "manual" ? "manual" : "auto",
     visit_reminder_offset_minutes: normalizeMinuteValue(
       settings?.visit_reminder_offset_minutes,
       defaultShopNotificationSettings.visit_reminder_offset_minutes,

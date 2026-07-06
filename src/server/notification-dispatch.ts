@@ -246,6 +246,59 @@ function shouldSendGuardianNotification(
   return shouldSendByGuardianSettings(guardian.notification_settings, type) ?? true;
 }
 
+function getGuardianNotificationBlockReason(
+  guardian: BootstrapPayload["guardians"][number] | null,
+  type: NotificationType,
+) {
+  if (!guardian) return "고객 정보를 찾지 못해 알림톡 발송을 막았습니다.";
+  if (!guardian.notification_settings.enabled) {
+    return "고객이 이 매장의 알림톡 수신을 거부했습니다.";
+  }
+
+  switch (type) {
+    case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
+      return "고객이 예약 안내 알림톡 수신을 거부했습니다.";
+    case "booking_confirmed":
+    case "booking_rejected":
+    case "booking_cancelled":
+    case "booking_time_proposed":
+    case "booking_rescheduled_confirmed":
+      return "고객이 예약 변경/확정 알림톡 수신을 거부했습니다.";
+    case "grooming_started":
+    case "grooming_almost_done":
+    case "grooming_completed":
+      return "고객이 미용 진행 알림톡 수신을 거부했습니다.";
+    case "revisit_notice":
+      return "고객이 재방문 알림톡 수신을 거부했습니다.";
+    case "birthday_greeting":
+      return "고객이 생일 축하 알림톡 수신을 거부했습니다.";
+    default:
+      return "고객 알림톡 수신 설정에 따라 발송을 막았습니다.";
+  }
+}
+
+function classifyProviderFailure(message: string | null | undefined) {
+  const normalized = (message ?? "").toLowerCase();
+  if (!normalized) return null;
+
+  const blockedTokens = [
+    "blocked",
+    "block",
+    "reject",
+    "refuse",
+    "unsub",
+    "수신거부",
+    "수신 거부",
+    "차단",
+    "친구 아님",
+    "채널 차단",
+  ];
+
+  return blockedTokens.some((token) => normalized.includes(token)) ? "provider_channel_blocked" : null;
+}
+
 function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
   const settings = shop.notification_settings;
   const canUseShopChannel =
@@ -461,11 +514,12 @@ function legacyBuildNotificationMessage(params: {
         .join("\n");
     case "grooming_started":
       return [
-        `[${params.shopName}]`,
-        `${params.petName} 보호자님, 미용을 시작했어요 `,
+        `[${params.shopName}] 미용 시작 안내`,
+        `${params.petName} 보호자님, 안녕하세요.`,
+        `지금 막 ${params.petName}의 미용을 시작했습니다.`,
         "",
-        `${params.petName}은 저희가 잘 돌보고 있으니 안심하세요 `,
-        "예쁘게 단장해서 보내드릴게요!",
+        "편안하게 미용받을 수 있도록 저희가 세심하게 살피며 진행하겠습니다.",
+        "미용이 끝나면 픽업 안내 드리겠습니다. 잠시만 기다려 주세요.",
       ]
         .filter((line, index, lines) => {
           if (line) return true;
@@ -545,8 +599,7 @@ function buildNotificationTemplateValues(params: {
       ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
   const visitReminderOffsetMinutes = params.appointment?.visit_reminder_offset_minutes ?? 10;
-  const pickupReadyEtaMinutes = params.appointment?.pickup_ready_eta_minutes ?? 5;
-  const pickupGuide = `약 ${pickupReadyEtaMinutes}분 뒤 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.`;
+  const pickupGuide = "잠시 후 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.";
 
   return {
     매장명: params.shopName,
@@ -558,6 +611,7 @@ function buildNotificationTemplateValues(params: {
     "예약 링크": params.bookingEntryUrl ?? "",
     "예약 확인 링크": params.bookingManageUrl ?? "",
     예약관리링크: params.bookingManageUrl ?? "",
+    예약관리토큰: params.bookingAccessToken ?? "",
     예약시간변경링크: params.bookingManageUrl ?? "",
     예약시간변경토큰: params.bookingAccessToken ?? "",
     bookingRescheduleToken: params.bookingAccessToken ?? "",
@@ -565,9 +619,9 @@ function buildNotificationTemplateValues(params: {
     길찾기링크: params.directionsUrl ?? "",
     방문전알림분: String(visitReminderOffsetMinutes),
     방문전알림안내: `예약 시간 ${visitReminderOffsetMinutes}분 전 안내드립니다.`,
-    픽업예상분: String(pickupReadyEtaMinutes),
+    픽업예상분: "잠시 후",
     픽업안내: pickupGuide,
-    pickupReadyEtaMinutes: String(pickupReadyEtaMinutes),
+    pickupReadyEtaMinutes: "잠시 후",
     pickupGuide,
   };
 }
@@ -634,7 +688,7 @@ function buildPhotoLessGroomingCompletedMessage(params: {
 function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | undefined) {
   const query = [shopName, shopAddress?.trim()].filter(Boolean).join(" ");
   if (!query) return null;
-  return `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
 }
 
 function buildNotificationButtons(params: {
@@ -885,8 +939,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
-  const canSendGuardian = input.force ? true : shouldSendGuardianNotification(guardian, input.type);
+  const canSendGuardian = shouldSendGuardianNotification(guardian, input.type);
   const canSend = canSendShop && canSendGuardian;
+  const guardianBlockReason = canSendGuardian ? null : getGuardianNotificationBlockReason(guardian, input.type);
   const mediaAttachments =
     bootstrap.mode === "supabase" && mediaAssetIds.length > 0
       ? await buildNotificationMediaAttachments({
@@ -960,9 +1015,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     status = "skipped";
     failReason = !canSendShop
       ? "Notification disabled by shop settings."
-      : input.type === "revisit_notice"
-        ? "Notification disabled by guardian revisit settings."
-        : "Notification disabled by guardian settings.";
+      : guardianBlockReason;
     logNotificationSkipped({
       reason: !canSendShop ? "notification disabled" : "customer notification setting off",
       type: input.type,
@@ -1050,6 +1103,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           sentAt = nowIso();
         }
       } catch (error) {
+        const providerFailureCategory = classifyProviderFailure(error instanceof Error ? error.message : String(error));
         if (creditReservation?.consumed) {
           try {
             await refundShopAlimtalkCredit({
@@ -1071,6 +1125,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         }
         status = "failed";
         failReason = error instanceof Error ? error.message : "Alimtalk send failed.";
+        input.metadata = {
+          ...(input.metadata ?? {}),
+          providerFailureCategory,
+        };
       }
     } else {
       status = "queued";
@@ -1123,6 +1181,9 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       alimtalkShopChannelStatus: alimtalkSenderConfig.status,
       alimtalkShopChannelName: alimtalkSenderConfig.channelName,
       alimtalkShopChannelUrl: alimtalkSenderConfig.channelUrl,
+      guardianNotificationBlocked: !canSendGuardian,
+      guardianNotificationBlockReason: guardianBlockReason,
+      notificationOptOutScope: !canSendGuardian ? "shop_guardian" : null,
     },
     sent_at: sentAt,
     created_at: nowIso(),

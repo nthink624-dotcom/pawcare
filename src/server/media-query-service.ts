@@ -30,6 +30,7 @@ const mediaKinds = new Set<MediaKind>([
   "grooming_result",
   "message_image",
   "shop_profile",
+  "staff_profile",
   "customer_shared",
   "memo_attachment",
 ]);
@@ -66,7 +67,7 @@ function normalizeLimit(value: number | null | undefined) {
     throw new OwnerApiError("limit must be a positive integer.", 400);
   }
 
-  return Math.min(value, 100);
+  return Math.min(value, 200);
 }
 
 function normalizeBeforeCreatedAt(value: string | null | undefined) {
@@ -126,11 +127,13 @@ export async function listOwnerMediaAssets(
       .from("media_assets")
       .select("*")
       .eq("shop_id", owner.shopId)
-      .eq("status", "ready")
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1);
 
+    if (mediaKind !== "shop_profile" && mediaKind !== "staff_profile") {
+      query = query.eq("status", "ready");
+    }
     if (includeDeletedAtFilter) query = query.is("deleted_at", null);
     if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
     if (mediaKind) query = query.eq("media_kind", mediaKind);
@@ -154,7 +157,9 @@ export async function listOwnerMediaAssets(
     throw new OwnerApiError(result.error.message, 500);
   }
 
-  const rows = ((result.data ?? []) as MediaAsset[]).slice(0, limit + 1);
+  const rows = ((result.data ?? []) as MediaAsset[])
+    .filter((mediaAsset) => mediaAsset.status !== "deleted")
+    .slice(0, limit + 1);
   const hasMore = rows.length > limit;
   const mediaAssets = rows.slice(0, limit);
   const variantsByAssetId =

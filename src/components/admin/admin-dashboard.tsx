@@ -33,6 +33,36 @@ type AdminDashboardAccount = {
   updatedAt: string;
 };
 
+type OwnerSupportRequestStatus = "open" | "reviewing" | "resolved" | "closed";
+type OwnerSupportRequestType = "bug" | "improvement" | "question";
+
+type OwnerSupportRequestItem = {
+  id: string;
+  shopId: string;
+  shopName: string | null;
+  requestType: OwnerSupportRequestType;
+  status: OwnerSupportRequestStatus;
+  contact: string;
+  message: string;
+  context: Record<string, unknown>;
+  adminNote: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const supportRequestTypeLabels: Record<OwnerSupportRequestType, string> = {
+  bug: "기능 오류",
+  improvement: "개선 요청",
+  question: "사용 문의",
+};
+
+const supportRequestStatusLabels: Record<OwnerSupportRequestStatus, string> = {
+  open: "접수",
+  reviewing: "확인 중",
+  resolved: "해결",
+  closed: "닫힘",
+};
+
 const dashboardItems = [
   {
     href: "/owner/admin",
@@ -94,6 +124,9 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
   const router = useRouter();
   const [account, setAccount] = useState<AdminDashboardAccount | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [supportRequests, setSupportRequests] = useState<OwnerSupportRequestItem[]>([]);
+  const [supportMessage, setSupportMessage] = useState<string | null>(null);
+  const [supportSavingId, setSupportSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -119,6 +152,38 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    void loadSupportRequests();
+  }, []);
+
+  async function loadSupportRequests() {
+    try {
+      const response = await fetchApiJson<{ requests: OwnerSupportRequestItem[] }>("/api/admin/support-requests?limit=20", {
+        cache: "no-store",
+      });
+      setSupportRequests(response.requests);
+      setSupportMessage(null);
+    } catch (error) {
+      setSupportMessage(error instanceof Error ? error.message : "오너 문의를 불러오지 못했습니다.");
+    }
+  }
+
+  async function updateSupportRequestStatus(id: string, status: OwnerSupportRequestStatus, adminNote = "") {
+    setSupportSavingId(id);
+    try {
+      const response = await fetchApiJson<{ request: OwnerSupportRequestItem }>("/api/admin/support-requests", {
+        method: "PATCH",
+        body: JSON.stringify({ id, status, adminNote }),
+      });
+      setSupportRequests((current) => current.map((item) => (item.id === id ? response.request : item)));
+      setSupportMessage(null);
+    } catch (error) {
+      setSupportMessage(error instanceof Error ? error.message : "문의 상태를 저장하지 못했습니다.");
+    } finally {
+      setSupportSavingId(null);
+    }
+  }
 
   async function handleLogout() {
     try {
@@ -147,6 +212,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
     { key: "system" as const, items: systemItems },
     { key: "shortcut" as const, items: shortcutItems },
   ];
+  const openSupportCount = supportRequests.filter((item) => item.status === "open" || item.status === "reviewing").length;
 
   return (
     <main className="min-h-screen bg-[#f7f8f6] px-4 py-4 text-[16px] text-[#172033] md:px-6">
@@ -186,8 +252,8 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             <StatusTile
               icon={Activity}
               label="처리 대기"
-              value="0건"
-              tone="neutral"
+              value={`${openSupportCount}건`}
+              tone={openSupportCount > 0 ? "warning" : "neutral"}
             />
             <StatusTile
               icon={MessageSquareText}
@@ -246,6 +312,14 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
                 ))}
               </div>
             </div>
+
+            <SupportRequestsPanel
+              requests={supportRequests}
+              message={supportMessage}
+              savingId={supportSavingId}
+              onRefresh={() => void loadSupportRequests()}
+              onStatusChange={(id, status, adminNote) => void updateSupportRequestStatus(id, status, adminNote)}
+            />
           </div>
 
           <aside className="space-y-3">
@@ -284,6 +358,129 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
         </section>
       </div>
     </main>
+  );
+}
+
+function SupportRequestsPanel({
+  requests,
+  message,
+  savingId,
+  onRefresh,
+  onStatusChange,
+}: {
+  requests: OwnerSupportRequestItem[];
+  message: string | null;
+  savingId: string | null;
+  onRefresh: () => void;
+  onStatusChange: (id: string, status: OwnerSupportRequestStatus, adminNote: string) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[12px] border border-[#dfe7e2] bg-white shadow-[0_6px_18px_rgba(23,32,51,0.035)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-3">
+        <div>
+          <h2 className="text-[18px] text-[#0f172a]">오너 문의 / 개선 요청</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex h-9 items-center rounded-[9px] border border-[#d0d8e3] bg-white px-3 text-[14px] text-[#334155] transition hover:bg-[#f8fafc]"
+        >
+          새로고침
+        </button>
+      </div>
+
+      {message ? (
+        <p className="m-4 rounded-[8px] border border-[#efcaca] bg-[#fff7f7] px-3 py-2 text-[15px] leading-6 text-[#b42318]">
+          {message}
+        </p>
+      ) : null}
+
+      {requests.length === 0 && !message ? (
+        <div className="px-4 py-8 text-center text-[15px] text-[#64748b]">접수된 문의가 없습니다.</div>
+      ) : (
+        <div className="divide-y divide-[#edf2f7]">
+          {requests.map((request) => (
+            <SupportRequestCard
+              key={request.id}
+              request={request}
+              saving={savingId === request.id}
+              onStatusChange={onStatusChange}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SupportRequestCard({
+  request,
+  saving,
+  onStatusChange,
+}: {
+  request: OwnerSupportRequestItem;
+  saving: boolean;
+  onStatusChange: (id: string, status: OwnerSupportRequestStatus, adminNote: string) => void;
+}) {
+  const [adminNote, setAdminNote] = useState(request.adminNote);
+  const contextLines = [
+    request.context.currentUrl ? `화면: ${String(request.context.currentUrl)}` : null,
+    request.context.userAgent ? `브라우저: ${String(request.context.userAgent)}` : null,
+  ].filter(Boolean);
+
+  return (
+    <article className="px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#edf4ff] px-2.5 py-1 text-[14px] font-semibold text-[#245bd0]">
+              {supportRequestTypeLabels[request.requestType]}
+            </span>
+            <span className="rounded-full border border-[#dbe2ea] bg-white px-2.5 py-1 text-[14px] text-[#475569]">
+              {supportRequestStatusLabels[request.status]}
+            </span>
+            <span className="text-[14px] text-[#94a3b8]">{new Date(request.createdAt).toLocaleString("ko-KR")}</span>
+          </div>
+          <h3 className="mt-2 text-[17px] font-semibold text-[#0f172a]">{request.shopName ?? request.shopId}</h3>
+          <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-6 text-[#334155]">{request.message}</p>
+          <div className="mt-2 grid gap-1 text-[14px] text-[#64748b]">
+            <p>연락처: {request.contact || "-"}</p>
+            {contextLines.map((line) => (
+              <p key={line} className="truncate">
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="grid min-w-[180px] gap-2">
+          <select
+            value={request.status}
+            onChange={(event) => onStatusChange(request.id, event.target.value as OwnerSupportRequestStatus, adminNote)}
+            disabled={saving}
+            className="h-9 rounded-[9px] border border-[#d0d8e3] bg-white px-2 text-[14px] text-[#0f172a] outline-none"
+          >
+            <option value="open">접수</option>
+            <option value="reviewing">확인 중</option>
+            <option value="resolved">해결</option>
+            <option value="closed">닫힘</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => onStatusChange(request.id, request.status, adminNote)}
+            disabled={saving}
+            className="h-9 rounded-[9px] bg-[#1f6b5b] px-3 text-[14px] font-semibold text-white transition hover:bg-[#185447] disabled:bg-[#94a3b8]"
+          >
+            {saving ? "저장 중" : "메모 저장"}
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={adminNote}
+        onChange={(event) => setAdminNote(event.target.value)}
+        className="mt-3 min-h-[70px] w-full resize-y rounded-[9px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 text-[14px] leading-5 text-[#334155] outline-none focus:border-[#1f6b5b]"
+        placeholder="처리 메모"
+      />
+    </article>
   );
 }
 

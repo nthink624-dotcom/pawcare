@@ -8,6 +8,8 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { fetchApiJson } from "@/lib/api";
+import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { formatServicePrice } from "@/lib/utils";
 import type { BootstrapStaffMember, BusinessHours, CustomerDiscountCoupon, OwnerProfile, Service, Shop } from "@/types/domain";
@@ -41,6 +43,13 @@ type StaffProfileCard = {
   caption: string;
   imageUrl: string;
   imageUrls: string[];
+};
+
+type PublicMediaSignedUrlsResponse = {
+  items: Array<{
+    mediaAssetId: string;
+    signedUrl: string;
+  }>;
 };
 
 function normalizeStaffProfileImages(images: unknown, fallback = "") {
@@ -191,11 +200,20 @@ function normalizeExternalHref(value: string | undefined) {
 
 export function resolveHeroImages(value: string | undefined, values?: string[]) {
   const uploadedImages = Array.isArray(values)
-    ? values.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0).slice(0, 10)
+    ? values.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES)
     : [];
   const uploadedImage = value?.trim();
   if (uploadedImages.length > 0) return uploadedImages;
   return uploadedImage ? [uploadedImage, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
+}
+
+function uniqueNonEmptyStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function cssBackgroundUrl(imageUrl: string) {
+  const escapedUrl = imageUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `url("${escapedUrl}")`;
 }
 
 function getPriceGuideSections(service: Service): ServicePriceGuideSection[] {
@@ -320,13 +338,15 @@ export default function CustomerBookingEntryPage({
   ownerProfile,
   infoHref,
   previewMode = false,
+  onPreviewBookingStart,
 }: {
   shop: Pick<Shop, "id" | "name" | "phone" | "address" | "description" | "approval_mode" | "customer_page_settings" | "business_hours" | "regular_closed_days" | "temporary_closed_dates">;
   services: Service[];
   staffMembers?: BootstrapStaffMember[];
   ownerProfile?: OwnerProfile | null;
   infoHref: string;
-  previewMode?: boolean;
+  previewMode?: boolean | "entry" | "staffSelection";
+  onPreviewBookingStart?: () => void;
 }) {
   const settings = shop.customer_page_settings;
   const displayName = shop.name;
@@ -370,7 +390,21 @@ export default function CustomerBookingEntryPage({
       ),
     [services],
   );
-  const heroImages = useMemo(() => resolveHeroImages(settings.hero_image_url, settings.hero_image_urls), [settings.hero_image_url, settings.hero_image_urls]);
+  const heroMediaAssetIds = useMemo(
+    () => uniqueNonEmptyStrings(settings.hero_media_asset_ids ?? (settings.hero_media_asset_id ? [settings.hero_media_asset_id] : [])).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES),
+    [settings.hero_media_asset_id, settings.hero_media_asset_ids],
+  );
+  const heroMediaAssetKey = heroMediaAssetIds.join("|");
+  const [resolvedHeroAssets, setResolvedHeroAssets] = useState<{ key: string; urls: string[] }>({ key: "", urls: [] });
+  const resolvedHeroAssetUrls = resolvedHeroAssets.key === heroMediaAssetKey ? resolvedHeroAssets.urls : [];
+  const heroImages = useMemo(
+    () =>
+      resolveHeroImages(
+        settings.hero_image_url,
+        [...resolvedHeroAssetUrls, ...(settings.hero_image_urls ?? [])],
+      ),
+    [resolvedHeroAssetUrls, settings.hero_image_url, settings.hero_image_urls],
+  );
   const staffProfileCards = useMemo<StaffProfileCard[]>(() => {
     const cards = staffMembers
       .map((staff) => {
@@ -406,6 +440,7 @@ export default function CustomerBookingEntryPage({
   const [hoursOpen, setHoursOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const [heroGalleryOpen, setHeroGalleryOpen] = useState(false);
   const [activeStaffProfileIndex, setActiveStaffProfileIndex] = useState(0);
   const [profileViewer, setProfileViewer] = useState<StaffProfileCard | null>(null);
   const [profileViewerImageIndex, setProfileViewerImageIndex] = useState(0);
@@ -466,6 +501,38 @@ export default function CustomerBookingEntryPage({
   const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
   const heroDotCount = Math.min(heroImages.length, 4);
   const visibleStaffProfileIndex = Math.min(activeStaffProfileIndex, Math.max(staffProfileCards.length - 1, 0));
+
+  useEffect(() => {
+    if (!heroMediaAssetIds.length) {
+      return;
+    }
+
+    let cancelled = false;
+    void fetchApiJson<PublicMediaSignedUrlsResponse>("/api/media/public-signed-urls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shopId: shop.id,
+        mediaAssetIds: heroMediaAssetIds,
+        variant: "provider_ready",
+      }),
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const urlsByAssetId = new Map(result.items.map((item) => [item.mediaAssetId, item.signedUrl]));
+        setResolvedHeroAssets({
+          key: heroMediaAssetKey,
+          urls: heroMediaAssetIds.map((mediaAssetId) => urlsByAssetId.get(mediaAssetId) ?? "").filter(Boolean),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedHeroAssets({ key: heroMediaAssetKey, urls: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [heroMediaAssetIds, heroMediaAssetKey, shop.id]);
 
   useEffect(() => {
     const gallery = heroGalleryRef.current;
@@ -599,7 +666,7 @@ export default function CustomerBookingEntryPage({
       <style>{`
         .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--closed:#a04455;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
         .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
-        .pm-entry-proto.has-benefits .scroll{padding-bottom:176px}
+        .pm-entry-proto.has-benefits .scroll{padding-bottom:132px}
         .pm-entry-proto.is-preview{height:100%;min-height:0}
         .pm-entry-proto.is-preview .scroll{height:100%;min-height:0}
         .pm-entry-proto.is-preview .dock{position:absolute!important}
@@ -612,7 +679,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
         .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
         .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
-        .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px}
+        .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;border:0;font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;cursor:pointer}
         .pm-entry-proto .gdots{display:flex;justify-content:center;align-items:center;gap:5px;padding:11px 0 1px}
         .pm-entry-proto .gdots i{width:6px;height:6px;border-radius:999px;background:#f7dcd5;display:block;transition:width .2s,background-color .2s;opacity:.9}
         .pm-entry-proto .gdots i.clickable{cursor:pointer}
@@ -646,9 +713,11 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .hours .hrow .d{flex:0 0 62px;color:var(--textMid)}
         .pm-entry-proto .hours .hrow .t{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
         .pm-entry-proto .hours .hrow.today .d,.pm-entry-proto .hours .hrow.today .t{color:var(--primaryDk);font-weight:600}
-        .pm-entry-proto .benefits{width:100%}
-        .pm-entry-proto .benefits{display:flex;flex-direction:column;gap:6px}
-        .pm-entry-proto .benefit{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
+        .pm-entry-proto .benefits{width:100%;overflow:hidden}
+        .pm-entry-proto .benefits-track{display:flex;width:max-content;gap:8px;will-change:transform}
+        .pm-entry-proto .benefits.is-animated .benefits-track{animation:benefitSlide 7s ease-in-out infinite alternate}
+        .pm-entry-proto .benefits:hover .benefits-track,.pm-entry-proto .benefits:focus-within .benefits-track{animation-play-state:paused}
+        .pm-entry-proto .benefit{display:flex;min-height:38px;width:305px;max-width:calc(min(100vw,430px) - 32px);flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
         .pm-entry-proto .benefit .txt{min-width:0}
         .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
@@ -674,6 +743,17 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .staff-sheet .photo-dots button{width:7px;height:7px;border-radius:999px;border:0;background:#efd8d1;padding:0}
         .pm-entry-proto .staff-sheet .photo-dots button.on{width:18px;background:var(--primary)}
         .pm-entry-proto .staff-sheet .msg{border:1px solid #f1d7d1;border-radius:15px;background:#fff;padding:13px 14px;color:#4a342f;font-size:14.5px;line-height:1.6;white-space:pre-wrap}
+        .pm-entry-proto .gallery-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.34);padding:18px 16px}
+        .pm-entry-proto.is-preview .gallery-modal{position:absolute}
+        .pm-entry-proto .gallery-sheet{width:100%;max-width:398px;max-height:84vh;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(42,25,17,.18);overflow:hidden;display:flex;flex-direction:column}
+        .pm-entry-proto .gallery-sheet .head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 12px;border-bottom:1px solid #f4e1dc}
+        .pm-entry-proto .gallery-sheet .head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.03em;color:#2f211d}
+        .pm-entry-proto .gallery-sheet .head p{margin:3px 0 0;font-size:13px;color:#8b6259}
+        .pm-entry-proto .gallery-sheet .close{width:38px;height:38px;border-radius:12px;border:1px solid #f1d7d1;background:#fff;color:#8b6259;display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .gallery-grid{overflow:auto;padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        .pm-entry-proto .gallery-grid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid #f1d7d1;background:#fff}
+        @keyframes benefitSlide{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(calc(-100% + min(100vw,430px) - 32px))}}
+        @media (prefers-reduced-motion: reduce){.pm-entry-proto .benefits.is-animated .benefits-track{animation:none}}
       `}</style>
       <div className="scroll">
         <div className="gwrap">
@@ -689,12 +769,22 @@ export default function CustomerBookingEntryPage({
               <div
                 key={`${image}-${index}`}
                 className="gcard"
-                style={{ backgroundImage: `linear-gradient(180deg, rgba(42,30,20,0.04), rgba(31,24,18,0.12)), url(${image})` }}
+                style={{ backgroundImage: `linear-gradient(180deg, rgba(42,30,20,0.04), rgba(31,24,18,0.12)), ${cssBackgroundUrl(image)}` }}
               >
                 {index === visibleHeroIndex ? (
                   <>
                     <div className="ovl" />
-                    <span className="cnt">{visibleHeroIndex + 1} / {heroImages.length}</span>
+                    <button
+                      type="button"
+                      className="cnt"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setHeroGalleryOpen(true);
+                      }}
+                      aria-label={`매장 사진 전체보기 ${heroImages.length}장`}
+                    >
+                      {visibleHeroIndex + 1} / {heroImages.length}
+                    </button>
                     <div className="id"><div className="nm">{displayName}</div></div>
                   </>
                 ) : null}
@@ -741,7 +831,7 @@ export default function CustomerBookingEntryPage({
                     setProfileViewerImageIndex(0);
                   }}
                 >
-                  <div className="av" style={profile.imageUrl ? { backgroundImage: `url(${profile.imageUrl})` } : undefined}>
+                  <div className="av" style={profile.imageUrl ? { backgroundImage: cssBackgroundUrl(profile.imageUrl) } : undefined}>
                     {profile.imageUrl ? null : <UserRound className="h-6 w-6" strokeWidth={1.8} />}
                   </div>
                   <div className="who">
@@ -796,7 +886,16 @@ export default function CustomerBookingEntryPage({
             {socialLinks.length > 0 ? (
               <div className="socials">
                 {socialLinks.map((link) => (
-                  <a key={link.key} className={`chip social-${link.key}`} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
+                  <a
+                    key={link.key}
+                    className={`chip social-${link.key}`}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={link.label}
+                    title={link.label}
+                    onClick={previewMode ? (event) => event.preventDefault() : undefined}
+                  >
                     <img src={link.iconSrc} alt="" aria-hidden="true" />
                   </a>
                 ))}
@@ -818,27 +917,66 @@ export default function CustomerBookingEntryPage({
 
       <div className="dock">
         {visibleDiscountCoupons.length > 0 ? (
-          <div className="benefits">
-            {visibleDiscountCoupons.map((coupon) => (
-              <div className="benefit" key={coupon.id}>
-                <div className="txt">
-                  <div className="name">{coupon.name}</div>
+          <div className={`benefits${visibleDiscountCoupons.length > 1 ? " is-animated" : ""}`}>
+            <div className="benefits-track">
+              {visibleDiscountCoupons.map((coupon) => (
+                <div className="benefit" key={coupon.id}>
+                  <div className="txt">
+                    <div className="name">{coupon.name}</div>
+                  </div>
+                  <div className="val">{formatDiscountCouponValue(coupon)}</div>
                 </div>
-                <div className="val">{formatDiscountCouponValue(coupon)}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : null}
         <div className="actions">
-          <a className="quick" href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`} aria-label="전화하기">
+          <a
+            className="quick"
+            href={`tel:${shop.phone.replace(/[^0-9+]/g, "")}`}
+            aria-label="전화하기"
+            onClick={previewMode ? (event) => event.preventDefault() : undefined}
+          >
             <Phone className="h-5 w-5" strokeWidth={1.9} />
           </a>
           <button className="quick" type="button" onClick={() => setDirectionsOpen(true)} aria-label="길찾기">
             <Navigation className="h-5 w-5" strokeWidth={1.9} />
           </button>
-          <a className="cta" href={`/book/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
+          {previewMode && onPreviewBookingStart ? (
+            <button className="cta" type="button" onClick={onPreviewBookingStart}>
+              간편예약 시작
+            </button>
+          ) : (
+            <a className="cta" href={`/book/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
+          )}
         </div>
       </div>
+
+      {heroGalleryOpen ? (
+        <div className="gallery-modal" onClick={() => setHeroGalleryOpen(false)}>
+          <div className="gallery-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="head">
+              <div>
+                <h3>매장 사진</h3>
+                <p>총 {heroImages.length}장</p>
+              </div>
+              <button type="button" className="close" onClick={() => setHeroGalleryOpen(false)} aria-label="매장 사진 닫기">
+                <X className="h-4.5 w-4.5" strokeWidth={1.8} />
+              </button>
+            </div>
+            <div className="gallery-grid">
+              {heroImages.map((image, index) => (
+                <img
+                  key={`shop-gallery-${image}-${index}`}
+                  src={image}
+                  alt={`${displayName} 매장 사진 ${index + 1}`}
+                  loading={index < 6 ? "eager" : "lazy"}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {profileViewer ? (
         <div className="staff-modal" onClick={() => setProfileViewer(null)}>
@@ -853,7 +991,7 @@ export default function CustomerBookingEntryPage({
               className="photo"
               style={
                 profileViewer.imageUrls[profileViewerImageIndex]
-                  ? { backgroundImage: `url(${profileViewer.imageUrls[profileViewerImageIndex]})` }
+                  ? { backgroundImage: cssBackgroundUrl(profileViewer.imageUrls[profileViewerImageIndex]) }
                   : undefined
               }
             >
@@ -986,7 +1124,11 @@ export default function CustomerBookingEntryPage({
                 </div>
               ) : (
                 <div className="rounded-[16px] border border-[#f1d7d1] bg-white">
-                  <a href={infoHref} className="flex h-14 items-center justify-center text-[16px] font-normal text-[#6d4b43]">
+                  <a
+                    href={infoHref}
+                    className="flex h-14 items-center justify-center text-[16px] font-normal text-[#6d4b43]"
+                    onClick={previewMode ? (event) => event.preventDefault() : undefined}
+                  >
                     등록된 서비스 안내가 없습니다.
                   </a>
                 </div>
@@ -1067,7 +1209,10 @@ export default function CustomerBookingEntryPage({
               <div className="mt-4 space-y-2.5">
                 <MapButton
                   label={preferredMap.label}
-                  onClick={() => openExternalMap(preferredMap.appUrl, preferredMap.webUrl)}
+                  onClick={() => {
+                    if (previewMode) return;
+                    openExternalMap(preferredMap.appUrl, preferredMap.webUrl);
+                  }}
                 />
               </div>
             </div>

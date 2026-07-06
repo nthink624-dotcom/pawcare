@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
-import { normalizeDiscountCoupons } from "@/lib/customer-page-settings";
+import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
@@ -14,8 +14,8 @@ const updateShopSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   tagline: z.string().trim().max(120).optional(),
   heroImageUrl: z.string().trim().max(2000).optional(),
-  heroImageUrls: z.array(z.string().trim().max(2000)).max(10).optional(),
-  heroMediaAssetIds: z.array(z.string().trim().min(1)).max(10).optional(),
+  heroImageUrls: z.array(z.string().trim().max(2000)).max(MAX_CUSTOMER_PAGE_HERO_IMAGES).optional(),
+  heroMediaAssetIds: z.array(z.string().trim().min(1)).max(MAX_CUSTOMER_PAGE_HERO_IMAGES).optional(),
   phone: z.string().trim().min(1).max(30).optional(),
   address: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(500).optional(),

@@ -12,8 +12,14 @@ export default async function ShortManageEntryPage({
   const queryShopId = resolvedSearchParams?.s || resolvedSearchParams?.shop;
 
   if (initialAccessToken) {
-    const payload = verifyBookingAccessToken(initialAccessToken);
-    const nextUrl = new URL(`/book/${payload.shopId}/manage`, "http://localhost");
+    let shopId: string;
+    try {
+      const payload = verifyBookingAccessToken(initialAccessToken);
+      shopId = payload.shopId;
+    } catch {
+      redirect("/" as never);
+    }
+    const nextUrl = new URL(`/book/${shopId}/manage`, "http://localhost");
     nextUrl.searchParams.set(BOOKING_ACCESS_QUERY_KEY, initialAccessToken);
     redirect(`${nextUrl.pathname}${nextUrl.search}` as never);
   }

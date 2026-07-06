@@ -2,6 +2,8 @@
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import type { CustomerDiscountCoupon, CustomerPageSettings } from "@/types/domain";
 
+export const MAX_CUSTOMER_PAGE_HERO_IMAGES = 200;
+
 export const defaultCustomerPageSettings: CustomerPageSettings = {
   shop_name: "",
   tagline: "우리 아이에게 맞는 미용 시간을 편하게 예약해 주세요.",
@@ -138,7 +140,7 @@ function normalizeHeroImageUrls(settings: Partial<CustomerPageSettings> | null |
     ? settings.hero_image_urls.filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0)
     : [];
   const singleImageUrl = settings?.hero_image_url?.trim() || "";
-  return (imageUrls.length > 0 ? imageUrls : singleImageUrl ? [singleImageUrl] : []).slice(0, 10);
+  return (imageUrls.length > 0 ? imageUrls : singleImageUrl ? [singleImageUrl] : []).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES);
 }
 
 function normalizeHeroMediaAssetIds(settings: Partial<CustomerPageSettings> | null | undefined) {
@@ -146,7 +148,7 @@ function normalizeHeroMediaAssetIds(settings: Partial<CustomerPageSettings> | nu
     ? settings.hero_media_asset_ids.filter((mediaAssetId): mediaAssetId is string => typeof mediaAssetId === "string" && mediaAssetId.trim().length > 0)
     : [];
   const singleMediaAssetId = settings?.hero_media_asset_id?.trim() || "";
-  return (mediaAssetIds.length > 0 ? mediaAssetIds : singleMediaAssetId ? [singleMediaAssetId] : []).slice(0, 10);
+  return (mediaAssetIds.length > 0 ? mediaAssetIds : singleMediaAssetId ? [singleMediaAssetId] : []).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES);
 }
 
 function normalizeSocialLinks(settings: Partial<CustomerPageSettings> | null | undefined): NonNullable<CustomerPageSettings["social_links"]> {

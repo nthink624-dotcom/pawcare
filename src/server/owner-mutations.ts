@@ -1,7 +1,5 @@
 ﻿import { randomUUID } from "node:crypto";
 
-import { after } from "next/server";
-
 import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
 import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
@@ -111,7 +109,17 @@ function assertAppointmentStatusTransitionAllowed(params: {
   previousStatus: AppointmentStatus;
   nextStatus: AppointmentStatus;
 }) {
-  if (params.nextStatus === "in_progress" && params.previousStatus !== "confirmed" && params.previousStatus !== "almost_done") {
+  const terminalStatuses = new Set<AppointmentStatus>(["completed", "cancelled", "rejected", "noshow"]);
+
+  if (terminalStatuses.has(params.previousStatus)) {
+    throw new Error("이미 종료된 예약은 다시 상태를 변경할 수 없어요. 새 예약을 만들거나 별도 변경으로 처리해 주세요.");
+  }
+
+  if (params.nextStatus === "confirmed") {
+    throw new Error("이미 확정된 예약만 처리할 수 있어요. 종료된 예약을 다시 확정 상태로 되돌릴 수 없습니다.");
+  }
+
+  if (params.nextStatus === "in_progress" && params.previousStatus !== "confirmed") {
     throw new Error("미용 시작은 예약 확정 상태에서만 처리할 수 있어요.");
   }
 
@@ -119,8 +127,16 @@ function assertAppointmentStatusTransitionAllowed(params: {
     throw new Error("픽업 준비는 미용 시작 후에만 처리할 수 있어요.");
   }
 
-  if (params.nextStatus === "completed" && params.previousStatus !== "almost_done") {
-    throw new Error("미용 완료는 픽업 준비 상태에서만 처리할 수 있어요. 먼저 픽업 준비를 눌러 주세요.");
+  if (params.nextStatus === "completed" && !["in_progress", "almost_done"].includes(params.previousStatus)) {
+    throw new Error("미용 완료는 미용 시작 또는 픽업 준비 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "rejected" && params.previousStatus !== "confirmed") {
+    throw new Error("예약 거절은 예약 확정 상태에서만 처리할 수 있어요.");
+  }
+
+  if (params.nextStatus === "noshow" && params.previousStatus !== "confirmed") {
+    throw new Error("노쇼 처리는 예약 확정 상태에서만 처리할 수 있어요.");
   }
 }
 
@@ -375,7 +391,7 @@ function ensureOwnerScheduleAdjustmentAvailable(params: {
     if (item.id === appointment.id) return false;
     if (item.appointment_date !== date) return false;
     if (item.staff_id !== staffId) return false;
-    if (["completed", "cancelled", "rejected", "noshow"].includes(item.status)) return false;
+    if (["cancelled", "rejected", "noshow"].includes(item.status)) return false;
 
     const effectiveWindow = getAppointmentEffectiveWindow(item, services);
     if (!effectiveWindow || effectiveWindow.date !== date) return false;
@@ -503,22 +519,6 @@ async function dispatchAppointmentNotificationWithLogs(params: {
       reason: error instanceof Error ? error.message : String(error),
     });
     return null;
-  }
-}
-
-function scheduleAppointmentNotificationWithLogs(params: Parameters<typeof dispatchAppointmentNotificationWithLogs>[0]) {
-  const task = async () => {
-    try {
-      await dispatchAppointmentNotificationWithLogs(params);
-    } catch {
-      // dispatchAppointmentNotificationWithLogs already logs the detailed failure.
-    }
-  };
-
-  try {
-    after(task);
-  } catch {
-    void task();
   }
 }
 
@@ -831,10 +831,32 @@ export async function deleteService(input: unknown) {
 
 export async function updateCustomerPageSettings(input: unknown) {
   const payload = customerPageSettingsSchema.parse(input);
-  const nextCustomerPageSettings = normalizeCustomerPageSettings(payload.customerPageSettings);
+  const rawSettings =
+    input && typeof input === "object" && !Array.isArray(input) && "customerPageSettings" in input
+      ? (input as { customerPageSettings?: unknown }).customerPageSettings
+      : null;
+  const rawSettingsObject = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings)
+    ? (rawSettings as Record<string, unknown>)
+    : {};
+  const hasHeroImageUrl = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_image_url");
+  const hasHeroImageUrls = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_image_urls");
+  const hasHeroMediaAssetId = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_media_asset_id");
+  const hasHeroMediaAssetIds = Object.prototype.hasOwnProperty.call(rawSettingsObject, "hero_media_asset_ids");
+
+  function mergeWithExistingCustomerPageSettings(existing: unknown) {
+    const current = normalizeCustomerPageSettings(existing as Partial<Shop["customer_page_settings"]> | null | undefined);
+    return normalizeCustomerPageSettings({
+      ...payload.customerPageSettings,
+      hero_image_url: hasHeroImageUrl ? payload.customerPageSettings.hero_image_url : current.hero_image_url,
+      hero_image_urls: hasHeroImageUrls ? payload.customerPageSettings.hero_image_urls : current.hero_image_urls,
+      hero_media_asset_id: hasHeroMediaAssetId ? payload.customerPageSettings.hero_media_asset_id : current.hero_media_asset_id,
+      hero_media_asset_ids: hasHeroMediaAssetIds ? payload.customerPageSettings.hero_media_asset_ids : current.hero_media_asset_ids,
+    });
+  }
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
+    const nextCustomerPageSettings = mergeWithExistingCustomerPageSettings(store.shop.customer_page_settings);
     store.shop = {
       ...store.shop,
       id: payload.shopId,
@@ -847,6 +869,21 @@ export async function updateCustomerPageSettings(input: unknown) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase ?ㅼ젙???뺤씤??二쇱꽭??");
+
+  const currentShopResult = await supabase
+    .from("shops")
+    .select("customer_page_settings")
+    .eq("id", payload.shopId)
+    .maybeSingle<{ customer_page_settings: Record<string, unknown> | null }>();
+
+  if (currentShopResult.error) {
+    if (hasMissingColumnError(currentShopResult.error, "customer_page_settings")) {
+      throw new Error("怨좉컼 ?몄텧 ?뺣낫 而щ읆???꾩쭅 ?놁뒿?덈떎. ?덈궡?쒕┛ SQL????踰덈쭔 ?ㅽ뻾??二쇱꽭??");
+    }
+    throw new Error(currentShopResult.error.message);
+  }
+
+  const nextCustomerPageSettings = mergeWithExistingCustomerPageSettings(currentShopResult.data?.customer_page_settings);
 
   const { data, error } = await supabase
     .from("shops")
@@ -1517,8 +1554,8 @@ export async function createAppointment(input: unknown) {
     const store = getMutableStore();
     store.appointments = [...store.appointments, appointment];
     setMockStore(store);
-    if (appointment.status === "confirmed") {
-      scheduleAppointmentNotificationWithLogs({
+    if (appointment.status === "confirmed" && appointment.source === "owner") {
+      await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
         appointment,
         type: "booking_confirmed",
@@ -1567,8 +1604,8 @@ export async function createAppointment(input: unknown) {
       const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);
 
       if (fallbackError) throw new Error(fallbackError.message);
-      if (appointment.status === "confirmed") {
-        scheduleAppointmentNotificationWithLogs({
+      if (appointment.status === "confirmed" && appointment.source === "owner") {
+        await dispatchAppointmentNotificationWithLogs({
           shopId: appointment.shop_id,
           appointment,
           type: "booking_confirmed",
@@ -1579,8 +1616,8 @@ export async function createAppointment(input: unknown) {
 
     throw new Error(error.message);
   }
-  if (appointment.status === "confirmed") {
-    scheduleAppointmentNotificationWithLogs({
+  if (appointment.status === "confirmed" && appointment.source === "owner") {
+    await dispatchAppointmentNotificationWithLogs({
       shopId: appointment.shop_id,
       appointment,
       type: "booking_confirmed",
@@ -1678,11 +1715,11 @@ export async function updateAppointmentStatus(input: unknown) {
       note: payload.eventType ?? null,
       createdAt: statusChangedAt,
     }));
-    if (shouldNotifyCustomer && payload.status === "confirmed") {
+    if (shouldNotifyCustomer && payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
       await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
         appointment,
-        type: payload.eventType === "booking_rescheduled_confirmed" ? "booking_rescheduled_confirmed" : "booking_confirmed",
+        type: "booking_rescheduled_confirmed",
       });
     }
     if (shouldNotifyCustomer && payload.status === "rejected") {
@@ -1883,11 +1920,11 @@ export async function updateAppointmentStatus(input: unknown) {
     createdAt: statusChangedAt,
   }));
 
-  if (shouldNotifyCustomer && payload.status === "confirmed") {
+  if (shouldNotifyCustomer && payload.status === "confirmed" && payload.eventType === "booking_rescheduled_confirmed") {
     await dispatchAppointmentNotificationWithLogs({
       shopId: resolvedAppointment.shop_id,
       appointment: resolvedAppointment,
-      type: payload.eventType === "booking_rescheduled_confirmed" ? "booking_rescheduled_confirmed" : "booking_confirmed",
+      type: "booking_rescheduled_confirmed",
     });
   }
   if (shouldNotifyCustomer && payload.status === "rejected") {

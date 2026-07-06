@@ -83,6 +83,14 @@ const appTemplateCodeFieldGroups: Array<{
 function getVisibleAppTemplateDrafts(items: AppTemplateDraft[]) {
   return items.filter((item) => item.alias !== "booking_received");
 }
+
+function isUsableSsodaaTemplate(template: RelaySsodaaTemplateDetail | null | undefined) {
+  if (!template) return false;
+  const inspectionStatus = template.inspectionStatus ?? "";
+  const serviceStatus = template.serviceStatus ?? "";
+  return inspectionStatus === "APR" || serviceStatus === "ACT" || serviceStatus === "RDY";
+}
+
 function TextField({
   label,
   value,
@@ -266,7 +274,7 @@ export default function AdminAlimtalkScreen({
     }
 
     const status = [detail.inspectionStatus, detail.serviceStatus].filter(Boolean).join(" / ");
-    const isUsable = detail.serviceStatus === "ACT" || detail.serviceStatus === "RDY";
+    const isUsable = isUsableSsodaaTemplate(detail);
     const isRejected = detail.inspectionStatus === "REJ" || detail.serviceStatus === "REJ";
 
     return {
@@ -330,11 +338,23 @@ export default function AdminAlimtalkScreen({
       throw new Error("연결할 알림톡 템플릿 설정을 찾지 못했습니다.");
     }
 
+    const selectedTemplate = allSsodaaTemplates.find((item) => item.templateCode === templateCode) ?? null;
+    if (!isUsableSsodaaTemplate(selectedTemplate)) {
+      throw new Error("승인 완료, 발송 가능 또는 사용 중 상태의 쏘다 템플릿만 연결할 수 있습니다.");
+    }
+
     const currentConfig = (
       await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
         cache: "no-store",
       })
     ).config;
+    const previousTemplateCode = currentConfig[templateConfigKey]?.trim() ?? "";
+    const previousTemplate = allSsodaaTemplates.find((item) => item.templateCode === previousTemplateCode) ?? null;
+    const previousTemplateBlocked = Boolean(
+      previousTemplate &&
+        (["REJ", "STP", "BLK", "DMT"].includes(previousTemplate.inspectionStatus ?? "") ||
+          ["REJ", "STP", "S", "BLK", "DMT"].includes(previousTemplate.serviceStatus ?? "")),
+    );
     const nextConfig: RelayAdminConfig = {
       ...currentConfig,
       [templateConfigKey]: templateCode,
@@ -355,7 +375,11 @@ export default function AdminAlimtalkScreen({
         templateCatalog?.items.find((item) => item.alias === alias && item.configuredCode === templateCode)?.detail ??
         templateCatalog?.allTemplates?.find((item) => item.templateCode === templateCode) ??
         null;
-      setMessage(`${spec?.title ?? alias} 템플릿을 ${templateCode}로 연결했습니다.`);
+      setMessage(
+        previousTemplateBlocked && previousTemplateCode && previousTemplateCode !== templateCode
+          ? `${spec?.title ?? alias}의 차단된 기존 연결(${previousTemplateCode})을 해제하고 ${templateCode}로 연결했습니다.`
+          : `${spec?.title ?? alias} 템플릿을 ${templateCode}로 연결했습니다.`,
+      );
       setError(null);
       return selectedTemplate;
     } catch (nextError) {

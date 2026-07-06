@@ -1,7 +1,7 @@
 "use client";
 
-import { BadgePercent, CalendarDays, ChevronDown, Tag, Trash2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { BadgePercent, CalendarDays, ChevronDown, Trash2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,43 @@ import type { CustomerDiscountCoupon } from "@/types/domain";
 
 function getLinkedOptionId(option: CustomerServiceSourceOption) {
   return option.linkedOptionId ?? option.id;
+}
+
+type DiscountServiceScopeOption = CustomerServiceSourceOption & {
+  linkedOptionIds: string[];
+};
+
+function getServiceScopeDisplayKey(option: CustomerServiceSourceOption) {
+  return [
+    option.category,
+    option.sourceName,
+    option.durationMinutes,
+    option.price,
+    option.priceType,
+  ].join("|").replace(/\s+/g, " ").trim().toLocaleLowerCase("ko-KR");
+}
+
+function buildServiceScopeOptions(options: CustomerServiceSourceOption[]): DiscountServiceScopeOption[] {
+  const optionByDisplayKey = new Map<string, DiscountServiceScopeOption>();
+
+  for (const option of options) {
+    const displayKey = getServiceScopeDisplayKey(option);
+    const linkedOptionId = getLinkedOptionId(option);
+    const existing = optionByDisplayKey.get(displayKey);
+    if (existing) {
+      if (!existing.linkedOptionIds.includes(linkedOptionId)) {
+        existing.linkedOptionIds.push(linkedOptionId);
+      }
+      continue;
+    }
+
+    optionByDisplayKey.set(displayKey, {
+      ...option,
+      linkedOptionIds: [linkedOptionId],
+    });
+  }
+
+  return Array.from(optionByDisplayKey.values());
 }
 
 export type DiscountCouponPreset = "first_visit" | "revisit" | "all" | "custom";
@@ -63,7 +100,11 @@ export default function DiscountCouponEditor({
   onUpdate: (couponId: string, patch: Partial<CustomerDiscountCoupon>) => void;
 }) {
   const [collapsedCouponIds, setCollapsedCouponIds] = useState<Set<string>>(() => new Set());
-  const allServiceOptionIds = Array.from(new Set(serviceOptions.map(getLinkedOptionId)));
+  const serviceScopeOptions = useMemo(() => buildServiceScopeOptions(serviceOptions), [serviceOptions]);
+  const allServiceOptionIds = useMemo(
+    () => Array.from(new Set(serviceScopeOptions.flatMap((option) => option.linkedOptionIds))),
+    [serviceScopeOptions],
+  );
 
   function toggleCollapsed(couponId: string) {
     setCollapsedCouponIds((current) => {
@@ -127,8 +168,8 @@ export default function DiscountCouponEditor({
         <section
           key={coupon.id}
           className={cn(
-            "overflow-hidden rounded-[12px] border border-l-[3px] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
-            coupon.enabled ? "border-[#dbe2ea] border-l-[#2f7866]" : "border-[#e2e8f0] border-l-[#94a3b8] bg-[#fbfcfd]",
+            "overflow-hidden rounded-[12px] border bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
+            coupon.enabled ? "border-[#dbe2ea]" : "border-[#e2e8f0] bg-[#fbfcfd]",
           )}
         >
           <div
@@ -138,14 +179,6 @@ export default function DiscountCouponEditor({
             )}
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span
-                className={cn(
-                  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]",
-                  coupon.enabled ? "bg-[#eef7f4] text-[#2f7866]" : "bg-[#eef2f7] text-[#64748b]",
-                )}
-              >
-                <Tag className="h-5 w-5" strokeWidth={1.8} />
-              </span>
               <div className="flex min-w-[220px] flex-1 items-center gap-2">
               <label className="min-w-0 flex-1">
                 <span className="sr-only">관리명</span>
@@ -228,8 +261,8 @@ export default function DiscountCouponEditor({
           </div>
 
           {!collapsed ? (
-          <div className="grid items-stretch gap-3 p-4 xl:grid-cols-2">
-            <div className="h-full rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+          <div className="grid items-stretch gap-3 p-4 xl:grid-cols-2 xl:[grid-auto-rows:260px]">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
               <div className="mb-2 flex items-center gap-2">
                 <BadgePercent className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">할인 조건</p>
@@ -284,7 +317,7 @@ export default function DiscountCouponEditor({
                     : `${Number(coupon.discount_value || 0).toLocaleString("ko-KR")}원`}
                 </p>
               </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-auto grid gap-2 pt-2 sm:grid-cols-2">
                 <label className="space-y-1">
                   <span className={fieldLabelClassName}>시작일</span>
                   <input
@@ -308,14 +341,14 @@ export default function DiscountCouponEditor({
               </div>
             </div>
 
-            <div className="h-full rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
               <div className="mb-2 flex items-center gap-2">
                 <CalendarDays className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
               </div>
-              <div className="grid gap-2">
-                <div className="space-y-1 sm:col-span-2">
-                  <div className="rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
+              <div className="grid min-h-0 flex-1 overflow-hidden">
+                <div className="flex min-h-0 sm:col-span-2">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
                     <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-2.5 py-1.5 text-[15px] font-semibold text-[#111827] transition hover:bg-[#f1f5f9]">
                       <input
                         type="checkbox"
@@ -331,13 +364,14 @@ export default function DiscountCouponEditor({
                       />
                       전체 서비스
                     </label>
-                    <div className="mt-1 max-h-[132px] space-y-0.5 overflow-y-auto pr-1">
-                      {serviceOptions.map((option) => {
-                        const linkedOptionId = getLinkedOptionId(option);
-                        const selected = coupon.service_scope !== "specific" || coupon.service_option_ids.includes(linkedOptionId);
+                    <div className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
+                      {serviceScopeOptions.map((option) => {
+                        const selected =
+                          coupon.service_scope !== "specific" ||
+                          option.linkedOptionIds.some((linkedOptionId) => coupon.service_option_ids.includes(linkedOptionId));
                         return (
                           <label
-                            key={`${option.id}-${linkedOptionId}`}
+                            key={`${option.id}-${option.linkedOptionIds.join("|")}`}
                             className={cn(
                               "flex min-h-8 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal transition",
                               selected ? "bg-[#f8fbff] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
@@ -350,8 +384,8 @@ export default function DiscountCouponEditor({
                               onChange={() => {
                                 const currentIds = coupon.service_scope === "specific" ? coupon.service_option_ids : allServiceOptionIds;
                                 const nextIds = selected
-                                  ? currentIds.filter((serviceOptionId) => serviceOptionId !== linkedOptionId)
-                                  : Array.from(new Set([...currentIds, linkedOptionId]));
+                                  ? currentIds.filter((serviceOptionId) => !option.linkedOptionIds.includes(serviceOptionId))
+                                  : Array.from(new Set([...currentIds, ...option.linkedOptionIds]));
                                 onUpdate(coupon.id, {
                                   service_scope: nextIds.length === allServiceOptionIds.length ? "all" : "specific",
                                   service_option_ids: nextIds.length === allServiceOptionIds.length ? [] : nextIds,

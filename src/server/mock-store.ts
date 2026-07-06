@@ -11,3 +11,7 @@ export function getMockStore() {
 export function setMockStore(nextStore: BootstrapPayload) {
   mockStore = structuredClone(nextStore);
 }
+
+export function resetMockStore() {
+  mockStore = normalizeBootstrapNotifications(buildDemoBootstrap());
+}

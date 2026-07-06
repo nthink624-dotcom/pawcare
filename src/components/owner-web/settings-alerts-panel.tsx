@@ -71,14 +71,12 @@ type AlertItem = {
   role: string;
 };
 
-const pickupReadyOptions = [5, 10, 15, 20] as const;
-
 const alertItems: AlertItem[] = [
   {
     key: "bookingConfirmedEnabled",
     title: "예약 확정",
     type: "booking_confirmed",
-    role: "오너가 예약을 확정했을 때 고객에게 방문 일시와 예약 내용을 안내합니다.",
+    role: "오너가 직접 추가한 예약에만 발송되며, 고객에게 방문 일시와 예약 내용을 안내합니다.",
   },
   {
     key: "bookingCancelledEnabled",
@@ -94,9 +92,21 @@ const alertItems: AlertItem[] = [
   },
   {
     key: "appointmentReminder10mEnabled",
-    title: "방문 안내",
+    title: "직전 안내",
     type: "appointment_reminder_10m",
-    role: "예약일이 다가오면 일정 안내와 방문 예정 안내를 자동으로 보냅니다.",
+    role: "예약 시간이 가까워졌을 때 방문 시간, 길찾기, 예약 확인 링크를 짧게 안내합니다.",
+  },
+  {
+    key: "appointmentReminder10mEnabled",
+    title: "오늘 안내",
+    type: "visit_reminder_notice",
+    role: "당일 예약이거나 예약 당일에 시간이 충분히 남아 있을 때 오늘 방문 일정을 다시 안내합니다.",
+  },
+  {
+    key: "appointmentReminder10mEnabled",
+    title: "내일 안내",
+    type: "visit_schedule_notice",
+    role: "예약일 하루 전에 방문 일정과 준비 사항을 미리 안내합니다.",
   },
   {
     key: "groomingStartedEnabled",
@@ -116,40 +126,56 @@ const alertItems: AlertItem[] = [
     type: "grooming_completed",
     role: "미용이 끝났을 때 완료 상태와 픽업 가능 상태를 안내합니다.",
   },
-  {
-    key: "revisitEnabled",
-    title: "재방문 안내",
-    type: "revisit_notice",
-    role: "이전 미용 주기를 기준으로 다음 방문 시점을 고객에게 안내합니다.",
-  },
 ];
 
-const alertGroups: Array<{ title: string; items: AlertItem[] }> = [
+type AlertGroupKey = "reservation" | "reservationGuide" | "grooming";
+
+const alertGroups: Array<{ key: AlertGroupKey; title: string; description?: string; items: AlertItem[] }> = [
   {
-    title: "예약 안내",
+    key: "reservation",
+    title: "\uC608\uC57D",
     items: alertItems.filter((item) =>
       [
-        "bookingConfirmedEnabled",
-        "bookingCancelledEnabled",
-        "bookingRescheduledEnabled",
-        "appointmentReminder10mEnabled",
-      ].includes(item.key),
+        "booking_confirmed",
+        "booking_cancelled",
+        "booking_rescheduled_confirmed",
+      ].includes(item.type),
     ),
   },
   {
-    title: "미용 진행",
+    key: "reservationGuide",
+    title: "\uC608\uC57D\uC548\uB0B4",
+    description:
+      "\uC608\uC57D \uC2DC\uC810\uC5D0 \uB530\uB77C \uC9C1\uC804, \uC624\uB298, \uB0B4\uC77C \uC548\uB0B4 \uC911 \uD544\uC694\uD55C \uC548\uB0B4\uB9CC \uD55C \uBC88 \uBC1C\uC1A1\uB429\uB2C8\uB2E4.",
+    items: alertItems.filter((item) =>
+      [
+        "appointment_reminder_10m",
+        "visit_reminder_notice",
+        "visit_schedule_notice",
+      ].includes(item.type),
+    ),
+  },
+  {
+    key: "grooming",
+    title: "\uBBF8\uC6A9\uC9C4\uD589",
     items: alertItems.filter((item) =>
       ["groomingStartedEnabled", "groomingAlmostDoneEnabled", "groomingCompletedEnabled"].includes(item.key),
     ),
   },
-  {
-    title: "고객 관리",
-    items: alertItems.filter((item) => item.key === "revisitEnabled"),
-  },
 ];
 
+const reservationNoticeTypes: NotificationType[] = [
+  "appointment_reminder_10m",
+  "visit_reminder_notice",
+  "visit_schedule_notice",
+];
+
+function isReservationNoticeType(type: NotificationType) {
+  return reservationNoticeTypes.includes(type);
+}
+
 function buildPreviewValues(value: AlertSettingsDraft): NotificationTemplateVariables {
-  const pickupGuide = `약 ${value.pickupReadyEtaMinutes}분 뒤 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.`;
+  const pickupGuide = "잠시 후 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.";
 
   return {
     매장명: "우유 미용실",
@@ -168,9 +194,9 @@ function buildPreviewValues(value: AlertSettingsDraft): NotificationTemplateVari
     길찾기링크: "https://map.naver.com",
     방문전알림분: String(value.visitReminderOffsetMinutes),
     방문전알림안내: `예약 시간 ${value.visitReminderOffsetMinutes}분 전 안내드립니다.`,
-    픽업예상분: String(value.pickupReadyEtaMinutes),
+    픽업예상분: "잠시 후",
     픽업안내: pickupGuide,
-    pickupReadyEtaMinutes: String(value.pickupReadyEtaMinutes),
+    pickupReadyEtaMinutes: "잠시 후",
     pickupGuide,
   };
 }
@@ -513,7 +539,7 @@ export default function SettingsAlertsPanel({
               <div className="min-w-0">
                 <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
                 <p className="mt-1 text-[16px] leading-6 text-[#64748b]">
-                  끄면 예약, 미용 진행, 재방문 안내 알림톡 발송이 전체 중지됩니다.
+                  끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
                 </p>
               </div>
               <Switch
@@ -525,15 +551,45 @@ export default function SettingsAlertsPanel({
           </div>
 
           {alertGroups.map((group) => (
-            <div key={group.title} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
+            <div key={group.key} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-[16px] font-semibold text-[#111827]">{group.title}</p>
+                <div className="min-w-0">
+                  <p className="text-[16px] font-semibold text-[#111827]">{group.title}</p>
+                  {group.description ? (
+                    <p className="mt-1 text-[15px] leading-6 text-[#64748b]">{group.description}</p>
+                  ) : null}
+                </div>
                 <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[14px] text-[#64748b]">
                   {group.items.length}개
                 </span>
               </div>
+              {group.key === "reservationGuide" ? (
+                <div className="mb-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[16px] font-medium text-[#111827]">예약 안내 자동 발송</p>
+                      <p className="mt-1 text-[15px] leading-6 text-[#475569]">
+                        켜두면 예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 필요한 안내만 한 번 발송됩니다.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={visitReminderEnabled}
+                      disabled={!value.enabled || !automaticVisitReminderAvailable}
+                      aria-label="예약 안내 자동 발송"
+                      onCheckedChange={(checked) =>
+                        onChange({
+                          ...value,
+                          appointmentReminder10mEnabled: automaticVisitReminderAvailable ? checked : false,
+                          appointmentReminder10mMode: automaticVisitReminderAvailable && checked ? "auto" : "manual",
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className="grid gap-2 lg:grid-cols-2">
                 {group.items.map((item) => {
+                  const reservationNotice = isReservationNoticeType(item.type);
                   const checked =
                     item.key === "appointmentReminder10mEnabled"
                       ? visitReminderEnabled
@@ -561,24 +617,35 @@ export default function SettingsAlertsPanel({
                             : checked
                               ? "border-[#dbe2ea]"
                               : "border-[#dbe2ea]",
-                          !disabled ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
+                          !disabled || reservationNotice ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
                         )}
                       >
                         <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
-                        <span onClick={(event) => event.stopPropagation()}>
-                          <Switch
-                            checked={checked}
-                            disabled={disabled}
-                            aria-label={`${item.title} 알림`}
-                            onCheckedChange={(nextChecked) => {
-                              setSelectedAlertType(item.type);
-                              update(item.key, nextChecked);
-                            }}
-                          />
-                        </span>
+                        {reservationNotice ? (
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full px-2.5 py-1 text-[13px]",
+                              visitReminderEnabled ? "bg-[#e9f5f0] text-[#287667]" : "bg-[#f1f5f9] text-[#64748b]",
+                            )}
+                          >
+                            {visitReminderEnabled ? "자동 ON" : "자동 OFF"}
+                          </span>
+                        ) : (
+                          <span onClick={(event) => event.stopPropagation()}>
+                            <Switch
+                              checked={checked}
+                              disabled={disabled}
+                              aria-label={`${item.title} 알림`}
+                              onCheckedChange={(nextChecked) => {
+                                setSelectedAlertType(item.type);
+                                update(item.key, nextChecked);
+                              }}
+                            />
+                          </span>
+                        )}
                       </div>
                       {selected ? (
-                        <div className="rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 lg:col-span-2">
+                        <div className="space-y-3 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 lg:col-span-2">
                           <div className="flex gap-2 text-[15px] leading-6">
                             <span className="shrink-0 text-[#64748b]">역할</span>
                             <p className="min-w-0 text-[#334155]">{item.role}</p>
@@ -591,78 +658,6 @@ export default function SettingsAlertsPanel({
               </div>
             </div>
           ))}
-
-          <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
-            <div className="mb-4">
-              <p className="text-[16px] font-semibold text-[#111827]">알림 발송 기준</p>
-              <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
-                방문 안내는 기본 OFF입니다. 켜면 예약일 2~3일 전에는 예약 일정 안내, 예약 시간 전에는 방문 예정 안내가 자동 발송됩니다.
-              </p>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-              <div className="rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[16px] font-semibold text-[#111827]">방문 안내 자동 발송</p>
-                    <p className="mt-2 text-[15px] leading-6 text-[#475569]">
-                      {visitReminderEnabled
-                        ? `예약 2~3일 전 일정 안내를 보내고, 예약 시간 ${value.visitReminderOffsetMinutes}분 전에는 방문 예정 안내를 보냅니다.`
-                        : "꺼져 있으면 스케줄 상세에 방문 안내 ON/OFF가 표시되지 않습니다."}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    aria-pressed={visitReminderEnabled}
-                    disabled={!automaticVisitReminderAvailable}
-                    onClick={() =>
-                      onChange({
-                        ...value,
-                        appointmentReminder10mEnabled: !visitReminderEnabled,
-                        appointmentReminder10mMode: !visitReminderEnabled ? "auto" : "manual",
-                      })
-                    }
-                    className={cn(
-                      "h-9 shrink-0 rounded-[8px] px-4 text-[15px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
-                      visitReminderEnabled ? "bg-[#2f7866] text-white" : "border border-[#dbe2ea] bg-white text-[#334155]",
-                    )}
-                  >
-                    {visitReminderEnabled ? "사용 중" : "꺼짐"}
-                  </button>
-                </div>
-              </div>
-
-              <MinuteTimingControl
-                title="방문 안내 기본값"
-                value={value.visitReminderOffsetMinutes}
-                unitLabel="분 전"
-                options={[30, 60, 120, 180]}
-                min={0}
-                max={180}
-                onChange={(minutes) =>
-                  onChange({
-                    ...value,
-                    visitReminderOffsetMinutes: minutes,
-                  })
-                }
-              />
-
-              <MinuteTimingControl
-                title="픽업 안내 기본값"
-                value={value.pickupReadyEtaMinutes}
-                unitLabel="분 뒤"
-                options={pickupReadyOptions}
-                min={1}
-                max={180}
-                onChange={(minutes) =>
-                  onChange({
-                    ...value,
-                    pickupReadyEtaMinutes: minutes,
-                  })
-                }
-              />
-            </div>
-          </div>
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">

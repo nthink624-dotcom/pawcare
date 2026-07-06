@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owner-web/calendar-schedule-dropdown";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
@@ -81,68 +81,93 @@ export function ScheduleCreateDialog({
   onClose: () => void;
   onSubmit: () => void;
 }) {
-  const petRows = data.pets.map((pet) => ({
-    pet,
-    guardian: data.guardians.find((guardian) => guardian.id === pet.guardian_id),
-  }));
-  const customerRows = [
-    ...data.guardians.map((guardian) => ({
-      value: guardian.id,
-      guardianName: guardian.name,
-      phone: guardian.phone,
-      pets: data.pets
-        .filter((pet) => pet.guardian_id === guardian.id)
-        .sort((a, b) => a.name.localeCompare(b.name, "ko")),
-    })),
-    ...data.pets
-      .filter((pet) => !data.guardians.some((guardian) => guardian.id === pet.guardian_id))
-      .map((pet) => ({
-        value: `pet:${pet.id}`,
-        guardianName: "보호자 미등록",
-        phone: null,
-        pets: [pet],
+  const petRows = useMemo(
+    () =>
+      data.pets.map((pet) => ({
+        pet,
+        guardian: data.guardians.find((guardian) => guardian.id === pet.guardian_id),
       })),
-  ]
-    .filter((row) => row.pets.length > 0)
-    .sort((a, b) => a.guardianName.localeCompare(b.guardianName, "ko"));
-  const activeServices = data.services.filter((service) => service.is_active);
+    [data.guardians, data.pets],
+  );
+  const customerRows = useMemo(() => {
+    const guardianIds = new Set(data.guardians.map((guardian) => guardian.id));
+    return [
+      ...data.guardians.map((guardian) => ({
+        value: guardian.id,
+        guardianName: guardian.name,
+        phone: guardian.phone,
+        pets: data.pets
+          .filter((pet) => pet.guardian_id === guardian.id)
+          .sort((a, b) => a.name.localeCompare(b.name, "ko")),
+      })),
+      ...data.pets
+        .filter((pet) => !guardianIds.has(pet.guardian_id))
+        .map((pet) => ({
+          value: `pet:${pet.id}`,
+          guardianName: "보호자 미등록",
+          phone: null,
+          pets: [pet],
+        })),
+    ]
+      .filter((row) => row.pets.length > 0)
+      .sort((a, b) => a.guardianName.localeCompare(b.guardianName, "ko"));
+  }, [data.guardians, data.pets]);
+  const activeServices = useMemo(() => data.services.filter((service) => service.is_active), [data.services]);
   const customerModeOptions: ScheduleDropdownOption[] = [
     { value: "new", label: "신규 고객 입력", meta: "고객명, 연락처, 반려동물명을 직접 입력" },
     { value: "existing", label: "기존 고객 선택", meta: "등록된 고객과 반려동물에서 선택" },
   ];
-  const customerOptions = customerRows.map(({ value, guardianName, phone, pets }) => {
-    const primaryPet = pets[0];
-    const petLabel = primaryPet ? `${primaryPet.name}${pets.length > 1 ? ` 외 ${pets.length - 1}마리` : ""}` : "반려동물 없음";
-    const petDetails = pets.map((pet) => [pet.name, pet.breed].filter(Boolean).join(" / ")).join(", ");
-    const phoneLabel = phone ? formatSchedulePhone(phone) : "연락처 없음";
+  const customerOptions = useMemo(
+    () =>
+      customerRows.map(({ value, guardianName, phone, pets }) => {
+        const phoneLabel = phone ? formatSchedulePhone(phone) : "연락처 없음";
+        const petSummary =
+          pets
+            .map((pet) => {
+              const breed = pet.breed?.trim() || "품종 미입력";
+              return `${pet.name} | ${breed}`;
+            })
+            .join(" · ") || "반려동물 없음";
 
-    return {
-      value,
-      label: `${guardianName} · ${petLabel}`,
-      meta: `${phoneLabel} · ${pets.length}마리 · ${petDetails}`,
-      searchText: `${guardianName} ${phone ?? ""} ${phone ? formatSchedulePhone(phone) : ""} ${pets
-        .map((pet) => `${pet.name} ${pet.breed ?? ""}`)
-        .join(" ")}`,
-    };
-  });
-  const selectedPet = data.pets.find((pet) => pet.id === form.petId);
-  const selectedCustomerRow = selectedPet
-    ? customerRows.find((row) => row.pets.some((pet) => pet.id === selectedPet.id))
-    : null;
-  const serviceOptions = activeServices.map((service) => ({
-    value: service.id,
-    label: service.name,
-    meta: `${service.duration_minutes}분 · ${service.price.toLocaleString()}원`,
-  }));
-  const staffOptions = visibleStaff.map((staffMember) => ({
-    value: staffMember.key,
-    label: staffMember.name,
-  }));
-  const selectedService = data.services.find((service) => service.id === form.serviceId);
+        return {
+          value,
+          label: `${guardianName} · ${phoneLabel}`,
+          meta: petSummary,
+          searchText: `${guardianName} ${phone ?? ""} ${phone ? formatSchedulePhone(phone) : ""} ${pets
+            .map((pet) => `${pet.name} ${pet.breed ?? ""}`)
+            .join(" ")}`,
+        };
+      }),
+    [customerRows],
+  );
+  const selectedPet = useMemo(() => data.pets.find((pet) => pet.id === form.petId), [data.pets, form.petId]);
+  const selectedCustomerRow = useMemo(
+    () => (selectedPet ? customerRows.find((row) => row.pets.some((pet) => pet.id === selectedPet.id)) : null),
+    [customerRows, selectedPet],
+  );
+  const serviceOptions = useMemo(
+    () =>
+      activeServices.map((service) => ({
+        value: service.id,
+        label: service.name,
+        meta: `${service.duration_minutes}분 · ${service.price.toLocaleString()}원`,
+      })),
+    [activeServices],
+  );
+  const staffOptions = useMemo(
+    () =>
+      visibleStaff.map((staffMember) => ({
+        value: staffMember.key,
+        label: staffMember.name,
+      })),
+    [visibleStaff],
+  );
+  const selectedService = useMemo(() => data.services.find((service) => service.id === form.serviceId), [data.services, form.serviceId]);
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
-  const availableSlots = selectedService
-    ? getAvailableSlots({ date: form.date, serviceId: selectedService.id, duration, staffKey: form.staffKey })
-    : [];
+  const availableSlots = useMemo(
+    () => (selectedService ? getAvailableSlots({ date: form.date, serviceId: selectedService.id, duration, staffKey: form.staffKey }) : []),
+    [duration, form.date, form.staffKey, getAvailableSlots, selectedService],
+  );
   const isSelectedTimeAvailable = !form.time || availableSlots.includes(form.time);
   const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
   const isCustomerPhoneIncomplete = form.customerMode === "new" && Boolean(form.customerPhone.trim()) && normalizedCustomerPhone.length < 10;
@@ -238,6 +263,7 @@ export function ScheduleCreateDialog({
                 options={customerOptions}
                 placeholder="기존 고객을 선택해 주세요"
                 showMeta
+                showSelectedMeta={false}
                 showOptionMeta
                 searchable
                 searchPlaceholder="고객명, 반려동물명, 연락처 검색"
@@ -255,13 +281,15 @@ export function ScheduleCreateDialog({
                         type="button"
                         onClick={() => onChange({ ...form, petId: pet.id })}
                         className={cn(
-                          "h-8 rounded-[8px] border px-3 text-[14px] transition",
+                          "inline-flex min-h-8 items-center rounded-[8px] border px-3 py-1.5 text-[14px] transition",
                           pet.id === form.petId
                             ? "border-[#1f6b5b] bg-white text-[#1f6b5b]"
                             : "border-[#dbe2ea] bg-white text-[#475569] hover:border-[#b8c8d8]",
                         )}
                       >
-                        {pet.name}
+                        <span className="font-medium">{pet.name}</span>
+                        <span className="mx-1.5 text-[#cbd5e1]">|</span>
+                        <span className="text-[#64748b]">{pet.breed?.trim() || "품종 미입력"}</span>
                       </button>
                     ))}
                   </div>

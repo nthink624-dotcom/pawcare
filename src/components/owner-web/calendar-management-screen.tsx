@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   CalendarPlus,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -25,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import type { ChangeEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScheduleCreateDialog } from "@/components/owner-web/calendar-create-dialog";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
@@ -115,6 +114,7 @@ type PhotoStatusAction = {
   bookingId: string;
   nextStatus: "진행 중" | "완료";
   mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  mode?: "single" | "completion";
   title: string;
   description: string;
   buttonLabel: string;
@@ -702,7 +702,7 @@ function hasStaffBookingConflict(
 ) {
   return bookings.some((booking) => {
     if (booking.id === bookingId || booking.staffKey !== next.staffKey) return false;
-    if (booking.status && !isBookableStatus(booking.status)) return false;
+    if (booking.status && isChangeBookingStatus(booking.status)) return false;
     return bookingTimesOverlap(next, booking);
   });
 }
@@ -1319,37 +1319,12 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
     })
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
   const appointmentIds = new Set(selectedDateAppointments.map((appointment) => appointment.id));
-  const reservationChips = data.appointments
-    .filter((appointment) => appointment.appointment_date === selectedDate)
-    .filter((appointment) => ["in_progress", "almost_done", "completed"].includes(appointment.status))
-    .filter((appointment) => {
-      const service = data.services.find((item) => item.id === appointment.service_id);
-      return Boolean(getDateTimePartsInTimeZone(appointment.actual_started_at) && getScheduledDurationMinutes(appointment, service));
-    })
-    .map((appointment, index) => {
-      const service = data.services.find((item) => item.id === appointment.service_id);
-      const staffColumn = staffColumnForIndex(index, staffColumns);
-      const booking = appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns);
-      const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
-      return {
-        ...booking,
-        id: `${appointment.id}__reservation-chip`,
-        sourceAppointmentId: appointment.id,
-        displayMode: "reservation-chip" as const,
-        start: timeToHour(appointment.appointment_time),
-        duration: 0.25,
-        status: "예약 시간",
-        sourceStatus: appointmentStatusLabels[appointment.status] ?? appointment.status,
-        scheduledTimeLabel: getScheduledTimeLabel(appointment, scheduledDurationMinutes),
-      };
-    });
   const recordOnlyBookings = data.groomingRecords
     .filter((record) => record.groomed_at.slice(0, 10) === selectedDate)
     .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
     .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, staffColumns[0]));
 
   return resolveStaffBookingConflicts([
-    ...reservationChips,
     ...selectedDateAppointments.flatMap((appointment, index) => {
       const service = data.services.find((item) => item.id === appointment.service_id);
       const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
@@ -1612,7 +1587,6 @@ function BookingSidePanel({
   });
   const [timingSaving, setTimingSaving] = useState(false);
   const [timingPickerOpen, setTimingPickerOpen] = useState<"visit" | "pickup" | null>(null);
-  const [actionMoreOpen, setActionMoreOpen] = useState(false);
   const [detailNotice, setDetailNotice] = useState("");
   const [detailEditMode, setDetailEditMode] = useState<"time" | "service" | "price" | null>(null);
   const detailNoticeTimerRef = useRef<number | null>(null);
@@ -1720,7 +1694,6 @@ function BookingSidePanel({
     setPhoneEditing(false);
     setDetailEditMode(null);
     setTimingPickerOpen(null);
-    setActionMoreOpen(false);
     return () => {
       window.cancelAnimationFrame(frame);
       if (detailNoticeTimerRef.current !== null) {
@@ -1798,7 +1771,10 @@ function BookingSidePanel({
   const requestText = rawRequestText || "고객 요청사항이 없습니다.";
   const workflowPending = isApprovalQueueBookingStatus(sourceStatus);
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
-  const canResendCurrentNotification = !workflowPending && !changeEventSelected;
+  const canResendCurrentNotification =
+    !workflowPending &&
+    !changeEventSelected &&
+    (sourceStatus !== "확정" || selectedBooking.source === "owner");
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
   const showWorkflowFooter = !workflowCompleted;
   const recentVisitHistory = selectedBooking
@@ -1814,6 +1790,19 @@ function BookingSidePanel({
       ? "auto"
       : "manual";
   const showVisitReminderTiming = visitReminderMode === "auto";
+  const selectedGuardianForBooking = selectedBooking.guardianId
+    ? bootstrapData.guardians.find((guardian) => guardian.id === selectedBooking.guardianId) ?? null
+    : null;
+  const selectedGuardianNotificationSettings = selectedGuardianForBooking?.notification_settings ?? null;
+  const selectedGuardianAlimtalkBlockedReason =
+    selectedGuardianNotificationSettings && !selectedGuardianNotificationSettings.enabled
+      ? "이 고객은 이 매장의 알림톡 수신을 거부했습니다."
+      : selectedGuardianNotificationSettings &&
+          sourceStatus === "확정" &&
+          selectedBooking.source === "owner" &&
+          selectedGuardianNotificationSettings.booking_confirmed_enabled === false
+        ? "이 고객은 예약 확정 알림톡 수신이 꺼져 있습니다."
+        : null;
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -2014,7 +2003,7 @@ function BookingSidePanel({
             </header>
 
             <section className="mt-5 border-b border-[#e6edf2] pb-5">
-              <div className="grid grid-cols-[76px_minmax(0,1fr)_104px] gap-2">
+              <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
                 <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">몸무게</span>
                   <input
@@ -2031,10 +2020,10 @@ function BookingSidePanel({
                     type="date"
                     value={petProfileDraft.birthday}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
-                    className="h-9 w-full min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#607080]"
+                    className="h-9 w-full min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#607080] [color-scheme:light]"
                   />
                 </label>
-                <label className="block min-w-0">
+                <label className="col-span-2 block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">입질</span>
                   <select
                     value={petProfileDraft.biteLevel}
@@ -2058,16 +2047,21 @@ function BookingSidePanel({
 
             <section className="pt-5">
               <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">서비스 내역</h3>
+              {selectedGuardianAlimtalkBlockedReason ? (
+                <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[13px] leading-5 text-[#9f3448]">
+                  {selectedGuardianAlimtalkBlockedReason} 예약 확정 알림톡은 발송되지 않습니다.
+                </div>
+              ) : null}
               <div className="mt-2 overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
-                <div className="flex min-w-0 items-center gap-3 bg-[#fafbfc] px-4 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
+                <div className="flex min-w-0 items-center gap-3 bg-[#fafbfc] px-4 py-2.5 text-[16px] font-normal leading-6 text-[#334155]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#94a3b8]" />
+                    <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                     {timeRange}
                   </span>
                   <span className="h-4 w-px shrink-0 bg-[#e2e8f0]" aria-hidden="true" />
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <User className="h-3.5 w-3.5 shrink-0 text-[#94a3b8]" />
-                    <span className="truncate">{staffLabel}</span>
+                    <User className="h-4 w-4 shrink-0 text-[#94a3b8]" />
+                    <span className="truncate">{staffLabel} 담당자</span>
                   </span>
                 </div>
                 <div className="grid gap-2 px-4 py-3">
@@ -2156,7 +2150,8 @@ function BookingSidePanel({
         </div>
 
           {showWorkflowFooter ? (
-          <section className="shrink-0 border-t border-[#e6edf2] bg-[#f2faf7] px-4 pb-4 pt-3 shadow-[0_-8px_18px_rgba(15,23,42,0.035)]">
+          <section className="shrink-0 bg-white px-4 pb-4 pt-3 shadow-[0_-10px_24px_rgba(15,23,42,0.04)]">
+            <div className="mx-3 mb-3 h-px bg-[#e6edf2]" />
             <div className="grid gap-2">
               {isPendingBookingStatus(sourceStatus) ? (
                 <button
@@ -2171,38 +2166,27 @@ function BookingSidePanel({
                   <button
                     type="button"
                     onClick={() => onChangeStatus(selectedBooking.id, "진행 중")}
-                    className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
+                    className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b]"
                   >
                     <Play className="h-4 w-4 shrink-0" />
                     미용 시작하기
                   </button>
-                  <button
-                    type="button"
-                    aria-expanded={actionMoreOpen}
-                    onClick={() => setActionMoreOpen((open) => !open)}
-                    className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
-                  >
-                    예약 변경/취소/노쇼
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", actionMoreOpen ? "rotate-180" : "")} />
-                  </button>
-                  {actionMoreOpen ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
-                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
-                      >
-                        노쇼 처리
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onChangeStatus(selectedBooking.id, "취소")}
-                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-3 text-[14px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
-                      >
-                        예약 취소
-                      </button>
-                    </div>
-                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onChangeStatus(selectedBooking.id, "노쇼")}
+                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                    >
+                      노쇼 처리
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
+                      className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                    >
+                      예약 취소
+                    </button>
+                  </div>
                 </>
               ) : changeEventSelected ? (
                 <button
@@ -2215,7 +2199,7 @@ function BookingSidePanel({
               ) : sourceStatus === "진행 중" ? (
                 <button
                   type="button"
-                  onClick={() => requestStatusChange(selectedBooking.id, "픽업 준비")}
+                  onClick={() => onChangeStatus(selectedBooking.id, "완료")}
                   className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -3089,7 +3073,7 @@ function ConfirmedReservationDetail({
               미용 시작하기
             </button>
           ) : canComplete ? (
-            <button type="button" onClick={() => onChangeStatus(booking.id, "픽업 준비")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
+            <button type="button" onClick={() => onChangeStatus(booking.id, "완료")} className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#334155] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]">
               <Scissors className="h-5 w-5" />
               미용 완료하기
             </button>
@@ -3340,16 +3324,20 @@ function PhotoStatusDialog({
   action,
   onClose,
   onSubmit,
-  onSkip,
+  onComplete,
 }: {
   action: PhotoStatusAction;
   onClose: () => void;
-  onSubmit: (file: File) => Promise<void>;
-  onSkip: () => Promise<void>;
+  onSubmit: (file: File, mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) => Promise<string>;
+  onComplete: (mediaAssetIds: string[]) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [activeMediaKind, setActiveMediaKind] = useState<Extract<MediaKind, "grooming_before" | "grooming_after">>(action.mediaKind);
+  const [uploadedSlots, setUploadedSlots] = useState<Partial<Record<"before" | "after", string>>>({});
+  const isCompletionMode = action.mode === "completion";
+  const uploadedAssetIds = [uploadedSlots.before, uploadedSlots.after].filter((item): item is string => Boolean(item));
   const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
   const mobileOwnerUrl = typeof window === "undefined" ? mobileOwnerPath : `${window.location.origin}${mobileOwnerPath}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=176x176&margin=12&data=${encodeURIComponent(mobileOwnerUrl)}`;
@@ -3361,7 +3349,15 @@ function PhotoStatusDialog({
     setSaving(true);
     setError("");
     try {
-      await onSubmit(file);
+      const mediaAssetId = await onSubmit(file, activeMediaKind);
+      if (isCompletionMode) {
+        setUploadedSlots((current) => ({
+          ...current,
+          [activeMediaKind === "grooming_before" ? "before" : "after"]: mediaAssetId,
+        }));
+      } else {
+        await onComplete([mediaAssetId]);
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "사진 저장 중 문제가 발생했습니다.");
     } finally {
@@ -3370,23 +3366,28 @@ function PhotoStatusDialog({
     }
   }
 
-  async function handleSkip() {
+  async function handleComplete(mediaAssetIds: string[]) {
     if (saving) return;
 
     setSaving(true);
     setError("");
     try {
-      await onSkip();
+      await onComplete(mediaAssetIds);
     } catch (skipError) {
       setError(skipError instanceof Error ? skipError.message : "상태 변경 중 문제가 발생했습니다.");
       setSaving(false);
     }
   }
 
+  function selectPhoto(mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) {
+    setActiveMediaKind(mediaKind);
+    inputRef.current?.click();
+  }
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-[392px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -3405,18 +3406,41 @@ function PhotoStatusDialog({
           ) : null}
         </div>
 
-        <div className="rounded-[10px] bg-[#fbfcfd] p-4">
-          <div className="flex items-center gap-2">
-            <QrCode className="h-4 w-4 text-[#2f7866]" />
-            <p className="text-[15px] font-medium text-[#111827]">모바일로 촬영하기</p>
+        {isCompletionMode ? (
+          <div className="grid gap-2">
+            {[
+              { key: "before" as const, label: "미용 전 사진", mediaKind: "grooming_before" as const, uploaded: Boolean(uploadedSlots.before) },
+              { key: "after" as const, label: "미용 후 사진", mediaKind: "grooming_after" as const, uploaded: Boolean(uploadedSlots.after) },
+            ].map((slot) => (
+              <button
+                key={slot.key}
+                type="button"
+                onClick={() => selectPhoto(slot.mediaKind)}
+                disabled={saving}
+                className="flex min-h-[54px] items-center justify-between rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] px-4 text-left transition hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                <span className="inline-flex items-center gap-2 text-[14px] font-medium text-[#334155]">
+                  {slot.uploaded ? <CheckCircle2 className="h-4 w-4 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 text-[#64748b]" />}
+                  {slot.label}
+                </span>
+                <span className="text-[13px] text-[#64748b]">{slot.uploaded ? "선택됨" : "선택"}</span>
+              </button>
+            ))}
           </div>
-          <div className="mt-3 flex justify-center rounded-[10px] bg-white p-3">
-            <img src={qrImageUrl} alt="모바일 오너 촬영 QR 코드" className="h-[176px] w-[176px]" />
+        ) : (
+          <div className="rounded-[10px] bg-[#fbfcfd] p-4">
+            <div className="flex items-center gap-2">
+              <QrCode className="h-4 w-4 text-[#2f7866]" />
+              <p className="text-[15px] font-medium text-[#111827]">모바일로 촬영하기</p>
+            </div>
+            <div className="mt-3 flex justify-center rounded-[10px] bg-white p-3">
+              <img src={qrImageUrl} alt="모바일 촬영 QR 코드" className="h-[176px] w-[176px]" />
+            </div>
+            <p className="mt-3 text-center text-[13px] leading-5 text-[#64748b]">
+              {action.mobileDescription}
+            </p>
           </div>
-          <p className="mt-3 text-center text-[13px] leading-5 text-[#64748b]">
-            {action.mobileDescription}
-          </p>
-        </div>
+        )}
 
         {error ? (
           <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
@@ -3424,35 +3448,68 @@ function PhotoStatusDialog({
           </p>
         ) : null}
 
-        <div className="mt-4 space-y-2">
-          <button
-            type="button"
-            onClick={() => void handleSkip()}
-            disabled={saving}
-            className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
-          >
-            {saving ? "처리 중" : action.skipLabel}
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              disabled={saving}
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-              {action.buttonLabel}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-            >
-              취소
-            </button>
+        {isCompletionMode ? (
+          <div className="mt-4 space-y-2">
+            {uploadedAssetIds.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => void handleComplete(uploadedAssetIds)}
+                disabled={saving}
+                className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
+              >
+                {saving ? "처리 중" : "선택한 사진으로 미용 완료"}
+              </button>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void handleComplete([])}
+                disabled={saving}
+                className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                {saving ? "처리 중" : action.skipLabel}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                취소
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={() => void handleComplete([])}
+              disabled={saving}
+              className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
+            >
+              {saving ? "처리 중" : action.skipLabel}
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => selectPhoto(action.mediaKind)}
+                disabled={saving}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                {action.buttonLabel}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -4063,6 +4120,16 @@ export default function CalendarManagementScreen({
     if (!targetBooking) return;
 
     const nextBooking = { ...targetBooking, ...next };
+    if (
+      hasStaffBookingConflict(displayScopedBookings, bookingId, {
+        staffKey: nextBooking.staffKey,
+        start: nextBooking.start,
+        duration: nextBooking.duration,
+      })
+    ) {
+      setBoardError("선택한 담당자에게 같은 시간 예약이 있습니다.");
+      return;
+    }
     if (isOutsideShopOperatingHours(bootstrapData.shop, selectedDate, nextBooking.start, nextBooking.duration)) {
       setPendingOutOfHoursMove({ bookingId, nextBooking, previousBookings });
       return;
@@ -4085,6 +4152,17 @@ export default function CalendarManagementScreen({
   async function confirmOutOfHoursMove() {
     if (!pendingOutOfHoursMove) return;
     const pending = pendingOutOfHoursMove;
+    if (
+      hasStaffBookingConflict(displayScopedBookings, pending.bookingId, {
+        staffKey: pending.nextBooking.staffKey,
+        start: pending.nextBooking.start,
+        duration: pending.nextBooking.duration,
+      })
+    ) {
+      setPendingOutOfHoursMove(null);
+      setBoardError("선택한 담당자에게 같은 시간 예약이 있습니다.");
+      return;
+    }
     setPendingOutOfHoursMove(null);
     setBoardError("");
     setBookings((current) => current.map((booking) => (booking.id === pending.bookingId ? pending.nextBooking : booking)));
@@ -4103,6 +4181,16 @@ export default function CalendarManagementScreen({
     if (!targetBooking) return;
 
     const nextBooking = { ...targetBooking, duration };
+    if (
+      hasStaffBookingConflict(displayScopedBookings, bookingId, {
+        staffKey: nextBooking.staffKey,
+        start: nextBooking.start,
+        duration: nextBooking.duration,
+      })
+    ) {
+      setBoardError("선택한 담당자에게 같은 시간 예약이 있습니다.");
+      return;
+    }
     setBoardError("");
     setBookings((current) => current.map((booking) => (booking.id === bookingId ? nextBooking : booking)));
 
@@ -4123,6 +4211,7 @@ export default function CalendarManagementScreen({
   function shouldSkipPhotoStatusChange(nextStatus: string) {
     const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
     if (appointmentStatus === "almost_done") return true;
+    if (appointmentStatus === "completed") return true;
     return false;
   }
 
@@ -4145,6 +4234,7 @@ export default function CalendarManagementScreen({
     if (nextStatus === "픽업 준비" && !canMarkGroomingComplete(sourceStatus)) return;
     if (
       nextStatus === "완료" &&
+      sourceStatus !== "진행 중" &&
       sourceStatus !== "픽업 준비" &&
       displayStatus !== "완료" &&
       displayStatus !== "완료 확인 필요"
@@ -4198,8 +4288,9 @@ export default function CalendarManagementScreen({
       bookingId: booking.id,
       nextStatus,
       mediaKind: "grooming_after",
+      mode: "completion",
       title: "미용 완료 사진",
-      description: "마무리된 모습을 한 장 촬영하면 미용 완료 알림에 함께 전송됩니다.",
+      description: "미용 전/후 사진을 선택하면 완료 알림에 함께 전송됩니다. 사진 없이 바로 완료할 수도 있어요.",
       buttonLabel: "사진 선택",
       skipLabel: "사진 없이 미용 완료",
       mobileDescription: "휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.",
@@ -4219,13 +4310,12 @@ export default function CalendarManagementScreen({
     });
   }
 
-  async function handlePhotoStatusFile(file: File) {
-    if (!photoStatusAction) return;
+  async function handlePhotoStatusFile(file: File, mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) {
+    if (!photoStatusAction) throw new Error("처리할 상태 변경 정보를 찾지 못했습니다.");
     const appointment = bootstrapData.appointments.find((item) => item.id === photoStatusAction.bookingId);
     const booking = bookings.find((item) => item.id === photoStatusAction.bookingId);
     if (!appointment || !booking) {
-      setBoardError("사진을 연결할 예약 정보를 찾지 못했습니다.");
-      return;
+      throw new Error("사진을 연결할 예약 정보를 찾지 못했습니다.");
     }
 
     setBoardError("");
@@ -4237,12 +4327,11 @@ export default function CalendarManagementScreen({
         appointmentId: appointment.id,
         groomingRecordId: null,
       },
-      photoStatusAction.mediaKind,
+      mediaKind,
       file,
     );
 
-    setPhotoStatusAction(null);
-    await applyBookingStatusChange(booking.id, photoStatusAction.nextStatus, [uploaded.mediaAsset.id]);
+    return uploaded.mediaAsset.id;
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
@@ -4533,6 +4622,26 @@ export default function CalendarManagementScreen({
     }
   }
 
+  const getScheduleCreateAvailableSlots = useCallback(
+    ({ date, serviceId, duration, staffKey }: { date: string; serviceId: string; duration: number; staffKey: StaffKey }) => {
+      const dateBookings =
+        date === selectedDate ? bookings : buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff);
+      return buildOwnerCreateAvailableSlots({
+        shop: bootstrapData.shop,
+        date,
+        serviceId,
+        duration,
+        staffKey,
+        services: bootstrapData.services,
+        appointments: bootstrapData.appointments,
+        staffMembers,
+        staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
+        bookings: dateBookings,
+      });
+    },
+    [bookings, bootstrapData, selectedDate, staffAssignments, staffMembers, visibleStaff],
+  );
+
   return (
     <div className="space-y-2">
       {scheduleDialogOpen ? (
@@ -4544,24 +4653,7 @@ export default function CalendarManagementScreen({
           visibleStaff={visibleStaff}
           staffMembers={staffMembers}
           staffAssignments={staffAssignments}
-          getAvailableSlots={({ date, serviceId, duration, staffKey }) => {
-            const dateBookings =
-              date === selectedDate
-                ? bookings
-                : buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff);
-            return buildOwnerCreateAvailableSlots({
-              shop: bootstrapData.shop,
-              date,
-              serviceId,
-              duration,
-              staffKey,
-              services: bootstrapData.services,
-              appointments: bootstrapData.appointments,
-              staffMembers,
-              staffScheduleOverrides: bootstrapData.staffScheduleOverrides,
-              bookings: dateBookings,
-            });
-          }}
+          getAvailableSlots={getScheduleCreateAvailableSlots}
           saving={scheduleSaving}
           error={scheduleError}
           onChange={setScheduleForm}
@@ -4709,11 +4801,11 @@ export default function CalendarManagementScreen({
           action={photoStatusAction}
           onClose={() => setPhotoStatusAction(null)}
           onSubmit={handlePhotoStatusFile}
-          onSkip={async () => {
+          onComplete={async (mediaAssetIds) => {
             const action = photoStatusAction;
             if (!action) return;
             setPhotoStatusAction(null);
-            await applyBookingStatusChange(action.bookingId, action.nextStatus);
+            await applyBookingStatusChange(action.bookingId, action.nextStatus, mediaAssetIds);
           }}
         />
       ) : null}

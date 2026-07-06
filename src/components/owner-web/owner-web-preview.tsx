@@ -9,6 +9,7 @@ import CustomerManagementScreen from "@/components/owner-web/customer-management
 import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
+import OwnerHelpScreen from "@/components/owner-web/owner-help-screen";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -19,7 +20,6 @@ import SettingsManagementScreen from "@/components/owner-web/settings-management
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
-import { ownerPlanAllowsAutomaticVisitReminder, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
@@ -142,6 +142,8 @@ function renderScreen(
           onStaffScheduleOverridesChange={handleStaffScheduleOverridesChange}
         />
       );
+    case "help":
+      return <OwnerHelpScreen initialData={initialData} />;
     case "shopInfo":
     case "operatingHours":
     case "ownerProfile":
@@ -174,12 +176,11 @@ export default function OwnerWebPreview({
   initialData,
   demoStaffFallback = [],
   onDataChange,
-  currentPlanCode,
 }: {
   initialData: BootstrapPayload;
   demoStaffFallback?: OwnerWebStaffMember[];
   onDataChange?: (data: BootstrapPayload) => void;
-  currentPlanCode?: OwnerPlanCode | null;
+  currentPlanCode?: string | null;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
@@ -201,7 +202,7 @@ export default function OwnerWebPreview({
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const shopDisplayName = ownerData.shop.name.trim() || "PetManager";
   const shopInitials = buildShopInitials(shopDisplayName);
-  const automaticVisitReminderAvailable = ownerPlanAllowsAutomaticVisitReminder(currentPlanCode ?? "quarterly");
+  const automaticVisitReminderAvailable = true;
 
   useEffect(() => {
     setManualApprovalEnabled(false);
@@ -406,6 +407,11 @@ export default function OwnerWebPreview({
       onOpenProfile={() => openSettingsTab("profile")}
       onOpenShop={() => openSettingsTab("shop")}
       onOpenAlerts={() => openSettingsTab("alerts")}
+      onOpenHelp={() => {
+        setActiveScreen("help");
+        setStoreMenuOpen(false);
+        setAlimtalkCreditMenuOpen(false);
+      }}
       onLogout={handleLogout}
       loggingOut={loggingOut}
     >

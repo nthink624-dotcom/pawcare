@@ -54,6 +54,16 @@ type RelayTemplateCatalogBody = {
 };
 
 const TEMPLATE_OVERRIDE_SELECT = "template_alias, template_body, is_active, updated_at";
+const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
+  "booking_confirmed",
+  "booking_rejected",
+  "booking_time_proposed",
+  "booking_rescheduled_confirmed",
+  "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
+  "grooming_completed",
+]);
 
 function isMissingTemplateOverrideTableError(error: SupabaseLikeError) {
   const message = [error.message, error.details, error.hint].filter(Boolean).join(" ");
@@ -159,6 +169,39 @@ function fillTemplateValue(value: string, variables: NotificationTemplateVariabl
   }, value);
 }
 
+function getMissingTemplateVariables(value: string, variables: NotificationTemplateVariables) {
+  const matches = Array.from(value.matchAll(/#\{([^}]+)\}/g));
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => match[1]?.trim() ?? "")
+        .filter((key) => key && !variables[key]),
+    ),
+  );
+}
+
+function assertRenderedButtonValue(params: {
+  templateTitle: string;
+  buttonName: string;
+  fieldLabel: string;
+  sourceValue: string;
+  renderedValue: string;
+  variables: NotificationTemplateVariables;
+}) {
+  const missingVariables = getMissingTemplateVariables(params.sourceValue, params.variables);
+  if (missingVariables.length > 0) {
+    throw new Error(
+      `${params.templateTitle} 쏘다 버튼 '${params.buttonName}'의 ${params.fieldLabel}에 필요한 치환값이 없습니다: ${missingVariables.join(", ")}`,
+    );
+  }
+
+  if (/#\{[^}]+\}/.test(params.renderedValue)) {
+    throw new Error(
+      `${params.templateTitle} 쏘다 버튼 '${params.buttonName}'의 ${params.fieldLabel}에 알 수 없는 치환 변수가 남아 있습니다: ${params.renderedValue}`,
+    );
+  }
+}
+
 export async function getConnectedSsodaaTemplateButtons(
   type: NotificationType,
   values: NotificationTemplateVariables,
@@ -168,12 +211,35 @@ export async function getConnectedSsodaaTemplateButtons(
 
   const detail = await getConnectedSsodaaTemplate(spec.templateAlias);
   if (!detail) return null;
+  if (aliasesThatMustHaveSsodaaButtons.has(spec.templateAlias) && detail.buttons.length === 0) {
+    throw new Error(`${spec.title} 쏘다 템플릿 버튼 정보를 확인하지 못했습니다. 쏘다에 등록된 버튼과 발송 버튼이 일치해야 하므로 발송을 중단했습니다.`);
+  }
 
-  return detail.buttons.map((button) => ({
-    ...button,
-    linkMobile: fillTemplateValue(button.linkMobile, values),
-    linkPc: button.linkPc ? fillTemplateValue(button.linkPc, values) : fillTemplateValue(button.linkMobile, values),
-  }));
+  return detail.buttons.map((button) => {
+    const linkMobile = fillTemplateValue(button.linkMobile, values);
+    const linkPc = button.linkPc ? fillTemplateValue(button.linkPc, values) : linkMobile;
+    assertRenderedButtonValue({
+      templateTitle: spec.title,
+      buttonName: button.name,
+      fieldLabel: "모바일 링크",
+      sourceValue: button.linkMobile,
+      renderedValue: linkMobile,
+      variables: values,
+    });
+    assertRenderedButtonValue({
+      templateTitle: spec.title,
+      buttonName: button.name,
+      fieldLabel: "PC 링크",
+      sourceValue: button.linkPc ?? button.linkMobile,
+      renderedValue: linkPc,
+      variables: values,
+    });
+    return {
+      ...button,
+      linkMobile,
+      linkPc,
+    };
+  });
 }
 
 async function getActiveTemplateOverrides() {

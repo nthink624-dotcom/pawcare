@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
 import { cn } from "@/lib/utils";
@@ -27,9 +27,11 @@ export function CustomerPagePhonePreview({
   previewMode?: "entry" | "staffSelection";
   className?: string;
 }) {
+  const [previewScreen, setPreviewScreen] = useState<"entry" | "bookingStart">("entry");
+
   return (
     <div className={cn("flex h-full w-full flex-col items-center justify-center", className)}>
-      <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">미리보기</p>
+      <p className="mb-4 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{"\uBBF8\uB9AC\uBCF4\uAE30"}</p>
       <div className="relative aspect-[823/1677] w-[270px] max-w-full">
         <div className="pointer-events-none absolute left-[3.4%] top-[1.25%] h-[97.4%] w-[93.2%] rounded-[40px] bg-[#070707]" />
         <div className="absolute left-[4.62%] top-[1.91%] z-10 h-[96.48%] w-[90.64%] overflow-hidden rounded-[31px] bg-[#fdf7f5]">
@@ -62,14 +64,23 @@ export function CustomerPagePhonePreview({
                   transform: `scale(${CUSTOMER_PREVIEW_CONTENT_SCALE})`,
                 }}
               >
-                <CustomerBookingEntryPage
-                  shop={shop}
-                  services={services}
-                  staffMembers={staffMembers}
-                  ownerProfile={ownerProfile}
-                  infoHref={`/entry/${encodeURIComponent(shop.id)}`}
-                  previewMode
-                />
+                {previewScreen === "bookingStart" ? (
+                  <CustomerPreviewBookingStartScreen
+                    shopName={shop.name}
+                    services={services}
+                    onBack={() => setPreviewScreen("entry")}
+                  />
+                ) : (
+                  <CustomerBookingEntryPage
+                    shop={shop}
+                    services={services}
+                    staffMembers={staffMembers}
+                    ownerProfile={ownerProfile}
+                    infoHref={`/entry/${encodeURIComponent(shop.id)}`}
+                    previewMode={previewMode}
+                    onPreviewBookingStart={() => setPreviewScreen("bookingStart")}
+                  />
+                )}
               </div>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[34px] items-end justify-center bg-[#fdf7f5] pb-[8px]">
                 <span className="h-[4px] w-[92px] rounded-full bg-[#241916]/18" />
@@ -94,6 +105,72 @@ export function CustomerPagePhonePreview({
   );
 }
 
+function CustomerPreviewBookingStartScreen({
+  shopName,
+  services,
+  onBack,
+}: {
+  shopName: string;
+  services: Service[];
+  onBack: () => void;
+}) {
+  const visibleServices = services
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko"))
+    .slice(0, 4);
+  const fallbackServices = visibleServices.length > 0
+    ? visibleServices
+    : ([{ id: "preview-service", name: "\uC704\uC0DD\uBBF8\uC6A9+\uBAA9\uC695", duration_minutes: 60, price: 30000 }] as Service[]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-[#fdf7f5] text-[#302420]">
+      <div className="flex h-[58px] shrink-0 items-center justify-between px-5">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-[24px] leading-none text-[#302420]"
+          aria-label="\uBBF8\uB9AC\uBCF4\uAE30 \uCCAB \uD654\uBA74\uC73C\uB85C \uB3CC\uC544\uAC00\uAE30"
+        >
+          {"\u2039"}
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <p className="truncate text-[17px] font-semibold tracking-[-0.03em]">{"\uAC04\uD3B8\uC608\uC57D"}</p>
+          <p className="truncate text-[11px] text-[#a2938d]">{shopName}</p>
+        </div>
+        <span className="h-10 w-10" />
+      </div>
+      <div className="flex-1 overflow-hidden px-5 pb-5">
+        <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-[#f0dfd9]">
+          <div className="h-full w-1/4 rounded-full bg-[#ec7f72]" />
+        </div>
+        <section className="rounded-[22px] border border-[#efe2dc] bg-white p-4 shadow-[0_12px_32px_rgba(60,40,30,0.08)]">
+          <p className="mb-1 text-[13px] font-semibold text-[#ec7f72]">1/4</p>
+          <h3 className="text-[21px] font-semibold tracking-[-0.04em]">{"\uC11C\uBE44\uC2A4\uB97C \uC120\uD0DD\uD574\uC694"}</h3>
+          <div className="mt-4 grid gap-2.5">
+            {fallbackServices.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                className="flex min-h-[58px] items-center justify-between rounded-[15px] border border-[#f1d7d1] bg-[#fffaf8] px-4 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[15px] font-semibold tracking-[-0.02em]">{service.name}</span>
+                  <span className="mt-0.5 block text-[12px] text-[#a2938d]">{service.duration_minutes ?? 60}{"\uBD84 \uC608\uC0C1"}</span>
+                </span>
+                <span className="shrink-0 pl-3 text-[14px] font-semibold text-[#d35f50]">
+                  {(service.price ?? 0) > 0 ? `${service.price.toLocaleString("ko-KR")}\uC6D0 ~` : "\uAC00\uACA9 \uC548\uB0B4"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+        <p className="mt-4 rounded-[14px] bg-[#fff1ed] px-4 py-3 text-center text-[13px] leading-5 text-[#8a6259]">
+          {"\uBBF8\uB9AC\uBCF4\uAE30 \uD654\uBA74\uC785\uB2C8\uB2E4. \uC2E4\uC81C \uC608\uC57D \uC0DD\uC131\uC740 \uACE0\uAC1D \uC608\uC57D \uB9C1\uD06C\uC5D0\uC11C\uB9CC \uC9C4\uD589\uB429\uB2C8\uB2E4."}
+        </p>
+      </div>
+    </div>
+  );
+}
 export function CustomerPagePreviewLayout({
   children,
   shop,

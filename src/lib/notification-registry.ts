@@ -322,10 +322,12 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     guardianSettingKey: "enabled",
     notes: "전체 알림이 켜져 있으면 발송",
     draftBody: [
-      "[#{매장명}]",
-      "#{반려동물명} 미용이 시작되었어요.",
+      "[#{매장명}] 미용 시작 안내",
+      "#{반려동물명} 보호자님, 안녕하세요.",
+      "지금 막 #{반려동물명}의 미용을 시작했습니다.",
       "",
-      "예쁘게 변신 중이니 안심해 주세요.",
+      "편안하게 미용받을 수 있도록 저희가 세심하게 살피며 진행하겠습니다.",
+      "미용이 끝나면 픽업 안내 드리겠습니다. 잠시만 기다려 주세요.",
     ].join("\n"),
   },
   {

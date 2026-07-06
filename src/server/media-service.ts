@@ -146,6 +146,12 @@ type RecentSentMediaInput = {
   limit?: number | null;
 };
 
+type PublicMediaSignedUrlsInput = {
+  shopId: string;
+  mediaAssetIds: string[];
+  variantKey?: MediaVariantKey | "original" | null;
+};
+
 type PhotoSendRequestInput = {
   guardianId?: string | null;
   petId?: string | null;
@@ -206,6 +212,12 @@ function optionalUuid(value: string | null | undefined, label: string) {
     throw new OwnerApiError(`${label} is invalid.`, 400);
   }
   return value;
+}
+
+function normalizeUuidList(values: string[], label: string, limit: number) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+    .slice(0, limit)
+    .map((value) => requiredUuid(value, label));
 }
 
 function requiredUuid(value: string | null | undefined, label: string) {
@@ -749,6 +761,74 @@ export async function getOwnerMediaSignedUrl(owner: OwnerContext, input: {
     variant,
     signedUrl,
     expiresInSeconds: OWNER_MEDIA_SIGNED_READ_SECONDS,
+  };
+}
+
+export async function getPublicShopMediaSignedUrls(input: PublicMediaSignedUrlsInput) {
+  const admin = getAdmin();
+  const shopId = requiredUuid(input.shopId, "shopId");
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 20);
+  const variantKey = input.variantKey && variantKeys.has(input.variantKey as MediaVariantKey)
+    ? (input.variantKey as MediaVariantKey)
+    : null;
+
+  if (!mediaAssetIds.length) {
+    return {
+      items: [] as Array<{ mediaAssetId: string; signedUrl: string }>,
+    };
+  }
+
+  const assetsResult = await admin
+    .from("media_assets")
+    .select("*")
+    .eq("shop_id", shopId)
+    .in("id", mediaAssetIds)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .in("visibility", ["public", "customer_shared"]);
+
+  if (assetsResult.error) {
+    throw new OwnerApiError(assetsResult.error.message, 500);
+  }
+
+  const assets = (assetsResult.data ?? []) as MediaAsset[];
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const variantsByAssetId = new Map<string, MediaVariant>();
+
+  if (variantKey && assets.length > 0) {
+    const variantsResult = await admin
+      .from("media_variants")
+      .select("*")
+      .in("media_asset_id", assets.map((asset) => asset.id))
+      .eq("variant_key", variantKey);
+
+    if (variantsResult.error) {
+      throw new OwnerApiError(variantsResult.error.message, 500);
+    }
+
+    for (const variant of (variantsResult.data ?? []) as MediaVariant[]) {
+      variantsByAssetId.set(variant.media_asset_id, variant);
+    }
+  }
+
+  const items = await Promise.all(
+    mediaAssetIds.map(async (mediaAssetId) => {
+      const asset = assetsById.get(mediaAssetId);
+      if (!asset) return null;
+      const variant = variantsByAssetId.get(mediaAssetId);
+      return {
+        mediaAssetId,
+        signedUrl: await createMediaSignedReadUrl({
+          bucket: variant?.bucket ?? asset.bucket,
+          path: variant?.storage_path ?? asset.storage_path,
+          expiresInSeconds: OWNER_MEDIA_SIGNED_READ_SECONDS,
+        }),
+      };
+    }),
+  );
+
+  return {
+    items: items.filter((item): item is { mediaAssetId: string; signedUrl: string } => Boolean(item)),
   };
 }
 

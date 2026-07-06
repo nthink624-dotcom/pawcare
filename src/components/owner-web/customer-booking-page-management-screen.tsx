@@ -6,13 +6,14 @@ import { useEffect, useMemo, useState } from "react";
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import {
   buildCustomerServiceSourceOptions,
   normalizeCustomerServiceOverrides,
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
-import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
+import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
 import { formatServicePrice } from "@/lib/utils";
 import type { BootstrapPayload, CustomerPageSettings, Service, Shop } from "@/types/domain";
 
@@ -28,6 +29,10 @@ type EditableService = {
 };
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+
+function uniqueNonEmptyStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
 
 function parsePrice(value: string) {
   return Number(value.replace(/[^0-9]/g, "")) || 0;
@@ -109,8 +114,8 @@ function getCustomerServiceRows(options: CustomerServiceSourceOption[], override
         option,
         visible: override?.visible ?? true,
         order: override?.order ?? option.order,
-        displayName: override?.displayName ?? option.sourceName,
-        description: override?.description ?? option.description,
+        displayName: option.sourceName,
+        description: option.description,
       };
     })
     .sort((left, right) => left.order - right.order || left.option.sourceName.localeCompare(right.option.sourceName, "ko"));
@@ -120,10 +125,6 @@ function cleanCustomerServiceOverride(option: CustomerServiceSourceOption, overr
   const next = { ...override };
   if (next.visible === true) delete next.visible;
   if (next.order === option.order) delete next.order;
-  if (next.displayName?.trim() === option.sourceName) delete next.displayName;
-  if (!next.displayName?.trim()) delete next.displayName;
-  if (next.description?.trim() === option.description) delete next.description;
-  if (!next.description?.trim()) delete next.description;
   return next;
 }
 
@@ -154,8 +155,19 @@ export default function CustomerBookingPageManagementScreen({
 
   const businessHours = useMemo(() => formatBusinessHours(shop), [shop]);
   const heroImageUrl = shop.customer_page_settings.hero_image_url.trim();
-  const heroImages = shop.customer_page_settings.hero_image_urls?.filter((imageUrl) => imageUrl.trim().length > 0) ?? [];
-  const heroMediaAssetIds = shop.customer_page_settings.hero_media_asset_ids?.filter(Boolean) ?? [];
+  const [resolvedHeroAssetUrls, setResolvedHeroAssetUrls] = useState<string[]>([]);
+  const heroMediaAssetIds = useMemo(
+    () => uniqueNonEmptyStrings(shop.customer_page_settings.hero_media_asset_ids ?? (shop.customer_page_settings.hero_media_asset_id ? [shop.customer_page_settings.hero_media_asset_id] : [])).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES),
+    [shop.customer_page_settings.hero_media_asset_id, shop.customer_page_settings.hero_media_asset_ids],
+  );
+  const heroImages = useMemo(
+    () =>
+      uniqueNonEmptyStrings([
+        ...resolvedHeroAssetUrls,
+        ...(shop.customer_page_settings.hero_image_urls ?? []),
+      ]).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES),
+    [resolvedHeroAssetUrls, shop.customer_page_settings.hero_image_urls],
+  );
   const heroDisplayImageUrl = heroImages[0] || heroImageUrl || "/images/customer-booking-hero-original.jpg";
   const hasCustomHeroImage = Boolean(heroImages[0] || heroImageUrl || heroMediaAssetIds[0]);
   const isUsingDefaultHeroImage = !hasCustomHeroImage;
@@ -167,9 +179,11 @@ export default function CustomerBookingPageManagementScreen({
         ...shop.customer_page_settings,
         shop_name: shopName.trim() || shop.customer_page_settings.shop_name,
         tagline: tagline.trim() || shop.customer_page_settings.tagline,
+        hero_image_url: heroDisplayImageUrl,
+        hero_image_urls: heroImages,
       },
     }),
-    [shop, shopName, tagline],
+    [heroDisplayImageUrl, heroImages, shop, shopName, tagline],
   );
   const editableServices = useMemo(
     () => sortCustomerPageServices(services).map(toEditableService),
@@ -188,6 +202,28 @@ export default function CustomerBookingPageManagementScreen({
     [customerServiceOptions, customerServiceOverrides],
   );
   const previewServices = useMemo(() => sortCustomerPageServices(services).filter((service) => service.is_active), [services]);
+
+  useEffect(() => {
+    if (!heroMediaAssetIds.length) {
+      setResolvedHeroAssetUrls([]);
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      heroMediaAssetIds.map((mediaAssetId) =>
+        getOwnerMediaSignedUrl(shop.id, mediaAssetId, "provider_ready").catch(() => ""),
+      ),
+    ).then((urls) => {
+      if (!cancelled) {
+        setResolvedHeroAssetUrls(urls.filter(Boolean));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [heroMediaAssetIds, shop.id]);
 
   function updateCustomerPageSettings(nextSettings: CustomerPageSettings) {
     const nextShop: Shop = {
@@ -348,14 +384,26 @@ export default function CustomerBookingPageManagementScreen({
   }
 
   async function saveHeroImage(heroImageUrl: string, heroMediaAssetId = "") {
+    const currentHeroImageUrls = (shop.customer_page_settings.hero_image_urls ?? [])
+      .filter((imageUrl): imageUrl is string => typeof imageUrl === "string" && imageUrl.trim().length > 0);
+    const currentHeroMediaAssetIds = (shop.customer_page_settings.hero_media_asset_ids ?? [])
+      .filter((mediaAssetId): mediaAssetId is string => typeof mediaAssetId === "string" && mediaAssetId.trim().length > 0);
+    const nextHeroImageUrls = heroMediaAssetId
+      ? currentHeroImageUrls.slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES)
+      : heroImageUrl
+        ? [...new Set([...currentHeroImageUrls, heroImageUrl])].slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES)
+        : [];
+    const nextHeroMediaAssetIds = heroMediaAssetId
+      ? [...new Set([...currentHeroMediaAssetIds, heroMediaAssetId])].slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES)
+      : [];
     const nextSettings = {
       ...shop.customer_page_settings,
       shop_name: shopName.trim() || shop.customer_page_settings.shop_name || shop.name,
       tagline: tagline.trim() || shop.customer_page_settings.tagline,
-      hero_image_url: heroImageUrl,
-      hero_image_urls: heroImageUrl ? [heroImageUrl] : [],
-      hero_media_asset_id: heroMediaAssetId,
-      hero_media_asset_ids: heroMediaAssetId ? [heroMediaAssetId] : [],
+      hero_image_url: nextHeroImageUrls[0] ?? "",
+      hero_image_urls: nextHeroImageUrls,
+      hero_media_asset_id: nextHeroMediaAssetIds[0] ?? "",
+      hero_media_asset_ids: nextHeroMediaAssetIds,
     };
     const savedSettings = await fetchApiJsonWithAuth<CustomerPageSettings>("/api/customer-page-settings", {
       method: "PATCH",
@@ -380,12 +428,18 @@ export default function CustomerBookingPageManagementScreen({
       try {
       const uploaded = await createOwnerShopProfileImageFromFile({ shopId: shop.id }, file);
       await saveHeroImage("", uploaded.mediaAsset.id);
+      const nextSignedUrls = [...new Set([...(shop.customer_page_settings.hero_image_urls ?? []), uploaded.signedUrl])]
+        .filter(Boolean)
+        .slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES);
+      const nextAssetIds = [...new Set([...(shop.customer_page_settings.hero_media_asset_ids ?? []), uploaded.mediaAsset.id])]
+        .filter(Boolean)
+        .slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES);
       updateCustomerPageSettings({
         ...shop.customer_page_settings,
-        hero_image_url: uploaded.signedUrl,
-        hero_image_urls: [uploaded.signedUrl],
-        hero_media_asset_id: uploaded.mediaAsset.id,
-        hero_media_asset_ids: [uploaded.mediaAsset.id],
+        hero_image_url: nextSignedUrls[0] ?? "",
+        hero_image_urls: nextSignedUrls,
+        hero_media_asset_id: nextAssetIds[0] ?? "",
+        hero_media_asset_ids: nextAssetIds,
       });
       setMessage("대표 사진이 저장되었습니다.");
     } catch (error) {
@@ -690,17 +744,12 @@ export default function CustomerBookingPageManagementScreen({
                         <ArrowDown className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <input
-                      value={row.displayName}
-                      onChange={(event) => updateCustomerServiceOption(row.option, { displayName: event.target.value })}
-                      className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] outline-none focus:border-[#2f7866]"
-                    />
-                    <input
-                      value={row.description}
-                      placeholder="고객에게 보일 짧은 설명"
-                      onChange={(event) => updateCustomerServiceOption(row.option, { description: event.target.value })}
-                      className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] outline-none focus:border-[#2f7866]"
-                    />
+                    <div className="flex h-10 min-w-0 items-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#111827]">
+                      <span className="truncate">{row.displayName}</span>
+                    </div>
+                    <div className="flex h-10 min-w-0 items-center rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
+                      <span className="truncate">{row.description || "상세 요금표 원본 기준"}</span>
+                    </div>
                     <div className="relative">
                       <div className="flex h-10 w-full items-center justify-end rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[16px] text-[#334155]">
                         {row.option.durationMinutes}분

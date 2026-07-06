@@ -23,9 +23,9 @@ export const dotIndicatorBaseClass = "inline-block h-2 w-2 rounded-full";
 
 export const statusIndicatorBgClass: Record<StatusIndicatorTone, string> = {
   pending: "bg-[#b98121]",
-  confirmed: "bg-[#607080]",
-  active: "bg-[#607080]",
-  pickupReady: "bg-[#607080]",
+  confirmed: "bg-[#1f9d55]",
+  active: "bg-[#2563eb]",
+  pickupReady: "bg-[#7c3aed]",
   completed: "bg-[#64748b]",
   changed: "bg-[#b98121]",
   cancelled: "bg-[#a04455]",
@@ -33,7 +33,7 @@ export const statusIndicatorBgClass: Record<StatusIndicatorTone, string> = {
   noshow: "bg-[#a04455]",
   missed: "bg-[#b98121]",
   neutral: "bg-[#b9c3cf]",
-  teal: "bg-[#607080]",
+  teal: "bg-[#1f9d55]",
   amber: "bg-[#b98121]",
   burgundy: "bg-[#a04455]",
   slate: "bg-[#64748b]",
@@ -41,9 +41,9 @@ export const statusIndicatorBgClass: Record<StatusIndicatorTone, string> = {
 
 export const wrapIndicatorClass: Record<StatusIndicatorTone, string> = {
   pending: "pm-wrap-indicator [--pm-wrap-indicator-color:#b98121]",
-  confirmed: "pm-wrap-indicator [--pm-wrap-indicator-color:#607080]",
-  active: "pm-wrap-indicator [--pm-wrap-indicator-color:#607080]",
-  pickupReady: "pm-wrap-indicator [--pm-wrap-indicator-color:#607080]",
+  confirmed: "pm-wrap-indicator [--pm-wrap-indicator-color:#1f9d55]",
+  active: "pm-wrap-indicator [--pm-wrap-indicator-color:#2563eb]",
+  pickupReady: "pm-wrap-indicator [--pm-wrap-indicator-color:#7c3aed]",
   completed: "pm-wrap-indicator [--pm-wrap-indicator-color:#64748b]",
   changed: "pm-wrap-indicator [--pm-wrap-indicator-color:#b98121]",
   cancelled: "pm-wrap-indicator [--pm-wrap-indicator-color:#a04455]",
@@ -51,7 +51,7 @@ export const wrapIndicatorClass: Record<StatusIndicatorTone, string> = {
   noshow: "pm-wrap-indicator [--pm-wrap-indicator-color:#a04455]",
   missed: "pm-wrap-indicator [--pm-wrap-indicator-color:#b98121]",
   neutral: "pm-wrap-indicator [--pm-wrap-indicator-color:#b9c3cf]",
-  teal: "pm-wrap-indicator [--pm-wrap-indicator-color:#607080]",
+  teal: "pm-wrap-indicator [--pm-wrap-indicator-color:#1f9d55]",
   amber: "pm-wrap-indicator [--pm-wrap-indicator-color:#b98121]",
   burgundy: "pm-wrap-indicator [--pm-wrap-indicator-color:#a04455]",
   slate: "pm-wrap-indicator [--pm-wrap-indicator-color:#64748b]",

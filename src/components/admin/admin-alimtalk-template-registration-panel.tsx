@@ -4,6 +4,7 @@ import { CheckCircle2, FileCheck2, HelpCircle, Loader2, RefreshCcw, Send } from 
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
+import { getNotificationDraftBody } from "@/lib/notification-registry";
 import type {
   RelayTemplateCategory,
   RelayTemplateCategoryListResponse,
@@ -34,7 +35,7 @@ const emptyTemplateForm: RelayTemplateRegisterInput = {
   templateTitle: "",
   templateSubtitle: "",
   comment: "",
-  requestReview: true,
+  requestReview: false,
   templateConfigKey: null,
   templateButtons: [],
 };
@@ -51,7 +52,7 @@ const photoTemplatePreset: RelayTemplateRegisterInput = {
   templateTitle: "",
   templateSubtitle: "",
   comment: "반려동물 미용 완료 후 보호자에게 완료 사진 확인을 안내하는 정보성 알림톡입니다.",
-  requestReview: true,
+  requestReview: false,
   templateConfigKey: "templateGroomingCompleted",
   templateButtons: [
     {
@@ -88,6 +89,13 @@ const templateCodePrefixByMapping: Partial<Record<RelayTemplateConfigKey, string
   templateGroomingAlmostDone: "grooming_almost_done",
   templateGroomingCompleted: "grooming_completed_photo",
   templateRevisitNotice: "revisit_notice",
+};
+
+const templatePresetByMapping: Partial<Record<RelayTemplateConfigKey, { templateName: string; templateContent: string }>> = {
+  templateGroomingStarted: {
+    templateName: "미용 시작 안내",
+    templateContent: getNotificationDraftBody("grooming_started") ?? "",
+  },
 };
 
 function normalizeTemplateCodeSegment(value: string) {
@@ -220,10 +228,16 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
   function handleTemplateConfigKeyChange(value: RelayTemplateRegisterInput["templateConfigKey"]) {
     setForm((prev) => {
       const next = { ...prev, templateConfigKey: value || null };
-      if (prev.templateCode.trim()) return next;
-      return {
+      const preset = value ? templatePresetByMapping[value] : null;
+      const withPreset = {
         ...next,
-        templateCode: buildTemplateCodeSuggestion(next),
+        templateName: preset && !prev.templateName.trim() ? preset.templateName : prev.templateName,
+        templateContent: preset && !prev.templateContent.trim() ? preset.templateContent : prev.templateContent,
+      };
+      if (prev.templateCode.trim()) return withPreset;
+      return {
+        ...withPreset,
+        templateCode: buildTemplateCodeSuggestion(withPreset),
       };
     });
     setProviderResponse(null);
@@ -369,8 +383,8 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
       setProviderResponse(result.providerResponse);
       setMessage(
         result.reviewRequested
-          ? "템플릿 등록과 검수 요청을 쏘다로 보냈습니다. 카카오 승인 완료 후 실제 발송에 사용할 수 있습니다."
-          : "템플릿을 등록했습니다. 검수 요청은 아직 보내지 않았습니다.",
+          ? "템플릿을 등록하고 검수 요청까지 보냈습니다. 카카오 승인 완료 후 실제 발송에 사용할 수 있습니다."
+          : "템플릿을 등록했습니다. 검수 요청과 발송 연결은 별도로 진행해야 합니다.",
       );
       onRegistered?.();
     } catch (nextError) {
@@ -501,7 +515,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="space-y-2">
-          <FieldLabel label="사용할 알림" help="이 템플릿을 펫매니저의 어떤 알림에 사용할지 정합니다. 예를 들어 미용 완료 사진을 선택하면 오너가 미용 후 사진을 보낼 때 이 템플릿이 사용됩니다. 아직 정하지 않았다면 나중에 정하기를 선택하세요." />
+          <FieldLabel label="초안 기준 알림" help="본문 자동 입력과 템플릿 코드 추천에만 사용합니다. 등록 후 실제 발송 연결은 현재 발송에 사용하는 템플릿 코드 영역에서 별도로 진행합니다." />
           <select
             value={form.templateConfigKey ?? ""}
             onChange={(event) =>
@@ -615,7 +629,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
           onChange={(event) => update("requestReview", event.target.checked)}
           className="h-4 w-4"
         />
-        등록 후 바로 검수 요청
+        등록 후 검수 요청까지 진행
       </label>
 
       <div className="mt-5 flex flex-wrap gap-2">
@@ -626,7 +640,7 @@ export default function AdminAlimtalkTemplateRegistrationPanel({
           className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-[#1f6b5b] px-4 text-[14px] font-semibold text-white disabled:opacity-60"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          템플릿 등록/검수 요청
+          템플릿 등록
         </button>
       </div>
 

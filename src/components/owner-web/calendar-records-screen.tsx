@@ -522,13 +522,11 @@ function getRecordTone(item: DayItem) {
 }
 
 function getBadgeTone(item: DayItem) {
-  if (item.type === "record") return "text-[#475569]";
-  return "text-[#1f6b5b]";
+  return "text-[#111827]";
 }
 
 function getTimeTone(item: DayItem) {
-  if (item.type === "record") return "text-[#475569]";
-  return "text-[#1f6b5b]";
+  return "text-[#111827]";
 }
 
 function getStatusAccent(item: DayItem): StatusIndicatorTone {
@@ -1591,7 +1589,6 @@ const appointmentHistoryFields = [
   { key: "staff_id", label: "담당" },
   { key: "memo", label: "메모" },
   { key: "visit_reminder_offset_minutes", label: "방문 전 알림" },
-  { key: "pickup_ready_eta_minutes", label: "픽업 안내" },
 ] as const;
 
 function historyRawValue(value: unknown) {
@@ -1626,7 +1623,7 @@ function formatAppointmentHistoryValue(
     return staff?.displayName || staff?.name || "담당 미지정";
   }
 
-  if (key === "visit_reminder_offset_minutes" || key === "pickup_ready_eta_minutes") {
+  if (key === "visit_reminder_offset_minutes") {
     return `${value}분`;
   }
 

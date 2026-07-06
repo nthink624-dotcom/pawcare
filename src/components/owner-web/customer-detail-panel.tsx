@@ -379,7 +379,6 @@ function SummaryCard({
         </div>
         <div className="h-px bg-[#edf2f7]" />
         <div className="space-y-2">
-          <SummaryStatRow label="재방문 알림" value={<ToggleState enabled={detail.guardian.notification_settings?.revisit_enabled !== false && detail.guardian.notification_settings?.enabled !== false} />} />
           <SummaryStatRow label="최근 방문일" value={detail.recentVisitLabel} />
           <SummaryStatRow label="누적 예약 수" value={`${detail.totalAppointments}건`} />
           <SummaryStatRow label="누적 미용 기록" value={`${detail.totalGroomingRecords}건`} />
@@ -552,8 +551,8 @@ function PetInfoMemo({ value, placeholder, onCommit }: { value: string; placehol
         placeholder={placeholder}
         ariaLabel="반려동물 메모 수정"
         multiline
-        className="min-h-[64px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[15px] leading-6 text-[#334155]"
-        inputClassName="text-[15px]"
+        className="min-h-[96px] w-full rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-[15px] leading-6 text-[#334155]"
+        inputClassName="min-h-[96px] text-[15px]"
         onCommit={onCommit}
       />
     </div>
@@ -712,7 +711,6 @@ function NotificationSettingsCard({
       title: "예약",
       items: [
         { label: "확정", key: "booking_confirmed_enabled", enabled: settings.booking_confirmed_enabled !== false },
-        { label: "거절", key: "booking_rejected_enabled", enabled: settings.booking_rejected_enabled !== false },
         { label: "취소", key: "booking_cancelled_enabled", enabled: settings.booking_cancelled_enabled !== false },
         { label: "변경", key: "booking_rescheduled_enabled", enabled: settings.booking_rescheduled_enabled !== false },
       ],
@@ -729,8 +727,6 @@ function NotificationSettingsCard({
       title: "관리",
       items: [
         { label: "방문전", key: "appointment_reminder_10m_enabled", enabled: settings.appointment_reminder_10m_enabled !== false },
-        { label: "재방문", key: "revisit_enabled", enabled: settings.revisit_enabled !== false },
-        { label: "생일", key: "birthday_greeting_enabled", enabled: settings.birthday_greeting_enabled !== false },
       ],
     },
   ];
@@ -1392,7 +1388,7 @@ function ActionPanel({
           ) : null}
           {action === "notificationSettings" ? (
             <div className="space-y-3">
-              <PanelNotice title="알림 상태" lines={[`전체 알림: ${detail.guardian.notification_settings.enabled !== false ? "ON" : "OFF"}`, `재방문 알림: ${detail.guardian.notification_settings.revisit_enabled !== false ? "ON" : "OFF"}`]} />
+              <PanelNotice title="알림 상태" lines={[`전체 알림: ${detail.guardian.notification_settings.enabled !== false ? "ON" : "OFF"}`]} />
               <button
                 type="button"
                 onClick={() => void runSave(() => onToggleGuardianNotifications(detail.guardian.id))}

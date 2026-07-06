@@ -291,7 +291,8 @@ export default function CustomerFirstVisitClaudeFlow({
   onAddBooking: () => void;
 }) {
   const breedInputRef = useRef<HTMLInputElement | null>(null);
-  const [isAddingNewPet, setIsAddingNewPet] = useState(false);
+  const savedPetPickerKey = `${step}:${savedPets.length}`;
+  const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
   const recommendedSlots = useMemo(() => {
     const availableSlotSet = new Set(availableSlots);
     const prioritySlots = recommendedSlotCandidates.filter((slot, index) => availableSlotSet.has(slot) && recommendedSlotCandidates.indexOf(slot) === index);
@@ -305,16 +306,12 @@ export default function CustomerFirstVisitClaudeFlow({
   const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.name || selectedService?.name || "서비스 선택";
   const petNameForConsent = firstVisit.petName.trim() || "아기";
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
-  const showSavedPetPicker = savedPets.length > 0 && !isAddingNewPet;
+  const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
 
   useEffect(() => {
     if (step !== 3 || firstVisit.date || !defaultDateValue) return;
     onDateSelect(defaultDateValue);
   }, [defaultDateValue, firstVisit.date, onDateSelect, step]);
-
-  useEffect(() => {
-    if (step === 1 && savedPets.length > 0) setIsAddingNewPet(false);
-  }, [savedPets.length, step]);
 
   if (step === 5) {
     const appointment = completedBooking?.appointment;
@@ -385,7 +382,7 @@ export default function CustomerFirstVisitClaudeFlow({
                     className="pet-add"
                     type="button"
                     onClick={() => {
-                      setIsAddingNewPet(true);
+                      setNewPetPickerKey(savedPetPickerKey);
                       onPetNameChange("");
                       onBreedChange("");
                       onNoteChange("");
@@ -407,7 +404,7 @@ export default function CustomerFirstVisitClaudeFlow({
                   <button
                     className="pet-add"
                     type="button"
-                    onClick={() => setIsAddingNewPet(false)}
+                    onClick={() => setNewPetPickerKey(null)}
                   >
                     저장된 아기 목록 보기
                   </button>

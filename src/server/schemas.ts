@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isValidBusinessHoursRange } from "@/lib/business-hours";
+import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 
 const bookingSlotIntervalOptions = [10, 15, 20, 30, 60] as const;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -274,9 +275,9 @@ export const customerPageSettingsSchema = z.object({
     shop_name: z.string().min(1),
     tagline: z.string().min(1).max(120),
     hero_image_url: z.string().max(2000).default(""),
-    hero_image_urls: z.array(z.string().max(2000)).max(10).default([]),
+    hero_image_urls: z.array(z.string().max(2000)).max(MAX_CUSTOMER_PAGE_HERO_IMAGES).default([]),
     hero_media_asset_id: z.string().default(""),
-    hero_media_asset_ids: z.array(z.string()).max(10).default([]),
+    hero_media_asset_ids: z.array(z.string()).max(MAX_CUSTOMER_PAGE_HERO_IMAGES).default([]),
     primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     notices: z.array(z.string()).max(3),
     operating_hours_note: z.string().default(""),

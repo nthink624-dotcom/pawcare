@@ -615,16 +615,6 @@ export async function createCustomerBooking(input: unknown) {
     appointmentId: appointment.id,
     guardianId: appointment.guardian_id,
     petId: appointment.pet_id,
-    type: "booking_confirmed",
-    channel: "alimtalk",
-    skipIfExists: true,
-  });
-
-  scheduleCustomerBookingNotification({
-    shopId: appointment.shop_id,
-    appointmentId: appointment.id,
-    guardianId: appointment.guardian_id,
-    petId: appointment.pet_id,
     type: "owner_booking_requested",
     channel: "in_app",
     force: true,

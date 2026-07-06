@@ -668,8 +668,9 @@ export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnost
 function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
   const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
   const shopAddress = "서울시 강남구 테헤란로 123";
-  const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo";
-  const directionsUrl = `https://map.naver.com/p/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
+  const bookingManageToken = "demo";
+  const bookingManageUrl = input.bookingManageUrl?.trim() || `https://www.petmanager.co.kr/m?t=${bookingManageToken}`;
+  const directionsUrl = `https://map.kakao.com/link/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
 
   return {
     매장명: shopName,
@@ -681,6 +682,8 @@ function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
     "예약 링크": input.bookingEntryUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop",
     "예약 확인 링크": bookingManageUrl,
     예약관리링크: bookingManageUrl,
+    예약관리토큰: bookingManageToken,
+    예약시간변경토큰: bookingManageToken,
     길찾기링크: directionsUrl,
   };
 }
@@ -688,8 +691,8 @@ function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
 function buildAdminTestButtons(alias: AlimtalkTemplateAlias, input: AdminAlimtalkTestInput): AlimtalkButton[] {
   const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
   const shopAddress = "서울시 강남구 테헤란로 123";
-  const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/book/demo-shop/manage?t=demo";
-  const directionsUrl = `https://map.naver.com/p/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
+  const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/m?t=demo";
+  const directionsUrl = `https://map.kakao.com/link/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;
 
   if (alias === "booking_time_proposed") {
     return [
@@ -804,7 +807,9 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     서비스명: input.serviceName?.trim() || "전체 미용",
     매장주소: "서울시 강남구 테헤란로 123",
     예약관리링크: input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr",
-    길찾기링크: `https://map.naver.com/p/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
+    예약관리토큰: "demo",
+    예약시간변경토큰: "demo",
+    길찾기링크: `https://map.kakao.com/link/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
   });
 
   const templateValues = buildAdminTestTemplateValues(input);

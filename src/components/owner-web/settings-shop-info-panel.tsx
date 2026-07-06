@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
 import { createOwnerStaffProfileImageFromFile } from "@/lib/media/owner-media-client";
+import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { cn } from "@/lib/utils";
 import type { BootstrapStaffMember, OwnerProfile, Service, Shop } from "@/types/domain";
 
@@ -17,7 +18,7 @@ export type ShopInfoSettingRow = {
 };
 
 const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
-const MAX_SHOP_PROFILE_IMAGES = 10;
+const MAX_SHOP_PROFILE_IMAGES = MAX_CUSTOMER_PAGE_HERO_IMAGES;
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
@@ -36,6 +37,7 @@ type ShopInfoSettingsPanelProps = {
   onSave?: () => void | Promise<void>;
   onProfileImagesAdd: (files: FileList | File[]) => void;
   onProfileImagesRemove: (indexes: number[]) => void;
+  onProfileImageSelect?: (index: number) => void | Promise<void>;
   onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
   onRowChange: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onRowCommit: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
@@ -328,6 +330,7 @@ export default function ShopInfoSettingsPanel({
   onSave,
   onProfileImagesAdd,
   onProfileImagesRemove,
+  onProfileImageSelect,
   onStaffMembersChange,
   onRowChange,
   onRowCommit,
@@ -612,10 +615,10 @@ export default function ShopInfoSettingsPanel({
   ) : null;
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#e1e4ea,0_10px_34px_rgba(15,23,42,0.06)]">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#d8dce3] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {sectionTabs.map((tab) => (
                   <button
                     key={tab.id}
@@ -730,7 +733,8 @@ export default function ShopInfoSettingsPanel({
                                 toggleProfileImageSelection(imageIndex);
                                 return;
                               }
-                              setActiveProfileImageIndex(imageIndex);
+                              setActiveProfileImageIndex(0);
+                              void onProfileImageSelect?.(imageIndex);
                             }}
                             className={cn(
                               "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
@@ -768,7 +772,7 @@ export default function ShopInfoSettingsPanel({
                           </span>
                         </button>
                       ) : null}
-                      {carouselProfileImages.length <= 8 && carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES ? (
+                      {carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES ? (
                         <button
                           type="button"
                           onClick={() => document.getElementById("shop-profile-images-input")?.click()}

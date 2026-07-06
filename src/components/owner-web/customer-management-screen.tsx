@@ -1631,7 +1631,6 @@ function NewCustomerModal({
           <div>
             <p className="text-[16px] font-medium text-[#64748b]">고객 관리</p>
             <h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">신규 고객 추가</h2>
-            <p className="mt-1 text-[16px] leading-5 text-[#64748b]">예약 전에 꼭 필요한 정보만 먼저 등록합니다.</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
             <X className="h-5 w-5" />
@@ -1648,7 +1647,7 @@ function NewCustomerModal({
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[16px] font-semibold text-[#111827]">보호자 정보</h3>
+                <h3 className="text-[16px] font-semibold text-[#111827]">보호자</h3>
                 <div className="flex items-center gap-2">
                   <label className="inline-flex h-8 items-center gap-1.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[16px] font-medium text-[#334155]">
                     <input
@@ -1672,7 +1671,7 @@ function NewCustomerModal({
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[16px] font-medium text-[#64748b]">보호자명</span>
+                  <span className="text-[16px] font-medium text-[#64748b]">이름</span>
                   <input
                     value={draft.name}
                     onChange={(event) => patchDraft({ name: event.target.value })}

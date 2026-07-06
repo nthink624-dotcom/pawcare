@@ -253,7 +253,7 @@ const templateRegisterSchema = z.object({
   templateTitle: z.string().trim().optional().nullable(),
   templateSubtitle: z.string().trim().optional().nullable(),
   comment: z.string().trim().max(500).optional().nullable(),
-  requestReview: z.boolean().default(true),
+  requestReview: z.boolean().default(false),
   templateConfigKey: z.enum(relayTemplateConfigKeys).optional().nullable(),
   templateButtons: z.array(templateButtonSchema).max(5).optional().nullable(),
 });
@@ -963,13 +963,33 @@ async function buildSsodaaTemplateCatalog() {
     });
   }
 
-  const allTemplates = listRecords
+  const allTemplatesFromList = listRecords
     .map((record) => {
       const code = getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]);
       if (!code) return null;
       return normalizeSsodaaTemplateDetail(code, record);
     })
     .filter((item): item is SsodaaTemplateDetail => Boolean(item));
+
+  const allTemplates = await Promise.all(
+    allTemplatesFromList.map(async (detailFromList) => {
+      try {
+        const detailFromApi = await fetchSsodaaTemplateDetail(detailFromList.templateCode);
+        return {
+          templateCode: detailFromApi.templateCode || detailFromList.templateCode,
+          templateName: detailFromApi.templateName ?? detailFromList.templateName,
+          templateContent: detailFromApi.templateContent ?? detailFromList.templateContent,
+          inspectionStatus: detailFromApi.inspectionStatus ?? detailFromList.inspectionStatus,
+          serviceStatus: detailFromApi.serviceStatus ?? detailFromList.serviceStatus,
+          buttons: detailFromApi.buttons.length ? detailFromApi.buttons : detailFromList.buttons,
+          rawKeys: Array.from(new Set([...detailFromApi.rawKeys, ...detailFromList.rawKeys])),
+        } satisfies SsodaaTemplateDetail;
+      } catch {
+        return detailFromList;
+      }
+    }),
+  );
+  const allTemplatesByCode = new Map(allTemplates.map((template) => [template.templateCode, template]));
 
   const detailEntries = await Promise.all(
     aliasEntries.map(async ({ alias, configuredCode }) => {
@@ -983,21 +1003,7 @@ async function buildSsodaaTemplateCatalog() {
       }
 
       try {
-        const listRecord =
-          listRecords.find(
-            (record) => getStringValue(record, ["templateCode", "template_code", "templtCode", "templt_code"]) === configuredCode,
-          ) ?? null;
-        const detailFromList = listRecord ? normalizeSsodaaTemplateDetail(configuredCode, listRecord) : null;
-        const detailFromApi = await fetchSsodaaTemplateDetail(configuredCode);
-        const detail = {
-          templateCode: detailFromApi.templateCode || detailFromList?.templateCode || configuredCode,
-          templateName: detailFromApi.templateName ?? detailFromList?.templateName ?? null,
-          templateContent: detailFromApi.templateContent ?? detailFromList?.templateContent ?? null,
-          inspectionStatus: detailFromApi.inspectionStatus ?? detailFromList?.inspectionStatus ?? null,
-          serviceStatus: detailFromApi.serviceStatus ?? detailFromList?.serviceStatus ?? null,
-          buttons: detailFromApi.buttons.length ? detailFromApi.buttons : detailFromList?.buttons ?? [],
-          rawKeys: Array.from(new Set([...detailFromApi.rawKeys, ...(detailFromList?.rawKeys ?? [])])),
-        } satisfies SsodaaTemplateDetail;
+        const detail = allTemplatesByCode.get(configuredCode) ?? await fetchSsodaaTemplateDetail(configuredCode);
         return {
           alias,
           configuredCode,
@@ -1359,16 +1365,12 @@ app.post("/admin/templates/register", async (request, response) => {
     const payload = templateRegisterSchema.parse(request.body);
     const addResponse = await addSsodaaTemplate(payload);
     const reviewResponse = payload.requestReview ? await requestSsodaaTemplateReview(payload) : null;
-    if (payload.templateConfigKey) {
-      mapTemplateCodeToRelayConfig(payload.templateConfigKey, payload.templateCode);
-    }
-
     response.json({
       ok: true,
       templateCode: payload.templateCode,
       registered: true,
       reviewRequested: Boolean(reviewResponse),
-      mappedConfigKey: payload.templateConfigKey ?? null,
+      mappedConfigKey: null,
       providerResponse: {
         add: addResponse,
         review: reviewResponse,
@@ -1633,15 +1635,13 @@ app.post("/alimtalk/send", async (request, response) => {
     }
 
     if (!finalDelivery.found) {
-      return response.status(502).json({
-        message: "쏘다 발송내역에서 방금 요청한 알림톡을 확인하지 못했습니다.",
+      console.warn("[relay] provider accepted but delivery lookup is not ready", {
         providerMessageId,
-        providerResponse: responseBody,
-        deliveryLookup: finalDelivery.response,
+        deliveryError: finalDelivery.message,
       });
     }
 
-    console.info("[relay] provider success", {
+    console.info("[relay] provider accepted", {
       providerMessageId,
       body: responseBody,
     });
@@ -1654,6 +1654,7 @@ app.post("/alimtalk/send", async (request, response) => {
       providerResponse: responseBody,
       deliveryStatus: finalDelivery.row?.status ?? null,
       deliveryError: finalDelivery.message,
+      deliveryFound: finalDelivery.found,
     });
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 500;

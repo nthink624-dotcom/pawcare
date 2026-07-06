@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CircleHelp, LogOut, MessageCircle, ReceiptText, Search } from "lucide-react";
+import { ChevronDown, LifeBuoy, LogOut, MessageCircle, ReceiptText, Search } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,6 +29,7 @@ const screenIconPaths: Record<OwnerWebNavigationKey, string> = {
   operatingHours: "/icons/phosphor/clock.svg",
   benefits: "/icons/phosphor/projector-screen-chart.svg",
   alerts: "/icons/phosphor/bell.svg",
+  help: "/icons/phosphor/WarningCircle.svg",
   billing: "/icons/phosphor/projector-screen-chart.svg",
 };
 
@@ -201,6 +202,7 @@ export default function OwnerWebAppShell({
   onOpenProfile,
   onOpenShop,
   onOpenAlerts,
+  onOpenHelp,
   onLogout,
   loggingOut,
   children,
@@ -219,6 +221,7 @@ export default function OwnerWebAppShell({
   onOpenProfile: () => void;
   onOpenShop: () => void;
   onOpenAlerts: () => void;
+  onOpenHelp: () => void;
   onLogout: () => void;
   loggingOut: boolean;
   children: ReactNode;
@@ -309,8 +312,8 @@ export default function OwnerWebAppShell({
           </label>
 
           <div className="ml-auto flex items-center gap-2">
-            <HeaderIconButton label="도움말" onClick={onOpenAlerts}>
-              <CircleHelp className="h-4 w-4" strokeWidth={1.6} />
+            <HeaderIconButton label="문의/도움 요청" onClick={onOpenHelp}>
+              <LifeBuoy className="h-4 w-4" strokeWidth={1.8} />
             </HeaderIconButton>
             <HeaderIconButton label="가격안내" href="/owner/billing?compare=1">
               <ReceiptText className="h-4 w-4" strokeWidth={1.6} />

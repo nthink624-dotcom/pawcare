@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, RefreshCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AlimtalkTemplateAlias } from "@/lib/notification-registry";
 import type { AppTemplateDraft, RelaySsodaaTemplateDetail, RelaySsodaaTemplateItem } from "@/server/admin-alimtalk";
@@ -30,6 +30,15 @@ type TemplateDraftSection = {
   description: string;
   groups: TemplateDraftGroup[];
 };
+
+type TemplateCandidateRule = {
+  includeCodes?: string[];
+  hiddenCodes?: string[];
+};
+
+type TemplateCandidateRuleMap = Partial<Record<AlimtalkTemplateAlias, TemplateCandidateRule>>;
+
+const templateCandidateRulesStorageKey = "petmanager.admin.alimtalk.template-candidate-rules.v1";
 
 const reservationNoticeTitles: Partial<Record<AlimtalkTemplateAlias, string>> = {
   visit_schedule_notice: "예약 안내 - 내일",
@@ -77,6 +86,7 @@ function getTemplateSectionKey(alias: AlimtalkTemplateAlias): TemplateSectionKey
 const ssodaaStatusLabels: Record<string, string> = {
   REG: "등록",
   REQ: "검수 요청",
+  APR: "승인 완료",
   REJ: "반려",
   STP: "차단",
   RDY: "발송 가능",
@@ -235,6 +245,33 @@ function uniqueTemplatesByCode(items: RelaySsodaaTemplateDetail[]) {
   });
 }
 
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function getRuleCodes(rule: TemplateCandidateRule | undefined, key: keyof TemplateCandidateRule) {
+  return uniqueStrings(rule?.[key] ?? []);
+}
+
+function isEmptyCandidateRule(rule: TemplateCandidateRule | undefined) {
+  return !rule || (!getRuleCodes(rule, "includeCodes").length && !getRuleCodes(rule, "hiddenCodes").length);
+}
+
+function applyTemplateCandidateRule({
+  candidates,
+  allTemplates,
+  rule,
+}: {
+  candidates: RelaySsodaaTemplateDetail[];
+  allTemplates: RelaySsodaaTemplateDetail[];
+  rule: TemplateCandidateRule | undefined;
+}) {
+  const hiddenCodes = new Set(getRuleCodes(rule, "hiddenCodes"));
+  const includeCodes = new Set(getRuleCodes(rule, "includeCodes"));
+  const includedTemplates = allTemplates.filter((template) => includeCodes.has(template.templateCode));
+  return uniqueTemplatesByCode([...candidates, ...includedTemplates]).filter((template) => !hiddenCodes.has(template.templateCode));
+}
+
 function normalizeTemplateSearchText(value: string) {
   return value.toLowerCase().replace(/[\s_-]+/g, "");
 }
@@ -276,29 +313,44 @@ function getTemplateCandidates({
   });
 }
 
-function ButtonList({
-  title,
-  buttons,
-  caption,
+function getManualTemplateSearchResults({
+  query,
+  allTemplates,
+  currentCandidates,
+  hiddenCodes,
 }: {
-  title: string;
-  buttons: TemplateButton[];
-  caption?: string;
+  query: string;
+  allTemplates: RelaySsodaaTemplateDetail[];
+  currentCandidates: RelaySsodaaTemplateDetail[];
+  hiddenCodes: string[];
 }) {
+  const normalizedQuery = normalizeTemplateSearchText(query);
+  const candidateCodes = new Set(currentCandidates.map((template) => template.templateCode));
+  const hiddenCodeSet = new Set(hiddenCodes);
+  return uniqueTemplatesByCode(
+    allTemplates.filter((template) => {
+      if (candidateCodes.has(template.templateCode)) return false;
+      if (hiddenCodeSet.has(template.templateCode)) return false;
+      if (!normalizedQuery) return true;
+      return normalizeTemplateSearchText(`${template.templateName ?? ""} ${template.templateCode ?? ""}`).includes(normalizedQuery);
+    }),
+  ).slice(0, 80);
+}
+
+function ButtonList({ title, buttons }: { title: string; buttons: TemplateButton[] }) {
   return (
     <div className="mt-2 flex max-h-[120px] min-h-[72px] flex-col overflow-auto rounded-[6px] border border-[#ece8e2] bg-white px-3 py-2">
-      <p className="text-[13px] font-semibold text-[#6f665f]">{title}</p>
-      {caption ? <p className="mt-1 text-[12px] leading-5 text-[#8a8277]">{caption}</p> : null}
+      <p className="text-[14px] font-semibold text-[#6f665f]">{title}</p>
       {buttons.length ? (
         <div className="mt-2 grid flex-1 content-start gap-1.5">
           {buttons.map((button, index) => (
             <div
               key={`${button.name ?? "button"}-${index}`}
-              className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-2.5 py-1.5 text-[12px] leading-4 text-[#5c554d]"
+              className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-2.5 py-1.5 text-[13px] leading-4 text-[#5c554d]"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold text-[#171411]">{button.name || "-"}</p>
-                <span className="text-[12px] font-semibold text-[#8a8277]">{button.type || "WL"}</span>
+                <span className="text-[13px] font-semibold text-[#8a8277]">{button.type || "WL"}</span>
               </div>
               <p className="mt-0.5 break-all text-[#7a7268]">{button.linkMobile || button.linkPc || button.link || "-"}</p>
             </div>
@@ -334,10 +386,61 @@ export default function AdminAlimtalkTemplateComparisonPanel({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const [selectingTemplateCode, setSelectingTemplateCode] = useState<string | null>(null);
+  const [manualTemplateSearchByGroup, setManualTemplateSearchByGroup] = useState<Record<string, string>>({});
+  const [editingCandidateGroup, setEditingCandidateGroup] = useState<string | null>(null);
+  const [searchingTemplateGroup, setSearchingTemplateGroup] = useState<string | null>(null);
+  const [previewTemplateCodeByGroup, setPreviewTemplateCodeByGroup] = useState<Record<string, string>>({});
+  const [templateCandidateRules, setTemplateCandidateRules] = useState<TemplateCandidateRuleMap>({});
+  const [candidateRulesLoaded, setCandidateRulesLoaded] = useState(false);
   const visibleTemplateGroups = getVisibleTemplateDraftGroups(appTemplateDrafts);
   const visibleTemplateSections = getVisibleTemplateDraftSections(visibleTemplateGroups);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(templateCandidateRulesStorageKey);
+      setTemplateCandidateRules(saved ? (JSON.parse(saved) as TemplateCandidateRuleMap) : {});
+    } catch {
+      setTemplateCandidateRules({});
+    } finally {
+      setCandidateRulesLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!candidateRulesLoaded) return;
+    window.localStorage.setItem(templateCandidateRulesStorageKey, JSON.stringify(templateCandidateRules));
+  }, [candidateRulesLoaded, templateCandidateRules]);
+
+  function updateCandidateRule(alias: AlimtalkTemplateAlias, updater: (rule: TemplateCandidateRule) => TemplateCandidateRule) {
+    setTemplateCandidateRules((current) => {
+      const nextRule = updater(current[alias] ?? {});
+      const next = { ...current };
+      if (isEmptyCandidateRule(nextRule)) delete next[alias];
+      else next[alias] = nextRule;
+      return next;
+    });
+  }
+
+  function updateCandidateRulesForGroup(group: TemplateDraftGroup, updater: (rule: TemplateCandidateRule) => TemplateCandidateRule) {
+    for (const draft of group.drafts) updateCandidateRule(draft.alias, updater);
+  }
+
+  function addTemplateCandidate(group: TemplateDraftGroup, templateCode: string) {
+    updateCandidateRulesForGroup(group, (rule) => ({
+      includeCodes: uniqueStrings([...getRuleCodes(rule, "includeCodes"), templateCode]),
+      hiddenCodes: getRuleCodes(rule, "hiddenCodes").filter((code) => code !== templateCode),
+    }));
+  }
+
+  function hideTemplateCandidate(group: TemplateDraftGroup, templateCode: string) {
+    updateCandidateRulesForGroup(group, (rule) => ({
+      includeCodes: getRuleCodes(rule, "includeCodes").filter((code) => code !== templateCode),
+      hiddenCodes: uniqueStrings([...getRuleCodes(rule, "hiddenCodes"), templateCode]),
+    }));
+  }
+
   async function handleSelectTemplateGroup(group: TemplateDraftGroup, template: RelaySsodaaTemplateDetail) {
+    setPreviewTemplateCodeByGroup((current) => ({ ...current, [group.key]: template.templateCode }));
     setSelectingTemplateCode(template.templateCode);
     try {
       for (const draft of group.drafts) {
@@ -372,10 +475,14 @@ export default function AdminAlimtalkTemplateComparisonPanel({
     const hasRelayDetail = Boolean(relayItem?.detail);
     const ssodaaButtons = relayItem?.detail?.buttons ?? [];
     const appButtons = hasRelayDetail ? ssodaaButtons : [];
-    const candidates = getTemplateCandidates({
-      alias: draft.alias,
-      connectedCode: relayItem?.configuredCode,
+    const candidates = applyTemplateCandidateRule({
+      candidates: getTemplateCandidates({
+        alias: draft.alias,
+        connectedCode: relayItem?.configuredCode,
+        allTemplates: allSsodaaTemplates,
+      }),
       allTemplates: allSsodaaTemplates,
+      rule: templateCandidateRules[draft.alias],
     });
     const hasCode = Boolean(relayItem?.configuredCode);
     const hasSsodaaBody = Boolean(ssodaaBody);
@@ -476,9 +583,8 @@ export default function AdminAlimtalkTemplateComparisonPanel({
               <div className="mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-[#ece8e2] pb-2">
                 <div>
                   <h3 className="text-[16px] font-semibold text-[#171411]">{section.title}</h3>
-                  <p className="mt-0.5 text-[12px] leading-4 text-[#7a7268]">{section.description}</p>
                 </div>
-                <span className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
+                <span className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[13px] font-semibold text-[#6f665f]">
                   {section.groups.length}개
                 </span>
               </div>
@@ -499,6 +605,27 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                 : relayItem?.detail?.inspectionStatus || relayItem?.detail?.serviceStatus
                   ? formatSsodaaStatus(relayItem.detail.inspectionStatus || relayItem.detail.serviceStatus)
                   : relayItem?.error || "-";
+            const isEditingCandidates = editingCandidateGroup === group.key;
+            const isSearchingTemplates = searchingTemplateGroup === group.key;
+            const manualTemplateSearch = manualTemplateSearchByGroup[group.key] ?? "";
+            const hiddenTemplateCodes = uniqueStrings(
+              group.drafts.flatMap((draft) => getRuleCodes(templateCandidateRules[draft.alias], "hiddenCodes")),
+            );
+            const manualTemplateResults = getManualTemplateSearchResults({
+              query: manualTemplateSearch,
+              allTemplates: allSsodaaTemplates,
+              currentCandidates: candidates,
+              hiddenCodes: hiddenTemplateCodes,
+            });
+            const previewTemplateCode = previewTemplateCodeByGroup[group.key];
+            const previewTemplate =
+              (previewTemplateCode ? allSsodaaTemplates.find((template) => template.templateCode === previewTemplateCode) : null) ??
+              relayItem?.detail ??
+              null;
+            const previewTemplateBody = normalizeTemplateBody(previewTemplate?.templateContent);
+            const previewTemplateButtons = previewTemplate?.buttons ?? [];
+            const isPreviewConnected = Boolean(previewTemplate && states.every((state) => previewTemplate.templateCode === state.relayItem?.configuredCode));
+            const previewStatus = formatSsodaaStatus(previewTemplate?.inspectionStatus || previewTemplate?.serviceStatus);
 
             return (
               <article key={group.key} className="rounded-[7px] border border-[#e6e3dd] bg-white">
@@ -506,17 +633,16 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                   <button type="button" onClick={() => toggleGroup(group.key)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-expanded={isOpen}>
                     <ChevronDown className={`h-4 w-4 shrink-0 text-[#7a7268] transition ${isOpen ? "rotate-180" : ""}`} />
                     <span className="min-w-[126px] text-[15px] font-semibold text-[#171411]">{group.title}</span>
-                    {group.description ? <span className="text-[12px] font-medium text-[#8a8277]">{group.description}</span> : null}
                     {candidates.length > 1 ? (
-                      <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
+                      <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2 py-0.5 text-[13px] font-semibold text-[#6f665f]">
                         후보 {candidates.length}개
                       </span>
                     ) : null}
-                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${getCodeTone(hasCode)}`}>{codeLabel}</span>
-                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${getBodyTone({ hasCode, bodyMatches })}`}>{bodyLabel}</span>
-                    <span className={`rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${hasCode ? getStatusTone(buttonsMatch) : getCodeTone(false)}`}>{buttonLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[13px] font-semibold ${getCodeTone(hasCode)}`}>{codeLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[13px] font-semibold ${getBodyTone({ hasCode, bodyMatches })}`}>{bodyLabel}</span>
+                    <span className={`rounded-[999px] border px-2 py-0.5 text-[13px] font-semibold ${hasCode ? getStatusTone(buttonsMatch) : getCodeTone(false)}`}>{buttonLabel}</span>
                   </button>
-                  <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#6f665f]">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#6f665f]">
                     <span className="rounded-[999px] border border-[#e6e3dd] bg-[#fbfaf8] px-2 py-0.5">
                       쏘다 상태 {statusLabel}
                     </span>
@@ -528,63 +654,108 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                     {states.length > 1 ? (
                       <div className="flex flex-wrap gap-1.5 rounded-[7px] border border-[#ece8e2] bg-[#fbfaf8] px-2.5 py-1.5">
                         {states.map((state) => (
-                          <span key={state.draft.alias} className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#6f665f]">
+                          <span key={state.draft.alias} className="rounded-[999px] border border-[#e6e3dd] bg-white px-2 py-0.5 text-[13px] font-semibold text-[#6f665f]">
                             {state.draft.title}: {state.hasCode ? "코드 연결됨" : "코드 연결 필요"}
                           </span>
                         ))}
                       </div>
                     ) : null}
                     <section className="rounded-[7px] border border-[#e6e3dd] bg-[#fbfaf8] p-2.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[14px] font-semibold text-[#171411]">연결 가능한 쏘다 템플릿</p>
-                        <span className="text-[12px] text-[#8a8277]">{candidates.length}개</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[15px] font-semibold text-[#171411]">쏘다 템플릿 선택</p>
+                          <span className="text-[13px] font-semibold text-[#8a8277]">{candidates.length}개</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSearchingTemplateGroup(isSearchingTemplates ? null : group.key)}
+                            className={`h-8 rounded-[6px] border px-3 text-[14px] font-semibold ${
+                              isSearchingTemplates
+                                ? "border-[#1f6b5b] bg-[#f5fbf8] text-[#1f6b5b]"
+                                : "border-[#d8d4ce] bg-white text-[#5c554d]"
+                            }`}
+                          >
+                            직접 찾기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCandidateGroup(isEditingCandidates ? null : group.key)}
+                            className={`h-8 rounded-[6px] border px-3 text-[14px] font-semibold ${
+                              isEditingCandidates
+                                ? "border-[#1f6b5b] bg-[#f5fbf8] text-[#1f6b5b]"
+                                : "border-[#d8d4ce] bg-white text-[#5c554d]"
+                            }`}
+                          >
+                            {isEditingCandidates ? "수정 닫기" : "후보 수정"}
+                          </button>
+                        </div>
                       </div>
-                      <div className="mt-1.5 grid max-h-[132px] gap-1.5 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-2 grid max-h-[112px] gap-1.5 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                         {candidates.length ? (
                           candidates.map((template) => {
                             const connectedCount = states.filter((state) => template.templateCode === state.relayItem?.configuredCode).length;
                             const isConnected = connectedCount === states.length;
                             const isPartiallyConnected = connectedCount > 0 && !isConnected;
+                            const isPreviewing = previewTemplate?.templateCode === template.templateCode;
                             return (
                               <div
                                 key={template.templateCode}
-                                role={isConnected ? undefined : "button"}
-                                tabIndex={isConnected ? undefined : 0}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => {
-                                  if (!isConnected) void handleSelectTemplateGroup(group, template);
+                                  setPreviewTemplateCodeByGroup((current) => ({ ...current, [group.key]: template.templateCode }));
                                 }}
                                 onKeyDown={(event) => {
-                                  if (isConnected) return;
                                   if (event.key === "Enter" || event.key === " ") {
                                     event.preventDefault();
-                                    void handleSelectTemplateGroup(group, template);
+                                    setPreviewTemplateCodeByGroup((current) => ({ ...current, [group.key]: template.templateCode }));
                                   }
                                 }}
                                 className={`rounded-[6px] border px-3 py-2 transition ${
-                                  isConnected
-                                    ? "border-[#cfe3dc] bg-white text-[#1f6b5b]"
-                                    : "cursor-pointer border-[#ece8e2] bg-white text-[#5c554d] hover:border-[#d8d4ce] hover:bg-[#fbfaf8]"
+                                  isPreviewing
+                                    ? "cursor-pointer border-[#1f6b5b] bg-[#f5fbf8] text-[#1f6b5b]"
+                                    : isConnected
+                                      ? "cursor-pointer border-[#cfe3dc] bg-white text-[#1f6b5b] hover:border-[#1f6b5b]"
+                                      : "cursor-pointer border-[#ece8e2] bg-white text-[#5c554d] hover:border-[#d8d4ce] hover:bg-[#fbfaf8]"
                                 }`}
                               >
                                 <div className="flex min-w-0 items-center gap-2">
-                                  <span className="shrink-0 text-[11px] font-semibold text-[#8a8277]">템플릿명</span>
+                                  <span className="shrink-0 text-[12px] font-semibold text-[#8a8277]">템플릿명</span>
                                   <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[#171411]">{template.templateName || "이름 없음"}</span>
+                                  {isPreviewing ? (
+                                    <span className="shrink-0 rounded-[999px] border border-[#1f6b5b] bg-white px-2 py-1 text-[13px] font-semibold text-[#1f6b5b]">
+                                      미리보기
+                                    </span>
+                                  ) : null}
                                   {isConnected ? (
-                                    <span className="shrink-0 rounded-[999px] border border-[#cfe3dc] bg-[#f5fbf8] px-2 py-1 text-[12px] font-semibold text-[#1f6b5b]">
+                                    <span className="shrink-0 rounded-[999px] border border-[#cfe3dc] bg-[#f5fbf8] px-2 py-1 text-[13px] font-semibold text-[#1f6b5b]">
                                       현재 연결
                                     </span>
                                   ) : isPartiallyConnected ? (
-                                    <span className="shrink-0 rounded-[999px] border border-[#ead7b7] bg-[#fffaf0] px-2 py-1 text-[12px] font-semibold text-[#8a5b11]">
+                                    <span className="shrink-0 rounded-[999px] border border-[#ead7b7] bg-[#fffaf0] px-2 py-1 text-[13px] font-semibold text-[#8a5b11]">
                                       일부 연결
                                     </span>
                                   ) : null}
                                 </div>
                                 <div className="mt-1.5 flex min-w-0 items-center gap-2">
-                                  <span className="shrink-0 text-[11px] font-semibold text-[#8a8277]">코드</span>
+                                  <span className="shrink-0 text-[12px] font-semibold text-[#8a8277]">코드</span>
                                   <span className="min-w-0 flex-1 truncate font-mono text-[14px] text-[#5c554d]">{template.templateCode}</span>
                                   <span className="shrink-0 text-[14px] font-semibold text-[#7a7268]">
                                     {formatSsodaaStatus(template.inspectionStatus || template.serviceStatus)}
                                   </span>
+                                  {isEditingCandidates ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        hideTemplateCandidate(group, template.templateCode);
+                                      }}
+                                      className="h-7 shrink-0 rounded-[6px] border border-[#f0d1d1] bg-white px-3 text-[13px] font-semibold text-[#a04455]"
+                                    >
+                                      후보 제외
+                                    </button>
+                                  ) : null}
                                   {!isConnected ? (
                                     <button
                                       type="button"
@@ -610,18 +781,134 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                       </div>
                     </section>
 
+                    {isSearchingTemplates ? (
+                      <section className="rounded-[7px] border border-[#e6e3dd] bg-white p-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[15px] font-semibold text-[#171411]">직접 찾기</p>
+                          <span className="text-[13px] font-semibold text-[#8a8277]">{manualTemplateResults.length}개</span>
+                        </div>
+                        <input
+                          value={manualTemplateSearch}
+                          onChange={(event) =>
+                            setManualTemplateSearchByGroup((current) => ({
+                              ...current,
+                              [group.key]: event.target.value,
+                            }))
+                          }
+                          placeholder="템플릿명 또는 코드 검색"
+                          className="mt-2 h-9 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[14px] text-[#171411] outline-none focus:border-[#1f6b5b]"
+                        />
+                        <div className="mt-2 grid max-h-[150px] gap-1.5 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+                          {manualTemplateResults.length ? (
+                            manualTemplateResults.map((template) => {
+                              const connectedCount = states.filter((state) => template.templateCode === state.relayItem?.configuredCode).length;
+                              const isConnected = connectedCount === states.length;
+                              const isCandidate = candidates.some((candidate) => candidate.templateCode === template.templateCode);
+                              const isPreviewing = previewTemplate?.templateCode === template.templateCode;
+                              return (
+                                <div
+                                  key={`manual-${group.key}-${template.templateCode}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => {
+                                    setPreviewTemplateCodeByGroup((current) => ({ ...current, [group.key]: template.templateCode }));
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      setPreviewTemplateCodeByGroup((current) => ({ ...current, [group.key]: template.templateCode }));
+                                    }
+                                  }}
+                                  className={`cursor-pointer rounded-[6px] border px-3 py-2 transition ${
+                                    isPreviewing
+                                      ? "border-[#1f6b5b] bg-[#f5fbf8]"
+                                      : "border-[#ece8e2] bg-[#fbfaf8] hover:border-[#d8d4ce] hover:bg-white"
+                                  }`}
+                                >
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[#171411]">{template.templateName || "이름 없음"}</span>
+                                    {isPreviewing ? (
+                                      <span className="shrink-0 rounded-[999px] border border-[#1f6b5b] bg-white px-2 py-1 text-[13px] font-semibold text-[#1f6b5b]">
+                                        미리보기
+                                      </span>
+                                    ) : null}
+                                    <span className="shrink-0 text-[13px] font-semibold text-[#7a7268]">
+                                      {formatSsodaaStatus(template.inspectionStatus || template.serviceStatus)}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1.5 flex min-w-0 items-center gap-2">
+                                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-[#5c554d]">{template.templateCode}</span>
+                                    {isEditingCandidates && !isCandidate ? (
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          addTemplateCandidate(group, template.templateCode);
+                                        }}
+                                        className="h-7 shrink-0 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d]"
+                                      >
+                                        후보 추가
+                                      </button>
+                                    ) : null}
+                                    {!isConnected ? (
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          void handleSelectTemplateGroup(group, template);
+                                        }}
+                                        disabled={Boolean(selectingTemplateCode)}
+                                        className="h-7 shrink-0 rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[13px] font-semibold text-[#5c554d] disabled:opacity-60"
+                                      >
+                                        {selectingTemplateCode === template.templateCode ? "연결 중" : "연결"}
+                                      </button>
+                                    ) : (
+                                      <span className="h-7 shrink-0 rounded-[6px] border border-[#cfe3dc] bg-[#f5fbf8] px-3 py-1 text-[13px] font-semibold text-[#1f6b5b]">
+                                        현재 연결
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="rounded-[6px] border border-[#ece8e2] bg-[#fbfaf8] px-3 py-3 text-[13px] text-[#8a8277]">
+                              검색 결과가 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    ) : null}
+
                     <div className="grid gap-3 xl:grid-cols-2">
                       <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
                         <div className="flex h-8 items-center justify-between gap-3">
                           <p className="text-[15px] font-semibold text-[#171411]">쏘다 템플릿</p>
-                          <span className="min-w-0 truncate text-[15px] font-semibold text-[#5c554d]">
-                            {relayItem?.detail?.templateName || "등록명 없음"}
-                          </span>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate text-[15px] font-semibold text-[#5c554d]">
+                              {previewTemplate?.templateName || "등록명 없음"}
+                            </span>
+                            {previewTemplate ? (
+                              <span className={`shrink-0 rounded-[999px] border px-2 py-0.5 text-[12px] font-semibold ${
+                                isPreviewConnected
+                                  ? "border-[#cfe3dc] bg-white text-[#1f6b5b]"
+                                  : "border-[#ead7b7] bg-white text-[#8a5b11]"
+                              }`}>
+                                {isPreviewConnected ? "현재 연결" : "미리보기"}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
+                        {previewTemplate ? (
+                          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[12px] text-[#7a7268]">
+                            <span className="font-mono">{previewTemplate.templateCode}</span>
+                            <span>{previewStatus}</span>
+                          </div>
+                        ) : null}
                         <pre className="mt-2 h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[6px] border border-[#ece8e2] bg-white px-3 py-2.5 font-[inherit] text-[13px] leading-5 text-[#171411]">
-                          {ssodaaBody || relayItem?.error || "쏘다 등록 본문을 아직 불러오지 못했습니다."}
+                          {previewTemplateBody || relayItem?.error || "쏘다 등록 본문을 아직 불러오지 못했습니다."}
                         </pre>
-                        <ButtonList title="쏘다 버튼" buttons={ssodaaButtons} caption="쏘다에 등록된 버튼 URL 형식입니다." />
+                        <ButtonList title="쏘다 버튼" buttons={previewTemplateButtons} />
                       </section>
 
                       <section className="flex flex-col rounded-[8px] border border-[#e6e3dd] bg-[#fbfaf8] p-3">
@@ -705,7 +992,6 @@ export default function AdminAlimtalkTemplateComparisonPanel({
                         <ButtonList
                           title="우리 발송 버튼 기준"
                           buttons={appButtons}
-                          caption="실제 발송 때 예약별 링크로 채워집니다. 쏘다 등록 URL과 역할이 같으면 됩니다."
                         />
                       </section>
                     </div>

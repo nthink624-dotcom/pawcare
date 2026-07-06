@@ -51,8 +51,6 @@ function cleanOverride(
   const next = { ...override };
   if (next.visible === true) delete next.visible;
   if (!options.preserveOrder && next.order === option.order) delete next.order;
-  delete next.displayName;
-  delete next.description;
   return next;
 }
 

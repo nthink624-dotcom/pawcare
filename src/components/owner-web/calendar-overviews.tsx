@@ -415,7 +415,7 @@ export function MonthlyScheduleOverview({
               type="button"
               onClick={() => firstBooking && onSelectBooking(firstBooking.id)}
               className={cn(
-                "min-h-[112px] border-b border-r border-[#eef2f7] p-2 text-left transition hover:bg-[#eef7f4]",
+                "min-h-[112px] border-b border-r border-[#eef2f7] p-2 text-left outline-none transition hover:bg-[#eef7f4] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#607080]/35",
                 densityClass,
                 isToday && "ring-2 ring-inset ring-[#2f7866]",
               )}

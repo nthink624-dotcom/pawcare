@@ -4,6 +4,9 @@ import type { Appointment, BootstrapStaffMember, Pet, Service, Shop, StaffSchedu
 import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import {
   confirmedSlotCapacity,
+  defaultBookingAvailableEndTime,
+  defaultBookingAvailableStartTime,
+  normalizeBookingAvailableTime,
   normalizeBookingSlotIntervalMinutes,
   normalizeBookingSlotOffsetMinutes,
 } from "@/lib/booking-slot-settings";
@@ -23,6 +26,7 @@ const slotBlockingAppointmentStatuses = new Set<Appointment["status"]>([
   "confirmed",
   "in_progress",
   "almost_done",
+  "completed",
 ]);
 
 function getWeekStart(date: Date) {
@@ -115,8 +119,17 @@ export function computeAvailableSlots(params: {
   const durationMinutes = durationMinutesOverride ?? service?.duration_minutes;
   if (!durationMinutes) return [];
 
-  const open = minutesFromTime(hours.open);
-  const close = minutesFromTime(hours.close);
+  const businessOpen = minutesFromTime(hours.open);
+  const businessClose = minutesFromTime(hours.close);
+  const bookingOpen = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_start_time, defaultBookingAvailableStartTime),
+  );
+  const bookingClose = minutesFromTime(
+    normalizeBookingAvailableTime(shop.booking_available_end_time, defaultBookingAvailableEndTime),
+  );
+  const open = Math.max(businessOpen, bookingOpen);
+  const close = Math.min(businessClose, bookingClose);
+  if (close <= open) return [];
   const nowMinutes = currentMinutesInTimeZone();
   const isToday = date === currentDateInTimeZone();
   const slots: string[] = [];

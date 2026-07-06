@@ -10,7 +10,8 @@
   | "shopInfo"
   | "operatingHours"
   | "benefits"
-  | "alerts";
+  | "alerts"
+  | "help";
 
 export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string }> = [
   { key: "schedule", label: "예약 관리" },
@@ -22,6 +23,7 @@ export const ownerWebScreenLabels: Array<{ key: OwnerWebScreenKey; label: string
   { key: "shopInfo", label: "매장 정보" },
   { key: "benefits", label: "혜택 관리" },
   { key: "alerts", label: "알림 설정" },
+  { key: "help", label: "도움말" },
 ];
 
 export type ReservationStatus = "확정" | "진행 중" | "픽업 준비" | "완료" | "취소";

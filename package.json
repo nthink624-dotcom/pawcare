@@ -26,6 +26,7 @@
     "smoke:owner-login": "node scripts/smoke-owner-login.cjs",
     "smoke:owner-auth-recovery": "node scripts/smoke-owner-auth-recovery.cjs",
     "smoke:owner-login:with-server": "node scripts/run-owner-login-smoke-with-server.cjs",
+    "test:flows": "node --test --experimental-transform-types --loader ./tests/helpers/ts-paths-loader.mjs tests/server/appointment-notification-flow.test.mjs",
     "test:e2e:owner-login": "playwright test tests/e2e/owner-login.spec.ts",
     "predeploy:auth": "npm run check:supabase-env && npm run check:owner-auth-guards && npm run smoke:owner-login:with-server && npm run test:e2e:owner-login",
     "predeploy": "npm run check:supabase-env && npm run check:owner-auth-guards && npm run typecheck && npm run lint && npm run build && npm run smoke:owner-login:with-server && npm run test:e2e:owner-login",

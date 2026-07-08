@@ -1,6 +1,10 @@
 // Temporary diagnostic route for production relay connectivity checks.
 export const runtime = "nodejs";
 
+import type { NextRequest } from "next/server";
+
+import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
+
 type DebugResult = {
   ok: boolean;
   vercelEnv: string | null;
@@ -8,7 +12,6 @@ type DebugResult = {
   env: {
     hasRelayUrl: boolean;
     hasRelaySecret: boolean;
-    relaySecretLength: number;
     relayUrlHost: string | null;
     relayUrlPathname: string | null;
   };
@@ -21,7 +24,15 @@ type DebugResult = {
   } | null;
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  try {
+    await requireAdminSession(request);
+  } catch (error) {
+    const status = error instanceof AdminApiError ? error.status : 500;
+    const message = error instanceof Error ? error.message : "관리자 인증을 확인해 주세요.";
+    return Response.json({ message }, { status });
+  }
+
   const relayUrl = process.env.ALIMTALK_RELAY_URL;
   const relaySecret = process.env.ALIMTALK_RELAY_SECRET;
 
@@ -32,7 +43,6 @@ export async function GET() {
     env: {
       hasRelayUrl: Boolean(relayUrl),
       hasRelaySecret: Boolean(relaySecret),
-      relaySecretLength: relaySecret ? relaySecret.length : 0,
       relayUrlHost: null,
       relayUrlPathname: null,
     },

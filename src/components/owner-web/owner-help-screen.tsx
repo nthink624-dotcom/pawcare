@@ -1,7 +1,7 @@
 "use client";
 
 import { Bug, CheckCircle2, Clipboard, Lightbulb, Mail, MessageSquareText, Send, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
 type HelpRequestType = "bug" | "improvement" | "question";
+export type OwnerHelpSection = "contact" | "faq";
 
 const requestTypes: Array<{
   key: HelpRequestType;
@@ -95,8 +96,10 @@ function buildSystemContext(shop: BootstrapPayload["shop"], requestType: HelpReq
   return lines.filter(Boolean).join("\n");
 }
 
-export default function OwnerHelpScreen({ initialData }: { initialData: BootstrapPayload }) {
+export default function OwnerHelpScreen({ initialData, initialSection = "contact" }: { initialData: BootstrapPayload; initialSection?: OwnerHelpSection }) {
   const shop = initialData.shop;
+  const contactSectionRef = useRef<HTMLDivElement | null>(null);
+  const faqSectionRef = useRef<HTMLDivElement | null>(null);
   const storageKey = useMemo(() => buildStorageKey(shop.id), [shop.id]);
   const savedDraft = useMemo(() => readSavedHelpDraft(storageKey), [storageKey]);
   const [requestType, setRequestType] = useState<HelpRequestType>(() => savedDraft?.requestType ?? "bug");
@@ -121,6 +124,15 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
       }),
     );
   }, [contact, message, requestType, storageKey]);
+
+  useEffect(() => {
+    const target = initialSection === "faq" ? faqSectionRef.current : contactSectionRef.current;
+    if (!target) return;
+
+    window.setTimeout(() => {
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 0);
+  }, [initialSection]);
 
   const requestBody = useMemo(() => {
     return [`문의 내용`, message.trim() || "(내용을 입력해 주세요)", "", `연락처`, contact.trim() || "-", "", `시스템 정보`, systemContext].join(
@@ -203,7 +215,8 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
       </WebSurface>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <WebSurface className="p-5">
+        <div ref={contactSectionRef}>
+          <WebSurface className="p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             {requestTypes.map((item) => {
               const Icon = item.icon;
@@ -284,7 +297,8 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
               </button>
             </div>
           </div>
-        </WebSurface>
+          </WebSurface>
+        </div>
 
         <div className="grid gap-4">
           <WebSurface className="p-5">
@@ -301,7 +315,8 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
             </div>
           </WebSurface>
 
-          <WebSurface className="p-5">
+          <div ref={faqSectionRef}>
+            <WebSurface className="p-5">
             <h2 className="mb-3 text-[18px] font-semibold text-[#111827]">자주 묻는 질문</h2>
             <div className="divide-y divide-[#e5eaf0] rounded-[10px] border border-[#e5eaf0]">
               {faqItems.map((item) => {
@@ -321,7 +336,8 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
                 );
               })}
             </div>
-          </WebSurface>
+            </WebSurface>
+          </div>
         </div>
       </div>
     </div>

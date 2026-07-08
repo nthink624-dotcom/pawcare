@@ -317,7 +317,7 @@ export function buildDraft(staff: StaffMember): StaffDraft {
     role: staff.role,
     titlePrefix: staff.titlePrefix ?? "",
     position: staff.position ?? getStaffRank(staff.role),
-    defaultDaysText: staff.defaultDays.map((key) => weekdayColumns.find((day) => day.key === key)?.label).filter(Boolean).join(", "),
+    defaultDaysText: formatFixedOffDays(staff.defaultDays),
     startTime: staff.startTime,
     endTime: staff.endTime,
     regularOff: staff.regularOff,
@@ -341,4 +341,18 @@ export function formatWeekdayKeys(keys: WeekdayKey[]) {
     .filter((day) => keys.includes(day.key))
     .map((day) => day.label)
     .join(", ");
+}
+
+export function getFixedOffDayKeys(defaultDays: WeekdayKey[]) {
+  const workDays = new Set(defaultDays);
+  return weekdayColumns.map((day) => day.key).filter((key) => !workDays.has(key));
+}
+
+export function formatFixedOffDays(defaultDays: WeekdayKey[]) {
+  return formatWeekdayKeys(getFixedOffDayKeys(defaultDays));
+}
+
+export function parseDefaultDaysFromFixedOffText(text: string) {
+  const offDays = new Set(parseWeekdayText(text));
+  return weekdayColumns.map((day) => day.key).filter((key) => !offDays.has(key));
 }

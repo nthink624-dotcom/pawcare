@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { Camera, Info, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
@@ -17,12 +16,13 @@ export type ShopInfoSettingRow = {
   options?: string[];
 };
 
-const DEFAULT_SHOP_PROFILE_IMAGE = "/images/customer-booking-hero-original.jpg";
 const MAX_SHOP_PROFILE_IMAGES = MAX_CUSTOMER_PAGE_HERO_IMAGES;
 
 type ShopInfoSettingsPanelProps = {
   rows: ShopInfoSettingRow[];
   shopProfileImages: string[];
+  shopProfileImageAssetCount?: number;
+  profileImagesLoading?: boolean;
   children?: ReactNode;
   serviceMenuContent?: ReactNode;
   shop?: Shop;
@@ -32,9 +32,7 @@ type ShopInfoSettingsPanelProps = {
   businessHoursSummary?: string;
   closedDaysSummary?: string;
   editable?: boolean;
-  saving?: boolean;
   feedbackMessage?: string;
-  onSave?: () => void | Promise<void>;
   onProfileImagesAdd: (files: FileList | File[]) => void;
   onProfileImagesRemove: (indexes: number[]) => void;
   onProfileImageSelect?: (index: number) => void | Promise<void>;
@@ -155,7 +153,7 @@ function PanelCard({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
-      <div className={cn("px-5 pb-5", hideHeader ? "pt-5" : "pt-4")}>{children}</div>
+      <div className="px-5 pb-5 pt-4">{children}</div>
     </section>
   );
 }
@@ -163,11 +161,9 @@ function PanelCard({
 function SocialIcon({ src, alt }: { src: string; alt: string }) {
   return (
     <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e8eaef] bg-white">
-      <Image
+      <img
         src={src}
         alt={alt}
-        width={32}
-        height={32}
         className="h-8 w-8 object-contain"
       />
     </span>
@@ -316,6 +312,8 @@ function OptionCard({
 export default function ShopInfoSettingsPanel({
   rows,
   shopProfileImages,
+  shopProfileImageAssetCount = 0,
+  profileImagesLoading = false,
   children,
   serviceMenuContent,
   shop,
@@ -325,9 +323,7 @@ export default function ShopInfoSettingsPanel({
   businessHoursSummary = "",
   closedDaysSummary = "",
   editable = true,
-  saving = false,
   feedbackMessage = "",
-  onSave,
   onProfileImagesAdd,
   onProfileImagesRemove,
   onProfileImageSelect,
@@ -362,7 +358,13 @@ export default function ShopInfoSettingsPanel({
   const activeProfileImage = carouselProfileImages[visibleProfileImageIndex] ?? "";
   const selectedProfileImageIndexSet = useMemo(() => new Set(selectedProfileImageIndexes), [selectedProfileImageIndexes]);
   const hasProfileImages = carouselProfileImages.length > 0 && Boolean(carouselProfileImages[0]);
+  const isProfileImageRestorePending = !hasProfileImages && (profileImagesLoading || shopProfileImageAssetCount > 0);
   const allProfileImagesSelected = hasProfileImages && selectedProfileImageIndexes.length === carouselProfileImages.length;
+  const galleryRestoreSlotCount = isProfileImageRestorePending ? 1 : 0;
+  const galleryAddSlotCount =
+    editable && !isProfileImageRestorePending && carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES
+      ? 1
+      : 0;
   const [profileImageSelectionMode, setProfileImageSelectionMode] = useState(false);
   const isProfileImageSelectionActive = profileImageSelectionMode || selectedProfileImageIndexes.length > 0;
   const sectionTabs = useMemo(
@@ -399,7 +401,7 @@ export default function ShopInfoSettingsPanel({
           threads_url: threadsUrl,
         },
         address_detail: addressDetail || shop.customer_page_settings.address_detail,
-        hero_image_url: activeProfileImage || DEFAULT_SHOP_PROFILE_IMAGE,
+        hero_image_url: activeProfileImage,
         hero_image_urls: carouselProfileImages,
       },
     };
@@ -602,17 +604,6 @@ export default function ShopInfoSettingsPanel({
     setActiveSectionId(sectionId);
   }
 
-  const saveAction = onSave ? (
-    <button
-      type="button"
-      onClick={onSave}
-      disabled={saving}
-      className="inline-flex h-10 items-center gap-2 rounded-[11px] bg-[#2f6bd4] px-4 text-[16px] font-semibold text-white transition hover:bg-[#285bb3] disabled:bg-[#bdc2cb] disabled:text-white"
-    >
-      <Save className="h-4 w-4" />
-      {saving ? "저장 중" : "저장"}
-    </button>
-  ) : null;
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#d8dce3] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
@@ -644,9 +635,8 @@ export default function ShopInfoSettingsPanel({
                 title="기본 정보"
                 hideHeader
               >
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
                   <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#181b21]">기본 정보</h3>
-                  {saveAction}
                 </div>
                 {feedbackMessage ? (
                   <div className="mb-4 rounded-[10px] border border-[#f0c7ce] bg-[#fff7f8] px-3 py-2 text-[14px] leading-5 text-[#a04455]">
@@ -654,7 +644,7 @@ export default function ShopInfoSettingsPanel({
                   </div>
                 ) : null}
                 <div className="space-y-4">
-                  <div className="grid min-w-0 items-stretch gap-3 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
+                  <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
                     <div className="min-w-0">
                       <button
                         type="button"
@@ -673,14 +663,19 @@ export default function ShopInfoSettingsPanel({
                         onTouchEnd={handleProfileTouchEnd}
                         disabled={!editable}
                         className={cn(
-                          "group relative aspect-[189/119] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
+                          "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
                           activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
                         )}
                         aria-label="대표 매장 사진"
                       >
                         {activeProfileImage ? (
                           <>
-                            <Image src={activeProfileImage} alt="매장 사진" width={378} height={238} unoptimized className="h-full w-full object-cover object-center" />
+                            <img
+                              src={activeProfileImage}
+                              alt="매장 사진"
+                              className="h-full w-full object-cover object-center"
+                              style={{ objectPosition: "center center" }}
+                            />
                             <span className="absolute left-2 top-2 z-10 inline-flex h-7 items-center gap-1 rounded-[7px] bg-[#2f6bd4] px-2.5 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(47,107,212,0.22)]">
                               대표
                             </span>
@@ -698,6 +693,11 @@ export default function ShopInfoSettingsPanel({
                               </span>
                             ) : null}
                           </>
+                        ) : isProfileImageRestorePending ? (
+                          <span className="flex h-full flex-col items-center justify-center gap-2">
+                            <Camera className="h-8 w-8 animate-pulse text-[#9aa5b4]" />
+                            <span className="text-[15px] font-semibold text-[#64748b]">사진 불러오는 중</span>
+                          </span>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
                             <Camera className="h-8 w-8" />
@@ -721,69 +721,77 @@ export default function ShopInfoSettingsPanel({
                       />
                     </div>
 
-                    <div className="grid min-w-0 grid-cols-4 content-start gap-2 overflow-hidden">
-                      {carouselProfileImages.slice(1, 8).map((imageUrl, offsetIndex) => {
-                        const imageIndex = offsetIndex + 1;
-                        return (
-                          <button
-                            key={`${imageUrl}-${imageIndex}`}
-                            type="button"
-                            onClick={() => {
-                              if (isProfileImageSelectionActive) {
-                                toggleProfileImageSelection(imageIndex);
-                                return;
-                              }
-                              setActiveProfileImageIndex(0);
-                              void onProfileImageSelect?.(imageIndex);
-                            }}
-                            className={cn(
-                              "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
-                              visibleProfileImageIndex === imageIndex ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-[#e1e5ec] hover:border-[#9bb8f4]",
-                            )}
-                            aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
-                          >
-                            <Image src={imageUrl} alt="" width={112} height={112} unoptimized className="h-full w-full object-cover object-center" />
-                            {isProfileImageSelectionActive ? (
-                              <span
+                    <div className="h-[276px] max-h-[276px] min-h-[276px] min-w-0 overflow-hidden rounded-[13px] border border-[#e1e5ec] bg-[#fbfcfd] p-2">
+                      <div className="h-full overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]">
+                        <div className="grid min-w-0 grid-cols-4 content-start gap-2">
+                          {carouselProfileImages.map((imageUrl, imageIndex) => {
+                            return (
+                              <button
+                                key={`${imageUrl}-${imageIndex}`}
+                                type="button"
+                                onClick={() => {
+                                  if (isProfileImageSelectionActive) {
+                                    toggleProfileImageSelection(imageIndex);
+                                    return;
+                                  }
+                                  setActiveProfileImageIndex(0);
+                                  void onProfileImageSelect?.(imageIndex);
+                                }}
                                 className={cn(
-                                  "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-[7px] border text-[11px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
-                                  selectedProfileImageIndexSet.has(imageIndex)
-                                    ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
-                                    : "border-white/90 bg-white/85 text-transparent",
+                                  "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
+                                  imageIndex === 0
+                                    ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]"
+                                    : "border-[#e1e5ec] hover:border-[#9bb8f4]",
                                 )}
-                                aria-hidden="true"
+                                aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
                               >
-                                선택
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                      {carouselProfileImages.length > 8 ? (
-                        <button
-                          type="button"
-                          onClick={() => setActiveProfileImageIndex(8)}
-                          className="relative aspect-square w-full overflow-hidden rounded-[10px] border border-[#e1e5ec] bg-white transition hover:border-[#9bb8f4]"
-                          aria-label={`숨겨진 매장 사진 ${carouselProfileImages.length - 8}장 보기`}
-                        >
-                          <Image src={carouselProfileImages[8]} alt="" width={96} height={96} unoptimized className="h-full w-full object-cover object-center" />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-[14px] font-semibold text-white">
-                            +{carouselProfileImages.length - 8}
-                          </span>
-                        </button>
-                      ) : null}
-                      {carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES ? (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                          disabled={!editable}
-                          className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="매장 사진 추가"
-                        >
-                          <Camera className="h-4 w-4" />
-                          <span className="text-[12px] font-semibold">사진 추가</span>
-                        </button>
-                      ) : null}
+                                <img src={imageUrl} alt="" className="h-full w-full object-cover object-center" />
+                                {imageIndex === 0 && !isProfileImageSelectionActive ? (
+                                  <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-[#2f6bd4] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                    대표
+                                  </span>
+                                ) : null}
+                                {isProfileImageSelectionActive ? (
+                                  <span
+                                    className={cn(
+                                      "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-[7px] border text-[11px] font-semibold shadow-[0_4px_10px_rgba(15,23,42,0.12)]",
+                                      selectedProfileImageIndexSet.has(imageIndex)
+                                        ? "border-[#2f6bd4] bg-[#2f6bd4] text-white"
+                                        : "border-white/90 bg-white/85 text-transparent",
+                                    )}
+                                    aria-hidden="true"
+                                  >
+                                    선택
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                          {Array.from({ length: galleryRestoreSlotCount }).map((_, slotIndex) => (
+                            <div
+                              key={`restore-slot-${slotIndex}`}
+                              className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4]"
+                              aria-hidden="true"
+                            >
+                              <Camera className="h-4 w-4 animate-pulse" />
+                              <span className="text-[12px] font-semibold">불러오는 중</span>
+                            </div>
+                          ))}
+                          {Array.from({ length: galleryAddSlotCount }).map((_, slotIndex) => (
+                            <button
+                              key={`add-slot-${slotIndex}`}
+                              type="button"
+                              onClick={() => document.getElementById("shop-profile-images-input")?.click()}
+                              disabled={!editable}
+                              className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
+                              aria-label="매장 사진 추가"
+                            >
+                              <Camera className="h-4 w-4" />
+                              <span className="text-[12px] font-semibold">사진 추가</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -854,21 +862,6 @@ export default function ShopInfoSettingsPanel({
                     </div>
                   </label>
 
-                  <label className="grid gap-1.5">
-                    <FieldLabel>매장 소개</FieldLabel>
-                    <div className="relative min-w-0">
-                      <textarea
-                        value={description}
-                        maxLength={100}
-                        disabled={!editable}
-                        onChange={(event) => onRowChange("description", event.target.value)}
-                        onBlur={(event) => onRowCommit("description", event.target.value)}
-                        className="min-h-[94px] w-full resize-none rounded-[10px] border border-[#d8dce3] bg-[#f6f8fb] px-3 py-2.5 pb-7 text-[16px] font-normal leading-6 text-[#181b21] outline-none transition placeholder:text-[#969ba4] disabled:border-[#e2e8f0] disabled:bg-white disabled:text-[#181b21] focus:border-[#2f6bd4] focus:bg-white focus:ring-4 focus:ring-[#2f6bd4]/10"
-                        placeholder="매장을 짧게 소개해 주세요."
-                      />
-                      <span className="pointer-events-none absolute bottom-2 right-3 text-[13px] text-[#646a74]">{description.length} / 100</span>
-                    </div>
-                  </label>
                 </div>
 
                 <div className="mt-5 border-t border-[#e8eaef] pt-4">

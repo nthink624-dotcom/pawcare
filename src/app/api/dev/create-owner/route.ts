@@ -5,10 +5,10 @@ import { NextResponse } from "next/server";
 import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
 import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
+import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { hasSupabaseServerEnv, isUnsafeProdSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { nowIso } from "@/lib/utils";
 import { resetShopAlimtalkIncludedCredits } from "@/server/alimtalk-credit-service";
 import { seedDemoDataForShop } from "@/server/demo-seed";
@@ -20,8 +20,8 @@ const DEV_OWNER = {
   name: "테스트 오너",
   birthDate: "19900101",
   phoneNumber: "01012345678",
-  shopName: "테스트 살롱",
-  shopAddress: "서울시 성동구 테스트로 1",
+  shopName: "테스트 미용실",
+  shopAddress: "서울특별시 강동구 테스트로 1",
 };
 
 function mapDevSetupError(message: string | undefined) {
@@ -31,10 +31,24 @@ function mapDevSetupError(message: string | undefined) {
     (normalized.includes("owner_profiles") || normalized.includes("shops")) &&
     (normalized.includes("schema cache") || normalized.includes("does not exist"))
   ) {
-    return "새 개발용 Supabase에 아직 마이그레이션이 적용되지 않았어요. SQL Editor에서 supabase/migrations의 SQL을 먼저 적용해 주세요.";
+    return "개발용 Supabase에 아직 마이그레이션이 적용되지 않았어요. supabase/migrations의 SQL을 먼저 적용해 주세요.";
   }
 
   return message ?? "개발용 테스트 계정을 만들지 못했습니다.";
+}
+
+function buildDevSubscriptionMetadata(now: string, trialEndsAt: string) {
+  return {
+    subscription_status: "trialing",
+    trial_started_at: now,
+    trial_ends_at: trialEndsAt,
+    next_billing_at: null,
+    current_plan_code: "free",
+    featured_plan_code: "free",
+    auto_renew_plan_code: "free",
+    auto_renew_enabled: false,
+    cancel_at_period_end: false,
+  };
 }
 
 export async function POST() {
@@ -58,7 +72,11 @@ export async function POST() {
     return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
   }
 
+  const now = nowIso();
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const authEmail = buildOwnerAuthEmail(DEV_OWNER.loginId);
+  const subscriptionMetadata = buildDevSubscriptionMetadata(now, trialEndsAt);
+
   const profilesResult = await supabase
     .from("owner_profiles")
     .select("user_id, shop_id")
@@ -74,8 +92,18 @@ export async function POST() {
     return NextResponse.json({ message: mapDevSetupError(listedUsers.error.message) }, { status: 400 });
   }
 
-  let authUser = listedUsers.data.users.find((user) => user.email === authEmail) ?? null;
+  let authUser = null;
   let createdNewAuthUser = false;
+
+  if (profilesResult.data?.user_id) {
+    const existingProfileUser = await supabase.auth.admin.getUserById(profilesResult.data.user_id);
+    if (existingProfileUser.error) {
+      return NextResponse.json({ message: mapDevSetupError(existingProfileUser.error.message) }, { status: 400 });
+    }
+    authUser = existingProfileUser.data.user ?? null;
+  }
+
+  authUser = authUser ?? listedUsers.data.users.find((user) => user.email === authEmail) ?? null;
 
   if (!authUser) {
     const createdUser = await supabase.auth.admin.createUser({
@@ -85,8 +113,7 @@ export async function POST() {
       user_metadata: {
         login_id: DEV_OWNER.loginId,
         name: DEV_OWNER.name,
-        subscription_status: "trialing",
-        current_plan_code: "trial",
+        ...subscriptionMetadata,
       },
     });
 
@@ -96,9 +123,37 @@ export async function POST() {
 
     authUser = createdUser.data.user;
     createdNewAuthUser = true;
+  } else {
+    const nextMetadata = {
+      ...(authUser.user_metadata ?? {}),
+      login_id: DEV_OWNER.loginId,
+      name: DEV_OWNER.name,
+      ...subscriptionMetadata,
+    };
+    const updatedUser = await supabase.auth.admin.updateUserById(authUser.id, {
+      email: authEmail,
+      password: DEV_OWNER.password,
+      email_confirm: true,
+      user_metadata: nextMetadata,
+    });
+
+    if (updatedUser.error) {
+      const passwordOnlyUpdate = await supabase.auth.admin.updateUserById(authUser.id, {
+        password: DEV_OWNER.password,
+        email_confirm: true,
+        user_metadata: nextMetadata,
+      });
+
+      if (passwordOnlyUpdate.error) {
+        return NextResponse.json({ message: mapDevSetupError(passwordOnlyUpdate.error.message) }, { status: 400 });
+      }
+
+      authUser = passwordOnlyUpdate.data.user ?? authUser;
+    } else {
+      authUser = updatedUser.data.user ?? authUser;
+    }
   }
 
-  const now = nowIso();
   const shopId = profilesResult.data?.shop_id ?? `dev-shop-${randomUUID().slice(0, 8)}`;
 
   if (!profilesResult.data?.shop_id) {
@@ -131,7 +186,7 @@ export async function POST() {
       return NextResponse.json({ message: mapDevSetupError(shopInsert.error.message) }, { status: 400 });
     }
   } else {
-    await supabase
+    const shopUpdate = await supabase
       .from("shops")
       .update({
         owner_user_id: authUser.id,
@@ -145,6 +200,10 @@ export async function POST() {
         updated_at: now,
       })
       .eq("id", shopId);
+
+    if (shopUpdate.error) {
+      return NextResponse.json({ message: mapDevSetupError(shopUpdate.error.message) }, { status: 400 });
+    }
   }
 
   const profileUpsert = await supabase.from("owner_profiles").upsert({
@@ -166,6 +225,39 @@ export async function POST() {
 
   if (profileUpsert.error) {
     return NextResponse.json({ message: mapDevSetupError(profileUpsert.error.message) }, { status: 400 });
+  }
+
+  const subscriptionUpsert = await supabase.from("owner_subscriptions").upsert(
+    {
+      user_id: authUser.id,
+      shop_id: shopId,
+      current_plan_code: "free",
+      billing_cycle: "0m",
+      trial_started_at: now,
+      trial_ends_at: trialEndsAt,
+      next_billing_at: null,
+      payment_method_exists: false,
+      payment_method_label: null,
+      subscription_status: "trialing",
+      cancel_at_period_end: false,
+      last_payment_status: "none",
+      last_payment_failed_at: null,
+      last_payment_at: null,
+      last_payment_id: null,
+      billing_issue_id: null,
+      portone_customer_id: `dev-owner-${authUser.id}`,
+      featured_plan_code: "free",
+      auto_renew_plan_code: "free",
+      current_period_started_at: null,
+      current_period_ends_at: null,
+      last_schedule_id: null,
+      updated_at: now,
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (subscriptionUpsert.error) {
+    return NextResponse.json({ message: mapDevSetupError(subscriptionUpsert.error.message) }, { status: 400 });
   }
 
   try {
@@ -198,7 +290,7 @@ export async function POST() {
     password: createdNewAuthUser ? DEV_OWNER.password : null,
     shopId,
     message: createdNewAuthUser
-      ? "개발용 테스트 오너 계정을 만들었어요. 바로 로그인해 보세요."
-      : "기존 개발용 테스트 오너 계정을 확인했어요. 기존 비밀번호는 변경하지 않았습니다.",
+      ? "개발용 테스트 오너 계정을 만들었습니다. 바로 로그인해 보세요."
+      : "기존 개발용 테스트 오너 계정을 확인했습니다. 비밀번호와 구독 상태를 테스트 기준으로 복구했습니다.",
   });
 }

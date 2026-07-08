@@ -33,13 +33,15 @@ export async function GET(request: NextRequest) {
 
     if (scope === "public") {
       const shopId = requestedShopId || "demo-shop";
-      const data = await getBootstrap(shopId);
+      const data = await getBootstrap(shopId, {
+        includeLanding: false,
+        includeNotifications: false,
+        includeGroomingRecords: false,
+      });
       return ownerMobileCorsJson(request, {
         mode: data.mode,
         shop: data.shop,
         services: data.services,
-        appointments: data.appointments,
-        groomingRecords: data.groomingRecords,
       });
     }
 

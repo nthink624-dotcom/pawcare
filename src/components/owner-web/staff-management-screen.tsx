@@ -24,6 +24,7 @@ import {
   buildDraft,
   emptyStaffDraft,
   formatWeekLabel,
+  formatFixedOffDays,
   formatMonthLabel,
   formatMonthShift,
   formatWeekdayKeys,
@@ -31,7 +32,7 @@ import {
   getWeekDates,
   getWeekStart,
   initialRequests,
-  parseWeekdayText,
+  parseDefaultDaysFromFixedOffText,
   scheduleOverrideFromBootstrap,
   type LeaveRequest,
   type LeaveType,
@@ -84,7 +85,7 @@ export default function StaffManagementScreen({
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [annualGrantDialogOpen, setAnnualGrantDialogOpen] = useState(false);
   const [draft, setDraft] = useState<StaffDraft>(() => (initialStaff ? buildDraft(initialStaff) : emptyStaffDraft));
-  const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>({ ...emptyStaffDraft, defaultDaysText: "월, 화, 수, 목, 금", regularOff: "토, 일" });
+  const [newStaffDraft, setNewStaffDraft] = useState<StaffDraft>({ ...emptyStaffDraft, defaultDaysText: formatWeekdayKeys(["sat", "sun"]), regularOff: formatWeekdayKeys(["sat", "sun"]) });
   const [leaveDraft, setLeaveDraft] = useState({ staffId: initialStaff?.id ?? "", date: currentDateInTimeZone(), type: "휴무" as LeaveType, period: "오전" as "오전" | "오후", reason: "" });
   const [annualGrantDraft, setAnnualGrantDraft] = useState({ days: "15" });
   const [scheduleEditDraft, setScheduleEditDraft] = useState<ScheduleEditDraft | null>(null);
@@ -201,7 +202,7 @@ export default function StaffManagementScreen({
       return;
     }
     selectStaff(nextStaff, false);
-    setNewStaffDraft({ ...emptyStaffDraft, defaultDaysText: "월, 화, 수, 목, 금", regularOff: "토, 일" });
+    setNewStaffDraft({ ...emptyStaffDraft, defaultDaysText: formatWeekdayKeys(["sat", "sun"]), regularOff: formatWeekdayKeys(["sat", "sun"]) });
     setStaffDialogOpen(false);
     setNotice("직원를 추가했습니다.");
   }
@@ -215,7 +216,7 @@ export default function StaffManagementScreen({
   }
 
   function parseDefaultDays(text: string) {
-    return parseWeekdayText(text);
+    return parseDefaultDaysFromFixedOffText(text);
   }
 
   function emitScheduleOverrides(overrides: ScheduleOverride[]) {
@@ -321,7 +322,7 @@ export default function StaffManagementScreen({
       endTime: override?.endTime ?? staffMember.endTime,
       period: override?.period ?? "오전",
       reason: override?.reason ?? "",
-      defaultDaysText: formatWeekdayKeys(staffMember.defaultDays),
+      defaultDaysText: formatFixedOffDays(staffMember.defaultDays),
       defaultStartTime: staffMember.startTime,
       defaultEndTime: staffMember.endTime,
     });
@@ -343,13 +344,13 @@ export default function StaffManagementScreen({
               defaultDays: nextDays.length > 0 ? nextDays : item.defaultDays,
               startTime: scheduleEditDraft.defaultStartTime,
               endTime: scheduleEditDraft.defaultEndTime,
-              regularOff: formatWeekdayKeys(weekDates.filter((day) => !nextDays.includes(day.key)).map((day) => day.key)),
+              regularOff: formatFixedOffDays(nextDays),
             }
           : item,
       ),
     );
     if (saved) {
-      setNotice("고정 근무 설정을 저장했습니다.");
+      setNotice("고정 휴무 설정을 저장했습니다.");
     }
   }
 

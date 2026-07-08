@@ -126,49 +126,33 @@ export default function CustomerDetailPanel({
     });
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    const records = detail.recentGroomingRecords;
-    if (records.length === 0) {
-      void Promise.resolve().then(() => {
-        if (!cancelled) setPhotoSummaries({});
+  async function loadGroomingPhotoSummary(recordId: string) {
+    if (photoSummaries[recordId]) return;
+
+    try {
+      const params = new URLSearchParams({
+        groomingRecordId: recordId,
+        limit: "10",
+        includeVariants: "false",
       });
-      return;
+      const result = await fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${params.toString()}`);
+      const assets = result.items.map((item) => item.mediaAsset);
+      const before = getMediaByKind(assets, "grooming_before");
+      const after = getMediaByKind(assets, "grooming_after");
+      const summary = {
+        before: before ? await getMediaPreview(before) : null,
+        after: after ? await getMediaPreview(after) : null,
+      };
+      setPhotoSummaries((current) => ({ ...current, [recordId]: summary }));
+    } catch {
+      setPhotoSummaries((current) => ({ ...current, [recordId]: { before: null, after: null } }));
     }
+  }
 
-    async function loadPhotos() {
-      const entries = await Promise.all(
-        records.map(async (record) => {
-          try {
-            const params = new URLSearchParams({
-              groomingRecordId: record.id,
-              limit: "10",
-              includeVariants: "false",
-            });
-            const result = await fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${params.toString()}`);
-            const assets = result.items.map((item) => item.mediaAsset);
-            const before = getMediaByKind(assets, "grooming_before");
-            const after = getMediaByKind(assets, "grooming_after");
-            return [
-              record.id,
-              {
-                before: before ? await getMediaPreview(before) : null,
-                after: after ? await getMediaPreview(after) : null,
-              },
-            ] as const;
-          } catch {
-            return [record.id, { before: null, after: null }] as const;
-          }
-        }),
-      );
-      if (!cancelled) setPhotoSummaries(Object.fromEntries(entries));
-    }
-
-    void loadPhotos();
-    return () => {
-      cancelled = true;
-    };
-  }, [detail.recentGroomingRecords]);
+  function openGroomingRecord(recordId: string) {
+    setSelectedGroomingRecordId(recordId);
+    void loadGroomingPhotoSummary(recordId);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +160,7 @@ export default function CustomerDetailPanel({
       if (cancelled) return;
       setSelectedGroomingRecordId(null);
       setExpandedPhoto(null);
+      setPhotoSummaries({});
     });
     return () => {
       cancelled = true;
@@ -257,7 +242,7 @@ export default function CustomerDetailPanel({
                   onSavePetNotes={(notes) => savePetPatch({ notes })}
                 />
 
-                <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} onOpenRecord={setSelectedGroomingRecordId} />
+                <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} onOpenRecord={openGroomingRecord} />
               </div>
             ) : (
               <EmptyState title="반려동물이 없습니다" description="이 보호자에게 등록된 반려동물 정보가 아직 없습니다." />

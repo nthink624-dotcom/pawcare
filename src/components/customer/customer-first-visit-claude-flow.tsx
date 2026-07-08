@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
-import { formatServicePrice, phoneNormalize } from "@/lib/utils";
-import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
+import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
+import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
 
@@ -90,6 +90,45 @@ function buildReservationNumber(appointment?: Appointment | null) {
   const datePart = appointment.appointment_date.replace(/-/g, "").slice(2);
   const rawSuffix = appointment.id.replace(/\D/g, "").slice(-3) || appointment.id.replace(/-/g, "").slice(-3).toUpperCase();
   return `PM${datePart}-${rawSuffix.padStart(3, "0")}`;
+}
+
+const staffWeekdayLabels: Array<{ key: BootstrapStaffMember["defaultDays"][number]; label: string }> = [
+  { key: "mon", label: "월" },
+  { key: "tue", label: "화" },
+  { key: "wed", label: "수" },
+  { key: "thu", label: "목" },
+  { key: "fri", label: "금" },
+  { key: "sat", label: "토" },
+  { key: "sun", label: "일" },
+];
+
+function formatStaffFixedOffDays(staff: BootstrapStaffMember) {
+  const workDays = new Set(staff.defaultDays);
+  const fixedOffDays = staffWeekdayLabels.filter((day) => !workDays.has(day.key)).map((day) => day.label);
+  if (fixedOffDays.length > 0) return fixedOffDays.join(", ");
+  return staff.regularOff?.trim() || "없음";
+}
+
+function formatStaffOverrideDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
+}
+
+function formatStaffUpcomingOffDays(staff: BootstrapStaffMember, overrides: StaffScheduleOverride[]) {
+  const today = currentDateInTimeZone();
+  return overrides
+    .filter((override) => override.staff_id === staff.id && override.work_date >= today && (override.status === "off" || override.status === "annual"))
+    .sort((a, b) => a.work_date.localeCompare(b.work_date))
+    .slice(0, 2)
+    .map((override) => `${formatStaffOverrideDate(override.work_date)} ${override.status === "annual" ? "연차" : "휴무"}`)
+    .join(", ");
+}
+
+function formatStaffOffDaySummary(staff: BootstrapStaffMember, overrides: StaffScheduleOverride[]) {
+  const fixedOffDays = formatStaffFixedOffDays(staff);
+  const upcomingOffDays = formatStaffUpcomingOffDays(staff, overrides);
+  return upcomingOffDays ? `고정 휴무 ${fixedOffDays} · 예정 ${upcomingOffDays}` : `고정 휴무 ${fixedOffDays}`;
 }
 
 function timeSlotMinutes(slot: string) {
@@ -177,6 +216,7 @@ function ClaudeStyles() {
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
       .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pm-proto .staff .role{display:block;width:100%;font-size:13px;color:var(--textMuted);margin-top:5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .staff .off{display:-webkit-box;width:100%;margin-top:6px;font-size:12px;color:var(--textMid);line-height:1.3;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical}
       .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
       .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:700;color:var(--primaryDk)}
       .pm-proto .consent-note .agree{color:#8a665d}
@@ -233,6 +273,7 @@ export default function CustomerFirstVisitClaudeFlow({
   customerServiceOptions,
   dateOptions,
   staffMembers,
+  staffScheduleOverrides = [],
   firstVisit,
   savedPets,
   step,
@@ -263,6 +304,7 @@ export default function CustomerFirstVisitClaudeFlow({
   customerServiceOptions: CustomerServiceSourceOption[];
   dateOptions: DateOption[];
   staffMembers: BootstrapStaffMember[];
+  staffScheduleOverrides?: StaffScheduleOverride[];
   firstVisit: FirstVisitForm;
   savedPets: SavedBookingPet[];
   step: FirstVisitStep;
@@ -503,6 +545,7 @@ export default function CustomerFirstVisitClaudeFlow({
                     <span className="avatar"><UserRound size={22} /></span>
                     <span className="name">빠른 선택</span>
                     <span className="role">가능한 직원</span>
+                    <span className="off">직원 휴무일 제외</span>
                   </button>
                 ) : null}
                 {staffMembers.map((staff) => {
@@ -514,6 +557,7 @@ export default function CustomerFirstVisitClaudeFlow({
                       </span>
                       <span className="name">{getStaffCustomerName(staff)}</span>
                       <span className="role">{getStaffCustomerTitle(staff)}</span>
+                      <span className="off">{formatStaffOffDaySummary(staff, staffScheduleOverrides)}</span>
                     </button>
                   );
                 })}

@@ -130,35 +130,35 @@ export const ownerPlans: OwnerPlan[] = [
   },
   makePlan({
     code: "monthly",
-    title: "베이직",
-    shortTitle: "베이직",
+    title: "1인 운영",
+    shortTitle: "1인 운영",
     monthlyPrice: 19000,
-    description: "혼자 운영하는 매장을 위한 플랜입니다. 예약, 고객, 반려동물, 미용 기록을 한 곳에서 관리할 수 있습니다.",
-    staffLimitLabel: "직원 1명",
+    description: "혼자 운영하는 1인샵을 위한 플랜입니다. 기본 기능은 동일하게 제공하고 운영 인원 기준만 1인샵에 맞춥니다.",
+    staffLimitLabel: "1인샵",
     alimtalkIncludedLabel: "월 500건",
     targetLabel: "1인샵",
-    highlights: ["운영 규모: 1인샵", "예약 배정 스태프: 1명", "직원 계정·권한: 없음"],
+    highlights: ["운영 규모: 1인샵", "예약 담당자: 1명", "직원 계정·권한: 없음"],
   }),
   makePlan({
     code: "quarterly",
-    title: "스탠다드",
-    shortTitle: "스탠다드",
+    title: "2~4인 운영",
+    shortTitle: "2~4인 운영",
     monthlyPrice: 29000,
-    description: "직원과 함께 예약을 나눠 보고 관리하는 소형 팀 매장에 적합한 플랜입니다.",
+    description: "상시 직원, 파트타임, 프리랜서가 함께 일하는 매장을 위한 추천 플랜입니다. 기본 기능은 동일하고 여러 담당자가 함께 예약을 나눠 맡는 기준입니다.",
     badge: "추천",
-    staffLimitLabel: "직원 2~4명",
+    staffLimitLabel: "2~4인",
     alimtalkIncludedLabel: "월 1,500건",
-    targetLabel: "직원 2~4명",
-    highlights: ["운영 규모: 직원 2~4명", "예약 배정 스태프: 2~4명", "직원 계정·권한: 포함"],
+    targetLabel: "2~4인 매장 + 프리랜서",
+    highlights: ["운영 규모: 직원/파트타임/프리랜서 함께 운영", "예약 담당자: 상시 4명 + 프리랜서 2명", "직원 계정·권한: 포함"],
     featured: true,
   }),
   makePlan({
     code: "halfyearly",
-    title: "스탠다드",
-    shortTitle: "스탠다드",
+    title: "2~4인 운영",
+    shortTitle: "2~4인 운영",
     monthlyPrice: 29000,
     description: "기존 반기 플랜 코드 호환용입니다. 신규 화면에는 노출하지 않습니다.",
-    staffLimitLabel: "직원 2~4명",
+    staffLimitLabel: "2~4인",
     alimtalkIncludedLabel: "월 1,500건",
     targetLabel: "기존 결제 호환",
     highlights: ["기존 구독 호환"],
@@ -166,14 +166,14 @@ export const ownerPlans: OwnerPlan[] = [
   }),
   makePlan({
     code: "yearly",
-    title: "프로",
-    shortTitle: "프로",
+    title: "5인 이상 운영",
+    shortTitle: "5인 이상 운영",
     monthlyPrice: 79000,
-    description: "예약량과 알림톡 발송량이 많은 매장을 위한 플랜입니다. 여러 직원이 함께 운영하는 매장에 적합합니다.",
-    staffLimitLabel: "직원 5~8명",
+    description: "5명 이상이 함께 일하거나 예약량과 알림톡 발송량이 많은 확장 매장을 위한 플랜입니다. 기본 기능은 동일하고 운영 규모만 더 넉넉하게 잡습니다.",
+    staffLimitLabel: "5인 이상",
     alimtalkIncludedLabel: "월 5,000건",
-    targetLabel: "직원 5~8명",
-    highlights: ["운영 규모: 직원 5~8명", "예약 배정 스태프: 5~8명", "직원 계정·권한: 포함"],
+    targetLabel: "5명 이상 또는 예약량 많은 매장",
+    highlights: ["운영 규모: 5명 이상 확장 운영", "예약 담당자: 넉넉히 운영", "초기 설정·문의 우선 지원"],
   }),
 ];
 
@@ -192,13 +192,13 @@ export function getOwnerPlanDisplayName(code: string | null | undefined) {
     case "free":
       return "체험 플랜";
     case "monthly":
-      return "베이직";
+      return "1인 운영";
     case "quarterly":
-      return "스탠다드";
+      return "2~4인 운영";
     case "halfyearly":
-      return "스탠다드";
+      return "2~4인 운영";
     case "yearly":
-      return "프로";
+      return "5인 이상 운영";
     default:
       return getOwnerPlanByCode(code)?.shortTitle ?? "-";
   }

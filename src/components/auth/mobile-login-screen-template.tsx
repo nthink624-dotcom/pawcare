@@ -188,6 +188,7 @@ export default function MobileLoginScreenTemplate({
 
       <div className="mt-6 space-y-3">
         <input
+          data-testid="owner-login-id"
           ref={loginIdInputRef}
           type="text"
           value={loginId}
@@ -200,6 +201,7 @@ export default function MobileLoginScreenTemplate({
 
         <div className="relative">
           <input
+            data-testid="owner-login-password"
             ref={passwordInputRef}
             type={showPassword ? "text" : "password"}
             value={password}
@@ -235,6 +237,7 @@ export default function MobileLoginScreenTemplate({
       </div>
 
       <button
+        data-testid="owner-login-submit"
         type="button"
         onClick={() => onLogin(syncBrowserFilledCredentials())}
         disabled={loading}

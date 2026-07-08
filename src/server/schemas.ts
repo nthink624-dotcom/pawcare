@@ -62,6 +62,7 @@ export const guardianInputSchema = z.object({
   name: z.string().trim().min(1),
   phone: z.string().trim().min(1),
   memo: z.string().default(""),
+  enabled: z.boolean().optional(),
 });
 
 export const guardianUpdateSchema = z.object({

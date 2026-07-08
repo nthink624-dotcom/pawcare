@@ -5,8 +5,19 @@
   --surface: #ffffff;
   --muted: #7c7a73;
   --border: #e8e2d8;
-  --accent: #1f6b5b;
-  --accent-soft: #eaf5f1;
+  --pm-brand-blue: #2563eb;
+  --pm-brand-blue-hover: #1d4ed8;
+  --pm-brand-blue-soft: #eff6ff;
+  --pm-brand-blue-wash: #f3f7ff;
+  --pm-brand-blue-border: #bfdbfe;
+  --pm-brand-blue-sky: #0ea5e9;
+  --pm-brand-blue-shadow: rgba(37, 99, 235, 0.13);
+  --pm-brand-blue-page-gradient: linear-gradient(135deg, #eaf2ff 0%, #dff8ff 36%, #f8fbff 58%, #e7efff 100%);
+  --pm-brand-blue-soft-gradient: linear-gradient(135deg, #eaf2ff 0%, #eff8ff 48%, #f8fbff 100%);
+  --pm-brand-blue-button-gradient:
+    linear-gradient(112deg, #102fc8 0%, #2563eb 34%, #0891b2 58%, #7dd3fc 78%, #1d4ed8 100%);
+  --accent: var(--pm-brand-blue);
+  --accent-soft: var(--pm-brand-blue-soft);
   --text: #23231f;
   --success: #1f6b5b;
   --warning: #8c6e53;
@@ -35,6 +46,40 @@ body {
   min-height: 100%;
 }
 
+@keyframes pmButtonFluid {
+  0% {
+    transform: translate3d(-22%, -12%, 0) scale(1.12) rotate(0deg);
+  }
+
+  14% {
+    transform: translate3d(18%, -24%, 0) scale(1.2) rotate(9deg);
+  }
+
+  29% {
+    transform: translate3d(28%, 12%, 0) scale(1.08) rotate(-7deg);
+  }
+
+  43% {
+    transform: translate3d(-12%, 26%, 0) scale(1.18) rotate(14deg);
+  }
+
+  58% {
+    transform: translate3d(24%, 24%, 0) scale(1.14) rotate(-12deg);
+  }
+
+  72% {
+    transform: translate3d(-30%, 4%, 0) scale(1.2) rotate(6deg);
+  }
+
+  87% {
+    transform: translate3d(6%, -8%, 0) scale(1.1) rotate(-10deg);
+  }
+
+  100% {
+    transform: translate3d(-22%, -12%, 0) scale(1.12) rotate(0deg);
+  }
+}
+
 .owner-font {
   font-family:
     "Pretendard Variable",
@@ -58,7 +103,7 @@ body {
 }
 
 .pm-owner-web {
-  --acc: #2f6bd4;
+  --acc: var(--pm-brand-blue);
   --acc-dk: color-mix(in oklab, var(--acc), #000 16%);
   --acc-tint: color-mix(in srgb, var(--acc) 10%, #fff);
   --acc-soft: color-mix(in srgb, var(--acc) 18%, #fff);
@@ -112,6 +157,147 @@ body {
 .pm-owner-web button.hover\:bg-\[\#1f2937\]:hover,
 .pm-owner-web button.hover\:bg-\[\#4962d6\]:hover {
   background-color: var(--acc-dk) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\],
+.pm-owner-web button.bg-\[\#111827\],
+.pm-owner-web button.bg-\[\#316fe8\],
+.pm-owner-web button.bg-\[\#2f6bd4\],
+.pm-owner-web button.bg-\[\#2563eb\],
+.pm-owner-web button.bg-\[\#1f6b5b\],
+.pm-owner-web button.bg-\[\#12b76a\],
+.pm-owner-web button.bg-\[var\(--accent\)\],
+.pm-owner-web a.bg-\[\#316fe8\],
+.pm-owner-web a.bg-\[\#2f6bd4\],
+.pm-owner-web a.bg-\[\#2563eb\],
+.pm-owner-web a.bg-\[var\(--accent\)\] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--pm-brand-blue) !important;
+  background-image: linear-gradient(112deg, #102fc8 0%, #2563eb 44%, #0891b2 76%, #1d4ed8 100%) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]::before,
+.pm-owner-web button.bg-\[\#111827\]::before,
+.pm-owner-web button.bg-\[\#316fe8\]::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]::before,
+.pm-owner-web button.bg-\[\#2563eb\]::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]::before,
+.pm-owner-web button.bg-\[\#12b76a\]::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]::before,
+.pm-owner-web a.bg-\[\#316fe8\]::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]::before,
+.pm-owner-web a.bg-\[\#2563eb\]::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  background:
+    linear-gradient(98deg, rgba(15, 47, 200, 0.96) 0%, rgba(37, 99, 235, 0.86) 22%, rgba(14, 165, 233, 0.78) 39%, rgba(125, 211, 252, 0.9) 56%, rgba(29, 78, 216, 0.92) 76%, rgba(15, 23, 119, 0.96) 100%),
+    linear-gradient(24deg, rgba(125, 211, 252, 0.78) 0%, rgba(37, 99, 235, 0) 45%, rgba(14, 165, 233, 0.68) 100%);
+  filter: blur(7px) saturate(1.22);
+  opacity: 1;
+  transform-origin: 50% 50%;
+  animation: pmButtonFluid 6.2s ease-in-out infinite;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar .group-hover\:bg-\[\#316fe8\]:hover {
+  background-color: #316fe8 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]::before {
+  content: none !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:hover,
+.pm-owner-web button.bg-\[\#111827\]:hover,
+.pm-owner-web button.bg-\[\#316fe8\]:hover,
+.pm-owner-web button.bg-\[\#2f6bd4\]:hover,
+.pm-owner-web button.bg-\[\#2563eb\]:hover,
+.pm-owner-web button.bg-\[\#1f6b5b\]:hover,
+.pm-owner-web button.bg-\[\#12b76a\]:hover,
+.pm-owner-web button.bg-\[var\(--accent\)\]:hover,
+.pm-owner-web a.bg-\[\#316fe8\]:hover,
+.pm-owner-web a.bg-\[\#2f6bd4\]:hover,
+.pm-owner-web a.bg-\[\#2563eb\]:hover,
+.pm-owner-web a.bg-\[var\(--accent\)\]:hover {
+  background-image: linear-gradient(112deg, #102fc8 0%, #2563eb 44%, #0891b2 76%, #1d4ed8 100%) !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:hover::before,
+.pm-owner-web button.bg-\[\#111827\]:hover::before,
+.pm-owner-web button.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:hover::before,
+.pm-owner-web button.bg-\[\#2563eb\]:hover::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:hover::before,
+.pm-owner-web button.bg-\[\#12b76a\]:hover::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:hover::before,
+.pm-owner-web a.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]:hover::before,
+.pm-owner-web a.bg-\[\#2563eb\]:hover::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]:hover::before {
+  animation-duration: 3.4s;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:disabled,
+.pm-owner-web button.bg-\[\#111827\]:disabled,
+.pm-owner-web button.bg-\[\#316fe8\]:disabled,
+.pm-owner-web button.bg-\[\#2f6bd4\]:disabled,
+.pm-owner-web button.bg-\[\#2563eb\]:disabled,
+.pm-owner-web button.bg-\[\#1f6b5b\]:disabled,
+.pm-owner-web button.bg-\[\#12b76a\]:disabled,
+.pm-owner-web button.bg-\[var\(--accent\)\]:disabled {
+  background-image: none !important;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:disabled::before,
+.pm-owner-web button.bg-\[\#111827\]:disabled::before,
+.pm-owner-web button.bg-\[\#316fe8\]:disabled::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:disabled::before,
+.pm-owner-web button.bg-\[\#2563eb\]:disabled::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:disabled::before,
+.pm-owner-web button.bg-\[\#12b76a\]:disabled::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:disabled::before {
+  content: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-owner-web button.bg-\[\#5570F1\],
+  .pm-owner-web button.bg-\[\#111827\],
+  .pm-owner-web button.bg-\[\#316fe8\],
+  .pm-owner-web button.bg-\[\#2f6bd4\],
+  .pm-owner-web button.bg-\[\#2563eb\],
+  .pm-owner-web button.bg-\[\#1f6b5b\],
+  .pm-owner-web button.bg-\[\#12b76a\],
+  .pm-owner-web button.bg-\[var\(--accent\)\],
+  .pm-owner-web a.bg-\[\#316fe8\],
+  .pm-owner-web a.bg-\[\#2f6bd4\],
+  .pm-owner-web a.bg-\[\#2563eb\],
+  .pm-owner-web a.bg-\[var\(--accent\)\] {
+    animation: none;
+  }
+
+  .pm-owner-web button.bg-\[\#5570F1\]::before,
+  .pm-owner-web button.bg-\[\#111827\]::before,
+  .pm-owner-web button.bg-\[\#316fe8\]::before,
+  .pm-owner-web button.bg-\[\#2f6bd4\]::before,
+  .pm-owner-web button.bg-\[\#2563eb\]::before,
+  .pm-owner-web button.bg-\[\#1f6b5b\]::before,
+  .pm-owner-web button.bg-\[\#12b76a\]::before,
+  .pm-owner-web button.bg-\[var\(--accent\)\]::before,
+  .pm-owner-web a.bg-\[\#316fe8\]::before,
+  .pm-owner-web a.bg-\[\#2f6bd4\]::before,
+  .pm-owner-web a.bg-\[\#2563eb\]::before,
+  .pm-owner-web a.bg-\[var\(--accent\)\]::before {
+    animation: none;
+  }
 }
 
 .pm-owner-web .bg-\[\#edf7f3\],
@@ -713,8 +899,8 @@ textarea {
   --surface: #ffffff;
   --muted: #646a74;
   --border: #e1e4ea;
-  --accent: #2f6bd4;
-  --accent-soft: #eef4ff;
+  --accent: var(--pm-brand-blue);
+  --accent-soft: var(--pm-brand-blue-soft);
   --text: #181b21;
   --shadow-soft: 0 10px 28px rgba(24, 27, 33, 0.04);
 }

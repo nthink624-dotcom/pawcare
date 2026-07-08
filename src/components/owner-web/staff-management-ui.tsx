@@ -9,6 +9,7 @@ import { cn, currentDateInTimeZone } from "@/lib/utils";
 import {
   applyScheduleToCell,
   buildDraft,
+  formatFixedOffDays,
   formatShortDate,
   formatWeekdayKeys,
   getAnnualLeaveUsage,
@@ -237,7 +238,7 @@ export function StaffList({
             const todayCell = applyScheduleToCell(staffMember, todayKey, todayDate, requests, overrides);
             const annualUsage = getAnnualLeaveUsage(staffMember, requests);
             const upcomingLeave = getUpcomingStaffLeave(staffMember, requests, todayDate);
-            const defaultDaysLabel = formatWeekdayKeys(staffMember.defaultDays);
+            const fixedOffDaysLabel = formatFixedOffDays(staffMember.defaultDays);
             const todayStatusLabel = todayCell.status === "work" ? todayCell.label : todayCell.label || getStaffAvailability(staffMember, requests, overrides);
 
             return (
@@ -288,9 +289,9 @@ export function StaffList({
                     <span className="truncate text-right font-medium text-[#111827]">{todayStatusLabel}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[#64748b]">고정 근무일</span>
+                    <span className="text-[#64748b]">고정 휴무일</span>
                     <span className="truncate text-right font-medium text-[#111827]">
-                      {defaultDaysLabel || "미설정"} · {staffMember.startTime}-{staffMember.endTime}
+                      {fixedOffDaysLabel || "없음"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -387,7 +388,7 @@ export function StaffDetailPanel({
         <Field label="연락처">
           <TextInput value={draft.phone} onChange={(phone) => onDraftChange((current) => ({ ...current, phone: formatStaffPhone(phone) }))} placeholder="010-0000-0000" />
         </Field>
-        <Field label="고정 근무일">
+        <Field label="고정 휴무일">
           <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => ({ ...current, defaultDaysText }))} />
         </Field>
         <div className="grid grid-cols-2 gap-2">
@@ -643,7 +644,7 @@ export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { dr
       <Field label="연락처">
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>
-      <Field label="고정 근무일">
+      <Field label="고정 휴무일">
         <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onChange({ ...draft, defaultDaysText })} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
@@ -728,15 +729,15 @@ export function StaffScheduleEditModal({
       <div className="mt-5 overflow-hidden rounded-[8px] border border-[#e5eaf0] bg-[#fbfcfd]">
         <button type="button" onClick={onToggleDefaultSchedule} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
           <span className="min-w-0">
-            <span className="block text-[14px] font-normal text-[#334155]">반복 근무 기준</span>
-            <span className="mt-0.5 block text-[13px] text-[#64748b]">매주 반복되는 요일과 시간은 필요할 때만 수정합니다.</span>
+            <span className="block text-[14px] font-normal text-[#334155]">고정 휴무 기준</span>
+            <span className="mt-0.5 block text-[13px] text-[#64748b]">매주 쉬는 요일은 필요할 때만 수정합니다.</span>
           </span>
           <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", defaultScheduleOpen && "rotate-180")} />
         </button>
         {defaultScheduleOpen ? (
           <div className="border-t border-[#edf2f7] px-4 py-4">
             <div className="grid gap-4 md:grid-cols-[minmax(0,1.15fr)_auto] md:items-start">
-              <Field label="반복 근무 요일">
+              <Field label="반복 휴무 요일">
                 <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onDraftChange((current) => (current ? { ...current, defaultDaysText } : current))} />
               </Field>
               <div className="flex justify-end">

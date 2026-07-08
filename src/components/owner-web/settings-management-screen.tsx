@@ -25,7 +25,7 @@ import {
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
-import { createOwnerShopProfileImageFromFile, getOwnerMediaSignedUrl } from "@/lib/media/owner-media-client";
+import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,13 @@ type ShopPolicyPatch = {
   approvalMode: ApprovalMode;
   cancelWindow: ReservationPolicySettings["cancel_window"];
   pendingHoldLimit: 1;
+};
+
+type PublicMediaSignedUrlsResponse = {
+  items: Array<{
+    mediaAssetId: string;
+    signedUrl: string;
+  }>;
 };
 
 function approvalModeLabel(value: ApprovalMode | null | undefined) {
@@ -552,12 +559,21 @@ function shouldFallbackToLocalProfileImage(error: unknown) {
   );
 }
 
-async function resolveShopProfileImageUrlFromAssetId(shopId: string, mediaAssetId: string) {
-  try {
-    return await getOwnerMediaSignedUrl(shopId, mediaAssetId, "provider_ready");
-  } catch {
-    return getOwnerMediaSignedUrl(shopId, mediaAssetId, "original");
-  }
+async function resolveShopProfileImageUrlsFromAssetIds(shopId: string, mediaAssetIds: string[]) {
+  const ids = uniqueShopProfileImageAssetIds(mediaAssetIds);
+  if (ids.length === 0) return [];
+
+  const result = await fetchApiJsonWithAuth<PublicMediaSignedUrlsResponse>("/api/owner/media/signed-urls", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      shopId,
+      mediaAssetIds: ids,
+      variant: "provider_ready",
+    }),
+  });
+  const urlsByAssetId = new Map(result.items.map((item) => [item.mediaAssetId, item.signedUrl]));
+  return ids.map((mediaAssetId) => urlsByAssetId.get(mediaAssetId) ?? "").filter(Boolean);
 }
 
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
@@ -1070,6 +1086,7 @@ export default function SettingsManagementScreen({
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const discountCouponSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const discountCouponSavingRef = useRef(false);
+  const shopInfoAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileImageServerSyncKeyRef = useRef("");
   const profileImageAssetUrlSyncKeyRef = useRef("");
@@ -1089,6 +1106,7 @@ export default function SettingsManagementScreen({
       const storedSettings = window.localStorage.getItem(ownerWebSettingsStorageKey);
       const storedProfileImages = window.localStorage.getItem(ownerWebShopProfileImagesStorageKey);
       const storedProfileImage = window.localStorage.getItem(ownerWebShopProfileImageStorageKey);
+      let cancelled = false;
       const frame = window.requestAnimationFrame(() => {
         let nextProfileImages: string[] = [];
         if (storedSettings) {
@@ -1106,12 +1124,32 @@ export default function SettingsManagementScreen({
         } else if (!persistShopProfile && storedProfileImage) {
           nextProfileImages = [storedProfileImage];
         }
-        setShopProfileImages(nextProfileImages);
-        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(nextProfileImages.length, serverMediaAssetIds));
+        if (nextProfileImages.length > 0 || serverMediaAssetIds.length === 0) {
+          setShopProfileImages(nextProfileImages);
+        } else {
+          setShopProfileImages((currentImages) => (currentImages.length > 0 ? currentImages : []));
+        }
+        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(Math.max(nextProfileImages.length, serverMediaAssetIds.length), serverMediaAssetIds));
+
+        if (shop && persistShopProfile && nextProfileImages.length === 0 && serverMediaAssetIds.length > 0) {
+          void resolveShopProfileImageUrlsFromAssetIds(shop.id, serverMediaAssetIds).then((signedUrls) => {
+            if (cancelled) return;
+            const initializedImages = normalizeShopProfileImages(signedUrls);
+            if (initializedImages.length === 0) return;
+            setShopProfileImages(initializedImages);
+            setShopInfoFeedback("");
+            persistSettings(draftSettings, initializedImages);
+          }).catch((error) => {
+            console.error("[OWNER SETTINGS] failed to initialize shop profile image URLs", error);
+          });
+        }
       });
       setIsShopInfoDirty(false);
       setAlertSettings(buildAlertSettingsDraft(shop?.notification_settings));
-      return () => window.cancelAnimationFrame(frame);
+      return () => {
+        cancelled = true;
+        window.cancelAnimationFrame(frame);
+      };
     } catch {
       window.localStorage.removeItem(ownerWebSettingsStorageKey);
       window.localStorage.removeItem(ownerWebShopProfileImagesStorageKey);
@@ -1129,6 +1167,9 @@ export default function SettingsManagementScreen({
       }
       if (discountCouponSaveTimerRef.current) {
         clearTimeout(discountCouponSaveTimerRef.current);
+      }
+      if (shopInfoAutoSaveTimerRef.current) {
+        clearTimeout(shopInfoAutoSaveTimerRef.current);
       }
     };
   }, []);
@@ -1367,7 +1408,10 @@ export default function SettingsManagementScreen({
           ? [shop.customer_page_settings.hero_image_url]
           : [],
     );
+    const localHeroAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+    const serverHeroAssetIds = normalizeShopProfileImageAssetIds(shop.customer_page_settings);
 
+    if (localHeroAssetIds.length > 0 && areStringArraysEqual(localHeroAssetIds, serverHeroAssetIds)) return;
     if (localHeroImages.length <= serverHeroImages.length) return;
 
     const syncKey = `${shop.id}:${localHeroImages.join("|")}:${shopProfileImageAssetIds.join("|")}`;
@@ -1388,19 +1432,12 @@ export default function SettingsManagementScreen({
     if (mediaAssetIds.length === 0) return;
 
     const syncKey = `${shop.id}:${mediaAssetIds.join("|")}`;
-    if (profileImageAssetUrlSyncKeyRef.current === syncKey) return;
+    if (profileImageAssetUrlSyncKeyRef.current === syncKey && currentImages.length > 0) return;
     profileImageAssetUrlSyncKeyRef.current = syncKey;
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void Promise.all(
-        mediaAssetIds.map((mediaAssetId) =>
-          resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
-            console.error("[OWNER SETTINGS] failed to recover a shop profile image URL", error);
-            return "";
-          }),
-        ),
-      )
+      void resolveShopProfileImageUrlsFromAssetIds(shop.id, mediaAssetIds)
         .then((signedUrls) => {
         if (cancelled) return;
         const nextImages = normalizeShopProfileImages(signedUrls);
@@ -1408,17 +1445,14 @@ export default function SettingsManagementScreen({
         const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, mediaAssetIds);
         setShopProfileImages(nextImages);
         setShopProfileImageAssetIds(nextMediaAssetIds);
+        setShopInfoFeedback("");
         persistSettings(draftSettings, nextImages);
-        void persistShopProfileImageSettings(nextImages, nextMediaAssetIds).catch((error) => {
-          console.error("[OWNER SETTINGS] failed to persist recovered shop profile images", error);
-          setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 고객 페이지에 반영하지 못했습니다.");
-        });
       })
         .catch((error) => {
           console.error("[OWNER SETTINGS] failed to recover shop profile image URLs", error);
           setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
         });
-    }, 900);
+    }, 0);
 
     return () => {
       cancelled = true;
@@ -1457,14 +1491,7 @@ export default function SettingsManagementScreen({
           );
           if (nextAssetIds.length === 0 || areStringArraysEqual(nextAssetIds, currentAssetIds)) return;
 
-          const signedUrls = await Promise.all(
-            nextAssetIds.map((mediaAssetId) =>
-              resolveShopProfileImageUrlFromAssetId(shop.id, mediaAssetId).catch((error) => {
-                console.error("[OWNER SETTINGS] failed to recover a missing shop profile image URL", error);
-                return "";
-              }),
-            ),
-          );
+          const signedUrls = await resolveShopProfileImageUrlsFromAssetIds(shop.id, nextAssetIds);
           if (cancelled) return;
 
           const nextImages = normalizeShopProfileImages(signedUrls);
@@ -1478,7 +1505,7 @@ export default function SettingsManagementScreen({
           console.error("[OWNER SETTINGS] failed to recover missing shop profile images from R2", error);
           setShopInfoFeedback(error instanceof Error ? error.message : "R2에 저장된 매장 사진을 다시 연결하지 못했습니다.");
         });
-    }, 900);
+    }, 0);
 
     return () => {
       cancelled = true;
@@ -1779,6 +1806,15 @@ export default function SettingsManagementScreen({
     });
   }
 
+  function commitShopRow(rowId: string, value: SettingRow["value"]) {
+    setDraftSettings((currentSettings) => {
+      const nextSettings = buildSettingsWithRow(currentSettings, rowId, value);
+      persistSettings(nextSettings);
+      scheduleShopInfoAutoSave(nextSettings);
+      return nextSettings;
+    });
+  }
+
   function updateHoursRow(rowId: string, value: SettingRow["value"]) {
     setDraftSettings((currentSettings) => {
       const nextSettings = {
@@ -1808,7 +1844,7 @@ export default function SettingsManagementScreen({
         },
       };
       persistSettings(nextSettings);
-      setIsShopInfoDirty(true);
+      scheduleShopInfoAutoSave(nextSettings);
       return nextSettings;
     });
   }
@@ -1824,26 +1860,30 @@ export default function SettingsManagementScreen({
     }, 1400);
   }
 
-  async function saveShopInfoFromDraft() {
-    if (savingShopInfo) return;
-    setShopInfoFeedback("");
-    if (!isShopInfoDirty) {
-      showSaveCompletePopup();
-      return;
+  function scheduleShopInfoAutoSave(settingsToSave: Record<SettingsTabKey, SettingsTab>) {
+    setIsShopInfoDirty(true);
+    if (shopInfoAutoSaveTimerRef.current) {
+      clearTimeout(shopInfoAutoSaveTimerRef.current);
     }
-    const settingsToSave = draftSettings;
-    setSavingShopInfo(true);
-    setIsShopInfoDirty(false);
-    try {
-      await saveShopSettings(settingsToSave, { profile: true, policy: true });
-      showSaveCompletePopup();
-    } catch (error) {
-      console.error("[OWNER SETTINGS] failed to save shop profile", error);
-      setShopInfoFeedback(error instanceof Error ? error.message : "매장 정보를 저장하지 못했습니다.");
-      setIsShopInfoDirty(true);
-    } finally {
-      setSavingShopInfo(false);
-    }
+
+    shopInfoAutoSaveTimerRef.current = setTimeout(() => {
+      shopInfoAutoSaveTimerRef.current = null;
+      setSavingShopInfo(true);
+      setShopInfoFeedback("");
+      setIsShopInfoDirty(false);
+      void saveShopSettings(settingsToSave, { profile: true, policy: true })
+        .then(() => {
+          showSaveCompletePopup();
+        })
+        .catch((error) => {
+          console.error("[OWNER SETTINGS] failed to auto-save shop profile", error);
+          setShopInfoFeedback(error instanceof Error ? error.message : "매장 정보를 자동 저장하지 못했습니다.");
+          setIsShopInfoDirty(true);
+        })
+        .finally(() => {
+          setSavingShopInfo(false);
+        });
+    }, 500);
   }
 
   function handleRowClick(row: SettingRow) {
@@ -1894,6 +1934,11 @@ export default function SettingsManagementScreen({
   const currentClosedDayRow = currentRows.find((row) => row.id === "closedDay");
   const businessHoursRow = draftSettings.hours.rows.find((row) => row.id === "businessHours");
   const closedDayRow = draftSettings.hours.rows.find((row) => row.id === "closedDay");
+  const configuredShopProfileImageAssetCount = Math.max(
+    shopProfileImageAssetIds.filter(Boolean).length,
+    normalizeShopProfileImageAssetIds(shop?.customer_page_settings).length,
+  );
+  const profileImagesLoading = shopProfileImages.length === 0 && configuredShopProfileImageAssetCount > 0;
 
   async function addShopProfileImages(files: FileList | File[]) {
     if (!shop) return;
@@ -1926,7 +1971,7 @@ export default function SettingsManagementScreen({
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(true);
+      setIsShopInfoDirty(false);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to upload shop profile images", error);
       if (shouldFallbackToLocalProfileImage(error)) {
@@ -1957,7 +2002,7 @@ export default function SettingsManagementScreen({
     setSavingShopInfo(true);
     try {
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(true);
+      setIsShopInfoDirty(false);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to persist shop profile image removal", error);
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진 변경사항을 저장하지 못했습니다.");
@@ -1994,7 +2039,7 @@ export default function SettingsManagementScreen({
     setSavingShopInfo(true);
     try {
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(true);
+      setIsShopInfoDirty(false);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to persist primary shop profile image", error);
       setShopInfoFeedback(error instanceof Error ? error.message : "대표 매장 사진을 저장하지 못했습니다.");
@@ -2125,22 +2170,22 @@ export default function SettingsManagementScreen({
               <ShopInfoSettingsPanel
                 rows={current.rows}
                   shopProfileImages={shopProfileImages}
+                  shopProfileImageAssetCount={configuredShopProfileImageAssetCount}
+                  profileImagesLoading={profileImagesLoading}
                   shop={customerPagePreviewShop ?? shop}
                   previewServices={previewServices}
                   staffMembers={staffMembers}
-                  ownerProfile={ownerProfile}
-                  businessHoursSummary={String(businessHoursRow?.value ?? "")}
-                  closedDaysSummary={String(closedDayRow?.value ?? "")}
+                ownerProfile={ownerProfile}
+                businessHoursSummary={String(businessHoursRow?.value ?? "")}
+                closedDaysSummary={String(closedDayRow?.value ?? "")}
                 editable
-                saving={savingShopInfo}
                 feedbackMessage={shopInfoFeedback}
-                onSave={saveShopInfoFromDraft}
                 onProfileImagesAdd={addShopProfileImages}
                 onProfileImagesRemove={removeShopProfileImages}
                 onProfileImageSelect={selectShopProfileImageAsPrimary}
                 onStaffMembersChange={onStaffMembersChange}
                 onRowChange={(rowId, value) => updateRow(rowId, value)}
-                onRowCommit={(rowId, value) => updateRow(rowId, value)}
+                onRowCommit={(rowId, value) => commitShopRow(rowId, value)}
                 onOpenAddressSearch={() => setAddressSheetOpen(true)}
                 serviceMenuContent={
                   <ServiceManagementScreen
@@ -2172,42 +2217,42 @@ export default function SettingsManagementScreen({
             </>
           ) : activeTab === "benefits" ? (
             <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
-            <WebSurface className="flex h-full min-h-[640px] flex-col p-6">
-              <div className="mb-5 flex items-start justify-between gap-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-4">
-                <div>
-                  <h2 className="text-[20px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
+              <div className="flex h-full min-h-0 flex-col gap-2">
+                <div className="flex shrink-0 items-center justify-between gap-3 px-1">
+                  <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={reloadSavedDiscountCoupons}
+                      disabled={!discountCouponsDirty}
+                      className="inline-flex h-8 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      기존 혜택 불러오기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addDiscountCoupon()}
+                      className="inline-flex h-8 items-center rounded-[8px] border border-[#c8ded8] bg-[#f4faf8] px-3 text-[14px] font-normal text-[#2f7866] transition hover:border-[#8bbcaf] hover:bg-[#eef7f4] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      혜택 추가
+                    </button>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={reloadSavedDiscountCoupons}
-                    disabled={!discountCouponsDirty}
-                    className="inline-flex h-10 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866] disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    기존 혜택 불러오기
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => addDiscountCoupon()}
-                    className="inline-flex h-10 items-center rounded-[8px] border border-[#c8ded8] bg-[#f4faf8] px-4 text-[15px] font-normal text-[#2f7866] transition hover:border-[#8bbcaf] hover:bg-[#eef7f4] disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    혜택 추가
-                  </button>
-                </div>
+                <WebSurface className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <DiscountCouponEditor
+                      coupons={discountCoupons}
+                      serviceOptions={customerServiceConnectionOptions}
+                      disabled={false}
+                      onAdd={() => addDiscountCoupon()}
+                      onAddPreset={addDiscountCoupon}
+                      onDelete={deleteDiscountCoupon}
+                      onToggleEnabled={toggleDiscountCouponEnabled}
+                      onUpdate={updateDiscountCoupon}
+                    />
+                  </div>
+                </WebSurface>
               </div>
-              <div className="min-h-0 flex-1">
-                <DiscountCouponEditor
-                  coupons={discountCoupons}
-                  serviceOptions={customerServiceConnectionOptions}
-                  disabled={false}
-                  onAdd={() => addDiscountCoupon()}
-                  onAddPreset={addDiscountCoupon}
-                  onDelete={deleteDiscountCoupon}
-                  onToggleEnabled={toggleDiscountCouponEnabled}
-                  onUpdate={updateDiscountCoupon}
-                />
-              </div>
-            </WebSurface>
             </CustomerPagePreviewLayout>
           ) : (
             <WebSurface className="p-6">

@@ -4,7 +4,6 @@ import {
 } from "@/lib/media/media-policy";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createMediaSignedUploadUrl, getMediaStorageInfo } from "@/server/media-storage";
-import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { MediaAsset, MediaVariant, MediaVariantKey } from "@/types/domain";
 
@@ -107,15 +106,10 @@ function buildVariantStoragePath(params: {
   contentType: string;
 }) {
   const ext = extensionForContentType(params.contentType);
-  const directory = buildMediaStorageDirectory({
-    shopId: params.mediaAsset.shop_id,
-    mediaAssetId: params.mediaAsset.id,
-    mediaKind: params.mediaAsset.media_kind,
-    createdAt: params.mediaAsset.created_at,
-    guardianId: params.mediaAsset.guardian_id,
-    petId: params.mediaAsset.pet_id,
-    appointmentId: params.mediaAsset.appointment_id,
-  });
+  const directory = params.mediaAsset.storage_path.split("/").slice(0, -1).join("/");
+  if (!directory) {
+    throw new OwnerApiError("Media asset storage path is invalid.", 400);
+  }
   return `${directory}/${params.variantKey}.${ext}`;
 }
 

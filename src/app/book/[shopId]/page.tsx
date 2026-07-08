@@ -39,6 +39,7 @@ export default async function BookPage({
       initialShop={data.shop}
       initialServices={data.services}
       initialStaffMembers={data.staffMembers}
+      initialStaffScheduleOverrides={data.staffScheduleOverrides ?? []}
       initialAppointments={data.appointments}
       initialMode="first"
       initialDate={resolvedSearchParams?.date ?? ""}

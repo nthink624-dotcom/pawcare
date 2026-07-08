@@ -15,7 +15,7 @@ import {
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
-import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
+import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 
 type ActiveMode = "first" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
@@ -374,6 +374,7 @@ export default function CustomerBookingPage({
   initialShop,
   initialServices,
   initialStaffMembers = [],
+  initialStaffScheduleOverrides = [],
   initialMode = "first",
   initialAccessToken,
   initialDate = "",
@@ -388,6 +389,7 @@ export default function CustomerBookingPage({
   initialShop: Shop;
   initialServices: Service[];
   initialStaffMembers?: BootstrapStaffMember[];
+  initialStaffScheduleOverrides?: StaffScheduleOverride[];
   initialAppointments?: Appointment[];
   initialMode?: ActiveMode;
   initialAccessToken?: string;
@@ -864,6 +866,7 @@ export default function CustomerBookingPage({
               customerServiceOptions={customerServiceOptions}
               dateOptions={dateOptions}
               staffMembers={staffMembers}
+              staffScheduleOverrides={initialStaffScheduleOverrides}
               firstVisit={firstVisit}
               savedPets={savedPets}
               step={firstVisitStep}

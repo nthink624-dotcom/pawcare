@@ -1,6 +1,8 @@
 // Temporary diagnostic route for auditing all registered notification types.
 export const runtime = "nodejs";
 
+import type { NextRequest } from "next/server";
+
 import {
   ALIMTALK_NOTIFICATION_REGISTRY,
   NOTIFICATION_REGISTRY,
@@ -11,6 +13,7 @@ import {
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
 import { resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
+import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 import { getBootstrap } from "@/server/bootstrap";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -111,7 +114,15 @@ async function fetchRelayDiagnostics(relayUrl: string, relaySecret: string | nul
   };
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  try {
+    await requireAdminSession(request);
+  } catch (error) {
+    const status = error instanceof AdminApiError ? error.status : 500;
+    const message = error instanceof Error ? error.message : "관리자 인증을 확인해 주세요.";
+    return Response.json({ message }, { status });
+  }
+
   const relayUrl = serverEnv.alimtalkRelayUrl;
   const relaySecret = serverEnv.alimtalkRelaySecret;
   const { relayHost, relayPathname } = getRelayUrlParts(relayUrl);
@@ -212,7 +223,6 @@ export async function GET(request: Request) {
       usesRelay: Boolean(relayUrl && relaySecret),
       hasRelayUrl: Boolean(relayUrl),
       hasRelaySecret: Boolean(relaySecret),
-      relaySecretLength: relaySecret?.length ?? 0,
       relayHost,
       relayPathname,
       health: relayHealth,

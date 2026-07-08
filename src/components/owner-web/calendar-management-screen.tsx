@@ -4756,6 +4756,8 @@ export default function CalendarManagementScreen({
             bookings={filteredBookings}
             staff={staff}
             visibleStaff={visibleStaff}
+            staffMembers={staffMembers}
+            staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             activeMetric={activeMetric}
             manualApprovalEnabled={manualApprovalEnabled}
             selectedBookingId={selectedBookingId}

@@ -206,9 +206,8 @@ function FeatureSection() {
 
 function PricingSection() {
   const plans = billableOwnerPlans.slice(0, 3);
-
   return (
-    <Section id="pricing" eyebrow="요금제" title="샵 규모에 맞게 시작하세요">
+    <Section id="pricing" eyebrow="요금제" title="핵심 기능은 같고 운영 규모만 선택하세요">
       <div className="grid gap-5 lg:grid-cols-3">
         {plans.map((plan, index) => (
           <div key={plan.code} className={`rounded-[26px] border bg-white p-6 ${index === 1 ? "border-[#232323] shadow-[0_20px_50px_rgba(35,35,35,0.12)]" : "border-[#e2d8cc]"}`}>
@@ -218,7 +217,7 @@ function PricingSection() {
             </div>
             <p className="mt-4 text-[42px] font-semibold tracking-[-0.04em]">{formatWon(plan.monthlyPrice)}<span className="text-[16px] text-[#766b61]"> / 월</span></p>
             <ul className="mt-6 space-y-3 text-[15px] text-[#4d453e]">
-              {plan.highlights.slice(0, 5).map((feature) => (
+              {plan.highlights.slice(0, 4).map((feature) => (
                 <li key={feature} className="flex gap-2">
                   <Check className="mt-0.5 h-4 w-4 text-[#e0574f]" />
                   <span>{feature}</span>

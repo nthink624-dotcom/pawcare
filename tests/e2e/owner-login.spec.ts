@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const loginId = process.env.OWNER_LOGIN_E2E_ID ?? process.env.OWNER_LOGIN_SMOKE_ID ?? "devowner";
 const password = process.env.OWNER_LOGIN_E2E_PASSWORD ?? process.env.OWNER_LOGIN_SMOKE_PASSWORD ?? "test1234";
+const devShopName = "테스트 미용실";
 
 test.beforeEach(async ({ request }) => {
   const response = await request.post("/api/dev/create-owner");
@@ -21,14 +22,14 @@ test("owner can log in, land on /owner, and keep the session after reload", asyn
     );
   }, loginId);
 
-  await page.getByPlaceholder("아이디").fill(loginId);
-  await page.getByPlaceholder("비밀번호").fill(password);
-  await page.getByRole("button", { name: "로그인", exact: true }).click();
+  await page.getByTestId("owner-login-id").fill(loginId);
+  await page.getByTestId("owner-login-password").fill(password);
+  await page.getByTestId("owner-login-submit").click();
 
   await expect(page).toHaveURL(/\/owner(?:$|\?)/);
-  await expect(page.getByText("펫매니저").first()).toBeVisible();
+  await expect(page.getByText(devShopName).first()).toBeVisible();
 
   await page.reload();
   await expect(page).toHaveURL(/\/owner(?:$|\?)/);
-  await expect(page.getByText("펫매니저").first()).toBeVisible();
+  await expect(page.getByText(devShopName).first()).toBeVisible();
 });

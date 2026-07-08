@@ -553,10 +553,7 @@ export default function OwnerBillingScreen({
             setMessage(null);
             setSelectionStep("agreement");
           }}
-          onBack={() => {
-            if (window.history.length > 1) router.back();
-            else router.push("/owner");
-          }}
+          onBack={() => router.push("/owner")}
           loading={registeringCard || retryingPayment}
           message={message}
         />

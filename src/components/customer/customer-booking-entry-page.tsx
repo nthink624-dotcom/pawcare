@@ -14,9 +14,6 @@ import { isShopClosedOnDate } from "@/lib/availability";
 import { formatServicePrice } from "@/lib/utils";
 import type { BootstrapStaffMember, BusinessHours, CustomerDiscountCoupon, OwnerProfile, Service, Shop } from "@/types/domain";
 
-export const DEFAULT_HERO_IMAGES = [
-  "/images/customer-booking-hero-original.jpg",
-];
 const visibleDateOptionCount = 4;
 const heroSidePaddingPx = 14;
 const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
@@ -204,11 +201,15 @@ export function resolveHeroImages(value: string | undefined, values?: string[]) 
     : [];
   const uploadedImage = value?.trim();
   if (uploadedImages.length > 0) return uploadedImages;
-  return uploadedImage ? [uploadedImage, ...DEFAULT_HERO_IMAGES.slice(1)] : DEFAULT_HERO_IMAGES;
+  return uploadedImage ? [uploadedImage] : [];
 }
 
 function uniqueNonEmptyStrings(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function areStringArraysEqual(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function cssBackgroundUrl(imageUrl: string) {
@@ -447,6 +448,7 @@ export default function CustomerBookingEntryPage({
   const [heroTrackTranslatePx, setHeroTrackTranslatePx] = useState(0);
   const [expandedBreedGuideKeys, setExpandedBreedGuideKeys] = useState<string[]>([]);
   const heroGalleryRef = useRef<HTMLDivElement | null>(null);
+  const heroMediaAssetRequestKeyRef = useRef("");
   const heroTouchStartXRef = useRef<number | null>(null);
   const staffProfileTouchStartXRef = useRef<number | null>(null);
   const staffProfilePointerStartXRef = useRef<number | null>(null);
@@ -503,9 +505,17 @@ export default function CustomerBookingEntryPage({
   const visibleStaffProfileIndex = Math.min(activeStaffProfileIndex, Math.max(staffProfileCards.length - 1, 0));
 
   useEffect(() => {
-    if (!heroMediaAssetIds.length) {
+    const mediaAssetIds = heroMediaAssetKey ? heroMediaAssetKey.split("|").filter(Boolean) : [];
+    if (!mediaAssetIds.length) {
+      heroMediaAssetRequestKeyRef.current = "";
       return;
     }
+
+    const requestKey = `${shop.id}:${heroMediaAssetKey}`;
+    if (heroMediaAssetRequestKeyRef.current === requestKey) {
+      return;
+    }
+    heroMediaAssetRequestKeyRef.current = requestKey;
 
     let cancelled = false;
     void fetchApiJson<PublicMediaSignedUrlsResponse>("/api/media/public-signed-urls", {
@@ -513,26 +523,35 @@ export default function CustomerBookingEntryPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         shopId: shop.id,
-        mediaAssetIds: heroMediaAssetIds,
+        mediaAssetIds,
         variant: "provider_ready",
       }),
     })
       .then((result) => {
         if (cancelled) return;
         const urlsByAssetId = new Map(result.items.map((item) => [item.mediaAssetId, item.signedUrl]));
-        setResolvedHeroAssets({
-          key: heroMediaAssetKey,
-          urls: heroMediaAssetIds.map((mediaAssetId) => urlsByAssetId.get(mediaAssetId) ?? "").filter(Boolean),
+        const nextUrls = mediaAssetIds.map((mediaAssetId) => urlsByAssetId.get(mediaAssetId) ?? "").filter(Boolean);
+        setResolvedHeroAssets((current) => {
+          if (current.key === heroMediaAssetKey && areStringArraysEqual(current.urls, nextUrls)) return current;
+          return {
+            key: heroMediaAssetKey,
+            urls: nextUrls,
+          };
         });
       })
       .catch(() => {
-        if (!cancelled) setResolvedHeroAssets({ key: heroMediaAssetKey, urls: [] });
+        if (!cancelled) {
+          setResolvedHeroAssets((current) => {
+            if (current.key === heroMediaAssetKey && current.urls.length === 0) return current;
+            return { key: heroMediaAssetKey, urls: [] };
+          });
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [heroMediaAssetIds, heroMediaAssetKey, shop.id]);
+  }, [heroMediaAssetKey, shop.id]);
 
   useEffect(() => {
     const gallery = heroGalleryRef.current;
@@ -675,11 +694,15 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .gallery{display:flex;gap:8px;overflow:visible;padding:0 14px;scrollbar-width:none;transition:transform .45s ease}
         .pm-entry-proto .gallery::-webkit-scrollbar{display:none}
         .pm-entry-proto .gcard{flex:0 0 88%;scroll-snap-align:center;height:238px;border-radius:16px;position:relative;overflow:hidden;background-size:cover;background-position:center;background-repeat:no-repeat}
+        .pm-entry-proto .gcard.clickable{cursor:pointer}
         .pm-entry-proto .gslot{flex:0 0 54px;height:238px;border-radius:16px;background:repeating-linear-gradient(135deg,#f4e6fb 0,#f4e6fb 9px,#ecd8f7 9px,#ecd8f7 18px);opacity:.78}
         .pm-entry-proto .gcard .ovl{position:absolute;inset:0;background:linear-gradient(to top,rgba(28,16,12,.5) 0%,transparent 42%)}
         .pm-entry-proto .gcard .id{position:absolute;left:16px;bottom:15px;color:#fff}
         .pm-entry-proto .gcard .id .nm{font-size:22px;font-weight:700;letter-spacing:-.03em;text-shadow:0 1px 6px rgba(0,0,0,.35)}
         .pm-entry-proto .gcard .cnt{position:absolute;right:12px;top:12px;border:0;font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:rgba(20,12,10,.45);backdrop-filter:blur(4px);border-radius:20px;padding:5px 11px;cursor:pointer}
+        .pm-entry-proto .gcard.empty{border:1px solid rgba(213,220,230,.95);background:linear-gradient(135deg,#fff8f5 0%,#f7f9fc 58%,#eef4ff 100%)}
+        .pm-entry-proto .gcard.empty .id{color:#241b18}
+        .pm-entry-proto .gcard.empty .id .nm{text-shadow:none}
         .pm-entry-proto .gdots{display:flex;justify-content:center;align-items:center;gap:5px;padding:11px 0 1px}
         .pm-entry-proto .gdots i{width:6px;height:6px;border-radius:999px;background:#f7dcd5;display:block;transition:width .2s,background-color .2s;opacity:.9}
         .pm-entry-proto .gdots i.clickable{cursor:pointer}
@@ -765,48 +788,61 @@ export default function CustomerBookingEntryPage({
             onTouchStart={handleHeroTouchStart}
             onTouchEnd={handleHeroTouchEnd}
           >
-            {heroImages.map((image, index) => (
-              <div
-                key={`${image}-${index}`}
-                className="gcard"
-                style={{ backgroundImage: `linear-gradient(180deg, rgba(42,30,20,0.04), rgba(31,24,18,0.12)), ${cssBackgroundUrl(image)}` }}
-              >
-                {index === visibleHeroIndex ? (
-                  <>
-                    <div className="ovl" />
-                    <button
-                      type="button"
-                      className="cnt"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setHeroGalleryOpen(true);
-                      }}
-                      aria-label={`매장 사진 전체보기 ${heroImages.length}장`}
-                    >
-                      {visibleHeroIndex + 1} / {heroImages.length}
-                    </button>
-                    <div className="id"><div className="nm">{displayName}</div></div>
-                  </>
-                ) : null}
+            {heroImages.length === 0 ? (
+              <div className="gcard empty" aria-label="등록된 매장 사진 없음">
+                <div className="id"><div className="nm">{displayName}</div></div>
               </div>
-            ))}
-            {heroImages.length === 1 ? <div className="gslot" aria-hidden="true" /> : null}
+            ) : (
+              heroImages.map((image, index) => (
+                <div
+                  key={`${image}-${index}`}
+                  className="gcard clickable"
+                  style={{ backgroundImage: `linear-gradient(180deg, rgba(42,30,20,0.04), rgba(31,24,18,0.12)), ${cssBackgroundUrl(image)}` }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${displayName} 매장 사진 전체보기`}
+                  onClick={() => {
+                    setActiveHeroIndex(index);
+                    setHeroGalleryOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    setActiveHeroIndex(index);
+                    setHeroGalleryOpen(true);
+                  }}
+                >
+                  {index === visibleHeroIndex ? (
+                    <>
+                      <div className="ovl" />
+                      <span className="cnt" aria-hidden="true">
+                        {visibleHeroIndex + 1} / {heroImages.length}
+                      </span>
+                      <div className="id"><div className="nm">{displayName}</div></div>
+                    </>
+                  ) : null}
+                </div>
+              ))
+            )}
+            {heroImages.length <= 1 ? <div className="gslot" aria-hidden="true" /> : null}
           </div>
-          <div className="gdots">
-            {Array.from({ length: heroDotCount }).map((_, index) => {
-              const targetIndex = heroImages.length > heroDotCount && index === heroDotCount - 1 ? heroImages.length - 1 : index;
-              const isActive = index === heroDotCount - 1
-                ? visibleHeroIndex >= index
-                : visibleHeroIndex === index;
-              return (
-                <i
-                  key={`hero-dot-${index}`}
-                  className={`${isActive ? "on" : ""} clickable`}
-                  onClick={() => setActiveHeroIndex(targetIndex)}
-                />
-              );
-            })}
-          </div>
+          {heroDotCount > 0 ? (
+            <div className="gdots">
+              {Array.from({ length: heroDotCount }).map((_, index) => {
+                const targetIndex = heroImages.length > heroDotCount && index === heroDotCount - 1 ? heroImages.length - 1 : index;
+                const isActive = index === heroDotCount - 1
+                  ? visibleHeroIndex >= index
+                  : visibleHeroIndex === index;
+                return (
+                  <i
+                    key={`hero-dot-${index}`}
+                    className={`${isActive ? "on" : ""} clickable`}
+                    onClick={() => setActiveHeroIndex(targetIndex)}
+                  />
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
         <div className="body">
@@ -952,7 +988,7 @@ export default function CustomerBookingEntryPage({
         </div>
       </div>
 
-      {heroGalleryOpen ? (
+      {heroGalleryOpen && heroImages.length > 0 ? (
         <div className="gallery-modal" onClick={() => setHeroGalleryOpen(false)}>
           <div className="gallery-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="head">

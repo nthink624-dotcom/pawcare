@@ -912,7 +912,10 @@ export async function createGuardian(input: unknown) {
     name: payload.name,
     phone: payload.phone,
     memo: payload.memo ?? "",
-    notification_settings: defaultGuardianNotificationSettings,
+    notification_settings: normalizeGuardianNotificationSettings({
+      ...defaultGuardianNotificationSettings,
+      ...(typeof payload.enabled === "boolean" ? { enabled: payload.enabled } : {}),
+    }),
     created_at: nowIso(),
     updated_at: nowIso(),
   };

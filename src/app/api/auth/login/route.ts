@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   buildOwnerAuthEmail,
+  buildOwnerAuthEmailCandidates,
   isLegacyOwnerAuthEmail,
   isValidOwnerLoginId,
   normalizeOwnerLoginId,
@@ -38,7 +39,7 @@ function getLoginErrorMessage(message?: string) {
     return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   }
   if (normalized.includes("rate limit")) {
-    return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
+    return "로그인 요청이 잠시 제한되었어요. 10분 후 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
   }
   if (normalized.includes("network") || normalized.includes("fetch")) {
     return "로그인 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -113,58 +114,41 @@ export async function POST(request: NextRequest) {
     }
 
     const canonicalEmail = buildOwnerAuthEmail(loginId);
-    const signInResult = await authClient.auth.signInWithPassword({
-      email: canonicalEmail,
-      password: body.password,
-    });
-
-    if (!signInResult.error && signInResult.data.user?.id === profileResult.data.user_id && signInResult.data.session) {
-      return createLoginResponse({
-        request,
-        profile: profileResult.data,
-        loginId,
-        session: signInResult.data.session,
-      });
-    }
-
-    let lastErrorMessage = signInResult.error?.message ?? "invalid login credentials";
-
     const userResult = await admin.auth.admin.getUserById(profileResult.data.user_id);
     const existingEmail = userResult.data.user?.email?.trim().toLowerCase() ?? null;
+    let lastErrorMessage = "invalid login credentials";
 
-    if (existingEmail && isLegacyOwnerAuthEmail(existingEmail) && existingEmail !== canonicalEmail) {
-      const legacySignInResult = await authClient.auth.signInWithPassword({
-        email: existingEmail,
+    for (const email of buildOwnerAuthEmailCandidates(loginId, existingEmail)) {
+      const signInResult = await authClient.auth.signInWithPassword({
+        email,
         password: body.password,
       });
 
-      if (
-        !legacySignInResult.error &&
-        legacySignInResult.data.user?.id === profileResult.data.user_id &&
-        legacySignInResult.data.session
-      ) {
-        const updatedUser = await admin.auth.admin.updateUserById(profileResult.data.user_id, {
-          email: canonicalEmail,
-          email_confirm: true,
-          user_metadata: {
-            ...(userResult.data.user?.user_metadata ?? {}),
-            login_id: loginId,
-          },
-        });
+      lastErrorMessage = signInResult.error?.message ?? lastErrorMessage;
 
-        if (updatedUser.error) {
-          console.error("[auth/login] failed to canonicalize owner auth email", updatedUser.error.message);
+      if (!signInResult.error && signInResult.data.user?.id === profileResult.data.user_id && signInResult.data.session) {
+        if (email !== canonicalEmail && isLegacyOwnerAuthEmail(email)) {
+          const updatedUser = await admin.auth.admin.updateUserById(profileResult.data.user_id, {
+            email: canonicalEmail,
+            email_confirm: true,
+            user_metadata: {
+              ...(userResult.data.user?.user_metadata ?? {}),
+              login_id: loginId,
+            },
+          });
+
+          if (updatedUser.error) {
+            console.error("[auth/login] failed to canonicalize owner auth email", updatedUser.error.message);
+          }
         }
 
         return createLoginResponse({
           request,
           profile: profileResult.data,
           loginId,
-          session: legacySignInResult.data.session,
+          session: signInResult.data.session,
         });
       }
-
-      lastErrorMessage = legacySignInResult.error?.message ?? "invalid login credentials";
     }
 
     return NextResponse.json({ message: getLoginErrorMessage(lastErrorMessage) }, { status: 401 });

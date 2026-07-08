@@ -233,7 +233,13 @@ export default function OwnerPage() {
       }
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active) loadOwnerDemoFallback();
+        if (active && shouldUseOwnerDemoFallback()) {
+          loadOwnerDemoFallback();
+          return;
+        }
+        if (active) {
+          setMessage("서비스 설정을 확인하지 못했습니다. 운영자에게 문의해 주세요.");
+        }
         return;
       }
 
@@ -308,16 +314,6 @@ export default function OwnerPage() {
         );
 
         if (!active) return;
-        console.log("[OWNER DEBUG] owner-page-bootstrap", {
-          mode: bootstrap.mode,
-          shopId: bootstrap.shop.id,
-          resolvedShopId,
-          appointmentsCount: bootstrap.appointments?.length ?? 0,
-          guardiansCount: bootstrap.guardians?.length ?? 0,
-          petsCount: bootstrap.pets?.length ?? 0,
-          servicesCount: bootstrap.services?.length ?? 0,
-          staffMembersCount: 0,
-        });
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
       } catch (error) {
@@ -384,13 +380,6 @@ export default function OwnerPage() {
           { cache: "no-store" },
         );
         if (active) {
-          console.log("[OWNER DEBUG] owner-page-refresh", {
-            mode: nextBootstrap.mode,
-            shopId: nextBootstrap.shop.id,
-            selectedShopId,
-            appointmentsCount: nextBootstrap.appointments?.length ?? 0,
-            staffMembersCount: nextBootstrap.staffMembers?.length ?? 0,
-          });
           setData(nextBootstrap);
         }
       } catch {

@@ -168,9 +168,8 @@ export default function CustomerBookingPageManagementScreen({
       ]).slice(0, MAX_CUSTOMER_PAGE_HERO_IMAGES),
     [resolvedHeroAssetUrls, shop.customer_page_settings.hero_image_urls],
   );
-  const heroDisplayImageUrl = heroImages[0] || heroImageUrl || "/images/customer-booking-hero-original.jpg";
+  const heroDisplayImageUrl = heroImages[0] || heroImageUrl;
   const hasCustomHeroImage = Boolean(heroImages[0] || heroImageUrl || heroMediaAssetIds[0]);
-  const isUsingDefaultHeroImage = !hasCustomHeroImage;
   const previewShop = useMemo(
     () => ({
       ...shop,
@@ -592,13 +591,16 @@ export default function CustomerBookingPageManagementScreen({
                 <span className="text-[13px] text-[#64748b]">고객 예약페이지와 동일</span>
               </div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-[#f8fafc]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={heroDisplayImageUrl} alt="고객 예약페이지 대표 사진" className="h-full w-full object-cover object-center" />
-                {isUsingDefaultHeroImage ? (
-                  <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[12px] font-medium text-[#64748b] shadow-sm">
-                    기본 이미지
-                  </span>
-                ) : null}
+                {hasCustomHeroImage && heroDisplayImageUrl ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={heroDisplayImageUrl} alt="고객 예약페이지 대표 사진" className="h-full w-full object-cover object-center" />
+                  </>
+                ) : (
+                  <div className="flex h-full w-full items-end bg-[linear-gradient(135deg,#fff8f5_0%,#f7f9fc_58%,#eef4ff_100%)] p-4">
+                    <span className="text-[18px] font-semibold text-[#241b18]">{shopName.trim() || shop.name}</span>
+                  </div>
+                )}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button

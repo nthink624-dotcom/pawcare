@@ -161,7 +161,31 @@ export default function DiscountCouponEditor({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <style>{`
+        .pm-benefit-scroll {
+          scrollbar-color: #b9c3cf transparent;
+          scrollbar-width: thin;
+        }
+        .pm-benefit-scroll::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .pm-benefit-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .pm-benefit-scroll::-webkit-scrollbar-thumb {
+          background: #c7d0da;
+          border: 1px solid transparent;
+          border-radius: 999px;
+          background-clip: content-box;
+        }
+        .pm-benefit-scroll::-webkit-scrollbar-thumb:hover {
+          background: #aeb9c6;
+          background-clip: content-box;
+        }
+      `}</style>
+      <div className="pm-benefit-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
       {coupons.map((coupon) => {
         const collapsed = collapsedCouponIds.has(coupon.id);
         return (
@@ -364,7 +388,7 @@ export default function DiscountCouponEditor({
                       />
                       전체 서비스
                     </label>
-                    <div className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
+                    <div className="pm-benefit-scroll mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
                       {serviceScopeOptions.map((option) => {
                         const selected =
                           coupon.service_scope !== "specific" ||
@@ -407,6 +431,7 @@ export default function DiscountCouponEditor({
         </section>
       );
       })}
+      </div>
     </div>
   );
 }

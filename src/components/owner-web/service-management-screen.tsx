@@ -381,6 +381,7 @@ export default function ServiceManagementScreen({
   const lastSavedSignatureRef = useRef("");
   const latestServiceFormSignatureRef = useRef("");
   const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
+  const lastPreviewServicesEmitSignatureRef = useRef("");
 
   const staffOptions = useMemo(() => staffMembers.map((member) => member.name), [staffMembers]);
   const onlyStaffName = staffOptions.length === 1 ? staffOptions[0] : "";
@@ -819,6 +820,9 @@ export default function ServiceManagementScreen({
 
   useEffect(() => {
     if (!storageReady || (!demoMode && !embedded)) return;
+    const signature = getBootstrapServicesSignature(previewServices);
+    if (lastPreviewServicesEmitSignatureRef.current === signature) return;
+    lastPreviewServicesEmitSignatureRef.current = signature;
     onServicesChange?.(previewServices);
   }, [demoMode, embedded, onServicesChange, previewServices, storageReady]);
 

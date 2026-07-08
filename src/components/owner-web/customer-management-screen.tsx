@@ -97,6 +97,11 @@ type GuardianDeleteResult = {
   restoreUntil: string;
 };
 
+type CustomerCreateResponse = {
+  guardian: Guardian;
+  pet: Pet;
+};
+
 const emptyNewCustomerDraft: NewCustomerDraft = {
   name: "",
   phone: "",
@@ -363,13 +368,6 @@ async function patchOwnerGuardian(payload: unknown) {
   });
 }
 
-async function createOwnerGuardian(payload: unknown) {
-  return fetchApiJsonWithAuth<Guardian>("/api/guardians", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 async function patchOwnerPet(payload: unknown) {
   return fetchApiJsonWithAuth<Pet>("/api/pets", {
     method: "PATCH",
@@ -379,6 +377,13 @@ async function patchOwnerPet(payload: unknown) {
 
 async function createOwnerPet(payload: unknown) {
   return fetchApiJsonWithAuth<Pet>("/api/pets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function createOwnerCustomer(payload: unknown) {
+  return fetchApiJsonWithAuth<CustomerCreateResponse>("/api/owner/customers", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -587,31 +592,21 @@ export default function CustomerManagementScreen({
     }
 
     try {
-      let guardian = await createOwnerGuardian({
+      const { guardian, pet } = await createOwnerCustomer({
         shopId: initialData.shop.id,
         name,
         phone,
         memo: nextCustomer.memo,
-      });
-
-      if (!newCustomerDraft.alertEnabled) {
-        guardian = await patchOwnerGuardian({
-          shopId: initialData.shop.id,
-          guardianId: guardian.id,
-          enabled: false,
-        });
-      }
-
-      const pet = await createOwnerPet({
-        shopId: initialData.shop.id,
-        guardianId: guardian.id,
-        name: petName,
-        breed,
-        weight,
-        birthday: null,
-        notes: petNotes,
-        biteLevel: "none",
-        groomingCycleWeeks: 4,
+        enabled: newCustomerDraft.alertEnabled,
+        pet: {
+          name: petName,
+          breed,
+          weight,
+          birthday: null,
+          notes: petNotes,
+          biteLevel: "none",
+          groomingCycleWeeks: 4,
+        },
       });
 
       const savedCustomer: CustomerViewRow = {
@@ -624,7 +619,13 @@ export default function CustomerManagementScreen({
       };
 
       setCustomers((current) => [savedCustomer, ...current]);
+      setBootstrapData((current) => ({
+        ...current,
+        guardians: [guardian, ...current.guardians.filter((item) => item.id !== guardian.id)],
+        pets: [pet, ...current.pets.filter((item) => item.id !== pet.id)],
+      }));
       setSelectedCustomerId(guardian.id);
+      setSelectedPetId(pet.id);
       setDetailSheetOpen(true);
       setNewCustomerOpen(false);
     } catch (error) {

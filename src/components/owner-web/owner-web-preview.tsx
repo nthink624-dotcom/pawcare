@@ -9,7 +9,7 @@ import CustomerManagementScreen from "@/components/owner-web/customer-management
 import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
-import OwnerHelpScreen from "@/components/owner-web/owner-help-screen";
+import OwnerHelpScreen, { type OwnerHelpSection } from "@/components/owner-web/owner-help-screen";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -89,6 +89,7 @@ function renderScreen(
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
   onCreateReservationForDate: (date: string) => void,
   automaticVisitReminderAvailable: boolean,
+  helpSection: OwnerHelpSection,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -143,7 +144,7 @@ function renderScreen(
         />
       );
     case "help":
-      return <OwnerHelpScreen initialData={initialData} />;
+      return <OwnerHelpScreen initialData={initialData} initialSection={helpSection} />;
     case "shopInfo":
     case "operatingHours":
     case "ownerProfile":
@@ -189,6 +190,7 @@ export default function OwnerWebPreview({
   const [loggingOut, setLoggingOut] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
+  const [helpSection, setHelpSection] = useState<OwnerHelpSection>("contact");
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const alimtalkCreditMenuRef = useRef<HTMLDivElement | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
@@ -407,7 +409,8 @@ export default function OwnerWebPreview({
       onOpenProfile={() => openSettingsTab("profile")}
       onOpenShop={() => openSettingsTab("shop")}
       onOpenAlerts={() => openSettingsTab("alerts")}
-      onOpenHelp={() => {
+      onOpenHelp={(section = "contact") => {
+        setHelpSection(section);
         setActiveScreen("help");
         setStoreMenuOpen(false);
         setAlimtalkCreditMenuOpen(false);
@@ -430,6 +433,7 @@ export default function OwnerWebPreview({
         handleCreateReservationForCustomer,
         handleCreateReservationForDate,
         automaticVisitReminderAvailable,
+        helpSection,
       )}
     </OwnerWebAppShell>
   );

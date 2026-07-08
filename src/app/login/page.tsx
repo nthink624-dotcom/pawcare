@@ -36,6 +36,14 @@ function isOAuthExpiredDetail(value?: string) {
   );
 }
 
+function isProviderEmailMissingDetail(value?: string) {
+  const normalized = (value ?? "").toLowerCase();
+  return (
+    normalized.includes("error getting user email from external provider") ||
+    (normalized.includes("external provider") && normalized.includes("email"))
+  );
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -48,13 +56,19 @@ export default async function LoginPage({
   const nextPath = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/owner";
   const isRateLimited = isRateLimitDetail(errorDetail);
   const isOAuthExpired = errorKey === "social-oauth" && isOAuthExpiredDetail(errorDetail);
-  const shouldShowDetail = Boolean(errorKey) && !isRateLimited && !isOAuthExpired;
+  const isProviderEmailMissing = errorKey === "social-callback" && isProviderEmailMissingDetail(errorDetail);
+  const shouldShowDetail = Boolean(errorKey) && !isRateLimited && !isOAuthExpired && !isProviderEmailMissing;
+  const resolvedErrorMessage = isProviderEmailMissing
+    ? "네이버에서 이메일 정보를 받지 못해 로그인 연결이 막혔어요. 네이버 개발자센터에서 제공 정보에 이메일 주소를 추가한 뒤 다시 시도해 주세요."
+    : errorKey
+      ? (errorMessages[errorKey] ?? null)
+      : null;
   const initialMessage = errorKey
     ? isRateLimited
       ? "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요."
       : isOAuthExpired
         ? "소셜 로그인 시간이 만료됐어요. 아래 소셜 로그인 버튼을 다시 눌러 주세요."
-      : [errorMessages[errorKey] ?? null, shouldShowDetail && errorDetail ? `상세: ${errorDetail}` : null]
+      : [resolvedErrorMessage, shouldShowDetail && errorDetail ? `상세: ${errorDetail}` : null]
           .filter(Boolean)
           .join(" ")
     : messageKey

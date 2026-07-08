@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LifeBuoy, LogOut, MessageCircle, ReceiptText, Search } from "lucide-react";
+import { ChevronDown, CircleHelp, LogOut, MessageCircle, MessageSquareText, Search } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -86,6 +86,22 @@ const ownerWebNavigationItems = ownerWebSidebarGroups
   .flatMap((group) => group.items)
   .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
 
+const ownerWebScreenGradients: Record<OwnerWebScreenKey, string> = {
+  schedule: "linear-gradient(135deg, #eaf2ff 0%, #dff8ff 36%, #f8fbff 58%, #e7efff 100%)",
+  bookingPageManagement: "linear-gradient(135deg, #eef4ff 0%, #d9fbff 34%, #f9fcff 58%, #e8f0ff 100%)",
+  bookingLink: "linear-gradient(135deg, #eaf4ff 0%, #ddf7ff 38%, #fbfdff 60%, #eaf1ff 100%)",
+  calendarRecords: "linear-gradient(135deg, #eef6ff 0%, #dffaff 34%, #f8fbff 56%, #e6efff 100%)",
+  customers: "linear-gradient(135deg, #eaf6ff 0%, #dcf8ff 36%, #fbfdff 60%, #edf1ff 100%)",
+  services: "linear-gradient(135deg, #edf3ff 0%, #def7ff 35%, #f9fcff 58%, #e8f2ff 100%)",
+  staff: "linear-gradient(135deg, #eaf4ff 0%, #e2f9ff 34%, #fbfdff 58%, #e8efff 100%)",
+  ownerProfile: "linear-gradient(135deg, #eef5ff 0%, #dcf8ff 38%, #f8fbff 60%, #e7f0ff 100%)",
+  shopInfo: "linear-gradient(135deg, #eaf3ff 0%, #e0faff 34%, #fbfdff 58%, #e8f0ff 100%)",
+  operatingHours: "linear-gradient(135deg, #eaf2ff 0%, #dff7ff 36%, #f9fcff 60%, #edf1ff 100%)",
+  benefits: "linear-gradient(135deg, #eaf4ff 0%, #daf8ff 36%, #fbfdff 58%, #e6f0ff 100%)",
+  alerts: "linear-gradient(135deg, #edf4ff 0%, #e0f8ff 34%, #f8fbff 58%, #e9efff 100%)",
+  help: "linear-gradient(135deg, #eef6ff 0%, #def9ff 36%, #fbfdff 60%, #e8f1ff 100%)",
+};
+
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
@@ -113,7 +129,7 @@ function formatAlimtalkCount(value: number | null | undefined) {
 }
 
 function KakaoTalkIconMark() {
-  return <MessageCircle className="h-4 w-4" strokeWidth={1.6} />;
+  return <MessageCircle className="h-5 w-5" strokeWidth={1.7} />;
 }
 
 function HeaderIconButton({
@@ -221,14 +237,18 @@ export default function OwnerWebAppShell({
   onOpenProfile: () => void;
   onOpenShop: () => void;
   onOpenAlerts: () => void;
-  onOpenHelp: () => void;
+  onOpenHelp: (section?: "contact" | "faq") => void;
   onLogout: () => void;
   loggingOut: boolean;
   children: ReactNode;
 }) {
+  const screenGradientStyle = {
+    "--pm-owner-screen-gradient": ownerWebScreenGradients[activeScreen],
+  } as CSSProperties;
+
   return (
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
-      <aside className="hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)] lg:flex">
+      <aside className="pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)] lg:flex">
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <Image src="/icons/logo/넘친 Day.svg" alt="넘친 Day" width={142} height={48} className="h-[30px] w-auto shrink-0 object-contain" />
         </div>
@@ -282,22 +302,22 @@ export default function OwnerWebAppShell({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-[#273142]">스탠다드</p>
+                <p className="truncate text-[14px] font-semibold text-[#273142]">2~4인 운영</p>
                 <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">운영 플랜</p>
               </div>
               <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8] transition group-hover:bg-[#316fe8] group-hover:text-white">
-                업그레이드
+                플랜 확인
               </span>
             </div>
           </Link>
           <div className="hidden rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold text-[var(--nav-ink)]">스탠다드</p>
+                <p className="text-[13px] font-semibold text-[var(--nav-ink)]">2~4인 운영</p>
                 <p className="mt-1 text-[12px] font-medium text-[var(--nav-mut)]">운영 플랜</p>
               </div>
               <Link href="/owner/billing?compare=1" prefetch className="text-[13px] font-bold text-[var(--acc)]">
-                업그레이드
+                플랜 확인
               </Link>
             </div>
           </div>
@@ -312,11 +332,11 @@ export default function OwnerWebAppShell({
           </label>
 
           <div className="ml-auto flex items-center gap-2">
-            <HeaderIconButton label="문의/도움 요청" onClick={onOpenHelp}>
-              <LifeBuoy className="h-4 w-4" strokeWidth={1.8} />
+            <HeaderIconButton label="1:1 문의" onClick={() => onOpenHelp("contact")}>
+              <MessageSquareText className="h-5 w-5" strokeWidth={1.8} />
             </HeaderIconButton>
-            <HeaderIconButton label="가격안내" href="/owner/billing?compare=1">
-              <ReceiptText className="h-4 w-4" strokeWidth={1.6} />
+            <HeaderIconButton label="자주 묻는 질문" onClick={() => onOpenHelp("faq")}>
+              <CircleHelp className="h-5 w-5" strokeWidth={1.8} />
             </HeaderIconButton>
             <AlimtalkCreditMenu
               summary={alimtalkCreditSummary}
@@ -377,8 +397,8 @@ export default function OwnerWebAppShell({
           />
         </header>
 
-        <section className="min-h-0 flex-1 overflow-hidden p-4">
-          <div className="h-full min-w-0 overflow-hidden rounded-[18px] border border-[var(--bd)] bg-white shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
+        <section className="min-h-0 flex-1 overflow-hidden bg-[image:var(--pm-owner-screen-gradient)] p-5" style={screenGradientStyle}>
+          <div className="h-full min-w-0 overflow-hidden rounded-[18px] border border-white/75 bg-white/90 shadow-[0_18px_44px_rgba(37,99,235,0.10)] backdrop-blur-sm">
             <div className="h-full min-h-0 overflow-hidden overscroll-contain p-5">
               {children}
             </div>

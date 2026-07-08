@@ -1,13 +1,17 @@
 ﻿"use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
-import { getStaffChipTone } from "@/lib/staff-chip-colors";
+import {
+  buildScheduleStaffLaneColumns,
+  getScheduleLaneActiveStaff,
+  type ScheduleStaffLaneColumn,
+} from "@/components/owner-web/calendar-staff-lane-columns";
+import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
 import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn } from "@/lib/utils";
+import type { StaffScheduleOverride } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
 type BookingCardTone =
@@ -35,16 +39,12 @@ type BookingResizeState = {
   initialDuration: number;
   nextDuration: number;
 };
-type OffHoursRangeKey = "before" | "after" | "allDay";
-type ExpandedOffHours = Record<OffHoursRangeKey, boolean>;
 type ScheduleDisplaySegment = {
-  key: OffHoursRangeKey | "business";
-  kind: "business" | "off";
+  key: "business";
   start: number;
   end: number;
   top: number;
   height: number;
-  collapsed: boolean;
 };
 type ScheduleDisplayLayout = {
   segments: ScheduleDisplaySegment[];
@@ -69,9 +69,8 @@ type DailyBooking = {
 const scheduleStartHour = 0;
 const scheduleEndHour = 24;
 const pixelsPerHour = 86.4;
-const scheduleBodyInsetY = 0;
+const scheduleBodyInsetY = 7;
 const quarterSlotHeight = pixelsPerHour / 4;
-const collapsedOffHoursHeight = 18;
 const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
@@ -93,10 +92,6 @@ function isPendingBookingStatus(status: string) {
 
 function isOverduePendingBookingStatus(status: string) {
   return false;
-}
-
-function getStaffInitial(name: string) {
-  return name.trim().slice(0, 1) || "?";
 }
 
 function isCompletedBookingStatus(status: string) {
@@ -139,20 +134,9 @@ function getBookingCardTone(status: string): BookingCardTone {
 }
 
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
-  const base = "border-[#dbe2ea] hover:border-[#c5d0dc]";
+  const base = "border-[#dbe2ea] bg-white hover:border-[#c5d0dc]";
   const selectedClass = selected ? "ring-1 ring-[#94a3b8]/35" : "";
-  const backgroundClass: Record<BookingCardTone, string> = {
-    confirmed: "bg-[#fbfdff]",
-    active: "bg-[#fbfffc]",
-    pickupReady: "bg-[#faffff]",
-    completed: "bg-[#fbfcfe]",
-    changed: "bg-[#fdfcff]",
-    cancelled: "bg-[#fffafb]",
-    rejected: "bg-[#fffafa]",
-    noshow: "bg-[#fffdfb]",
-    missed: "bg-[#fffbfd]",
-  };
-  return cn(base, backgroundClass[tone], tone === "cancelled" && "opacity-85", selectedClass);
+  return cn(base, tone === "cancelled" && "opacity-85", selectedClass);
 }
 
 function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
@@ -206,26 +190,20 @@ function getBookingTimeTextClass(tone: BookingCardTone) {
   return "text-[#a04455]";
 }
 
-function getScheduleDisplayLayout(
-  operatingWindow: { enabled: boolean; openHour: number; closeHour: number },
-  expandedOffHours: ExpandedOffHours,
-): ScheduleDisplayLayout {
+function getScheduleDisplayLayout(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }): ScheduleDisplayLayout {
   const segments: ScheduleDisplaySegment[] = [];
   let nextTop = scheduleBodyInsetY;
   const pushSegment = (segment: Omit<ScheduleDisplaySegment, "top" | "height">) => {
-    const expandedHeight = (segment.end - segment.start) * pixelsPerHour;
-    const height = segment.collapsed ? collapsedOffHoursHeight : expandedHeight;
+    const height = Math.max(pixelsPerHour, (segment.end - segment.start) * pixelsPerHour);
     segments.push({ ...segment, top: nextTop, height });
     nextTop += height;
   };
 
   if (!operatingWindow.enabled) {
     pushSegment({
-      key: "allDay",
-      kind: "off",
+      key: "business",
       start: scheduleStartHour,
       end: scheduleEndHour,
-      collapsed: !expandedOffHours.allDay,
     });
 
     return { segments, bodyHeight: nextTop + scheduleBodyInsetY };
@@ -236,44 +214,13 @@ function getScheduleDisplayLayout(
   const normalizedOpen = Math.min(openHour, closeHour);
   const normalizedClose = Math.max(openHour, closeHour);
 
-  if (normalizedOpen > scheduleStartHour) {
-    pushSegment({
-      key: "before",
-      kind: "off",
-      start: scheduleStartHour,
-      end: normalizedOpen,
-      collapsed: !expandedOffHours.before,
-    });
-  }
-
-  if (normalizedClose > normalizedOpen) {
-    pushSegment({
-      key: "business",
-      kind: "business",
-      start: normalizedOpen,
-      end: normalizedClose,
-      collapsed: false,
-    });
-  }
-
-  if (normalizedClose < scheduleEndHour) {
-    pushSegment({
-      key: "after",
-      kind: "off",
-      start: normalizedClose,
-      end: scheduleEndHour,
-      collapsed: !expandedOffHours.after,
-    });
-  }
+  pushSegment({
+    key: "business",
+    start: normalizedOpen,
+    end: normalizedClose > normalizedOpen ? normalizedClose : Math.min(scheduleEndHour, normalizedOpen + 1),
+  });
 
   return { segments, bodyHeight: nextTop + scheduleBodyInsetY };
-}
-
-function getSegmentLabel(segment: ScheduleDisplaySegment) {
-  if (segment.key === "before") return `영업 전 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
-  if (segment.key === "after") return `영업 후 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
-  if (segment.key === "allDay") return `휴무 ${formatHourLabel(segment.start)}-${formatHourLabel(segment.end)}`;
-  return "";
 }
 
 function getHourTop(hour: number, layout: ScheduleDisplayLayout) {
@@ -283,18 +230,14 @@ function getHourTop(hour: number, layout: ScheduleDisplayLayout) {
     layout.segments[layout.segments.length - 1];
   if (!segment) return scheduleBodyInsetY;
 
-  if (segment.collapsed) {
-    return segment.top + segment.height / 2;
-  }
-
-  return segment.top + (clampedHour - segment.start) * pixelsPerHour;
+  const segmentHour = Math.max(segment.start, Math.min(segment.end, clampedHour));
+  return segment.top + (segmentHour - segment.start) * pixelsPerHour;
 }
 
 function getHourFromTop(pointerY: number, columnTop: number, layout: ScheduleDisplayLayout) {
   const y = Math.max(scheduleBodyInsetY, Math.min(layout.bodyHeight - scheduleBodyInsetY, pointerY - columnTop));
   const segment = layout.segments.find((item) => y >= item.top && y <= item.top + item.height) ?? layout.segments[layout.segments.length - 1];
   if (!segment) return scheduleStartHour;
-  if (segment.collapsed) return segment.end;
   return segment.start + (y - segment.top) / pixelsPerHour;
 }
 
@@ -303,26 +246,7 @@ function getBookingTop(start: number, layout: ScheduleDisplayLayout) {
 }
 
 function isBookingVisibleInDisplayLayout(booking: { start: number }, layout: ScheduleDisplayLayout) {
-  const clampedStart = Math.max(scheduleStartHour, Math.min(scheduleEndHour, booking.start));
-  const segment =
-    layout.segments.find((item) => clampedStart >= item.start && (clampedStart < item.end || (item.end === scheduleEndHour && clampedStart === item.end))) ??
-    layout.segments[layout.segments.length - 1];
-
-  return !segment?.collapsed;
-}
-
-function getOffHoursBarTop(segment: ScheduleDisplaySegment) {
-  const barHeight = 8;
-  if (segment.collapsed) return segment.top + Math.max(0, (segment.height - barHeight) / 2);
-  if (segment.key === "after") return segment.top + Math.max(0, segment.height - barHeight - 4);
-  return segment.top + 4;
-}
-
-function getOffHoursToggleTop(segment: ScheduleDisplaySegment, bodyHeight: number) {
-  if (segment.collapsed && (segment.key === "after" || segment.key === "allDay")) {
-    return Math.max(segment.top, bodyHeight - 30);
-  }
-  return segment.collapsed ? segment.top + Math.max(0, (segment.height - 22) / 2) : getOffHoursBarTop(segment);
+  return layout.segments.length > 0 && Number.isFinite(booking.start);
 }
 
 function getBookingHeight(duration: number) {
@@ -381,10 +305,13 @@ function bookingTimesOverlap(first: { start: number; duration: number }, second:
 function hasStaffBookingConflict(bookings: DailyBooking[], bookingId: string, next: { staffKey: StaffKey; start: number; duration: number }) {
   return bookings.some((booking) => booking.id !== bookingId && booking.staffKey === next.staffKey && bookingTimesOverlap(booking, next));
 }
+
 export function DailyScheduleGrid({
   bookings,
   staff,
   visibleStaff,
+  staffMembers,
+  staffScheduleOverrides,
   activeMetric,
   manualApprovalEnabled,
     selectedBookingId,
@@ -401,6 +328,8 @@ export function DailyScheduleGrid({
   bookings: DailyBooking[];
   staff: StaffFilter;
   visibleStaff: OwnerWebStaffColumn[];
+  staffMembers: OwnerWebStaffMember[];
+  staffScheduleOverrides?: StaffScheduleOverride[];
   activeMetric: SummaryMetricKey;
   manualApprovalEnabled: boolean;
     selectedBookingId: string;
@@ -420,22 +349,26 @@ export function DailyScheduleGrid({
   const syncingScrollRef = useRef(false);
   const boardPanRef = useRef<BoardPanState | null>(null);
   const [scheduleTrackWidth, setScheduleTrackWidth] = useState<number | null>(null);
-  const [verticalScrollbarWidth, setVerticalScrollbarWidth] = useState(0);
   const [draggingBookingId, setDraggingBookingId] = useState<string | null>(null);
   const [resizingBooking, setResizingBooking] = useState<BookingResizeState | null>(null);
   const [boardPanning, setBoardPanning] = useState(false);
   const [expandedMicroBookingId, setExpandedMicroBookingId] = useState<string | null>(null);
-  const [expandedOffHours, setExpandedOffHours] = useState<ExpandedOffHours>({
-    before: false,
-    after: false,
-    allDay: false,
-  });
     const scheduleStaff = staff === "전체 직원" ? visibleStaff : visibleStaff.filter((item) => item.key === staff);
   const staffScopedBookings = bookings.filter((booking) => scheduleStaff.some((item) => item.key === booking.staffKey));
-    const scheduleDisplayLayout = getScheduleDisplayLayout(operatingWindow, expandedOffHours);
-    const nonOperatingBlocks = scheduleDisplayLayout.segments.filter((segment) => segment.kind === "off");
+  const scheduleLaneColumns = useMemo(
+    () =>
+      buildScheduleStaffLaneColumns({
+        date: selectedDate,
+        staffColumns: scheduleStaff,
+        staffMembers,
+        staffScheduleOverrides,
+        bookings: staffScopedBookings,
+      }),
+    [selectedDate, scheduleStaff, staffMembers, staffScheduleOverrides, staffScopedBookings],
+  );
+    const scheduleDisplayLayout = getScheduleDisplayLayout(operatingWindow);
   const visibleBookings = staffScopedBookings.filter((booking) => isBookingVisibleInDisplayLayout(booking, scheduleDisplayLayout));
-  const columnCount = scheduleStaff.length;
+  const columnCount = scheduleLaneColumns.length;
   const scrollable = columnCount > 4;
   const compactCards = columnCount >= 3;
   const columnFlexBasis = columnCount === 0
@@ -456,7 +389,6 @@ export function DailyScheduleGrid({
   const expandedTimeHours = Array.from(
     new Set(
       scheduleDisplayLayout.segments.flatMap((segment) => {
-        if (segment.collapsed) return [];
         const start = Math.ceil(segment.start);
         const end = Math.floor(segment.end);
         return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index).filter((hour) => hour >= segment.start && hour <= segment.end);
@@ -464,13 +396,8 @@ export function DailyScheduleGrid({
     ),
   );
 
-  function toggleOffHours(key: OffHoursRangeKey) {
-    setExpandedOffHours((current) => ({ ...current, [key]: !current[key] }));
-  }
-
   function renderScheduleLines(prefix: string) {
     return scheduleDisplayLayout.segments.flatMap((segment) => {
-      if (segment.collapsed) return [];
       const segmentCount = Math.round((segment.end - segment.start) * 4);
       return Array.from({ length: segmentCount + 1 }).map((_, index) => (
         <div
@@ -483,46 +410,6 @@ export function DailyScheduleGrid({
         />
       ));
     });
-  }
-
-  function renderOffHoursColumnBars(prefix: string) {
-    return nonOperatingBlocks.map((segment) => (
-      <div
-        key={`${prefix}-off-bar-${segment.key}`}
-        className={cn(
-          "pointer-events-none absolute z-[4] rounded-full",
-          segment.collapsed ? "left-2 right-4 bg-[#dbe2ea]" : "right-3 w-[24px] bg-transparent",
-        )}
-        style={{ top: getOffHoursBarTop(segment), height: segment.collapsed ? 8 : 22 }}
-        aria-hidden="true"
-      />
-    ));
-  }
-
-  function renderOffHoursToggleControls(prefix: string) {
-    return nonOperatingBlocks.map((segment) => (
-      <button
-        key={`${prefix}-off-toggle-${segment.key}`}
-        type="button"
-        aria-label={`${getSegmentLabel(segment)} ${segment.collapsed ? "펼치기" : "접기"}`}
-        title={`${getSegmentLabel(segment)} ${segment.collapsed ? "펼치기" : "접기"}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          toggleOffHours(segment.key as OffHoursRangeKey);
-        }}
-        className={cn(
-          "absolute z-[30] flex items-center justify-center overflow-visible rounded-full text-[#64748b] transition hover:text-[#475569]",
-          segment.collapsed
-            ? "right-1 w-[24px] bg-transparent"
-            : "right-1 w-[24px] bg-white/95 shadow-[0_1px_5px_rgba(15,23,42,0.14)] ring-1 ring-[#dbe2ea] hover:bg-[#f8fafc]",
-        )}
-        style={{ top: getOffHoursToggleTop(segment, scheduleBodyHeight), height: 22 }}
-      >
-        <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[#c4ceda] bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)]">
-          {segment.collapsed ? <ChevronDown className="h-[13px] w-[13px]" strokeWidth={2.8} /> : <ChevronUp className="h-[13px] w-[13px]" strokeWidth={2.8} />}
-        </span>
-      </button>
-    ));
   }
 
   useEffect(() => {
@@ -540,7 +427,6 @@ export function DailyScheduleGrid({
 
   useLayoutEffect(() => {
     const scroller = bodyScrollerRef.current;
-    const viewport = timelineViewportRef.current;
     if (!scroller) return;
 
     const updateMeasurements = () => {
@@ -548,17 +434,11 @@ export function DailyScheduleGrid({
       if (nextWidth > 0) {
         setScheduleTrackWidth(nextWidth);
       }
-      if (viewport) {
-        setVerticalScrollbarWidth(Math.max(0, viewport.offsetWidth - viewport.clientWidth));
-      }
     };
 
     updateMeasurements();
     const resizeObserver = new ResizeObserver(updateMeasurements);
     resizeObserver.observe(scroller);
-    if (viewport) {
-      resizeObserver.observe(viewport);
-    }
 
     return () => resizeObserver.disconnect();
   }, [columnCount]);
@@ -652,7 +532,7 @@ export function DailyScheduleGrid({
     event.dataTransfer.dropEffect = "move";
   }
 
-  function handleColumnDrop(event: DragEvent<HTMLElement>, staffMember: OwnerWebStaffColumn) {
+  function handleColumnDrop(event: DragEvent<HTMLElement>, laneColumn: ScheduleStaffLaneColumn) {
     event.preventDefault();
     const bookingId = event.dataTransfer.getData("text/plain");
     const booking = bookings.find((item) => item.id === bookingId);
@@ -668,9 +548,15 @@ export function DailyScheduleGrid({
 
     const columnRect = event.currentTarget.getBoundingClientRect();
     const nextStart = getSnappedBookingStart(event.clientY, columnRect.top, booking.duration, scheduleDisplayLayout);
+    const activeStaff = getScheduleLaneActiveStaff(laneColumn, nextStart, booking.duration);
+    if (!activeStaff) {
+      onSelectBooking(bookingId);
+      setDraggingBookingId(null);
+      return;
+    }
     if (
       hasStaffBookingConflict(conflictBookings, bookingId, {
-        staffKey: staffMember.key,
+        staffKey: activeStaff.key,
         start: nextStart,
         duration: booking.duration,
       })
@@ -681,12 +567,12 @@ export function DailyScheduleGrid({
     }
 
     onMoveBooking(bookingId, {
-      staffKey: staffMember.key,
-      staffName: staffMember.name,
-      staff: staffMember.name,
+      staffKey: activeStaff.key,
+      staffName: activeStaff.name,
+      staff: activeStaff.name,
       start: nextStart,
     });
-    onSelectStaff(staffMember.key);
+    onSelectStaff(activeStaff.key);
     onSelectBooking(bookingId);
     setDraggingBookingId(null);
   }
@@ -747,64 +633,62 @@ export function DailyScheduleGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white">
+      <style>{`
+        .pm-schedule-y-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #c4ceda transparent;
+        }
+        .pm-schedule-y-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .pm-schedule-y-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .pm-schedule-y-scroll::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: #c4ceda;
+        }
+      `}</style>
       <div className="flex shrink-0 bg-white">
-        <div className="flex w-[76px] shrink-0 items-center justify-center border-r border-[#edf2f7] bg-white px-2 pt-2">
-          <span className="inline-flex h-[40px] w-full items-center justify-center rounded-t-[8px] bg-white text-[12px] text-[#64748b]">
-            시간
-          </span>
+        <div className="flex h-[54px] w-[72px] shrink-0 items-center justify-center border-b border-r border-[#dbe2ea] bg-white text-[12px] text-[#64748b]">
+          시간
         </div>
         <div
           ref={headerScrollerRef}
           onScroll={() => syncHorizontalScroll("header")}
           className="no-scrollbar min-w-0 flex-1 overflow-x-auto"
         >
-          <div className="flex min-w-full gap-2 px-2 pb-0 pt-2 pr-9" style={scheduleTrackStyle}>
-            {scheduleStaff.map((staffMember, staffIndex) => {
-              const staffBookings = displayedVisibleBookings.filter((booking) => booking.staffKey === staffMember.key);
-              const selectedStaff = selectedStaffKey === staffMember.key;
-              const staffTone = getStaffChipTone(staffMember.key, staffMember.chipColorIndex ?? staffIndex);
+          <div className="flex min-w-full gap-0 px-0 pb-0 pt-0 pr-0" style={scheduleTrackStyle}>
+            {scheduleLaneColumns.map((laneColumn) => {
+              const primaryStaff = laneColumn.segments[0];
+              const laneBookings = displayedVisibleBookings.filter((booking) => laneColumn.staffKeys.includes(booking.staffKey));
+              const selectedStaff = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
 
               return (
                 <section
-                  key={staffMember.key}
-                  onClick={() => onSelectStaff(staffMember.key)}
-                  className={cn(
-                    "min-w-[136px] cursor-pointer rounded-t-[8px] border border-b-0 px-2.5 py-1.5 transition hover:brightness-[0.98]",
-                    selectedStaff && "shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-inset ring-white/45",
-                  )}
-                  style={{
-                    flex: columnFlexBasis,
-                    borderColor: staffTone.selectedBackground,
-                    backgroundColor: staffTone.selectedBackground,
+                  key={laneColumn.key}
+                  onClick={() => {
+                    if (primaryStaff) onSelectStaff(primaryStaff.key);
                   }}
+                  className={cn(
+                    "min-w-[136px] cursor-pointer border border-t-0 border-l-0 border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 transition hover:bg-[#f8fafc]",
+                    selectedStaff && "border-b-[#c8ded8] bg-[#f4faf8] shadow-[inset_0_-2px_0_#2f7866]",
+                  )}
+                  style={{ flex: columnFlexBasis }}
                 >
-                  <div className="grid min-h-[42px] grid-cols-[30px_minmax(0,1fr)] items-center gap-2">
-                    <span
-                      className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full border text-[13px] font-medium"
-                      style={{
-                        borderColor: "rgba(255,255,255,0.72)",
-                        backgroundColor: "rgba(255,255,255,0.18)",
-                        color: "#ffffff",
-                      }}
-                    >
-                      {staffMember.profileImageUrl ? (
-                        <img src={staffMember.profileImageUrl} alt={`${staffMember.name} 프로필`} className="h-full w-full object-cover" />
-                      ) : (
-                        getStaffInitial(staffMember.name)
-                      )}
-                    </span>
+                  <div className="flex min-h-[38px] items-center pl-1">
                     <div className="min-w-0">
                       <p
-                        className="min-w-0 truncate text-[13px] font-semibold leading-[17px]"
-                        style={{ color: "#ffffff" }}
+                        className="min-w-0 truncate text-[14px] font-semibold leading-[18px]"
+                        style={{ color: "#111827" }}
                       >
-                        {staffMember.name}
+                        {laneColumn.name}
                       </p>
                       <p
                         className="min-w-0 truncate text-[11px] leading-[15px]"
-                        style={{ color: "rgba(255,255,255,0.84)" }}
+                        style={{ color: "#64748b" }}
                       >
-                        예약 {staffBookings.length}건
+                        {primaryStaff?.role ? `${primaryStaff.role} · ` : ""}예약 {laneBookings.length}건
                       </p>
                     </div>
                   </div>
@@ -813,9 +697,6 @@ export function DailyScheduleGrid({
             })}
           </div>
         </div>
-        {verticalScrollbarWidth > 0 ? (
-          <div className="shrink-0 bg-white" style={{ width: verticalScrollbarWidth }} aria-hidden="true" />
-        ) : null}
       </div>
 
       <div
@@ -825,13 +706,13 @@ export function DailyScheduleGrid({
         onPointerUp={stopBoardPan}
         onPointerCancel={stopBoardPan}
         className={cn(
-          "min-h-0 flex-1 overflow-y-auto select-none",
+          "pm-schedule-y-scroll min-h-0 flex-1 overflow-y-auto select-none",
           boardPanning && "cursor-grabbing snap-none",
           !boardPanning && scrollable && "cursor-grab",
         )}
       >
         <div className="flex">
-          <div className="w-[76px] shrink-0 border-r border-[#edf2f7] bg-white px-2">
+          <div className="w-[72px] shrink-0 border border-l-0 border-t-0 border-[#dbe2ea] bg-white">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
               {renderScheduleLines("time-rail")}
               {expandedTimeHours.map((hour) => (
@@ -855,44 +736,62 @@ export function DailyScheduleGrid({
             className="no-scrollbar min-w-0 flex-1 overflow-x-auto scroll-px-4"
           >
             <div className="relative min-w-full" style={scheduleTrackStyle}>
-              {renderOffHoursToggleControls("schedule-body")}
-              <div className="flex min-w-full gap-2 px-2 pb-2 pt-0 pr-9">
-              {scheduleStaff.length === 0 ? (
+              <div className="flex min-w-full gap-0 px-0 pb-0 pt-0 pr-0">
+              {scheduleLaneColumns.length === 0 ? (
                 <section className="flex min-h-[360px] flex-1 items-center justify-center rounded-b-[8px] bg-white">
                   <div className="rounded-[8px] border border-dashed border-[#cbd5e1] bg-white px-5 py-4 text-center">
-                    <p className="text-[14px] font-medium text-[#111827]">등록된 직원가 없습니다.</p>
-                    <p className="mt-1 text-[13px] text-[#64748b]">아직 오늘 예약이 없습니다.</p>
+                    <p className="text-[14px] font-medium text-[#111827]">오늘 근무자가 없습니다.</p>
+                    <p className="mt-1 text-[13px] text-[#64748b]">근무표를 확인하거나 직원을 추가해 주세요.</p>
                   </div>
                 </section>
               ) : null}
-              {scheduleStaff.map((staffMember) => {
-                const staffBookings = displayedVisibleBookings
-                  .filter((booking) => booking.staffKey === staffMember.key)
+              {scheduleLaneColumns.map((laneColumn) => {
+                const laneBookings = displayedVisibleBookings
+                  .filter((booking) => laneColumn.staffKeys.includes(booking.staffKey))
                   .sort((a, b) => a.start - b.start);
-                const bookingLayouts = getStaffBookingLayouts(staffBookings);
-                const selectedStaff = selectedStaffKey === staffMember.key;
+                const bookingLayouts = getStaffBookingLayouts(laneBookings);
+                const selectedStaff = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
+                const firstStaffKey = laneColumn.segments[0]?.key ?? laneColumn.staffKeys[0] ?? laneColumn.key;
                 return (
                   <section
-                    key={staffMember.key}
-                    onClick={() => onSelectStaff(staffMember.key)}
+                    key={laneColumn.key}
+                    onClick={() => {
+                      const activeSegment =
+                        laneColumn.segments.find((segment) => currentHour >= segment.start && currentHour < segment.end) ??
+                        laneColumn.segments[0];
+                      if (activeSegment) onSelectStaff(activeSegment.key);
+                    }}
                     onDragOver={handleColumnDragOver}
-                    onDrop={(event) => handleColumnDrop(event, staffMember)}
+                    onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-0 cursor-pointer rounded-b-[8px] border border-t-0 bg-white p-0 transition",
-                      selectedStaff && "ring-1 ring-inset ring-[#cfd8e3]",
+                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#dbe2ea] bg-white p-0 transition",
+                      selectedStaff && "bg-[#fbfdfc] shadow-[inset_0_0_0_1px_#c8ded8]",
                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
-                    style={{ flex: columnFlexBasis, borderColor: "#dbe2ea" }}
+                    style={{ flex: columnFlexBasis }}
                   >
                     <div className="relative" style={{ height: scheduleBodyHeight }}>
-                      {renderOffHoursColumnBars(staffMember.key)}
-                      {renderScheduleLines(staffMember.key)}
-                      {staffBookings.length === 0 ? (
-                        <div className="rounded-[8px] border border-dashed border-[#e5eaf0] bg-white px-3 py-4 text-center text-[12px] text-[#94a3b8]">
-                          예약 없음
+                      {renderScheduleLines(laneColumn.key)}
+                      {laneColumn.segments.map((segment) => (
+                        <div
+                          key={`${laneColumn.key}-${segment.key}-work-segment`}
+                          className="pointer-events-none absolute left-0 right-0 z-[6] border-y border-[#e5eaf0] bg-[#f8fafc]/45"
+                          style={{
+                            top: getBookingTop(segment.start, scheduleDisplayLayout),
+                            height: Math.max(18, getBookingTop(segment.end, scheduleDisplayLayout) - getBookingTop(segment.start, scheduleDisplayLayout)),
+                          }}
+                          aria-hidden="true"
+                        />
+                      ))}
+                      {laneBookings.length === 0 ? (
+                        <div className="absolute left-[2.5%] right-[2.5%] top-4 z-10 box-border flex min-h-[48px] items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-left shadow-[0_3px_10px_rgba(15,23,42,0.03)]">
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium leading-[17px] text-[#64748b]">예약 없음</p>
+                            <p className="mt-0.5 text-[12px] leading-[16px] text-[#94a3b8]">이 시간대에 등록된 예약이 없습니다.</p>
+                          </div>
                         </div>
                       ) : (
-                        staffBookings.map((booking) => {
+                        laneBookings.map((booking) => {
                           const selected = selectedBookingId === booking.id;
                           const timeLabel = `${formatHourLabel(booking.start)}-${formatHourLabel(booking.start + booking.duration)}`;
                           const displayTimeLabel = booking.actualTimeLabel?.replace(/^실제\s*/, "") || timeLabel;
@@ -904,6 +803,7 @@ export function DailyScheduleGrid({
                           const microCard = density === "micro";
                           const expandedMicro = density === "micro" && expandedMicroBookingId === booking.id;
                           const bookingHeight = getBookingHeight(booking.duration);
+                          const showResizeHandleBar = booking.duration >= 1;
                           const bookingLayout = bookingLayouts.get(booking.id) ?? { lane: 0, laneCount: 1 };
                           const bookingLayoutStyle = getBookingLayoutStyle(bookingLayout.lane, bookingLayout.laneCount);
                           const statusLabel = getReservationStatusLabel(booking, selectedDate, currentHour);
@@ -919,9 +819,9 @@ export function DailyScheduleGrid({
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   if (booking.sourceAppointmentId) onSelectBooking(booking.sourceAppointmentId);
-                                  onSelectStaff(booking.staffKey);
+                                  onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
-                                className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-white/90 px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
+                                className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-white px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
@@ -946,7 +846,7 @@ export function DailyScheduleGrid({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onSelectBooking(booking.id);
-                                onSelectStaff(booking.staffKey);
+                                onSelectStaff(booking.staffKey || firstStaffKey);
                                 setExpandedMicroBookingId(density === "micro" ? booking.id : null);
                               }}
                               className={cn(
@@ -1027,7 +927,9 @@ export function DailyScheduleGrid({
                                   onPointerCancel={finishResizeBooking}
                                   className="absolute inset-x-3 bottom-0.5 z-30 flex h-4 cursor-ns-resize touch-none items-center justify-center"
                                 >
-                                  <span className={cn("h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
+                                  {showResizeHandleBar ? (
+                                    <span className={cn("h-[5px] w-10 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.88)]", getBookingResizeHandleClass(cardTone))} />
+                                  ) : null}
                                 </div>
                               ) : null}
                             </button>

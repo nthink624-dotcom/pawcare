@@ -210,6 +210,13 @@ function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
 function toKoreanAuthError(message: string) {
   const normalized = message.toLowerCase();
 
+  if (
+    normalized.includes("error getting user email from external provider") ||
+    (normalized.includes("external provider") && normalized.includes("email"))
+  ) {
+    return "네이버에서 이메일 정보를 받지 못해 간편가입을 진행할 수 없어요. 네이버 개발자센터에서 제공 정보에 이메일 주소를 추가한 뒤 다시 시도해 주세요.";
+  }
+
   if (normalized.includes("invalid login credentials")) return "아이디 또는 비밀번호를 다시 확인해 주세요.";
   if (normalized.includes("email not confirmed")) return "이메일 인증이 아직 완료되지 않았습니다.";
   if (normalized.includes("user already registered")) return "이미 가입된 계정입니다.";

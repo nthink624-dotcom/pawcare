@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
 import { BillingConsent, PaymentMethodSheet, type PaymentMethodOption } from "@/features/billing";
 import {
+  cancelOwnerSubscriptionRenewal,
   issueOwnerBillingKey,
   requestOwnerOneTimePayment,
   saveOwnerSubscriptionPreferences,
@@ -58,6 +59,13 @@ function getCardNumberHint(label: string | null | undefined) {
 }
 
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
+const cancellationReasons = [
+  "가격 부담이 큽니다",
+  "당분간 사용을 쉬려고 합니다",
+  "필요한 기능이 부족합니다",
+  "다른 방식으로 운영하려고 합니다",
+  "기타",
+];
 
 function storePendingBillingRegistration(planCode: OwnerPlanCode) {
   if (typeof window === "undefined") return;
@@ -95,6 +103,18 @@ function clearPendingBillingRegistration() {
   window.sessionStorage.removeItem(OWNER_BILLING_PENDING_KEY);
 }
 
+function getDefaultPickerPlanCode(currentPlanCode: OwnerPlanCode, fallbackPlanCode: OwnerPlanCode) {
+  if (currentPlanCode === "free" || currentPlanCode === "monthly") {
+    return "quarterly";
+  }
+
+  if (currentPlanCode === "halfyearly") {
+    return "quarterly";
+  }
+
+  return currentPlanCode || fallbackPlanCode;
+}
+
 function buildBillingSuccessUrl(summary: OwnerSubscriptionSummary) {
   const params = new URLSearchParams();
   params.set("plan", summary.currentPlanCode);
@@ -110,6 +130,13 @@ function buildBillingSuccessUrl(summary: OwnerSubscriptionSummary) {
 }
 
 function statusCopy(summary: OwnerSubscriptionSummary) {
+  if (summary.cancelAtPeriodEnd) {
+    return {
+      title: "정기결제가 취소되었습니다",
+      body: "현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일부터 자동 결제가 중단됩니다.",
+    };
+  }
+
   if (summary.status === "past_due") {
     return {
       title: "결제가 완료되지 않았습니다",
@@ -169,9 +196,13 @@ export default function OwnerBillingScreen({
     () => billableOwnerPlans.find((plan) => plan.featured) ?? billableOwnerPlans[billableOwnerPlans.length - 1],
     [],
   );
+  const defaultPickerPlanCode = useMemo(
+    () => getDefaultPickerPlanCode(initialSummary.currentPlanCode, featuredPlan.code),
+    [featuredPlan.code, initialSummary.currentPlanCode],
+  );
   const [summary, setSummary] = useState(initialSummary);
   const [selectedPlanCode, setSelectedPlanCode] = useState<OwnerPlanCode>(
-    preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode),
+    preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode),
   );
   const [isSelectingPlan, setIsSelectingPlan] = useState((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
   const [selectionStep, setSelectionStep] = useState<"plan" | "agreement">(
@@ -179,6 +210,10 @@ export default function OwnerBillingScreen({
   );
   const [registeringCard, setRegisteringCard] = useState(false);
   const [retryingPayment, setRetryingPayment] = useState(false);
+  const [cancellingRenewal, setCancellingRenewal] = useState(false);
+  const [cancelRenewalDialogOpen, setCancelRenewalDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelAcknowledged, setCancelAcknowledged] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<"saved" | "new">(
@@ -253,17 +288,22 @@ export default function OwnerBillingScreen({
   const paymentSheetAmountLabel = usesOneTimePayment
     ? `총 ${won(selectedPlan.totalPrice)}`
     : `월 ${won(selectedPlan.monthlyPrice)}`;
+  const canCancelRenewal =
+    summary.currentPlan.billingType === "subscription" &&
+    summary.currentPlanCode !== "free" &&
+    !summary.cancelAtPeriodEnd &&
+    summary.status !== "expired";
 
   useEffect(() => {
     setSummary(initialSummary);
   }, [initialSummary]);
 
   useEffect(() => {
-    setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? featuredPlan.code : initialSummary.currentPlanCode));
+    setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode));
     setIsSelectingPlan((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
     setSelectionStep(openPaymentSheet ? "agreement" : "plan");
     setAgreementAccepted(false);
-  }, [featuredPlan.code, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode, showPaymentRequiredNotice]);
+  }, [defaultPickerPlanCode, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode, showPaymentRequiredNotice]);
 
   useEffect(() => {
     setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "saved" : "new");
@@ -487,6 +527,120 @@ export default function OwnerBillingScreen({
     }
   }
 
+  function openCancelRenewalDialog() {
+    if (!canCancelRenewal || cancellingRenewal) return;
+    setCancelReason("");
+    setCancelAcknowledged(false);
+    setCancelRenewalDialogOpen(true);
+    setMessage(null);
+  }
+
+  async function handleCancelRenewal() {
+    if (cancellingRenewal) return;
+    if (!cancelReason || !cancelAcknowledged) {
+      setMessage("정기결제 취소 사유와 안내 확인이 필요합니다.");
+      return;
+    }
+
+    setCancellingRenewal(true);
+    setMessage(null);
+    try {
+      const nextSummary = await cancelOwnerSubscriptionRenewal();
+      setSummary(nextSummary);
+      setSelectedPlanCode(nextSummary.currentPlanCode);
+      setCancelRenewalDialogOpen(false);
+      setCancelReason("");
+      setCancelAcknowledged(false);
+      setMessage("정기결제가 취소되었습니다. 현재 이용 기간까지는 계속 사용할 수 있습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "정기결제 취소를 처리하지 못했습니다.");
+    } finally {
+      setCancellingRenewal(false);
+    }
+  }
+
+  const cancelRenewalDialog = cancelRenewalDialogOpen ? (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4">
+      <div className="w-full max-w-[420px] rounded-[20px] border border-[#e5d4d7] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-semibold text-[#a04455]">정기결제 취소</p>
+            <h2 className="mt-1 text-[21px] font-extrabold tracking-[-0.03em] text-[#111111]">
+              다음 결제부터 중단할까요?
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCancelRenewalDialogOpen(false)}
+            disabled={cancellingRenewal}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[18px] font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] disabled:opacity-60"
+            aria-label="닫기"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-[14px] border border-[#eadde0] bg-[#fff8f9] px-4 py-3">
+          <p className="text-[13px] font-semibold text-[#7f3544]">
+            현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일에는 자동 결제가 진행되지 않습니다.
+          </p>
+          <p className="mt-1 text-[12px] font-medium leading-5 text-[#8f5d66]">
+            포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 이미 충전한 유료 알림톡은 정책에 따라 유지됩니다.
+          </p>
+        </div>
+
+        <label className="mt-4 grid gap-1.5">
+          <span className="text-[13px] font-semibold text-[#334155]">취소 사유</span>
+          <select
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value)}
+            disabled={cancellingRenewal}
+            className="h-11 rounded-[12px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#a04455] focus:ring-2 focus:ring-[#f8dbe1] disabled:opacity-60"
+          >
+            <option value="">사유를 선택해 주세요</option>
+            {cancellationReasons.map((reason) => (
+              <option key={reason} value={reason}>
+                {reason}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-4 flex items-start gap-2 rounded-[12px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
+          <input
+            type="checkbox"
+            checked={cancelAcknowledged}
+            onChange={(event) => setCancelAcknowledged(event.target.checked)}
+            disabled={cancellingRenewal}
+            className="mt-0.5 h-4 w-4 rounded border-[#cbd5e1]"
+          />
+          <span className="text-[12px] font-medium leading-5 text-[#475569]">
+            취소 후에도 현재 이용 기간 종료일까지는 서비스를 사용할 수 있으며, 다음 결제일부터 자동 갱신이 중단된다는 내용을 확인했습니다.
+          </span>
+        </label>
+
+        <div className="mt-5 grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setCancelRenewalDialogOpen(false)}
+            disabled={cancellingRenewal}
+            className="flex h-11 items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white text-[14px] font-semibold text-[#475569] transition hover:bg-[#f8fafc] disabled:opacity-60"
+          >
+            유지하기
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCancelRenewal()}
+            disabled={cancellingRenewal || !cancelReason || !cancelAcknowledged}
+            className="flex h-11 items-center justify-center rounded-[14px] bg-[#a04455] text-[14px] font-semibold text-white transition hover:bg-[#8e3948] disabled:opacity-50"
+          >
+            {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (isSelectingPlan) {
     if (selectionStep === "agreement") {
       return (
@@ -538,6 +692,7 @@ export default function OwnerBillingScreen({
             onClose={() => setPaymentSheetOpen(false)}
             onContinue={() => void handlePaymentSheetSubmit()}
           />
+          {cancelRenewalDialog}
         </>
       );
     }
@@ -554,9 +709,13 @@ export default function OwnerBillingScreen({
             setSelectionStep("agreement");
           }}
           onBack={() => router.push("/owner")}
+          canCancelRenewal={canCancelRenewal}
+          cancellingRenewal={cancellingRenewal}
+          onCancelRenewal={openCancelRenewalDialog}
           loading={registeringCard || retryingPayment}
           message={message}
         />
+        {cancelRenewalDialog}
       </>
     );
   }
@@ -616,10 +775,21 @@ export default function OwnerBillingScreen({
           >
             플랜 다시 선택하기
           </button>
+          {canCancelRenewal ? (
+            <button
+              type="button"
+              onClick={openCancelRenewalDialog}
+              disabled={cancellingRenewal}
+              className="flex h-[52px] w-full items-center justify-center rounded-[18px] border border-[#e5d4d7] bg-white px-4 text-[15px] font-semibold text-[#a04455] disabled:opacity-60"
+            >
+              {cancellingRenewal ? "취소 처리 중..." : "다음 정기결제 취소"}
+            </button>
+          ) : null}
         </div>
       </section>
 
       {message ? <p className="mt-4 rounded-[18px] border border-[#d8d1c5] bg-white px-4 py-3 text-sm text-[#4a4640]">{message}</p> : null}
+      {cancelRenewalDialog}
     </div>
   );
 }

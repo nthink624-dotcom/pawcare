@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileDown, FileUp } from "lucide-react";
 
+import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { Guardian, Pet, PetBiteLevel } from "@/types/domain";
 
@@ -303,7 +304,7 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled, 
       <button
         type="button"
         onClick={downloadTemplate}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+        className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
       >
         <FileDown className="h-4 w-4" />
         양식
@@ -312,7 +313,7 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled, 
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || importing}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]"
+        className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
       >
         <FileUp className="h-4 w-4" />
         {importing ? "등록 중" : "엑셀 등록"}
@@ -321,7 +322,7 @@ export default function CustomerExcelTools({ shopId, guardians, pets, disabled, 
         type="button"
         onClick={exportCustomers}
         disabled={disabled || guardians.length === 0}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]"
+        className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
       >
         <FileDown className="h-4 w-4" />
         내보내기

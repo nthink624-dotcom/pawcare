@@ -17,6 +17,10 @@ import {
   splitNotes,
   type CustomerDetailModel,
 } from "@/components/owner-web/customer-detail-helpers";
+import {
+  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import { cn } from "@/lib/utils";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
@@ -69,8 +73,6 @@ type GroomingPhotoSummary = {
   before: GroomingPhotoPreview | null;
   after: GroomingPhotoPreview | null;
 };
-
-const primaryButtonClass = "border-[#2f7866] bg-[#2f7866] text-white shadow-[0_8px_18px_rgba(47,120,102,0.16)] hover:bg-[#286a5a]";
 
 export default function CustomerDetailPanel({
   detail,
@@ -282,7 +284,7 @@ export default function CustomerDetailPanel({
 
 function ActionButton({ icon: Icon, label, primary = false, onClick }: { icon: typeof CalendarPlus; label: string; primary?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn("inline-flex h-10 items-center gap-2 rounded-[8px] border px-3.5 text-[16px] font-medium transition", primary ? primaryButtonClass : "border-[#cfd8e3] bg-white text-[#334155] hover:bg-[#f8fafc]")}>
+    <button type="button" onClick={onClick} className={primary ? OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS : OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}>
       <Icon className="h-4 w-4" />
       {label}
     </button>

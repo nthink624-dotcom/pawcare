@@ -14,6 +14,7 @@ import {
 import { StaffAddModal, StaffAnnualLeaveGrantModal, StaffLeaveModal } from "@/components/owner-web/staff-management-modals";
 import { StaffMonthlySchedule } from "@/components/owner-web/staff-monthly-schedule";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
+import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { staffChipPalette } from "@/lib/staff-chip-colors";
@@ -512,9 +513,9 @@ export default function StaffManagementScreen({
                   <button
                     type="button"
                     onClick={() => setStaffDialogOpen(true)}
-                    className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#111827] px-4 text-[16px] font-normal text-white hover:bg-[#1f2937]"
+                    className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
                   >
-                    <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-5 w-5" />
+                    <AssetIcon src="/icons/phosphor/UserPlus.svg" className="h-4 w-4" />
                     직원 추가
                   </button>
                 </>

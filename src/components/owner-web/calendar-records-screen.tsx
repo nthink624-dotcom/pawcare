@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { patchOwnerAppointmentStatus, replaceAppointmentInBootstrap } from "@/components/owner-web/calendar-owner-api";
+import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { isShopClosedOnDate } from "@/lib/availability";
@@ -1056,7 +1057,7 @@ function GroomingDatePanel({
               <button
                 type="button"
                 onClick={onAddReservation}
-                className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-normal text-[#334155] hover:bg-[#f8fafc]"
+                className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
               >
                 <CalendarPlus className="h-4 w-4" />
                 예약 추가

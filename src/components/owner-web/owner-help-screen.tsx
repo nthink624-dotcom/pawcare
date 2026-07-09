@@ -1,59 +1,89 @@
 "use client";
 
-import { Bug, CheckCircle2, Clipboard, Lightbulb, Mail, MessageSquareText, Send, Sparkles } from "lucide-react";
+import {
+  Bell,
+  Bug,
+  HelpCircle,
+  Lightbulb,
+  Mail,
+  MessageSquareText,
+  Send,
+  UserCog,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import OwnerSupportAttachmentPicker, {
+  type SelectedSupportAttachment,
+} from "@/components/owner-web/owner-support-attachment-picker";
+import OwnerSupportHistoryPanel from "@/components/owner-web/owner-support-history-panel";
+import {
+  categoryLabels,
+  isUnreadAnsweredRequest,
+  type HelpCategory,
+  type OwnerSupportRequestItem,
+} from "@/components/owner-web/owner-support-model";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import type { BootstrapPayload } from "@/types/domain";
 
-type HelpRequestType = "bug" | "improvement" | "question";
-export type OwnerHelpSection = "contact" | "faq";
-
-const requestTypes: Array<{
-  key: HelpRequestType;
+const requestCategories: Array<{
+  key: HelpCategory;
   label: string;
+  description: string;
+  exampleTitle: string;
   icon: typeof Bug;
 }> = [
-  { key: "bug", label: "기능 오류", icon: Bug },
-  { key: "improvement", label: "개선 요청", icon: Lightbulb },
-  { key: "question", label: "사용 문의", icon: MessageSquareText },
-];
-
-const faqItems = [
   {
-    question: "예약 시간이 노출되지 않아요.",
-    answer: "예약 가능 시간은 영업시간, 휴무, 예약 금지 시간, 직원 근무, 이미 잡힌 예약을 모두 반영해서 계산됩니다.",
+    key: "how_to_use",
+    label: "사용법 문의",
+    description: "기능 위치, 설정 방법, 운영 흐름이 헷갈릴 때",
+    exampleTitle: "사용법을 확인하고 싶어요",
+    icon: MessageSquareText,
   },
   {
-    question: "알림톡이 안 가요.",
-    answer: "알림톡 설정, 고객 수신 설정, 템플릿 연결, 매장 잔여 건수, 쏘다 릴레이 상태를 순서대로 확인해 주세요.",
+    key: "bug",
+    label: "오류 신고",
+    description: "저장 실패, 화면 깨짐, 예상과 다른 동작",
+    exampleTitle: "오류가 발생했어요",
+    icon: Bug,
   },
   {
-    question: "고객 예약페이지 사진이 안 보여요.",
-    answer: "매장 정보의 고객 예약페이지 사진은 R2에 저장된 매장 이미지 기준으로 불러옵니다. 저장 후 새로고침해도 안 보이면 문의해 주세요.",
+    key: "feature_request",
+    label: "기능 제안",
+    description: "새 기능, 개선 요청, 불편한 운영 흐름",
+    exampleTitle: "기능 개선을 제안하고 싶어요",
+    icon: Lightbulb,
   },
   {
-    question: "서비스 가격이 이상하게 보여요.",
-    answer: "고객에게 보이는 가격은 서비스/가격의 상세 요금표 원본을 기준으로 표시됩니다. 혜택이나 노출 설정에서는 가격 원본을 따로 만들지 않습니다.",
+    key: "account",
+    label: "계정/매장",
+    description: "로그인, 사업자, 매장 정보, 권한 문제",
+    exampleTitle: "계정 또는 매장 정보 문의입니다",
+    icon: UserCog,
   },
   {
-    question: "직원별 예약 색상이 달라 보여요.",
-    answer: "예약 카드와 직원 관련 화면은 저장된 직원 개인 색상을 기준으로 맞춰야 합니다. 다르게 보이면 화면 위치를 함께 알려주세요.",
+    key: "notification",
+    label: "알림톡",
+    description: "알림톡 발송, 잔여건수, 고객 안내 메시지",
+    exampleTitle: "알림톡 문의가 있어요",
+    icon: Bell,
   },
-];
-
-const convenienceIdeas = [
-  "문의 보낼 때 현재 매장, 화면, 브라우저 정보를 자동으로 함께 붙이기",
-  "오너가 자주 쓰는 예약 링크와 고객 예약페이지를 한 곳에서 바로 복사하기",
-  "알림톡 실패 로그에서 바로 템플릿 비교 화면으로 이동하기",
-  "고객/예약/알림톡 주요 오류를 매일 한 번 자동 점검하기",
-  "새 기능 요청을 상태별로 모아보고 처리 여부를 확인하기",
+  {
+    key: "other",
+    label: "기타",
+    description: "위 유형에 맞지 않는 일반 문의",
+    exampleTitle: "기타 문의입니다",
+    icon: HelpCircle,
+  },
 ];
 
 function buildStorageKey(shopId: string) {
   return `petmanager.ownerHelpDraft.${shopId}`;
+}
+
+function isVisibleRequestCategory(value: unknown): value is HelpCategory {
+  return typeof value === "string" && requestCategories.some((item) => item.key === value);
 }
 
 function readSavedHelpDraft(storageKey: string) {
@@ -64,16 +94,15 @@ function readSavedHelpDraft(storageKey: string) {
 
   try {
     const parsed = JSON.parse(saved) as Partial<{
-      requestType: HelpRequestType;
+      category: HelpCategory;
+      title: string;
       message: string;
       contact: string;
     }>;
 
     return {
-      requestType:
-        parsed.requestType === "bug" || parsed.requestType === "improvement" || parsed.requestType === "question"
-          ? parsed.requestType
-          : null,
+      category: isVisibleRequestCategory(parsed.category) ? parsed.category : null,
+      title: typeof parsed.title === "string" ? parsed.title : null,
       message: typeof parsed.message === "string" ? parsed.message : null,
       contact: typeof parsed.contact === "string" ? parsed.contact : null,
     };
@@ -83,11 +112,12 @@ function readSavedHelpDraft(storageKey: string) {
   }
 }
 
-function buildSystemContext(shop: BootstrapPayload["shop"], requestType: HelpRequestType) {
+function buildSystemContext(shop: BootstrapPayload["shop"], category: HelpCategory) {
   const lines = [
-    `요청 구분: ${requestTypes.find((item) => item.key === requestType)?.label ?? requestType}`,
+    `문의 유형: ${categoryLabels[category]}`,
     `매장명: ${shop.name || "-"}`,
     `매장 ID: ${shop.id}`,
+    typeof window !== "undefined" ? `현재 경로: ${window.location.pathname}` : null,
     typeof window !== "undefined" ? `현재 주소: ${window.location.href}` : null,
     typeof window !== "undefined" ? `브라우저: ${window.navigator.userAgent}` : null,
     `작성 시각: ${new Date().toLocaleString("ko-KR")}`,
@@ -96,21 +126,25 @@ function buildSystemContext(shop: BootstrapPayload["shop"], requestType: HelpReq
   return lines.filter(Boolean).join("\n");
 }
 
-export default function OwnerHelpScreen({ initialData, initialSection = "contact" }: { initialData: BootstrapPayload; initialSection?: OwnerHelpSection }) {
+export default function OwnerHelpScreen({ initialData }: { initialData: BootstrapPayload }) {
   const shop = initialData.shop;
   const contactSectionRef = useRef<HTMLDivElement | null>(null);
-  const faqSectionRef = useRef<HTMLDivElement | null>(null);
   const storageKey = useMemo(() => buildStorageKey(shop.id), [shop.id]);
   const savedDraft = useMemo(() => readSavedHelpDraft(storageKey), [storageKey]);
-  const [requestType, setRequestType] = useState<HelpRequestType>(() => savedDraft?.requestType ?? "bug");
+  const [category, setCategory] = useState<HelpCategory>(() => savedDraft?.category ?? "how_to_use");
+  const [title, setTitle] = useState(() => savedDraft?.title ?? "");
   const [message, setMessage] = useState(() => savedDraft?.message ?? "");
-  const [contact, setContact] = useState(() => savedDraft?.contact ?? shop.phone ?? "");
-  const [copied, setCopied] = useState(false);
+  const [contact, setContact] = useState(() => savedDraft?.contact ?? initialData.ownerProfile?.phone_number ?? shop.phone ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
-  const [openedFaq, setOpenedFaq] = useState<string | null>(faqItems[0]?.question ?? null);
-  const systemContext = useMemo(() => buildSystemContext(shop, requestType), [requestType, shop]);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [selectedAttachments, setSelectedAttachments] = useState<SelectedSupportAttachment[]>([]);
+  const [requests, setRequests] = useState<OwnerSupportRequestItem[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [requestsError, setRequestsError] = useState("");
+  const systemContext = useMemo(() => buildSystemContext(shop, category), [category, shop]);
+  const unreadAnswerCount = requests.filter(isUnreadAnsweredRequest).length;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -118,33 +152,80 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
-        requestType,
+        category,
+        title,
         message,
         contact,
       }),
     );
-  }, [contact, message, requestType, storageKey]);
+  }, [category, contact, message, storageKey, title]);
 
   useEffect(() => {
-    const target = initialSection === "faq" ? faqSectionRef.current : contactSectionRef.current;
-    if (!target) return;
+    void loadRequests();
+  }, [shop.id]);
 
-    window.setTimeout(() => {
-      target.scrollIntoView({ block: "start", behavior: "smooth" });
-    }, 0);
-  }, [initialSection]);
+  async function loadRequests() {
+    setLoadingRequests(true);
+    setRequestsError("");
+    try {
+      const response = await fetchApiJsonWithAuth<{ requests: OwnerSupportRequestItem[] }>(
+        `/api/owner/support-requests?shopId=${encodeURIComponent(shop.id)}&limit=20`,
+        { cache: "no-store" },
+      );
+      setRequests(response.requests);
+    } catch (error) {
+      setRequestsError(error instanceof Error ? error.message : "문의 내역을 불러오지 못했습니다.");
+    } finally {
+      setLoadingRequests(false);
+    }
+  }
 
-  const requestBody = useMemo(() => {
-    return [`문의 내용`, message.trim() || "(내용을 입력해 주세요)", "", `연락처`, contact.trim() || "-", "", `시스템 정보`, systemContext].join(
-      "\n",
+  async function markAsRead(requestId: string) {
+    setRequests((current) =>
+      current.map((item) => (item.id === requestId ? { ...item, ownerLastReadAt: new Date().toISOString() } : item)),
     );
-  }, [contact, message, systemContext]);
+    try {
+      await fetchApiJsonWithAuth<{ success: true }>("/api/owner/support-requests", {
+        method: "PATCH",
+        body: JSON.stringify({ shopId: shop.id, requestId }),
+      });
+    } catch {
+      void loadRequests();
+    }
+  }
 
-  async function copyRequest() {
-    if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(requestBody);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+  function handleAttachmentChange(files: FileList | null) {
+    setAttachmentError("");
+    if (!files) return;
+
+    const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const nextFiles = Array.from(files).filter((file) => acceptedTypes.has(file.type));
+    if (nextFiles.length !== files.length) {
+      setAttachmentError("jpg, png, webp 이미지만 첨부할 수 있습니다.");
+    }
+
+    setSelectedAttachments((current) => {
+      const merged = [
+        ...current,
+        ...nextFiles.map((file) => ({
+          id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        })),
+      ].slice(0, 3);
+      if (current.length + nextFiles.length > 3) {
+        setAttachmentError("이미지는 최대 3장까지 첨부할 수 있습니다.");
+      }
+      return merged;
+    });
+  }
+
+  function removeAttachment(id: string) {
+    setSelectedAttachments((current) => {
+      const target = current.find((attachment) => attachment.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return current.filter((attachment) => attachment.id !== id);
+    });
   }
 
   async function submitRequest() {
@@ -160,23 +241,48 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
     setSubmitError("");
     setSubmitMessage("");
     try {
-      await fetchApiJsonWithAuth<{ request: { id: string } }>("/api/owner/support-requests", {
+      const attachments = await Promise.all(
+        selectedAttachments.map(async (attachment) => {
+          const uploaded = await createOwnerMediaAssetFromFile({ shopId: shop.id }, "message_image", attachment.file);
+          return {
+            mediaAssetId: uploaded.mediaAsset.id,
+            fileName: uploaded.mediaAsset.original_file_name ?? attachment.file.name,
+            fileType: uploaded.mediaAsset.content_type,
+            fileSize: uploaded.mediaAsset.byte_size,
+          };
+        }),
+      );
+
+      const response = await fetchApiJsonWithAuth<{ request: { id: string } }>("/api/owner/support-requests", {
         method: "POST",
         body: JSON.stringify({
           shopId: shop.id,
-          requestType,
+          category,
+          title,
           contact,
+          ownerName: initialData.ownerProfile?.name ?? "",
+          ownerPhone: initialData.ownerProfile?.phone_number ?? contact,
           message: trimmedMessage,
+          attachments,
           context: {
             shopName: shop.name,
             shopId: shop.id,
+            currentPath: typeof window !== "undefined" ? window.location.pathname : "",
             currentUrl: typeof window !== "undefined" ? window.location.href : "",
             userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "",
             createdAt: new Date().toISOString(),
           },
         }),
       });
-      setSubmitMessage("접수되었습니다. 운영자가 관리자 페이지에서 확인할 수 있습니다.");
+      const requestNumber = response.request.id.slice(0, 8).toUpperCase();
+      setSubmitMessage(`문의가 접수되었습니다. 문의번호 ${requestNumber}로 확인할 수 있습니다.`);
+      setTitle("");
+      setMessage("");
+      setSelectedAttachments((current) => {
+        current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+        return [];
+      });
+      void loadRequests();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "문의를 접수하지 못했습니다.");
     } finally {
@@ -185,22 +291,20 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-      <WebSurface className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-semibold text-[#316fe8]">도움말</p>
-            <h1 className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">문의와 개선 요청</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={copyRequest}
-              className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 text-[14px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-            >
-              {copied ? <CheckCircle2 className="h-4 w-4 text-[#2f7866]" /> : <Clipboard className="h-4 w-4" />}
-              {copied ? "복사됨" : "내용 복사"}
-            </button>
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+        <div ref={contactSectionRef}>
+          <WebSurface className="p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#316fe8]">1:1 문의</p>
+              <h1 className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">문의하기</h1>
+              {unreadAnswerCount > 0 ? (
+                <p className="mt-2 inline-flex rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
+                  새 답변 {unreadAnswerCount}건이 도착했습니다.
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={() => void submitRequest()}
@@ -208,46 +312,46 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
               className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#316fe8] px-3.5 text-[14px] font-semibold text-white transition hover:bg-[#245bd0] disabled:bg-[#94a3b8]"
             >
               <Mail className="h-4 w-4" />
-              {submitting ? "접수 중" : "접수하기"}
+              {submitting ? "업로드 중" : "접수하기"}
             </button>
           </div>
-        </div>
-      </WebSurface>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div ref={contactSectionRef}>
-          <WebSurface className="p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {requestTypes.map((item) => {
-              const Icon = item.icon;
-              const active = requestType === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setRequestType(item.key)}
-                  className={cn(
-                    "flex h-12 items-center justify-center gap-2 rounded-[10px] border text-[15px] font-semibold transition",
-                    active
-                      ? "border-[#316fe8] bg-[#edf4ff] text-[#245bd0]"
-                      : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 grid gap-3">
+          <div className="grid gap-3">
+            <label className="grid gap-1.5">
+              <span className="text-[14px] font-semibold text-[#334155]">문의 유형</span>
+              <select
+                value={category}
+                onChange={(event) => {
+                  const nextCategory = event.target.value as HelpCategory;
+                  const nextItem = requestCategories.find((item) => item.key === nextCategory);
+                  setCategory(nextCategory);
+                  if (nextItem && !title.trim()) setTitle(nextItem.exampleTitle);
+                }}
+                className="h-11 rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-semibold text-[#111827] outline-none transition focus:border-[#316fe8] focus:ring-2 focus:ring-[#dce8ff]"
+              >
+                {requestCategories.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-[14px] font-semibold text-[#334155]">제목</span>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="h-11 rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-medium text-[#111827] outline-none transition focus:border-[#316fe8] focus:ring-2 focus:ring-[#dce8ff]"
+                placeholder="예: 예약 시간이 이상하게 보여요"
+              />
+            </label>
             <label className="grid gap-1.5">
               <span className="text-[14px] font-semibold text-[#334155]">연락 받을 번호 또는 메일</span>
               <input
                 value={contact}
                 onChange={(event) => setContact(event.target.value)}
                 className="h-11 rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-medium text-[#111827] outline-none transition focus:border-[#316fe8] focus:ring-2 focus:ring-[#dce8ff]"
-                placeholder="연락처를 입력해 주세요"
+                placeholder="로그인 정보가 있으면 자동 입력됩니다"
               />
             </label>
             <label className="grid gap-1.5">
@@ -259,6 +363,13 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
                 placeholder="어느 화면에서 어떤 문제가 있었는지 적어주세요."
               />
             </label>
+            <OwnerSupportAttachmentPicker
+              attachments={selectedAttachments}
+              error={attachmentError}
+              submitting={submitting}
+              onChange={handleAttachmentChange}
+              onRemove={removeAttachment}
+            />
             {submitMessage ? (
               <p className="rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
                 {submitMessage}
@@ -269,17 +380,18 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
                 {submitError}
               </p>
             ) : null}
-            <div className="rounded-[10px] border border-[#e5eaf0] bg-[#f8fafc] p-3">
-              <p className="mb-2 text-[13px] font-semibold text-[#64748b]">함께 첨부되는 정보</p>
-              <pre className="whitespace-pre-wrap break-words text-[13px] leading-5 text-[#334155]">{systemContext}</pre>
-            </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
+                  setTitle("");
                   setMessage("");
-                  setCopied(false);
+                  setSelectedAttachments((current) => {
+                    current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+                    return [];
+                  });
                   setSubmitError("");
+                  setAttachmentError("");
                   setSubmitMessage("");
                 }}
                 className="inline-flex h-10 items-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[14px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
@@ -293,7 +405,7 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
                 className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#316fe8] px-4 text-[14px] font-semibold text-white transition hover:bg-[#245bd0] disabled:bg-[#94a3b8]"
               >
                 <Send className="h-4 w-4" />
-                {submitting ? "접수 중" : "접수하기"}
+                {submitting ? "업로드 중" : "접수하기"}
               </button>
             </div>
           </div>
@@ -301,43 +413,13 @@ export default function OwnerHelpScreen({ initialData, initialSection = "contact
         </div>
 
         <div className="grid gap-4">
-          <WebSurface className="p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-[#316fe8]" />
-              <h2 className="text-[18px] font-semibold text-[#111827]">오너 편의 추천</h2>
-            </div>
-            <div className="grid gap-2">
-              {convenienceIdeas.map((idea) => (
-                <div key={idea} className="rounded-[10px] border border-[#e5eaf0] bg-[#fbfcfd] px-3 py-2.5 text-[14px] font-medium leading-5 text-[#334155]">
-                  {idea}
-                </div>
-              ))}
-            </div>
-          </WebSurface>
-
-          <div ref={faqSectionRef}>
-            <WebSurface className="p-5">
-            <h2 className="mb-3 text-[18px] font-semibold text-[#111827]">자주 묻는 질문</h2>
-            <div className="divide-y divide-[#e5eaf0] rounded-[10px] border border-[#e5eaf0]">
-              {faqItems.map((item) => {
-                const open = openedFaq === item.question;
-                return (
-                  <div key={item.question}>
-                    <button
-                      type="button"
-                      onClick={() => setOpenedFaq(open ? null : item.question)}
-                      className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-[15px] font-semibold text-[#111827]"
-                    >
-                      <span>{item.question}</span>
-                      <span className="text-[13px] font-bold text-[#64748b]">{open ? "닫기" : "보기"}</span>
-                    </button>
-                    {open ? <p className="px-3.5 pb-3 text-[14px] font-medium leading-6 text-[#64748b]">{item.answer}</p> : null}
-                  </div>
-                );
-              })}
-            </div>
-            </WebSurface>
-          </div>
+          <OwnerSupportHistoryPanel
+            requests={requests}
+            loading={loadingRequests}
+            error={requestsError}
+            onRefresh={() => void loadRequests()}
+            onMarkAsRead={(requestId) => void markAsRead(requestId)}
+          />
         </div>
       </div>
     </div>

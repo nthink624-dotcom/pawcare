@@ -1301,6 +1301,74 @@ export async function updateOwnerSubscriptionPreferences(
   return nextSummary;
 }
 
+export async function cancelOwnerSubscriptionRenewal(identity: BillingIdentity, shopId: string) {
+  const { record, profile, tableReady, summary } = await readOrCreateSubscription(identity, shopId);
+
+  if (!tableReady || !record) {
+    const nextMetadata = {
+      ...(identity.user_metadata ?? {}),
+      cancel_at_period_end: true,
+      auto_renew_enabled: false,
+      subscription_status: summary.status === "active" ? "canceled" : summary.status,
+    };
+
+    const admin = getSupabaseAdmin();
+    if (!admin) {
+      throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
+    }
+
+    const result = await admin.auth.admin.updateUserById(identity.id, {
+      user_metadata: nextMetadata,
+    });
+
+    if (result.error || !result.data.user) {
+      throw new OwnerBillingError(result.error?.message ?? "정기결제 취소를 저장하지 못했습니다.", 400);
+    }
+
+    return normalizeOwnerSubscriptionMetadata(nextMetadata, identity.created_at ?? nowIso(), {
+      userId: identity.id,
+      shopId,
+      ownerName: profile?.name ?? null,
+      ownerPhoneNumber: profile?.phone_number ?? null,
+      ownerEmail: identity.email ?? null,
+    });
+  }
+
+  if (record.current_plan_code === "free") {
+    throw new OwnerBillingError("체험 플랜은 취소할 정기결제가 없습니다.", 400);
+  }
+
+  if (record.cancel_at_period_end) {
+    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+  }
+
+  await cancelScheduledPayment(record);
+
+  const nextRecord: OwnerSubscriptionRecord = {
+    ...record,
+    cancel_at_period_end: true,
+    subscription_status: record.subscription_status === "active" ? "canceled" : record.subscription_status,
+    next_billing_at: null,
+    last_schedule_id: null,
+  };
+
+  const saved = await persistSubscriptionRecord(identity, nextRecord);
+  const nextSummary = buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+
+  await recordBillingEvent({
+    userId: identity.id,
+    shopId,
+    eventType: "subscription_cancel_at_period_end",
+    status: nextSummary.status,
+    payload: {
+      currentPlanCode: nextSummary.currentPlanCode,
+      currentPeriodEndsAt: nextSummary.currentPeriodEndsAt,
+    },
+  });
+
+  return nextSummary;
+}
+
 export async function registerOwnerBillingMethod(
   identity: BillingIdentity,
   shopId: string,

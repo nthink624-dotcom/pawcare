@@ -3,6 +3,10 @@ import { CalendarDays, Check, ChevronDown } from "lucide-react";
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import { cn } from "@/lib/utils";
 
 export function WebSurface({
@@ -203,7 +207,7 @@ export function PrimaryButton({ label, onClick, icon }: { label: string; onClick
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] bg-[#30312f] px-5 text-[14px] font-medium text-white transition hover:bg-[#1f201e]"
+      className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
     >
       {icon}
       {label}
@@ -216,7 +220,7 @@ export function GhostButton({ label, onClick }: { label: string; onClick?: () =>
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[40px] items-center justify-center rounded-[8px] border border-[#e1e1dd] bg-white px-4 text-[14px] font-medium text-[#30312f] hover:bg-[#f7f7f4]"
+      className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
     >
       {label}
     </button>

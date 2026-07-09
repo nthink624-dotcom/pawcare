@@ -4,6 +4,10 @@ import { Clock, Copy, ExternalLink, Link2, MapPin, Navigation, Phone, Star, Stor
 import { useMemo, useState } from "react";
 
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
+import {
+  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import type { BootstrapPayload } from "@/types/domain";
 
 type CopyTarget = "url" | "naverUrl" | "naverDirections";
@@ -67,33 +71,29 @@ export default function BookingLinkManagementScreen({
                 <p className="mt-1 text-[15px] font-normal text-[#64748b]">고객 예약 링크</p>
               </div>
             </div>
-            <span className="inline-flex h-8 items-center rounded-full bg-[#edf7f3] px-3 text-[15px] font-normal text-[#2f7866]">
-              공개 중
-            </span>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleCopy(bookingUrl, "url")}
+                className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
+              >
+                <Copy className="h-4 w-4" />
+                {copiedTarget === "url" ? "복사됨" : "링크 복사"}
+              </button>
+              <a
+                href={bookingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
+              >
+                <ExternalLink className="h-4 w-4" />
+                고객 화면 열기
+              </a>
+            </div>
           </div>
 
           <div className="mt-3 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5">
             <p className="break-all font-mono text-[15px] font-normal leading-6 text-[#111827]">{bookingUrl}</p>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void handleCopy(bookingUrl, "url")}
-              className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#1f6b5b] px-4 text-[15px] font-semibold text-white transition hover:bg-[#1b604f]"
-            >
-              <Copy className="h-4 w-4" />
-              {copiedTarget === "url" ? "복사됨" : "링크 복사"}
-            </button>
-            <a
-              href={bookingUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-            >
-              <ExternalLink className="h-4 w-4" />
-              고객 화면 열기
-            </a>
           </div>
 
           <div className="mt-4 border-t border-[#edf2f7] pt-4">
@@ -109,7 +109,7 @@ export default function BookingLinkManagementScreen({
                   <button
                     type="button"
                     onClick={() => void handleCopy(bookingUrl, "naverUrl")}
-                    className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                    className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
                   >
                     <Copy className="h-4 w-4" />
                     {copiedTarget === "naverUrl" ? "복사됨" : "예약 URL 복사"}
@@ -138,7 +138,7 @@ export default function BookingLinkManagementScreen({
                         <button
                           type="button"
                           onClick={() => void handleCopy(naverDirectionsText, "naverDirections")}
-                          className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+                          className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
                         >
                           <Copy className="h-4 w-4" />
                           {copiedTarget === "naverDirections" ? "복사됨" : "문구 복사"}

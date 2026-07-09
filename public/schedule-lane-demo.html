@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>스케줄 레인 데모</title>
+    <style>
+      :root {
+        --line: #e6edf4;
+        --line-soft: #f2f5f8;
+        --text: #0f172a;
+        --muted: #64748b;
+        --surface: #ffffff;
+        --bg: #f5f7fa;
+        --board-header-height: 54px;
+        --green: #1f9d55;
+        --blue: #2563eb;
+        --violet: #7c3aed;
+        --amber: #b98121;
+        --slate: #607080;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .page {
+        min-height: 100vh;
+        padding: 28px;
+      }
+
+      .shell {
+        max-width: 1180px;
+        margin: 0 auto;
+        border: 1px solid #dce5ee;
+        border-radius: 8px;
+        background: var(--surface);
+        overflow: hidden;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 750;
+        letter-spacing: 0;
+      }
+
+      .date {
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 22px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border: 1px solid #dbe3ec;
+        border-radius: 8px;
+        background: #fbfcfd;
+      }
+
+      .mini-board {
+        display: grid;
+        grid-template-columns: 72px repeat(4, minmax(190px, 1fr));
+        min-width: 956px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .mini-time {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 68px;
+        border-right: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        background: #fff;
+      }
+
+      .mini-cell {
+        min-height: 68px;
+        border-right: 1px solid var(--line);
+        background: #fbfcfd;
+        padding: 10px;
+      }
+
+      .mini-cell:last-child {
+        border-right: 0;
+      }
+
+      .mini-staff {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+      }
+
+      .mini-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border: 1px solid #f1b64b;
+        background: #fff8e8;
+        color: #8a5b11;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .mini-name {
+        margin: 0;
+        font-size: 14px;
+        line-height: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .mini-role {
+        margin: 1px 0 0;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--color);
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        min-height: 720px;
+        border-top: 0;
+      }
+
+      .time-rail {
+        border-right: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .time-rail .spacer {
+        height: var(--board-header-height);
+        border-top: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .time-cell {
+        height: 72px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 14px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .columns {
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #c4ceda transparent;
+      }
+
+      .columns::-webkit-scrollbar {
+        height: 6px;
+        width: 6px;
+      }
+
+      .columns::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .columns::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: #c4ceda;
+      }
+
+      .columns-inner {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(190px, 1fr));
+        min-width: 880px;
+      }
+
+      .lane {
+        position: relative;
+        min-height: 774px;
+        border-right: 1px solid var(--line);
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            transparent 0,
+            transparent 71px,
+            var(--line-soft) 72px
+          ),
+          #fff;
+        background-position:
+          0 var(--board-header-height),
+          0 0;
+      }
+
+      .lane:last-child {
+        border-right: 0;
+      }
+
+      .lane.is-selected {
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            transparent 0,
+            transparent 71px,
+            var(--line-soft) 72px
+          ),
+          #fbfdfc;
+        box-shadow: inset 0 0 0 1px #c8ded8;
+      }
+
+      .lane-head {
+        height: var(--board-header-height);
+        display: flex;
+        align-items: center;
+        gap: 0;
+        padding: 8px 12px;
+        border-top: 0;
+        border-bottom: 1px solid var(--line);
+        background: #fbfcfd;
+      }
+
+      .lane.is-selected .lane-head {
+        border-bottom-color: #c8ded8;
+        background: #f4faf8;
+        box-shadow: inset 0 -2px 0 #2f7866;
+      }
+
+      .lane-head.compact {
+        height: var(--board-header-height);
+        padding: 7px 12px;
+      }
+
+      .head-copy {
+        min-width: 0;
+      }
+
+      .lane-name {
+        margin: 0;
+        color: #111827;
+        font-size: 13px;
+        line-height: 17px;
+        font-weight: 750;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .lane-meta {
+        margin: 1px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .work {
+        position: absolute;
+        left: 0;
+        right: 0;
+        border-top: 1px solid rgba(203, 213, 225, 0.7);
+        border-bottom: 1px solid rgba(203, 213, 225, 0.7);
+        background: rgba(248, 250, 252, 0.5);
+      }
+
+      .booking {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        padding: 11px 12px;
+        border: 1px solid #dbe2ea;
+        border-left: 3px solid var(--color);
+        border-radius: 8px;
+        background: #fbfdff;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+      }
+
+      .empty-booking {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: 74px;
+        min-height: 48px;
+        padding: 9px 12px;
+        border: 1px solid #dbe2ea;
+        border-radius: 8px;
+        background: #fff;
+        color: #64748b;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+      }
+
+      .empty-booking strong {
+        display: block;
+        font-size: 13px;
+        line-height: 17px;
+        font-weight: 700;
+      }
+
+      .empty-booking span {
+        display: block;
+        margin-top: 2px;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 16px;
+      }
+
+      .booking strong {
+        display: block;
+        min-width: 0;
+        color: #0f172a;
+        font-size: 13px;
+        line-height: 17px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .booking .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+        min-width: 0;
+      }
+
+      .badge {
+        flex: 0 0 auto;
+        border: 1px solid #d5dee8;
+        border-radius: 6px;
+        padding: 2px 6px;
+        color: #607080;
+        background: #f8fafc;
+        font-size: 11px;
+        line-height: 13px;
+        font-weight: 700;
+      }
+
+      .service {
+        min-width: 0;
+        color: var(--muted);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          padding: 14px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .columns-inner {
+          grid-template-columns: repeat(4, 190px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="shell">
+        <div class="topbar">
+          <h1 class="title">상시 3명 + 파트타임 3명 스케줄보드</h1>
+          <div class="date">2026년 7월 7일 화요일</div>
+        </div>
+
+        <div class="legend">
+          <span><i class="dot" style="--color: var(--green)"></i>확정</span>
+          <span><i class="dot" style="--color: var(--blue)"></i>진행 중</span>
+          <span><i class="dot" style="--color: var(--violet)"></i>픽업 준비</span>
+          <span><i class="dot" style="--color: var(--amber)"></i>변경/주의</span>
+        </div>
+
+        <div class="columns">
+          <div class="mini-board">
+            <div class="mini-time">요약</div>
+            <div class="mini-cell">
+              <div class="mini-staff">                <div>
+                  <p class="mini-name">박수현</p>
+                  <p class="mini-role">디자이너 · 예약 0건</p>
+                </div>
+              </div>
+            </div>
+            <div class="mini-cell">
+              <div class="mini-staff">                <div>
+                  <p class="mini-name">정우진</p>
+                  <p class="mini-role">원장 · 예약 0건</p>
+                </div>
+              </div>
+            </div>
+            <div class="mini-cell">
+              <div class="mini-staff">                <div>
+                  <p class="mini-name">정우진</p>
+                  <p class="mini-role">직원 · 예약 0건</p>
+                </div>
+              </div>
+            </div>
+            <div class="mini-cell">
+              <div class="mini-staff">                <div>
+                  <p class="mini-name">민지 / 하늘 / 재윤</p>
+                  <p class="mini-role">파트타임 · 예약 0건</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="board">
+          <aside class="time-rail">
+            <div class="spacer"></div>
+            <div class="time-cell">10:00</div>
+            <div class="time-cell">11:00</div>
+            <div class="time-cell">12:00</div>
+            <div class="time-cell">13:00</div>
+            <div class="time-cell">14:00</div>
+            <div class="time-cell">15:00</div>
+            <div class="time-cell">16:00</div>
+            <div class="time-cell">17:00</div>
+            <div class="time-cell">18:00</div>
+            <div class="time-cell">19:00</div>
+          </aside>
+
+          <div class="columns">
+            <div class="columns-inner">
+              <section class="lane is-selected">
+                <header class="lane-head">                  <div class="head-copy">
+                    <p class="lane-name">정우진 원장</p>
+                    <p class="lane-meta">상시 10:00-19:00 · 예약 4건</p>
+                  </div>
+                </header>
+                <div class="work" style="top: 60px; height: 648px"></div>
+                <article class="booking" style="--color: var(--green); top: 82px; height: 86px">
+                  <strong>콩이 · 이동윤</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">목욕 + 부분정리</span></div>
+                </article>
+                <article class="booking" style="--color: var(--blue); top: 248px; height: 108px">
+                  <strong>코코 · 박서준</strong>
+                  <div class="row"><span class="badge">진행 중</span><span class="service">클리핑</span></div>
+                </article>
+                <article class="booking" style="--color: var(--green); top: 418px; height: 94px">
+                  <strong>라떼 · 김유나</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">위생미용</span></div>
+                </article>
+                <article class="booking" style="--color: var(--violet); top: 570px; height: 92px">
+                  <strong>몽이 · 한지훈</strong>
+                  <div class="row"><span class="badge">픽업 준비</span><span class="service">스포팅</span></div>
+                </article>
+              </section>
+
+              <section class="lane">
+                <header class="lane-head">                  <div class="head-copy">
+                    <p class="lane-name">이수현 디자이너</p>
+                    <p class="lane-meta">상시 10:00-19:00 · 예약 3건</p>
+                  </div>
+                </header>
+                <div class="work" style="top: 60px; height: 648px"></div>
+                <article class="booking" style="--color: var(--green); top: 126px; height: 104px">
+                  <strong>보리 · 이수현</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">위생 미용</span></div>
+                </article>
+                <article class="booking" style="--color: var(--green); top: 324px; height: 112px">
+                  <strong>모카 · 배지후</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">목욕</span></div>
+                </article>
+                <article class="booking" style="--color: var(--amber); top: 514px; height: 120px">
+                  <strong>하루 · 임서아</strong>
+                  <div class="row"><span class="badge">변경</span><span class="service">가위컷</span></div>
+                </article>
+              </section>
+
+              <section class="lane">
+                <header class="lane-head">                  <div class="head-copy">
+                    <p class="lane-name">강리오 디자이너</p>
+                    <p class="lane-meta">상시 10:00-19:00 · 예약 3건</p>
+                  </div>
+                </header>
+                <div class="work" style="top: 60px; height: 648px"></div>
+                <article class="booking" style="--color: var(--green); top: 72px; height: 118px">
+                  <strong>토리 · 문하나</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">목욕 + 위생</span></div>
+                </article>
+                <article class="booking" style="--color: var(--blue); top: 276px; height: 118px">
+                  <strong>초코 · 김서우</strong>
+                  <div class="row"><span class="badge">진행 중</span><span class="service">클리핑</span></div>
+                </article>
+                <article class="booking" style="--color: var(--green); top: 486px; height: 132px">
+                  <strong>두부 · 전미라</strong>
+                  <div class="row"><span class="badge">확정</span><span class="service">가위컷</span></div>
+                </article>
+              </section>
+
+              <section class="lane">
+                <header class="lane-head">                  <div class="head-copy">
+                    <p class="lane-name">민지 / 하늘 / 재윤</p>
+                    <p class="lane-meta">파트타임 연속 근무 · 예약 4건</p>
+                  </div>
+                </header>
+                <div class="work" style="top: 60px; height: 216px"></div>
+                <div class="work" style="top: 276px; height: 216px"></div>
+                <div class="work" style="top: 492px; height: 216px"></div>
+                <article class="booking" style="--color: var(--green); top: 82px; height: 88px">
+                  <strong>루루 · 최다은</strong>
+                  <div class="row"><span class="badge">민지</span><span class="service">목욕</span></div>
+                </article>
+                <article class="booking" style="--color: var(--green); top: 174px; height: 74px">
+                  <strong>밤비 · 서지안</strong>
+                  <div class="row"><span class="badge">민지</span><span class="service">위생</span></div>
+                </article>
+                <article class="booking" style="--color: var(--blue); top: 312px; height: 100px">
+                  <strong>구름 · 정다솔</strong>
+                  <div class="row"><span class="badge">하늘</span><span class="service">목욕 + 부분컷</span></div>
+                </article>
+                <article class="booking" style="--color: var(--green); top: 536px; height: 112px">
+                  <strong>쿠키 · 윤태민</strong>
+                  <div class="row"><span class="badge">재윤</span><span class="service">클리핑</span></div>
+                </article>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

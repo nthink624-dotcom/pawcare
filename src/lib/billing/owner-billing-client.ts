@@ -104,6 +104,12 @@ export async function retryOwnerSubscriptionPayment() {
   });
 }
 
+export async function cancelOwnerSubscriptionRenewal() {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/cancel", {
+    method: "POST",
+  });
+}
+
 export async function confirmOwnerSubscriptionPayment(paymentId: string) {
   return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/confirm-payment", {
     method: "POST",

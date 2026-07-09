@@ -45,6 +45,11 @@ function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefine
   return metadata?.account_suspended === true;
 }
 
+function isMissingShopIdentityChangeEventsError(error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null }) {
+  const haystack = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
+  return error.code === "42P01" || (haystack.includes("shop_identity_change_events") && haystack.includes("schema cache"));
+}
+
 export async function GET(request: NextRequest) {
   try {
     if (!hasSupabaseServerEnv()) {
@@ -239,13 +244,24 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError("저장할 매장 정보가 없습니다.", 400);
     }
 
-    if (hasCustomerPageUpdates || body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined) {
+    const needsCurrentShop =
+      hasCustomerPageUpdates || body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined || body.name !== undefined || body.address !== undefined;
+    let currentShop: {
+      name: string | null;
+      address: string | null;
+      customer_page_settings: Record<string, unknown> | null;
+      reservation_policy_settings: Record<string, unknown> | null;
+    } | null = null;
+
+    if (needsCurrentShop) {
       const currentShopResult = await admin
         .from("shops")
-        .select("customer_page_settings,reservation_policy_settings")
+        .select("name,address,customer_page_settings,reservation_policy_settings")
         .eq("id", owner.shopId)
         .eq("owner_user_id", owner.userId)
         .maybeSingle<{
+          name: string | null;
+          address: string | null;
           customer_page_settings: Record<string, unknown> | null;
           reservation_policy_settings: Record<string, unknown> | null;
         }>();
@@ -254,8 +270,10 @@ export async function PATCH(request: NextRequest) {
         throw new OwnerApiError(currentShopResult.error.message, 500);
       }
 
+      currentShop = currentShopResult.data ?? null;
+
       if (hasCustomerPageUpdates) {
-        const currentCustomerPageSettings = currentShopResult.data?.customer_page_settings ?? {};
+        const currentCustomerPageSettings = currentShop?.customer_page_settings ?? {};
         const currentSocialLinks =
           typeof currentCustomerPageSettings.social_links === "object" && currentCustomerPageSettings.social_links
             ? currentCustomerPageSettings.social_links
@@ -288,7 +306,7 @@ export async function PATCH(request: NextRequest) {
 
       if (body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined) {
         updates.reservation_policy_settings = {
-          ...(currentShopResult.data?.reservation_policy_settings ?? {}),
+          ...(currentShop?.reservation_policy_settings ?? {}),
           ...(body.cancelWindow !== undefined
             ? {
                 cancel_window: body.cancelWindow,
@@ -324,6 +342,38 @@ export async function PATCH(request: NextRequest) {
 
     if (result.error) {
       throw new OwnerApiError(result.error.message, 500);
+    }
+
+    const identityChangeEvents = [
+      body.name !== undefined && currentShop && body.name !== (currentShop.name ?? "")
+        ? {
+            shop_id: owner.shopId,
+            owner_user_id: owner.userId,
+            changed_by_user_id: owner.userId,
+            field_name: "name",
+            previous_value: currentShop.name ?? "",
+            next_value: body.name,
+            metadata: { source: "owner_shop_patch" },
+          }
+        : null,
+      body.address !== undefined && currentShop && body.address !== (currentShop.address ?? "")
+        ? {
+            shop_id: owner.shopId,
+            owner_user_id: owner.userId,
+            changed_by_user_id: owner.userId,
+            field_name: "address",
+            previous_value: currentShop.address ?? "",
+            next_value: body.address,
+            metadata: { source: "owner_shop_patch" },
+          }
+        : null,
+    ].filter(Boolean);
+
+    if (identityChangeEvents.length > 0) {
+      const historyResult = await admin.from("shop_identity_change_events").insert(identityChangeEvents);
+      if (historyResult.error && !isMissingShopIdentityChangeEventsError(historyResult.error)) {
+        throw new OwnerApiError(historyResult.error.message, 500);
+      }
     }
 
     return ownerMobileCorsJson(request, { shop: result.data });

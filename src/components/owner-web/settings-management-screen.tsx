@@ -9,6 +9,10 @@ import DiscountCouponEditor, { type DiscountCouponPreset } from "@/components/ow
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import {
+  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
+  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
+} from "@/components/owner-web/owner-web-action-button-styles";
 import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
@@ -178,13 +182,14 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string }> = [
 ];
 
 function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset = "first_visit"): CustomerDiscountCoupon {
-  const presets: Record<DiscountCouponPreset, Pick<CustomerDiscountCoupon, "name" | "owner_label" | "discount_type" | "discount_value" | "audience" | "per_customer_limit">> = {
+  const presets: Record<DiscountCouponPreset, Pick<CustomerDiscountCoupon, "name" | "owner_label" | "discount_type" | "discount_value" | "audience" | "combination_policy" | "per_customer_limit">> = {
     first_visit: {
       name: "첫 방문 혜택",
       owner_label: "첫 방문 혜택",
       discount_type: "fixed",
       discount_value: 10000,
       audience: "first_visit",
+      combination_policy: "exclusive",
       per_customer_limit: true,
     },
     revisit: {
@@ -193,6 +198,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
       discount_type: "percent",
       discount_value: 10,
       audience: "revisit",
+      combination_policy: "exclusive",
       per_customer_limit: false,
     },
     all: {
@@ -201,6 +207,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
       discount_type: "fixed",
       discount_value: 5000,
       audience: "all",
+      combination_policy: "stackable",
       per_customer_limit: false,
     },
     custom: {
@@ -209,6 +216,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
       discount_type: "fixed",
       discount_value: 5000,
       audience: "custom",
+      combination_policy: "stackable",
       per_customer_limit: false,
     },
   };
@@ -223,6 +231,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
     discount_type: template.discount_type,
     discount_value: template.discount_value,
     audience: template.audience,
+    combination_policy: template.combination_policy,
     service_scope: "all",
     service_option_ids: [],
     per_customer_limit: template.per_customer_limit,
@@ -2225,14 +2234,14 @@ export default function SettingsManagementScreen({
                       type="button"
                       onClick={reloadSavedDiscountCoupons}
                       disabled={!discountCouponsDirty}
-                      className="inline-flex h-8 items-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f4faf8] hover:text-[#2f7866] disabled:cursor-not-allowed disabled:opacity-45"
+                      className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
                     >
                       기존 혜택 불러오기
                     </button>
                     <button
                       type="button"
                       onClick={() => addDiscountCoupon()}
-                      className="inline-flex h-8 items-center rounded-[8px] border border-[#c8ded8] bg-[#f4faf8] px-3 text-[14px] font-normal text-[#2f7866] transition hover:border-[#8bbcaf] hover:bg-[#eef7f4] disabled:cursor-not-allowed disabled:opacity-45"
+                      className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
                     >
                       혜택 추가
                     </button>

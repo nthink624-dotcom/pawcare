@@ -2,6 +2,7 @@
 
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 
+import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
 import { isShopClosedOnDate } from "@/lib/availability";
@@ -102,7 +103,7 @@ export function CalendarToolbar({
           <button
             type="button"
             onClick={onAddSchedule}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#5570F1] px-4 text-[14px] font-medium text-white transition hover:bg-[#4962d6]"
+            className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
           >
             <CalendarPlus className="h-4 w-4" />
             예약 추가

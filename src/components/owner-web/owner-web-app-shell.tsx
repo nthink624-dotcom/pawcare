@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CircleHelp, LogOut, MessageCircle, MessageSquareText, Search } from "lucide-react";
+import { ChevronDown, LogOut, Search } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -128,39 +128,6 @@ function formatAlimtalkCount(value: number | null | undefined) {
   return value.toLocaleString("ko-KR");
 }
 
-function KakaoTalkIconMark() {
-  return <MessageCircle className="h-5 w-5" strokeWidth={1.7} />;
-}
-
-function HeaderIconButton({
-  label,
-  children,
-  onClick,
-  href,
-}: {
-  label: string;
-  children: ReactNode;
-  onClick?: () => void;
-  href?: Route;
-}) {
-  const className =
-    "inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
-
-  if (href) {
-    return (
-      <Link href={href} prefetch className={className} aria-label={label} title={label}>
-        {children}
-      </Link>
-    );
-  }
-
-  return (
-    <button type="button" onClick={onClick} className={className} aria-label={label} title={label}>
-      {children}
-    </button>
-  );
-}
-
 function AlimtalkCreditMenu({
   summary,
   open,
@@ -172,31 +139,54 @@ function AlimtalkCreditMenu({
   onToggle: () => void;
   containerRef?: RefObject<HTMLDivElement | null>;
 }) {
+  const includedRemaining = formatAlimtalkCount(summary?.included_remaining);
+  const purchasedRemaining = formatAlimtalkCount(summary?.purchased_remaining);
+  const totalRemaining = formatAlimtalkCount(summary?.remaining_total);
+
   return (
     <div ref={containerRef} className="relative">
-      <HeaderIconButton label="알림톡 잔여 건수" onClick={onToggle}>
-        <KakaoTalkIconMark />
-      </HeaderIconButton>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="inline-flex h-[38px] items-center gap-2 rounded-[10px] border border-[#dbe6f2] bg-white px-3 text-left transition hover:border-[var(--pm-brand-blue-border)] hover:bg-[#f8fbff]"
+        aria-label={`알림톡 잔여 건수 무료 ${includedRemaining}건, 유료 ${purchasedRemaining}건`}
+        title="알림톡 잔여 건수"
+      >
+        <span className="text-[12px] font-semibold text-[#475569]">알림톡</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--pm-brand-blue-soft)] px-2 py-1 text-[12px] font-semibold text-[var(--pm-brand-blue)]">
+          무료 <span className="tabular-nums">{includedRemaining}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-1 text-[12px] font-semibold text-[#334155]">
+          유료 <span className="tabular-nums">{purchasedRemaining}</span>
+        </span>
+      </button>
       {open ? (
-        <div className="absolute right-0 top-11 z-[80] w-[218px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
-          <div className="flex items-center gap-2 border-b border-[var(--line)] pb-2.5">
-            <KakaoTalkIconMark />
+        <div className="absolute right-0 top-11 z-[80] w-[260px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
+          <div className="border-b border-[var(--line)] pb-2.5">
             <p className="text-[13px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
+            <p className="mt-1 text-[12px] font-medium text-[var(--mut)]">무료 제공분을 먼저 사용하고, 부족하면 유료 충전분을 사용합니다.</p>
           </div>
           <div className="mt-3 space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[13px] font-medium text-[var(--mid)]">무료 잔여</span>
               <span className="text-[15px] font-semibold text-[var(--ink)]">
-                {formatAlimtalkCount(summary?.included_remaining)}건
+                {includedRemaining}건
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-[13px] font-medium text-[var(--mid)]">결제 잔여</span>
               <span className="text-[15px] font-semibold text-[var(--ink)]">
-                {formatAlimtalkCount(summary?.purchased_remaining)}건
+                {purchasedRemaining}건
               </span>
             </div>
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2">
+              <span className="text-[13px] font-semibold text-[var(--ink2)]">전체 잔여</span>
+              <span className="text-[15px] font-semibold text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
+            </div>
           </div>
+          <p className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
+            무료 제공분은 다음 결제 주기에 초기화되고, 유료 충전분은 사용 전까지 이월됩니다.
+          </p>
         </div>
       ) : null}
     </div>
@@ -208,6 +198,8 @@ export default function OwnerWebAppShell({
   onScreenSelect,
   shopDisplayName,
   shopInitials,
+  currentPlanLabel,
+  currentPlanMeta,
   alimtalkCreditSummary,
   alimtalkCreditMenuOpen,
   alimtalkCreditMenuRef,
@@ -227,6 +219,8 @@ export default function OwnerWebAppShell({
   onScreenSelect: (screen: OwnerWebScreenKey) => void;
   shopDisplayName: string;
   shopInitials: string;
+  currentPlanLabel: string;
+  currentPlanMeta: string;
   alimtalkCreditSummary: BootstrapPayload["alimtalkCreditSummary"];
   alimtalkCreditMenuOpen: boolean;
   alimtalkCreditMenuRef: RefObject<HTMLDivElement | null>;
@@ -237,7 +231,7 @@ export default function OwnerWebAppShell({
   onOpenProfile: () => void;
   onOpenShop: () => void;
   onOpenAlerts: () => void;
-  onOpenHelp: (section?: "contact" | "faq") => void;
+  onOpenHelp: () => void;
   onLogout: () => void;
   loggingOut: boolean;
   children: ReactNode;
@@ -245,6 +239,9 @@ export default function OwnerWebAppShell({
   const screenGradientStyle = {
     "--pm-owner-screen-gradient": ownerWebScreenGradients[activeScreen],
   } as CSSProperties;
+  const alimtalkRemainingTotal =
+    typeof alimtalkCreditSummary?.remaining_total === "number" ? alimtalkCreditSummary.remaining_total : null;
+  const alimtalkCreditsExhausted = alimtalkRemainingTotal !== null && alimtalkRemainingTotal <= 0;
 
   return (
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
@@ -302,8 +299,8 @@ export default function OwnerWebAppShell({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-[#273142]">2~4인 운영</p>
-                <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">운영 플랜</p>
+                <p className="truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
+                <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">{currentPlanMeta}</p>
               </div>
               <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8] transition group-hover:bg-[#316fe8] group-hover:text-white">
                 플랜 확인
@@ -313,8 +310,8 @@ export default function OwnerWebAppShell({
           <div className="hidden rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold text-[var(--nav-ink)]">2~4인 운영</p>
-                <p className="mt-1 text-[12px] font-medium text-[var(--nav-mut)]">운영 플랜</p>
+                <p className="text-[13px] font-semibold text-[var(--nav-ink)]">{currentPlanLabel}</p>
+                <p className="mt-1 text-[12px] font-medium text-[var(--nav-mut)]">{currentPlanMeta}</p>
               </div>
               <Link href="/owner/billing?compare=1" prefetch className="text-[13px] font-bold text-[var(--acc)]">
                 플랜 확인
@@ -332,12 +329,13 @@ export default function OwnerWebAppShell({
           </label>
 
           <div className="ml-auto flex items-center gap-2">
-            <HeaderIconButton label="1:1 문의" onClick={() => onOpenHelp("contact")}>
-              <MessageSquareText className="h-5 w-5" strokeWidth={1.8} />
-            </HeaderIconButton>
-            <HeaderIconButton label="자주 묻는 질문" onClick={() => onOpenHelp("faq")}>
-              <CircleHelp className="h-5 w-5" strokeWidth={1.8} />
-            </HeaderIconButton>
+            <button
+              type="button"
+              onClick={onOpenHelp}
+              className="inline-flex h-[38px] items-center justify-center rounded-[10px] px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]"
+            >
+              1:1 문의
+            </button>
             <AlimtalkCreditMenu
               summary={alimtalkCreditSummary}
               open={alimtalkCreditMenuOpen}
@@ -396,6 +394,26 @@ export default function OwnerWebAppShell({
             buttonClassName="h-10"
           />
         </header>
+
+        {alimtalkCreditsExhausted ? (
+          <div className="shrink-0 border-b border-[#f3d7aa] bg-[#fff8ec] px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold text-[#8a4f08]">알림톡 잔여 건수가 모두 소진되었습니다</p>
+                <p className="mt-0.5 text-[13px] font-medium text-[#9a5d12]">
+                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 유료 충전 또는 상위 플랜을 확인해 주세요.
+                </p>
+              </div>
+              <Link
+                href="/owner/billing?compare=1"
+                prefetch
+                className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
+              >
+                플랜/충전 확인
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <section className="min-h-0 flex-1 overflow-hidden bg-[image:var(--pm-owner-screen-gradient)] p-5" style={screenGradientStyle}>
           <div className="h-full min-w-0 overflow-hidden rounded-[18px] border border-white/75 bg-white/90 shadow-[0_18px_44px_rgba(37,99,235,0.10)] backdrop-blur-sm">

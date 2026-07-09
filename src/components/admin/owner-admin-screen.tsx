@@ -43,6 +43,13 @@ type AdminOwnerPaymentItem = {
   refundable: boolean;
 };
 
+type AdminOwnerUsageWarning = {
+  level: "info" | "warning" | "danger";
+  code: "multiple_shops" | "identity_changes" | "branch_terms" | "shared_contact";
+  message: string;
+  evidence: string[];
+};
+
 type TemporaryPasswordResult = {
   loginId: string;
   temporaryPassword: string;
@@ -85,6 +92,7 @@ type AdminOwnerItem = {
   paymentMethodLabel: string | null;
   suspended: boolean;
   suspensionReason: string | null;
+  usageWarnings: AdminOwnerUsageWarning[];
   recentEvents: AdminOwnerHistoryItem[];
   recentPayments: AdminOwnerPaymentItem[];
 };
@@ -101,10 +109,10 @@ type OwnerDraft = {
 
 const planOptions = [
   { value: "free", label: "체험 플랜" },
-  { value: "monthly", label: "베이직" },
-  { value: "quarterly", label: "스탠다드" },
-  { value: "halfyearly", label: "스탠다드(기존)" },
-  { value: "yearly", label: "프로" },
+  { value: "monthly", label: "1인 운영" },
+  { value: "quarterly", label: "2~4인 운영" },
+  { value: "halfyearly", label: "2~4인 운영(기존)" },
+  { value: "yearly", label: "5인 이상 운영" },
 ] as const satisfies Array<{ value: OwnerPlanCode; label: string }>;
 
 const statusOptions = [
@@ -171,6 +179,12 @@ const statusToneMap: Record<OwnerSubscriptionStatus, string> = {
   past_due: "bg-[#fdf0f0] text-[#b54b4b]",
   canceled: "bg-[#f3f1ef] text-[#746d67]",
   expired: "bg-[#f3f1ef] text-[#746d67]",
+};
+
+const usageWarningToneMap: Record<AdminOwnerUsageWarning["level"], string> = {
+  info: "border-[#d8e6f7] bg-[#f7fbff] text-[#315f91]",
+  warning: "border-[#f1dfb7] bg-[#fffaf0] text-[#8a6211]",
+  danger: "border-[#efcaca] bg-[#fff6f6] text-[#a23f3f]",
 };
 
 const eventLabelMap: Record<AdminOwnerEventType, string> = {
@@ -723,6 +737,18 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         </div>
                         <p className="mt-1 truncate text-[16px] font-medium text-[#36302b]">{item.shopName}</p>
                         <p className="mt-1 truncate text-[16px] text-[#8a8277]">{item.shopAddress}</p>
+                        {item.usageWarnings.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.usageWarnings.slice(0, 2).map((warning) => (
+                              <span
+                                key={`${item.userId}-${warning.code}`}
+                                className={`rounded-full border px-2 py-0.5 text-[13px] font-semibold ${usageWarningToneMap[warning.level]}`}
+                              >
+                                운영 검토 · {warning.message}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="flex flex-wrap gap-1.5">
@@ -790,6 +816,33 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                 </div>
 
                 <div className="space-y-4 overflow-y-auto px-5 py-5 xl:max-h-[calc(100vh-160px)]">
+                  {selectedOwner.usageWarnings.length > 0 ? (
+                    <section className="rounded-[12px] border border-[#f1dfb7] bg-[#fffaf0] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-[16px] font-semibold text-[#7c5208]">운영 검토 필요</h3>
+                        <span className="rounded-full bg-white/70 px-2.5 py-1 text-[13px] font-semibold text-[#8a6211]">
+                          {selectedOwner.usageWarnings.length}건
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {selectedOwner.usageWarnings.map((warning) => (
+                          <div key={warning.code} className={`rounded-[10px] border bg-white px-3 py-3 ${usageWarningToneMap[warning.level]}`}>
+                            <p className="text-[15px] font-semibold">{warning.message}</p>
+                            {warning.evidence.length > 0 ? (
+                              <ul className="mt-2 space-y-1 text-[13px] leading-5">
+                                {warning.evidence.map((evidence) => (
+                                  <li key={evidence} className="break-words">
+                                    {evidence}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
                   <OwnerAdminPasswordPanel
                     ownerName={selectedOwner.ownerName}
                     loginId={selectedOwner.loginId}

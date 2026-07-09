@@ -57,6 +57,32 @@ function getBenefitTypeName(audience: CustomerDiscountCoupon["audience"]) {
   return "직접 설정 혜택";
 }
 
+function getCombinationPolicyLabel(policy: CustomerDiscountCoupon["combination_policy"]) {
+  return policy === "exclusive" ? "단독 적용" : "중복 가능";
+}
+
+function audiencesOverlap(first: CustomerDiscountCoupon["audience"], second: CustomerDiscountCoupon["audience"]) {
+  if (first === second) return true;
+  if (first === "all" || second === "all") return true;
+  if (first === "custom" || second === "custom") return true;
+  return false;
+}
+
+function datesOverlap(first: CustomerDiscountCoupon, second: CustomerDiscountCoupon) {
+  const firstStart = first.starts_at || "0000-01-01";
+  const firstEnd = first.ends_at || "9999-12-31";
+  const secondStart = second.starts_at || "0000-01-01";
+  const secondEnd = second.ends_at || "9999-12-31";
+  return firstStart <= secondEnd && secondStart <= firstEnd;
+}
+
+function servicesOverlap(first: CustomerDiscountCoupon, second: CustomerDiscountCoupon, allServiceOptionIds: string[]) {
+  if (first.service_scope !== "specific" || second.service_scope !== "specific") return true;
+  const firstIds = first.service_option_ids.length > 0 ? first.service_option_ids : allServiceOptionIds;
+  const secondIds = second.service_option_ids.length > 0 ? second.service_option_ids : allServiceOptionIds;
+  return firstIds.some((serviceOptionId) => secondIds.includes(serviceOptionId));
+}
+
 function SelectFrame({
   children,
   className,
@@ -73,7 +99,7 @@ function SelectFrame({
 }
 
 const selectClassName =
-  "h-11 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-11 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc]";
+  "h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px] font-medium text-[#111827] outline-none transition focus:border-[#2563eb] focus:ring-2 focus:ring-[#dbeafe] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
 const inputClassName =
   "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
@@ -105,6 +131,35 @@ export default function DiscountCouponEditor({
     () => Array.from(new Set(serviceScopeOptions.flatMap((option) => option.linkedOptionIds))),
     [serviceScopeOptions],
   );
+  const conflictCouponLabelsById = useMemo(() => {
+    const labelsById = new Map<string, string[]>();
+    const activeCoupons = coupons.filter((coupon) => coupon.enabled && coupon.discount_value > 0);
+
+    for (let index = 0; index < activeCoupons.length; index += 1) {
+      const coupon = activeCoupons[index];
+      if (coupon.combination_policy !== "exclusive") continue;
+
+      for (let compareIndex = 0; compareIndex < activeCoupons.length; compareIndex += 1) {
+        if (index === compareIndex) continue;
+        const otherCoupon = activeCoupons[compareIndex];
+        if (
+          audiencesOverlap(coupon.audience, otherCoupon.audience) &&
+          datesOverlap(coupon, otherCoupon) &&
+          servicesOverlap(coupon, otherCoupon, allServiceOptionIds)
+        ) {
+          const couponLabels = labelsById.get(coupon.id) ?? [];
+          couponLabels.push(otherCoupon.owner_label || otherCoupon.name);
+          labelsById.set(coupon.id, couponLabels);
+
+          const otherLabels = labelsById.get(otherCoupon.id) ?? [];
+          otherLabels.push(coupon.owner_label || coupon.name);
+          labelsById.set(otherCoupon.id, otherLabels);
+        }
+      }
+    }
+
+    return labelsById;
+  }, [allServiceOptionIds, coupons]);
 
   function toggleCollapsed(couponId: string) {
     setCollapsedCouponIds((current) => {
@@ -188,6 +243,8 @@ export default function DiscountCouponEditor({
       <div className="pm-benefit-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
       {coupons.map((coupon) => {
         const collapsed = collapsedCouponIds.has(coupon.id);
+        const conflictLabels = Array.from(new Set(conflictCouponLabelsById.get(coupon.id) ?? []));
+        const combinationPolicyLocked = coupon.audience === "first_visit" || coupon.audience === "revisit";
         return (
         <section
           key={coupon.id}
@@ -198,40 +255,55 @@ export default function DiscountCouponEditor({
         >
           <div
             className={cn(
-              "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
+              "flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3",
               coupon.enabled ? "border-[#edf2f7] bg-white" : "border-[#e5eaf0] bg-[#f8fafc]",
             )}
           >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="flex min-w-[220px] flex-1 items-center gap-2">
-              <label className="min-w-0 flex-1">
+            <div className="flex min-w-[260px] flex-1 items-center gap-2">
+              <label className="min-w-[160px] max-w-[260px] flex-1">
                 <span className="sr-only">관리명</span>
                 <input
                   value={coupon.owner_label ?? coupon.name}
                   disabled={disabled}
                   onChange={(event) => onUpdate(coupon.id, { owner_label: event.target.value })}
                   className={cn(
-                    "h-10 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[18px] font-semibold tracking-[-0.01em] outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#2f7866] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#dceee8] disabled:text-[#64748b]",
+                    "h-9 w-full rounded-[8px] border border-transparent bg-transparent px-0 text-[16px] font-semibold tracking-normal outline-none transition placeholder:text-[#94a3b8] hover:border-[#dbe2ea] hover:bg-white hover:px-3 focus:border-[#2563eb] focus:bg-white focus:px-3 focus:ring-2 focus:ring-[#dbeafe] disabled:text-[#64748b]",
                     coupon.enabled ? "text-[#111827]" : "text-[#64748b]",
                   )}
                   placeholder="혜택 이름"
                 />
               </label>
-              <span
-                className={cn(
-                  "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[13px] font-medium",
-                  coupon.enabled
-                    ? "border-[#c8ded8] bg-[#f4faf8] text-[#2f7866]"
-                    : "border-[#dbe2ea] bg-white text-[#64748b]",
-                )}
-              >
-                {coupon.enabled ? "사용 중" : "중지됨"}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className={cn(
+                    "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[12px] font-semibold",
+                    coupon.enabled
+                      ? "border-[#bfdbfe] bg-[#eff6ff] text-[#2563eb]"
+                      : "border-[#dbe2ea] bg-white text-[#64748b]",
+                  )}
+                >
+                  {coupon.enabled ? "사용 중" : "중지됨"}
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[12px] font-semibold",
+                    coupon.combination_policy === "exclusive"
+                      ? "border-[#dbeafe] bg-white text-[#2563eb]"
+                      : "border-[#e2e8f0] bg-white text-[#64748b]",
+                  )}
+                >
+                  {getCombinationPolicyLabel(coupon.combination_policy)}
+                </span>
+                {conflictLabels.length > 0 ? (
+                  <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#f4d7b5] bg-[#fff7ed] px-2.5 text-[12px] font-semibold text-[#b98121]">
+                    겹침 있음
+                  </span>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="w-[190px]">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <label className="w-[170px]">
                 <span className="sr-only">혜택 분류</span>
                 <SelectFrame>
                   <select
@@ -244,6 +316,7 @@ export default function DiscountCouponEditor({
                         audience: nextAudience,
                         name: nextName,
                         owner_label: coupon.owner_label?.trim() ? coupon.owner_label : nextName,
+                        combination_policy: nextAudience === "first_visit" || nextAudience === "revisit" ? "exclusive" : coupon.combination_policy,
                         visible: true,
                         per_customer_limit: nextAudience === "first_visit" ? true : coupon.per_customer_limit,
                       });
@@ -257,6 +330,24 @@ export default function DiscountCouponEditor({
                   </select>
                 </SelectFrame>
               </label>
+              <label className="w-[140px]">
+                <span className="sr-only">적용 방식</span>
+                <SelectFrame>
+                  <select
+                    value={coupon.combination_policy}
+                    disabled={disabled || combinationPolicyLocked}
+                    onChange={(event) =>
+                      onUpdate(coupon.id, {
+                        combination_policy: event.target.value === "exclusive" ? "exclusive" : "stackable",
+                      })
+                    }
+                    className={selectClassName}
+                  >
+                    <option value="exclusive">단독 적용</option>
+                    <option value="stackable">중복 가능</option>
+                  </select>
+                </SelectFrame>
+              </label>
               <ToggleChip
                 label={coupon.enabled ? "사용 중지" : "다시 사용"}
                 active={coupon.enabled}
@@ -266,7 +357,7 @@ export default function DiscountCouponEditor({
               <button
                 type="button"
                 onClick={() => toggleCollapsed(coupon.id)}
-                className="inline-flex h-11 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal text-[#334155] transition hover:border-[#c8ded8] hover:bg-[#f8fafc]"
+                className="inline-flex h-9 w-[96px] items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:bg-[#f8fafc]"
                 aria-expanded={!collapsed}
               >
                 {collapsed ? "펼치기" : "접기"}
@@ -276,13 +367,20 @@ export default function DiscountCouponEditor({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDelete(coupon.id)}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[#64748b] transition hover:border-[#efcaca] hover:bg-[#fffafa] hover:text-[#a04455] disabled:opacity-40"
                 aria-label={`${coupon.owner_label ?? coupon.name} 삭제`}
               >
-                <Trash2 className="h-5 w-5" />
+                <Trash2 className="h-4.5 w-4.5" />
               </button>
             </div>
           </div>
+
+          {conflictLabels.length > 0 ? (
+            <div className="border-b border-[#f7dfc5] bg-[#fffaf3] px-4 py-2 text-[13px] font-medium leading-5 text-[#9a640f]">
+              이 혜택은 {conflictLabels.slice(0, 3).join(", ")}
+              {conflictLabels.length > 3 ? ` 외 ${conflictLabels.length - 3}개` : ""}와 대상/기간/서비스가 겹칩니다. 고객에게 혼란이 생기지 않도록 하나만 사용하거나 중복 가능으로 바꿔 주세요.
+            </div>
+          ) : null}
 
           {!collapsed ? (
           <div className="grid items-stretch gap-3 p-4 xl:grid-cols-2 xl:[grid-auto-rows:260px]">
@@ -444,7 +542,7 @@ function ToggleChip({ label, active, disabled, onClick }: { label: string; activ
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "h-10 rounded-[8px] border px-4 text-[15px] font-normal transition disabled:opacity-40",
+        "h-9 rounded-[8px] border px-4 text-[14px] font-medium transition disabled:opacity-40",
         active
           ? "border-[#ead6dc] bg-white text-[#a04455] hover:border-[#d9a9b5] hover:bg-[#fffafa]"
           : "border-[#2f7866] bg-[#2f7866] text-white hover:border-[#286a5a] hover:bg-[#286a5a]",

@@ -133,8 +133,11 @@ export function normalizeOwnerSubscriptionMetadata(
     typeof metadata?.current_period_ends_at === "string" ? metadata.current_period_ends_at : null;
   const nextBillingAt =
     typeof metadata?.next_billing_at === "string" ? metadata.next_billing_at : currentPeriodEndsAt;
-  const autoRenewEnabled = false;
-  const cancelAtPeriodEnd = false;
+  const cancelAtPeriodEnd = metadata?.cancel_at_period_end === true;
+  const autoRenewEnabled =
+    typeof metadata?.auto_renew_enabled === "boolean"
+      ? metadata.auto_renew_enabled
+      : paymentMethodExists && !cancelAtPeriodEnd;
   const storedStatus =
     metadata?.subscription_status === "trial_will_end" ||
     metadata?.subscription_status === "active" ||

@@ -7,4 +7,6 @@ artifacts
 .local-secrets/yourit_vps_ed25519
 *.log
 tmp-*.png
+.tmp-*
+public/schedule-lane-demo.html
 .next-dev.err

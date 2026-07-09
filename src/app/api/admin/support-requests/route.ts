@@ -10,8 +10,9 @@ import {
 
 const updateSupportRequestSchema = z.object({
   id: z.string().uuid(),
-  status: z.enum(["open", "reviewing", "resolved", "closed"]),
+  status: z.enum(["open", "reviewing", "answered", "resolved", "closed"]),
   adminNote: z.string().max(3000).optional().default(""),
+  answerMessage: z.string().max(5000).optional().default(""),
 });
 
 export async function GET(request: NextRequest) {
@@ -33,9 +34,13 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    await requireAdminSession(request);
+    const admin = await requireAdminSession(request);
     const body = updateSupportRequestSchema.parse(await request.json());
-    const supportRequest = await updateOwnerSupportRequest(body);
+    const supportRequest = await updateOwnerSupportRequest({
+      ...body,
+      adminId: admin.id,
+      adminName: admin.fullName,
+    });
     return NextResponse.json({ request: supportRequest });
   } catch (error) {
     if (error instanceof z.ZodError) {

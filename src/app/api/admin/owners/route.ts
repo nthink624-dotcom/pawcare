@@ -27,6 +27,28 @@ type ShopRow = {
   owner_user_id: string | null;
   name: string;
   address: string;
+  customer_page_settings: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type StaffUsageReviewRow = {
+  shop_id: string;
+  name: string | null;
+  display_name?: string | null;
+  role: string | null;
+  profile_message?: string | null;
+};
+
+type ServiceUsageReviewRow = {
+  shop_id: string;
+  name: string | null;
+};
+
+type ShopIdentityChangeEventRow = {
+  shop_id: string;
+  field_name: "name" | "address";
+  previous_value: string;
+  next_value: string;
   created_at: string;
 };
 
@@ -133,6 +155,13 @@ type AdminOwnerPaymentItem = {
   refundable: boolean;
 };
 
+type AdminOwnerUsageWarning = {
+  level: "info" | "warning" | "danger";
+  code: "multiple_shops" | "identity_changes" | "branch_terms" | "shared_contact";
+  message: string;
+  evidence: string[];
+};
+
 type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
 
 type AdminOwnerItem = {
@@ -157,6 +186,7 @@ type AdminOwnerItem = {
   paymentMethodLabel: string | null;
   suspended: boolean;
   suspensionReason: string | null;
+  usageWarnings: AdminOwnerUsageWarning[];
   recentEvents: AdminOwnerHistoryItem[];
   recentPayments: AdminOwnerPaymentItem[];
 };
@@ -261,6 +291,181 @@ function isMissingTableError(error: DatabaseErrorLike | null | undefined, tableN
   return error?.code === "42P01" || (haystack.includes(tableName.toLowerCase()) && haystack.includes("schema cache"));
 }
 
+function isMissingColumnError(error: DatabaseErrorLike | null | undefined, columnName: string) {
+  const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+  return haystack.includes(columnName.toLowerCase()) && (haystack.includes("column") || haystack.includes("schema cache"));
+}
+
+const branchReviewTerms = [
+  "본점",
+  "분점",
+  "지점",
+  "직영",
+  "가맹",
+  "체인",
+  "강남점",
+  "홍대점",
+  "성수점",
+  "잠실점",
+  "판교점",
+  "일산점",
+  "부산점",
+  "대구점",
+  "인천점",
+  "수원점",
+  "대전점",
+  "광주점",
+  "제주점",
+  "센터",
+] as const;
+
+function extractCustomerPageText(value: Record<string, unknown> | null | undefined) {
+  if (!value) return [];
+
+  const texts: string[] = [];
+  for (const key of ["shop_name", "tagline", "showcase_title", "showcase_body", "additional_contact", "kakao_inquiry_url"]) {
+    const item = value[key];
+    if (typeof item === "string" && item.trim()) texts.push(item.trim());
+  }
+
+  const socialLinks = value.social_links;
+  if (socialLinks && typeof socialLinks === "object") {
+    for (const item of Object.values(socialLinks)) {
+      if (typeof item === "string" && item.trim()) texts.push(item.trim());
+    }
+  }
+
+  return texts;
+}
+
+function findBranchTermEvidence(entries: Array<{ label: string; value: string | null | undefined }>) {
+  const evidence: string[] = [];
+
+  for (const entry of entries) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+
+    const matchedTerm = branchReviewTerms.find((term) => value.includes(term));
+    if (matchedTerm) {
+      evidence.push(`${entry.label}: ${value} (${matchedTerm})`);
+    }
+
+    if (evidence.length >= 4) break;
+  }
+
+  return evidence;
+}
+
+function extractContactKeys(shop: ShopRow) {
+  const settings = shop.customer_page_settings ?? {};
+  const keys: string[] = [];
+  const additionalContact = typeof settings.additional_contact === "string" ? settings.additional_contact.trim() : "";
+  if (additionalContact) keys.push(`contact:${additionalContact}`);
+
+  const kakaoInquiryUrl = typeof settings.kakao_inquiry_url === "string" ? settings.kakao_inquiry_url.trim() : "";
+  if (kakaoInquiryUrl) keys.push(`kakao:${kakaoInquiryUrl}`);
+
+  const socialLinks = settings.social_links;
+  if (socialLinks && typeof socialLinks === "object") {
+    for (const [key, value] of Object.entries(socialLinks)) {
+      if (typeof value === "string" && value.trim()) {
+        keys.push(`${key}:${value.trim()}`);
+      }
+    }
+  }
+
+  return keys;
+}
+
+function buildUsageWarnings(params: {
+  userShops: ShopRow[];
+  primaryShop: ShopRow;
+  staffRows: StaffUsageReviewRow[];
+  serviceRows: ServiceUsageReviewRow[];
+  identityChangeEvents: ShopIdentityChangeEventRow[];
+}) {
+  const warnings: AdminOwnerUsageWarning[] = [];
+  const { userShops, primaryShop, staffRows, serviceRows, identityChangeEvents } = params;
+
+  if (userShops.length > 1) {
+    warnings.push({
+      level: "danger",
+      code: "multiple_shops",
+      message: "한 오너 계정에 매장이 2개 이상 연결되어 있습니다.",
+      evidence: userShops.slice(0, 4).map((shop) => `${shop.name} · ${shop.address}`),
+    });
+  }
+
+  const thirtyDaysAgo = Date.now() - 30 * 86400000;
+  const recentIdentityChanges = identityChangeEvents.filter((event) => new Date(event.created_at).getTime() >= thirtyDaysAgo);
+  if (recentIdentityChanges.length >= 2) {
+    warnings.push({
+      level: "warning",
+      code: "identity_changes",
+      message: "최근 30일 안에 매장명/주소 변경이 반복되었습니다.",
+      evidence: recentIdentityChanges
+        .slice(0, 4)
+        .map((event) => `${event.field_name === "name" ? "매장명" : "주소"}: ${event.previous_value || "-"} → ${event.next_value || "-"}`),
+    });
+  }
+
+  const branchEvidence = findBranchTermEvidence([
+    ...userShops.flatMap((shop) => [
+      { label: "매장명", value: shop.name },
+      { label: "주소", value: shop.address },
+      ...extractCustomerPageText(shop.customer_page_settings).map((value) => ({ label: "고객페이지", value })),
+    ]),
+    ...staffRows.flatMap((staff) => [
+      { label: "직원명", value: staff.display_name || staff.name },
+      { label: "직원 역할", value: staff.role },
+      { label: "직원 메시지", value: staff.profile_message },
+    ]),
+    ...serviceRows.map((service) => ({ label: "서비스명", value: service.name })),
+  ]);
+
+  if (branchEvidence.length >= 2) {
+    warnings.push({
+      level: "warning",
+      code: "branch_terms",
+      message: "직원명/서비스명/안내 문구에서 지점 또는 공동 운영으로 보이는 표현이 반복됩니다.",
+      evidence: branchEvidence,
+    });
+  }
+
+  const contactKeyToShopNames = new Map<string, Set<string>>();
+  for (const shop of userShops) {
+    for (const key of extractContactKeys(shop)) {
+      const current = contactKeyToShopNames.get(key) ?? new Set<string>();
+      current.add(shop.name);
+      contactKeyToShopNames.set(key, current);
+    }
+  }
+  const sharedContactEvidence = Array.from(contactKeyToShopNames.entries())
+    .filter(([, shopNames]) => shopNames.size > 1)
+    .slice(0, 3)
+    .map(([key, shopNames]) => `${key.replace(/^(contact|kakao):/, "")} · ${Array.from(shopNames).join(", ")}`);
+
+  if (sharedContactEvidence.length > 0) {
+    warnings.push({
+      level: "warning",
+      code: "shared_contact",
+      message: "여러 매장에 같은 문의 채널이나 외부 링크가 연결되어 있습니다.",
+      evidence: sharedContactEvidence,
+    });
+  }
+
+  if (warnings.length === 0 && primaryShop.address.trim() === "") {
+    warnings.push({
+      level: "info",
+      code: "identity_changes",
+      message: "매장 주소가 비어 있어 단일 매장 확인이 어렵습니다.",
+      evidence: ["주소 미입력"],
+    });
+  }
+
+  return warnings;
+}
+
 function buildMetadataFromRecord(record: SubscriptionRow) {
   return {
     current_plan_code: record.current_plan_code,
@@ -357,7 +562,7 @@ async function readAdminOwners() {
       .from("owner_profiles")
       .select("user_id, shop_id, login_id, name, phone_number, created_at")
       .order("created_at", { ascending: false }),
-    admin.from("shops").select("id, owner_user_id, name, address, created_at").order("created_at", { ascending: false }),
+    admin.from("shops").select("id, owner_user_id, name, address, customer_page_settings, created_at").order("created_at", { ascending: false }),
     admin
       .from("owner_subscriptions")
       .select(
@@ -402,9 +607,63 @@ async function readAdminOwners() {
   const events = (eventsResult.data ?? []) as AdminOwnerEventRow[];
   const billingEvents = (billingEventsResult.data ?? []) as OwnerBillingEventRow[];
   const paymentLedger = (paymentLedgerResult.data ?? []) as OwnerPaymentLedgerRow[];
+  const shopIds = shops.map((shop) => shop.id);
+
+  let staffUsageRows: StaffUsageReviewRow[] = [];
+  let serviceUsageRows: ServiceUsageReviewRow[] = [];
+  let identityChangeRows: ShopIdentityChangeEventRow[] = [];
+
+  if (shopIds.length > 0) {
+    const [staffUsageResult, serviceUsageResult, identityChangeResult] = await Promise.all([
+      admin
+        .from("staff_members")
+        .select("shop_id,name,display_name,role,profile_message")
+        .in("shop_id", shopIds),
+      admin.from("services").select("shop_id,name").in("shop_id", shopIds),
+      admin
+        .from("shop_identity_change_events")
+        .select("shop_id,field_name,previous_value,next_value,created_at")
+        .in("shop_id", shopIds)
+        .order("created_at", { ascending: false })
+        .limit(1000),
+    ]);
+
+    if (staffUsageResult.error) {
+      if (isMissingColumnError(staffUsageResult.error, "profile_message") || isMissingColumnError(staffUsageResult.error, "display_name")) {
+        const fallbackStaffResult = await admin.from("staff_members").select("shop_id,name,role").in("shop_id", shopIds);
+        if (!fallbackStaffResult.error) {
+          staffUsageRows = (fallbackStaffResult.data ?? []) as StaffUsageReviewRow[];
+        }
+      } else if (!isMissingTableError(staffUsageResult.error, "staff_members")) {
+        throw new AdminApiError(staffUsageResult.error.message, 500);
+      }
+    } else {
+      staffUsageRows = (staffUsageResult.data ?? []) as StaffUsageReviewRow[];
+    }
+
+    if (serviceUsageResult.error && !isMissingTableError(serviceUsageResult.error, "services")) {
+      throw new AdminApiError(serviceUsageResult.error.message, 500);
+    }
+    if (!serviceUsageResult.error) {
+      serviceUsageRows = (serviceUsageResult.data ?? []) as ServiceUsageReviewRow[];
+    }
+
+    if (identityChangeResult.error && !isMissingTableError(identityChangeResult.error, "shop_identity_change_events")) {
+      throw new AdminApiError(identityChangeResult.error.message, 500);
+    }
+    if (!identityChangeResult.error) {
+      identityChangeRows = (identityChangeResult.data ?? []) as ShopIdentityChangeEventRow[];
+    }
+  }
 
   const shopByUserId = new Map<string, ShopRow>();
+  const shopsByUserId = new Map<string, ShopRow[]>();
   for (const shop of shops) {
+    if (shop.owner_user_id) {
+      const current = shopsByUserId.get(shop.owner_user_id) ?? [];
+      current.push(shop);
+      shopsByUserId.set(shop.owner_user_id, current);
+    }
     if (shop.owner_user_id && !shopByUserId.has(shop.owner_user_id)) {
       shopByUserId.set(shop.owner_user_id, shop);
     }
@@ -507,6 +766,7 @@ async function readAdminOwners() {
       const authUser = userResult.data.user;
       const profile = profileByUserId.get(userId) ?? null;
       const shop = shopByUserId.get(userId) ?? null;
+      const userShops = shopsByUserId.get(userId) ?? (shop ? [shop] : []);
 
       if (!authUser || !shop) return null;
 
@@ -563,6 +823,13 @@ async function readAdminOwners() {
         paymentMethodLabel: summary.paymentMethodLabel,
         suspended: suspension.suspended,
         suspensionReason: suspension.suspensionReason,
+        usageWarnings: buildUsageWarnings({
+          userShops,
+          primaryShop: shop,
+          staffRows: staffUsageRows.filter((staff) => userShops.some((userShop) => userShop.id === staff.shop_id)),
+          serviceRows: serviceUsageRows.filter((service) => userShops.some((userShop) => userShop.id === service.shop_id)),
+          identityChangeEvents: identityChangeRows.filter((event) => userShops.some((userShop) => userShop.id === event.shop_id)),
+        }),
         recentEvents: eventsByUserId.get(userId) ?? [],
         recentPayments: recentPaymentsByUserId.get(userId) ?? [],
       } satisfies AdminOwnerItem;

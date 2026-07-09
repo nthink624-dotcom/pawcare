@@ -7,6 +7,7 @@ import { BasilIcon } from "@/components/owner-web/basil-icon";
 import CustomerDetailPanel from "@/components/owner-web/customer-detail-panel";
 import { buildCustomerDetailFromBootstrap } from "@/components/owner-web/customer-detail-helpers";
 import CustomerExcelTools from "@/components/owner-web/customer-excel-tools";
+import { OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass } from "@/components/owner-web/status-indicators";
 import { fetchApiJsonWithAuth } from "@/lib/api";
@@ -1328,7 +1329,7 @@ export default function CustomerManagementScreen({
             <button
               type="button"
               onClick={openNewCustomerModal}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] bg-[#111827] px-4 text-[14px] font-medium text-white transition hover:bg-[#1f2937]"
+              className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
             >
               <AssetIcon src="/icons/phosphor/UserCirclePlus.svg" className="h-4 w-4" />
               고객 추가

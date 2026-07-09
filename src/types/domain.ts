@@ -147,6 +147,7 @@ export type CustomerDiscountCoupon = {
   discount_type: "fixed" | "percent";
   discount_value: number;
   audience: "all" | "first_visit" | "revisit" | "custom";
+  combination_policy: "exclusive" | "stackable";
   service_scope: "all" | "specific";
   service_option_ids: string[];
   per_customer_limit: boolean;

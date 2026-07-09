@@ -68,6 +68,12 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
         source.audience === "first_visit" || source.audience === "revisit" || source.audience === "all" || source.audience === "custom"
           ? source.audience
           : "all";
+      const combinationPolicy =
+        source.combination_policy === "exclusive" || source.combination_policy === "stackable"
+          ? source.combination_policy
+          : audience === "first_visit" || audience === "revisit"
+            ? "exclusive"
+            : "stackable";
       const serviceScope = source.service_scope === "specific" ? "specific" : "all";
       const serviceOptionIds = Array.isArray(source.service_option_ids)
         ? source.service_option_ids
@@ -86,6 +92,7 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
           discount_type: discountType,
           discount_value: discountValue,
           audience,
+          combination_policy: audience === "first_visit" || audience === "revisit" ? "exclusive" : combinationPolicy,
           service_scope: serviceScope,
           service_option_ids: serviceScope === "specific" ? serviceOptionIds : [],
           per_customer_limit: audience === "first_visit" ? true : source.per_customer_limit !== false,

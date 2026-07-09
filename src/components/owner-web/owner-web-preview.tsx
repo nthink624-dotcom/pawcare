@@ -9,7 +9,7 @@ import CustomerManagementScreen from "@/components/owner-web/customer-management
 import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
-import OwnerHelpScreen, { type OwnerHelpSection } from "@/components/owner-web/owner-help-screen";
+import OwnerHelpScreen from "@/components/owner-web/owner-help-screen";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
@@ -20,6 +20,9 @@ import SettingsManagementScreen from "@/components/owner-web/settings-management
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
+import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
+import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
@@ -89,7 +92,6 @@ function renderScreen(
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
   onCreateReservationForDate: (date: string) => void,
   automaticVisitReminderAvailable: boolean,
-  helpSection: OwnerHelpSection,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -144,7 +146,7 @@ function renderScreen(
         />
       );
     case "help":
-      return <OwnerHelpScreen initialData={initialData} initialSection={helpSection} />;
+      return <OwnerHelpScreen initialData={initialData} />;
     case "shopInfo":
     case "operatingHours":
     case "ownerProfile":
@@ -177,6 +179,7 @@ export default function OwnerWebPreview({
   initialData,
   demoStaffFallback = [],
   onDataChange,
+  currentPlanCode = null,
 }: {
   initialData: BootstrapPayload;
   demoStaffFallback?: OwnerWebStaffMember[];
@@ -189,8 +192,8 @@ export default function OwnerWebPreview({
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
+  const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
-  const [helpSection, setHelpSection] = useState<OwnerHelpSection>("contact");
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const alimtalkCreditMenuRef = useRef<HTMLDivElement | null>(null);
   const demoMode = isDemoOwnerWebData(initialData);
@@ -204,15 +207,49 @@ export default function OwnerWebPreview({
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const shopDisplayName = ownerData.shop.name.trim() || "PetManager";
   const shopInitials = buildShopInitials(shopDisplayName);
+  const currentPlanLabel = subscriptionSummary
+    ? getOwnerPlanDisplayName(subscriptionSummary.currentPlanCode)
+    : currentPlanCode
+      ? getOwnerPlanDisplayName(currentPlanCode)
+      : "플랜 확인";
+  const currentPlanMeta = subscriptionSummary
+    ? subscriptionSummary.cancelAtPeriodEnd
+      ? "다음 결제 취소됨"
+      : subscriptionSummary.currentPlan.staffLimitLabel
+    : currentPlanCode
+      ? "현재 이용 플랜"
+      : "구독 정보 확인";
   const automaticVisitReminderAvailable = true;
 
   useEffect(() => {
     setManualApprovalEnabled(false);
     setOwnerData(initialData);
+    setSubscriptionSummary(null);
     if (!isDemoOwnerWebData(initialData)) {
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
   }, [initialData]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setSubscriptionSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchOwnerSubscriptionSummary()
+      .then((summary) => {
+        if (cancelled) return;
+        setSubscriptionSummary(summary);
+      })
+      .catch((error) => {
+        console.error("[OWNER WEB] failed to load subscription summary", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode, ownerData.shop.id]);
 
   useEffect(() => {
     const ownerWebStorageKeys =
@@ -393,6 +430,8 @@ export default function OwnerWebPreview({
       onScreenSelect={handleScreenSelect}
       shopDisplayName={shopDisplayName}
       shopInitials={shopInitials}
+      currentPlanLabel={currentPlanLabel}
+      currentPlanMeta={currentPlanMeta}
       alimtalkCreditSummary={ownerData.alimtalkCreditSummary}
       alimtalkCreditMenuOpen={alimtalkCreditMenuOpen}
       alimtalkCreditMenuRef={alimtalkCreditMenuRef}
@@ -409,8 +448,7 @@ export default function OwnerWebPreview({
       onOpenProfile={() => openSettingsTab("profile")}
       onOpenShop={() => openSettingsTab("shop")}
       onOpenAlerts={() => openSettingsTab("alerts")}
-      onOpenHelp={(section = "contact") => {
-        setHelpSection(section);
+      onOpenHelp={() => {
         setActiveScreen("help");
         setStoreMenuOpen(false);
         setAlimtalkCreditMenuOpen(false);
@@ -433,7 +471,6 @@ export default function OwnerWebPreview({
         handleCreateReservationForCustomer,
         handleCreateReservationForDate,
         automaticVisitReminderAvailable,
-        helpSection,
       )}
     </OwnerWebAppShell>
   );

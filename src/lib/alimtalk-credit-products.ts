@@ -8,7 +8,6 @@ export type AlimtalkCreditProduct = {
   supplyPrice: number;
   price: number;
   badge?: string;
-  description: string;
 };
 
 export const ALIMTALK_CREDIT_VAT_RATE = 0.1;
@@ -21,7 +20,6 @@ export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
     unitPriceBeforeVat: 10,
     supplyPrice: 10000,
     price: 11000,
-    description: "예약 안내가 많아지는 달에 가볍게 추가",
   },
   {
     id: "credits_3000",
@@ -31,7 +29,6 @@ export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
     supplyPrice: 27000,
     price: 29700,
     badge: "추천",
-    description: "정기 방문 안내와 미용 완료 알림을 넉넉하게",
   },
   {
     id: "credits_10000",
@@ -40,7 +37,6 @@ export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
     unitPriceBeforeVat: 7,
     supplyPrice: 70000,
     price: 77000,
-    description: "예약량이 많은 매장이나 다점포 운영에 적합",
   },
 ];
 

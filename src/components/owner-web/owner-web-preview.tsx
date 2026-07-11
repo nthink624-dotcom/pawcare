@@ -460,6 +460,9 @@ export default function OwnerWebPreview({
       activeScreen={activeScreen}
       onScreenSelect={handleScreenSelect}
       shopDisplayName={shopDisplayName}
+      shopId={ownerData.shop.id}
+      ownerName={ownerData.ownerProfile?.name ?? ""}
+      ownerPhone={ownerData.ownerProfile?.phone_number ?? ownerData.shop.phone ?? ""}
       shopInitials={shopInitials}
       currentPlanLabel={currentPlanLabel}
       currentPlanMeta={currentPlanMeta}

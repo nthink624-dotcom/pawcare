@@ -22,6 +22,10 @@ import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getBootstrap } from "@/server/bootstrap";
 import {
+  quoteCustomerDiscount,
+  type CustomerDiscountQuoteResponse,
+} from "@/server/customer-discount-quote";
+import {
   buildBookingManageUrl,
   createBookingAccessToken,
   verifyBookingAccessToken,
@@ -53,6 +57,7 @@ const customerBookingCreateSchema = z.object({
   appointmentDate: z.string().min(1),
   appointmentTime: z.string().min(1),
   memo: z.string().optional().default(""),
+  expectedFinalAmount: z.coerce.number().int().min(0).optional(),
 });
 
 const customerBookingUpdateSchema = z.discriminatedUnion("action", [
@@ -104,6 +109,10 @@ function canManageAppointment(appointment: Appointment) {
   if (appointment.appointment_date < today) return false;
 
   return minutesFromTime(appointment.appointment_time) > currentMinutesInTimeZone();
+}
+
+function countsTowardVisitHistory(appointment: Appointment) {
+  return appointment.status !== "cancelled" && appointment.status !== "rejected" && appointment.status !== "noshow";
 }
 
 function getGuardianPetsForProfile(bootstrap: Awaited<ReturnType<typeof getBootstrap>>, guardianId: string) {
@@ -547,9 +556,29 @@ async function findOrCreateSupabaseEntities(payload: z.infer<typeof customerBook
   return { guardianId, petId };
 }
 
-export async function createCustomerBooking(input: unknown) {
+export async function createCustomerBooking(
+  input: unknown,
+  options: { trustedDiscountQuote?: CustomerDiscountQuoteResponse } = {},
+) {
   const payload = customerBookingCreateSchema.parse(input);
   const bootstrap = await getBootstrap(payload.shopId);
+  const discountQuote =
+    options.trustedDiscountQuote ??
+    (await quoteCustomerDiscount({
+      shopId: payload.shopId,
+      guardianName: payload.guardianName,
+      phone: payload.phone,
+      serviceId: payload.serviceId,
+      customerServiceOptionId: payload.customerServiceOptionId,
+      appointmentDate: payload.appointmentDate,
+    }));
+
+  if (
+    payload.expectedFinalAmount !== undefined &&
+    payload.expectedFinalAmount !== discountQuote.finalAmount
+  ) {
+    throw new Error("혜택 또는 서비스 금액이 변경되었습니다. 최종 금액을 다시 확인해 주세요.");
+  }
   const entityIds =
     bootstrap.mode === "supabase" && hasSupabaseServerEnv()
       ? await findOrCreateSupabaseEntities(payload)
@@ -608,6 +637,13 @@ export async function createCustomerBooking(input: unknown) {
     appointmentTime: payload.appointmentTime,
     memo: mergedMemo,
     source: "customer",
+    customerVisitType: discountQuote.visitType,
+    discountCouponIds: discountQuote.appliedCoupons.map((coupon) => coupon.id),
+    discountCouponNames: discountQuote.appliedCoupons.map((coupon) => coupon.name),
+    originalServicePrice: discountQuote.originalAmount,
+    discountAmount: discountQuote.discountAmount,
+    finalServicePrice: discountQuote.finalAmount,
+    discountSnapshot: discountQuote,
   });
 
   scheduleCustomerBookingNotification({
@@ -649,6 +685,7 @@ export async function createCustomerBooking(input: unknown) {
     bookingAccessToken,
     bookingManageUrl: buildBookingManageUrl(payload.shopId, bookingAccessToken),
     profilePets: getGuardianPetsForProfile(updatedBootstrap, entityIds.guardianId),
+    discountQuote,
   };
 }
 
@@ -676,6 +713,9 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
 
   const scopedPetIds = new Set(scopedPets.map((pet) => pet.id));
   const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedPetIds.has(appointment.pet_id));
+  const guardianAppointments = bootstrap.appointments.filter(
+    (appointment) => scopedGuardianIds.has(appointment.guardian_id) && countsTowardVisitHistory(appointment),
+  );
   const groomingRecords = bootstrap.groomingRecords.filter((record) => scopedPetIds.has(record.pet_id));
 
   return {
@@ -683,7 +723,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
     pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
     appointments: scopedAppointments,
     groomingRecords,
-    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
+    visitType: guardianAppointments.length > 0 ? "revisit" : "first_visit",
   };
 }
 
@@ -703,13 +743,14 @@ export async function lookupCustomerBookingProfile(shopId: string, phone: string
   const scopedPets = bootstrap.pets.filter((pet) => scopedGuardianIds.has(pet.guardian_id));
   const scopedPetIds = new Set(scopedPets.map((pet) => pet.id));
   const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedPetIds.has(appointment.pet_id));
+  const guardianAppointments = scopedAppointments.filter(countsTowardVisitHistory);
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
     pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
     appointments: [],
     groomingRecords: [],
-    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
+    visitType: guardianAppointments.length > 0 ? "revisit" : "first_visit",
   };
 }
 
@@ -737,7 +778,7 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     pets: scopedPets,
     appointments: scopedAppointments,
     groomingRecords,
-    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
+    visitType: scopedAppointments.some(countsTowardVisitHistory) ? "revisit" : "first_visit",
     access: {
       appointmentId: payload.appointmentId ?? null,
       action: payload.action ?? null,

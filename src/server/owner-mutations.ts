@@ -1662,6 +1662,13 @@ export async function createAppointment(input: unknown) {
     pickup_ready_eta_minutes:
       payload.pickupReadyEtaMinutes ?? shopNotificationSettings.pickup_ready_eta_minutes ?? defaultPickupReadyEtaMinutes,
     source: payload.source,
+    customer_visit_type: payload.customerVisitType ?? null,
+    discount_coupon_ids: payload.discountCouponIds,
+    discount_coupon_names: payload.discountCouponNames,
+    original_service_price: payload.originalServicePrice,
+    discount_amount: payload.discountAmount,
+    final_service_price: payload.finalServicePrice,
+    discount_snapshot: payload.discountSnapshot,
     created_at: nowIso(),
     updated_at: nowIso(),
   };
@@ -1688,8 +1695,16 @@ export async function createAppointment(input: unknown) {
     const missingStaffId = hasMissingColumnError(error, "staff_id");
     const missingVisitReminderOffset = hasMissingColumnError(error, "visit_reminder_offset_minutes");
     const missingPickupReadyEta = hasMissingColumnError(error, "pickup_ready_eta_minutes");
+    const missingDiscountColumns =
+      hasMissingColumnError(error, "customer_visit_type") ||
+      hasMissingColumnError(error, "discount_coupon_ids") ||
+      hasMissingColumnError(error, "discount_coupon_names") ||
+      hasMissingColumnError(error, "original_service_price") ||
+      hasMissingColumnError(error, "discount_amount") ||
+      hasMissingColumnError(error, "final_service_price") ||
+      hasMissingColumnError(error, "discount_snapshot");
 
-    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta) {
+    if (missingRejectionReason || missingStaffId || missingVisitReminderOffset || missingPickupReadyEta || missingDiscountColumns) {
       const fallbackPayload: Record<string, unknown> = {
         id: appointment.id,
         shop_id: appointment.shop_id,
@@ -1715,6 +1730,15 @@ export async function createAppointment(input: unknown) {
       }
       if (!missingPickupReadyEta) {
         fallbackPayload.pickup_ready_eta_minutes = appointment.pickup_ready_eta_minutes;
+      }
+      if (!missingDiscountColumns) {
+        fallbackPayload.customer_visit_type = appointment.customer_visit_type;
+        fallbackPayload.discount_coupon_ids = appointment.discount_coupon_ids;
+        fallbackPayload.discount_coupon_names = appointment.discount_coupon_names;
+        fallbackPayload.original_service_price = appointment.original_service_price;
+        fallbackPayload.discount_amount = appointment.discount_amount;
+        fallbackPayload.final_service_price = appointment.final_service_price;
+        fallbackPayload.discount_snapshot = appointment.discount_snapshot;
       }
 
       const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);

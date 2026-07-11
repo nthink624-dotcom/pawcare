@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgePercent, CalendarDays, ChevronDown, Trash2 } from "lucide-react";
+import { AlertTriangle, BadgePercent, CalendarDays, ChevronDown, Info, Trash2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
@@ -57,10 +57,6 @@ function getBenefitTypeName(audience: CustomerDiscountCoupon["audience"]) {
   return "직접 설정 혜택";
 }
 
-function getCombinationPolicyLabel(policy: CustomerDiscountCoupon["combination_policy"]) {
-  return policy === "exclusive" ? "단독 적용" : "중복 가능";
-}
-
 function audiencesOverlap(first: CustomerDiscountCoupon["audience"], second: CustomerDiscountCoupon["audience"]) {
   if (first === second) return true;
   if (first === "all" || second === "all") return true;
@@ -99,7 +95,7 @@ function SelectFrame({
 }
 
 const selectClassName =
-  "h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px] font-medium text-[#111827] outline-none transition focus:border-[#2563eb] focus:ring-2 focus:ring-[#dbeafe] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
+  "h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white py-0 pl-3 pr-9 text-[14px] font-medium text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
 
 const inputClassName =
   "h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[16px] font-normal text-[#111827] outline-none transition focus:border-[#2f7866] focus:ring-2 focus:ring-[#dceee8] disabled:bg-[#f8fafc] disabled:text-[#64748b]";
@@ -217,33 +213,13 @@ export default function DiscountCouponEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <style>{`
-        .pm-benefit-scroll {
-          scrollbar-color: #b9c3cf transparent;
-          scrollbar-width: thin;
-        }
-        .pm-benefit-scroll::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        .pm-benefit-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .pm-benefit-scroll::-webkit-scrollbar-thumb {
-          background: #c7d0da;
-          border: 1px solid transparent;
-          border-radius: 999px;
-          background-clip: content-box;
-        }
-        .pm-benefit-scroll::-webkit-scrollbar-thumb:hover {
-          background: #aeb9c6;
-          background-clip: content-box;
-        }
-      `}</style>
-      <div className="mb-3 rounded-[10px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-[13px] font-medium leading-5 text-[#1d4ed8]">
-        첫 방문 할인과 재방문 할인은 고객 방문 이력에 따라 자동으로 분리돼요. 고객에게 두 혜택이 동시에 보이지 않고, 조건에 맞는 혜택만 노출됩니다.
+      <div className="mb-3 flex items-start gap-2 rounded-[8px] border border-[#dfe6e3] bg-[#f7faf9] px-3 py-2 text-[13px] font-normal leading-5 text-[#475569]">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#2f7866]" aria-hidden="true" />
+        <p>
+          첫 방문과 재방문 혜택은 방문 이력에 맞춰 자동으로 구분됩니다. 고객에게는 조건에 맞는 혜택만 보입니다.
+        </p>
       </div>
-      <div className="pm-benefit-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+      <div className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto">
       {coupons.map((coupon) => {
         const collapsed = collapsedCouponIds.has(coupon.id);
         const conflictLabels = Array.from(new Set(conflictCouponLabelsById.get(coupon.id) ?? []));
@@ -252,13 +228,13 @@ export default function DiscountCouponEditor({
         <section
           key={coupon.id}
           className={cn(
-            "overflow-hidden rounded-[12px] border bg-white shadow-[0_8px_22px_rgba(15,23,42,0.035)] transition",
+            "overflow-hidden rounded-[8px] border bg-white transition",
             coupon.enabled ? "border-[#dbe2ea]" : "border-[#e2e8f0] bg-[#fbfcfd]",
           )}
         >
           <div
             className={cn(
-              "flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3",
+              "flex flex-wrap items-center justify-between gap-3 px-4 py-3",
               coupon.enabled ? "border-[#edf2f7] bg-white" : "border-[#e5eaf0] bg-[#f8fafc]",
             )}
           >
@@ -276,33 +252,10 @@ export default function DiscountCouponEditor({
                   placeholder="혜택 이름"
                 />
               </label>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span
-                  className={cn(
-                    "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[12px] font-semibold",
-                    coupon.enabled
-                      ? "border-[#bfdbfe] bg-[#eff6ff] text-[#2563eb]"
-                      : "border-[#dbe2ea] bg-white text-[#64748b]",
-                  )}
-                >
-                  {coupon.enabled ? "사용 중" : "중지됨"}
-                </span>
-                <span
-                  className={cn(
-                    "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-[12px] font-semibold",
-                    coupon.combination_policy === "exclusive"
-                      ? "border-[#dbeafe] bg-white text-[#2563eb]"
-                      : "border-[#e2e8f0] bg-white text-[#64748b]",
-                  )}
-                >
-                  {getCombinationPolicyLabel(coupon.combination_policy)}
-                </span>
-                {conflictLabels.length > 0 ? (
-                  <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#f4d7b5] bg-[#fff7ed] px-2.5 text-[12px] font-semibold text-[#b98121]">
-                    겹침 있음
-                  </span>
-                ) : null}
-              </div>
+              <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium", coupon.enabled ? "text-[#2f7866]" : "text-[#64748b]")}>
+                <span className={cn("h-2 w-2 rounded-full", coupon.enabled ? "bg-[#1f9d55]" : "bg-[#b9c3cf]")} aria-hidden="true" />
+                {coupon.enabled ? "사용 중" : "중지됨"}
+              </span>
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -379,15 +332,18 @@ export default function DiscountCouponEditor({
           </div>
 
           {conflictLabels.length > 0 ? (
-            <div className="border-b border-[#f7dfc5] bg-[#fffaf3] px-4 py-2 text-[13px] font-medium leading-5 text-[#9a640f]">
-              이 혜택은 {conflictLabels.slice(0, 3).join(", ")}
-              {conflictLabels.length > 3 ? ` 외 ${conflictLabels.length - 3}개` : ""}와 대상/기간/서비스가 겹칩니다. 고객에게 혼란이 생기지 않도록 하나만 사용하거나 중복 가능으로 바꿔 주세요.
+            <div className="flex items-start gap-2 border-t border-[#f0e3ce] bg-[#fffbf5] px-4 py-2 text-[12px] font-normal leading-5 text-[#8a5a13]">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p>
+                {conflictLabels.slice(0, 2).join(", ")}
+                {conflictLabels.length > 2 ? ` 외 ${conflictLabels.length - 2}개` : ""}와 조건이 겹칩니다. 하나만 사용하거나 중복 가능으로 변경해 주세요.
+              </p>
             </div>
           ) : null}
 
           {!collapsed ? (
-          <div className="grid items-stretch gap-3 p-4 xl:grid-cols-2 xl:[grid-auto-rows:260px]">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+          <div className="grid border-t border-[#edf2f7] bg-[#fbfcfd] xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 xl:border-r xl:border-[#e5eaf0]">
               <div className="mb-2 flex items-center gap-2">
                 <BadgePercent className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">할인 조건</p>
@@ -434,15 +390,7 @@ export default function DiscountCouponEditor({
                   </div>
                 </label>
               </div>
-              <div className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-[10px] border border-[#edf2f7] bg-[#f8fafc] px-3 py-2">
-                <p className="text-[13px] font-normal text-[#64748b]">적용 할인</p>
-                <p className="text-[18px] font-semibold tracking-[-0.03em] text-[#111827]">
-                  {coupon.discount_type === "percent"
-                    ? `${coupon.discount_value || 0}%`
-                    : `${Number(coupon.discount_value || 0).toLocaleString("ko-KR")}원`}
-                </p>
-              </div>
-              <div className="mt-auto grid gap-2 pt-2 sm:grid-cols-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <label className="space-y-1">
                   <span className={fieldLabelClassName}>시작일</span>
                   <input
@@ -466,13 +414,13 @@ export default function DiscountCouponEditor({
               </div>
             </div>
 
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden border-t border-[#e5eaf0] p-4 xl:border-t-0">
               <div className="mb-2 flex items-center gap-2">
                 <CalendarDays className="h-4.5 w-4.5 text-[#2f7866]" strokeWidth={1.8} />
                 <p className="text-[15px] font-semibold text-[#334155]">적용 범위</p>
               </div>
-              <div className="grid min-h-0 flex-1 overflow-hidden">
-                <div className="flex min-h-0 sm:col-span-2">
+              <div className="h-[170px] overflow-hidden">
+                <div className="flex h-full">
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white p-1.5">
                     <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#edf2f7] bg-[#f8fafc] px-2.5 py-1.5 text-[15px] font-semibold text-[#111827] transition hover:bg-[#f1f5f9]">
                       <input
@@ -489,7 +437,7 @@ export default function DiscountCouponEditor({
                       />
                       전체 서비스
                     </label>
-                    <div className="pm-benefit-scroll mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
+                    <div className="no-scrollbar mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                       {serviceScopeOptions.map((option) => {
                         const selected =
                           coupon.service_scope !== "specific" ||
@@ -499,7 +447,7 @@ export default function DiscountCouponEditor({
                             key={`${option.id}-${option.linkedOptionIds.join("|")}`}
                             className={cn(
                               "flex min-h-8 cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-1 text-[14px] font-normal transition",
-                              selected ? "bg-[#f8fbff] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
+                              selected ? "bg-[#f2f7f5] text-[#111827]" : "bg-white text-[#334155] hover:bg-[#f8fafc]",
                             )}
                           >
                             <input

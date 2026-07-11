@@ -4,6 +4,7 @@ import { Check, ChevronLeft, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
+import type { CustomerDiscountQuote } from "@/lib/discount-coupons";
 import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
@@ -284,6 +285,9 @@ export default function CustomerFirstVisitClaudeFlow({
   loadingSlots,
   submitting,
   completedBooking,
+  discountQuote,
+  discountQuoteLoading,
+  discountQuoteError,
   onBackToEntry,
   onStepBack,
   onNext,
@@ -315,6 +319,9 @@ export default function CustomerFirstVisitClaudeFlow({
   loadingSlots: boolean;
   submitting: boolean;
   completedBooking: BookingCompletion | null;
+  discountQuote: CustomerDiscountQuote | null;
+  discountQuoteLoading: boolean;
+  discountQuoteError: string;
   onBackToEntry: () => void;
   onStepBack: () => void;
   onNext: () => void;
@@ -646,11 +653,28 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="confirm-row"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
                 <div className="confirm-row"><span className="k">일시</span><span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${formatTimeForSummary(firstVisit.timeSlot)}` : "-"}</span></div>
                 <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 선택"}</span></div>
+                {discountQuote ? (
+                  <>
+                    <div className="confirm-row"><span className="k">방문 구분</span><span className="v">{discountQuote.visitType === "first_visit" ? "첫 방문" : "재방문"}</span></div>
+                    {discountQuote.appliedCoupons.length > 0 ? (
+                      <div className="confirm-row"><span className="k">적용 혜택</span><span className="v">{discountQuote.appliedCoupons.map((coupon) => coupon.name).join(", ")}</span></div>
+                    ) : null}
+                    <div className="confirm-row"><span className="k">기준 금액</span><span className="v">{discountQuote.originalAmount.toLocaleString("ko-KR")}원</span></div>
+                    {discountQuote.discountAmount > 0 ? (
+                      <div className="confirm-row"><span className="k">할인</span><span className="v">-{discountQuote.discountAmount.toLocaleString("ko-KR")}원</span></div>
+                    ) : null}
+                    <div className="confirm-row"><span className="k">최종 금액</span><span className="v">{discountQuote.finalAmount.toLocaleString("ko-KR")}원</span></div>
+                  </>
+                ) : discountQuoteLoading ? (
+                  <div className="confirm-row"><span className="k">혜택</span><span className="v">확인 중...</span></div>
+                ) : discountQuoteError ? (
+                  <div className="confirm-row"><span className="k">혜택</span><span className="v">{discountQuoteError}</span></div>
+                ) : null}
               </div>
             </div>
           </div>
           <div className="dock">
-            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting} onClick={() => void onSubmit()}>
+            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting || discountQuoteLoading || Boolean(selectedServiceOption && !discountQuote)} onClick={() => void onSubmit()}>
               {submitting ? "예약 등록 중..." : "예약 등록하기"}
             </button>
           </div>

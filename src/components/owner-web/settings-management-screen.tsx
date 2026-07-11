@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
@@ -10,7 +10,6 @@ import OperatingHoursSettings from "@/components/owner-web/operating-hours-setti
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
 import {
-  OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
 } from "@/components/owner-web/owner-web-action-button-styles";
 import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
@@ -2241,8 +2240,9 @@ export default function SettingsManagementScreen({
                     <button
                       type="button"
                       onClick={() => addDiscountCoupon()}
-                      className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[14px] font-semibold text-white transition hover:border-[#286a5a] hover:bg-[#286a5a]"
                     >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
                       혜택 추가
                     </button>
                   </div>

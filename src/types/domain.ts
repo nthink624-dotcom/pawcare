@@ -287,6 +287,13 @@ export type Appointment = {
   visit_reminder_offset_minutes?: number;
   pickup_ready_eta_minutes?: number;
   source: "owner" | "customer";
+  customer_visit_type?: "first_visit" | "revisit" | null;
+  discount_coupon_ids?: string[];
+  discount_coupon_names?: string[];
+  original_service_price?: number;
+  discount_amount?: number;
+  final_service_price?: number;
+  discount_snapshot?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

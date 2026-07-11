@@ -646,6 +646,8 @@ function SupportRequestCard({
   const [answerMessage, setAnswerMessage] = useState("");
   const latestAnswer = [...request.messages].reverse().find((message) => message.senderType === "admin");
   const contextLines = [
+    request.context.feedbackTypeLabel ? `의견 유형: ${String(request.context.feedbackTypeLabel)}` : null,
+    request.context.feedbackRating ? `만족도: ${String(request.context.feedbackRating)}/5` : null,
     request.context.currentPath ? `경로: ${String(request.context.currentPath)}` : null,
     request.context.currentUrl ? `화면: ${String(request.context.currentUrl)}` : null,
     request.context.userAgent ? `브라우저: ${String(request.context.userAgent)}` : null,

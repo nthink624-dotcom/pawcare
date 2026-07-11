@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, LogOut, Search } from "lucide-react";
+import { ChevronDown, Lightbulb, LogOut, Search } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
+import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
 import { cn } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
@@ -167,6 +168,7 @@ function AlimtalkCreditMenu({
   const purchasedRemaining = formatAlimtalkCount(summary?.purchased_remaining);
   const totalRemaining = formatAlimtalkCount(summary?.remaining_total);
   const includedProgress = getAlimtalkIncludedProgress(summary);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   return (
     <div ref={containerRef} className="relative">
@@ -182,39 +184,51 @@ function AlimtalkCreditMenu({
       </button>
       {open ? (
         <div className="absolute right-0 top-11 z-[80] w-[260px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
-          <div className="border-b border-[var(--line)] pb-2.5">
-            <p className="text-[13px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
-            <p className="mt-1 text-[12px] font-medium text-[var(--mut)]">무료 제공분을 먼저 사용하고, 부족하면 유료 충전분을 사용합니다.</p>
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2.5">
+            <p className="text-[12px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
+            <button
+              type="button"
+              onClick={() => setHelpOpen((prev) => !prev)}
+              className="inline-flex h-7 items-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#475569] transition hover:border-[#bfd2ea] hover:bg-white"
+              aria-expanded={helpOpen}
+            >
+              도움말
+            </button>
           </div>
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-2">
             <div className="rounded-[9px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[13px] font-semibold text-[#334155]">무료 잔여</span>
-                <span className="text-[13px] font-bold tabular-nums text-[var(--pm-brand-blue)]">
+                <span className="text-[12px] font-semibold text-[#334155]">무료 잔여</span>
+                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
                   {includedRemaining}/{includedTotal}
                 </span>
               </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#dbeafe]">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dbeafe]">
                 <div
                   className="h-full rounded-full bg-[#2563eb] transition-[width]"
                   style={{ width: `${includedProgress.percent}%` }}
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] font-medium text-[var(--mid)]">결제 잔여</span>
-              <span className="text-[15px] font-semibold text-[var(--ink)]">
-                {purchasedRemaining}건
-              </span>
+            <div className="rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] font-semibold text-[#334155]">결제 잔여</span>
+                <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
+                  {purchasedRemaining}건
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2">
-              <span className="text-[13px] font-semibold text-[var(--ink2)]">전체 잔여</span>
-              <span className="text-[15px] font-semibold text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2.5">
+              <span className="text-[12px] font-semibold text-[var(--ink2)]">전체 잔여</span>
+              <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
             </div>
           </div>
-          <p className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
-            무료 제공분은 다음 결제 주기에 초기화되고, 유료 충전분은 사용 전까지 이월됩니다.
-          </p>
+          {helpOpen ? (
+            <div className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
+              <p>무료 제공분을 먼저 사용하고, 부족하면 유료 충전분을 사용합니다.</p>
+              <p className="mt-1">무료 제공분은 다음 결제 주기에 초기화되고, 유료 충전분은 사용 전까지 이월됩니다.</p>
+            </div>
+          ) : null}
           <Link
             href={{ pathname: "/owner/alimtalk-credits" }}
             prefetch
@@ -232,6 +246,9 @@ export default function OwnerWebAppShell({
   activeScreen,
   onScreenSelect,
   shopDisplayName,
+  shopId,
+  ownerName,
+  ownerPhone,
   shopInitials,
   currentPlanLabel,
   currentPlanMeta,
@@ -253,6 +270,9 @@ export default function OwnerWebAppShell({
   activeScreen: OwnerWebScreenKey;
   onScreenSelect: (screen: OwnerWebScreenKey) => void;
   shopDisplayName: string;
+  shopId: string;
+  ownerName: string;
+  ownerPhone: string;
   shopInitials: string;
   currentPlanLabel: string;
   currentPlanMeta: string;
@@ -277,6 +297,7 @@ export default function OwnerWebAppShell({
   const alimtalkRemainingTotal =
     typeof alimtalkCreditSummary?.remaining_total === "number" ? alimtalkCreditSummary.remaining_total : null;
   const alimtalkCreditsExhausted = alimtalkRemainingTotal !== null && alimtalkRemainingTotal <= 0;
+  const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 
   return (
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
@@ -327,6 +348,14 @@ export default function OwnerWebAppShell({
         </nav>
 
         <div className="border-t border-[var(--nav-bd)] px-5 py-4">
+          <button
+            type="button"
+            onClick={() => setFeatureRequestOpen(true)}
+            className="mb-2 flex h-10 w-full items-center gap-2.5 rounded-[9px] px-3 text-left text-[13px] font-semibold text-[#475569] transition hover:bg-[#eef2f1] hover:text-[#2f7866]"
+          >
+            <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
+            기능 개선 요청
+          </button>
           <Link
             href="/owner/billing?compare=1"
             prefetch
@@ -364,6 +393,14 @@ export default function OwnerWebAppShell({
           </label>
 
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFeatureRequestOpen(true)}
+              className="inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef2f1] hover:text-[#2f7866]"
+            >
+              <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
+              기능 개선
+            </button>
             <button
               type="button"
               onClick={onOpenHelp}
@@ -420,14 +457,25 @@ export default function OwnerWebAppShell({
 
         <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--line2)] bg-[var(--card)] px-5 lg:hidden">
           <Image src="/icons/logo/넘친 Day.svg" alt="넘친 Day" width={142} height={48} className="h-8 w-auto shrink-0 object-contain" />
-          <SoftSelect<OwnerWebScreenKey>
-            value={activeScreen}
-            onChange={onScreenSelect}
-            options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
-            align="right"
-            className="max-w-[180px]"
-            buttonClassName="h-10"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFeatureRequestOpen(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#dbe2ea] bg-white text-[#475569]"
+              aria-label="기능 개선 요청"
+              title="기능 개선 요청"
+            >
+              <Lightbulb className="h-4.5 w-4.5" strokeWidth={1.8} />
+            </button>
+            <SoftSelect<OwnerWebScreenKey>
+              value={activeScreen}
+              onChange={onScreenSelect}
+              options={ownerWebNavigationItems.map((screen) => ({ value: screen.key, label: screen.label }))}
+              align="right"
+              className="max-w-[180px]"
+              buttonClassName="h-10"
+            />
+          </div>
         </header>
 
         {alimtalkCreditsExhausted ? (
@@ -458,6 +506,14 @@ export default function OwnerWebAppShell({
           </div>
         </section>
       </main>
+      <OwnerFeatureRequestDialog
+        open={featureRequestOpen}
+        shopId={shopId}
+        shopName={shopDisplayName}
+        ownerName={ownerName}
+        ownerPhone={ownerPhone}
+        onClose={() => setFeatureRequestOpen(false)}
+      />
     </div>
   );
 }

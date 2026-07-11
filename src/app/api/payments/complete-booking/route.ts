@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { hasPortoneServerEnv, serverEnv } from "@/lib/server-env";
 import { createCustomerBooking } from "@/server/customer-bookings";
+import { quoteCustomerDiscount } from "@/server/customer-discount-quote";
 
 const paymentBookingSchema = z.object({
   paymentId: z.string().min(1),
@@ -23,6 +24,9 @@ const paymentBookingSchema = z.object({
       .optional()
       .default([]),
     serviceId: z.string().min(1),
+    customerServiceOptionId: z.string().trim().optional().default(""),
+    staffId: z.string().nullable().optional(),
+    customServiceName: z.string().trim().optional().default(""),
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),
     memo: z.string().optional().default(""),
@@ -66,6 +70,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const payload = paymentBookingSchema.parse(body);
+    const discountQuote = await quoteCustomerDiscount(payload.booking);
+
+    if (payload.expectedAmount !== discountQuote.finalAmount) {
+      return NextResponse.json(
+        {
+          message: "혜택 또는 서비스 금액이 변경되었습니다. 결제 전 최종 금액을 다시 확인해 주세요.",
+          discountQuote,
+        },
+        { status: 409 },
+      );
+    }
 
     const paymentResponse = await fetch(`https://api.portone.io/payments/${encodeURIComponent(payload.paymentId)}`, {
       headers: {
@@ -90,7 +105,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "결제 금액이 예약 금액과 일치하지 않습니다." }, { status: 400 });
     }
 
-    const bookingResult = await createCustomerBooking(payload.booking);
+    const bookingResult = await createCustomerBooking(
+      { ...payload.booking, expectedFinalAmount: discountQuote.finalAmount },
+      { trustedDiscountQuote: discountQuote },
+    );
     return NextResponse.json({
       ...bookingResult,
       message: "결제가 완료되어 예약이 접수되었어요.",

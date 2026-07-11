@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildCustomerDiscountQuote,
   filterDiscountCouponsForVisitType,
   hasActiveVisitSpecificDiscountCoupon,
 } from "../../src/lib/discount-coupons.ts";
@@ -65,4 +66,72 @@ test("revisit customers see revisit coupons but not first-visit coupons", () => 
   const visible = filterDiscountCouponsForVisitType(coupons, "revisit", "2026-07-11");
 
   assert.deepEqual(visible.map((item) => item.id), ["revisit", "all"]);
+});
+
+test("first-visit and revisit coupons are mutually exclusive in a quote", () => {
+  const quote = buildCustomerDiscountQuote({
+    coupons: [
+      { ...coupon("first", "first_visit"), discount_value: 5000 },
+      { ...coupon("revisit", "revisit"), discount_value: 9000 },
+    ],
+    visitType: "first_visit",
+    dateKey: "2026-07-11",
+    serviceOptionIds: ["service-1"],
+    originalAmount: 30000,
+  });
+
+  assert.deepEqual(quote.eligibleCoupons.map((item) => item.id), ["first"]);
+  assert.deepEqual(quote.appliedCoupons.map((item) => item.id), ["first"]);
+});
+
+test("service-specific coupons apply only to linked service options", () => {
+  const scopedCoupon = {
+    ...coupon("scoped", "all"),
+    service_scope: "specific",
+    service_option_ids: ["service-2"],
+  };
+
+  const quote = buildCustomerDiscountQuote({
+    coupons: [scopedCoupon],
+    visitType: "revisit",
+    dateKey: "2026-07-11",
+    serviceOptionIds: ["service-1"],
+    originalAmount: 30000,
+  });
+
+  assert.equal(quote.discountAmount, 0);
+  assert.deepEqual(quote.eligibleCoupons, []);
+});
+
+test("the server chooses the highest-value valid combination", () => {
+  const quote = buildCustomerDiscountQuote({
+    coupons: [
+      { ...coupon("exclusive", "all"), discount_value: 7000 },
+      { ...coupon("stack-1", "all"), combination_policy: "stackable", discount_value: 4000 },
+      { ...coupon("stack-2", "all"), combination_policy: "stackable", discount_value: 5000 },
+    ],
+    visitType: "revisit",
+    dateKey: "2026-07-11",
+    serviceOptionIds: ["service-1"],
+    originalAmount: 30000,
+  });
+
+  assert.deepEqual(quote.appliedCoupons.map((item) => item.id), ["stack-1", "stack-2"]);
+  assert.equal(quote.discountAmount, 9000);
+  assert.equal(quote.finalAmount, 21000);
+});
+
+test("per-customer coupons already used are excluded", () => {
+  const limitedCoupon = { ...coupon("limited", "all"), per_customer_limit: true };
+  const quote = buildCustomerDiscountQuote({
+    coupons: [limitedCoupon],
+    visitType: "revisit",
+    dateKey: "2026-07-11",
+    serviceOptionIds: ["service-1"],
+    originalAmount: 30000,
+    usedCouponIds: ["limited"],
+  });
+
+  assert.equal(quote.discountAmount, 0);
+  assert.deepEqual(quote.appliedCoupons, []);
 });

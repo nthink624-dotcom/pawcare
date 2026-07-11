@@ -27,6 +27,13 @@ export const appointmentInputSchema = z.object({
   source: z.enum(["owner", "customer"]).default("customer"),
   visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
   pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  customerVisitType: z.enum(["first_visit", "revisit"]).nullable().optional(),
+  discountCouponIds: z.array(z.string()).optional().default([]),
+  discountCouponNames: z.array(z.string()).optional().default([]),
+  originalServicePrice: z.coerce.number().int().min(0).optional().default(0),
+  discountAmount: z.coerce.number().int().min(0).optional().default(0),
+  finalServicePrice: z.coerce.number().int().min(0).optional().default(0),
+  discountSnapshot: z.record(z.string(), z.unknown()).nullable().optional().default(null),
 });
 
 export const appointmentStatusSchema = z.object({

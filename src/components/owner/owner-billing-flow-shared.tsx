@@ -3,7 +3,7 @@
 import { CheckCircle2, X } from "lucide-react";
 
 import { AppButton } from "@/components/ui/app-button";
-import { getOwnerPlanDisplayName, type OwnerPlan } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
@@ -12,18 +12,19 @@ function formatDate(iso: string | null) {
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
 }
 
-function getPlanSummaryLine(plan: OwnerPlan) {
+function getPlanSummaryLine(plan: OwnerPlan, totalShopCount: number) {
   if (plan.code === "free") {
     return "무료체험";
   }
 
-  return `${plan.staffLimitLabel} · ${plan.alimtalkIncludedLabel}`;
+  return `${getOwnerPlanStaffLimitLabel(plan, totalShopCount)} · ${plan.alimtalkIncludedLabel}`;
 }
 
 export function OwnerBillingSuccessCard({
   plan,
   endAt,
   paymentMethodLabel,
+  totalShopCount = 1,
   message,
   onConfirm,
   onClose,
@@ -31,6 +32,7 @@ export function OwnerBillingSuccessCard({
   plan: OwnerPlan;
   endAt: string | null;
   paymentMethodLabel?: string | null;
+  totalShopCount?: number;
   message: string;
   onConfirm?: () => void;
   onClose?: () => void;
@@ -73,7 +75,7 @@ export function OwnerBillingSuccessCard({
               <p className="mt-1 text-[24px] font-extrabold tracking-[-0.03em] text-[#173b33]">
                 {getOwnerPlanDisplayName(plan.code)}
               </p>
-              <p className="mt-1 text-[13px] text-[#7b7369]">{getPlanSummaryLine(plan)}</p>
+              <p className="mt-1 text-[13px] text-[#7b7369]">{getPlanSummaryLine(plan, totalShopCount)}</p>
             </div>
             <div className="text-right">
               <p className="text-[13px] font-semibold text-[#7b7369]">

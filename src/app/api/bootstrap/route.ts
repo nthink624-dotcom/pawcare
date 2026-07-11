@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getBootstrap } from "@/server/bootstrap";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { scopeBootstrapForStaff } from "@/server/staff-privacy";
 
 function formatDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
       groomingRecordLimit: 1000,
       notificationLimit: 200,
     });
-    return ownerMobileCorsJson(request, data);
+    return ownerMobileCorsJson(request, scopeBootstrapForStaff(data, owner));
   } catch (error) {
     if (error instanceof OwnerApiError) {
       return ownerMobileCorsJson(request, { message: error.message }, { status: error.status });

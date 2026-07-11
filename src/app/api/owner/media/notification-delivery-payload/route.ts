@@ -4,13 +4,14 @@ import {
   resolveNotificationMediaDelivery,
   toAlimtalkMediaAttachments,
 } from "@/server/media-delivery-service";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const owner = await requireOwnerShop(request, searchParams.get("shopId") || undefined);
+    assertOwnerOrManager(owner);
     const delivery = await resolveNotificationMediaDelivery(owner, {
       notificationId: searchParams.get("notificationId") || "",
     });

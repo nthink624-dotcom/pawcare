@@ -106,7 +106,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "booking_confirmed",
     templateConfigKey: "templateBookingConfirmed",
     shopSettingKey: "booking_confirmed_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "booking_confirmed_enabled",
     notes: null,
     draftBody: [
       "[#{매장명}]",
@@ -173,7 +173,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "booking_cancelled",
     templateConfigKey: "templateBookingCancelled",
     shopSettingKey: "booking_cancelled_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "booking_cancelled_enabled",
     notes: null,
     draftBody: [
       "[#{매장명}]",
@@ -200,7 +200,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "booking_time_proposed",
     templateConfigKey: "templateBookingTimeProposed",
     shopSettingKey: "booking_rescheduled_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "booking_rescheduled_enabled",
     notes: "직접 승인 예약에서 오너가 추천 시간과 안내 문구를 입력해 수동 발송",
     draftBody: [
       "[#{매장명}] 다른 예약 시간 안내",
@@ -226,7 +226,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "booking_rescheduled_confirmed",
     templateConfigKey: "templateBookingRescheduledConfirmed",
     shopSettingKey: "booking_rescheduled_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "booking_rescheduled_enabled",
     notes: null,
     draftBody: [
       "[#{매장명}]",
@@ -319,7 +319,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "grooming_started",
     templateConfigKey: "templateGroomingStarted",
     shopSettingKey: "enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "grooming_started_enabled",
     notes: "전체 알림이 켜져 있으면 발송",
     draftBody: [
       "[#{매장명}] 미용 시작 안내",
@@ -340,7 +340,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "grooming_almost_done",
     templateConfigKey: "templateGroomingAlmostDone",
     shopSettingKey: "grooming_almost_done_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "grooming_almost_done_enabled",
     notes: null,
     draftBody: [
       "[#{매장명}]",
@@ -359,7 +359,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "grooming_completed",
     templateConfigKey: "templateGroomingCompleted",
     shopSettingKey: "grooming_completed_enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "grooming_completed_enabled",
     notes: null,
     draftBody: [
       "[#{매장명}]",
@@ -395,7 +395,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateAlias: "birthday_greeting",
     templateConfigKey: "templateBirthdayGreeting",
     shopSettingKey: "enabled",
-    guardianSettingKey: "enabled",
+    guardianSettingKey: "birthday_greeting_enabled",
     notes: "전체 알림이 켜져 있으면 발송",
     draftBody: "[#{매장명}] #{반려동물명} 생일을 축하드려요.",
   },
@@ -543,7 +543,7 @@ export function shouldSendByGuardianSettings(
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
     case "booking_rejected":
-      return settings.booking_rejected_enabled;
+      return true;
     case "booking_cancelled":
       return settings.booking_cancelled_enabled;
     case "booking_time_proposed":

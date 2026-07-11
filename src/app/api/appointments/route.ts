@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { createAppointment, updateAppointmentDetails, updateAppointmentStatus } from "@/server/owner-mutations";
+import { appointmentBelongsToStaff } from "@/server/staff-privacy";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    await requireOwnerShop(request, body?.shopId);
+    const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
     const result = await createAppointment({ ...body, source: "owner" });
     return NextResponse.json(result);
   } catch (error) {
@@ -26,8 +28,12 @@ export async function PATCH(request: NextRequest) {
     const owner = await requireOwnerShop(request);
     const bootstrap = await getBootstrap(owner.shopId);
     const appointment = bootstrap.appointments.find((item) => item.id === body?.appointmentId);
-    if (!appointment) {
+    if (!appointment || !appointmentBelongsToStaff(appointment, owner)) {
       return NextResponse.json({ message: "예약을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    if (owner.role === "staff" && typeof body?.status !== "string") {
+      return NextResponse.json({ message: "직원 계정은 예약 상세 정보를 변경할 수 없습니다." }, { status: 403 });
     }
 
     const result =

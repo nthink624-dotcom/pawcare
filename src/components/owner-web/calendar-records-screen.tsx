@@ -533,11 +533,11 @@ function getTimeTone(item: DayItem) {
 function getStatusAccent(item: DayItem): StatusIndicatorTone {
   if (item.type === "record") return "slate";
   if (item.status === "취소" || item.status === "거절" || item.status === "노쇼") return "burgundy";
-  return "teal";
+  return "confirmed";
 }
 
 function getCalendarCellTone(active: boolean, isToday: boolean, hasItems: boolean, closed: boolean) {
-  if (active) return "border-[#111827] bg-white shadow-[inset_3px_0_0_#111827,0_8px_20px_rgba(15,23,42,0.08)]";
+  if (active) return "border-[#a8bfdf] bg-[#f8fbff] shadow-[0_2px_8px_rgba(37,99,235,0.06)]";
   if (closed) return "border-white bg-[linear-gradient(135deg,#f8fafc_0,#f8fafc_45%,#eef2f7_45%,#eef2f7_50%,#f8fafc_50%,#f8fafc_95%,#eef2f7_95%)] bg-[length:12px_12px] shadow-[0_1px_4px_rgba(15,23,42,0.03)]";
   if (isToday) return "border-[#dbe2ea] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.035)]";
   if (hasItems) return "border-white bg-[linear-gradient(to_bottom,#fff_0%,#fff_62%,#fbfefd_100%)] shadow-[0_1px_4px_rgba(15,23,42,0.035)] hover:border-[#d5e7df] hover:shadow-[0_6px_16px_rgba(15,23,42,0.055)]";
@@ -555,7 +555,7 @@ type CalendarStatusIndicator = {
 };
 
 const calendarStatusIndicators: CalendarStatusIndicator[] = [
-  { key: "confirmed", label: "확정", tone: "teal" },
+  { key: "confirmed", label: "확정", tone: "confirmed" },
   { key: "changed", label: "변경", tone: "amber" },
   { key: "cancelled", label: "취소", tone: "burgundy" },
   { key: "completed", label: "완료", tone: "slate" },
@@ -574,7 +574,7 @@ function getCalendarStatusCounts(items: DayItem[]) {
 
 function getCalendarStatusSummaryClass(tone: StatusIndicatorTone) {
   if (tone === "amber") return "border-[#d6a34c] bg-[#fff2cf] text-[#7a4d0b] shadow-[0_1px_3px_rgba(185,129,33,0.18)]";
-  if (tone === "teal") return "border-[#9aa8b6] bg-[#f5f7fa] text-[#334155] shadow-[0_1px_3px_rgba(96,112,128,0.16)]";
+  if (tone === "confirmed") return "border-[#8fd2a9] bg-[#eefbf4] text-[#166534] shadow-[0_1px_3px_rgba(31,157,85,0.18)]";
   if (tone === "burgundy") return "border-[#d9919d] bg-[#fff0f3] text-[#8f2438] shadow-[0_1px_3px_rgba(160,68,85,0.18)]";
   return "border-[#b9c3cf] bg-[#f8fafc] text-[#475569] shadow-[0_1px_3px_rgba(15,23,42,0.12)]";
 }

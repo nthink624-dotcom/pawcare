@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 
 import { getBootstrap } from "@/server/bootstrap";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { createAppointment, createGuardian, createPet } from "@/server/owner-mutations";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import { scopeBootstrapForStaff } from "@/server/staff-privacy";
 
 function isDateString(value: string | null) {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
@@ -33,13 +34,15 @@ export async function GET(request: NextRequest) {
       notificationLimit: 200,
     });
 
+    const scopedData = scopeBootstrapForStaff(data, owner);
+
     return ownerMobileCorsJson(request, {
       shopId: data.shop.id,
       from,
       to,
-      appointments: data.appointments,
-      groomingRecords: data.groomingRecords,
-      notifications: data.notifications,
+      appointments: scopedData.appointments,
+      groomingRecords: scopedData.groomingRecords,
+      notifications: scopedData.notifications,
     });
   } catch (error) {
     if (error instanceof OwnerApiError) {
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const owner = await requireOwnerShop(request, getBodyString(body, "shopId") || undefined);
+    assertOwnerOrManager(owner);
     const shopId = owner.shopId;
     const customerMode = getBodyString(body, "customerMode");
 

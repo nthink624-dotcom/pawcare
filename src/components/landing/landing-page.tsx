@@ -1,14 +1,15 @@
 "use client";
 
 import {
+  ArrowRight,
   Bell,
-  CalendarDays,
-  Check,
-  ClipboardCheck,
-  MessageCircle,
-  PawPrint,
-  Sparkles,
-  UserRound,
+  CalendarCheck,
+  CheckCircle2,
+  Clock3,
+  Database,
+  Link2,
+  Monitor,
+  Phone,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,58 +18,74 @@ import type { ReactNode } from "react";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import { billableOwnerPlans } from "@/lib/billing/owner-plans";
 
-const features = [
+const MINIMUM_WAGE_2026 = 10320;
+const MONTHLY_SAVED_HOURS = 15;
+const MONTHLY_SAVED_WON = MINIMUM_WAGE_2026 * MONTHLY_SAVED_HOURS;
+
+const productScreens = [
   {
-    title: "예약 선택부터 확정까지",
-    body: "고객은 가능한 시간만 보고 예약하고, 오너는 확정된 예약을 스케줄에서 바로 관리합니다.",
-    icon: ClipboardCheck,
+    title: "오너 PC 예약관리",
+    body: "담당자별 오늘 예약, 상태, 상세 패널을 실제 업무 화면에서 바로 확인합니다.",
+    src: "/images/landing/actual-schedule.png",
+    icon: Monitor,
   },
   {
-    title: "흩어진 예약을 한 화면에",
-    body: "전화, 카톡, DM으로 들어온 예약도 직접 등록해서 같은 흐름에서 관리할 수 있습니다.",
-    icon: MessageCircle,
+    title: "월간 캘린더",
+    body: "확정, 취소, 완료 기록과 선택 날짜의 상세 예약을 한 화면에서 봅니다.",
+    src: "/images/landing/actual-calendar.png",
+    icon: CalendarCheck,
   },
   {
-    title: "필요할 때만 알림톡",
-    body: "예약 확정, 미용 시작, 픽업 준비 같은 안내를 오너가 직접 눌러 발송합니다.",
-    icon: Bell,
+    title: "고객 관리",
+    body: "보호자명, 연락처, 반려동물, 다음 예약 정보가 고객 목록에 정리됩니다.",
+    src: "/images/landing/actual-customers.png",
+    icon: Database,
   },
   {
-    title: "재방문 예약은 더 빠르게",
-    body: "저장된 보호자와 반려동물 정보로 다음 예약부터는 아이 선택만 하면 됩니다.",
-    icon: PawPrint,
+    title: "예약 링크 관리",
+    body: "고객이 들어오는 예약 링크와 외부 채널 연결을 오너가 관리합니다.",
+    src: "/images/landing/actual-booking-link.png",
+    icon: Link2,
   },
 ] as const;
 
-const workflow = [
-  ["01", "예약 링크 공유", "스마트플레이스, 인스타, 카카오에 예약 링크를 올립니다."],
-  ["02", "고객이 직접 선택", "서비스, 디자이너, 날짜, 시간을 고객이 모바일에서 고릅니다."],
-  ["03", "선택 즉시 확정", "고객이 가능한 시간을 선택하면 예약이 바로 확정됩니다."],
-  ["04", "기록이 다음 예약으로", "반려동물 정보와 방문 기록이 쌓여 재방문 관리가 쉬워집니다."],
+const customerScreens = [
+  {
+    title: "고객 첫 화면",
+    body: "고객은 앱 설치 없이 매장 예약 페이지에서 간편예약을 시작합니다.",
+    src: "/images/landing/actual-customer-entry.png",
+  },
+  {
+    title: "예약자 정보 입력",
+    body: "고객이 입력한 보호자와 반려동물 정보가 오너 고객정보로 이어집니다.",
+    src: "/images/landing/actual-customer-booking.png",
+  },
 ] as const;
 
-const faqs = [
-  ["고객이 어려워하지 않을까요?", "앱 설치 없이 링크만 열면 됩니다. 모바일에서 서비스와 시간을 순서대로 고르는 흐름입니다."],
-  ["예약이 자동 확정되나요?", "네. 고객에게 가능한 시간만 보여주고, 고객이 시간을 선택하면 예약이 바로 확정됩니다."],
-  ["전화 예약도 관리할 수 있나요?", "가능합니다. 오너가 직접 등록한 예약도 같은 예약판과 캘린더에서 확인할 수 있습니다."],
-  ["1인샵도 부담 없이 쓸 수 있나요?", "오늘 일정, 고객 기록, 미용 진행처럼 자주 쓰는 기능부터 가볍게 시작할 수 있습니다."],
+const sellingPoints = [
+  "보호자명, 연락처, 반려동물 정보가 예약 흐름에서 자연스럽게 수집됩니다.",
+  "오너가 다시 옮겨 적는 시간을 줄이고 고객관리 화면에서 바로 활용합니다.",
+  "알림톡 사용량과 예약 상태를 함께 보면서 운영 누락을 줄입니다.",
 ] as const;
 
 function formatWon(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
+function scrollToSection(sectionId: string) {
+  document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#f7f5f1] text-[#171717]">
+    <main className="owner-font min-h-screen bg-[#f6f8fb] text-[#111827]">
       <Header />
       <Hero />
-      <ProblemSection />
-      <ProductSection />
-      <WorkflowSection />
-      <FeatureSection />
+      <ActualScreensSection />
+      <SavingsSection />
+      <CustomerFlowSection />
+      <OwnerValueSection />
       <PricingSection />
-      <FaqSection />
       <FinalCta />
       <footer className="mx-auto w-full max-w-[1180px] px-5 pb-10 pt-2">
         <LegalLinksFooter />
@@ -79,22 +96,28 @@ export default function LandingPage() {
 
 function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-[#e6ded3]/80 bg-[#f7f5f1]/92 backdrop-blur">
-      <div className="mx-auto flex h-[72px] w-full max-w-[1180px] items-center justify-between px-5">
-        <a href="/landing" className="flex items-center gap-3">
-          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 day" width={156} height={42} priority />
-        </a>
-        <nav className="hidden items-center gap-7 text-[15px] text-[#5f574f] md:flex">
-          <a href="#product" className="hover:text-[#171717]">제품</a>
-          <a href="#flow" className="hover:text-[#171717]">흐름</a>
-          <a href="#pricing" className="hover:text-[#171717]">요금</a>
+    <header className="sticky top-0 z-50 border-b border-[#e2e8f0] bg-white/92 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5">
+        <Link href="/landing" className="flex items-center gap-3">
+          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 day" width={132} height={36} priority />
+        </Link>
+        <nav className="hidden items-center gap-7 text-[14px] font-semibold text-[#64748b] md:flex">
+          <button type="button" onClick={() => scrollToSection("screens")} className="hover:text-[#111827]">
+            실제 화면
+          </button>
+          <button type="button" onClick={() => scrollToSection("savings")} className="hover:text-[#111827]">
+            절약 효과
+          </button>
+          <button type="button" onClick={() => scrollToSection("pricing")} className="hover:text-[#111827]">
+            요금제
+          </button>
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/login?next=%2Fowner" className="hidden rounded-[10px] px-4 py-2 text-[15px] text-[#3f3934] hover:bg-white md:inline-flex">
+          <Link href="/login?next=%2Fowner" className="hidden h-10 items-center px-3 text-[14px] font-semibold text-[#64748b] hover:text-[#111827] md:inline-flex">
             로그인
           </Link>
-          <Link href="/signup" className="rounded-[10px] bg-[#232323] px-4 py-2 text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(35,35,35,0.18)]">
-            시작하기
+          <Link href="/signup" className="inline-flex h-10 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-bold text-white">
+            무료로 시작
           </Link>
         </div>
       </div>
@@ -104,350 +127,301 @@ function Header() {
 
 function Hero() {
   return (
-    <section className="mx-auto grid w-full max-w-[1180px] items-center gap-10 px-5 pb-16 pt-14 lg:grid-cols-[1.02fr_0.98fr] lg:pb-24 lg:pt-20">
+    <section className="mx-auto grid w-full max-w-[1180px] items-center gap-9 px-5 pb-14 pt-12 lg:grid-cols-[0.84fr_1.16fr] lg:pb-18 lg:pt-16">
       <div>
-        <p className="inline-flex rounded-full border border-[#efc8c0] bg-white px-4 py-2 text-[15px] font-semibold text-[#e0574f]">
-          반려동물 미용샵 예약관리 서비스
+        <p className="inline-flex rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-4 py-2 text-[14px] font-black text-[#1d4ed8]">
+          실제 제품 화면으로 설명하는 예약관리
         </p>
-        <h1 className="mt-6 max-w-[720px] text-[44px] font-semibold leading-[1.08] tracking-[-0.04em] md:text-[72px]">
-          매출도 여유도
+        <h1 className="mt-6 text-[40px] font-black leading-[1.08] tracking-normal md:text-[62px]">
+          반려동물 미용샵 운영,
           <br />
-          넘치는 하루
+          하루 30분씩 줄이세요
         </h1>
-        <p className="mt-6 max-w-[610px] text-[18px] leading-8 text-[#5f574f] md:text-[20px]">
-          넘친 day는 예약, 알림톡, 고객 기록을 한 곳에 모아
-          오너가 덜 쫓기고 더 정확하게 운영하도록 돕습니다.
+        <p className="mt-5 max-w-[620px] text-[18px] leading-8 text-[#526071]">
+          고객 예약, 보호자 정보, 반려동물 정보, 알림톡, 캘린더를 실제 오너 화면에서 한 흐름으로 관리합니다.
         </p>
-        <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-          <Link href="/signup" className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#232323] px-7 text-[17px] font-semibold text-white">
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <Link href="/signup" className="inline-flex h-14 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-7 text-[17px] font-black text-white shadow-[0_18px_42px_rgba(37,99,235,0.22)]">
             무료로 시작하기
+            <ArrowRight size={18} />
           </Link>
-          <Link href="/login?next=%2Fowner" className="inline-flex h-14 items-center justify-center rounded-[12px] border border-[#d8d0c4] bg-white px-7 text-[17px] font-semibold text-[#232323]">
-            오너 화면 보기
-          </Link>
+          <button type="button" onClick={() => scrollToSection("screens")} className="inline-flex h-14 items-center justify-center rounded-[8px] border border-[#d7e0ec] bg-white px-7 text-[17px] font-bold text-[#111827]">
+            실제 화면 보기
+          </button>
         </div>
-        <div className="mt-8 grid max-w-[560px] grid-cols-3 gap-3">
-          <TrustItem label="예약" value="자동 확정" />
-          <TrustItem label="알림톡" value="직접 발송" />
-          <TrustItem label="재방문" value="고객 기록" />
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <Metric label="하루 절약" value="30분" />
+          <Metric label="월 절약 시간" value="15시간" />
+          <Metric label="월 환산 금액" value={formatWon(MONTHLY_SAVED_WON)} />
         </div>
       </div>
-      <div className="relative">
-        <div className="absolute -left-6 top-10 hidden h-28 w-28 rounded-full bg-[#f47c72]/16 blur-3xl md:block" />
-        <div className="rounded-[32px] border border-[#e2d8cc] bg-white/72 p-4 shadow-[0_24px_80px_rgba(36,30,24,0.12)]">
-          <OwnerDashboardMock />
+      <ActualImageFrame
+        title="오너 예약관리 실제 화면"
+        src="/images/landing/actual-schedule.png"
+        priority
+      />
+    </section>
+  );
+}
+
+function ActualScreensSection() {
+  return (
+    <section id="screens" className="mx-auto w-full max-w-[1180px] px-5 py-14">
+      <SectionTitle
+        eyebrow="실제 제품 화면 캡처"
+        title="랜딩에서 보여주는 화면과 제품 화면이 같습니다"
+        body="아래 이미지는 `/demo/owner-web`에서 직접 캡처한 실제 PC 오너 화면입니다. 즉석으로 그린 예시 화면이 아니라 지금 만들어진 제품 화면을 그대로 사용했습니다."
+      />
+      <div className="mt-8 grid gap-5">
+        {productScreens.map(({ title, body, src, icon: Icon }) => (
+          <ScreenCard key={title} title={title} body={body} src={src} icon={<Icon size={18} />} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SavingsSection() {
+  return (
+    <section id="savings" className="bg-white py-16">
+      <div className="mx-auto grid w-full max-w-[1180px] gap-8 px-5 lg:grid-cols-[0.95fr_1.05fr]">
+        <div>
+          <p className="text-[15px] font-black text-[#2563eb]">광고 핵심 메시지</p>
+          <h2 className="mt-3 text-[36px] font-black leading-tight tracking-normal md:text-[52px]">
+            하루 30분만 줄여도
+            <br />
+            월 {formatWon(MONTHLY_SAVED_WON)} 상당
+          </h2>
+          <p className="mt-5 text-[17px] leading-8 text-[#526071]">
+            2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준으로 하루 30분, 30일이면 월 15시간입니다. 반복 입력과 반복 안내를 줄이는 효과를 숫자로 설명합니다.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SavingsTile label="하루 절약" value="30분" tone="blue" />
+          <SavingsTile label="월 절약 시간" value="15시간" tone="green" />
+          <SavingsTile label="월 환산 금액" value={formatWon(MONTHLY_SAVED_WON)} tone="amber" />
         </div>
       </div>
     </section>
   );
 }
 
-function ProblemSection() {
+function CustomerFlowSection() {
   return (
-    <Section eyebrow="왜 필요한가요" title="예약은 늘었는데, 운영 시간이 같이 줄어드는 순간">
-      <div className="grid gap-4 md:grid-cols-3">
-        <ProblemCard title="여기저기 들어오는 예약" body="전화, 카톡, DM, 네이버 요청이 섞이면 누락과 중복이 생기기 쉽습니다." />
-        <ProblemCard title="확인 안내 반복" body="예약 확정, 방문 전 안내, 픽업 안내를 매번 직접 쓰면 하루가 금방 사라집니다." />
-        <ProblemCard title="기록이 이어지지 않음" body="지난 방문, 요청사항, 반려동물 정보가 흩어지면 재방문 응대가 느려집니다." />
-      </div>
-    </Section>
-  );
-}
-
-function ProductSection() {
-  return (
-    <Section id="product" eyebrow="제품 미리보기" title="고객 화면과 오너 화면이 같은 예약 흐름으로 이어집니다">
-      <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-        <CustomerPhoneMock />
-        <div className="grid gap-5">
-          <SchedulePreview />
-          <CalendarPreview />
+    <section className="mx-auto w-full max-w-[1180px] px-5 py-14">
+      <SectionTitle
+        eyebrow="고객이 보는 실제 화면"
+        title="고객이 입력한 정보가 오너 고객정보로 이어집니다"
+        body="고객 예약 화면도 실제 라우트에서 캡처했습니다. 광고에서는 이 흐름을 보여주면서 개인정보 자동 수집의 가치를 설명하면 됩니다."
+      />
+      <div className="mt-8 grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+          {customerScreens.map((screen) => (
+            <PhoneScreenCard key={screen.title} {...screen} />
+          ))}
+        </div>
+        <div className="rounded-[8px] border border-[#dce5f2] bg-white p-6 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+          <h3 className="text-[28px] font-black tracking-normal">예약 접수와 고객관리 사이의 반복 입력을 줄입니다</h3>
+          <p className="mt-3 text-[16px] leading-8 text-[#526071]">
+            고객이 예약할 때 보호자명, 연락처, 반려동물 정보를 직접 남기기 때문에 오너가 상담 후 다시 고객정보로 옮겨 적는 흐름을 줄일 수 있습니다.
+          </p>
+          <div className="mt-6 grid gap-3">
+            {sellingPoints.map((point) => (
+              <div key={point} className="flex gap-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfdff] p-4">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" />
+                <p className="text-[15px] font-bold leading-7 text-[#334155]">{point}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6">
+            <ActualImageFrame title="고객관리 실제 화면" src="/images/landing/actual-customers.png" />
+          </div>
         </div>
       </div>
-    </Section>
+    </section>
   );
 }
 
-function WorkflowSection() {
+function OwnerValueSection() {
   return (
-    <Section id="flow" eyebrow="운영 흐름" title="예약을 받는 순간부터 다시 방문하는 날까지">
-      <div className="grid gap-3 md:grid-cols-4">
-        {workflow.map(([step, title, body]) => (
-          <div key={step} className="rounded-[22px] border border-[#e2d8cc] bg-white p-5">
-            <span className="text-[14px] font-semibold text-[#e0574f]">{step}</span>
-            <h3 className="mt-4 text-[20px] font-semibold">{title}</h3>
-            <p className="mt-3 text-[15px] leading-7 text-[#665d55]">{body}</p>
-          </div>
-        ))}
+    <section className="bg-[#0f172a] py-16 text-white">
+      <div className="mx-auto w-full max-w-[1180px] px-5">
+        <SectionTitle
+          eyebrow="오너 화면에서 확인되는 가치"
+          title="예약, 고객, 알림톡을 실제 화면 기준으로 설명합니다"
+          body="광고 문구와 화면이 따로 놀지 않도록 실제 캡처를 중심으로 기능 설명을 붙였습니다."
+          dark
+        />
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <DarkPoint icon={<CalendarCheck size={20} />} title="예약관리" body="담당자별 예약과 상태를 일정판에서 확인합니다." />
+          <DarkPoint icon={<Database size={20} />} title="고객DB" body="예약자가 남긴 보호자와 반려동물 정보가 고객관리 화면에 정리됩니다." />
+          <DarkPoint icon={<Bell size={20} />} title="알림톡" body="사용량과 발송 상태를 확인하며 추가 충전 안내로 이어집니다." />
+        </div>
+        <div className="mt-6">
+          <ActualImageFrame title="알림 설정 실제 화면" src="/images/landing/actual-notifications.png" dark priority />
+        </div>
       </div>
-    </Section>
-  );
-}
-
-function FeatureSection() {
-  return (
-    <Section eyebrow="핵심 기능" title="작은 샵 운영에 필요한 기능부터 단단하게">
-      <div className="grid gap-4 md:grid-cols-2">
-        {features.map(({ title, body, icon: Icon }) => (
-          <div key={title} className="flex gap-4 rounded-[22px] border border-[#e2d8cc] bg-white p-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#fff0eb] text-[#e0574f]">
-              <Icon size={22} />
-            </div>
-            <div>
-              <h3 className="text-[20px] font-semibold">{title}</h3>
-              <p className="mt-2 text-[15px] leading-7 text-[#665d55]">{body}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
+    </section>
   );
 }
 
 function PricingSection() {
-  const plans = billableOwnerPlans.slice(0, 3);
   return (
-    <Section id="pricing" eyebrow="요금제" title="핵심 기능은 같고 운영 규모만 선택하세요">
-      <div className="grid gap-5 lg:grid-cols-3">
-        {plans.map((plan, index) => (
-          <div key={plan.code} className={`rounded-[26px] border bg-white p-6 ${index === 1 ? "border-[#232323] shadow-[0_20px_50px_rgba(35,35,35,0.12)]" : "border-[#e2d8cc]"}`}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-[24px] font-semibold">{plan.name}</h3>
-              {index === 1 ? <span className="rounded-full bg-[#232323] px-3 py-1 text-[13px] font-semibold text-white">추천</span> : null}
+    <section id="pricing" className="mx-auto w-full max-w-[1180px] px-5 py-16">
+      <SectionTitle
+        eyebrow="요금제"
+        title="매장 운영 인원에 맞춰 선택하세요"
+        body="광고에서 실제 화면을 확인한 뒤, 오너가 자신의 매장 규모에 맞는 플랜으로 바로 이어질 수 있게 구성했습니다."
+      />
+      <div className="mt-8 grid gap-5 lg:grid-cols-3">
+        {billableOwnerPlans.map((plan) => (
+          <div key={plan.code} className={`rounded-[8px] border bg-white p-6 ${plan.featured ? "border-[#2563eb] shadow-[0_18px_46px_rgba(37,99,235,0.14)]" : "border-[#dce5f2]"}`}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[25px] font-black">{plan.title}</h3>
+              {plan.badge ? <span className="rounded-full bg-[#2563eb] px-3 py-1 text-[13px] font-black text-white">{plan.badge}</span> : null}
             </div>
-            <p className="mt-4 text-[42px] font-semibold tracking-[-0.04em]">{formatWon(plan.monthlyPrice)}<span className="text-[16px] text-[#766b61]"> / 월</span></p>
-            <ul className="mt-6 space-y-3 text-[15px] text-[#4d453e]">
-              {plan.highlights.slice(0, 4).map((feature) => (
-                <li key={feature} className="flex gap-2">
-                  <Check className="mt-0.5 h-4 w-4 text-[#e0574f]" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <Link href="/signup" className={`mt-7 inline-flex h-12 w-full items-center justify-center rounded-[12px] text-[16px] font-semibold ${index === 1 ? "bg-[#232323] text-white" : "border border-[#d8d0c4] bg-white text-[#232323]"}`}>
-              선택하기
+            <p className="mt-2 text-[14px] font-semibold text-[#64748b]">{plan.targetLabel}</p>
+            <p className="mt-6 text-[42px] font-black tracking-normal">
+              {formatWon(plan.monthlyPrice)}
+              <span className="text-[15px] font-bold text-[#64748b]"> / 월</span>
+            </p>
+            <PlanLine label="포함 알림톡" value={plan.alimtalkIncludedLabel} />
+            <PlanLine label="운영 기준" value={plan.staffLimitLabel} />
+            <Link href="/signup" className={`mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] text-[16px] font-black ${plan.featured ? "bg-[#2563eb] text-white" : "border border-[#d7e0ec] bg-white text-[#111827]"}`}>
+              시작하기
             </Link>
           </div>
         ))}
       </div>
-    </Section>
-  );
-}
-
-function FaqSection() {
-  return (
-    <Section eyebrow="자주 묻는 질문" title="오너가 먼저 궁금해할 것들">
-      <div className="grid gap-3 md:grid-cols-2">
-        {faqs.map(([question, answer]) => (
-          <div key={question} className="rounded-[20px] border border-[#e2d8cc] bg-white p-5">
-            <h3 className="text-[18px] font-semibold">{question}</h3>
-            <p className="mt-2 text-[15px] leading-7 text-[#665d55]">{answer}</p>
-          </div>
-        ))}
-      </div>
-    </Section>
+    </section>
   );
 }
 
 function FinalCta() {
   return (
-    <section className="mx-auto w-full max-w-[1180px] px-5 py-12">
-      <div className="overflow-hidden rounded-[32px] bg-[#232323] p-8 text-white md:p-12">
-        <p className="text-[16px] text-white/70">넘친 day</p>
-        <h2 className="mt-3 max-w-[760px] text-[36px] font-semibold leading-tight tracking-[-0.04em] md:text-[56px]">
-          예약이 넘쳐도, 하루가 무너지지 않게.
+    <section className="mx-auto w-full max-w-[1180px] px-5 pb-16">
+      <div className="rounded-[8px] bg-[#111827] p-7 text-white md:p-10">
+        <p className="text-[15px] font-black text-[#93c5fd]">실제 화면을 보고 시작하세요</p>
+        <h2 className="mt-3 max-w-[760px] text-[34px] font-black leading-tight tracking-normal md:text-[52px]">
+          예약을 받는 일이 곧 고객관리가 되도록
         </h2>
-        <p className="mt-5 max-w-[620px] text-[18px] leading-8 text-white/72">
-          매출도 여유도 넘치는 하루를 만들 수 있도록, 예약 흐름부터 정리해보세요.
+        <p className="mt-5 max-w-[620px] text-[17px] leading-8 text-white/72">
+          보여주는 화면과 실제 제품 화면이 같아야 광고 이후의 신뢰가 이어집니다.
         </p>
-        <Link href="/signup" className="mt-8 inline-flex h-14 items-center justify-center rounded-[12px] bg-[#f47c72] px-7 text-[17px] font-semibold text-white">
-          넘친 day 시작하기
+        <Link href="/signup" className="mt-7 inline-flex h-14 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-7 text-[17px] font-black text-white">
+          무료로 시작하기
+          <ArrowRight size={18} />
         </Link>
       </div>
     </section>
   );
 }
 
-function Section({ id, eyebrow, title, children }: { id?: string; eyebrow: string; title: string; children: ReactNode }) {
+function SectionTitle({ eyebrow, title, body, dark = false }: { eyebrow: string; title: string; body: string; dark?: boolean }) {
   return (
-    <section id={id} className="mx-auto w-full max-w-[1180px] px-5 py-12 md:py-16">
-      <p className="text-[15px] font-semibold text-[#e0574f]">{eyebrow}</p>
-      <h2 className="mt-3 max-w-[820px] text-[34px] font-semibold leading-tight tracking-[-0.04em] md:text-[48px]">{title}</h2>
-      <div className="mt-8">{children}</div>
-    </section>
-  );
-}
-
-function TrustItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[16px] border border-[#e2d8cc] bg-white p-4">
-      <p className="text-[13px] text-[#766b61]">{label}</p>
-      <p className="mt-1 text-[17px] font-semibold">{value}</p>
+    <div>
+      <p className={`text-[15px] font-black ${dark ? "text-[#7dd3fc]" : "text-[#2563eb]"}`}>{eyebrow}</p>
+      <h2 className={`mt-3 max-w-[820px] text-[34px] font-black leading-tight tracking-normal md:text-[50px] ${dark ? "text-white" : "text-[#111827]"}`}>{title}</h2>
+      <p className={`mt-4 max-w-[760px] text-[17px] leading-8 ${dark ? "text-white/66" : "text-[#526071]"}`}>{body}</p>
     </div>
   );
 }
 
-function ProblemCard({ title, body }: { title: string; body: string }) {
+function ScreenCard({ title, body, src, icon }: { title: string; body: string; src: string; icon: ReactNode }) {
   return (
-    <div className="rounded-[24px] border border-[#e2d8cc] bg-white p-6">
-      <Sparkles className="h-6 w-6 text-[#e0574f]" />
-      <h3 className="mt-5 text-[22px] font-semibold">{title}</h3>
-      <p className="mt-3 text-[16px] leading-7 text-[#665d55]">{body}</p>
-    </div>
-  );
-}
-
-function OwnerDashboardMock() {
-  return (
-    <div className="rounded-[24px] border border-[#d8d0c4] bg-[#fbfaf7] p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-[14px] text-[#766b61]">오늘 예약 관리</p>
-          <p className="text-[24px] font-semibold">오늘 예약 3건</p>
-        </div>
-        <button className="rounded-[10px] bg-[#232323] px-4 py-2 text-[14px] font-semibold text-white">예약 추가</button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <MiniMetric label="예약 현황" value="8" dark />
-        <MiniMetric label="완료 내역" value="5" />
-      </div>
-      <div className="mt-4 rounded-[18px] border border-[#e2d8cc] bg-white p-4">
-        <p className="mb-3 flex items-center gap-2 text-[16px] font-semibold">
-          <CalendarDays size={18} />
-          다음 예약
-        </p>
-        {["14:00  우유 · 전체미용", "15:30  콩이 · 위생미용", "17:00  초코 · 스포팅"].map((item) => (
-          <div key={item} className="flex items-center justify-between border-t border-[#f0e3df] py-3 first:border-t-0">
-            <span className="text-[15px] text-[#4d453e]">{item}</span>
-            <span className="rounded-full bg-[#fff0eb] px-3 py-1 text-[13px] text-[#d95149]">대기</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CustomerPhoneMock() {
-  return (
-    <div className="rounded-[28px] border border-[#e2d8cc] bg-white p-5 shadow-[0_16px_34px_rgba(32,28,24,0.06)]">
-      <div className="mx-auto max-w-[430px] rounded-[34px] border-[8px] border-[#202020] bg-[#fff8f6] p-4 shadow-2xl">
-        <CustomerPagePreview />
-      </div>
-    </div>
-  );
-}
-
-function CustomerPagePreview() {
-  return (
-    <div className="overflow-hidden rounded-[24px] bg-[#fff8f6]">
-      <div className="relative h-[250px] rounded-[22px]">
-        <Image src="/images/customer-booking-hero-retriever-bath.jpg" alt="반려견 미용 장면" fill className="rounded-[22px] object-cover" sizes="430px" />
-        <div className="absolute inset-0 rounded-[22px] bg-gradient-to-t from-black/55 to-transparent" />
-        <p className="absolute bottom-5 left-5 text-[28px] font-semibold text-white">우진만세</p>
-        <span className="absolute right-4 top-4 rounded-full bg-black/45 px-3 py-1 text-[14px] font-semibold text-white">1 / 4</span>
-      </div>
-      <div className="mx-auto mt-3 h-2 w-8 rounded-full bg-[#f47c72]" />
-      <div className="mt-6 flex items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0eb] text-[#e0574f]">
-          <UserRound size={26} />
-        </div>
-        <div>
-          <p className="text-[20px] font-semibold">정우진</p>
-          <p className="text-[14px] text-[#9a8f86]">소형견 중심의 1인 미용샵 운영을 돕는 예약 관리 앱</p>
-        </div>
-      </div>
-      <button className="mt-5 rounded-[12px] border border-[#eadbd6] bg-white px-4 py-3 text-[16px] font-semibold">
-        <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#35a87d]" />
-        영업 중
-      </button>
-      <div className="mt-5 overflow-hidden rounded-[16px] border border-[#efdcd7] bg-white">
-        <ServiceRow name="전체미용" time="90분" price="45,000원 ~" />
-        <ServiceRow name="위생미용+목욕" time="60분" price="30,000원 ~" />
-        <ServiceRow name="스포팅" time="120분" price="70,000원 ~" />
-        <ServiceRow name="가위컷" time="150분" price="90,000원 ~" />
-      </div>
-      <button className="mt-5 h-14 w-full rounded-[14px] bg-[#f47c72] text-[17px] font-semibold text-white">
-        간편예약 시작
-      </button>
-    </div>
-  );
-}
-
-function SchedulePreview() {
-  return (
-    <PreviewCard title="오너 예약관리" body="확정 예약, 진행 중, 픽업 준비를 한 화면에서 처리합니다.">
-      <div className="grid gap-3 rounded-[20px] bg-[#fbfaf7] p-4 md:grid-cols-3">
-        {["정우진", "박수현", "수현"].map((name, index) => (
-          <div key={name} className="min-h-[220px] rounded-[16px] border border-[#e3dbcf] bg-white">
-            <div className="rounded-t-[16px] bg-[#232323] px-4 py-3 text-white">
-              <p className="text-[16px] font-semibold">{name}</p>
-              <p className="mt-1 text-[12px] text-white/70">예약 {index + 1}건 · 대기 {index === 0 ? 1 : 0}건</p>
-            </div>
-            {index === 0 ? (
-              <div className="m-3 rounded-[12px] border border-[#dbe2ea] border-l-[3px] border-l-[#b98121] p-3">
-                <p className="text-[15px] font-semibold">우유 · 정우진</p>
-                <p className="mt-1 text-[13px] text-[#6b6258]">14:30-16:00 · 전체미용</p>
-              </div>
-            ) : (
-              <p className="mt-12 text-center text-[14px] text-[#9b9288]">예약 없음</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </PreviewCard>
-  );
-}
-
-function CalendarPreview() {
-  return (
-    <PreviewCard title="캘린더와 재방문 관리" body="월간 흐름과 반려동물 정보를 함께 보고 다음 예약으로 이어갑니다.">
-      <div className="rounded-[20px] bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[20px] font-semibold">6월</p>
-          <button className="rounded-[9px] border border-[#d8d0c4] px-3 py-2 text-[14px]">오늘</button>
-        </div>
-        <div className="grid grid-cols-7 gap-1.5 text-center text-[13px] text-[#7c7268]">
-          {["일", "월", "화", "수", "목", "금", "토"].map((day) => <span key={day}>{day}</span>)}
-          {Array.from({ length: 21 }, (_, index) => (
-            <div key={index} className="min-h-[54px] rounded-[10px] border border-[#ece5db] bg-[#fbfaf7] p-1 text-left">
-              <span className="text-[13px] font-medium">{index + 1}</span>
-              {index === 8 ? <p className="mt-1 rounded-full bg-[#fff0eb] px-1.5 py-0.5 text-center text-[11px] text-[#d95149]">대기 4</p> : null}
-              {index === 14 ? <p className="mt-1 rounded-full bg-[#eef4ff] px-1.5 py-0.5 text-center text-[11px] text-[#607080]">완료 2</p> : null}
-            </div>
-          ))}
-        </div>
-      </div>
-    </PreviewCard>
-  );
-}
-
-function PreviewCard({ title, body, children }: { title: string; body: string; children: ReactNode }) {
-  return (
-    <div className="rounded-[24px] border border-[#e3dbcf] bg-white p-5 shadow-[0_16px_34px_rgba(32,28,24,0.06)]">
-      <h3 className="text-[22px] font-semibold tracking-[-0.03em]">{title}</h3>
-      <p className="mt-2 text-[15px] leading-7 text-[#696158]">{body}</p>
-      <div className="mt-5">{children}</div>
-    </div>
-  );
-}
-
-function MiniMetric({ label, value, dark = false }: { label: string; value: string; dark?: boolean }) {
-  return (
-    <div className={`rounded-[14px] border p-4 ${dark ? "border-[#232323] bg-[#232323] text-white" : "border-[#e3dbcf] bg-white"}`}>
-      <p className={`text-[14px] ${dark ? "text-white/70" : "text-[#6b6258]"}`}>{label}</p>
-      <p className="mt-2 text-[28px] font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function ServiceRow({ name, time, price }: { name: string; time: string; price: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-[#f0e3df] bg-white px-4 py-4 last:border-b-0">
+    <article className="grid gap-5 rounded-[8px] border border-[#dce5f2] bg-white p-5 shadow-[0_12px_34px_rgba(15,23,42,0.05)] lg:grid-cols-[0.34fr_0.66fr]">
       <div>
-        <span className="text-[16px] font-semibold">{name}</span>
-        <span className="ml-2 text-[14px] text-[#9a8f86]">{time}</span>
+        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#eef5ff] text-[#2563eb]">{icon}</div>
+        <h3 className="mt-4 text-[25px] font-black tracking-normal">{title}</h3>
+        <p className="mt-3 text-[15px] leading-7 text-[#526071]">{body}</p>
+        <p className="mt-4 inline-flex rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-3 py-1 text-[12px] font-black text-[#1d4ed8]">
+          실제 화면 캡처
+        </p>
       </div>
-      <span className="text-[17px] font-semibold text-[#e0574f]">{price}</span>
+      <ActualImageFrame title={title} src={src} />
+    </article>
+  );
+}
+
+function ActualImageFrame({ title, src, priority = false, dark = false }: { title: string; src: string; priority?: boolean; dark?: boolean }) {
+  return (
+    <div className={`overflow-hidden rounded-[8px] border ${dark ? "border-white/12 bg-white/7" : "border-[#dce5f2] bg-[#f8fbff]"}`}>
+      <div className={`flex items-center justify-between border-b px-4 py-3 ${dark ? "border-white/12 text-white/78" : "border-[#e2e8f0] text-[#64748b]"}`}>
+        <span className="text-[13px] font-black">{title}</span>
+        <span className="text-[12px] font-bold">실제 캡처</span>
+      </div>
+      <Image
+        src={src}
+        alt={`${title} 실제 화면 캡처`}
+        width={1440}
+        height={1100}
+        priority={priority}
+        className="h-auto w-full"
+        sizes="(min-width: 1024px) 680px, 100vw"
+      />
+    </div>
+  );
+}
+
+function PhoneScreenCard({ title, body, src }: { title: string; body: string; src: string }) {
+  return (
+    <article className="rounded-[8px] border border-[#dce5f2] bg-white p-5 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+      <div className="mb-4 flex items-center gap-2">
+        <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#eef5ff] text-[#2563eb]">
+          <Phone size={18} />
+        </span>
+        <div>
+          <h3 className="text-[19px] font-black">{title}</h3>
+          <p className="text-[12px] font-bold text-[#2563eb]">실제 모바일 화면 캡처</p>
+        </div>
+      </div>
+      <p className="mb-4 text-[15px] leading-7 text-[#526071]">{body}</p>
+      <div className="mx-auto max-h-[620px] max-w-[290px] overflow-hidden rounded-[28px] border-[7px] border-[#111827] bg-white">
+        <Image src={src} alt={`${title} 실제 화면 캡처`} width={430} height={1200} className="h-auto w-full" sizes="290px" />
+      </div>
+    </article>
+  );
+}
+
+function DarkPoint({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+  return (
+    <div className="rounded-[8px] border border-white/12 bg-white/7 p-5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white/10 text-[#7dd3fc]">{icon}</div>
+      <h3 className="mt-4 text-[20px] font-black">{title}</h3>
+      <p className="mt-2 text-[15px] leading-7 text-white/66">{body}</p>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] border border-[#dce5f2] bg-white p-4">
+      <p className="text-[13px] font-bold text-[#64748b]">{label}</p>
+      <p className="mt-1 text-[25px] font-black text-[#111827]">{value}</p>
+    </div>
+  );
+}
+
+function SavingsTile({ label, value, tone }: { label: string; value: string; tone: "blue" | "green" | "amber" }) {
+  const toneClass = {
+    blue: "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]",
+    green: "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]",
+    amber: "border-[#fde68a] bg-[#fffbeb] text-[#92400e]",
+  }[tone];
+
+  return (
+    <div className={`rounded-[8px] border p-5 ${toneClass}`}>
+      <p className="text-[14px] font-black opacity-75">{label}</p>
+      <p className="mt-3 text-[34px] font-black tracking-normal">{value}</p>
+    </div>
+  );
+}
+
+function PlanLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfdff] px-3 py-3 text-[14px]">
+      <span className="text-[#64748b]">{label}</span>
+      <span className="font-black">{value}</span>
     </div>
   );
 }

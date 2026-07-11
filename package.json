@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:frontend": "next dev",
+    "dev:webpack": "next dev --webpack",
     "dev:backend": "npm --prefix backend run dev",
     "dev:local": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
@@ -11,6 +12,8 @@
     "start:local": "next start --hostname 127.0.0.1 --port 3000",
     "serve:local": "npm run build && npm run start:local",
     "server:up": "powershell -ExecutionPolicy Bypass -File ./scripts/start-local-server.ps1",
+    "server:up:fresh": "powershell -ExecutionPolicy Bypass -File ./scripts/start-local-server.ps1 -Build",
+    "server:dev": "powershell -ExecutionPolicy Bypass -File ./scripts/start-local-server.ps1 -Dev",
     "server:down": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-local-server.ps1",
     "status:start": "node --experimental-transform-types ./scripts/job-status.ts start",
     "status:complete": "node --experimental-transform-types ./scripts/job-status.ts complete",

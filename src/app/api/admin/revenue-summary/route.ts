@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getOwnerPlanDisplayName, ownerPlans, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  calculateOwnerBillingAmountBreakdown,
+  getOwnerPlanDisplayName,
+  ownerPlans,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { AdminApiError, requireAdminSession } from "@/server/admin-api-auth";
 
@@ -17,8 +22,13 @@ type PaymentLedgerRow = {
 };
 
 type SubscriptionRow = {
+  user_id: string;
   current_plan_code: OwnerPlanCode;
   subscription_status: string;
+};
+
+type ShopOwnerRow = {
+  owner_user_id: string | null;
 };
 
 const paidStatuses = new Set(["PAID"]);
@@ -71,8 +81,10 @@ function countPaid(rows: PaymentLedgerRow[], fromIso: string) {
   }).length;
 }
 
-function monthlyPriceForPlan(code: OwnerPlanCode | null | undefined) {
-  return ownerPlans.find((plan) => plan.code === code)?.monthlyPrice ?? 0;
+function monthlyAmountForPlan(code: OwnerPlanCode | null | undefined, totalShopCount: number) {
+  const plan = ownerPlans.find((item) => item.code === code);
+  if (!plan) return 0;
+  return calculateOwnerBillingAmountBreakdown(plan, totalShopCount).monthlyTotalAmount;
 }
 
 export async function GET(request: NextRequest) {
@@ -83,13 +95,14 @@ export async function GET(request: NextRequest) {
       throw new AdminApiError("Supabase 설정을 확인해 주세요.", 503);
     }
 
-    const [ledgerResult, subscriptionsResult] = await Promise.all([
+    const [ledgerResult, subscriptionsResult, shopsResult] = await Promise.all([
       admin
         .from("owner_payment_ledger")
         .select("payment_id, shop_id, plan_code, amount, status, paid_at, cancelled_at, updated_at, created_at")
         .order("updated_at", { ascending: false })
         .limit(2000),
-      admin.from("owner_subscriptions").select("current_plan_code, subscription_status"),
+      admin.from("owner_subscriptions").select("user_id, current_plan_code, subscription_status"),
+      admin.from("shops").select("owner_user_id"),
     ]);
 
     if (ledgerResult.error && !isMissingTableError(ledgerResult.error, "owner_payment_ledger")) {
@@ -98,15 +111,27 @@ export async function GET(request: NextRequest) {
     if (subscriptionsResult.error && !isMissingTableError(subscriptionsResult.error, "owner_subscriptions")) {
       throw new AdminApiError(subscriptionsResult.error.message, 500);
     }
+    if (shopsResult.error && !isMissingTableError(shopsResult.error, "shops")) {
+      throw new AdminApiError(shopsResult.error.message, 500);
+    }
 
     const ledgerRows = ledgerResult.error ? [] : ((ledgerResult.data ?? []) as PaymentLedgerRow[]);
     const subscriptions = subscriptionsResult.error ? [] : ((subscriptionsResult.data ?? []) as SubscriptionRow[]);
+    const shopOwnerRows = shopsResult.error ? [] : ((shopsResult.data ?? []) as ShopOwnerRow[]);
+    const shopCountByOwner = new Map<string, number>();
+    for (const row of shopOwnerRows) {
+      if (!row.owner_user_id) continue;
+      shopCountByOwner.set(row.owner_user_id, (shopCountByOwner.get(row.owner_user_id) ?? 0) + 1);
+    }
     const todayStart = kstRangeStartIso("today");
     const monthStart = kstRangeStartIso("month");
     const last30DaysStart = kstRangeStartIso("last30Days");
 
     const activeSubscriptions = subscriptions.filter((row) => row.subscription_status === "active" && row.current_plan_code !== "free");
-    const mrr = activeSubscriptions.reduce((sum, row) => sum + monthlyPriceForPlan(row.current_plan_code), 0);
+    const mrr = activeSubscriptions.reduce(
+      (sum, row) => sum + monthlyAmountForPlan(row.current_plan_code, Math.max(1, shopCountByOwner.get(row.user_id) ?? 1)),
+      0,
+    );
 
     const paidThisMonth = ledgerRows.filter((row) => {
       const status = row.status?.toUpperCase() ?? "";

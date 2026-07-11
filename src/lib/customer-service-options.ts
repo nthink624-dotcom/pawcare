@@ -309,6 +309,10 @@ export function applyConfiguredCustomerServiceOverrides(
   const defaultRows = buildDefaultCustomerServiceMenuOptions(options);
   const defaultRowById = new Map(defaultRows.map((option) => [option.id, option]));
 
+  if (Object.keys(normalizedOverrides).length === 0) {
+    return defaultRows;
+  }
+
   return uniqueCustomerServiceOptions(Object.entries(normalizedOverrides)
     .flatMap(([rowId, override]) => {
       if (override.visible === false) return [];

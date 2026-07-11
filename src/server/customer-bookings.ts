@@ -683,6 +683,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
     pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
     appointments: scopedAppointments,
     groomingRecords,
+    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
   };
 }
 
@@ -700,12 +701,15 @@ export async function lookupCustomerBookingProfile(shopId: string, phone: string
 
   const scopedGuardianIds = new Set(scopedGuardians.map((guardian) => guardian.id));
   const scopedPets = bootstrap.pets.filter((pet) => scopedGuardianIds.has(pet.guardian_id));
+  const scopedPetIds = new Set(scopedPets.map((pet) => pet.id));
+  const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedPetIds.has(appointment.pet_id));
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
     pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
     appointments: [],
     groomingRecords: [],
+    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
   };
 }
 
@@ -733,6 +737,7 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
     pets: scopedPets,
     appointments: scopedAppointments,
     groomingRecords,
+    visitType: scopedAppointments.length > 0 ? "revisit" : "first_visit",
     access: {
       appointmentId: payload.appointmentId ?? null,
       action: payload.action ?? null,

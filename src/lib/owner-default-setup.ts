@@ -22,10 +22,68 @@ export const defaultOwnerServiceTemplates = [
   { key: "nail-trim", name: "발톱 정리", price: 10000, durationMinutes: 30 },
 ];
 
+const defaultOwnerPriceGuide = {
+  enabled: true,
+  weightBands: ["4kg 이하", "6kg 이하", "8kg 이하"],
+  sections: [
+    {
+      id: "basic",
+      species: "dog",
+      title: "베이직",
+      note: "말티즈, 포메라니안, 토이푸들, 시츄, 요크셔테리어, 치와와, 빠삐용 등",
+      weightBands: ["4kg 이하", "6kg 이하", "8kg 이하"],
+      items: [
+        {
+          id: "basic_hygiene_bath",
+          label: "위생미용+목욕",
+          cells: {
+            "4kg 이하": { price: "30000", durationMinutes: "60" },
+            "6kg 이하": { price: "35000", durationMinutes: "70" },
+            "8kg 이하": { price: "40000", durationMinutes: "80" },
+          },
+        },
+        {
+          id: "basic_clipping",
+          label: "클리핑",
+          cells: {
+            "4kg 이하": { price: "45000", durationMinutes: "90" },
+            "6kg 이하": { price: "50000", durationMinutes: "100" },
+            "8kg 이하": { price: "55000", durationMinutes: "110" },
+          },
+        },
+        {
+          id: "basic_spotting",
+          label: "스포팅",
+          cells: {
+            "4kg 이하": { price: "70000", durationMinutes: "120" },
+            "6kg 이하": { price: "80000", durationMinutes: "140" },
+            "8kg 이하": { price: "90000", durationMinutes: "160" },
+          },
+        },
+        {
+          id: "basic_scissor",
+          label: "가위컷",
+          cells: {
+            "4kg 이하": { price: "90000", durationMinutes: "150" },
+            "6kg 이하": { price: "100000", durationMinutes: "170" },
+            "8kg 이하": { price: "110000", durationMinutes: "190" },
+          },
+        },
+      ],
+    },
+  ],
+  extraNote: "아이 상태와 현장 상담에 따라 최종 금액과 미용 시간은 달라질 수 있어요.",
+  extraFees: [
+    { id: "face_cut", label: "기본 얼굴컷", price: "5,000" },
+    { id: "nail", label: "발톱컷", price: "10,000" },
+    { id: "matting_fee", label: "털엉킴", price: "5,000~" },
+  ],
+};
+
 export const defaultOwnerStaffDays: BootstrapStaffMember["defaultDays"] = ["mon", "tue", "wed", "thu", "fri", "sat"];
 
 export function buildDefaultOwnerServices(shopId: string, now: string) {
-  return defaultOwnerServiceTemplates.map((service) => ({
+  return defaultOwnerServiceTemplates.map((service, index) => ({
     id: `${shopId}-svc-${service.key}`,
     shop_id: shopId,
     name: service.name,
@@ -33,6 +91,7 @@ export function buildDefaultOwnerServices(shopId: string, now: string) {
     price_type: "starting" as const,
     duration_minutes: service.durationMinutes,
     is_active: true,
+    price_guide: index === 0 ? defaultOwnerPriceGuide : {},
     created_at: now,
     updated_at: now,
   }));

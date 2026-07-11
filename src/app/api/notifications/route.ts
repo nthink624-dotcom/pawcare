@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import type { ChannelType, NotificationType } from "@/types/domain";
 
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (hasSupabaseServerEnv()) {
-      await requireOwnerShop(request, requestedShopId);
+      const owner = await requireOwnerShop(request, requestedShopId);
+      assertOwnerOrManager(owner);
     }
 
     const type = (body?.type as NotificationType | undefined) ?? "booking_confirmed";

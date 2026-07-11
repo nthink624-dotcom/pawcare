@@ -2,8 +2,9 @@
 import { z } from "zod";
 
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getStaffProfileMessage } from "@/lib/staff-display";
 import { currentDateInTimeZone, nowIso } from "@/lib/utils";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
 import type { BootstrapStaffMember } from "@/types/domain";
 
@@ -117,7 +118,7 @@ function toBootstrapStaffMember(row: z.infer<typeof staffMemberSchema>): Bootstr
     id: row.id,
     name: row.name,
     displayName: row.displayName,
-    profileMessage: row.profileMessage,
+    profileMessage: getStaffProfileMessage(row),
     chipColorIndex: row.chipColorIndex,
     phone: row.phone,
     role: row.role,
@@ -142,7 +143,7 @@ function toBootstrapStaffMemberFromDb(row: StaffMemberDbRow): BootstrapStaffMemb
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds: normalizeProfileImageAssetIds(row.profile_image_asset_ids),
-    profileMessage: row.profile_message?.trim() || "",
+    profileMessage: getStaffProfileMessage(row),
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
     role: row.role,
@@ -394,6 +395,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const owner = await requireOwnerShop(request, body.shopId);
+    assertOwnerOrManager(owner);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       throw new OwnerApiError("Supabase 설정을 확인해 주세요.", 503);
@@ -482,6 +484,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const body = deletePayloadSchema.parse(await request.json());
     const owner = await requireOwnerShop(request, body.shopId);
+    assertOwnerOrManager(owner);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       throw new OwnerApiError("Supabase 설정을 확인해 주세요.", 503);

@@ -200,7 +200,9 @@ body {
   filter: blur(7px) saturate(1.22);
   opacity: 1;
   transform-origin: 50% 50%;
+  transform: translate3d(-16%, -10%, 0) scale(1.14) rotate(0deg);
   animation: pmButtonFluid 6.2s ease-in-out infinite;
+  transition: opacity 160ms ease;
 }
 
 .pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\],
@@ -243,7 +245,45 @@ body {
 .pm-owner-web a.bg-\[\#2f6bd4\]:hover::before,
 .pm-owner-web a.bg-\[\#2563eb\]:hover::before,
 .pm-owner-web a.bg-\[var\(--accent\)\]:hover::before {
-  animation-duration: 3.4s;
+  opacity: 1;
+  animation-duration: 6.2s;
+}
+
+.pm-owner-web button.bg-\[\#5570F1\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#111827\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#2f6bd4\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#2563eb\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#1f6b5b\]:focus-visible::before,
+.pm-owner-web button.bg-\[\#12b76a\]:focus-visible::before,
+.pm-owner-web button.bg-\[var\(--accent\)\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#2f6bd4\]:focus-visible::before,
+.pm-owner-web a.bg-\[\#2563eb\]:focus-visible::before,
+.pm-owner-web a.bg-\[var\(--accent\)\]:focus-visible::before {
+  opacity: 1;
+  animation-duration: 6.2s;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:hover,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:focus-visible,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\],
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:hover,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:focus-visible {
+  background-color: #316fe8 !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web .pm-owner-sidebar button.bg-\[\#316fe8\]:focus-visible::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:hover::before,
+.pm-owner-web .pm-owner-sidebar a.bg-\[\#316fe8\]:focus-visible::before {
+  content: none !important;
+  animation: none !important;
 }
 
 .pm-owner-web button.bg-\[\#5570F1\]:disabled,

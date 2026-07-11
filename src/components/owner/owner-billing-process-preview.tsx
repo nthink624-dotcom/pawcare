@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
 import { BillingConsent, PaymentMethodSheet, type PaymentMethodOptionId } from "@/features/billing";
-import { billableOwnerPlans, getOwnerPlanDisplayName, type OwnerPlan } from "@/lib/billing/owner-plans";
+import { billableOwnerPlans, getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
 const PREVIEW_BASE_DATE = new Date("2026-05-04T10:00:00+09:00");
@@ -193,9 +193,11 @@ export function OwnerBillingProcessPreview() {
                 plans={billableOwnerPlans}
                 currentPlanCode="quarterly"
                 selectedPlanCode={selectedPlan.code}
+                totalShopCount={1}
                 onSelectPlanCode={setSelectedPlanCode}
                 onContinue={() => undefined}
                 onBack={() => undefined}
+                onOpenSupport={() => undefined}
                 canCancelRenewal={false}
                 cancellingRenewal={false}
                 onCancelRenewal={() => undefined}
@@ -328,7 +330,7 @@ export function OwnerBillingProcessPreview() {
               <div className="mt-4 rounded-[14px] border border-[#e6ded2] bg-white px-4 py-3.5">
                 <Row label="현재 플랜" value={selectedPlan.title} />
                 <div className="border-t border-[#efe7dc]" />
-                <Row label="요금제 기준" value={`${selectedPlan.staffLimitLabel} · ${selectedPlan.alimtalkIncludedLabel}`} />
+                <Row label="요금제 기준" value={`${getOwnerPlanStaffLimitLabel(selectedPlan, 1)} · ${selectedPlan.alimtalkIncludedLabel}`} />
                 <div className="border-t border-[#efe7dc]" />
                 <Row label="다음 결제 예정일" value={nextBillingDate} />
               </div>

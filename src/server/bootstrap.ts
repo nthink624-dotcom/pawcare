@@ -10,6 +10,7 @@ import {
 } from "@/lib/notification-settings";
 import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
+import { defaultStaffProfileMessage, getStaffProfileMessage } from "@/lib/staff-display";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime } from "@/lib/utils";
 import { getMockStore } from "@/server/mock-store";
@@ -200,7 +201,7 @@ function normalizeStaffMember(row: StaffMemberRow): BootstrapStaffMember {
     profileImageUrl: profileImageUrls[0] ?? "",
     profileImageUrls,
     profileImageAssetIds,
-    profileMessage: row.profile_message?.trim() || "",
+    profileMessage: getStaffProfileMessage(row),
     chipColorIndex: row.chip_color_index ?? null,
     phone: row.phone ?? "",
     role: row.role,
@@ -222,7 +223,7 @@ function buildDefaultBootstrapOwnerStaffMember(shop: Shop): BootstrapStaffMember
     name: "원장",
     displayName: "원장",
     profileImageUrl: "",
-    profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
+    profileMessage: defaultStaffProfileMessage,
     chipColorIndex: 0,
     phone: shop.phone ?? "",
     role: "원장 / 전체 미용",

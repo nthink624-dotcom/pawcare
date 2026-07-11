@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createGuardian, createPet } from "@/server/owner-mutations";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
     const guardian = await createGuardian({
       shopId: owner.shopId,
       name: body?.name,

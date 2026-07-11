@@ -348,6 +348,7 @@ export default function ServiceManagementScreen({
   staffMembers = [],
   demoMode = false,
   embedded = false,
+  priceGuideOnboarding = false,
   onServicesChange,
   onShopChange,
 }: {
@@ -358,6 +359,7 @@ export default function ServiceManagementScreen({
   staffMembers?: OwnerWebStaffMember[];
   demoMode?: boolean;
   embedded?: boolean;
+  priceGuideOnboarding?: boolean;
   onServicesChange?: (services: Service[]) => void;
   onShopChange?: (shop: Shop) => void;
 }) {
@@ -856,35 +858,16 @@ export default function ServiceManagementScreen({
           <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-[#111827]">서비스/가격</h2>
         </div>
 
-        <div className="space-y-5">
-          <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
-              <div>
-                <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
-                <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
-                  <span className="block">자주 예약되는 미용 항목의 예상 시간과 시작 가격을 등록하면 고객 예약페이지 첫 화면에 보여집니다.</span>
-                  <span className="block">아이의 크기나 털 상태에 따라 최종 금액은 달라질 수 있어요.</span>
-                </p>
-              </div>
-              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">
-                고객 화면
-              </span>
-            </div>
-            <CustomerServiceExposurePanel
-              options={customerServiceOptions}
-              overrides={customerServiceOverrides}
-              embedded
-              busyOptionId={customerServiceActionId}
-              onChange={updateCustomerServiceOverrides}
-              connectionOptions={customerServiceConnectionOptions}
-              onAddOption={addCustomerServiceOption}
-              hideHeader
-              hideGuidance
-              onDeleteOption={deleteCustomerServiceOption}
-              onRelinkOption={relinkCustomerServiceOption}
-            />
+        {priceGuideOnboarding ? (
+          <div className="rounded-[12px] border border-[#cfe0ff] bg-[#f5f9ff] p-4">
+            <p className="text-[15px] font-semibold text-[#245bd0]">먼저 상세 요금표 원본을 확인해 주세요</p>
+            <p className="mt-1 text-[13px] font-medium leading-5 text-[#4b6280]">
+              고객 예약페이지의 요금표는 아래 원본에서 만들어집니다. 기본 베이직 그룹을 매장 기준에 맞게 수정하면 고객 화면에도 바로 반영됩니다.
+            </p>
           </div>
+        ) : null}
 
+        <div className="space-y-5">
           <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-3.5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
               <div>
@@ -903,6 +886,34 @@ export default function ServiceManagementScreen({
               framed={false}
               showHeader={false}
               showEnabledToggle={false}
+            />
+          </div>
+
+          <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
+              <div>
+                <p className="text-[15px] font-medium text-[#334155]">고객에게 보여줄 요금표</p>
+                <p className="mt-1 text-[13px] font-normal leading-5 text-[#64748b]">
+                  <span className="block">상세 요금표 원본의 첫 번째 그룹 항목이 기본으로 고객 예약페이지에 보여집니다.</span>
+                  <span className="block">필요하면 서비스 추가하기로 고객 화면에 노출할 항목을 더 연결할 수 있어요.</span>
+                </p>
+              </div>
+              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-medium text-[#64748b]">
+                고객 화면
+              </span>
+            </div>
+            <CustomerServiceExposurePanel
+              options={customerServiceOptions}
+              overrides={customerServiceOverrides}
+              embedded
+              busyOptionId={customerServiceActionId}
+              onChange={updateCustomerServiceOverrides}
+              connectionOptions={customerServiceConnectionOptions}
+              onAddOption={addCustomerServiceOption}
+              hideHeader
+              hideGuidance
+              onDeleteOption={deleteCustomerServiceOption}
+              onRelinkOption={relinkCustomerServiceOption}
             />
           </div>
         </div>

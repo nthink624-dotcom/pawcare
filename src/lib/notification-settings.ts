@@ -32,7 +32,6 @@ export const defaultGuardianNotificationSettings: GuardianNotificationSettings =
   enabled: true,
   revisit_enabled: true,
   booking_confirmed_enabled: true,
-  booking_rejected_enabled: true,
   booking_cancelled_enabled: true,
   booking_rescheduled_enabled: true,
   appointment_reminder_10m_enabled: true,
@@ -112,9 +111,22 @@ export function coerceEnabledShopNotificationSettings(settings: ShopNotification
 }
 
 export function normalizeGuardianNotificationSettings(settings: Partial<GuardianNotificationSettings> | null | undefined): GuardianNotificationSettings {
-  return {
+  const merged = {
     ...defaultGuardianNotificationSettings,
     ...(settings ?? {}),
+  };
+
+  return {
+    enabled: merged.enabled,
+    revisit_enabled: merged.revisit_enabled,
+    booking_confirmed_enabled: merged.booking_confirmed_enabled,
+    booking_cancelled_enabled: merged.booking_cancelled_enabled,
+    booking_rescheduled_enabled: merged.booking_rescheduled_enabled,
+    appointment_reminder_10m_enabled: merged.appointment_reminder_10m_enabled,
+    grooming_started_enabled: merged.grooming_started_enabled,
+    grooming_almost_done_enabled: merged.grooming_almost_done_enabled,
+    grooming_completed_enabled: merged.grooming_completed_enabled,
+    birthday_greeting_enabled: merged.birthday_greeting_enabled,
   };
 }
 

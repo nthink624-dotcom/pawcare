@@ -250,7 +250,6 @@ export function buildLocalGuardian(params: { shopId: string; name: string; phone
       enabled: true,
       revisit_enabled: true,
       booking_confirmed_enabled: true,
-      booking_rejected_enabled: true,
       booking_cancelled_enabled: true,
       booking_rescheduled_enabled: true,
       appointment_reminder_10m_enabled: true,

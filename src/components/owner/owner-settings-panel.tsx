@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
@@ -8,10 +9,11 @@ import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { defaultStaffProfileMessage } from "@/lib/staff-display";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
 import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } from "@/types/domain";
 
@@ -61,7 +63,6 @@ type ShopNotificationSettingsState = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
-const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
 function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfileDraft {
   return {
@@ -695,10 +696,11 @@ export default function OwnerSettingsPanel({
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
         const isFreePlan = currentPlan.code === "free";
+        const currentTotalShopCount = subscriptionSummary.billingAmount.multiShopDiscount.totalShopCount;
         const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : `${currentPlan.staffLimitLabel} · ${currentPlan.alimtalkIncludedLabel}`;
+          : `${getOwnerPlanStaffLimitLabel(currentPlan, currentTotalShopCount)} · ${currentPlan.alimtalkIncludedLabel}`;
         const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
@@ -1045,6 +1047,13 @@ export default function OwnerSettingsPanel({
               알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
             </p>
           </div>
+          <Link
+            href={{ pathname: "/owner/alimtalk-credits" }}
+            prefetch
+            className="inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-[image:var(--pm-brand-blue-button-gradient)] text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)]"
+          >
+            알림톡 충전하기
+          </Link>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"
@@ -1376,27 +1385,27 @@ export default function OwnerSettingsPanel({
         className="pb-3 pt-2.5"
         labelAccessory={
           <InfoTip ariaLabel="부가기능 안내" popoverClassName="w-[248px]">
-            부가기능을 켜면 현재 계정에서 업장 추가 같은 확장 기능을 사용할 수 있어요.
+            업장 추가는 별도 문의가 필요한 부가 기능입니다.
           </InfoTip>
         }
       >
         <div className="space-y-3 px-0.5 pt-1">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">추가 업장을 같은 계정으로 관리</p>
+              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">업장 추가</p>
               <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
-                같은 명의의 업장만 추가할 수 있고, 한 계정에서 함께 운영할 수 있어요.
+                여러 지점이나 다른 매장을 함께 운영하시나요?
               </p>
             </div>
             <div className="shrink-0 rounded-[10px] border border-[#dfe8e2] bg-[#f8fcfa] px-3 py-2 text-right">
-              <p className="text-[12px] font-medium text-[#7a736b]">추가 요금</p>
-              <p className="mt-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">월 3,000원</p>
+              <p className="text-[12px] font-medium text-[#7a736b]">부가 기능</p>
+              <p className="mt-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">별도 문의</p>
             </div>
           </div>
           <div className="rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-3">
             <div className="space-y-1.5 text-[13px] leading-5 text-[var(--muted)]">
-              <p>• 업장 1곳 추가당 월 3,000원이 부과돼요.</p>
-              <p>• 추가 업장은 현재 계정과 동일 명의에서만 등록할 수 있어요.</p>
+              <p>• 추가 업장은 별도 문의로 안내드려요.</p>
+              <p>• 같은 사업자 또는 동일 운영 조건에 따라 할인 적용이 가능할 수 있어요.</p>
             </div>
           </div>
           {data.shop.customer_page_settings?.kakao_inquiry_url ? (

@@ -20,6 +20,11 @@ import { getBootstrap } from "@/server/bootstrap";
 import { getMockStore, setMockStore } from "@/server/mock-store";
 import { dispatchNotification } from "@/server/notification-dispatch";
 import {
+  assertShopIdentityChangeLimit,
+  buildShopIdentityChanges,
+  insertShopIdentityChangeEvents,
+} from "@/server/shop-identity-guard";
+import {
   appointmentInputSchema,
   appointmentEditSchema,
   appointmentStatusSchema,
@@ -522,7 +527,13 @@ async function dispatchAppointmentNotificationWithLogs(params: {
   }
 }
 
-export async function updateShopSettings(input: unknown) {
+export async function updateShopSettings(
+  input: unknown,
+  context?: {
+    ownerUserId?: string | null;
+    changedByUserId?: string | null;
+  },
+) {
   const payload = shopSettingsSchema.parse(input);
   const nextNotificationSettings = {
     enabled: payload.notificationSettings.enabled,
@@ -609,6 +620,38 @@ export async function updateShopSettings(input: unknown) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 설정을 확인해 주세요.");
+
+  const currentShopResult = await supabase
+    .from("shops")
+    .select("name,phone,address")
+    .eq("id", payload.shopId)
+    .maybeSingle<{
+      name: string | null;
+      phone: string | null;
+      address: string | null;
+    }>();
+
+  if (currentShopResult.error) {
+    throw new Error(currentShopResult.error.message);
+  }
+
+  const identityChanges = buildShopIdentityChanges({
+    current: {
+      name: currentShopResult.data?.name,
+      phone: currentShopResult.data?.phone,
+      address: currentShopResult.data?.address,
+    },
+    next: {
+      name: payload.name,
+      phone: payload.phone,
+      address: payload.address,
+    },
+  });
+  const identityLimit = await assertShopIdentityChangeLimit({
+    admin: supabase,
+    shopId: payload.shopId,
+    changes: identityChanges,
+  });
 
     const runShopUpdate = async ({
       includeBookingSlotSettings,
@@ -707,13 +750,33 @@ export async function updateShopSettings(input: unknown) {
         throw new Error(fallback.error.message);
       }
 
-      return withRegularClosedSettings(fallback.data as Shop);
+      const fallbackShop = withRegularClosedSettings(fallback.data as Shop);
+      await insertShopIdentityChangeEvents({
+        admin: supabase,
+        shopId: payload.shopId,
+        ownerUserId: context?.ownerUserId ?? null,
+        changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+        changes: identityChanges,
+        changeGroupId: identityLimit.changeGroupId,
+        source: "settings_patch",
+      });
+      return fallbackShop;
     }
 
     throw new Error(error.message);
   }
 
-  return withRegularClosedSettings(data as Shop);
+  const updatedShop = withRegularClosedSettings(data as Shop);
+  await insertShopIdentityChangeEvents({
+    admin: supabase,
+    shopId: payload.shopId,
+    ownerUserId: context?.ownerUserId ?? null,
+    changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+    changes: identityChanges,
+    changeGroupId: identityLimit.changeGroupId,
+    source: "settings_patch",
+  });
+  return updatedShop;
 }
 
 export async function upsertService(input: unknown) {
@@ -829,7 +892,13 @@ export async function deleteService(input: unknown) {
   return { success: true, serviceId: payload.serviceId };
 }
 
-export async function updateCustomerPageSettings(input: unknown) {
+export async function updateCustomerPageSettings(
+  input: unknown,
+  context?: {
+    ownerUserId?: string | null;
+    changedByUserId?: string | null;
+  },
+) {
   const payload = customerPageSettingsSchema.parse(input);
   const rawSettings =
     input && typeof input === "object" && !Array.isArray(input) && "customerPageSettings" in input
@@ -872,9 +941,9 @@ export async function updateCustomerPageSettings(input: unknown) {
 
   const currentShopResult = await supabase
     .from("shops")
-    .select("customer_page_settings")
+    .select("name,address,customer_page_settings")
     .eq("id", payload.shopId)
-    .maybeSingle<{ customer_page_settings: Record<string, unknown> | null }>();
+    .maybeSingle<{ name: string | null; address: string | null; customer_page_settings: Record<string, unknown> | null }>();
 
   if (currentShopResult.error) {
     if (hasMissingColumnError(currentShopResult.error, "customer_page_settings")) {
@@ -884,6 +953,41 @@ export async function updateCustomerPageSettings(input: unknown) {
   }
 
   const nextCustomerPageSettings = mergeWithExistingCustomerPageSettings(currentShopResult.data?.customer_page_settings);
+  const currentSettings = normalizeCustomerPageSettings(currentShopResult.data?.customer_page_settings);
+  const shopName = currentShopResult.data?.name?.trim() ?? "";
+  const customerPageShopNameChanged = currentSettings.shop_name.trim() !== nextCustomerPageSettings.shop_name.trim();
+  const customerPageShopNameAlreadySyncedToShop =
+    customerPageShopNameChanged && nextCustomerPageSettings.shop_name.trim() === shopName;
+  const currentFullAddress = [currentShopResult.data?.address ?? "", currentSettings.address_detail]
+    .map((value) => (value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const nextFullAddress = [currentShopResult.data?.address ?? "", nextCustomerPageSettings.address_detail]
+    .map((value) => (value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const customerPageAddressDetailChanged = currentFullAddress !== nextFullAddress;
+  const identityChanges = buildShopIdentityChanges({
+    current: {
+      ...(customerPageShopNameChanged && !customerPageShopNameAlreadySyncedToShop
+        ? { name: currentSettings.shop_name }
+        : {}),
+      ...(customerPageAddressDetailChanged ? { address: currentFullAddress } : {}),
+      additional_contact: currentSettings.additional_contact,
+    },
+    next: {
+      ...(customerPageShopNameChanged && !customerPageShopNameAlreadySyncedToShop
+        ? { name: nextCustomerPageSettings.shop_name }
+        : {}),
+      ...(customerPageAddressDetailChanged ? { address: nextFullAddress } : {}),
+      additional_contact: nextCustomerPageSettings.additional_contact,
+    },
+  });
+  const identityLimit = await assertShopIdentityChangeLimit({
+    admin: supabase,
+    shopId: payload.shopId,
+    changes: identityChanges,
+  });
 
   const { data, error } = await supabase
     .from("shops")
@@ -901,6 +1005,15 @@ export async function updateCustomerPageSettings(input: unknown) {
     }
     throw new Error(error.message);
   }
+  await insertShopIdentityChangeEvents({
+    admin: supabase,
+    shopId: payload.shopId,
+    ownerUserId: context?.ownerUserId ?? null,
+    changedByUserId: context?.changedByUserId ?? context?.ownerUserId ?? null,
+    changes: identityChanges,
+    changeGroupId: identityLimit.changeGroupId,
+    source: "customer_page_settings_patch",
+  });
   return normalizeCustomerPageSettings(data?.customer_page_settings);
 }
 

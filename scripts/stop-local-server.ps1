@@ -1,3 +1,5 @@
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$relayRoot = Join-Path $projectRoot "backend\alimtalk-relay"
 $ports = @(3000, 14010)
 
 foreach ($port in $ports) {
@@ -20,5 +22,32 @@ foreach ($port in $ports) {
     } catch {
       Write-Host "Failed to stop PID $processId on port $port."
     }
+  }
+}
+
+$projectRootPattern = [regex]::Escape($projectRoot) + '(?=\\|"\s|\s|$)'
+$escapedRelayRoot = [regex]::Escape($relayRoot)
+$currentProcessId = $PID
+
+$runtimeProcesses = Get-CimInstance Win32_Process |
+  Where-Object {
+    $_.ProcessId -ne $currentProcessId -and
+    $_.CommandLine -and
+    (
+      $_.CommandLine -match $escapedRelayRoot -or
+      (
+        $_.CommandLine -match $projectRootPattern -and
+        $_.CommandLine -match '(next\\dist\\bin\\next|next\\dist\\server\\lib\\start-server|npm-cli\.js"?\s+run\s+(dev|dev:local|start|start:local)|npm\.cmd\s+run\s+(dev|dev:local|start|start:local)|tsx.*src/server\.ts)'
+      )
+    )
+  } |
+  Sort-Object ProcessId -Descending
+
+foreach ($process in $runtimeProcesses) {
+  try {
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+    Write-Host "Stopped project runtime PID $($process.ProcessId)."
+  } catch {
+    Write-Host "Failed to stop project runtime PID $($process.ProcessId)."
   }
 }

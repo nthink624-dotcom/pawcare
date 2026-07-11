@@ -2,6 +2,7 @@ import { Webhook } from "@portone/server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env";
+import { syncOwnerAlimtalkCreditPurchaseFromPayment } from "@/server/owner-alimtalk-credit-purchase";
 import { OwnerBillingError, syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
 function extractPaymentId(webhook: { data?: unknown }) {
@@ -35,11 +36,16 @@ export async function POST(request: NextRequest) {
     }
 
     const summary = await syncOwnerSubscriptionFromPayment(paymentId);
-    if (!summary) {
+    if (summary) {
+      return NextResponse.json({ ok: true, paymentId, synced: true });
+    }
+
+    const alimtalkCreditResult = await syncOwnerAlimtalkCreditPurchaseFromPayment(paymentId);
+    if (!alimtalkCreditResult) {
       return NextResponse.json({ ok: true, paymentId, ignored: true });
     }
 
-    return NextResponse.json({ ok: true, paymentId, synced: true });
+    return NextResponse.json({ ok: true, paymentId, synced: true, kind: "alimtalk-credit-purchase" });
   } catch (error) {
     if (error instanceof Webhook.WebhookVerificationError) {
       return NextResponse.json({ ok: false, message: "유효하지 않은 웹훅 서명입니다." }, { status: 401 });

@@ -240,6 +240,9 @@ export default function DiscountCouponEditor({
           background-clip: content-box;
         }
       `}</style>
+      <div className="mb-3 rounded-[10px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-[13px] font-medium leading-5 text-[#1d4ed8]">
+        첫 방문 할인과 재방문 할인은 고객 방문 이력에 따라 자동으로 분리돼요. 고객에게 두 혜택이 동시에 보이지 않고, 조건에 맞는 혜택만 노출됩니다.
+      </div>
       <div className="pm-benefit-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
       {coupons.map((coupon) => {
         const collapsed = collapsedCouponIds.has(coupon.id);

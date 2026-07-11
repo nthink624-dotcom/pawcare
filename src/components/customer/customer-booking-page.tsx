@@ -67,6 +67,7 @@ type BookingCreateResponse = {
 
 type CustomerLookupProfilePayload = {
   pets?: BookingProfilePet[];
+  visitType?: "first_visit" | "revisit";
 };
 
 const initialFirstVisitState: FirstVisitState = {

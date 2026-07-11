@@ -1,4 +1,10 @@
-import { ownerPlans, type OwnerPlan, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  calculateOwnerBillingAmountBreakdown,
+  ownerPlans,
+  type OwnerBillingAmountBreakdown,
+  type OwnerPlan,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 
 export type OwnerSubscriptionStatus =
   | "trialing"
@@ -41,6 +47,7 @@ export type OwnerSubscriptionSummary = {
   ownerName: string | null;
   ownerPhoneNumber: string | null;
   ownerEmail: string | null;
+  billingAmount: OwnerBillingAmountBreakdown;
 };
 
 export const OWNER_TRIAL_DAYS = 14;
@@ -85,6 +92,7 @@ export function normalizeOwnerSubscriptionMetadata(
     ownerName?: string | null;
     ownerPhoneNumber?: string | null;
     ownerEmail?: string | null;
+    billingAmount?: OwnerBillingAmountBreakdown;
   },
 ) {
   const baseCreatedAt = createdAt || new Date().toISOString();
@@ -179,7 +187,7 @@ export function normalizeOwnerSubscriptionMetadata(
 
   const currentPlan = getPlanOrDefault(currentPlanCode);
   const autoRenewPlan = getPlanOrDefault(autoRenewPlanCode);
-
+  const billingAmount = options?.billingAmount ?? calculateOwnerBillingAmountBreakdown(currentPlan, 1);
   return {
     userId: options?.userId ?? "",
     shopId: options?.shopId ?? "",
@@ -210,5 +218,6 @@ export function normalizeOwnerSubscriptionMetadata(
     ownerName: options?.ownerName ?? null,
     ownerPhoneNumber: options?.ownerPhoneNumber ?? null,
     ownerEmail: options?.ownerEmail ?? null,
+    billingAmount,
   } satisfies OwnerSubscriptionSummary;
 }

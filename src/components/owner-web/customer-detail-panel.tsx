@@ -713,7 +713,9 @@ function NotificationSettingsCard({
     {
       title: "관리",
       items: [
-        { label: "방문전", key: "appointment_reminder_10m_enabled", enabled: settings.appointment_reminder_10m_enabled !== false },
+        { label: "방문 안내", key: "appointment_reminder_10m_enabled", enabled: settings.appointment_reminder_10m_enabled !== false },
+        { label: "재방문", key: "revisit_enabled", enabled: settings.revisit_enabled !== false },
+        { label: "생일 축하", key: "birthday_greeting_enabled", enabled: settings.birthday_greeting_enabled !== false },
       ],
     },
   ];

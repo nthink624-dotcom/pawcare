@@ -8,15 +8,20 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import {
+  filterDiscountCouponsForVisitType,
+  formatDiscountCouponValue,
+  hasActiveVisitSpecificDiscountCoupon,
+} from "@/lib/discount-coupons";
 import { fetchApiJson } from "@/lib/api";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
 import { isShopClosedOnDate } from "@/lib/availability";
+import { defaultStaffProfileMessage } from "@/lib/staff-display";
 import { formatServicePrice } from "@/lib/utils";
-import type { BootstrapStaffMember, BusinessHours, CustomerDiscountCoupon, OwnerProfile, Service, Shop } from "@/types/domain";
+import type { BootstrapStaffMember, BusinessHours, OwnerProfile, Service, Shop } from "@/types/domain";
 
 const visibleDateOptionCount = 4;
 const heroSidePaddingPx = 14;
-const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
 const weekRows = [
   { key: 1, label: "월요일" },
@@ -272,18 +277,6 @@ function formatPriceGuideCell(cell: { price?: string; durationMinutes?: string }
   return { priceText, durationText };
 }
 
-function formatDiscountCouponValue(coupon: CustomerDiscountCoupon) {
-  if (coupon.discount_type === "percent") return `${coupon.discount_value}% 할인`;
-  return `${coupon.discount_value.toLocaleString("ko-KR")}원 할인`;
-}
-
-function isDiscountCouponVisible(coupon: CustomerDiscountCoupon, todayKey: string) {
-  if (!coupon.enabled || !coupon.visible || coupon.discount_value <= 0) return false;
-  if (coupon.starts_at && coupon.starts_at > todayKey) return false;
-  if (coupon.ends_at && coupon.ends_at < todayKey) return false;
-  return true;
-}
-
 function parseBreedGuideNote(note: string) {
   const breeds = note
     .split(/[,，、]/)
@@ -496,10 +489,31 @@ export default function CustomerBookingEntryPage({
   );
   const visibleDiscountCoupons = useMemo(() => {
     const todayKey = getSeoulDateKey();
-    return (settings.discount_coupons ?? [])
-      .filter((coupon) => isDiscountCouponVisible(coupon, todayKey))
-      .slice(0, 3);
+    return filterDiscountCouponsForVisitType(settings.discount_coupons ?? [], "unknown", todayKey).slice(0, 2);
   }, [settings.discount_coupons]);
+  const hasVisitSpecificDiscount = useMemo(() => {
+    const todayKey = getSeoulDateKey();
+    return hasActiveVisitSpecificDiscountCoupon(settings.discount_coupons ?? [], todayKey);
+  }, [settings.discount_coupons]);
+  const publicBenefitCards = useMemo(
+    () => [
+      ...(hasVisitSpecificDiscount
+        ? [
+            {
+              id: "visit-specific-benefit",
+              name: "방문 이력에 맞는 혜택",
+              value: "고객 확인 후 자동 적용",
+            },
+          ]
+        : []),
+      ...visibleDiscountCoupons.map((coupon) => ({
+        id: coupon.id,
+        name: coupon.name,
+        value: formatDiscountCouponValue(coupon),
+      })),
+    ].slice(0, 3),
+    [hasVisitSpecificDiscount, visibleDiscountCoupons],
+  );
   const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
   const heroDotCount = Math.min(heroImages.length, 4);
   const visibleStaffProfileIndex = Math.min(activeStaffProfileIndex, Math.max(staffProfileCards.length - 1, 0));
@@ -952,15 +966,15 @@ export default function CustomerBookingEntryPage({
       </div>
 
       <div className="dock">
-        {visibleDiscountCoupons.length > 0 ? (
-          <div className={`benefits${visibleDiscountCoupons.length > 1 ? " is-animated" : ""}`}>
+        {publicBenefitCards.length > 0 ? (
+          <div className={`benefits${publicBenefitCards.length > 1 ? " is-animated" : ""}`}>
             <div className="benefits-track">
-              {visibleDiscountCoupons.map((coupon) => (
+              {publicBenefitCards.map((coupon) => (
                 <div className="benefit" key={coupon.id}>
                   <div className="txt">
                     <div className="name">{coupon.name}</div>
                   </div>
-                  <div className="val">{formatDiscountCouponValue(coupon)}</div>
+                  <div className="val">{coupon.value}</div>
                 </div>
               ))}
             </div>

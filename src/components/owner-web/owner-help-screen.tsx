@@ -5,7 +5,6 @@ import {
   Bug,
   HelpCircle,
   Lightbulb,
-  Mail,
   MessageSquareText,
   Send,
   UserCog,
@@ -112,6 +111,14 @@ function readSavedHelpDraft(storageKey: string) {
   }
 }
 
+function getSupportRequestErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("다른 매장 데이터")) {
+    return "현재 로그인된 오너 계정의 문의 내역만 확인할 수 있습니다. 매장 계정이 맞는지 확인해 주세요.";
+  }
+  return message || "문의 내역을 불러오지 못했습니다.";
+}
+
 function buildSystemContext(shop: BootstrapPayload["shop"], category: HelpCategory) {
   const lines = [
     `문의 유형: ${categoryLabels[category]}`,
@@ -174,7 +181,7 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
       );
       setRequests(response.requests);
     } catch (error) {
-      setRequestsError(error instanceof Error ? error.message : "문의 내역을 불러오지 못했습니다.");
+      setRequestsError(getSupportRequestErrorMessage(error));
     } finally {
       setLoadingRequests(false);
     }
@@ -295,25 +302,15 @@ export default function OwnerHelpScreen({ initialData }: { initialData: Bootstra
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div ref={contactSectionRef}>
           <WebSurface className="p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[13px] font-semibold text-[#316fe8]">1:1 문의</p>
-              <h1 className="mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">문의하기</h1>
+              <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[#111827]">문의하기</h1>
               {unreadAnswerCount > 0 ? (
                 <p className="mt-2 inline-flex rounded-[10px] border border-[#cfe4dc] bg-[#f8fdfb] px-3 py-2 text-[14px] font-semibold text-[#1f6b5b]">
                   새 답변 {unreadAnswerCount}건이 도착했습니다.
                 </p>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => void submitRequest()}
-              disabled={submitting}
-              className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#316fe8] px-3.5 text-[14px] font-semibold text-white transition hover:bg-[#245bd0] disabled:bg-[#94a3b8]"
-            >
-              <Mail className="h-4 w-4" />
-              {submitting ? "업로드 중" : "접수하기"}
-            </button>
           </div>
 
           <div className="grid gap-3">

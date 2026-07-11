@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { updateShopSettings } from "@/server/owner-mutations";
 
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    await requireOwnerShop(request, body?.shopId);
-    const result = await updateShopSettings(body);
+    const owner = await requireOwnerShop(request, body?.shopId);
+    assertOwnerOrManager(owner);
+    const result = await updateShopSettings(body, {
+      ownerUserId: owner.userId,
+      changedByUserId: owner.userId,
+    });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof OwnerApiError) {

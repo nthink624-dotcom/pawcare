@@ -128,6 +128,29 @@ function formatAlimtalkCount(value: number | null | undefined) {
   return value.toLocaleString("ko-KR");
 }
 
+function getAlimtalkIncludedProgress(summary: BootstrapPayload["alimtalkCreditSummary"]) {
+  const total = typeof summary?.included_total === "number" && Number.isFinite(summary.included_total)
+    ? Math.max(0, summary.included_total)
+    : 0;
+  const remaining = typeof summary?.included_remaining === "number" && Number.isFinite(summary.included_remaining)
+    ? Math.max(0, summary.included_remaining)
+    : 0;
+
+  if (total <= 0) {
+    return {
+      total,
+      remaining,
+      percent: 0,
+    };
+  }
+
+  return {
+    total,
+    remaining: Math.min(remaining, total),
+    percent: Math.max(0, Math.min(100, (remaining / total) * 100)),
+  };
+}
+
 function AlimtalkCreditMenu({
   summary,
   open,
@@ -140,25 +163,22 @@ function AlimtalkCreditMenu({
   containerRef?: RefObject<HTMLDivElement | null>;
 }) {
   const includedRemaining = formatAlimtalkCount(summary?.included_remaining);
+  const includedTotal = formatAlimtalkCount(summary?.included_total);
   const purchasedRemaining = formatAlimtalkCount(summary?.purchased_remaining);
   const totalRemaining = formatAlimtalkCount(summary?.remaining_total);
+  const includedProgress = getAlimtalkIncludedProgress(summary);
 
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex h-[38px] items-center gap-2 rounded-[10px] border border-[#dbe6f2] bg-white px-3 text-left transition hover:border-[var(--pm-brand-blue-border)] hover:bg-[#f8fbff]"
-        aria-label={`알림톡 잔여 건수 무료 ${includedRemaining}건, 유료 ${purchasedRemaining}건`}
-        title="알림톡 잔여 건수"
+        className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-[#dbe6f2] bg-white px-3 text-[13px] font-semibold text-[#334155] transition hover:border-[var(--pm-brand-blue-border)] hover:bg-[#f8fbff]"
+        aria-label="알림톡"
+        title="알림톡"
       >
-        <span className="text-[12px] font-semibold text-[#475569]">알림톡</span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--pm-brand-blue-soft)] px-2 py-1 text-[12px] font-semibold text-[var(--pm-brand-blue)]">
-          무료 <span className="tabular-nums">{includedRemaining}</span>
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2 py-1 text-[12px] font-semibold text-[#334155]">
-          유료 <span className="tabular-nums">{purchasedRemaining}</span>
-        </span>
+        <span>알림톡</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-[#94a3b8] transition-transform", open && "rotate-180")} strokeWidth={1.8} />
       </button>
       {open ? (
         <div className="absolute right-0 top-11 z-[80] w-[260px] rounded-[10px] border border-[var(--bd)] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.13)]">
@@ -166,12 +186,20 @@ function AlimtalkCreditMenu({
             <p className="text-[13px] font-semibold text-[var(--ink)]">알림톡 잔여 건수</p>
             <p className="mt-1 text-[12px] font-medium text-[var(--mut)]">무료 제공분을 먼저 사용하고, 부족하면 유료 충전분을 사용합니다.</p>
           </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] font-medium text-[var(--mid)]">무료 잔여</span>
-              <span className="text-[15px] font-semibold text-[var(--ink)]">
-                {includedRemaining}건
-              </span>
+          <div className="mt-3 space-y-3">
+            <div className="rounded-[9px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[13px] font-semibold text-[#334155]">무료 잔여</span>
+                <span className="text-[13px] font-bold tabular-nums text-[var(--pm-brand-blue)]">
+                  {includedRemaining}/{includedTotal}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#dbeafe]">
+                <div
+                  className="h-full rounded-full bg-[#2563eb] transition-[width]"
+                  style={{ width: `${includedProgress.percent}%` }}
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-[13px] font-medium text-[var(--mid)]">결제 잔여</span>
@@ -187,6 +215,13 @@ function AlimtalkCreditMenu({
           <p className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
             무료 제공분은 다음 결제 주기에 초기화되고, 유료 충전분은 사용 전까지 이월됩니다.
           </p>
+          <Link
+            href={{ pathname: "/owner/alimtalk-credits" }}
+            prefetch
+            className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[9px] border border-[#cbd5e1] bg-white text-[13px] font-semibold text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]"
+          >
+            알림톡 충전하기
+          </Link>
         </div>
       ) : null}
     </div>
@@ -405,11 +440,11 @@ export default function OwnerWebAppShell({
                 </p>
               </div>
               <Link
-                href="/owner/billing?compare=1"
+                href={{ pathname: "/owner/alimtalk-credits" }}
                 prefetch
                 className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
               >
-                플랜/충전 확인
+                알림톡 충전하기
               </Link>
             </div>
           </div>

@@ -1,18 +1,26 @@
 "use client";
 
-import { BellRing, CalendarCheck, ChevronLeft, ChevronRight, Clock3, Database, MessagesSquare, Sparkles } from "lucide-react";
+import { BellRing, CalendarCheck, ChevronLeft, ChevronRight, Clock3, Database, MessageSquareText, MessagesSquare, Sparkles } from "lucide-react";
 import { useState } from "react";
 
-import { type OwnerPlan, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  getOwnerPlanStaffAccountLabel,
+  getOwnerPlanStaffLimitLabel,
+  ownerPlanUsesMultiShopStaffAllowance,
+  type OwnerPlan,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 import { cn, won } from "@/lib/utils";
 
 type OwnerBillingPlanPickerProps = {
   plans: OwnerPlan[];
   currentPlanCode: OwnerPlanCode;
   selectedPlanCode: OwnerPlanCode;
+  totalShopCount: number;
   onSelectPlanCode: (code: OwnerPlanCode) => void;
   onContinue: () => void;
   onBack: () => void;
+  onOpenSupport: () => void;
   canCancelRenewal: boolean;
   cancellingRenewal: boolean;
   onCancelRenewal: () => void;
@@ -23,34 +31,24 @@ type OwnerBillingPlanPickerProps = {
 type PlanUi = {
   title: string;
   subtitle: string;
-  operatingLabel: string;
-  staffAccountLabel: string;
 };
 
 const planUiByCode: Partial<Record<OwnerPlanCode, PlanUi>> = {
   monthly: {
     title: "1인 운영",
     subtitle: "혼자 운영하는 단일 매장 기준",
-    operatingLabel: "1인 단일 매장",
-    staffAccountLabel: "없음",
   },
   quarterly: {
     title: "2~4인 운영",
     subtitle: "직원·파트타임과 함께 일하는 단일 매장 기준",
-    operatingLabel: "2~4인 단일 매장",
-    staffAccountLabel: "포함",
   },
   halfyearly: {
     title: "2~4인 운영",
     subtitle: "직원·파트타임과 함께 일하는 단일 매장 기준",
-    operatingLabel: "2~4인 단일 매장",
-    staffAccountLabel: "포함",
   },
   yearly: {
     title: "5인 이상 운영",
     subtitle: "담당자가 많은 단일 대형 매장 기준",
-    operatingLabel: "5인 이상 단일 매장",
-    staffAccountLabel: "포함",
   },
 };
 
@@ -92,8 +90,6 @@ function getPlanUi(plan: OwnerPlan): PlanUi {
     planUiByCode[plan.code] ?? {
       title: plan.title,
       subtitle: plan.targetLabel,
-      operatingLabel: plan.staffLimitLabel,
-      staffAccountLabel: "-",
     }
   );
 }
@@ -123,6 +119,7 @@ function PlanCard({
   selected,
   recommended,
   loading,
+  totalShopCount,
   onSelect,
   onContinue,
 }: {
@@ -131,10 +128,15 @@ function PlanCard({
   selected: boolean;
   recommended: boolean;
   loading: boolean;
+  totalShopCount: number;
   onSelect: () => void;
   onContinue: () => void;
 }) {
   const ui = getPlanUi(plan);
+  const usesMultiShopStaffAllowance = ownerPlanUsesMultiShopStaffAllowance(totalShopCount);
+  const subtitle = usesMultiShopStaffAllowance ? "다점포 기본 직원 1명 추가 기준" : ui.subtitle;
+  const operatingLabel = getOwnerPlanStaffLimitLabel(plan, totalShopCount);
+  const staffAccountLabel = getOwnerPlanStaffAccountLabel(plan, totalShopCount);
   const actionLabel = current ? "현재 이용 중" : selected ? "이 플랜으로 계속" : `${ui.title} 선택`;
   const badgeLabel = current ? "현재" : recommended ? "추천" : plan.code === "yearly" ? "대형" : null;
 
@@ -162,7 +164,7 @@ function PlanCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[21px] font-semibold leading-tight text-[#0f172a]">{ui.title}</h2>
-            <p className="mt-1 text-[13px] font-medium text-[#64748b]">{ui.subtitle}</p>
+            <p className="mt-1 text-[13px] font-medium text-[#64748b]">{subtitle}</p>
           </div>
           {badgeLabel ? (
             <span
@@ -192,9 +194,9 @@ function PlanCard({
       </div>
 
       <div className="mt-4 grid gap-1.5">
-        <PlanFact label="운영 기준" value={ui.operatingLabel} />
+        <PlanFact label="운영 기준" value={operatingLabel} />
         <PlanFact label="포함 알림톡" value={plan.alimtalkIncludedLabel} />
-        <PlanFact label="직원 계정·권한" value={ui.staffAccountLabel} />
+        <PlanFact label="직원 계정·권한" value={staffAccountLabel} />
       </div>
 
       <button
@@ -223,9 +225,11 @@ export function OwnerBillingPlanPicker({
   plans,
   currentPlanCode,
   selectedPlanCode,
+  totalShopCount,
   onSelectPlanCode,
   onContinue,
   onBack,
+  onOpenSupport,
   canCancelRenewal,
   cancellingRenewal,
   onCancelRenewal,
@@ -246,51 +250,49 @@ export function OwnerBillingPlanPicker({
   return (
     <div className="owner-font min-h-screen bg-[image:var(--pm-brand-blue-page-gradient)] px-4 py-3 text-[#0f172a] lg:px-6 lg:py-4">
       <div className="mx-auto w-full max-w-[1320px]">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe6f2] bg-white px-2.5 text-[13px] font-semibold text-[#475569] shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition hover:bg-[#f8fafc]"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            이전
-          </button>
-          {canCancelRenewal ? (
-            <button
-              type="button"
-              onClick={onCancelRenewal}
-              disabled={cancellingRenewal}
-              className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#e5d4d7] bg-white px-3 text-[13px] font-semibold text-[#a04455] shadow-[0_8px_18px_rgba(160,68,85,0.06)] transition hover:bg-[#fff7f8] disabled:opacity-60"
-            >
-              {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
-            </button>
-          ) : null}
-        </div>
-
         <section className="rounded-[8px] border border-[#dbe6f2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(37,99,235,0.08)] lg:px-6">
-          <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-[22px] font-semibold leading-tight text-[#0f172a] lg:text-[24px]">단일 매장 운영 인원에 맞는 플랜을 선택하세요</h1>
+          <header className="grid grid-cols-[minmax(96px,1fr)_auto_minmax(96px,1fr)] items-center gap-3 border-b border-[#e5edf5] pb-3">
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe6f2] bg-white px-2.5 text-[13px] font-semibold text-[#475569] transition hover:bg-[#f8fafc]"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                이전
+              </button>
             </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              {["기본 기능 동일", "알림톡 포함", "1개 매장 기준"].map((label) => (
-                <span key={label} className="rounded-full border border-[var(--pm-brand-blue-border)] bg-[var(--pm-brand-blue-soft)] px-2.5 py-0.5 text-[12px] font-semibold text-[var(--pm-brand-blue)]">
-                  {label}
-                </span>
-              ))}
+            <h1 className="min-w-0 text-center text-[19px] font-semibold leading-tight text-[#0f172a] lg:text-[21px]">
+              단일 매장 운영 인원에 맞는 플랜을 선택하세요
+            </h1>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={onOpenSupport}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#cfe0f5] bg-white px-3 text-[13px] font-semibold text-[#316fe8] transition hover:bg-[#f8fbff]"
+              >
+                <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+                1:1 문의
+              </button>
+              {canCancelRenewal ? (
+                <button
+                  type="button"
+                  onClick={onCancelRenewal}
+                  disabled={cancellingRenewal}
+                  className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#e5d4d7] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:bg-[#fff7f8] disabled:opacity-60"
+                >
+                  {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
+                </button>
+              ) : null}
             </div>
           </header>
 
           <section className="mt-3 rounded-[8px] border border-[#cfe0f5] bg-[#f8fbff] px-3 py-2.5">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[12px] font-semibold text-[var(--pm-brand-blue)]">모든 플랜 포함</p>
-                <h2 className="mt-0.5 text-[15px] font-semibold leading-tight text-[#0f172a]">인원이 달라도 핵심 운영 자동화는 그대로 제공합니다</h2>
-              </div>
-              <p className="text-[11.5px] font-medium leading-[18px] text-[#64748b]">가격 차이는 단일 매장의 운영 인원, 포함 알림톡, 직원 계정 기준입니다.</p>
+            <div>
+              <h2 className="text-[16px] font-semibold leading-tight text-[#0f172a]">예약·고객 관리 기능은 그대로, 매장 규모에 맞춰 선택하세요</h2>
             </div>
             <div className="mt-2 rounded-[8px] border border-[#e3edf8] bg-white px-3 py-2.5">
-              <div className="grid min-h-[64px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+              <div className="grid min-h-[78px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <button
                   type="button"
                   onClick={goPreviousFeature}
@@ -299,18 +301,18 @@ export function OwnerBillingPlanPicker({
                 >
                   <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 </button>
-                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[var(--pm-brand-blue-soft)] text-[var(--pm-brand-blue)]">
-                    <ActiveFeatureIcon className="h-5 w-5" aria-hidden="true" />
+                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pm-brand-blue-soft)] text-[var(--pm-brand-blue)]">
+                    <ActiveFeatureIcon className="h-[22px] w-[22px]" aria-hidden="true" />
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 pr-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[14px] font-semibold text-[#0f172a]">{activeFeature.title}</p>
+                      <p className="text-[15px] font-semibold text-[#0f172a]">{activeFeature.title}</p>
                       <span className="text-[11px] font-semibold text-[#94a3b8]">
                         {featureIndex + 1}/{commonFeatures.length}
                       </span>
                     </div>
-                    <p className="mt-1 text-[12px] font-medium leading-[18px] text-[#64748b]">{activeFeature.description}</p>
+                    <p className="mt-1.5 text-[13px] font-medium leading-5 text-[#64748b]">{activeFeature.description}</p>
                   </div>
                 </div>
                 <button
@@ -349,6 +351,7 @@ export function OwnerBillingPlanPicker({
                 selected={selectedPlan.code === plan.code}
                 recommended={recommendedPlanCode === plan.code}
                 loading={loading}
+                totalShopCount={totalShopCount}
                 onSelect={() => onSelectPlanCode(plan.code)}
                 onContinue={onContinue}
               />
@@ -361,6 +364,11 @@ export function OwnerBillingPlanPicker({
               동일 브랜드라도 지점이 다르거나, 타 업체 예약·고객·직원 관리를 함께 사용하는 경우에는 별도 문의가 필요합니다.
               서비스명, 직원명, 안내 문구로 타 업체나 지점을 구분해 운영하는 것도 공동 사용으로 봅니다. 외부 프리랜서는 해당 매장에서 실제 예약을 수행하는 담당자만 등록할 수 있습니다.
             </p>
+          </section>
+
+          <section className="mt-3 rounded-[8px] border border-[#cfe0f5] bg-white px-3 py-2 text-[12px] font-semibold leading-5 text-[#2563eb]">
+            선택한 플랜의 매장당 월 금액을 기준으로 2개 매장부터 10%, 3개 매장부터 20% 다점포 할인이 전체 매장에 적용되며,
+            매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
           </section>
 
           {message ? (

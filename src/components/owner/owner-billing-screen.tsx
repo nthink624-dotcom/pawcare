@@ -13,7 +13,14 @@ import {
   saveOwnerSubscriptionPreferences,
   retryOwnerSubscriptionPayment,
 } from "@/lib/billing/owner-billing-client";
-import { billableOwnerPlans, getOwnerPlanByCode, getOwnerPlanDisplayName, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  billableOwnerPlans,
+  calculateOwnerBillingAmountBreakdown,
+  getOwnerPlanByCode,
+  getOwnerPlanDisplayName,
+  getOwnerPlanStaffLimitLabel,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { env } from "@/lib/env";
 import { won } from "@/lib/utils";
@@ -225,6 +232,16 @@ export default function OwnerBillingScreen({
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedPlan = useMemo(() => getOwnerPlanByCode(selectedPlanCode) ?? initialSummary.currentPlan, [initialSummary.currentPlan, selectedPlanCode]);
+  const selectedBillingAmount = useMemo(
+    () =>
+      calculateOwnerBillingAmountBreakdown(
+        selectedPlan,
+        summary.billingAmount.multiShopDiscount.totalShopCount,
+      ),
+    [selectedPlan, summary.billingAmount.multiShopDiscount.totalShopCount],
+  );
+  const selectedMultiShopDiscount = selectedBillingAmount.multiShopDiscount;
+  const selectedStaffLimitLabel = getOwnerPlanStaffLimitLabel(selectedPlan, selectedMultiShopDiscount.totalShopCount);
   const isFreePlan = selectedPlan.code === "free";
   const usesOneTimePayment = selectedPlan.billingType === "one_time";
   const selectedPlanLabel = getOwnerPlanDisplayName(selectedPlan.code);
@@ -287,7 +304,7 @@ export default function OwnerBillingScreen({
       ];
   const paymentSheetAmountLabel = usesOneTimePayment
     ? `총 ${won(selectedPlan.totalPrice)}`
-    : `월 ${won(selectedPlan.monthlyPrice)}`;
+    : `월 ${won(selectedBillingAmount.monthlyTotalAmount)}`;
   const canCancelRenewal =
     summary.currentPlan.billingType === "subscription" &&
     summary.currentPlanCode !== "free" &&
@@ -703,12 +720,14 @@ export default function OwnerBillingScreen({
           plans={billableOwnerPlans}
           currentPlanCode={summary.currentPlanCode}
           selectedPlanCode={selectedPlanCode}
+          totalShopCount={summary.billingAmount.multiShopDiscount.totalShopCount}
           onSelectPlanCode={setSelectedPlanCode}
           onContinue={() => {
             setMessage(null);
             setSelectionStep("agreement");
           }}
           onBack={() => router.push("/owner")}
+          onOpenSupport={() => router.push("/owner?screen=help")}
           canCancelRenewal={canCancelRenewal}
           cancellingRenewal={cancellingRenewal}
           onCancelRenewal={openCancelRenewalDialog}
@@ -730,14 +749,41 @@ export default function OwnerBillingScreen({
         <div className="mt-5 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
           <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
           <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{selectedPlanLabel}</p>
-          <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[#18211f]">월 {won(selectedPlan.monthlyPrice)}</p>
+          <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[#18211f]">
+            월 {won(selectedBillingAmount.monthlyTotalAmount)}
+          </p>
           <p className="mt-1 text-sm leading-6 text-[#6e6a61]">다음 결제 기준일 {projectedServiceEndDate}</p>
+          <div className="mt-3 rounded-[16px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
+            <div className="flex items-center justify-between gap-3 text-[13px]">
+              <span className="font-medium text-[#64748b]">총 매장 수</span>
+              <span className="font-semibold text-[#111827]">{selectedMultiShopDiscount.totalShopCount}개</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
+              <span className="font-medium text-[#64748b]">매장 정가</span>
+              <span className="font-semibold text-[#111827]">월 {won(selectedMultiShopDiscount.perShopListMonthlyPrice)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
+              <span className="font-medium text-[#64748b]">할인 전 금액</span>
+              <span className="font-semibold text-[#111827]">월 {won(selectedMultiShopDiscount.subtotalBeforeDiscount)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
+              <span className="font-medium text-[#64748b]">다점포 할인</span>
+              <span className="font-semibold text-[#2563eb]">
+                {selectedMultiShopDiscount.discountPercent > 0
+                  ? `${selectedMultiShopDiscount.discountPercent}% · -${won(selectedMultiShopDiscount.discountAmount)}`
+                  : "없음"}
+              </span>
+            </div>
+            <p className="mt-2 text-[12px] font-medium leading-5 text-[#64748b]">
+              {selectedMultiShopDiscount.appliedLabel} 매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
+            </p>
+          </div>
           <p className="mt-2 text-[13px] leading-5 text-[#6e6a61]">
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
               ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
-              : `${selectedPlan.staffLimitLabel} 기준, ${selectedPlan.alimtalkIncludedLabel} 요금제입니다.`}
+              : `${selectedStaffLimitLabel} 기준, ${selectedPlan.alimtalkIncludedLabel} 요금제입니다.`}
           </p>
         </div>
 

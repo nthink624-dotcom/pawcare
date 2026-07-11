@@ -110,6 +110,7 @@ function OwnerBillingSuccessPageContent() {
   const displayEndAt =
     summary?.currentPeriodEndsAt ?? summary?.nextBillingAt ?? snapshotEndAt ?? summary?.trialEndsAt ?? null;
   const displayMethod = summary?.paymentMethodLabel ?? snapshotMethod;
+  const displayTotalShopCount = summary?.billingAmount.multiShopDiscount.totalShopCount ?? 1;
 
   if (!displayPlan) {
     return (
@@ -124,6 +125,7 @@ function OwnerBillingSuccessPageContent() {
       plan={displayPlan}
       endAt={displayEndAt}
       paymentMethodLabel={displayMethod}
+      totalShopCount={displayTotalShopCount}
       message={message}
       onClose={() => router.push("/owner")}
       onConfirm={() => router.push("/owner")}

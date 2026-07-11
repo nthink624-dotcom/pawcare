@@ -21,8 +21,9 @@ import StaffManagementScreen from "@/components/owner-web/staff-management-scree
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
-import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
@@ -43,6 +44,30 @@ function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null 
   if (screen === "benefits") return "benefits";
   if (screen === "alerts") return "alerts";
   return null;
+}
+
+function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
+  if (isDemoOwnerWebData(data)) return false;
+  const priceGuideOptions = buildCustomerServiceSourceOptions(data.services, { priceGuideOnly: true });
+  if (priceGuideOptions.length === 0) return true;
+
+  const hasOperationalData =
+    (data.guardians?.length ?? 0) > 0 ||
+    (data.pets?.length ?? 0) > 0 ||
+    (data.appointments?.length ?? 0) > 0 ||
+    (data.groomingRecords?.length ?? 0) > 0;
+  const hasConfiguredCustomerMenu = Object.keys(data.shop.customer_page_settings.customer_service_overrides ?? {}).length > 0;
+
+  return !hasOperationalData && !hasConfiguredCustomerMenu;
+}
+
+function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
+  if (typeof window === "undefined") return "schedule";
+  const screen = new URLSearchParams(window.location.search).get("screen") as OwnerWebScreenKey | null;
+  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "services", "staff", "ownerProfile", "shopInfo", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
+    return screen;
+  }
+  return shouldStartWithPriceGuideSetup(data) ? "services" : "schedule";
 }
 
 const screenBySettingsTab: Record<SettingsTabKey, OwnerWebScreenKey> = {
@@ -92,6 +117,7 @@ function renderScreen(
   onCreateReservationForCustomer: (params: { guardianId: string; petId: string | null }) => void,
   onCreateReservationForDate: (date: string) => void,
   automaticVisitReminderAvailable: boolean,
+  priceGuideOnboarding: boolean,
 ) {
   const handleStaffScheduleOverridesChange = (staffScheduleOverrides: BootstrapPayload["staffScheduleOverrides"]) => {
     onDataChange({ ...initialData, staffScheduleOverrides });
@@ -128,6 +154,7 @@ function renderScreen(
           initialServices={initialData.services}
           staffMembers={staffMembers}
           demoMode={isDemoOwnerWebData(initialData)}
+          priceGuideOnboarding={priceGuideOnboarding}
           onServicesChange={(services) => onDataChange({ ...initialData, services })}
           onShopChange={onShopChange}
         />
@@ -186,7 +213,7 @@ export default function OwnerWebPreview({
   onDataChange?: (data: BootstrapPayload) => void;
   currentPlanCode?: string | null;
 }) {
-  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>("schedule");
+  const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>(() => getInitialOwnerWebScreen(initialData));
   const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
@@ -215,11 +242,15 @@ export default function OwnerWebPreview({
   const currentPlanMeta = subscriptionSummary
     ? subscriptionSummary.cancelAtPeriodEnd
       ? "다음 결제 취소됨"
-      : subscriptionSummary.currentPlan.staffLimitLabel
+      : getOwnerPlanStaffLimitLabel(
+          subscriptionSummary.currentPlan,
+          subscriptionSummary.billingAmount.multiShopDiscount.totalShopCount,
+        )
     : currentPlanCode
       ? "현재 이용 플랜"
       : "구독 정보 확인";
   const automaticVisitReminderAvailable = true;
+  const priceGuideOnboarding = shouldStartWithPriceGuideSetup(ownerData);
 
   useEffect(() => {
     setManualApprovalEnabled(false);
@@ -471,6 +502,7 @@ export default function OwnerWebPreview({
         handleCreateReservationForCustomer,
         handleCreateReservationForDate,
         automaticVisitReminderAvailable,
+        priceGuideOnboarding,
       )}
     </OwnerWebAppShell>
   );

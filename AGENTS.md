@@ -177,3 +177,9 @@
 - Detailed rules live in `docs/engineering/file-structure-standard.md` when present.
 
 
+
+## Shared Data Contract Rules
+- DB columns, API payloads, and frontend field names are governed by `D:\petmanager-shared\docs\data-contracts.md`.
+- Before and after PC/API/backend changes that affect shared data shape, read this contract file and update it in the same work session.
+- The mobile app must follow this contract and must not introduce arbitrary column names, local-only persistence for shared data, or direct Supabase writes that bypass the PC/backend contract.
+

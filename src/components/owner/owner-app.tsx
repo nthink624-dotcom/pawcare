@@ -908,11 +908,6 @@ export default function OwnerApp({
           settingKey: "booking_confirmed_enabled",
         },
         {
-          label: "예약 거절",
-          description: "예약을 받을 수 없을 때 고객에게 사유를 안내해요.",
-          settingKey: "booking_rejected_enabled",
-        },
-        {
           label: "예약 취소",
           description: "확정된 예약이 취소되면 바로 알려드려요.",
           settingKey: "booking_cancelled_enabled",
@@ -4890,7 +4885,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
     </div>
   );
 }
-
 
 
 

@@ -82,7 +82,6 @@ export type GuardianNotificationSettings = {
   enabled: boolean;
   revisit_enabled: boolean;
   booking_confirmed_enabled: boolean;
-  booking_rejected_enabled: boolean;
   booking_cancelled_enabled: boolean;
   booking_rescheduled_enabled: boolean;
   appointment_reminder_10m_enabled: boolean;

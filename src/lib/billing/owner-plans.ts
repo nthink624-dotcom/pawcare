@@ -30,6 +30,128 @@ export type OwnerPlan = {
 };
 
 const EXCESS_ALIMTALK_LABEL = "초과 알림톡 11원/건, 부가세 포함";
+export const OWNER_STORE_LIST_MONTHLY_PRICE = 19000;
+
+export type OwnerMultiShopDiscountBilling = {
+  totalShopCount: number;
+  perShopListMonthlyPrice: number;
+  discountRate: number;
+  discountPercent: number;
+  subtotalBeforeDiscount: number;
+  discountAmount: number;
+  finalMonthlyAmount: number;
+  policyLabel: string;
+  appliedLabel: string;
+};
+
+export type OwnerBillingAmountBreakdown = {
+  planCode: OwnerPlanCode;
+  planName: string;
+  baseMonthlyAmount: number;
+  multiShopDiscount: OwnerMultiShopDiscountBilling;
+  monthlyTotalAmount: number;
+};
+
+export function getOwnerMultiShopDiscountRate(totalShopCount: number) {
+  if (totalShopCount >= 3) return 0.2;
+  if (totalShopCount >= 2) return 0.1;
+  return 0;
+}
+
+export function calculateOwnerMultiShopDiscountBilling(
+  totalShopCount: number,
+  perShopListMonthlyPrice = OWNER_STORE_LIST_MONTHLY_PRICE,
+): OwnerMultiShopDiscountBilling {
+  const normalizedTotalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
+  const normalizedPerShopListMonthlyPrice = Math.max(
+    0,
+    Math.floor(Number.isFinite(perShopListMonthlyPrice) ? perShopListMonthlyPrice : OWNER_STORE_LIST_MONTHLY_PRICE),
+  );
+  const discountRate = getOwnerMultiShopDiscountRate(normalizedTotalShopCount);
+  const subtotalBeforeDiscount = normalizedPerShopListMonthlyPrice * normalizedTotalShopCount;
+  const discountAmount = Math.round(subtotalBeforeDiscount * discountRate);
+  const finalMonthlyAmount = subtotalBeforeDiscount - discountAmount;
+  const discountPercent = Math.round(discountRate * 100);
+
+  return {
+    totalShopCount: normalizedTotalShopCount,
+    perShopListMonthlyPrice: normalizedPerShopListMonthlyPrice,
+    discountRate,
+    discountPercent,
+    subtotalBeforeDiscount,
+    discountAmount,
+    finalMonthlyAmount,
+    policyLabel:
+      normalizedTotalShopCount >= 3
+        ? "3개 매장부터 20% 할인"
+        : normalizedTotalShopCount >= 2
+        ? "2개 매장부터 10% 할인"
+        : "1개 매장은 정가 적용",
+    appliedLabel:
+      discountPercent > 0
+        ? `현재 ${normalizedTotalShopCount}개 매장 이용 중, ${discountPercent}% 할인이 적용됐어요.`
+        : "현재 1개 매장 이용 중, 매장 정가가 적용됐어요.",
+  };
+}
+
+export function calculateOwnerBillingAmountBreakdown(
+  plan: Pick<OwnerPlan, "code" | "name" | "billingType" | "monthlyPrice" | "totalPrice">,
+  totalShopCount: number,
+): OwnerBillingAmountBreakdown {
+  const multiShopDiscount = calculateOwnerMultiShopDiscountBilling(
+    totalShopCount,
+    plan.code === "free" ? 0 : plan.monthlyPrice,
+  );
+
+  return {
+    planCode: plan.code,
+    planName: plan.name,
+    baseMonthlyAmount: multiShopDiscount.subtotalBeforeDiscount,
+    multiShopDiscount,
+    monthlyTotalAmount: multiShopDiscount.finalMonthlyAmount,
+  };
+}
+
+export function ownerPlanUsesMultiShopStaffAllowance(totalShopCount: number) {
+  const normalizedTotalShopCount = Math.max(1, Math.floor(Number.isFinite(totalShopCount) ? totalShopCount : 1));
+  return normalizedTotalShopCount >= 2;
+}
+
+export function getOwnerPlanStaffLimitLabel(
+  plan: Pick<OwnerPlan, "code" | "staffLimitLabel">,
+  totalShopCount: number,
+) {
+  if (!ownerPlanUsesMultiShopStaffAllowance(totalShopCount)) {
+    return plan.staffLimitLabel;
+  }
+
+  switch (plan.code) {
+    case "monthly":
+      return "2인 다점포 운영";
+    case "quarterly":
+    case "halfyearly":
+      return "3~5인 다점포 운영";
+    case "yearly":
+      return "6인 이상 다점포 운영";
+    default:
+      return plan.staffLimitLabel;
+  }
+}
+
+export function getOwnerPlanStaffAccountLabel(
+  plan: Pick<OwnerPlan, "code">,
+  totalShopCount: number,
+) {
+  if (plan.code === "free") {
+    return "체험 설정";
+  }
+
+  if (ownerPlanUsesMultiShopStaffAllowance(totalShopCount)) {
+    return "직원 1명 추가 포함";
+  }
+
+  return plan.code === "monthly" ? "없음" : "포함";
+}
 
 export const ownerPlanIncludedAlimtalkCredits: Record<OwnerPlanCode, number> = {
   free: 100,

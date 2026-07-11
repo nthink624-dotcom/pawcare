@@ -6,8 +6,14 @@ import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/c
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { assertOwnerOrManager, OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
 import { ownerMobileCorsJson, ownerMobileCorsPreflight } from "@/server/owner-mobile-cors";
+import {
+  assertShopIdentityChangeLimit,
+  buildShopIdentityChanges,
+  insertShopIdentityChangeEvents,
+  type ShopIdentityChange,
+} from "@/server/shop-identity-guard";
 
 const updateShopSchema = z.object({
   shopId: z.string().trim().min(1),
@@ -43,11 +49,6 @@ const updateShopSchema = z.object({
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
-}
-
-function isMissingShopIdentityChangeEventsError(error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null }) {
-  const haystack = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase();
-  return error.code === "42P01" || (haystack.includes("shop_identity_change_events") && haystack.includes("schema cache"));
 }
 
 export async function GET(request: NextRequest) {
@@ -204,6 +205,7 @@ export async function PATCH(request: NextRequest) {
       body.heroImageUrls !== undefined ? body.heroImageUrls : body.heroImageUrl !== undefined ? (body.heroImageUrl ? [body.heroImageUrl] : []) : undefined;
     const primaryHeroImageUrl = body.heroImageUrl !== undefined ? body.heroImageUrl : heroImageUrls?.[0];
     const owner = await requireOwnerShop(request, body.shopId);
+    assertOwnerOrManager(owner);
     const admin = getSupabaseAdmin();
     if (!admin) {
       throw new OwnerApiError("Supabase 관리자 연결을 확인해 주세요.", 503);
@@ -245,9 +247,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     const needsCurrentShop =
-      hasCustomerPageUpdates || body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined || body.name !== undefined || body.address !== undefined;
+      hasCustomerPageUpdates ||
+      body.cancelWindow !== undefined ||
+      body.pendingHoldLimit !== undefined ||
+      body.name !== undefined ||
+      body.phone !== undefined ||
+      body.address !== undefined ||
+      body.additionalContact !== undefined;
     let currentShop: {
       name: string | null;
+      phone: string | null;
       address: string | null;
       customer_page_settings: Record<string, unknown> | null;
       reservation_policy_settings: Record<string, unknown> | null;
@@ -256,11 +265,12 @@ export async function PATCH(request: NextRequest) {
     if (needsCurrentShop) {
       const currentShopResult = await admin
         .from("shops")
-        .select("name,address,customer_page_settings,reservation_policy_settings")
+        .select("name,phone,address,customer_page_settings,reservation_policy_settings")
         .eq("id", owner.shopId)
         .eq("owner_user_id", owner.userId)
         .maybeSingle<{
           name: string | null;
+          phone: string | null;
           address: string | null;
           customer_page_settings: Record<string, unknown> | null;
           reservation_policy_settings: Record<string, unknown> | null;
@@ -318,6 +328,46 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    const currentAdditionalContact =
+      typeof currentShop?.customer_page_settings?.additional_contact === "string"
+        ? currentShop.customer_page_settings.additional_contact
+        : "";
+    const currentAddressDetail =
+      typeof currentShop?.customer_page_settings?.address_detail === "string"
+        ? currentShop.customer_page_settings.address_detail
+        : "";
+    const nextAddressBase = body.address ?? currentShop?.address ?? "";
+    const nextAddressDetail = body.addressDetail ?? currentAddressDetail;
+    const addressCandidate =
+      body.address !== undefined || body.addressDetail !== undefined
+        ? [nextAddressBase, nextAddressDetail].map((value) => value.trim()).filter(Boolean).join(" ")
+        : undefined;
+    const currentAddressCandidate = [currentShop?.address ?? "", currentAddressDetail]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(" ");
+    const identityChanges: ShopIdentityChange[] = currentShop
+      ? buildShopIdentityChanges({
+          current: {
+            name: currentShop.name,
+            phone: currentShop.phone,
+            address: currentAddressCandidate,
+            additional_contact: currentAdditionalContact,
+          },
+          next: {
+            ...(body.name !== undefined ? { name: body.name } : {}),
+            ...(body.phone !== undefined ? { phone: body.phone } : {}),
+            ...(addressCandidate !== undefined ? { address: addressCandidate } : {}),
+            ...(body.additionalContact !== undefined ? { additional_contact: body.additionalContact } : {}),
+          },
+        })
+      : [];
+    const identityLimit = await assertShopIdentityChangeLimit({
+      admin,
+      shopId: owner.shopId,
+      changes: identityChanges,
+    });
+
     const result = await admin
       .from("shops")
       .update(updates)
@@ -344,37 +394,15 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError(result.error.message, 500);
     }
 
-    const identityChangeEvents = [
-      body.name !== undefined && currentShop && body.name !== (currentShop.name ?? "")
-        ? {
-            shop_id: owner.shopId,
-            owner_user_id: owner.userId,
-            changed_by_user_id: owner.userId,
-            field_name: "name",
-            previous_value: currentShop.name ?? "",
-            next_value: body.name,
-            metadata: { source: "owner_shop_patch" },
-          }
-        : null,
-      body.address !== undefined && currentShop && body.address !== (currentShop.address ?? "")
-        ? {
-            shop_id: owner.shopId,
-            owner_user_id: owner.userId,
-            changed_by_user_id: owner.userId,
-            field_name: "address",
-            previous_value: currentShop.address ?? "",
-            next_value: body.address,
-            metadata: { source: "owner_shop_patch" },
-          }
-        : null,
-    ].filter(Boolean);
-
-    if (identityChangeEvents.length > 0) {
-      const historyResult = await admin.from("shop_identity_change_events").insert(identityChangeEvents);
-      if (historyResult.error && !isMissingShopIdentityChangeEventsError(historyResult.error)) {
-        throw new OwnerApiError(historyResult.error.message, 500);
-      }
-    }
+    await insertShopIdentityChangeEvents({
+      admin,
+      shopId: owner.shopId,
+      ownerUserId: owner.userId,
+      changedByUserId: owner.userId,
+      changes: identityChanges,
+      changeGroupId: identityLimit.changeGroupId,
+      source: "owner_shop_patch",
+    });
 
     return ownerMobileCorsJson(request, { shop: result.data });
   } catch (error) {

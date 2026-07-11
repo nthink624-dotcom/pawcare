@@ -3,7 +3,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
-import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  calculateOwnerBillingAmountBreakdown,
+  getOwnerPlanByCode,
+  type OwnerBillingAmountBreakdown,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 import { createPortoneId } from "@/lib/billing/portone-ids";
 import {
   addMonthsIso,
@@ -85,6 +90,11 @@ type OwnerPaymentLedgerRow = {
   payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+};
+
+type OwnerBillingContext = {
+  shopCount: number;
+  billingAmount: OwnerBillingAmountBreakdown;
 };
 
 type PortonePaymentShape = {
@@ -760,8 +770,8 @@ function getBillingCycleForPlan(plan: { months: number }) {
   return plan.months === 0 ? "0m" : "1m";
 }
 
-function getChargeAmountForPlan(plan: { billingType: "one_time" | "subscription"; monthlyPrice: number; totalPrice: number }) {
-  return plan.billingType === "subscription" ? plan.monthlyPrice : plan.totalPrice;
+function getChargeAmountForBillingContext(context: OwnerBillingContext) {
+  return context.billingAmount.monthlyTotalAmount;
 }
 
 function getPeriodMonthsForPlan(plan: { billingType: "one_time" | "subscription"; months: number }) {
@@ -845,6 +855,55 @@ async function readOrCreateSubscription(identity: BillingIdentity, shopId: strin
   });
 
   return { summary, record, profile, tableReady: true };
+}
+
+function isMissingOwnerShopMembershipsError(error: { code?: string; message?: string; details?: string | null; hint?: string | null } | null | undefined) {
+  const haystack = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+  return error?.code === "42P01" || (haystack.includes("owner_shop_memberships") && haystack.includes("schema cache"));
+}
+
+async function countOwnerShops(ownerUserId: string) {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
+  }
+
+  const membershipResult = await admin
+    .from("owner_shop_memberships")
+    .select("shop_id", { count: "exact", head: true })
+    .eq("owner_user_id", ownerUserId);
+
+  if (!membershipResult.error && typeof membershipResult.count === "number") {
+    return Math.max(1, membershipResult.count);
+  }
+
+  if (membershipResult.error && !isMissingOwnerShopMembershipsError(membershipResult.error)) {
+    throw new OwnerBillingError(membershipResult.error.message, 500);
+  }
+
+  const shopsResult = await admin
+    .from("shops")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_user_id", ownerUserId);
+
+  if (shopsResult.error) {
+    throw new OwnerBillingError(shopsResult.error.message, 500);
+  }
+
+  return Math.max(1, shopsResult.count ?? 1);
+}
+
+async function buildOwnerBillingContext(identity: BillingIdentity, planCode: OwnerPlanCode) {
+  const plan = getOwnerPlanByCode(planCode) ?? getOwnerPlanByCode("monthly");
+  if (!plan) {
+    throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
+  }
+
+  const shopCount = await countOwnerShops(identity.id);
+  return {
+    shopCount,
+    billingAmount: calculateOwnerBillingAmountBreakdown(plan, shopCount),
+  } satisfies OwnerBillingContext;
 }
 
 async function persistSubscriptionRecord(identity: BillingIdentity, record: OwnerSubscriptionRecord) {
@@ -954,7 +1013,8 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
 
   const plan = getOwnerPlanByCode(record.auto_renew_plan_code) ?? getOwnerPlanByCode("monthly");
   if (!plan) return record;
-  const chargeAmount = getChargeAmountForPlan(plan);
+  const billingContext = await buildOwnerBillingContext(identity, plan.code);
+  const chargeAmount = getChargeAmountForBillingContext(billingContext);
 
   const timeToPay = record.subscription_status === "active" && record.current_period_ends_at ? record.current_period_ends_at : record.trial_ends_at;
   if (!timeToPay) return record;
@@ -976,6 +1036,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
           shopId: record.shop_id,
           planCode: plan.code,
           cycle: getBillingCycleForPlan(plan),
+          billingAmount: billingContext.billingAmount,
         }),
         noticeUrls: [buildOwnerBillingNoticeUrl()],
       },
@@ -1005,7 +1066,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
     scheduleId,
     amount: chargeAmount,
     status: "scheduled",
-    payload: { planCode: plan.code, timeToPay },
+    payload: { planCode: plan.code, timeToPay, billingAmount: billingContext.billingAmount },
   });
 
   return nextRecord;
@@ -1076,18 +1137,20 @@ function extractOwnerSubscriptionPaymentContext(payment: { customData?: string |
   return { userId, shopId, planCode, customData };
 }
 
-function buildOwnerSubscriptionSummary(
+async function buildOwnerSubscriptionSummary(
   identity: BillingIdentity,
   shopId: string,
   record: OwnerSubscriptionRecord,
   profile: OwnerProfileRecord | null,
 ) {
+  const billingContext = await buildOwnerBillingContext(identity, record.current_plan_code);
   return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
     userId: identity.id,
     shopId,
     ownerName: profile?.name ?? null,
     ownerPhoneNumber: profile?.phone_number ?? null,
     ownerEmail: identity.email ?? null,
+    billingAmount: billingContext.billingAmount,
   });
 }
 
@@ -1190,7 +1253,7 @@ async function rebuildOwnerSubscriptionFromRecentPayments(
 
       const rebuiltRecord = applySuccessfulCharge(record, context.planCode, payment.paidAt, paymentId);
       const saved = await persistSubscriptionRecord(identity, rebuiltRecord);
-      return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+      return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
     } catch {
       continue;
     }
@@ -1198,7 +1261,7 @@ async function rebuildOwnerSubscriptionFromRecentPayments(
 
   const expiredRecord = applyCancelledCharge(record, fallbackCancelledPaymentId ?? record.last_payment_id ?? `cancel_${Date.now()}`);
   const saved = await persistSubscriptionRecord(identity, expiredRecord);
-  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 function hasRecentSuccessfulCharge(record: OwnerSubscriptionRecord) {
@@ -1230,7 +1293,7 @@ export async function getOwnerSubscriptionSummary(identity: BillingIdentity, sho
   }
 
   if (record) {
-    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
   }
 
   return summary;
@@ -1288,7 +1351,7 @@ export async function updateOwnerSubscriptionPreferences(
   nextRecord.last_schedule_id = null;
 
   const saved = await persistSubscriptionRecord(identity, nextRecord);
-  const nextSummary = buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  const nextSummary = await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 
   await recordBillingEvent({
     userId: identity.id,
@@ -1339,7 +1402,7 @@ export async function cancelOwnerSubscriptionRenewal(identity: BillingIdentity, 
   }
 
   if (record.cancel_at_period_end) {
-    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
   }
 
   await cancelScheduledPayment(record);
@@ -1353,7 +1416,7 @@ export async function cancelOwnerSubscriptionRenewal(identity: BillingIdentity, 
   };
 
   const saved = await persistSubscriptionRecord(identity, nextRecord);
-  const nextSummary = buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  const nextSummary = await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 
   await recordBillingEvent({
     userId: identity.id,
@@ -1427,7 +1490,7 @@ export async function registerOwnerBillingMethod(
     payload: { planCode: saved.auto_renew_plan_code },
   });
 
-  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, shopId: string) {
@@ -1440,12 +1503,12 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   if (reconciledSummary) {
     const { record: refreshedRecord, profile: refreshedProfile } = await readOrCreateSubscription(identity, shopId);
     if (refreshedRecord && hasRecentSuccessfulCharge(refreshedRecord)) {
-      return buildOwnerSubscriptionSummary(identity, shopId, refreshedRecord, refreshedProfile);
+      return await buildOwnerSubscriptionSummary(identity, shopId, refreshedRecord, refreshedProfile);
     }
   }
 
   if (hasRecentSuccessfulCharge(record)) {
-    return buildOwnerSubscriptionSummary(identity, shopId, record, profile);
+    return await buildOwnerSubscriptionSummary(identity, shopId, record, profile);
   }
 
   const billingKeyState = readStoredBillingKeyState(record);
@@ -1468,7 +1531,8 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
   if (!plan) {
     throw new OwnerBillingError("유효한 플랜을 찾지 못했습니다.", 400);
   }
-  const chargeAmount = getChargeAmountForPlan(plan);
+  const billingContext = await buildOwnerBillingContext(identity, plan.code);
+  const chargeAmount = getChargeAmountForBillingContext(billingContext);
 
   const paymentId = createPortoneId("retry");
   const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}/billing-key`, {
@@ -1486,6 +1550,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
         shopId,
         planCode: plan.code,
         cycle: getBillingCycleForPlan(plan),
+        billingAmount: billingContext.billingAmount,
       }),
       noticeUrls: [buildOwnerBillingNoticeUrl()],
     }),
@@ -1511,10 +1576,11 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
       planCode: plan.code,
       paidAt: payment.paidAt,
       failedAt: payment.failedAt,
+      billingAmount: billingContext.billingAmount,
     },
   });
 
-  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function syncOwnerSubscriptionFromPayment(
@@ -1590,7 +1656,7 @@ export async function syncOwnerSubscriptionFromPayment(
     },
   });
 
-  return buildOwnerSubscriptionSummary(
+  return await buildOwnerSubscriptionSummary(
     {
       id: userId,
       email: userResult.data.user.email ?? null,
@@ -1660,7 +1726,7 @@ export async function resetOwnerPaymentMethod(
     },
   });
 
-  return buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+  return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
 }
 
 export async function refundOwnerLatestPayment(
@@ -1748,7 +1814,7 @@ export async function refundOwnerPayment(
     });
 
     return {
-      summary: buildOwnerSubscriptionSummary(identity, shopId, record, profile),
+      summary: await buildOwnerSubscriptionSummary(identity, shopId, record, profile),
       refundStatus: "requested" as const,
       message: "결제 취소 요청이 접수되었습니다. 잠시 후 상태를 다시 확인해 주세요.",
     };

@@ -1,13 +1,21 @@
 export type StaffDisplaySource = {
   name: string;
   displayName?: string | null;
+  profileMessage?: string | null;
+  profile_message?: string | null;
   titlePrefix?: string | null;
   position?: string | null;
   role?: string | null;
 };
 
+export const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
+
 export function getStaffCustomerName(staff: StaffDisplaySource) {
   return staff.displayName?.trim() || staff.name.trim();
+}
+
+export function getStaffProfileMessage(staff: StaffDisplaySource) {
+  return staff.profileMessage?.trim() || staff.profile_message?.trim() || defaultStaffProfileMessage;
 }
 
 export function getStaffPositionName(staff: StaffDisplaySource) {

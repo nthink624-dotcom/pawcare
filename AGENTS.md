@@ -70,13 +70,13 @@
 - Schedule boards should stay quiet and operational: white/neutral cards, light grid lines, compact staff headers, and no saturated full-card backgrounds.
 - Date navigation on owner web work surfaces should use the schedule pattern: left chevron, centered plain date text, right chevron.
 - Staff weekly schedule cells should remain compact and fixed height (`h-9`) unless explicitly approved otherwise.
-- Staff weekly schedule edit modal: keep `±âº» ±Ù¹« ¼³Á¤` collapsed by default. Show weekday/time controls only after the owner opens the dropdown header.
-- Staff weekly schedule columns are `½ºÅÂÇÁ¸í` plus weekday columns (`¿ù`, `È­`, `¼ö`, `¸ñ`, `±İ`, `Åä`, `ÀÏ`). Staff cells show name in bold and role/service as smaller muted text underneath.
+- Staff weekly schedule edit modal: keep `ê¸°ë³¸ ê·¼ë¬´ ì„¤ì •` collapsed by default. Show weekday/time controls only after the owner opens the dropdown header.
+- Staff weekly schedule columns are `ìŠ¤íƒœí”„ëª…` plus weekday columns (`ì›”`, `í™”`, `ìˆ˜`, `ëª©`, `ê¸ˆ`, `í† `, `ì¼`). Staff cells show name in bold and role/service as smaller muted text underneath.
 
 ## Status Indicator Rules
 - PetManager has exactly two reusable status indicator shapes:
-  - `»óÅÂ Á¡`: a small filled dot for compact rows and badges, usually `h-2 w-2 rounded-full`.
-  - `ÁÂÃø ¿§Áö ÀÎµğÄÉÀÌÅÍ`: a colored left border edge used on cards, schedule items, calendar items, and staff weekly schedule cells.
+  - `ìƒíƒœ ì `: a small filled dot for compact rows and badges, usually `h-2 w-2 rounded-full`.
+  - `ì¢Œì¸¡ ì—£ì§€ ì¸ë””ì¼€ì´í„°`: a colored left border edge used on cards, schedule items, calendar items, and staff weekly schedule cells.
 - The canonical card indicator is `PM_STATUS_LEFT_EDGE`.
 - `PM_STATUS_LEFT_EDGE` CSS contract:
   - parent element has `position: relative`
@@ -91,11 +91,11 @@
 - Forbidden regressions: interior vertical line, detached rail, bracket rail, pill chip, thick border, colored full-card background, gradient, heavy shadow, `border-2`, saturated focus ring, or dot-only status on schedule cards.
 - Fixed status colors:
   - emerald green `#1f9d55`: confirmed, success
-  - clear blue `#2563eb`: active work, ÁøÇà Áß
-  - violet `#7c3aed`: pickup ready, ÇÈ¾÷ ÁØºñ
-  - calm blue-gray `#607080`: ±Ù¹«`r`n  - amber `#b98121`: pending, ½ÂÀÎ´ë±â, ¿¹Á¤, ¹İÂ÷, º¯°æ, warning
-  - burgundy `#a04455`: ÈŞ¹«, Ãë¼Ò, °ÅÀı, failure
-  - slate `#64748b`: ¿Ï·á, completed
+  - clear blue `#2563eb`: active work, ì§„í–‰ ì¤‘
+  - violet `#7c3aed`: pickup ready, í”½ì—… ì¤€ë¹„
+  - calm blue-gray `#607080`: ê·¼ë¬´`r`n  - amber `#b98121`: pending, ìŠ¹ì¸ëŒ€ê¸°, ì˜ˆì •, ë°˜ì°¨, ë³€ê²½, warning
+  - burgundy `#a04455`: íœ´ë¬´, ì·¨ì†Œ, ê±°ì ˆ, failure
+  - slate `#64748b`: ì™„ë£Œ, completed
   - neutral `#b9c3cf`: unknown or inactive only
 - In PC/admin web, reuse `src/components/owner-web/status-indicators.ts` for status indicator shapes and colors. Do not hard-code alternative indicator colors in schedule, calendar, staff, or customer screens.
 
@@ -106,31 +106,31 @@
 - Grooming start and pickup-ready status changes require an owner/staff-captured photo before the status update.
 - This applies to PC web, mobile web, demo seeds, manual API calls, and future owner/staff surfaces unless the owner explicitly changes the product rule.
 - The schedule board current-work anchor must be the earliest-starting active booking whose scheduled time window contains the current time.
-- Active work statuses include `ÁøÇà Áß` and `ÇÈ¾÷ ÁØºñ`.
+- Active work statuses include `ì§„í–‰ ì¤‘` and `í”½ì—… ì¤€ë¹„`.
 - Expired active-status bookings must not become anchors.
 
 ## Staff And Schedule Data Rules
 - Owner schedule staff columns and staff filter options must come only from saved staff members.
-- Do not add synthetic columns/options such as `¹Ì¹èÁ¤` unless explicitly requested for that specific surface.
-- If exactly one staff member exists, the ´ã´ç filter should be fixed to that staff member and should not show `ÀüÃ¼ ½ºÅÂÇÁ`.
+- Do not add synthetic columns/options such as `ë¯¸ë°°ì •` unless explicitly requested for that specific surface.
+- If exactly one staff member exists, the ë‹´ë‹¹ filter should be fixed to that staff member and should not show `ì „ì²´ ìŠ¤íƒœí”„`.
 - Dense schedule views should preserve vertical time placement and non-overlap first.
 - If density increases, assign bookings to available staff/time windows rather than visually stacking overlapping cards.
 
 ## Notification And Alimtalk Rules
-- Customer-facing appointment notifications are owner-action/manual by default, except for reservation visit ¾È³» reminders defined below.
-- Reservation visit ¾È³» Alimtalk is an approved automatic product flow. Do not describe it as an owner manual-send flow.
-- Reservation visit ¾È³» must send at most one automatic ¾È³» Alimtalk per appointment, at the most appropriate timing for that appointment.
-- Do not send multiple automatic reservation ¾È³» messages for the same appointment just because several timing windows exist.
-- Automatic reservation ¾È³» timing policy:
-  - If the appointment was made well ahead of time, send one "³»ÀÏ ¿¹¾à ¾È³»" on the day before the appointment.
-  - If the appointment is made on the same day and there is enough time before the visit, send one "¿À´Ã ¿¹¾à ¾È³»".
-  - If the appointment is made close to the start time, send one "Á÷Àü ¿¹¾à ¾È³»" shortly before the visit.
-  - Once any one of the reservation ¾È³» types has been automatically sent for an appointment, do not automatically send another reservation ¾È³» for that appointment.
-- Example: if a customer books three days ahead, do not send an immediate ¾È³», a today ¾È³», and a Á÷Àü ¾È³». Send only the one scheduled day-before ¾È³» at the right timing.
-- Example: if a customer books shortly before the appointment, skip the day-before/today ¾È³» and send only the Á÷Àü ¾È³» if it is still useful.
-- Manual owner buttons for reservation ¾È³», if present, are secondary controls such as resend/test/manual override and must not be treated as the primary flow.
-- Automatic reservation ¾È³» must still respect shop notification settings, guardian/shop-level opt-out, duplicate-send prevention, approved Ssodaa template mappings, and shop Alimtalk credit balance.
-- Do not add new background cron or automatic notification categories beyond the approved reservation visit ¾È³» flow unless the owner explicitly approves that product direction.
+- Customer-facing appointment notifications are owner-action/manual by default, except for reservation visit ì•ˆë‚´ reminders defined below.
+- Reservation visit ì•ˆë‚´ Alimtalk is an approved automatic product flow. Do not describe it as an owner manual-send flow.
+- Reservation visit ì•ˆë‚´ must send at most one automatic ì•ˆë‚´ Alimtalk per appointment, at the most appropriate timing for that appointment.
+- Do not send multiple automatic reservation ì•ˆë‚´ messages for the same appointment just because several timing windows exist.
+- Automatic reservation ì•ˆë‚´ timing policy:
+  - If the appointment was made well ahead of time, send one "ë‚´ì¼ ì˜ˆì•½ ì•ˆë‚´" on the day before the appointment.
+  - If the appointment is made on the same day and there is enough time before the visit, send one "ì˜¤ëŠ˜ ì˜ˆì•½ ì•ˆë‚´".
+  - If the appointment is made close to the start time, send one "ì§ì „ ì˜ˆì•½ ì•ˆë‚´" shortly before the visit.
+  - Once any one of the reservation ì•ˆë‚´ types has been automatically sent for an appointment, do not automatically send another reservation ì•ˆë‚´ for that appointment.
+- Example: if a customer books three days ahead, do not send an immediate ì•ˆë‚´, a today ì•ˆë‚´, and a ì§ì „ ì•ˆë‚´. Send only the one scheduled day-before ì•ˆë‚´ at the right timing.
+- Example: if a customer books shortly before the appointment, skip the day-before/today ì•ˆë‚´ and send only the ì§ì „ ì•ˆë‚´ if it is still useful.
+- Manual owner buttons for reservation ì•ˆë‚´, if present, are secondary controls such as resend/test/manual override and must not be treated as the primary flow.
+- Automatic reservation ì•ˆë‚´ must still respect shop notification settings, guardian/shop-level opt-out, duplicate-send prevention, approved Ssodaa template mappings, and shop Alimtalk credit balance.
+- Do not add new background cron or automatic notification categories beyond the approved reservation visit ì•ˆë‚´ flow unless the owner explicitly approves that product direction.
 - Alimtalk usage is accounted per shop inside PetManager, not by separate Ssodaa accounts.
 - Ssodaa balance is the platform pool.
 - Each shop has an internal credit balance.

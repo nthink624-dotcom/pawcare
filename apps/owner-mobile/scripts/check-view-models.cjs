@@ -82,7 +82,7 @@ assert.equal(firstRow.petName, ownerBootstrapMock.pets.find((pet) => pet.id === 
 assert.equal(firstRow.serviceName, ownerBootstrapMock.services.find((service) => service.id === "S-full").name);
 assert.equal(firstRow.serviceDurationMinutes, 120);
 assert.equal(firstRow.status, "confirmed");
-assert.equal(firstRow.statusLabel, "?�정");
+assert.equal(firstRow.statusLabel, "?뺤젙");
 assert.equal(firstRow.section, "active");
 assert.equal(firstRow.sourceLabel, getAppointmentSourceLabel("customer"));
 assert.equal(typeof firstRow.staffLabel, "string");
@@ -149,14 +149,14 @@ assert.deepEqual(
   ["shop", "hours", "policy", "alerts", "services", "billing"],
 );
 
-assert.equal(getAppointmentStatusLabel("pending"), "?�정");
-assert.equal(getAppointmentStatusLabel("confirmed"), "?�정");
-assert.equal(getAppointmentStatusLabel("in_progress"), "미용�?);
-assert.equal(getAppointmentStatusLabel("almost_done"), "?�업 준�?);
-assert.equal(getAppointmentStatusLabel("completed"), "?�료");
-assert.equal(getAppointmentStatusLabel("cancelled"), "취소");
-assert.equal(getAppointmentStatusLabel("rejected"), "미승??);
-assert.equal(getAppointmentStatusLabel("noshow"), "?�쇼");
+assert.equal(getAppointmentStatusLabel("pending"), "?뺤젙");
+assert.equal(getAppointmentStatusLabel("confirmed"), "?뺤젙");
+assert.equal(getAppointmentStatusLabel("in_progress"), "誘몄슜以?);
+assert.equal(getAppointmentStatusLabel("almost_done"), "?쎌뾽 以鍮?);
+assert.equal(getAppointmentStatusLabel("completed"), "?꾨즺");
+assert.equal(getAppointmentStatusLabel("cancelled"), "痍⑥냼");
+assert.equal(getAppointmentStatusLabel("rejected"), "誘몄듅??);
+assert.equal(getAppointmentStatusLabel("noshow"), "?몄눥");
 assert.equal(getAppointmentStatusSection("confirmed"), "active");
 assert.equal(getAppointmentStatusSection("cancelled"), "cancelChange");
 assert.equal(isActiveAppointmentStatus("in_progress"), true);

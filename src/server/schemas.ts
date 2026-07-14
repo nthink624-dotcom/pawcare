@@ -131,7 +131,7 @@ export const shopSettingsSchema = z.object({
   concurrentCapacity: z.coerce.number().min(1).max(5),
   bookingSlotIntervalMinutes: z.coerce.number().refine(
     (value) => bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number]),
-    { message: "지?�하지 ?�는 ?�약 ?�간 간격?�니??" },
+    { message: "吏?먰븯吏 ?딅뒗 ?덉빟 ?쒓컙 媛꾧꺽?낅땲??" },
   ),
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
   bookingAvailableStartTime: z.string().default("10:00"),
@@ -169,7 +169,7 @@ export const shopSettingsSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기�? 분�? ?�약 간격보다 ?�아???�니??",
+      message: "湲곗? 遺꾩? ?덉빟 媛꾧꺽蹂대떎 ?묒븘???⑸땲??",
     });
   }
 
@@ -177,7 +177,7 @@ export const shopSettingsSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기�? 분�? 5�??�위�??�택??주세??",
+      message: "湲곗? 遺꾩? 5遺??⑥쐞濡??좏깮??二쇱꽭??",
     });
   }
 });

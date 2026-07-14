@@ -98,8 +98,8 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-[#e2e8f0] bg-white/92 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5">
-        <Link href="/landing" className="flex items-center gap-3">
-          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 day" width={132} height={36} priority />
+        <Link href="/" className="flex items-center gap-3">
+          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 Day" width={132} height={36} priority />
         </Link>
         <nav className="hidden items-center gap-7 text-[14px] font-semibold text-[#64748b] md:flex">
           <button type="button" onClick={() => scrollToSection("screens")} className="hover:text-[#111827]">

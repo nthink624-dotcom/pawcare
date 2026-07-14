@@ -34,7 +34,7 @@ type CustomerViewRow = {
   name: string;
   phone: string;
   pets: string[];
-  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "weight" | "notes" | "birthday" | "bite_level" | "grooming_cycle_weeks">>;
+  petDetails: Array<Pick<Pet, "id" | "name" | "breed" | "pricing_group" | "weight" | "notes" | "birthday" | "bite_level" | "grooming_cycle_weeks">>;
   tags: string[];
   recentVisit: string;
   recentVisitDate: string | null;
@@ -998,7 +998,7 @@ export default function CustomerManagementScreen({
   async function updatePetDetail(
     customerId: string,
     petId: string,
-    patch: { name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+    patch: { name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
   ) {
     const currentCustomer = customers.find((row) => row.id === customerId);
     const targetPet = currentCustomer?.petDetails.find((pet) => pet.id === petId);
@@ -1015,6 +1015,7 @@ export default function CustomerManagementScreen({
       ...targetPet,
       name,
       breed: patch.breed.trim(),
+      pricing_group: patch.pricingGroup.trim() || null,
       birthday: patch.birthday.trim() || null,
       weight: nextWeight,
       notes: patch.notes,
@@ -1044,6 +1045,7 @@ export default function CustomerManagementScreen({
                 ...pet,
                 name: nextPet.name,
                 breed: nextPet.breed,
+                pricing_group: nextPet.pricing_group,
                 birthday: nextPet.birthday,
                 weight: nextPet.weight,
                 notes: nextPet.notes,
@@ -1064,6 +1066,7 @@ export default function CustomerManagementScreen({
         petId,
         name: nextPet.name,
         breed: nextPet.breed || "미입력",
+        pricingGroup: nextPet.pricing_group,
         birthday: nextPet.birthday,
         weight: nextPet.weight,
         notes: nextPet.notes,

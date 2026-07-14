@@ -3,6 +3,7 @@ import type {
   Appointment,
   AppointmentStatus,
   BootstrapPayload,
+  CustomerDiscountCoupon,
   GroomingRecord,
   Guardian,
   Notification,
@@ -29,6 +30,7 @@ export type CustomerDetailModel = {
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
   notifications: Notification[];
+  discountCoupons: CustomerDiscountCoupon[];
   servicesById: Map<string, Service>;
   selectedPet: CustomerDetailPet | null;
   upcomingAppointment: Appointment | null;
@@ -125,6 +127,7 @@ export function buildCustomerDetailFromBootstrap(
     appointments,
     groomingRecords,
     notifications,
+    discountCoupons: data.shop.customer_page_settings.discount_coupons ?? [],
     servicesById,
     selectedPet,
     upcomingAppointment,

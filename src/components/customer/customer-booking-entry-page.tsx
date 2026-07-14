@@ -9,9 +9,9 @@ import {
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
 import {
-  filterDiscountCouponsForVisitType,
   formatDiscountCouponValue,
-  hasActiveVisitSpecificDiscountCoupon,
+  getDiscountCouponDisplayName,
+  isDiscountCouponActive,
 } from "@/lib/discount-coupons";
 import { fetchApiJson } from "@/lib/api";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES } from "@/lib/customer-page-settings";
@@ -487,33 +487,17 @@ export default function CustomerBookingEntryPage({
       settings.social_links?.threads_url,
     ],
   );
-  const visibleDiscountCoupons = useMemo(() => {
+  const publicBenefitCards = useMemo(() => {
     const todayKey = getSeoulDateKey();
-    return filterDiscountCouponsForVisitType(settings.discount_coupons ?? [], "unknown", todayKey).slice(0, 2);
-  }, [settings.discount_coupons]);
-  const hasVisitSpecificDiscount = useMemo(() => {
-    const todayKey = getSeoulDateKey();
-    return hasActiveVisitSpecificDiscountCoupon(settings.discount_coupons ?? [], todayKey);
-  }, [settings.discount_coupons]);
-  const publicBenefitCards = useMemo(
-    () => [
-      ...(hasVisitSpecificDiscount
-        ? [
-            {
-              id: "visit-specific-benefit",
-              name: "방문 이력에 맞는 혜택",
-              value: "고객 확인 후 자동 적용",
-            },
-          ]
-        : []),
-      ...visibleDiscountCoupons.map((coupon) => ({
+    return (settings.discount_coupons ?? [])
+      .filter((coupon) => isDiscountCouponActive(coupon, todayKey))
+      .map((coupon) => ({
         id: coupon.id,
-        name: coupon.name,
+        name: getDiscountCouponDisplayName(coupon),
         value: formatDiscountCouponValue(coupon),
-      })),
-    ].slice(0, 3),
-    [hasVisitSpecificDiscount, visibleDiscountCoupons],
-  );
+      }))
+      .slice(0, 3);
+  }, [settings.discount_coupons]);
   const visibleHeroIndex = Math.min(activeHeroIndex, Math.max(heroImages.length - 1, 0));
   const heroDotCount = Math.min(heroImages.length, 4);
   const visibleStaffProfileIndex = Math.min(activeStaffProfileIndex, Math.max(staffProfileCards.length - 1, 0));
@@ -695,7 +679,7 @@ export default function CustomerBookingEntryPage({
   }
 
   return (
-    <div className={`pm-entry-proto${visibleDiscountCoupons.length > 0 ? " has-benefits" : ""}${previewMode ? " is-preview" : ""} mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]`}>
+    <div className={`pm-entry-proto${publicBenefitCards.length > 0 ? " has-benefits" : ""}${previewMode ? " is-preview" : ""} mx-auto min-h-screen w-full max-w-[430px] bg-[#fdf7f5] text-[#3a2e2a]`}>
       <style>{`
         .pm-entry-proto{--text:#3a2e2a;--textMid:#8a7a72;--textMuted:#b6a89f;--open:#3a9e6e;--closed:#a04455;--primary:#ec7f72;--primaryDk:#d35f50;--primarySoft:#fce9e4;--surface:#fdf7f5;--track:#f6e2db;--border:#efe2dc;--borderSoft:#f5ebe6;--card:#fff;--r:14px;--rbtn:12px;position:relative;overflow:hidden}
         .pm-entry-proto .scroll{height:100dvh;overflow:auto;scrollbar-width:none;padding-bottom:102px}
@@ -754,7 +738,7 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .benefits-track{display:flex;width:max-content;gap:8px;will-change:transform}
         .pm-entry-proto .benefits.is-animated .benefits-track{animation:benefitSlide 7s ease-in-out infinite alternate}
         .pm-entry-proto .benefits:hover .benefits-track,.pm-entry-proto .benefits:focus-within .benefits-track{animation-play-state:paused}
-        .pm-entry-proto .benefit{display:flex;min-height:38px;width:305px;max-width:calc(min(100vw,430px) - 32px);flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
+        .pm-entry-proto .benefit{display:flex;min-height:38px;width:calc(min(100vw,430px) - 32px);flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;border:1px solid #f2d8d2;background:rgba(255,255,255,.72);border-radius:11px;padding:8px 11px}
         .pm-entry-proto .benefit .txt{min-width:0}
         .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}

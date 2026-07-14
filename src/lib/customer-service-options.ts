@@ -1,4 +1,5 @@
 import type { Service } from "@/types/domain";
+import { buildCustomerPriceGuideGroupKey } from "@/lib/customer-breed-pricing-group";
 
 export type CustomerServiceDisplayOverride = {
   visible?: boolean;
@@ -12,6 +13,7 @@ export type CustomerServiceSourceOption = {
   id: string;
   serviceId: string;
   name: string;
+  displayName: string;
   sourceName: string;
   category: string;
   description: string;
@@ -130,7 +132,7 @@ export function normalizeCustomerServiceOverrides(value: unknown): CustomerServi
 
 export function buildCustomerServiceSourceOptions(
   services: Service[],
-  options: { includeInactive?: boolean; priceGuideOnly?: boolean } = {},
+  options: { includeInactive?: boolean; priceGuideOnly?: boolean; priceGuideGroupKey?: string } = {},
 ): CustomerServiceSourceOption[] {
   const result: CustomerServiceSourceOption[] = [];
 
@@ -144,6 +146,8 @@ export function buildCustomerServiceSourceOptions(
       const source = section as { id?: unknown; species?: unknown; title?: unknown; weightBands?: unknown; items?: unknown };
       const speciesLabel = getPriceGuideSpeciesLabel(source.species);
       const sectionTitle = limitText(source.title, 60) || service.category || "미용";
+      const priceGuideGroupKey = buildCustomerPriceGuideGroupKey(source.species, sectionTitle);
+      if (options.priceGuideGroupKey && priceGuideGroupKey !== options.priceGuideGroupKey) continue;
       const sectionCategory = `${speciesLabel} / ${sectionTitle}`;
       const sectionId = String(source.id ?? "").trim();
       const stableSectionKey = sectionId || normalizeOptionLabelKey(sectionTitle);
@@ -183,6 +187,7 @@ export function buildCustomerServiceSourceOptions(
           id: stableOptionId,
           serviceId: service.id,
           name: displayName,
+          displayName: label,
           sourceName: displayName,
           category: sectionCategory,
           description: "",
@@ -204,6 +209,7 @@ export function buildCustomerServiceSourceOptions(
       id: service.id,
       serviceId: service.id,
       name: service.name,
+      displayName: service.name,
       sourceName: service.name,
       category: service.category || "미용",
       description: service.description || "",

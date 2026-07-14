@@ -152,6 +152,9 @@ function getAlimtalkIncludedProgress(summary: BootstrapPayload["alimtalkCreditSu
   };
 }
 
+const OWNER_HEADER_UTILITY_BUTTON_CLASS =
+  "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-transparent bg-transparent px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]";
+
 function AlimtalkCreditMenu({
   summary,
   open,
@@ -175,7 +178,7 @@ function AlimtalkCreditMenu({
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-[#dbe6f2] bg-white px-3 text-[13px] font-semibold text-[#334155] transition hover:border-[var(--pm-brand-blue-border)] hover:bg-[#f8fbff]"
+        className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
         aria-label="알림톡"
         title="알림톡"
       >
@@ -348,14 +351,6 @@ export default function OwnerWebAppShell({
         </nav>
 
         <div className="border-t border-[var(--nav-bd)] px-5 py-4">
-          <button
-            type="button"
-            onClick={() => setFeatureRequestOpen(true)}
-            className="mb-2 flex h-10 w-full items-center gap-2.5 rounded-[9px] px-3 text-left text-[13px] font-semibold text-[#475569] transition hover:bg-[#eef2f1] hover:text-[#2f7866]"
-          >
-            <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
-            기능 개선 요청
-          </button>
           <Link
             href="/owner/billing?compare=1"
             prefetch
@@ -396,7 +391,7 @@ export default function OwnerWebAppShell({
             <button
               type="button"
               onClick={() => setFeatureRequestOpen(true)}
-              className="inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef2f1] hover:text-[#2f7866]"
+              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
               <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
               기능 개선
@@ -404,7 +399,7 @@ export default function OwnerWebAppShell({
             <button
               type="button"
               onClick={onOpenHelp}
-              className="inline-flex h-[38px] items-center justify-center rounded-[10px] px-3 text-[13px] font-semibold text-[var(--mid)] transition hover:bg-[#eef1f5] hover:text-[var(--ink)]"
+              className={OWNER_HEADER_UTILITY_BUTTON_CLASS}
             >
               1:1 문의
             </button>

@@ -1,6 +1,12 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
-const OWNER_MOBILE_DEV_ORIGIN = "http://localhost:8086";
+const OWNER_MOBILE_ALLOWED_ORIGINS = new Set([
+  "http://localhost:8086",
+  "http://127.0.0.1:8086",
+  "http://localhost:3100",
+  "http://127.0.0.1:3100",
+  "capacitor://localhost",
+]);
 const READ_ONLY_METHODS = "GET, OPTIONS";
 const READ_ONLY_HEADERS = "Authorization, Content-Type, Accept";
 
@@ -14,7 +20,7 @@ function getOwnerMobileCorsHeaders(
   options: OwnerMobileCorsOptions = {},
 ): Record<string, string> {
   const origin = request.headers.get("origin");
-  if (origin !== OWNER_MOBILE_DEV_ORIGIN) return {};
+  if (!origin || !OWNER_MOBILE_ALLOWED_ORIGINS.has(origin)) return {};
 
   return {
     "Access-Control-Allow-Origin": origin,

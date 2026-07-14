@@ -9,6 +9,7 @@ export type CustomerDiscountQuoteCoupon = {
   discountValue: number;
   discountAmount: number;
   combinationPolicy: CustomerDiscountCoupon["combination_policy"];
+  serviceBenefitName?: string;
 };
 
 export type CustomerDiscountQuote = {
@@ -21,7 +22,12 @@ export type CustomerDiscountQuote = {
 };
 
 export function isDiscountCouponActive(coupon: CustomerDiscountCoupon, todayKey: string) {
-  if (!coupon.enabled || !coupon.visible || coupon.discount_value <= 0) return false;
+  if (!coupon.enabled || !coupon.visible) return false;
+  if (coupon.discount_type === "service") {
+    if (!coupon.service_benefit_name?.trim()) return false;
+  } else if (coupon.discount_value <= 0) {
+    return false;
+  }
   if (coupon.starts_at && coupon.starts_at > todayKey) return false;
   if (coupon.ends_at && coupon.ends_at < todayKey) return false;
   return true;
@@ -39,7 +45,7 @@ export function filterDiscountCouponsForVisitType(
   return coupons.filter((coupon) => {
     if (!isDiscountCouponActive(coupon, todayKey)) return false;
     if (visitType === "unknown") return !isVisitSpecificDiscountCoupon(coupon);
-    if (coupon.audience === "all" || coupon.audience === "custom") return true;
+    if (coupon.audience === "all") return true;
     return coupon.audience === visitType;
   });
 }
@@ -48,9 +54,17 @@ export function hasActiveVisitSpecificDiscountCoupon(coupons: CustomerDiscountCo
   return coupons.some((coupon) => isDiscountCouponActive(coupon, todayKey) && isVisitSpecificDiscountCoupon(coupon));
 }
 
-export function formatDiscountCouponValue(coupon: Pick<CustomerDiscountCoupon, "discount_type" | "discount_value">) {
+export function formatDiscountCouponValue(
+  coupon: Pick<CustomerDiscountCoupon, "discount_type" | "discount_value"> &
+    Partial<Pick<CustomerDiscountCoupon, "service_benefit_name">>,
+) {
+  if (coupon.discount_type === "service") return `${coupon.service_benefit_name?.trim() || "서비스"} 추가`;
   if (coupon.discount_type === "percent") return `${coupon.discount_value}% 할인`;
   return `${coupon.discount_value.toLocaleString("ko-KR")}원 할인`;
+}
+
+export function getDiscountCouponDisplayName(coupon: Pick<CustomerDiscountCoupon, "name" | "owner_label">) {
+  return coupon.owner_label?.trim() || coupon.name;
 }
 
 function couponMatchesService(coupon: CustomerDiscountCoupon, serviceOptionIds: string[]) {
@@ -60,6 +74,7 @@ function couponMatchesService(coupon: CustomerDiscountCoupon, serviceOptionIds: 
 }
 
 function calculateCouponAmount(coupon: CustomerDiscountCoupon, originalAmount: number) {
+  if (coupon.discount_type === "service") return 0;
   if (coupon.discount_type === "percent") {
     return Math.round((originalAmount * Math.min(Math.max(coupon.discount_value, 0), 100)) / 100);
   }
@@ -88,29 +103,33 @@ export function buildCustomerDiscountQuote({
     .filter((coupon) => !coupon.per_customer_limit || !usedCouponIdSet.has(coupon.id))
     .map((coupon) => ({
       id: coupon.id,
-      name: coupon.name,
+      name: getDiscountCouponDisplayName(coupon),
       discountType: coupon.discount_type,
       discountValue: coupon.discount_value,
       discountAmount: calculateCouponAmount(coupon, safeOriginalAmount),
       combinationPolicy: coupon.combination_policy,
+      serviceBenefitName: coupon.service_benefit_name?.trim() || undefined,
     }))
-    .filter((coupon) => coupon.discountAmount > 0);
+    .filter((coupon) => coupon.discountType === "service" || coupon.discountAmount > 0);
 
-  const stackableCoupons = eligibleCoupons.filter((coupon) => coupon.combinationPolicy === "stackable");
+  const serviceCoupons = eligibleCoupons.filter((coupon) => coupon.discountType === "service");
+  const monetaryCoupons = eligibleCoupons.filter((coupon) => coupon.discountType !== "service");
+  const stackableCoupons = monetaryCoupons.filter((coupon) => coupon.combinationPolicy === "stackable");
   const candidates = [
     stackableCoupons,
-    ...eligibleCoupons
+    ...monetaryCoupons
       .filter((coupon) => coupon.combinationPolicy === "exclusive")
       .map((coupon) => [coupon]),
   ].filter((candidate) => candidate.length > 0);
 
-  const appliedCoupons = candidates.reduce<CustomerDiscountQuoteCoupon[]>((best, candidate) => {
+  const appliedMonetaryCoupons = candidates.reduce<CustomerDiscountQuoteCoupon[]>((best, candidate) => {
     const bestAmount = best.reduce((sum, coupon) => sum + coupon.discountAmount, 0);
     const candidateAmount = candidate.reduce((sum, coupon) => sum + coupon.discountAmount, 0);
     if (candidateAmount > bestAmount) return candidate;
     if (candidateAmount === bestAmount && candidate.length < best.length) return candidate;
     return best;
   }, []);
+  const appliedCoupons = [...appliedMonetaryCoupons, ...serviceCoupons];
   const discountAmount = Math.min(
     appliedCoupons.reduce((sum, coupon) => sum + coupon.discountAmount, 0),
     safeOriginalAmount,

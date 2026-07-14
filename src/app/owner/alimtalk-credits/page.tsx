@@ -26,15 +26,6 @@ function count(value: number | null | undefined) {
   return value.toLocaleString("ko-KR");
 }
 
-function BalanceStat({ label, value, emphasized = false }: { label: string; value: string; emphasized?: boolean }) {
-  return (
-    <div className={cn("rounded-xl border px-4 py-3", emphasized ? "border-[#bfdbfe] bg-[#eff6ff]" : "border-[#e2e8f0] bg-white")}>
-      <p className="text-xs font-semibold text-[#64748b]">{label}</p>
-      <p className={cn("mt-1 text-2xl font-bold tracking-tight", emphasized ? "text-[#1d4ed8]" : "text-[#0f172a]")}>{value}</p>
-    </div>
-  );
-}
-
 function ProductOption({ product, selected, onSelect }: { product: AlimtalkCreditProduct; selected: boolean; onSelect: () => void }) {
   const vatAmount = product.price - product.supplyPrice;
 
@@ -44,17 +35,17 @@ function ProductOption({ product, selected, onSelect }: { product: AlimtalkCredi
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "relative flex h-full min-h-[184px] w-full flex-col overflow-hidden rounded-[10px] border bg-white p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
-        selected ? "border-[#2563eb] bg-[#f8fbff] shadow-[0_8px_20px_rgba(37,99,235,0.1)]" : "border-[#e2e8f0] hover:border-[#bfdbfe] hover:bg-[#fbfdff]",
+        "relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-[10px] border bg-white p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+        selected ? "border-[#2563eb] bg-[#fbfdff] shadow-[0_10px_24px_rgba(37,99,235,0.12)]" : "border-white/80 shadow-[0_5px_14px_rgba(37,99,235,0.06)] hover:border-[#bfdbfe]",
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[18px] font-bold text-[#0f172a]">{product.creditCount.toLocaleString("ko-KR")}건</span>
+            <span className="text-[19px] font-bold tracking-tight text-[#0f172a]">{product.creditCount.toLocaleString("ko-KR")}건</span>
             {product.badge ? <span className="rounded-md bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2563eb]">{product.badge}</span> : null}
           </div>
-          <p className="mt-1 text-[13px] font-medium text-[#64748b]">건당 {product.unitPriceBeforeVat.toLocaleString("ko-KR")}원 · VAT 별도</p>
+          <p className="mt-1 text-[13px] font-medium text-[#64748b]">건당 <span className="font-bold text-[#2563eb]">{product.unitPriceBeforeVat.toLocaleString("ko-KR")}원</span> · VAT 별도</p>
         </div>
         <span
           className={cn(
@@ -177,7 +168,7 @@ export default function OwnerAlimtalkCreditsPage() {
 
   return (
     <div className="owner-font min-h-screen bg-[#f8fafc] text-[#0f172a] lg:h-screen lg:overflow-hidden">
-      <main className="mx-auto flex min-h-screen max-w-[1160px] flex-col px-5 py-4 lg:h-screen lg:min-h-0 lg:px-8 lg:py-5">
+      <main className="mx-auto flex min-h-screen max-w-[1240px] flex-col px-5 py-4 lg:h-screen lg:min-h-0 lg:px-8 lg:py-5">
         <header className="flex h-9 shrink-0 items-center justify-between gap-3">
           <Link
             href="/owner"
@@ -187,65 +178,67 @@ export default function OwnerAlimtalkCreditsPage() {
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             운영 홈
           </Link>
-          <div className="flex items-center gap-2 text-[18px] font-bold text-[#0f172a]">
-            <BellRing className="h-4.5 w-4.5 text-[#2563eb]" aria-hidden="true" />
-            알림톡 충전
-          </div>
         </header>
 
-        <section className="mt-4 shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white px-4 py-3" aria-labelledby="balance-title">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-baseline gap-2">
-              <p id="balance-title" className="text-[13px] font-semibold text-[#64748b]">사용 가능</p>
-              <p className="text-[24px] font-bold tabular-nums tracking-tight text-[#0f172a]">
-                {count(creditSummary?.remaining_total)}<span className="ml-1 text-[13px] font-semibold text-[#64748b]">건</span>
-              </p>
+        <section className="mt-3 rounded-[14px] border border-[#dbe6ff] bg-[#eef3ff] p-5 lg:p-6" aria-labelledby="product-title">
+          <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-[13px] font-bold text-[#2563eb]">
+                <BellRing className="h-4 w-4" aria-hidden="true" />
+                알림톡 충전
+              </div>
+              <h1 id="product-title" className="mt-2 text-[28px] font-bold tracking-tight text-[#0f172a]">충전할수록 낮아지는 알림톡 단가</h1>
+              <p className="mt-1 text-[16px] font-medium text-[#334155]">최대 <span className="font-bold text-[#2563eb]">건당 7원</span></p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <BalanceStat label="무료 잔여" value={`${count(creditSummary?.included_remaining)}건`} />
-              <BalanceStat label="결제 잔여" value={`${count(creditSummary?.purchased_remaining)}건`} emphasized />
+            <div className="flex items-center gap-4 rounded-[10px] border border-white bg-white/85 px-4 py-3">
+              <div>
+                <p id="balance-title" className="text-[12px] font-semibold text-[#64748b]">사용 가능</p>
+                <p className="mt-0.5 text-[23px] font-bold tabular-nums tracking-tight text-[#0f172a]">{count(creditSummary?.remaining_total)}<span className="ml-1 text-[12px] font-semibold text-[#64748b]">건</span></p>
+              </div>
+              <div className="h-9 w-px bg-[#dbe6f2]" aria-hidden="true" />
+              <div className="grid gap-1 text-right text-[12px] font-medium text-[#64748b]">
+                <span>무료 {count(creditSummary?.included_remaining)}건</span>
+                <span>결제 {count(creditSummary?.purchased_remaining)}건</span>
+              </div>
             </div>
           </div>
-        </section>
 
-        {message ? (
-          <div
-            className={cn(
-              "mt-3 flex shrink-0 items-center gap-2 rounded-[8px] border px-3 py-2 text-[13px] font-medium",
-              message.type === "success" ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]" : "border-[#fecaca] bg-[#fff7f7] text-[#b91c1c]",
-            )}
-          >
-            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {message.text}
-          </div>
-        ) : null}
+          {message ? (
+            <div
+              className={cn(
+                "mt-3 flex shrink-0 items-center gap-2 rounded-[8px] border px-3 py-2 text-[13px] font-medium",
+                message.type === "success" ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]" : "border-[#fecaca] bg-[#fff7f7] text-[#b91c1c]",
+              )}
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {message.text}
+            </div>
+          ) : null}
 
-        <section className="mt-4 flex min-h-0 flex-1 flex-col" aria-labelledby="product-title">
-          <h2 id="product-title" className="shrink-0 text-[15px] font-bold text-[#334155]">충전 상품</h2>
-          <div className="mt-2 grid min-h-0 flex-1 gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             {alimtalkCreditProducts.map((product) => (
               <ProductOption key={product.id} product={product} selected={selectedProduct.id === product.id} onSelect={() => setSelectedProductId(product.id)} />
             ))}
           </div>
-        </section>
 
-        <aside className="mt-4 flex shrink-0 flex-wrap items-center gap-3 rounded-[10px] border border-[#dbe6f2] bg-white p-3" aria-label="선택 상품 결제">
-          <div className="mr-auto flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <p className="text-[14px] font-bold text-[#0f172a]">{selectedProduct.creditCount.toLocaleString("ko-KR")}건</p>
-            <p className="text-[13px] font-medium text-[#64748b]">공급가 {won(selectedProduct.supplyPrice)}</p>
-            <p className="text-[13px] font-medium text-[#64748b]">부가세 {won(selectedProduct.price - selectedProduct.supplyPrice)}</p>
-            <p className="text-[17px] font-bold tabular-nums text-[#2563eb]">총 {won(selectedProduct.price)}</p>
-          </div>
-          <button
-            type="button"
-            disabled={purchaseLoading}
-            onClick={() => void handlePurchase()}
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-bold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {purchaseLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />}
-            결제하기
-          </button>
-        </aside>
+          <aside className="mt-4 flex shrink-0 flex-wrap items-center gap-3 rounded-[10px] border border-white bg-white p-3" aria-label="선택 상품 결제">
+            <div className="mr-auto flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <p className="text-[14px] font-bold text-[#0f172a]">{selectedProduct.creditCount.toLocaleString("ko-KR")}건 선택</p>
+              <p className="text-[13px] font-medium text-[#64748b]">공급가 {won(selectedProduct.supplyPrice)}</p>
+              <p className="text-[13px] font-medium text-[#64748b]">부가세 {won(selectedProduct.price - selectedProduct.supplyPrice)}</p>
+              <p className="text-[18px] font-bold tabular-nums text-[#2563eb]">총 {won(selectedProduct.price)}</p>
+            </div>
+            <button
+              type="button"
+              disabled={purchaseLoading}
+              onClick={() => void handlePurchase()}
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-bold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {purchaseLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />}
+              결제하기
+            </button>
+          </aside>
+        </section>
       </main>
     </div>
   );

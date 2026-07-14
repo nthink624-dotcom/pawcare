@@ -71,8 +71,18 @@ import {
 import { computeAvailableSlots, isShopClosedOnDate } from "@/lib/availability";
 import { getDateTimePartsInTimeZone } from "@/lib/appointment-time";
 import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  applyConfiguredCustomerServiceOverrides,
+  buildCustomerServiceSourceOptions,
+} from "@/lib/customer-service-options";
+import {
+  buildCustomerDiscountQuote,
+  formatDiscountCouponValue,
+  type CustomerDiscountQuoteCoupon,
+} from "@/lib/discount-coupons";
 import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
+import { buildPetGroupOptions } from "@/lib/pet-group-options";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, Notification, NotificationType, Pet, PetBiteLevel, PetStaffNote, Service } from "@/types/domain";
 
@@ -883,10 +893,18 @@ function appointmentToDailyBooking(
     staff: staffColumn.name,
     status: appointmentStatusLabels[appointment.status] ?? appointment.status,
     date: formatScheduleDateLabel(selectedDate),
+    appointmentDate: appointment.appointment_date,
     staffKey: staffColumn.key,
     staffName: staffColumn.name,
     serviceId: appointment.service_id,
     memo: appointment.memo,
+    customerVisitType: appointment.customer_visit_type ?? null,
+    discountCouponIds: appointment.discount_coupon_ids ?? [],
+    discountCouponNames: appointment.discount_coupon_names ?? [],
+    originalServicePrice: appointment.original_service_price,
+    discountAmount: appointment.discount_amount,
+    finalServicePrice: appointment.final_service_price,
+    discountSnapshot: appointment.discount_snapshot ?? null,
     visitReminderOffsetMinutes: appointment.visit_reminder_offset_minutes ?? 10,
     pickupReadyEtaMinutes: appointment.pickup_ready_eta_minutes ?? 5,
     source: appointment.source,
@@ -964,10 +982,18 @@ type DailyBooking = {
   status: string;
   sourceStatus?: string;
   date: string;
+  appointmentDate?: string;
   staffKey: StaffKey;
   staffName: string;
   serviceId?: string;
   memo?: string;
+  customerVisitType?: "first_visit" | "revisit" | null;
+  discountCouponIds?: string[];
+  discountCouponNames?: string[];
+  originalServicePrice?: number;
+  discountAmount?: number;
+  finalServicePrice?: number;
+  discountSnapshot?: Record<string, unknown> | null;
   visitReminderOffsetMinutes?: number;
   pickupReadyEtaMinutes?: number;
   source?: "owner" | "customer";
@@ -979,6 +1005,180 @@ type DailyBooking = {
   displayMode?: "reservation-chip";
   sourceAppointmentId?: string;
 };
+
+type BookingBenefitSummary = {
+  visitType: "first_visit" | "revisit" | null;
+  sourceLabel: string;
+  originalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  coupons: Array<{
+    id: string;
+    name: string;
+    valueLabel?: string;
+    amount?: number;
+  }>;
+};
+
+function formatBenefitWon(value: number) {
+  return `${Math.max(0, Math.round(value || 0)).toLocaleString("ko-KR")}원`;
+}
+
+function getVisitTypeLabel(visitType: BookingBenefitSummary["visitType"]) {
+  if (visitType === "first_visit") return "첫 방문";
+  if (visitType === "revisit") return "재방문";
+  return "방문 구분";
+}
+
+function getComparableAppointmentTime(appointment: Pick<Appointment, "appointment_date" | "appointment_time">) {
+  return `${appointment.appointment_date}T${appointment.appointment_time}`;
+}
+
+function inferBookingVisitType(data: BootstrapPayload, booking: DailyBooking): "first_visit" | "revisit" {
+  if (booking.customerVisitType === "first_visit" || booking.customerVisitType === "revisit") {
+    return booking.customerVisitType;
+  }
+
+  const bookingTime = getComparableAppointmentTime({
+    appointment_date: selectedDateValueFromBooking(booking),
+    appointment_time: formatHourLabel(booking.start),
+  });
+  const hasPriorVisit = data.appointments.some((appointment) => {
+    if (appointment.id === booking.id) return false;
+    if (booking.guardianId && appointment.guardian_id !== booking.guardianId) return false;
+    if (["cancelled", "rejected", "noshow"].includes(appointment.status)) return false;
+    return getComparableAppointmentTime(appointment) < bookingTime;
+  });
+
+  return hasPriorVisit ? "revisit" : "first_visit";
+}
+
+function selectedDateValueFromBooking(booking: DailyBooking) {
+  if (booking.appointmentDate) return booking.appointmentDate;
+  const [year, month, day] = booking.date.match(/(\d+)년\s*(\d+)월\s*(\d+)일/)?.slice(1).map(Number) ?? [];
+  if (year && month && day) return `20${String(year).padStart(2, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return currentDateInTimeZone();
+}
+
+function getUsedCouponIdsBeforeBooking(data: BootstrapPayload, booking: DailyBooking) {
+  if (!booking.guardianId) return [];
+  const bookingTime = getComparableAppointmentTime({
+    appointment_date: selectedDateValueFromBooking(booking),
+    appointment_time: formatHourLabel(booking.start),
+  });
+
+  return data.appointments
+    .filter((appointment) => appointment.id !== booking.id)
+    .filter((appointment) => appointment.guardian_id === booking.guardianId)
+    .filter((appointment) => !["cancelled", "rejected", "noshow"].includes(appointment.status))
+    .filter((appointment) => getComparableAppointmentTime(appointment) < bookingTime)
+    .flatMap((appointment) => appointment.discount_coupon_ids ?? []);
+}
+
+function parseSnapshotAppliedCoupons(value: unknown): CustomerDiscountQuoteCoupon[] {
+  if (!value || typeof value !== "object") return [];
+  const appliedCoupons = (value as { appliedCoupons?: unknown }).appliedCoupons;
+  if (!Array.isArray(appliedCoupons)) return [];
+
+  return appliedCoupons.flatMap((coupon): CustomerDiscountQuoteCoupon[] => {
+    if (!coupon || typeof coupon !== "object") return [];
+    const source = coupon as Partial<CustomerDiscountQuoteCoupon>;
+    if (!source.id || !source.name) return [];
+    return [
+      {
+        id: String(source.id),
+        name: String(source.name),
+        discountType:
+          source.discountType === "percent" || source.discountType === "service" ? source.discountType : "fixed",
+        discountValue: Number(source.discountValue) || 0,
+        discountAmount: Number(source.discountAmount) || 0,
+        combinationPolicy: source.combinationPolicy === "stackable" ? "stackable" : "exclusive",
+        serviceBenefitName:
+          typeof source.serviceBenefitName === "string" ? source.serviceBenefitName.trim() || undefined : undefined,
+      },
+    ];
+  });
+}
+
+function buildBookingBenefitSummary(data: BootstrapPayload, booking: DailyBooking): BookingBenefitSummary | null {
+  const snapshotCoupons = parseSnapshotAppliedCoupons(booking.discountSnapshot);
+  const storedCouponNames = booking.discountCouponNames ?? [];
+  const storedDiscountAmount = Number(booking.discountAmount ?? 0);
+
+  if (snapshotCoupons.length > 0 || storedCouponNames.length > 0 || storedDiscountAmount > 0) {
+    const coupons =
+      snapshotCoupons.length > 0
+        ? snapshotCoupons.map((coupon) => ({
+            id: coupon.id,
+            name: coupon.name,
+            valueLabel: formatDiscountCouponValue({
+              discount_type: coupon.discountType,
+              discount_value: coupon.discountValue,
+              service_benefit_name: coupon.serviceBenefitName,
+            }),
+            amount: coupon.discountAmount,
+          }))
+        : storedCouponNames.map((name, index) => ({
+            id: booking.discountCouponIds?.[index] ?? `${booking.id}-discount-${index}`,
+            name,
+          }));
+
+    return {
+      visitType: booking.customerVisitType ?? null,
+      sourceLabel: "예약 시 적용된 혜택",
+      originalAmount: Number(booking.originalServicePrice ?? booking.servicePrice ?? 0),
+      discountAmount: storedDiscountAmount,
+      finalAmount: Number(booking.finalServicePrice ?? Math.max(0, Number(booking.originalServicePrice ?? booking.servicePrice ?? 0) - storedDiscountAmount)),
+      coupons,
+    };
+  }
+
+  const coupons = data.shop.customer_page_settings.discount_coupons ?? [];
+  if (coupons.length === 0) return null;
+
+  const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
+    buildCustomerServiceSourceOptions(data.services, { priceGuideOnly: true }),
+    data.shop.customer_page_settings.customer_service_overrides,
+  );
+  const selectedOption =
+    customerServiceOptions.find((option) => option.serviceId === booking.serviceId) ??
+    customerServiceOptions.find((option) => option.id === booking.serviceId || option.linkedOptionId === booking.serviceId);
+  const originalAmount = selectedOption?.price ?? booking.servicePrice ?? 0;
+  if (!originalAmount) return null;
+
+  const serviceOptionIds = selectedOption
+    ? [selectedOption.id, selectedOption.linkedOptionId].filter((value): value is string => Boolean(value))
+    : [];
+  const visitType = inferBookingVisitType(data, booking);
+  const quote = buildCustomerDiscountQuote({
+    coupons,
+    visitType,
+    dateKey: selectedDateValueFromBooking(booking),
+    serviceOptionIds,
+    originalAmount,
+    usedCouponIds: getUsedCouponIdsBeforeBooking(data, booking),
+  });
+
+  if (quote.appliedCoupons.length === 0) return null;
+
+  return {
+    visitType,
+    sourceLabel: "현재 적용 가능한 혜택",
+    originalAmount: quote.originalAmount,
+    discountAmount: quote.discountAmount,
+    finalAmount: quote.finalAmount,
+    coupons: quote.appliedCoupons.map((coupon) => ({
+      id: coupon.id,
+      name: coupon.name,
+      valueLabel: formatDiscountCouponValue({
+        discount_type: coupon.discountType,
+        discount_value: coupon.discountValue,
+        service_benefit_name: coupon.serviceBenefitName,
+      }),
+      amount: coupon.discountAmount,
+    })),
+  };
+}
 
 type PendingOutOfHoursMove = {
   bookingId: string;
@@ -1340,9 +1540,13 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
   ], staffColumns);
 }
 
-function buildLocalPreviewDailyBookings(selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
+function buildLocalPreviewDailyBookings(data: BootstrapPayload, selectedDate: string, staffColumns: OwnerWebStaffColumn[]) {
   const columns = staffColumns;
   if (columns.length === 0) return [];
+
+  const persistedBookings = buildDailyBookingsFromBootstrap(data, selectedDate, {}, columns);
+  if (persistedBookings.length > 0) return persistedBookings;
+
   const previewSourceBookings = [
     ...dailyBookings,
     ...dailyBookings.map((booking, index) => {
@@ -1525,7 +1729,7 @@ function BookingSidePanel({
   ) => Promise<void>;
   onSavePetProfile: (
     booking: DailyBooking,
-    values: { name: string; breed: string; birthday: string | null; weight: number | null; biteLevel: PetBiteLevel },
+    values: { name: string; breed: string; pricingGroup: string | null; birthday: string | null; weight: number | null; biteLevel: PetBiteLevel },
   ) => Promise<void>;
   onSaveNotificationTiming: (
     booking: DailyBooking,
@@ -1577,10 +1781,10 @@ function BookingSidePanel({
   const [phoneEditing, setPhoneEditing] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
-  const [petProfileSaving, setPetProfileSaving] = useState(false);
   const [petProfileDraft, setPetProfileDraft] = useState({
     name: "",
     breed: "",
+    pricingGroup: "",
     birthday: "",
     weight: "",
     biteLevel: "none" as PetBiteLevel,
@@ -1595,6 +1799,7 @@ function BookingSidePanel({
   const selectedPet = selectedBooking?.petId
     ? bootstrapData.pets.find((pet) => pet.id === selectedBooking.petId) ?? null
     : null;
+  const petGroupOptions = buildPetGroupOptions(bootstrapData.services, selectedPet?.pricing_group);
 
   function showTemporaryDetailNotice(message: string) {
     if (detailNoticeTimerRef.current !== null) {
@@ -1721,6 +1926,7 @@ function BookingSidePanel({
     setPetProfileDraft({
       name: selectedPet?.name ?? selectedBooking.pet,
       breed: selectedPet?.breed ?? selectedBooking.petBreed ?? "",
+      pricingGroup: selectedPet?.pricing_group ?? "",
       birthday: selectedPet?.birthday ?? "",
       weight: typeof selectedPet?.weight === "number" ? String(selectedPet.weight) : "",
       biteLevel: normalizePetBiteLevel(selectedPet?.bite_level ?? selectedBooking.petBiteLevel),
@@ -1735,6 +1941,7 @@ function BookingSidePanel({
     selectedBooking?.servicePrice,
     selectedPet?.name,
     selectedPet?.breed,
+    selectedPet?.pricing_group,
     selectedPet?.birthday,
     selectedPet?.weight,
     selectedPet?.bite_level,
@@ -1803,6 +2010,7 @@ function BookingSidePanel({
           selectedGuardianNotificationSettings.booking_confirmed_enabled === false
         ? "이 고객은 예약 확정 알림톡 수신이 꺼져 있습니다."
         : null;
+  const benefitSummary = buildBookingBenefitSummary(bootstrapData, selectedBooking);
 
   async function savePhoneOnBlur() {
     if (!selectedBooking) return;
@@ -1843,7 +2051,8 @@ function BookingSidePanel({
     }
 
     const name = petProfileDraft.name.trim();
-    const breed = petProfileDraft.breed.trim();
+    const breed = selectedPet?.breed ?? selectedBooking.petBreed ?? "미입력";
+    const pricingGroup = petProfileDraft.pricingGroup.trim() || null;
     const weightText = petProfileDraft.weight.trim().replace(/,/g, ".");
     const weight = weightText ? Number.parseFloat(weightText.replace(/[^0-9.]/g, "")) : null;
 
@@ -1860,20 +2069,19 @@ function BookingSidePanel({
       return;
     }
 
-    setPetProfileSaving(true);
+    setDetailNotice("");
     try {
       await onSavePetProfile(selectedBooking, {
         name: selectedPet?.name ?? selectedBooking.pet,
-        breed: selectedPet?.breed ?? selectedBooking.petBreed ?? breed,
+        breed,
+        pricingGroup,
         birthday: petProfileDraft.birthday.trim() || null,
         weight,
         biteLevel: normalizePetBiteLevel(petProfileDraft.biteLevel),
       });
-      showTemporaryDetailNotice("저장되었습니다.");
+      setDetailNotice("");
     } catch (error) {
       showTemporaryDetailNotice(getApiErrorMessage(error, "반려동물 정보 저장 중 문제가 발생했습니다."));
-    } finally {
-      setPetProfileSaving(false);
     }
   }
 
@@ -2002,16 +2210,17 @@ function BookingSidePanel({
               </div>
             </header>
 
-            <section className="mt-5 border-b border-[#e6edf2] pb-5">
-              <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+            <section className="mt-4 border-b border-[#e6edf2] pb-4">
+              <div className="grid grid-cols-2 gap-2">
                 <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">몸무게</span>
                   <input
                     value={petProfileDraft.weight}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
+                    onBlur={() => void savePetProfile()}
                     inputMode="decimal"
                     placeholder="kg"
-                    className="h-9 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#607080]"
+                    className="h-9 w-full rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:bg-white"
                   />
                 </label>
                 <label className="block min-w-0">
@@ -2020,15 +2229,32 @@ function BookingSidePanel({
                     type="date"
                     value={petProfileDraft.birthday}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
-                    className="h-9 w-full min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#607080] [color-scheme:light]"
+                    onBlur={() => void savePetProfile()}
+                    className="h-9 w-full min-w-0 rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#94a3b8] focus:bg-white [color-scheme:light]"
                   />
                 </label>
-                <label className="col-span-2 block min-w-0">
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">그룹</span>
+                  <select
+                    value={petProfileDraft.pricingGroup}
+                    onChange={(event) => setPetProfileDraft((current) => ({ ...current, pricingGroup: event.target.value }))}
+                    onBlur={() => void savePetProfile()}
+                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#94a3b8] focus:bg-white"
+                  >
+                    {petGroupOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">입질</span>
                   <select
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
-                    className="h-9 w-full min-w-0 appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-3 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#607080]"
+                    onBlur={() => void savePetProfile()}
+                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#94a3b8] focus:bg-white"
                   >
                     {(["none", "mild", "watch", "bite", "strong"] as PetBiteLevel[]).map((level) => (
                       <option key={level} value={level}>
@@ -2045,15 +2271,40 @@ function BookingSidePanel({
               ) : null}
             </section>
 
-            <section className="pt-5">
-              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">서비스 내역</h3>
+            {benefitSummary ? (
+              <section className="pt-3">
+                <div className="border-y border-[#e6edf2] py-2.5">
+                  <div className="grid gap-1.5">
+                    {benefitSummary.coupons.map((coupon) => (
+                      <div
+                        key={coupon.id}
+                        className="flex min-w-0 items-center justify-between gap-3 text-[14px] font-medium leading-5 text-[#334155]"
+                      >
+                        <span className="min-w-0 truncate text-[#334155]">{coupon.name}</span>
+                        <span className="shrink-0 font-medium text-[#2f7866]">
+                          {coupon.amount ? `-${formatBenefitWon(coupon.amount)}` : coupon.valueLabel ?? "혜택"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {benefitSummary.originalAmount > 0 ? (
+                    <p className="mt-1.5 text-[13px] font-normal leading-5 text-[#64748b]">
+                      {formatBenefitWon(benefitSummary.originalAmount)} → {formatBenefitWon(benefitSummary.finalAmount)}
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="pt-4">
+              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">서비스 내역</h3>
               {selectedGuardianAlimtalkBlockedReason ? (
                 <div className="mb-2 rounded-[10px] border border-[#f3c6cf] bg-[#fff7f8] px-3 py-2 text-[13px] leading-5 text-[#9f3448]">
                   {selectedGuardianAlimtalkBlockedReason} 예약 확정 알림톡은 발송되지 않습니다.
                 </div>
               ) : null}
-              <div className="mt-2 overflow-hidden rounded-[12px] border border-[#dbe2ea] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
-                <div className="flex min-w-0 items-center gap-3 bg-[#fafbfc] px-4 py-2.5 text-[16px] font-normal leading-6 text-[#334155]">
+              <div className="mt-2 overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white">
+                <div className="flex min-w-0 items-center gap-3 border-b border-[#edf2f7] bg-[#fafbfc] px-3.5 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
                     <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                     {timeRange}
@@ -2064,8 +2315,8 @@ function BookingSidePanel({
                     <span className="truncate">{staffLabel} 담당자</span>
                   </span>
                 </div>
-                <div className="grid gap-2 px-4 py-3">
-                  <label className="grid gap-1.5">
+                <div className="grid gap-2 px-3.5 py-3">
+                  <label className="grid gap-1">
                     <span className="text-[12px] font-normal leading-4 text-[#64748b]">서비스명</span>
                     <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-2">
                       <input
@@ -2079,7 +2330,7 @@ function BookingSidePanel({
                             setDetailEditMode(null);
                           }
                         }}
-                        className="h-9 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
+                        className="h-10 min-w-0 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal leading-5 text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#607080]"
                         placeholder="서비스명을 입력해 주세요"
                       />
                       <button
@@ -2089,7 +2340,7 @@ function BookingSidePanel({
                           void saveEditableDetail();
                           setDetailEditMode(null);
                         }}
-                        className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
+                        className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-medium text-[#334155] transition hover:border-[#607080] hover:text-[#0f172a] disabled:cursor-not-allowed disabled:text-[#b9c3cf]"
                       >
                         저장
                       </button>
@@ -2100,9 +2351,9 @@ function BookingSidePanel({
               {detailSaving ? <p className="mt-1.5 text-[13px] leading-5 text-[#64748b]">저장 중입니다.</p> : null}
             </section>
 
-            <section className="pt-5">
-              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">요청사항</h3>
-              <div className="mt-2 min-h-[50px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-6 text-[#334155]">
+            <section className="pt-4">
+              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">요청사항</h3>
+              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
                 {hasRequestText ? (
                   requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
@@ -2114,9 +2365,9 @@ function BookingSidePanel({
               </div>
             </section>
 
-            <section className="pt-5">
-              <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">코멘트</h3>
-              <div className="mt-2 min-h-[50px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-6 text-[#334155]">
+            <section className="pt-4">
+              <h3 className="text-[14px] font-medium leading-5 text-[#334155]">코멘트</h3>
+              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
                 {hasStaffComment ? (
                   staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
@@ -2128,12 +2379,12 @@ function BookingSidePanel({
               </div>
             </section>
 
-            <section className="pb-2 pt-5">
+            <section className="pb-2 pt-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[13px] font-medium uppercase leading-5 tracking-[0.04em] text-[#334155]">최근 방문이력</h3>
+                <h3 className="text-[14px] font-medium leading-5 text-[#334155]">최근 방문이력</h3>
                 <span className="text-[13px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
               </div>
-              <div className="mt-2 rounded-[10px] border border-[#dbe2ea] bg-white px-4 py-1">
+              <div className="mt-2 rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-1">
                 {recentVisitHistory.items.length > 0 ? (
                   recentVisitHistory.items.map((visit) => (
                     <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#edf2f7] py-3 last:border-b-0">
@@ -3559,14 +3810,14 @@ export default function CalendarManagementScreen({
   const selectedDateBookings = useMemo(
     () =>
       shouldUseOwnerWebPreviewBookings(bootstrapData)
-        ? buildLocalPreviewDailyBookings(selectedDate, visibleStaff)
+        ? buildLocalPreviewDailyBookings(bootstrapData, selectedDate, visibleStaff)
         : bootstrapData.mode === "supabase"
           ? buildDailyBookingsFromBootstrap(bootstrapData, selectedDate, staffAssignments, visibleStaff)
           : [],
     [bootstrapData, selectedDate, staffAssignments, visibleStaff],
   );
   const selectedDateBookingSource = shouldUseOwnerWebPreviewBookings(bootstrapData)
-    ? "buildLocalPreviewDailyBookings"
+    ? "buildDailyBookingsFromBootstrap"
     : bootstrapData.mode === "supabase"
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
@@ -4026,7 +4277,7 @@ export default function CalendarManagementScreen({
 
   async function persistBookingPetProfileChange(
     booking: DailyBooking,
-    values: { name: string; breed: string; birthday: string | null; weight: number | null; biteLevel: PetBiteLevel },
+    values: { name: string; breed: string; pricingGroup: string | null; birthday: string | null; weight: number | null; biteLevel: PetBiteLevel },
   ) {
     if (!booking.petId) throw new Error("반려동물 정보를 찾을 수 없습니다.");
 
@@ -4036,6 +4287,7 @@ export default function CalendarManagementScreen({
       petId: booking.petId,
       name: values.name,
       breed: values.breed,
+      pricingGroup: values.pricingGroup,
       birthday: values.birthday,
       weight: values.weight,
       biteLevel: values.biteLevel,

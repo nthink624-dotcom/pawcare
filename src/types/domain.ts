@@ -143,9 +143,10 @@ export type CustomerDiscountCoupon = {
   owner_label?: string;
   enabled: boolean;
   visible: boolean;
-  discount_type: "fixed" | "percent";
+  discount_type: "fixed" | "percent" | "service";
   discount_value: number;
-  audience: "all" | "first_visit" | "revisit" | "custom";
+  service_benefit_name?: string;
+  audience: "all" | "first_visit" | "revisit";
   combination_policy: "exclusive" | "stackable";
   service_scope: "all" | "specific";
   service_option_ids: string[];
@@ -162,6 +163,7 @@ export type BookingBlockedWindow = {
 };
 
 export type RegularClosedCycle = "weekly" | "biweekly" | "monthly_1_3" | "monthly_2_4";
+export type AiBookingRecommendationMode = "continuity" | "staff_balance" | "customer_convenience" | "custom";
 
 export type ReservationPolicySettings = {
   cancel_window: "none" | "1h" | "2h" | "6h" | "24h";
@@ -169,6 +171,8 @@ export type ReservationPolicySettings = {
   booking_blocked_windows?: BookingBlockedWindow[];
   regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
+  ai_booking_recommendation_mode?: AiBookingRecommendationMode;
+  ai_booking_custom_instruction?: string;
 };
 
 export type BusinessHours = Partial<
@@ -239,6 +243,7 @@ export type Pet = {
   guardian_id: string;
   name: string;
   breed: string;
+  pricing_group?: string | null;
   weight: number | null;
   age: number | null;
   notes: string;

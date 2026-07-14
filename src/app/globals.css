@@ -103,6 +103,7 @@ body {
 }
 
 .pm-owner-web {
+  --pm-ui-border: #dbe2ea;
   --acc: var(--pm-brand-blue);
   --acc-dk: color-mix(in oklab, var(--acc), #000 16%);
   --acc-tint: color-mix(in srgb, var(--acc) 10%, #fff);
@@ -115,11 +116,11 @@ body {
   --mid: #646a74;
   --mut: #969ba4;
   --faint: #bdc2cb;
-  --line: #e8eaef;
-  --line2: #e1e4ea;
-  --bd: #d8dce3;
+  --line: var(--pm-ui-border);
+  --line2: var(--pm-ui-border);
+  --bd: var(--pm-ui-border);
   --nav-bg: #fafbfc;
-  --nav-bd: #eaecf0;
+  --nav-bd: var(--pm-ui-border);
   --nav-ink: #3c4049;
   --nav-mut: #969ba4;
   --nav-sec: #abb0b9;
@@ -127,7 +128,7 @@ body {
   --background: var(--bg);
   --surface: var(--card);
   --muted: var(--mid);
-  --border: var(--line2);
+  --border: var(--pm-ui-border);
   --accent: var(--acc);
   --accent-soft: var(--acc-tint);
   --text: var(--ink);
@@ -136,6 +137,41 @@ body {
   --pm-scrollbar-thumb-hover: rgba(76, 94, 116, 0.68);
   --pm-scrollbar-track: transparent;
   word-break: keep-all;
+}
+
+/* PC 오너 화면의 일반 카드·입력·구분선은 하나의 중성 테두리로 유지한다. */
+.pm-owner-web :is(
+  [class*="border-[#cbd5e1]"],
+  [class*="border-[#d8dce3]"],
+  [class*="border-[#e1e4ea]"],
+  [class*="border-[#e2e8f0]"],
+  [class*="border-[#e5e7eb]"],
+  [class*="border-[#e6edf2]"],
+  [class*="border-[#edf2f7]"],
+  [class*="border-[#cfd7e3]"],
+  [class*="border-[#cfd8e3]"],
+  [class*="border-[#e8eaef]"],
+  [class*="border-[#eaecf0]"],
+  [class*="border-[#dde7f2]"],
+  [class*="border-[#e6eaf0]"]
+) {
+  border-color: var(--pm-ui-border) !important;
+}
+
+.pm-owner-web :is(
+  [class*="divide-[#cbd5e1]"],
+  [class*="divide-[#d8dce3]"],
+  [class*="divide-[#e1e4ea]"],
+  [class*="divide-[#e2e8f0]"],
+  [class*="divide-[#e5e7eb]"],
+  [class*="divide-[#e6edf2]"],
+  [class*="divide-[#edf2f7]"],
+  [class*="divide-[#cfd7e3]"],
+  [class*="divide-[#cfd8e3]"],
+  [class*="divide-[#e8eaef]"],
+  [class*="divide-[#eaecf0]"]
+) > :not(:last-child) {
+  border-color: var(--pm-ui-border) !important;
 }
 
 .pm-owner-web .bg-\[\#2f7866\],

@@ -5,8 +5,9 @@ import LandingPage from "@/components/landing/landing-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "PetManager | 반려동물 미용샵 예약·고객관리 자동화",
-  description: "반려동물 미용샵을 위한 예약, 고객관리, 알림톡 자동화 서비스와 월 요금제를 확인하세요.",
+  title: "넘친 Day | 예약이 넘쳐도, 놓치는 손님은 없게",
+  description:
+    "전화를 못 받아도 예약은 놓치지 않습니다. 예약, 보호자·반려동물 정보, 알림톡, 캘린더를 오너 화면 하나로 정리하는 넘친 Day의 실제 화면과 요금제를 확인하세요.",
 };
 
 export default async function Home({

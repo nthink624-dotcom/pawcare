@@ -672,11 +672,11 @@ export function DailyScheduleGrid({
                   }}
                   className={cn(
                     "min-w-[136px] cursor-pointer border border-t-0 border-l-0 border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 transition hover:bg-[#f8fafc]",
-                    selectedStaff && "border-b-[#c8ded8] bg-[#f4faf8] shadow-[inset_0_-2px_0_#2f7866]",
+                    selectedStaff && "border-b-[#d5dde7] bg-[#f5f7fa]",
                   )}
                   style={{ flex: columnFlexBasis }}
                 >
-                  <div className="flex min-h-[38px] items-center pl-1">
+                  <div className={cn("flex min-h-[38px] items-center", selectedStaff ? "border-l-2 border-[#607080] pl-2" : "pl-1")}>
                     <div className="min-w-0">
                       <p
                         className="min-w-0 truncate text-[14px] font-semibold leading-[18px]"
@@ -765,7 +765,7 @@ export function DailyScheduleGrid({
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
                       "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#dbe2ea] bg-white p-0 transition",
-                      selectedStaff && "bg-[#fbfdfc] shadow-[inset_0_0_0_1px_#c8ded8]",
+                      selectedStaff && "bg-[#fbfcfe]",
                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
                     style={{ flex: columnFlexBasis }}

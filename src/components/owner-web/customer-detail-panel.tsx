@@ -21,9 +21,15 @@ import {
   OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
 } from "@/components/owner-web/owner-web-action-button-styles";
-import { cn } from "@/lib/utils";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import {
+  filterDiscountCouponsForVisitType,
+  formatDiscountCouponValue,
+  type CustomerVisitType,
+} from "@/lib/discount-coupons";
 import { getPetBiteLevelLabel, normalizePetBiteLevel, petBiteLevelOptions } from "@/lib/pet-bite-level";
+import { buildPetGroupOptions, type PetGroupOption } from "@/lib/pet-group-options";
+import { cn, currentDateInTimeZone } from "@/lib/utils";
 import type { GuardianNotificationSettings, MediaAsset, MediaKind, PetBiteLevel } from "@/types/domain";
 
 type CustomerDetailPanelProps = {
@@ -35,7 +41,7 @@ type CustomerDetailPanelProps = {
   onUpdatePet: (
     guardianId: string,
     petId: string,
-    patch: { name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
+    patch: { name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string },
   ) => void | Promise<void>;
   onAddPet: (guardianId: string, payload: PetAddPayload) => void | Promise<void>;
   onDeletePet: (guardianId: string, petId: string) => void | Promise<void>;
@@ -99,12 +105,14 @@ export default function CustomerDetailPanel({
   const phone = formatPhoneNumber(detail.guardian.phone);
   const petWeightLabel = typeof selectedPet?.weight === "number" ? `${selectedPet.weight} kg` : "몸무게 미입력";
   const petBirthdayLabel = selectedPet?.birthday ? formatDate(selectedPet.birthday) : "생일 미입력";
+  const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
 
-  function buildPetPatch(patch: Partial<{ name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
+  function buildPetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
     if (!selectedPet) return null;
     return {
       name: selectedPet.name,
       breed: selectedPet.breed ?? "",
+      pricingGroup: selectedPet.pricing_group ?? "",
       birthday: selectedPet.birthday ?? "",
       weight: typeof selectedPet.weight === "number" ? String(selectedPet.weight) : "",
       notes: selectedPet.notes ?? "",
@@ -113,7 +121,7 @@ export default function CustomerDetailPanel({
     };
   }
 
-  async function savePetPatch(patch: Partial<{ name: string; breed: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
+  async function savePetPatch(patch: Partial<{ name: string; breed: string; pricingGroup: string; birthday: string; weight: string; notes: string; groomingCycleWeeks: string }>) {
     const nextPatch = buildPetPatch(patch);
     if (!selectedPet || !nextPatch) return;
     await onUpdatePet(detail.guardian.id, selectedPet.id, nextPatch);
@@ -240,9 +248,13 @@ export default function CustomerDetailPanel({
                   onAddPet={() => setActiveAction("petAdd")}
                   onEditPet={() => setActiveAction("petEdit")}
                   onDeletePet={() => void onDeletePet(detail.guardian.id, selectedPet.id)}
+                  petGroupOptions={petGroupOptions}
+                  onUpdatePetGroup={(pricingGroup) => savePetPatch({ pricingGroup })}
                   onUpdatePetBiteLevel={(biteLevel) => onUpdatePetBiteLevel(detail.guardian.id, selectedPet.id, biteLevel)}
                   onSavePetNotes={(notes) => savePetPatch({ notes })}
                 />
+
+                <CustomerBenefitsCard detail={detail} />
 
                 <GroomingRecordsCard detail={detail} photoSummaries={photoSummaries} onOpenRecord={openGroomingRecord} />
               </div>
@@ -404,6 +416,8 @@ function PetOverviewSection({
   onAddPet,
   onEditPet,
   onDeletePet,
+  petGroupOptions,
+  onUpdatePetGroup,
   onUpdatePetBiteLevel,
   onSavePetNotes,
 }: {
@@ -416,6 +430,8 @@ function PetOverviewSection({
   onAddPet: () => void;
   onEditPet: () => void;
   onDeletePet: () => void;
+  petGroupOptions: PetGroupOption[];
+  onUpdatePetGroup: (pricingGroup: string) => void | Promise<void>;
   onUpdatePetBiteLevel: (biteLevel: PetBiteLevel) => void;
   onSavePetNotes: (notes: string) => void | Promise<void>;
 }) {
@@ -507,8 +523,11 @@ function PetOverviewSection({
 
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <PetGroupSelector value={selectedPet.pricing_group || "미입력"} options={petGroupOptions} onChange={onUpdatePetGroup} />
         <BiteLevelSelector value={normalizePetBiteLevel(selectedPet.bite_level)} onChange={onUpdatePetBiteLevel} />
+      </div>
+      <div className="mt-3">
         <CustomerQuickFacts detail={detail} />
       </div>
     </section>
@@ -633,6 +652,31 @@ function BiteLevelSelector({ value, onChange }: { value: PetBiteLevel; onChange:
         })}
       </div>
     </div>
+  );
+}
+
+function PetGroupSelector({ value, options, onChange }: { value: string; options: PetGroupOption[]; onChange: (value: string) => void | Promise<void> }) {
+  const selectOptions = options.some((option) => option.value === value)
+    ? options
+    : value
+      ? [{ value, label: value }, ...options]
+      : options;
+
+  return (
+    <label className="block w-full border-t border-[#edf2f7] pt-3">
+      <span className="mb-2 block text-[16px] font-normal text-[#111827]">그룹</span>
+      <select
+        value={value || selectOptions[0]?.value || ""}
+        onChange={(event) => void onChange(event.target.value)}
+        className="h-9 w-full appearance-none rounded-[8px] border border-[#dbe2ea] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none transition focus:border-[#2f7866]"
+      >
+        {selectOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -797,6 +841,72 @@ function CustomerQuickFacts({ detail }: { detail: CustomerDetailModel }) {
       ))}
     </div>
   );
+}
+
+function CustomerBenefitsCard({ detail }: { detail: CustomerDetailModel }) {
+  if (detail.discountCoupons.length === 0) return null;
+
+  const visitType = getCustomerDetailVisitType(detail);
+  const usedCouponIds = new Set(
+    (detail.selectedPet?.appointments ?? detail.appointments).flatMap((appointment) => appointment.discount_coupon_ids ?? []),
+  );
+  const benefitItems = filterDiscountCouponsForVisitType(detail.discountCoupons, visitType, currentDateInTimeZone())
+    .filter((coupon) => !coupon.per_customer_limit || !usedCouponIds.has(coupon.id))
+    .map((coupon) => ({
+      id: coupon.id,
+      name: coupon.owner_label || coupon.name,
+      value: formatDiscountCouponValue(coupon),
+      targetLabel: coupon.service_scope === "specific" ? "서비스 지정" : "전체 서비스",
+      audienceLabel: getCustomerBenefitAudienceLabel(coupon.audience),
+    }));
+
+  return (
+    <SectionCard
+      title="적용 가능한 혜택"
+      action={
+        <span className="rounded-full bg-[#eef7f4] px-2.5 py-1 text-[15px] font-normal leading-5 text-[#2f7866]">
+          {visitType === "revisit" ? "재방문" : "첫 방문"}
+        </span>
+      }
+    >
+      {benefitItems.length > 0 ? (
+        <div className="grid gap-2 p-3 md:grid-cols-2">
+          {benefitItems.map((item) => (
+            <div key={item.id} className="rounded-[8px] border border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2.5">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[16px] font-normal leading-6 text-[#111827]">{item.name}</p>
+                  <p className="mt-0.5 text-[15px] leading-5 text-[#64748b]">
+                    {item.audienceLabel} · {item.targetLabel}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[16px] font-normal leading-6 text-[#2f7866]">{item.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="현재 적용 가능한 혜택이 없습니다" description="혜택 조건이나 1회 제한 여부를 확인해 주세요." compact />
+      )}
+    </SectionCard>
+  );
+}
+
+function getCustomerDetailVisitType(detail: CustomerDetailModel): Exclude<CustomerVisitType, "unknown"> {
+  const appointments = detail.selectedPet?.appointments ?? detail.appointments;
+  const groomingRecords = detail.selectedPet?.groomingRecords ?? detail.groomingRecords;
+  const hasVisitHistory =
+    groomingRecords.length > 0 ||
+    appointments.some((appointment) => appointment.status === "completed");
+  return hasVisitHistory ? "revisit" : "first_visit";
+}
+
+function getCustomerBenefitAudienceLabel(
+  audience: "all" | "first_visit" | "revisit",
+) {
+  if (audience === "first_visit") return "첫 방문 고객";
+  if (audience === "revisit") return "재방문 고객";
+  return "전체 고객";
 }
 
 function NotesCard({ notes, rawNotes, onCommit }: { notes: string[]; rawNotes: string; onCommit: (notes: string) => void | Promise<void> }) {
@@ -1259,6 +1369,7 @@ function ActionPanel({
   const [petDraft, setPetDraft] = useState({
     name: selectedPet?.name ?? "",
     breed: selectedPet?.breed ?? "",
+    pricingGroup: selectedPet?.pricing_group ?? "",
     birthday: selectedPet?.birthday ?? "",
     weight: typeof selectedPet?.weight === "number" ? String(selectedPet.weight) : "",
     notes: selectedPet?.notes ?? "",
@@ -1272,6 +1383,7 @@ function ActionPanel({
     biteLevel: "none",
     profilePhoto: null,
   });
+  const petGroupOptions = buildPetGroupOptions(Array.from(detail.servicesById.values()), selectedPet?.pricing_group);
   const [newPetPhotoPreviewUrl, setNewPetPhotoPreviewUrl] = useState("");
   const titleMap: Record<Exclude<DetailAction, null>, string> = {
     guardianEdit: "보호자 정보 수정",
@@ -1341,8 +1453,7 @@ function ActionPanel({
                   void runSave(() => onUpdatePet(detail.guardian.id, selectedPet.id, petDraft));
                 }}
               >
-                <FormField label="이름" value={petDraft.name} onChange={(value) => setPetDraft((current) => ({ ...current, name: value }))} />
-                <FormField label="품종" value={petDraft.breed} onChange={(value) => setPetDraft((current) => ({ ...current, breed: value }))} />
+                <SelectFormField label="가격 책정용 그룹" value={petDraft.pricingGroup} options={petGroupOptions} onChange={(value) => setPetDraft((current) => ({ ...current, pricingGroup: value }))} />
                 <div className="grid grid-cols-2 gap-2">
                   <FormField label="생년월일" value={petDraft.birthday} onChange={(value) => setPetDraft((current) => ({ ...current, birthday: value }))} placeholder="YYYY-MM-DD" />
                   <FormField label="몸무게" value={petDraft.weight} onChange={(value) => setPetDraft((current) => ({ ...current, weight: value }))} placeholder="kg" />
@@ -1448,6 +1559,41 @@ function FormField({
           className="h-10 w-full rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
         />
       )}
+    </label>
+  );
+}
+
+function SelectFormField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: PetGroupOption[];
+  onChange: (value: string) => void;
+}) {
+  const selectOptions = options.some((option) => option.value === value)
+    ? options
+    : value
+      ? [{ value, label: value }, ...options]
+      : options;
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[16px] text-[#64748b]">{label}</span>
+      <select
+        value={value || selectOptions[0]?.value || ""}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full appearance-none rounded-[8px] border border-[#cfd8e3] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-[16px] text-[#111827] outline-none focus:border-[#2f7866]"
+      >
+        {selectOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

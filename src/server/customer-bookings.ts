@@ -8,6 +8,7 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import {
   addDate,
   currentDateInTimeZone,
@@ -570,6 +571,7 @@ export async function createCustomerBooking(
       phone: payload.phone,
       serviceId: payload.serviceId,
       customerServiceOptionId: payload.customerServiceOptionId,
+      breed: payload.breed,
       appointmentDate: payload.appointmentDate,
     }));
 
@@ -586,8 +588,12 @@ export async function createCustomerBooking(
 
   const fallbackServiceId = bootstrap.services[0]?.id;
   const usesCustomService = payload.serviceId === "__custom__";
+  const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
   const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
-    buildCustomerServiceSourceOptions(bootstrap.services, { priceGuideOnly: true }),
+    buildCustomerServiceSourceOptions(bootstrap.services, {
+      priceGuideOnly: true,
+      priceGuideGroupKey: pricingGroup?.key,
+    }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   const selectedCustomerServiceOption = payload.customerServiceOptionId

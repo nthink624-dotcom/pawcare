@@ -202,12 +202,13 @@ export function AssetIcon({ src, className }: { src: string; className?: string 
   );
 }
 
-export function PrimaryButton({ label, onClick, icon }: { label: string; onClick?: () => void; icon?: ReactNode }) {
+export function PrimaryButton({ label, onClick, icon, disabled = false }: { label: string; onClick?: () => void; icon?: ReactNode; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS}
+      disabled={disabled}
+      className={cn(OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS, "disabled:cursor-not-allowed disabled:opacity-40")}
     >
       {icon}
       {label}

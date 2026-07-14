@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
+import AiBookingRecommendationSettings from "@/components/owner-web/ai-booking-recommendation-settings";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizeBookingBlockedWindows, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { cn } from "@/lib/utils";
@@ -1218,6 +1219,15 @@ export default function OperatingHoursSettings({
             </div>
           </div>
         </WebSurface>
+      ) : null}
+
+      {activeTab === "booking" ? (
+        <AiBookingRecommendationSettings
+          shop={shop}
+          onShopChange={onShopChange}
+          persistToSupabase={persistToSupabase}
+          compact={compact}
+        />
       ) : null}
     </div>
   );

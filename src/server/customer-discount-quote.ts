@@ -8,6 +8,7 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import { getBootstrap } from "@/server/bootstrap";
 
@@ -17,6 +18,7 @@ export const customerDiscountQuoteInputSchema = z.object({
   phone: z.string().trim().min(10),
   serviceId: z.string().min(1),
   customerServiceOptionId: z.string().trim().optional().default(""),
+  breed: z.string().trim().optional().default(""),
   appointmentDate: z.string().trim().optional().default(""),
 });
 
@@ -52,8 +54,12 @@ export async function quoteCustomerDiscount(input: unknown): Promise<CustomerDis
       appointment.status !== "noshow",
   );
   const visitType = priorAppointments.length > 0 ? "revisit" : "first_visit";
+  const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
   const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
-    buildCustomerServiceSourceOptions(bootstrap.services, { priceGuideOnly: true }),
+    buildCustomerServiceSourceOptions(bootstrap.services, {
+      priceGuideOnly: true,
+      priceGuideGroupKey: pricingGroup?.key,
+    }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
   if (payload.serviceId === "__custom__") {

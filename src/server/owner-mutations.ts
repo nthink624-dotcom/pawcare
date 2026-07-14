@@ -13,6 +13,7 @@ import {
   normalizeShopNotificationSettings,
 } from "@/lib/notification-settings";
 import { hasBlockedWindowOverlap, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
+import { getStaffBookingLoads } from "@/lib/staff-booking-load";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { addDate, currentDateInTimeZone, currentMinutesInTimeZone, minutesFromTime, nowIso, timeFromMinutes } from "@/lib/utils";
@@ -48,8 +49,11 @@ const scheduleActiveStatuses = ["confirmed", "in_progress", "almost_done"] as co
 const defaultVisitReminderOffsetMinutes = 10;
 const defaultPickupReadyEtaMinutes = 5;
 
-function isMissingPetBiteLevelColumn(error: { message?: string; code?: string } | null | undefined) {
-  return Boolean(error?.message?.includes("bite_level") && error.message.includes("schema cache"));
+function isMissingPetProfileColumn(error: { message?: string; code?: string } | null | undefined) {
+  return Boolean(
+    error?.message?.includes("schema cache") &&
+      (error.message.includes("bite_level") || error.message.includes("pricing_group")),
+  );
 }
 
 function buildAppointmentWindow(date: string, time: string, durationMinutes: number) {
@@ -1353,6 +1357,7 @@ export async function createPet(input: unknown) {
     guardian_id: payload.guardianId,
     name: payload.name,
     breed: payload.breed,
+    pricing_group: payload.pricingGroup ?? null,
     weight: payload.weight ?? null,
     age: payload.age ?? null,
     notes: payload.notes ?? "",
@@ -1381,9 +1386,9 @@ export async function createPet(input: unknown) {
 
   const { data, error } = await supabase.from("pets").insert(pet).select("*").single();
   if (error) {
-    if (isMissingPetBiteLevelColumn(error)) {
-      const { bite_level: _biteLevel, ...petWithoutBiteLevel } = pet;
-      const retry = await supabase.from("pets").insert(petWithoutBiteLevel).select("*").single();
+    if (isMissingPetProfileColumn(error)) {
+      const { bite_level: _biteLevel, pricing_group: _pricingGroup, ...petWithoutProfileFields } = pet;
+      const retry = await supabase.from("pets").insert(petWithoutProfileFields).select("*").single();
       if (retry.error) throw new Error(retry.error.message);
       return retry.data;
     }
@@ -1402,6 +1407,7 @@ export async function updatePet(input: unknown) {
 
     pet.name = payload.name;
     pet.breed = payload.breed;
+    if (payload.pricingGroup !== undefined) pet.pricing_group = payload.pricingGroup;
     pet.birthday = payload.birthday ?? null;
     if (payload.weight !== undefined) pet.weight = payload.weight;
     if (payload.age !== undefined) pet.age = payload.age;
@@ -1421,6 +1427,7 @@ export async function updatePet(input: unknown) {
     .update({
       name: payload.name,
       breed: payload.breed,
+      ...(payload.pricingGroup !== undefined ? { pricing_group: payload.pricingGroup } : {}),
       birthday: payload.birthday ?? null,
       ...(payload.weight !== undefined ? { weight: payload.weight } : {}),
       ...(payload.age !== undefined ? { age: payload.age } : {}),
@@ -1435,7 +1442,7 @@ export async function updatePet(input: unknown) {
   const { data, error } = await updateQuery.select("*").single();
 
   if (error) {
-    if (isMissingPetBiteLevelColumn(error)) {
+    if (isMissingPetProfileColumn(error)) {
       let retryQuery = supabase
         .from("pets")
         .update({
@@ -1596,7 +1603,7 @@ export async function createAppointment(input: unknown) {
 
   let resolvedStaffId = payload.staffId ?? null;
   if (!resolvedStaffId && data.staffMembers.length > 0) {
-    const availableStaff = data.staffMembers.find((staffMember) =>
+    const availableStaff = data.staffMembers.filter((staffMember) =>
       computeAvailableSlots({
         date: payload.appointmentDate,
         serviceId: service.id,
@@ -1609,11 +1616,32 @@ export async function createAppointment(input: unknown) {
       }).includes(payload.appointmentTime),
     );
 
-    if (!availableStaff) {
+    if (availableStaff.length === 0) {
       throw new Error("선택한 시간에는 예약할 수 없습니다.");
     }
 
-    resolvedStaffId = availableStaff.id;
+    const recommendationMode = normalizeReservationPolicySettings(data.shop.reservation_policy_settings).ai_booking_recommendation_mode;
+    if (recommendationMode === "staff_balance") {
+      const loadByStaffId = new Map(
+        getStaffBookingLoads({
+          date: payload.appointmentDate,
+          staffMembers: data.staffMembers,
+          appointments: data.appointments,
+          services: data.services,
+        }).map((load) => [load.staffId, load]),
+      );
+      availableStaff.sort((left, right) => {
+        const leftLoad = loadByStaffId.get(left.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+        const rightLoad = loadByStaffId.get(right.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+        return (
+          leftLoad.bookedMinutes - rightLoad.bookedMinutes ||
+          leftLoad.bookingCount - rightLoad.bookingCount ||
+          left.id.localeCompare(right.id)
+        );
+      });
+    }
+
+    resolvedStaffId = availableStaff[0].id;
   }
 
   const availableSlots = computeAvailableSlots({

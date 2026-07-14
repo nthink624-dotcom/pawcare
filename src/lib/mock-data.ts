@@ -67,7 +67,7 @@ export const demoShop: Shop = {
   customer_page_settings: normalizeCustomerPageSettings({
     shop_name: "데모 미용실",
     tagline: "아이 성향에 맞춘 차분한 그루밍 예약을 도와드려요.",
-    hero_image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=1200&q=80",
+    hero_image_url: "/images/customer-booking-hero-original.jpg",
     showcase_title: "피부 예민한 아이도 편안하게",
     showcase_body: "아이 성향과 컨디션을 먼저 살피고, 상담부터 마무리 안내까지 차분하게 케어해 드려요.",
     primary_color: "#1F6B5B",

@@ -1,17 +1,15 @@
 "use client";
 
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import { CustomerPagePreviewLayout } from "@/components/owner-web/customer-page-phone-preview";
-import DiscountCouponEditor, { type DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
+import BenefitsManagementPanel, { type BenefitsManagementView } from "@/components/owner-web/benefits-management-panel";
+import type { DiscountCouponPreset } from "@/components/owner-web/discount-coupon-editor";
 import OperatingHoursSettings from "@/components/owner-web/operating-hours-settings";
 import OwnerProfileSettingsPanel from "@/components/owner-web/owner-profile-settings-panel";
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
-import {
-  OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
-} from "@/components/owner-web/owner-web-action-button-styles";
 import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
 import SettingsAlertsPanel, { type AlertSettingsDraft } from "@/components/owner-web/settings-alerts-panel";
 import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-panel";
@@ -214,7 +212,7 @@ function createDiscountCouponDraft(index: number, preset: DiscountCouponPreset =
       owner_label: "직접 설정 혜택",
       discount_type: "fixed",
       discount_value: 5000,
-      audience: "custom",
+      audience: "all",
       combination_policy: "stackable",
       per_customer_limit: false,
     },
@@ -1088,6 +1086,10 @@ export default function SettingsManagementScreen({
   const [savedDiscountCoupons, setSavedDiscountCoupons] = useState<CustomerDiscountCoupon[]>(() =>
     normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons),
   );
+  const [benefitsView, setBenefitsView] = useState<BenefitsManagementView>("manage");
+  const [benefitRegistrationDraft, setBenefitRegistrationDraft] = useState<CustomerDiscountCoupon>(() =>
+    createDiscountCouponDraft(1, "all"),
+  );
   const [discountCouponSaveStatus, setDiscountCouponSaveStatus] = useState<"idle" | "pending" | "saved" | "error">("saved");
   const [saveCompleteVisible, setSaveCompleteVisible] = useState(false);
   const alertAutoSaveSeqRef = useRef(0);
@@ -1233,6 +1235,10 @@ export default function SettingsManagementScreen({
     [rawCustomerServiceConnectionOptions, customerServiceOverrides],
   );
   const discountCoupons = discountCouponDrafts;
+  const benefitPreviewCoupons = useMemo(
+    () => (benefitsView === "register" ? [...discountCoupons, benefitRegistrationDraft] : discountCoupons),
+    [benefitRegistrationDraft, benefitsView, discountCoupons],
+  );
   const customerPagePreviewShop = useMemo<Shop | null>(() => {
     if (!shop) return null;
     const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
@@ -1242,14 +1248,14 @@ export default function SettingsManagementScreen({
       customer_page_settings: {
         ...shop.customer_page_settings,
         customer_service_overrides: customerServiceOverrides,
-        discount_coupons: discountCoupons,
+        discount_coupons: benefitPreviewCoupons,
         hero_image_url: heroImageUrls[0] ?? shop.customer_page_settings.hero_image_url,
         hero_image_urls: heroImageUrls.length > 0 ? heroImageUrls : shop.customer_page_settings.hero_image_urls,
         hero_media_asset_id: heroMediaAssetIds[0] ?? shop.customer_page_settings.hero_media_asset_id,
         hero_media_asset_ids: heroMediaAssetIds.length > 0 ? heroMediaAssetIds : shop.customer_page_settings.hero_media_asset_ids,
       },
     };
-  }, [customerServiceOverrides, discountCoupons, shop, shopProfileImageAssetIds, shopProfileImages]);
+  }, [benefitPreviewCoupons, customerServiceOverrides, shop, shopProfileImageAssetIds, shopProfileImages]);
   const discountCouponsDirty = useMemo(
     () => JSON.stringify(discountCouponDrafts) !== JSON.stringify(savedDiscountCoupons),
     [discountCouponDrafts, savedDiscountCoupons],
@@ -1723,12 +1729,31 @@ export default function SettingsManagementScreen({
     updateDiscountCoupons(nextCoupons);
   }
 
-  function addDiscountCoupon(preset: DiscountCouponPreset = "first_visit") {
-    updateDiscountCoupons([...discountCoupons, createDiscountCouponDraft(discountCoupons.length + 1, preset)]);
+  function openBenefitRegistration(preset: DiscountCouponPreset = "all") {
+    setBenefitRegistrationDraft(createDiscountCouponDraft(discountCoupons.length + 1, preset));
+    setBenefitsView("register");
+  }
+
+  function cancelBenefitRegistration() {
+    setBenefitRegistrationDraft(createDiscountCouponDraft(discountCoupons.length + 1, "all"));
+    setBenefitsView("manage");
+  }
+
+  function registerBenefit() {
+    const [normalizedDraft] = normalizeDiscountCoupons([benefitRegistrationDraft]);
+    if (!normalizedDraft) return;
+    updateDiscountCoupons([...discountCoupons, normalizedDraft]);
+    setBenefitRegistrationDraft(createDiscountCouponDraft(discountCoupons.length + 2, "all"));
+    setBenefitsView("manage");
   }
 
   function deleteDiscountCoupon(couponId: string) {
     updateDiscountCoupons(discountCoupons.filter((coupon) => coupon.id !== couponId));
+  }
+
+  function deleteDiscountCoupons(couponIds: string[]) {
+    const couponIdSet = new Set(couponIds);
+    updateDiscountCoupons(discountCoupons.filter((coupon) => !couponIdSet.has(coupon.id)));
   }
 
   function addCustomerServiceOption() {
@@ -2225,43 +2250,31 @@ export default function SettingsManagementScreen({
             </>
           ) : activeTab === "benefits" ? (
             <CustomerPagePreviewLayout shop={customerPagePreviewShop} services={previewServices} staffMembers={staffMembers} ownerProfile={ownerProfile}>
-              <div className="flex h-full min-h-0 flex-col gap-2">
-                <div className="flex shrink-0 items-center justify-between gap-3 px-1">
-                  <h2 className="text-[18px] font-medium tracking-[-0.02em] text-[#111827]">혜택 관리</h2>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={reloadSavedDiscountCoupons}
-                      disabled={!discountCouponsDirty}
-                      className={OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS}
-                    >
-                      기존 혜택 불러오기
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addDiscountCoupon()}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#2f7866] bg-[#2f7866] px-3 text-[14px] font-semibold text-white transition hover:border-[#286a5a] hover:bg-[#286a5a]"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      혜택 추가
-                    </button>
-                  </div>
-                </div>
-                <WebSurface className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <DiscountCouponEditor
-                      coupons={discountCoupons}
-                      serviceOptions={customerServiceConnectionOptions}
-                      disabled={false}
-                      onAdd={() => addDiscountCoupon()}
-                      onAddPreset={addDiscountCoupon}
-                      onDelete={deleteDiscountCoupon}
-                      onToggleEnabled={toggleDiscountCouponEnabled}
-                      onUpdate={updateDiscountCoupon}
-                    />
-                  </div>
-                </WebSurface>
-              </div>
+              <BenefitsManagementPanel
+                view={benefitsView}
+                coupons={discountCoupons}
+                registrationDraft={benefitRegistrationDraft}
+                serviceOptions={customerServiceConnectionOptions}
+                canRegister={Boolean(
+                  benefitRegistrationDraft.owner_label?.trim() &&
+                    (benefitRegistrationDraft.discount_type === "service"
+                      ? benefitRegistrationDraft.service_benefit_name?.trim()
+                      : benefitRegistrationDraft.discount_value > 0)
+                )}
+                dirty={discountCouponsDirty}
+                onViewChange={setBenefitsView}
+                onOpenRegister={openBenefitRegistration}
+                onRegistrationChange={(patch) =>
+                  setBenefitRegistrationDraft((current) => ({ ...current, ...patch }))
+                }
+                onRegister={registerBenefit}
+                onCancelRegistration={cancelBenefitRegistration}
+                onReload={reloadSavedDiscountCoupons}
+                onDelete={deleteDiscountCoupon}
+                onDeleteMany={deleteDiscountCoupons}
+                onToggleEnabled={toggleDiscountCouponEnabled}
+                onUpdate={updateDiscountCoupon}
+              />
             </CustomerPagePreviewLayout>
           ) : (
             <WebSurface className="p-6">

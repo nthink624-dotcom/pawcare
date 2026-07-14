@@ -44,9 +44,9 @@ export function StaffAddModal({
   return (
     <StaffModal title="직원 추가" onClose={onClose}>
       <StaffDraftForm draft={draft} fallbackColorIndex={fallbackColorIndex} onChange={onDraftChange} />
-      <div className="mt-5 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <GhostButton label="취소" onClick={onClose} />
-        <PrimaryButton label="추가" onClick={onAdd} />
+        <PrimaryButton label="추가" onClick={onAdd} disabled={!draft.name.trim()} />
       </div>
     </StaffModal>
   );

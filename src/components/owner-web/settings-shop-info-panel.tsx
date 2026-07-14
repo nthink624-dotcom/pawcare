@@ -606,7 +606,7 @@ export default function ShopInfoSettingsPanel({
 
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-[#d8dce3] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
+        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)] after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[18px] after:border after:border-[#dbe2ea] after:content-['']">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
               <div className="flex h-[42px] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-[#d8dce3] bg-[#eef1f5] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1059,7 +1059,7 @@ export default function ShopInfoSettingsPanel({
           </div>
         </div>
 
-        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#e1e4ea,0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
+        <aside className="hidden h-full min-h-0 min-w-0 rounded-[18px] border border-transparent bg-white shadow-[inset_0_0_0_1px_#dbe2ea,0_14px_34px_rgba(15,23,42,0.06)] xl:flex xl:flex-col">
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">
             <CustomerPagePhonePreview
               shop={customerPreviewShop}

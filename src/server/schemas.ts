@@ -110,6 +110,7 @@ export const petInputSchema = z.object({
   guardianId: z.string(),
   name: z.string().trim().min(1),
   breed: z.string().trim().min(1),
+  pricingGroup: z.string().trim().max(120).nullable().optional(),
   birthday: z.string().nullable().optional(),
   weight: z.coerce.number().nullable().optional(),
   age: z.coerce.number().nullable().optional(),
@@ -123,6 +124,7 @@ export const petUpdateSchema = z.object({
   petId: z.string(),
   name: z.string().trim().min(1),
   breed: z.string().trim().min(1),
+  pricingGroup: z.string().trim().max(120).nullable().optional(),
   birthday: z.string().nullable().optional(),
   weight: z.coerce.number().nullable().optional(),
   age: z.coerce.number().nullable().optional(),
@@ -199,6 +201,8 @@ export const shopSettingsSchema = z.object({
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
       regular_closed_cycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),
+      ai_booking_recommendation_mode: z.enum(["continuity", "staff_balance", "customer_convenience", "custom"]).optional(),
+      ai_booking_custom_instruction: z.string().trim().max(240).optional(),
     })
     .optional(),
   notificationSettings: z.object({

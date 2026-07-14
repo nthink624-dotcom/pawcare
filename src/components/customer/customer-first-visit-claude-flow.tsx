@@ -4,10 +4,9 @@ import { Check, ChevronLeft, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
-import type { CustomerDiscountQuote } from "@/lib/discount-coupons";
-import { getStaffCustomerName, getStaffCustomerTitle } from "@/lib/staff-display";
-import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
-import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
+import { getStaffCustomerName } from "@/lib/staff-display";
+import { formatServicePrice, phoneNormalize } from "@/lib/utils";
+import type { Appointment, BootstrapStaffMember, Service, Shop } from "@/types/domain";
 
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
 
@@ -93,45 +92,6 @@ function buildReservationNumber(appointment?: Appointment | null) {
   return `PM${datePart}-${rawSuffix.padStart(3, "0")}`;
 }
 
-const staffWeekdayLabels: Array<{ key: BootstrapStaffMember["defaultDays"][number]; label: string }> = [
-  { key: "mon", label: "월" },
-  { key: "tue", label: "화" },
-  { key: "wed", label: "수" },
-  { key: "thu", label: "목" },
-  { key: "fri", label: "금" },
-  { key: "sat", label: "토" },
-  { key: "sun", label: "일" },
-];
-
-function formatStaffFixedOffDays(staff: BootstrapStaffMember) {
-  const workDays = new Set(staff.defaultDays);
-  const fixedOffDays = staffWeekdayLabels.filter((day) => !workDays.has(day.key)).map((day) => day.label);
-  if (fixedOffDays.length > 0) return fixedOffDays.join(", ");
-  return staff.regularOff?.trim() || "없음";
-}
-
-function formatStaffOverrideDate(date: string) {
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
-}
-
-function formatStaffUpcomingOffDays(staff: BootstrapStaffMember, overrides: StaffScheduleOverride[]) {
-  const today = currentDateInTimeZone();
-  return overrides
-    .filter((override) => override.staff_id === staff.id && override.work_date >= today && (override.status === "off" || override.status === "annual"))
-    .sort((a, b) => a.work_date.localeCompare(b.work_date))
-    .slice(0, 2)
-    .map((override) => `${formatStaffOverrideDate(override.work_date)} ${override.status === "annual" ? "연차" : "휴무"}`)
-    .join(", ");
-}
-
-function formatStaffOffDaySummary(staff: BootstrapStaffMember, overrides: StaffScheduleOverride[]) {
-  const fixedOffDays = formatStaffFixedOffDays(staff);
-  const upcomingOffDays = formatStaffUpcomingOffDays(staff, overrides);
-  return upcomingOffDays ? `고정 휴무 ${fixedOffDays} · 예정 ${upcomingOffDays}` : `고정 휴무 ${fixedOffDays}`;
-}
-
 function timeSlotMinutes(slot: string) {
   const [hour, minute] = slot.split(":").map(Number);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return Number.POSITIVE_INFINITY;
@@ -211,13 +171,11 @@ function ClaudeStyles() {
       .pm-proto .breedchip.sel{border-color:var(--primary);background:#fffaf8;color:var(--primaryDk)}
       .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
       .pm-proto .staffstrip::-webkit-scrollbar{display:none}
-      .pm-proto .staff{flex:0 0 112px;min-height:138px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:18px 10px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .pm-proto .staff{flex:0 0 112px;min-height:96px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:15px 10px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
       .pm-proto .staff.sel{border-color:var(--primary);background:#fffaf8}
-      .pm-proto .staff .avatar{width:50px;height:50px;margin:0 auto 14px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
+      .pm-proto .staff .avatar{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
       .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pm-proto .staff .role{display:block;width:100%;font-size:13px;color:var(--textMuted);margin-top:5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pm-proto .staff .off{display:-webkit-box;width:100%;margin-top:6px;font-size:12px;color:var(--textMid);line-height:1.3;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical}
       .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
       .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:700;color:var(--primaryDk)}
       .pm-proto .consent-note .agree{color:#8a665d}
@@ -274,7 +232,6 @@ export default function CustomerFirstVisitClaudeFlow({
   customerServiceOptions,
   dateOptions,
   staffMembers,
-  staffScheduleOverrides = [],
   firstVisit,
   savedPets,
   step,
@@ -285,9 +242,6 @@ export default function CustomerFirstVisitClaudeFlow({
   loadingSlots,
   submitting,
   completedBooking,
-  discountQuote,
-  discountQuoteLoading,
-  discountQuoteError,
   onBackToEntry,
   onStepBack,
   onNext,
@@ -308,7 +262,6 @@ export default function CustomerFirstVisitClaudeFlow({
   customerServiceOptions: CustomerServiceSourceOption[];
   dateOptions: DateOption[];
   staffMembers: BootstrapStaffMember[];
-  staffScheduleOverrides?: StaffScheduleOverride[];
   firstVisit: FirstVisitForm;
   savedPets: SavedBookingPet[];
   step: FirstVisitStep;
@@ -319,9 +272,6 @@ export default function CustomerFirstVisitClaudeFlow({
   loadingSlots: boolean;
   submitting: boolean;
   completedBooking: BookingCompletion | null;
-  discountQuote: CustomerDiscountQuote | null;
-  discountQuoteLoading: boolean;
-  discountQuoteError: string;
   onBackToEntry: () => void;
   onStepBack: () => void;
   onNext: () => void;
@@ -352,7 +302,7 @@ export default function CustomerFirstVisitClaudeFlow({
     return availableSlots.filter((slot) => !recommendedSlotSet.has(slot)).slice(0, 6);
   }, [availableSlots, recommendedSlots]);
   const defaultDateValue = useMemo(() => dateOptions.find((date) => date.label === "오늘")?.value ?? dateOptions[0]?.value ?? "", [dateOptions]);
-  const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.name || selectedService?.name || "서비스 선택";
+  const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
   const petNameForConsent = firstVisit.petName.trim() || "아기";
   const selectedSavedPet = savedPets.find((pet) => pet.name.trim() && pet.name.trim() === firstVisit.petName.trim()) ?? null;
   const showSavedPetPicker = savedPets.length > 0 && newPetPickerKey !== savedPetPickerKey;
@@ -398,7 +348,7 @@ export default function CustomerFirstVisitClaudeFlow({
 
       {step === 1 ? (
         <>
-          <Nav title="예약자 정보" step="1 / 4" onBack={onBackToEntry} />
+          <Nav title="아기 정보" step="1 / 4" onBack={onBackToEntry} />
           <div className="pgscroll info-page">
             {showSavedPetPicker ? (
               <div className="sec">
@@ -509,9 +459,33 @@ export default function CustomerFirstVisitClaudeFlow({
 
       {step === 2 ? (
         <>
-          <Nav title="서비스 선택" step="2 / 4" onBack={onStepBack} />
+          <Nav title="디자이너 · 서비스 선택" step="2 / 4" onBack={onStepBack} />
           <div className="pgscroll service-page">
             <div className="sec">
+              <h3>디자이너 선택</h3>
+              <div className="staffstrip">
+                {staffMembers.length > 1 ? (
+                  <button type="button" className={`staff${!firstVisit.staffId ? " sel" : ""}`} onClick={() => onStaffSelect("")}>
+                    <span className="avatar"><UserRound size={22} /></span>
+                    <span className="name">빠른 선택</span>
+                  </button>
+                ) : null}
+                {staffMembers.map((staff) => {
+                  const active = firstVisit.staffId === staff.id;
+                  return (
+                    <button key={staff.id} type="button" className={`staff${active ? " sel" : ""}`} onClick={() => onStaffSelect(staff.id)}>
+                      <span className="avatar">
+                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
+                      </span>
+                      <span className="name">{getStaffCustomerName(staff)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="sec">
+              <h3>서비스 선택</h3>
               {customerServiceOptions.map((service) => (
                 <button
                   key={service.id}
@@ -521,7 +495,7 @@ export default function CustomerFirstVisitClaudeFlow({
                 >
                   <span className="radio" />
                   <span className="info">
-                    <span className="n">{service.name}</span>
+                    <span className="n">{service.displayName}</span>
                     <span className="d">{formatDurationRange(service.durationMinutes)}</span>
                   </span>
                   <span className="price">{formatServicePrice(service.price, service.priceType)}</span>
@@ -542,35 +516,8 @@ export default function CustomerFirstVisitClaudeFlow({
 
       {step === 3 ? (
         <>
-          <Nav title="디자이너 · 날짜 선택" step="3 / 4" onBack={onStepBack} />
+          <Nav title="날짜 · 시간 선택" step="3 / 4" onBack={onStepBack} />
           <div className="pgscroll">
-            <div className="sec">
-              <h3>디자이너</h3>
-              <div className="staffstrip">
-                {staffMembers.length > 1 ? (
-                  <button type="button" className={`staff${!firstVisit.staffId ? " sel" : ""}`} onClick={() => onStaffSelect("")}>
-                    <span className="avatar"><UserRound size={22} /></span>
-                    <span className="name">빠른 선택</span>
-                    <span className="role">가능한 직원</span>
-                    <span className="off">직원 휴무일 제외</span>
-                  </button>
-                ) : null}
-                {staffMembers.map((staff) => {
-                  const active = firstVisit.staffId === staff.id;
-                  return (
-                    <button key={staff.id} type="button" className={`staff${active ? " sel" : ""}`} onClick={() => onStaffSelect(staff.id)}>
-                      <span className="avatar">
-                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
-                      </span>
-                      <span className="name">{getStaffCustomerName(staff)}</span>
-                      <span className="role">{getStaffCustomerTitle(staff)}</span>
-                      <span className="off">{formatStaffOffDaySummary(staff, staffScheduleOverrides)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <div className="sec">
               <h3>날짜 선택</h3>
               <div className="dstrip">
@@ -653,28 +600,11 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="confirm-row"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
                 <div className="confirm-row"><span className="k">일시</span><span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${formatTimeForSummary(firstVisit.timeSlot)}` : "-"}</span></div>
                 <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 선택"}</span></div>
-                {discountQuote ? (
-                  <>
-                    <div className="confirm-row"><span className="k">방문 구분</span><span className="v">{discountQuote.visitType === "first_visit" ? "첫 방문" : "재방문"}</span></div>
-                    {discountQuote.appliedCoupons.length > 0 ? (
-                      <div className="confirm-row"><span className="k">적용 혜택</span><span className="v">{discountQuote.appliedCoupons.map((coupon) => coupon.name).join(", ")}</span></div>
-                    ) : null}
-                    <div className="confirm-row"><span className="k">기준 금액</span><span className="v">{discountQuote.originalAmount.toLocaleString("ko-KR")}원</span></div>
-                    {discountQuote.discountAmount > 0 ? (
-                      <div className="confirm-row"><span className="k">할인</span><span className="v">-{discountQuote.discountAmount.toLocaleString("ko-KR")}원</span></div>
-                    ) : null}
-                    <div className="confirm-row"><span className="k">최종 금액</span><span className="v">{discountQuote.finalAmount.toLocaleString("ko-KR")}원</span></div>
-                  </>
-                ) : discountQuoteLoading ? (
-                  <div className="confirm-row"><span className="k">혜택</span><span className="v">확인 중...</span></div>
-                ) : discountQuoteError ? (
-                  <div className="confirm-row"><span className="k">혜택</span><span className="v">{discountQuoteError}</span></div>
-                ) : null}
               </div>
             </div>
           </div>
           <div className="dock">
-            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting || discountQuoteLoading || Boolean(selectedServiceOption && !discountQuote)} onClick={() => void onSubmit()}>
+            <button className="cta" type="button" disabled={!firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone) || submitting} onClick={() => void onSubmit()}>
               {submitting ? "예약 등록 중..." : "예약 등록하기"}
             </button>
           </div>

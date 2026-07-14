@@ -10,8 +10,8 @@ export const LEGAL_BUSINESS_INFO = {
   customerServicePhone: "041-557-5529",
   customerServiceEmail: "nthink624@gmail.com",
   hostingProvider: "Vercel Inc.",
-  privacyTrusteeName: "정우진",
-  privacyTrusteeTask: "개인정보 처리 및 보호",
+  privacyTrusteeName: "코리아포트원 주식회사",
+  privacyTrusteeTask: "전자결제 및 휴대폰 본인인증 연동",
 } as const;
 
 export const LEGAL_LINKS = [

@@ -174,6 +174,11 @@ export default function StaffManagementScreen({
   }
 
   async function addStaff() {
+    if (!newStaffDraft.name.trim()) {
+      setNotice("직원 이름을 입력해 주세요.");
+      return;
+    }
+
     if (!isValidTimeRange(newStaffDraft.startTime, newStaffDraft.endTime)) {
       setNotice("고정 출근 시간은 고정 퇴근 시간보다 빨라야 합니다.");
       return;

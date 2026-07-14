@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const { computeAvailableSlots } = await import("../../src/lib/availability.ts");
+const { findCustomerBreedPricingGroup } = await import("../../src/lib/customer-breed-pricing-group.ts");
+const { buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
+const { getStaffBookingLoads } = await import("../../src/lib/staff-booking-load.ts");
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
 
 const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -197,5 +200,73 @@ describe("computeAvailableSlots", () => {
     });
 
     assert.deepEqual(slots, []);
+  });
+});
+
+describe("getStaffBookingLoads", () => {
+  it("counts only active assigned appointments for the selected date", () => {
+    const date = futureDate(19);
+    const loads = getStaffBookingLoads({
+      date,
+      staffMembers: [makeStaff("staff-1"), makeStaff("staff-2")],
+      services: [service],
+      appointments: [
+        makeAppointment(date, { staff_id: "staff-1" }),
+        makeAppointment(date, {
+          id: "appt-cancelled",
+          staff_id: "staff-1",
+          appointment_time: "12:00",
+          start_at: `${date}T12:00:00+09:00`,
+          end_at: `${date}T13:00:00+09:00`,
+          status: "cancelled",
+        }),
+      ],
+    });
+
+    assert.deepEqual(loads, [
+      { staffId: "staff-1", bookingCount: 1, bookedMinutes: 60 },
+      { staffId: "staff-2", bookingCount: 0, bookedMinutes: 0 },
+    ]);
+  });
+});
+
+describe("customer breed pricing group", () => {
+  it("uses representative breeds to expose only the matching detailed price-guide group", () => {
+    const groupedService = {
+      ...service,
+      price_guide: {
+        enabled: true,
+        sections: [
+          {
+            id: "basic",
+            species: "dog",
+            title: "베이직",
+            note: "말티즈, 포메라니안",
+            weightBands: ["4kg 이하"],
+            items: [{ id: "basic-bath", label: "목욕", cells: { "4kg 이하": { price: "30000", durationMinutes: "60" } } }],
+          },
+          {
+            id: "plus",
+            species: "dog",
+            title: "플러스",
+            note: "비숑프리제, 푸들",
+            weightBands: ["6kg 이하"],
+            items: [{ id: "plus-bath", label: "목욕", cells: { "6kg 이하": { price: "50000", durationMinutes: "90" } } }],
+          },
+        ],
+      },
+    };
+
+    const group = findCustomerBreedPricingGroup([groupedService], "토이푸들");
+    assert.deepEqual(group, { key: "dog:플러스", title: "플러스", matchedBreed: "푸들" });
+
+    const options = buildCustomerServiceSourceOptions([groupedService], {
+      priceGuideOnly: true,
+      priceGuideGroupKey: group?.key,
+    });
+    assert.equal(options.length, 1);
+    assert.equal(options[0].name.includes("플러스"), true);
+    assert.equal(options[0].displayName, "목욕");
+    assert.equal(options[0].price, 50000);
   });
 });

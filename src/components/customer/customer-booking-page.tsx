@@ -14,7 +14,7 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
-import type { CustomerDiscountQuote } from "@/lib/discount-coupons";
+import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 
@@ -64,12 +64,6 @@ type BookingCreateResponse = {
   bookingAccessToken: string;
   bookingManageUrl: string;
   profilePets?: BookingProfilePet[];
-  discountQuote?: CustomerDiscountQuote;
-};
-
-type CustomerDiscountQuoteResponse = CustomerDiscountQuote & {
-  customerRecognized: boolean;
-  customerServiceOptionId: string;
 };
 
 type CustomerLookupProfilePayload = {
@@ -410,7 +404,7 @@ export default function CustomerBookingPage({
   entryHref?: string;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
-  const customerServiceOptions = useMemo(
+  const initialCustomerServiceOptions = useMemo(
     () =>
       applyConfiguredCustomerServiceOverrides(
         buildCustomerServiceSourceOptions(
@@ -424,8 +418,8 @@ export default function CustomerBookingPage({
     [initialShop.customer_page_settings.customer_service_overrides, services],
   );
   const initialCustomerServiceOption =
-    customerServiceOptions.find((option) => option.id === initialServiceOptionId) ??
-    customerServiceOptions.find((option) => option.serviceId === initialServiceId);
+    initialCustomerServiceOptions.find((option) => option.id === initialServiceOptionId) ??
+    initialCustomerServiceOptions.find((option) => option.serviceId === initialServiceId);
   const initialSelectableServiceId = initialCustomerServiceOption?.serviceId ?? "";
   const initialSelectableServiceOptionId = initialCustomerServiceOption?.id || "";
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
@@ -451,9 +445,23 @@ export default function CustomerBookingPage({
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [savedPets, setSavedPets] = useState<BookingProfilePet[]>([]);
-  const [discountQuote, setDiscountQuote] = useState<CustomerDiscountQuoteResponse | null>(null);
-  const [discountQuoteLoading, setDiscountQuoteLoading] = useState(false);
-  const [discountQuoteError, setDiscountQuoteError] = useState("");
+  const detectedBreedPricingGroup = useMemo(
+    () => findCustomerBreedPricingGroup(services, firstVisit.breed),
+    [firstVisit.breed, services],
+  );
+  const customerServiceOptions = useMemo(
+    () =>
+      applyConfiguredCustomerServiceOverrides(
+        buildCustomerServiceSourceOptions(
+          services
+            .slice()
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
+          { priceGuideOnly: true, priceGuideGroupKey: detectedBreedPricingGroup?.key },
+        ),
+        initialShop.customer_page_settings.customer_service_overrides,
+      ),
+    [detectedBreedPricingGroup?.key, initialShop.customer_page_settings.customer_service_overrides, services],
+  );
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);
   const selectedFirstServiceOption =
@@ -465,60 +473,18 @@ export default function CustomerBookingPage({
   const firstVisitDateOptionValues = useMemo(() => new Set(dateOptions.map((option) => option.value)), [dateOptions]);
 
   useEffect(() => {
-    const quoteReady =
-      firstVisitStep === 4 &&
-      firstVisit.ownerName.trim().length > 0 &&
-      isValidBookingPhoneNumber(firstVisit.phone) &&
-      Boolean(firstVisit.serviceId) &&
-      Boolean(firstVisit.date);
-
-    if (!quoteReady) {
-      setDiscountQuote(null);
-      setDiscountQuoteLoading(false);
-      setDiscountQuoteError("");
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setDiscountQuoteLoading(true);
-      setDiscountQuoteError("");
-      void fetchJson<CustomerDiscountQuoteResponse>("/api/customer-benefits/quote", {
-        method: "POST",
-        signal: controller.signal,
-        body: JSON.stringify({
-          shopId,
-          guardianName: firstVisit.ownerName,
-          phone: phoneNormalize(firstVisit.phone),
-          serviceId: firstVisit.serviceId,
-          customerServiceOptionId: selectedFirstServiceOption?.id ?? "",
-          appointmentDate: firstVisit.date,
-        }),
-      })
-        .then((quote) => setDiscountQuote(quote))
-        .catch((error) => {
-          if (controller.signal.aborted) return;
-          setDiscountQuote(null);
-          setDiscountQuoteError(error instanceof Error ? error.message : "혜택을 확인하지 못했습니다.");
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setDiscountQuoteLoading(false);
-        });
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [
-    firstVisit.date,
-    firstVisit.ownerName,
-    firstVisit.phone,
-    firstVisit.serviceId,
-    firstVisitStep,
-    selectedFirstServiceOption?.id,
-    shopId,
-  ]);
+    if (!detectedBreedPricingGroup || customerServiceOptions.length === 0) return;
+    setFirstVisit((prev) => {
+      if (customerServiceOptions.some((option) => option.id === prev.customerServiceOptionId)) return prev;
+      const nextOption = customerServiceOptions[0];
+      return {
+        ...prev,
+        serviceId: nextOption.serviceId,
+        customerServiceOptionId: nextOption.id,
+        timeSlot: "",
+      };
+    });
+  }, [customerServiceOptions, detectedBreedPricingGroup]);
 
   useEffect(() => {
     if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 3) {
@@ -851,16 +817,6 @@ export default function CustomerBookingPage({
       return;
     }
 
-    if (selectedFirstServiceOption && !discountQuote) {
-      setSubmitFeedback({
-        type: "error",
-        title: "혜택 확인이 필요합니다",
-        message: discountQuoteError || "잠시 후 최종 금액을 다시 확인해 주세요.",
-        action: "dismiss",
-      });
-      return;
-    }
-
     setSubmitting(true);
     setSubmitFeedback(null);
     try {
@@ -880,7 +836,6 @@ export default function CustomerBookingPage({
         appointmentDate: firstVisit.date,
         appointmentTime: firstVisit.timeSlot,
         memo: firstVisit.note.trim(),
-        expectedFinalAmount: discountQuote?.finalAmount,
       };
 
       const createdBooking = await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
@@ -944,7 +899,6 @@ export default function CustomerBookingPage({
               customerServiceOptions={customerServiceOptions}
               dateOptions={dateOptions}
               staffMembers={staffMembers}
-              staffScheduleOverrides={initialStaffScheduleOverrides}
               firstVisit={firstVisit}
               savedPets={savedPets}
               step={firstVisitStep}
@@ -955,9 +909,6 @@ export default function CustomerBookingPage({
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
-              discountQuote={discountQuote}
-              discountQuoteLoading={discountQuoteLoading}
-              discountQuoteError={discountQuoteError}
               onBackToEntry={resetView}
               onStepBack={() => {
                 if (lockFirstVisitStep) return;
@@ -1008,7 +959,7 @@ export default function CustomerBookingPage({
               shopId={shopId}
               shop={initialShop}
               services={initialServices}
-              customerServiceOptions={customerServiceOptions}
+              customerServiceOptions={initialCustomerServiceOptions}
               staffMembers={staffMembers}
               initialAccessToken={completionManageAccessToken || initialAccessToken}
               onBack={

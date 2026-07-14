@@ -1,7 +1,7 @@
 "use client";
 
-import { MessageCircle } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import { CircleHelp, MessageCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
@@ -71,6 +71,38 @@ type AlertItem = {
   role: string;
 };
 
+function AlertHelp({
+  label,
+  children,
+  align = "left",
+}: {
+  label: string;
+  children: ReactNode;
+  align?: "left" | "right";
+}) {
+  return (
+    <span className="group/help relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={`${label} 도움말`}
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex h-5 w-5 items-center justify-center text-[#94a3b8] transition hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cbd5e1]"
+      >
+        <CircleHelp className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span
+        role="tooltip"
+        className={cn(
+          "pointer-events-none invisible absolute top-[calc(100%+8px)] z-30 w-max whitespace-nowrap rounded-[6px] border border-[#dbe2ea] bg-white px-3 py-2 text-left text-[13px] font-normal leading-5 text-[#475569] opacity-0 shadow-[0_8px_22px_rgba(15,23,42,0.12)] transition group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100",
+          align === "right" ? "right-0" : "left-0",
+        )}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
 const alertItems: AlertItem[] = [
   {
     key: "bookingConfirmedEnabled",
@@ -130,7 +162,7 @@ const alertItems: AlertItem[] = [
 
 type AlertGroupKey = "reservation" | "reservationGuide" | "grooming";
 
-const alertGroups: Array<{ key: AlertGroupKey; title: string; description?: string; items: AlertItem[] }> = [
+const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; items: AlertItem[] }> = [
   {
     key: "reservation",
     title: "\uC608\uC57D",
@@ -145,7 +177,7 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; description?: stri
   {
     key: "reservationGuide",
     title: "\uC608\uC57D\uC548\uB0B4",
-    description:
+    help:
       "\uC608\uC57D \uC2DC\uC810\uC5D0 \uB530\uB77C \uC9C1\uC804, \uC624\uB298, \uB0B4\uC77C \uC548\uB0B4 \uC911 \uD544\uC694\uD55C \uC548\uB0B4\uB9CC \uD55C \uBC88 \uBC1C\uC1A1\uB429\uB2C8\uB2E4.",
     items: alertItems.filter((item) =>
       [
@@ -536,11 +568,11 @@ export default function SettingsAlertsPanel({
 
           <div className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
             <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <p className="text-[16px] font-semibold text-[#111827]">알림톡 전체 사용</p>
-                <p className="mt-1 text-[16px] leading-6 text-[#64748b]">
+                <AlertHelp label="알림톡 전체 사용">
                   끄면 예약 안내와 미용 진행 알림톡 발송이 전체 중지됩니다.
-                </p>
+                </AlertHelp>
               </div>
               <Switch
                 checked={value.enabled}
@@ -553,10 +585,10 @@ export default function SettingsAlertsPanel({
           {alertGroups.map((group) => (
             <div key={group.key} className="rounded-[12px] border border-[#e5e7eb] bg-white p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <p className="text-[16px] font-semibold text-[#111827]">{group.title}</p>
-                  {group.description ? (
-                    <p className="mt-1 text-[15px] leading-6 text-[#64748b]">{group.description}</p>
+                  {group.help ? (
+                    <AlertHelp label={group.title}>{group.help}</AlertHelp>
                   ) : null}
                 </div>
                 <span className="rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[14px] text-[#64748b]">
@@ -566,11 +598,11 @@ export default function SettingsAlertsPanel({
               {group.key === "reservationGuide" ? (
                 <div className="mb-3 rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <p className="text-[16px] font-medium text-[#111827]">예약 안내 자동 발송</p>
-                      <p className="mt-1 text-[15px] leading-6 text-[#475569]">
+                      <AlertHelp label="예약 안내 자동 발송">
                         켜두면 예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 필요한 안내만 한 번 발송됩니다.
-                      </p>
+                      </AlertHelp>
                     </div>
                     <Switch
                       checked={visitReminderEnabled}
@@ -588,7 +620,7 @@ export default function SettingsAlertsPanel({
                 </div>
               ) : null}
               <div className="grid gap-2 lg:grid-cols-2">
-                {group.items.map((item) => {
+                {group.items.map((item, itemIndex) => {
                   const reservationNotice = isReservationNoticeType(item.type);
                   const checked =
                     item.key === "appointmentReminder10mEnabled"
@@ -598,18 +630,10 @@ export default function SettingsAlertsPanel({
                   const disabled =
                     !value.enabled || (item.key === "appointmentReminder10mEnabled" && !automaticVisitReminderAvailable);
                   return (
-                    <Fragment key={`${item.key}-${item.type}`}>
                       <div
-                        role="button"
-                        tabIndex={0}
+                        key={`${item.key}-${item.type}`}
                         aria-expanded={selected}
                         onClick={() => setSelectedAlertType(item.type)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedAlertType(item.type);
-                          }
-                        }}
                         className={cn(
                           "flex cursor-pointer items-center justify-between gap-4 rounded-[10px] border bg-white p-3 text-left transition",
                           selected
@@ -620,7 +644,18 @@ export default function SettingsAlertsPanel({
                           !disabled || reservationNotice ? "hover:border-[#cbd5e1] hover:bg-[#fafafa]" : "opacity-55",
                         )}
                       >
-                        <span className="min-w-0 text-[16px] text-[#111827]">{item.title}</span>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAlertType(item.type)}
+                            className="min-w-0 text-left text-[16px] text-[#111827] focus-visible:outline-none focus-visible:underline"
+                          >
+                            {item.title}
+                          </button>
+                          <AlertHelp label={item.title} align={itemIndex % 2 === 1 ? "right" : "left"}>
+                            {item.role}
+                          </AlertHelp>
+                        </div>
                         {reservationNotice ? (
                           <span
                             className={cn(
@@ -644,15 +679,6 @@ export default function SettingsAlertsPanel({
                           </span>
                         )}
                       </div>
-                      {selected ? (
-                        <div className="space-y-3 rounded-[10px] border border-[#dbe2ea] bg-[#f8fafc] px-3 py-2.5 lg:col-span-2">
-                          <div className="flex gap-2 text-[15px] leading-6">
-                            <span className="shrink-0 text-[#64748b]">역할</span>
-                            <p className="min-w-0 text-[#334155]">{item.role}</p>
-                          </div>
-                        </div>
-                      ) : null}
-                    </Fragment>
                   );
                 })}
               </div>

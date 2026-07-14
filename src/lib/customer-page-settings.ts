@@ -62,12 +62,11 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
       const id = normalizeCouponText(source.id, 80) || `coupon-${index + 1}`;
       const name = normalizeCouponText(source.name, 40) || "할인 쿠폰";
       const ownerLabel = normalizeCouponText(source.owner_label, 40);
-      const discountType = source.discount_type === "percent" ? "percent" : "fixed";
-      const discountValue = normalizeCouponNumber(source.discount_value, discountType === "percent" ? 100 : 1_000_000);
+      const discountType = source.discount_type === "percent" || source.discount_type === "service" ? source.discount_type : "fixed";
+      const discountValue = discountType === "service" ? 0 : normalizeCouponNumber(source.discount_value, discountType === "percent" ? 100 : 1_000_000);
+      const serviceBenefitName = normalizeCouponText(source.service_benefit_name, 40);
       const audience =
-        source.audience === "first_visit" || source.audience === "revisit" || source.audience === "all" || source.audience === "custom"
-          ? source.audience
-          : "all";
+        source.audience === "first_visit" || source.audience === "revisit" ? source.audience : "all";
       const combinationPolicy =
         source.combination_policy === "exclusive" || source.combination_policy === "stackable"
           ? source.combination_policy
@@ -92,7 +91,13 @@ export function normalizeDiscountCoupons(value: unknown): CustomerDiscountCoupon
           discount_type: discountType,
           discount_value: discountValue,
           audience,
-          combination_policy: audience === "first_visit" || audience === "revisit" ? "exclusive" : combinationPolicy,
+          combination_policy:
+            discountType === "service"
+              ? "stackable"
+              : audience === "first_visit" || audience === "revisit"
+                ? "exclusive"
+                : combinationPolicy,
+          service_benefit_name: discountType === "service" ? serviceBenefitName : "",
           service_scope: serviceScope,
           service_option_ids: serviceScope === "specific" ? serviceOptionIds : [],
           per_customer_limit: audience === "first_visit" ? true : source.per_customer_limit !== false,

@@ -135,3 +135,27 @@ test("per-customer coupons already used are excluded", () => {
   assert.equal(quote.discountAmount, 0);
   assert.deepEqual(quote.appliedCoupons, []);
 });
+
+test("complimentary services apply alongside the best monetary discount", () => {
+  const quote = buildCustomerDiscountQuote({
+    coupons: [
+      { ...coupon("money", "all"), discount_value: 5000 },
+      {
+        ...coupon("service", "all"),
+        discount_type: "service",
+        discount_value: 0,
+        service_benefit_name: "발바닥 보습",
+        combination_policy: "stackable",
+      },
+    ],
+    visitType: "revisit",
+    dateKey: "2026-07-11",
+    serviceOptionIds: ["service-1"],
+    originalAmount: 30000,
+  });
+
+  assert.deepEqual(quote.appliedCoupons.map((item) => item.id), ["money", "service"]);
+  assert.equal(quote.appliedCoupons[1].serviceBenefitName, "발바닥 보습");
+  assert.equal(quote.discountAmount, 5000);
+  assert.equal(quote.finalAmount, 25000);
+});

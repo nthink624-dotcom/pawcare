@@ -1,5 +1,6 @@
 ﻿import type { ReactNode } from "react";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 
 import { GhostButton, PrimaryButton, SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -65,18 +66,23 @@ function StaffPhotoField({
   value,
   title = "프로필",
   subtitle = "",
+  compact = false,
   onChange,
 }: {
   name: string;
   value: string;
   title?: string;
   subtitle?: string;
+  compact?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <div className="flex items-center justify-center gap-3">
-      <label className="group relative flex h-[136px] w-[118px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white px-3 py-4 text-center text-[16px] font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20">
-        <span className="relative flex h-[54px] w-[54px] items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]">
+      <label className={cn(
+        "group relative flex shrink-0 cursor-pointer flex-col items-center justify-center border border-[#dbe2ea] bg-white text-center font-normal tracking-[-0.02em] text-[#111111] transition hover:bg-[#f8fafc] focus-within:ring-2 focus-within:ring-[#94a3b8]/20",
+        compact ? "h-[104px] w-[96px] rounded-[12px] px-2 py-3 text-[14px]" : "h-[136px] w-[118px] rounded-[14px] px-3 py-4 text-[16px]",
+      )}>
+        <span className={cn("relative flex items-center justify-center overflow-hidden rounded-full bg-[#f8fafc] text-[#475569]", compact ? "h-11 w-11" : "h-[54px] w-[54px]")}>
           {value ? (
             <img src={value} alt={`${name || "스태프"} 프로필`} className="h-full w-full rounded-full object-cover" />
           ) : (
@@ -88,9 +94,9 @@ function StaffPhotoField({
             </span>
           ) : null}
         </span>
-        <span className="mt-3 max-w-full truncate text-[16px] font-medium leading-[19px]">{title}</span>
+        <span className={cn("max-w-full truncate font-medium", compact ? "mt-2 text-[14px] leading-[18px]" : "mt-3 text-[16px] leading-[19px]")}>{title}</span>
         {subtitle ? <span className="mt-1 max-w-full truncate text-[13px] leading-[15px] text-[#64748b]">{subtitle}</span> : null}
-        <span className="pointer-events-none absolute inset-0 rounded-[14px] bg-black/0 transition group-hover:bg-black/[0.025]" />
+        <span className={cn("pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/[0.025]", compact ? "rounded-[12px]" : "rounded-[14px]")} />
         <input
           type="file"
           accept="image/*"
@@ -437,12 +443,21 @@ export function StaffDetailPanel({
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
       <span className="text-[16px] font-normal text-[#334155]">{label}</span>
       <div className="mt-1.5">{children}</div>
     </label>
+  );
+}
+
+function StaffDraftFieldLabel({ label, required = false }: { label: string; required?: boolean }) {
+  return (
+    <>
+      {label}
+      <span className={required ? "ml-1 text-[#a04455]" : "ml-1 text-[14px] text-[#94a3b8]"}>{required ? "*" : "(선택)"}</span>
+    </>
   );
 }
 
@@ -458,14 +473,14 @@ export function TextInput({ value, onChange, type = "text", placeholder }: { val
   );
 }
 
-export function TextAreaInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) {
+export function TextAreaInput({ value, onChange, placeholder, compact = false }: { value: string; onChange: (value: string) => void; placeholder?: string; compact?: boolean }) {
   return (
     <textarea
       value={value}
       onChange={(event) => onChange(event.target.value.slice(0, 80))}
       placeholder={placeholder}
       rows={2}
-      className="min-h-[72px] w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none transition placeholder:text-[#9aa8bb] focus:border-[#94a3b8]"
+        className={cn("w-full resize-none rounded-[8px] border border-[#dbe2ea] bg-white px-3 py-2 text-[16px] leading-6 text-[#111827] outline-none transition placeholder:text-[#9aa8bb] focus:border-[#94a3b8]", compact ? "min-h-[64px]" : "min-h-[72px]")}
     />
   );
 }
@@ -615,43 +630,46 @@ export function StaffDraftForm({ draft, onChange, fallbackColorIndex = 0 }: { dr
   const title = [draft.titlePrefix.trim(), draft.position.trim()].filter(Boolean).join(" ");
 
   return (
-    <div className="space-y-3">
-      <StaffPhotoField name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
-      <Field label="이름">
-        <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
-      </Field>
-      <Field label="고객에게 노출할 이름">
-        <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 진" />
-      </Field>
-      <Field label="직원 프로필 메시지">
+    <div className="space-y-2.5">
+      <StaffPhotoField compact name={displayName} value={draft.profileImageUrl} title={displayName} subtitle={title} onChange={(profileImageUrl) => onChange({ ...draft, profileImageUrl })} />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={<StaffDraftFieldLabel label="이름" required />}>
+          <TextInput value={draft.name} onChange={(name) => onChange({ ...draft, name })} placeholder="예: 박수현" />
+        </Field>
+        <Field label={<StaffDraftFieldLabel label="고객에게 노출할 이름" />}>
+          <TextInput value={draft.displayName} onChange={(displayName) => onChange({ ...draft, displayName })} placeholder="예: 진" />
+        </Field>
+      </div>
+      <Field label={<StaffDraftFieldLabel label="직원 프로필 메시지" />}>
         <TextAreaInput
           value={draft.profileMessage}
           onChange={(profileMessage) => onChange({ ...draft, profileMessage })}
           placeholder="예: 아이 성향에 맞춰 차분하게 미용해드려요."
+          compact
         />
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="직책">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={<StaffDraftFieldLabel label="직책" />}>
           <TextInput value={draft.titlePrefix} onChange={(titlePrefix) => onChange({ ...draft, titlePrefix })} placeholder="예: 대표, 수석, 원장" />
         </Field>
-        <Field label="역할">
+        <Field label={<StaffDraftFieldLabel label="역할" />}>
           <TextInput value={draft.position} onChange={(position) => onChange({ ...draft, position })} placeholder="예: 디자이너" />
         </Field>
       </div>
-      <Field label="개인 칩 색">
+      <Field label={<StaffDraftFieldLabel label="개인 칩 색" />}>
         <StaffChipColorPicker value={draft.chipColorIndex} fallbackIndex={fallbackColorIndex} onChange={(chipColorIndex) => onChange({ ...draft, chipColorIndex })} />
       </Field>
-      <Field label="연락처">
+      <Field label={<StaffDraftFieldLabel label="연락처" />}>
         <TextInput value={draft.phone} onChange={(phone) => onChange({ ...draft, phone: formatStaffPhone(phone) })} placeholder="010-0000-0000" />
       </Field>
-      <Field label="고정 휴무일">
+      <Field label={<StaffDraftFieldLabel label="고정 휴무일" />}>
         <WeekdayColorPicker value={draft.defaultDaysText} onChange={(defaultDaysText) => onChange({ ...draft, defaultDaysText })} />
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="고정 출근 시간">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={<StaffDraftFieldLabel label="고정 출근 시간" />}>
           <TimeSelect value={draft.startTime} onChange={(startTime) => onChange({ ...draft, startTime })} align="left" />
         </Field>
-        <Field label="고정 퇴근 시간">
+        <Field label={<StaffDraftFieldLabel label="고정 퇴근 시간" />}>
           <TimeSelect value={draft.endTime} onChange={(endTime) => onChange({ ...draft, endTime })} align="left" />
         </Field>
       </div>
@@ -766,20 +784,34 @@ export function StaffScheduleEditModal({
 }
 
 export function StaffModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/28 px-4" onClick={onClose}>
-      <div
-        className="max-h-[calc(100vh-48px)] w-full max-w-[500px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
-            <X className="h-5 w-5" />
-          </button>
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/28 px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" onClick={onClose}>
+      <div className="flex min-h-full items-center justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className="max-h-[calc(100dvh-48px)] w-full max-w-[500px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
+            <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#64748b] hover:bg-[#f8fafc]" aria-label="닫기">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="mt-3">{children}</div>
         </div>
-        <div className="mt-3">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

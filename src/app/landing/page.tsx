@@ -1,4 +1,4 @@
-import LandingPage from "@/components/landing/landing-page";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "PetManager | 반려동물 미용샵 예약·고객관리 자동화",
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function Page() {
-  return <LandingPage />;
+  redirect("/");
 }

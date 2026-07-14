@@ -44,7 +44,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, 
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "support" | "account" | null;
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "support" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -150,7 +150,6 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   notifications: "알림톡 설정",
   services: "미용 요금",
   staff: "직원관리",
-  addons: "부가기능",
   support: "1:1 문의",
   account: "계정",
 };

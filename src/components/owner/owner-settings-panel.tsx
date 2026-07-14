@@ -41,7 +41,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "support" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "support" | "account" | null;
 
 type PriceType = "fixed" | "starting";
 type StaffProfileDraft = {
@@ -1362,51 +1362,6 @@ export default function OwnerSettingsPanel({
     </div>
   );
 
-  const addonsSection = (
-    <SettingsCard>
-      <SettingsFieldCard
-        label="업장 추가"
-        className="pb-3 pt-2.5"
-        labelAccessory={
-          <InfoTip ariaLabel="부가기능 안내" popoverClassName="w-[248px]">
-            지점이나 타 업체 운영을 함께 관리해야 하는 경우 별도 문의로 안내받을 수 있어요.
-          </InfoTip>
-        }
-      >
-        <div className="space-y-3 px-0.5 pt-1">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">지점·타 업체 운영 문의</p>
-              <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
-                모든 플랜은 1개 사업자 / 1개 매장 기준입니다. 지점이 다르거나 타 업체 관리를 함께 사용하는 경우 별도 문의가 필요해요.
-              </p>
-            </div>
-            <div className="shrink-0 rounded-[10px] border border-[#dfe8e2] bg-[#f8fcfa] px-3 py-2 text-right">
-              <p className="text-[12px] font-medium text-[#7a736b]">운영 기준</p>
-              <p className="mt-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">별도 문의</p>
-            </div>
-          </div>
-          <div className="rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-3">
-            <div className="space-y-1.5 text-[13px] leading-5 text-[var(--muted)]">
-              <p>• 서비스명, 직원명, 안내 문구로 타 업체나 지점을 구분해 운영하는 것도 공동 사용으로 봅니다.</p>
-              <p>• 외부 프리랜서는 해당 매장에서 실제 예약을 수행하는 담당자만 등록할 수 있어요.</p>
-            </div>
-          </div>
-          {data.shop.customer_page_settings?.kakao_inquiry_url ? (
-            <a
-              href={data.shop.customer_page_settings.kakao_inquiry_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-medium text-[var(--text)]"
-            >
-              업장 추가 문의하기
-            </a>
-          ) : null}
-        </div>
-      </SettingsFieldCard>
-    </SettingsCard>
-  );
-
   const supportSection = (
     <OwnerSupportPanel
       data={data}
@@ -1421,7 +1376,6 @@ export default function OwnerSettingsPanel({
     notifications: { title: "알림톡 설정", content: notificationsSection },
     services: { title: "미용 요금", content: servicesSection },
     staff: { title: "직원관리", content: staffSection },
-    addons: { title: "부가기능", content: addonsSection },
     support: { title: "1:1 문의", content: supportSection },
     account: { title: "계정", content: accountSection },
   };
@@ -1577,11 +1531,6 @@ export default function OwnerSettingsPanel({
           icon={CalendarDays}
           title="영업 시간 설정"
           onClick={() => updateActiveScreen("closures")}
-        />
-        <SettingsNavRow
-          icon={Plus}
-          title="부가기능"
-          onClick={() => updateActiveScreen("addons")}
         />
         <SettingsNavRow
           icon={MessageCircle}

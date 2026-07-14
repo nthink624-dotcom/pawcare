@@ -18,15 +18,19 @@ export default function BusinessPage() {
       title="사업자 정보"
       subtitle="넘친 Day 서비스의 공개 사업자 정보와 고객센터 안내입니다."
     >
-      <section className="rounded-[22px] border border-[#eee6db] bg-[#fcfaf6] px-4 py-4">
-        <div className="space-y-3">
+      <section className="overflow-hidden rounded-lg border border-[#dde2e7] bg-white">
+        <dl className="divide-y divide-[#e5e9ed]">
           {rows.map(([label, value]) => (
-            <div key={label} className="rounded-[18px] border border-[#e7e0d5] bg-white px-4 py-3">
-              <p className="text-[11px] font-semibold text-[#6a625b]">{label}</p>
-              <p className="mt-1 text-[14px] font-semibold text-[#1f1a17]">{value}</p>
+            <div key={label} className="grid md:grid-cols-[220px_1fr]">
+              <dt className="bg-[#f8f9fa] px-5 py-3 text-[13px] font-semibold text-[#596570] md:border-r md:border-[#e5e9ed] md:px-6 md:py-4">
+                {label}
+              </dt>
+              <dd className="px-5 pb-4 text-[14px] font-semibold text-[#20262c] md:px-6 md:py-4">
+                {value}
+              </dd>
             </div>
           ))}
-        </div>
+        </dl>
       </section>
     </LegalPageLayout>
   );

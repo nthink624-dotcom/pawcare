@@ -475,7 +475,7 @@ export function FeedbackDialog({
       >
         <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] font-medium ${tone === "success" ? "bg-[#eef8f1] text-[#25613a]" : "bg-[#fff1f1] text-[#b42318]"}`}>
           <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.1} />
-          {tone === "success" ? "예약 접수 완료" : "예약 접수 실패"}
+          {tone === "success" ? "예약 완료" : "예약 실패"}
         </div>
         <h3 className="mt-4 text-[22px] font-semibold leading-8 tracking-[-0.03em] text-[var(--text)]">{title}</h3>
         <p className="mt-3 text-[14px] leading-6 text-[var(--muted)]">{message}</p>

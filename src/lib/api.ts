@@ -27,6 +27,18 @@ export function buildApiUrl(path: string) {
   return normalizedPath;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export async function fetchApiJson<T>(input: string, init?: RequestInit) {
   const response = await fetch(buildApiUrl(input), init);
   const contentType = response.headers.get("content-type") || "";
@@ -50,7 +62,7 @@ export async function fetchApiJson<T>(input: string, init?: RequestInit) {
       json && typeof json === "object" && "message" in json && typeof json.message === "string"
         ? json.message
         : "요청 처리 중 문제가 발생했습니다.";
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, json);
   }
 
   return json as T;

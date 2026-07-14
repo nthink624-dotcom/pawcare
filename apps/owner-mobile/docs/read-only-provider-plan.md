@@ -111,7 +111,7 @@ normalize 정책:
 
 ```env
 EXPO_PUBLIC_OWNER_DATA_PROVIDER=mock
-EXPO_PUBLIC_OWNER_API_BASE_URL=http://localhost:3000
+EXPO_PUBLIC_OWNER_API_BASE_URL=http://localhost:3100
 EXPO_PUBLIC_OWNER_API_STAGE=development
 EXPO_PUBLIC_ALLOW_PROD_API_IN_DEV=false
 ```
@@ -134,7 +134,7 @@ EXPO_PUBLIC_ALLOW_PROD_API_IN_DEV=false
 
 개발 base URL 후보:
 
-- Next API: `http://localhost:3000`
+- Next API: `http://localhost:3100`
 - 분리 백엔드: `http://localhost:4000`
 
 운영 base URL:

@@ -53,6 +53,8 @@ export const serverEnv = {
   alimtalkTemplateBookingCancelled: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED),
   alimtalkTemplateBookingRescheduledConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED),
   alimtalkTemplateAppointmentReminder10m: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M),
+  alimtalkTemplateVisitScheduleNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE),
+  alimtalkTemplateVisitReminderNotice: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE),
   alimtalkTemplateGroomingStarted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_STARTED),
   alimtalkTemplateGroomingAlmostDone: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_ALMOST_DONE),
   alimtalkTemplateGroomingCompleted: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_GROOMING_COMPLETED),
@@ -101,7 +103,7 @@ export function hasAlimtalkServerEnv() {
   return true;
 }
 
-export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
+export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefined) {
   if (!alias) return null;
 
   const templateConfigValues = {
@@ -111,6 +113,8 @@ export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
     templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled ?? null,
     templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed ?? null,
     templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m ?? null,
+    templateVisitScheduleNotice: serverEnv.alimtalkTemplateVisitScheduleNotice ?? null,
+    templateVisitReminderNotice: serverEnv.alimtalkTemplateVisitReminderNotice ?? null,
     templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted ?? null,
     templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone ?? null,
     templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted ?? null,
@@ -120,8 +124,13 @@ export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
 
   const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
   if (!spec) {
-    return alias;
+    return null;
   }
 
   return templateConfigValues[spec.templateConfigKey] ?? null;
+}
+
+export function resolveAlimtalkTemplateKey(alias: string | null | undefined) {
+  if (!alias) return null;
+  return getConfiguredAlimtalkTemplateKey(alias) ?? alias;
 }

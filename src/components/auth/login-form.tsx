@@ -53,7 +53,10 @@ export default function LoginForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const showDevOwnerHelper = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
+  const showDevOwnerHelper = useMemo(
+    () => getSupabaseRuntimeStage() !== "production" && nextPath !== "/owner/mobile",
+    [nextPath],
+  );
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

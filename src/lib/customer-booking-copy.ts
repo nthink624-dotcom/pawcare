@@ -25,7 +25,7 @@
     goHome: "처음 화면으로 돌아가기",
     lookup: "조회",
     lookupPhonePlaceholder: "연락처 입력",
-    reservationCompleteTitle: "예약 접수 완료",
+    reservationCompleteTitle: "예약 완료",
     noLookupResult: "해당 연락처로 조회된 예약이 없어요.",
     noStyleMemo: "스타일 메모 없음",
     reservationFallback: "예약",
@@ -105,7 +105,7 @@
       reservation: {
         title: "예약 정보",
         subtitle: "오늘부터 8일 안에서 날짜와 시간을 선택해 주세요.",
-        sameSubmit: "바로 예약 접수",
+        sameSubmit: "바로 예약",
       },
       extra: {
         title: "추가 입력",

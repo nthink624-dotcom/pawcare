@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ownerColors } from "@/components/ownerTheme";
 
@@ -7,14 +8,23 @@ type OwnerScreenProps = {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  hideHeader?: boolean;
+  footer?: ReactNode;
   children: ReactNode;
 };
 
 type OwnerCardProps = {
   title?: string;
   description?: string;
+  action?: ReactNode;
   tone?: "default" | "accent" | "warning" | "danger" | "complete";
   children?: ReactNode;
+};
+
+type OwnerFieldCardProps = {
+  label: string;
+  children: ReactNode;
+  flush?: boolean;
 };
 
 type OwnerButtonProps = {
@@ -33,28 +43,55 @@ type InfoRowProps = {
   value: string;
 };
 
-export function OwnerScreen({ title, subtitle, action, children }: OwnerScreenProps) {
+export function OwnerScreen({ title, subtitle, action, hideHeader = false, footer, children }: OwnerScreenProps) {
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+    <View style={styles.screenFrame}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.screenContent, footer ? styles.screenContentWithFooter : null]}
+        showsVerticalScrollIndicator={false}
+      >
+        {!hideHeader ? (
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.title}>{title}</Text>
+              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            </View>
+            {action}
+          </View>
+        ) : null}
+        {children}
+      </ScrollView>
+      {footer ? (
+        <View style={styles.screenFooter}>
+          {footer}
         </View>
-        {action}
-      </View>
-      {children}
-    </ScrollView>
+      ) : null}
+    </View>
   );
 }
 
-export function OwnerCard({ title, description, tone = "default", children }: OwnerCardProps) {
+export function OwnerCard({ title, description, action, tone = "default", children }: OwnerCardProps) {
   return (
     <View style={[styles.card, tone === "accent" && styles.accentCard, tone === "warning" && styles.warningCard, tone === "danger" && styles.dangerCard, tone === "complete" && styles.completeCard]}>
       {tone !== "default" ? <View style={[styles.cardStripe, stripeStyleByTone[tone]]} /> : null}
-      {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
+      {title ? (
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          {action}
+        </View>
+      ) : null}
       {description ? <Text style={styles.cardDescription}>{description}</Text> : null}
       {children}
+    </View>
+  );
+}
+
+export function OwnerFieldCard({ label, children, flush = false }: OwnerFieldCardProps) {
+  return (
+    <View style={[styles.fieldCard, flush && styles.fieldCardFlush]}>
+      <Text style={styles.fieldLegend}>{label}</Text>
+      <View style={flush ? styles.fieldFlushBody : styles.fieldBody}>{children}</View>
     </View>
   );
 }
@@ -86,24 +123,30 @@ export function Chip({ label, active = false, tone = "default" }: { label: strin
 }
 
 export function StatusBadge({ label }: StatusBadgeProps) {
-  const style =
-    label === "승인 대기"
-      ? styles.statusWarning
-      : label === "진행 중"
-        ? styles.statusInfo
-        : label === "픽업 준비"
-          ? styles.statusPickup
-          : label === "완료"
-            ? styles.statusComplete
-            : label === "취소"
-              ? styles.statusDanger
-              : styles.statusAccent;
+  const compactLabel = getCompactStatusLabel(label);
+  const style = getStatusStyle(label);
 
   return (
     <View style={[styles.statusBadge, style]}>
-      <Text style={styles.statusText}>{label}</Text>
+      {compactLabel === "완료" ? <Ionicons name="checkmark" size={13} color={ownerColors.accent} /> : null}
+      <Text style={[styles.statusText, compactLabel === "완료" && styles.statusCompleteText]}>{compactLabel}</Text>
     </View>
   );
+}
+
+function getCompactStatusLabel(label: string) {
+  if (label === "미용중") return "진행";
+  if (label === "픽업 준비") return "픽업";
+  return label;
+}
+
+function getStatusStyle(label: string) {
+  if (label === "대기") return styles.statusWarning;
+  if (label === "미용중") return styles.statusInfo;
+  if (label === "픽업 준비") return styles.statusPickup;
+  if (label === "완료") return styles.statusComplete;
+  if (label === "취소") return styles.statusDanger;
+  return styles.statusAccent;
 }
 
 export function InfoRow({ label, value }: InfoRowProps) {
@@ -190,6 +233,10 @@ const buttonLabelStyleByVariant = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  screenFrame: {
+    flex: 1,
+    backgroundColor: ownerColors.background,
+  },
   screen: {
     flex: 1,
     backgroundColor: ownerColors.background,
@@ -199,6 +246,18 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 24,
     gap: 12,
+  },
+  screenContentWithFooter: {
+    paddingBottom: 160,
+  },
+  screenFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: ownerColors.border,
+    backgroundColor: "rgba(255,255,255,0.98)",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 10,
   },
   header: {
     minHeight: 48,
@@ -246,11 +305,51 @@ const styles = StyleSheet.create({
     borderColor: "#e9ddd3",
     backgroundColor: ownerColors.completeSoft,
   },
+  fieldCard: {
+    position: "relative",
+    overflow: "visible",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ownerColors.border,
+    borderRadius: 10,
+    backgroundColor: ownerColors.surface,
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 11,
+    marginTop: 7,
+  },
+  fieldCardFlush: {
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
+  fieldLegend: {
+    position: "absolute",
+    top: -9,
+    left: 12,
+    paddingHorizontal: 6,
+    backgroundColor: ownerColors.surface,
+    color: ownerColors.muted,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "400",
+  },
+  fieldBody: {
+    gap: 8,
+  },
+  fieldFlushBody: {
+    gap: 0,
+  },
   cardStripe: {
     height: 6,
     borderRadius: 999,
   },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   cardTitle: {
+    flex: 1,
     color: ownerColors.text,
     fontSize: 15,
     fontWeight: "500",
@@ -322,14 +421,21 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     alignSelf: "flex-start",
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
     borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 0,
   },
   statusText: {
     color: ownerColors.text,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "400",
+  },
+  statusCompleteText: {
+    color: ownerColors.accent,
   },
   statusWarning: {
     backgroundColor: ownerColors.warningSoft,

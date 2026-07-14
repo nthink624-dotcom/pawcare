@@ -858,7 +858,9 @@ export default function SignupForm({
           identityVerificationToken: verificationToken,
           shopName: fields.shopName.trim(),
           shopPhone: fields.shopPhone,
-          shopAddress: [fields.shopAddress.trim(), shopDetailAddress.trim()].filter(Boolean).join(" "),
+          shopAddress: shopDetailAddress.trim()
+            ? `${fields.shopAddress.trim()}, ${shopDetailAddress.trim()}`
+            : fields.shopAddress.trim(),
           agreements,
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),

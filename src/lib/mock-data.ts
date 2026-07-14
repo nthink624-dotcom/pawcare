@@ -13,6 +13,7 @@ import type {
   Pet,
   Service,
   Shop,
+  StaffMember,
 } from "@/types/domain";
 
 const today = currentDateInTimeZone();
@@ -50,7 +51,7 @@ export const demoShop: Shop = {
   concurrent_capacity: 2,
   booking_slot_interval_minutes: 30,
   booking_slot_offset_minutes: 0,
-  approval_mode: "manual",
+  approval_mode: "auto",
   notification_settings: normalizeShopNotificationSettings({
     enabled: true,
     revisit_enabled: true,
@@ -64,7 +65,7 @@ export const demoShop: Shop = {
   customer_page_settings: normalizeCustomerPageSettings({
     shop_name: "포근한 발바닥 미용실",
     tagline: "아이 성향에 맞춘 차분한 그루밍 예약을 도와드려요.",
-    hero_image_url: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=1200&q=80",
+    hero_image_url: "",
     primary_color: "#1F6B5B",
     notices: [
       "첫 방문은 상담 포함으로 여유 있게 예약해 주세요.",
@@ -84,6 +85,22 @@ export const demoServices: Service[] = [
   { id: "svc-bath", shop_id: "demo-shop", name: "목욕 + 부분미용", price: 38000, duration_minutes: 80, is_active: true, created_at: now, updated_at: now },
   { id: "svc-bath-only", shop_id: "demo-shop", name: "목욕", price: 25000, duration_minutes: 45, is_active: true, created_at: now, updated_at: now },
   { id: "svc-care", shop_id: "demo-shop", name: "저자극 케어", price: 18000, duration_minutes: 30, is_active: true, created_at: now, updated_at: now },
+];
+
+export const demoStaffMembers: StaffMember[] = [
+  {
+    id: "staff-owner",
+    shopId: "demo-shop",
+    name: "정우진",
+    displayName: "정우진 원장",
+    profileImageUrl: null,
+    titlePrefix: "원장",
+    position: "대표 미용사",
+    chipColorIndex: 0,
+    profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
+    created_at: now,
+    updated_at: now,
+  },
 ];
 
 export const demoGuardians: Guardian[] = [
@@ -107,7 +124,7 @@ export const demoAppointments: Appointment[] = [
   { id: "a-5", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_date: today, appointment_time: "15:00", status: "confirmed", memo: "다리 컷 유지", rejection_reason: null, start_at: at(today, "15:00"), end_at: at(today, "17:00"), source: "customer", created_at: now, updated_at: now },
   { id: "a-6", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-care", appointment_date: tomorrow, appointment_time: "17:00", status: "confirmed", memo: "", rejection_reason: null, start_at: at(tomorrow, "17:00"), end_at: at(tomorrow, "17:30"), source: "owner", created_at: now, updated_at: now },
   { id: "a-7", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath", appointment_date: dayAfterTomorrow, appointment_time: "11:00", status: "confirmed", memo: "짧게", rejection_reason: null, start_at: at(dayAfterTomorrow, "11:00"), end_at: at(dayAfterTomorrow, "12:20"), source: "customer", created_at: now, updated_at: now },
-  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "16:30", status: "pending", memo: "", rejection_reason: null, start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "16:30", status: "confirmed", memo: "", rejection_reason: null, start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
   { id: "a-9", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath-only", appointment_date: twoDaysAgo, appointment_time: "09:30", status: "confirmed", memo: "", rejection_reason: null, start_at: at(twoDaysAgo, "09:30"), end_at: at(twoDaysAgo, "10:15"), source: "customer", created_at: now, updated_at: now },
 ];
 
@@ -138,6 +155,7 @@ export function buildDemoBootstrap(): BootstrapPayload {
     deletedGuardians: [],
     pets: demoPets,
     services: demoServices,
+    staffMembers: demoStaffMembers,
     appointments: demoAppointments,
     groomingRecords: demoRecords,
     notifications: demoNotifications,

@@ -398,12 +398,14 @@ function checkAppNavigatorMockOnly() {
   assert.match(source, /selectAuthSessionProvider/);
   assert.match(source, /useSettingsSummaryPreview/);
   assert.match(source, /createInjectedSettingsSummaryPreviewSelectProvider/);
-  assert.match(source, /previewDataProvider\.getTodayHome\(getLocalDateKey\(\)\)/);
+  assert.match(source, /const todayDate = getLocalDateKey\(\)/);
+  assert.match(source, /viewModel=\{previewDataProvider\.getTodayHome\(todayDate\)\}/);
+  assert.match(source, /getViewModelForDate=\{\(date\) => previewDataProvider\.getTodayHome\(date\)\}/);
   assert.match(source, /rows=\{previewDataProvider\.getAppointmentRows\(\)\}/);
   assert.match(source, /function CustomerListRoute\(\{ navigation, previewDataProvider \}/);
   assert.match(source, /customers=\{previewDataProvider\.getCustomerSummaries\(\)\}/);
-  assert.match(source, /function CustomerDetailRoute\(\{ navigation, route, ownerDataProvider \}/);
-  assert.match(source, /ownerDataProvider\.getCustomerDetail/);
+  assert.match(source, /function CustomerDetailRoute\(\{ navigation, route, previewDataProvider \}/);
+  assert.match(source, /previewDataProvider\.getCustomerDetail\(route\.params\.customerId\)/);
   assert.doesNotMatch(source, /selectOwnerDataProvider/);
   assert.doesNotMatch(source, /createRealOwnerDataProvider/);
   assert.doesNotMatch(source, /loadRealOwnerBootstrap/);
@@ -438,9 +440,11 @@ function checkHomeAndReservationScreensUseInjectedData() {
   assert.doesNotMatch(reservationSource, /const quickDates = \[/);
 
   const homeSource = fs.readFileSync(path.join(srcRoot, "screens", "TodayHomeScreen.tsx"), "utf8");
-  assert.match(homeSource, /viewModel\.pendingReservations/);
-  assert.match(homeSource, /viewModel\.activeReservations/);
-  assert.match(homeSource, /viewModel\.completedReservations/);
+  assert.match(homeSource, /getViewModelForDate/);
+  assert.match(homeSource, /panelViewModel\.pendingReservations/);
+  assert.match(homeSource, /panelViewModel\.activeReservations/);
+  assert.match(homeSource, /panelViewModel\.completedReservations/);
+  assert.match(homeSource, /setReservationDate/);
   assert.doesNotMatch(homeSource, /ownerBootstrapMock/);
 }
 

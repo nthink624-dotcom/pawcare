@@ -1,8 +1,9 @@
 import type { OwnerBootstrapDto } from "@/types/bootstrap";
 
-export type OwnerBootstrapApiPayload = Omit<OwnerBootstrapDto, "ownerProfile"> & {
+export type OwnerBootstrapApiPayload = Omit<OwnerBootstrapDto, "ownerProfile" | "staffMembers"> & {
   landingInterests?: unknown;
   landingFeedback?: unknown;
+  staffMembers?: OwnerBootstrapDto["staffMembers"];
 };
 
 export type ToOwnerBootstrapDtoOptions = {
@@ -39,5 +40,6 @@ export function toOwnerBootstrapDto(payload: OwnerBootstrapApiPayload, options: 
     appointments: payload.appointments,
     groomingRecords: payload.groomingRecords,
     notifications: payload.notifications,
+    staffMembers: payload.staffMembers ?? [],
   };
 }

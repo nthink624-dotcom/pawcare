@@ -101,18 +101,31 @@ export function PaymentMethodSheet({
   );
 
   useEffect(() => {
+    const animationFrames: number[] = [];
+
     if (open) {
       if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
         lastFocusedRef.current = document.activeElement;
       }
-      setMounted(true);
-      requestAnimationFrame(() => setActive(true));
-      return;
+
+      animationFrames.push(
+        requestAnimationFrame(() => {
+          setMounted(true);
+          animationFrames.push(requestAnimationFrame(() => setActive(true)));
+        }),
+      );
+
+      return () => {
+        animationFrames.forEach((frame) => cancelAnimationFrame(frame));
+      };
     }
 
-    setActive(false);
+    animationFrames.push(requestAnimationFrame(() => setActive(false)));
     const timer = window.setTimeout(() => setMounted(false), 250);
-    return () => window.clearTimeout(timer);
+    return () => {
+      animationFrames.forEach((frame) => cancelAnimationFrame(frame));
+      window.clearTimeout(timer);
+    };
   }, [open]);
 
   useEffect(() => {

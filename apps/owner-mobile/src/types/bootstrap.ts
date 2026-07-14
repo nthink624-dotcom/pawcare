@@ -28,6 +28,8 @@ export type NotificationType =
   | "grooming_almost_done"
   | "grooming_completed"
   | "revisit_notice"
+  | "landing_feedback"
+  | "waitlist_interest"
   | "birthday_greeting";
 
 export type ShopNotificationSettingsDto = {
@@ -180,8 +182,30 @@ export type NotificationDto = {
   channel: ChannelType;
   message: string;
   status: NotificationStatus;
+  template_key?: string | null;
+  template_type?: string | null;
+  provider?: string | null;
+  provider_message_id?: string | null;
+  recipient_phone?: string | null;
+  fail_reason?: string | null;
+  scheduled_at?: string | null;
+  metadata?: Record<string, string | boolean | number | null>;
   sent_at: string | null;
   created_at: string;
+};
+
+export type StaffMemberDto = {
+  id: string;
+  shopId: string;
+  name: string;
+  displayName: string | null;
+  profileImageUrl: string | null;
+  titlePrefix: string | null;
+  position: string | null;
+  chipColorIndex: number | null;
+  profileMessage: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type OwnerProfileDto = {
@@ -199,4 +223,5 @@ export type OwnerBootstrapDto = {
   appointments: AppointmentDto[];
   groomingRecords: GroomingRecordDto[];
   notifications: NotificationDto[];
+  staffMembers: StaffMemberDto[];
 };

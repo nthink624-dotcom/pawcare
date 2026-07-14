@@ -1,36 +1,58 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, Mail, MapPin, Scissors, Store, UserRound, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, MessageCircle, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
+import { InfoTip } from "@/components/owner/owner-app-ui";
+import OwnerSupportPanel from "@/components/owner/owner-support-panel";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
+import { Switch } from "@/components/ui/switch";
+import { ApiRequestError } from "@/lib/api";
+import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
+import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
-import { normalizeBookingSlotOffsetMinutes } from "@/lib/booking-slot-settings";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
-import type { BootstrapPayload, BusinessHours, Service } from "@/types/domain";
+import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } from "@/types/domain";
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
   onSave: (payload: unknown) => Promise<unknown> | void;
   onSaveService: (payload: unknown) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
+  onSaveStaff: (payload: unknown) => Promise<unknown> | void;
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   initialScreen?: SettingsScreen;
   onActiveScreenChange?: (screen: SettingsScreen) => void;
+  appRole?: MobileAppRole;
+  currentStaffId?: string | null;
 };
+
+type MobileAppRole = "owner" | "staff";
 
 type SaveFeedback = {
   type: "idle" | "success" | "error";
   message: string;
+  description?: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
+type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "support" | "account" | null;
 
 type PriceType = "fixed" | "starting";
+type StaffProfileDraft = {
+  name: string;
+  displayName: string;
+  profileImageUrl: string;
+  titlePrefix: string;
+  position: string;
+  chipColorIndex: number | null;
+  profileMessage: string;
+};
 type ShopNotificationSettingsState = {
   enabled: boolean;
   revisitEnabled: boolean;
@@ -40,16 +62,29 @@ type ShopNotificationSettingsState = {
   bookingRescheduledEnabled: boolean;
   groomingAlmostDoneEnabled: boolean;
   groomingCompletedEnabled: boolean;
+  groomingStartWithoutPhotoEnabled: boolean;
+  groomingCompleteWithoutPhotoEnabled: boolean;
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const businessHoursWeekOrder = [1, 2, 3, 4, 5, 6, 0];
 const defaultBusinessHoursEntry = { open: "10:00", close: "19:00", enabled: true };
-const concurrentCapacityOptions = [1, 2, 3, 4, 5] as const;
-const bookingSlotPresetOptions = [
-  { id: "30-0", interval: 30, offset: 0, label: "정각", helper: "00분 · 30분" },
-  { id: "30-15", interval: 30, offset: 15, label: "15분", helper: "15분 · 45분" },
-] as const;
+const defaultStaffProfileMessage = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
+function createStaffProfileDraft(staffMember: BootstrapStaffMember): StaffProfileDraft {
+  return {
+    name: staffMember.name,
+    displayName: staffMember.displayName ?? "",
+    profileImageUrl: staffMember.profileImageUrl ?? "",
+    titlePrefix: staffMember.titlePrefix ?? "",
+    position: staffMember.position ?? "",
+    chipColorIndex: staffMember.chipColorIndex ?? null,
+    profileMessage: staffMember.profileMessage ?? "",
+  };
+}
+
+function createStaffProfileDrafts(staffMembers: BootstrapStaffMember[]): Record<string, StaffProfileDraft> {
+  return Object.fromEntries(staffMembers.map((staffMember) => [staffMember.id, createStaffProfileDraft(staffMember)]));
+}
 function createBusinessHoursState(hours: BusinessHours, regularClosedDays: number[]): BusinessHours {
   return Object.fromEntries(
     Array.from({ length: 7 }, (_, day) => {
@@ -83,6 +118,8 @@ function mapShopNotificationSettingsState(
     bookingRescheduledEnabled: settings.booking_rescheduled_enabled,
     groomingAlmostDoneEnabled: settings.grooming_almost_done_enabled,
     groomingCompletedEnabled: settings.grooming_completed_enabled,
+    groomingStartWithoutPhotoEnabled: settings.grooming_start_without_photo_enabled ?? false,
+    groomingCompleteWithoutPhotoEnabled: settings.grooming_complete_without_photo_enabled ?? false,
   };
 }
 
@@ -151,17 +188,32 @@ function parseShopAddressParts(rawAddress: string) {
   };
 }
 
+function resolveLoginIdFromOwnerAuthEmail(email?: string | null) {
+  const trimmed = email?.trim();
+  if (!trimmed) return null;
+
+  const lowerEmail = trimmed.toLowerCase();
+  const ownerAuthEmailSuffixes = ["@owner.petmanager.local", "@owner.pawcare.local"];
+  const matchedSuffix = ownerAuthEmailSuffixes.find((suffix) => lowerEmail.endsWith(suffix));
+
+  if (!matchedSuffix) return null;
+  return trimmed.slice(0, -matchedSuffix.length);
+}
+
 export default function OwnerSettingsPanel({
   data,
   onSave,
   onSaveService,
   onSaveCustomerPageSettings,
+  onSaveStaff,
   onLogout,
   loggingOut = false,
   userEmail,
   subscriptionSummary,
   initialScreen = null,
   onActiveScreenChange,
+  appRole = "owner",
+  currentStaffId = null,
 }: SettingsPanelProps) {
   const initialAddressParts = parseShopAddressParts(data.shop.address);
   const [name, setName] = useState(decodeUnicodeEscapes(data.shop.name));
@@ -170,6 +222,7 @@ export default function OwnerSettingsPanel({
   const [detailAddress, setDetailAddress] = useState(initialAddressParts.detailAddress);
   const [postalCode, setPostalCode] = useState("");
   const [isAddressSearchOpen, setIsAddressSearchOpen] = useState(false);
+  const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
   const [description, setDescription] = useState(decodeUnicodeEscapes(data.shop.description));
   const [regularClosedDays, setRegularClosedDays] = useState<number[]>(data.shop.regular_closed_days);
   const [temporaryClosedDates, setTemporaryClosedDates] = useState<string[]>(data.shop.temporary_closed_dates);
@@ -179,7 +232,6 @@ export default function OwnerSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHours>(
     createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days),
   );
-  const [concurrentCapacity, setConcurrentCapacity] = useState(data.shop.concurrent_capacity);
   const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] = useState(data.shop.booking_slot_interval_minutes);
   const [bookingSlotOffsetMinutes, setBookingSlotOffsetMinutes] = useState(data.shop.booking_slot_offset_minutes);
   const [timeEditorTarget, setTimeEditorTarget] = useState<number | "all" | null>(null);
@@ -213,15 +265,29 @@ export default function OwnerSettingsPanel({
   const [editingServiceDuration, setEditingServiceDuration] = useState("");
   const [editingServicePriceType, setEditingServicePriceType] = useState<PriceType>("starting");
   const [editingServiceIsActive, setEditingServiceIsActive] = useState(true);
+  const [staffProfileDrafts, setStaffProfileDrafts] = useState<Record<string, StaffProfileDraft>>(() =>
+    createStaffProfileDrafts(data.staffMembers),
+  );
+  const [savingStaffId, setSavingStaffId] = useState<string | null>(null);
+  const [staffFeedback, setStaffFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
+  const [staffPushEnabled, setStaffPushEnabled] = useState(true);
 
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
+  const isStaffApp = appRole === "staff";
+  const effectiveActiveScreen = isStaffApp && activeScreen && activeScreen !== "support" && activeScreen !== "account" ? null : activeScreen;
+  const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
+  const currentStaff = useMemo(
+    () => data.staffMembers.find((staffMember) => staffMember.id === currentStaffId) ?? data.staffMembers[0] ?? null,
+    [currentStaffId, data.staffMembers],
+  );
 
   useEffect(() => {
     setIsNotificationSettingsDirty(false);
@@ -229,8 +295,12 @@ export default function OwnerSettingsPanel({
   }, [data.shop.id]);
 
   useEffect(() => {
+    setStaffProfileDrafts(createStaffProfileDrafts(data.staffMembers));
+    setStaffFeedback({ type: "idle", message: "" });
+  }, [data.staffMembers]);
+
+  useEffect(() => {
     setBusinessHours(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days));
-    setConcurrentCapacity(data.shop.concurrent_capacity);
     setBookingSlotIntervalMinutes(data.shop.booking_slot_interval_minutes);
     setBookingSlotOffsetMinutes(data.shop.booking_slot_offset_minutes);
     setTimeEditorTarget(null);
@@ -238,7 +308,6 @@ export default function OwnerSettingsPanel({
     data.shop.id,
     data.shop.business_hours,
     data.shop.regular_closed_days,
-    data.shop.concurrent_capacity,
     data.shop.booking_slot_interval_minutes,
     data.shop.booking_slot_offset_minutes,
   ]);
@@ -250,7 +319,16 @@ export default function OwnerSettingsPanel({
     setAddress(nextAddressParts.baseAddress);
     setDetailAddress(nextAddressParts.detailAddress);
     setDescription(decodeUnicodeEscapes(data.shop.description));
-  }, [data.shop.id, data.shop.name, data.shop.phone, data.shop.address, data.shop.description]);
+    setHeroImageUrl(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
+    setIsBasicInfoEditing(false);
+  }, [
+    data.shop.id,
+    data.shop.name,
+    data.shop.phone,
+    data.shop.address,
+    data.shop.description,
+    data.shop.customer_page_settings?.hero_image_url,
+  ]);
 
   useEffect(() => {
     if (onActiveScreenChange) return;
@@ -283,6 +361,17 @@ export default function OwnerSettingsPanel({
   function updateNotificationSettings(updater: (previous: ShopNotificationSettingsState) => ShopNotificationSettingsState) {
     setNotificationSettings((previous) => withPrimedShopNotificationSettings(previous, updater(previous)));
     setIsNotificationSettingsDirty(true);
+  }
+
+  function resetBasicInfoDraft() {
+    const nextAddressParts = parseShopAddressParts(data.shop.address);
+    setName(decodeUnicodeEscapes(data.shop.name));
+    setPhone(data.shop.phone);
+    setAddress(nextAddressParts.baseAddress);
+    setDetailAddress(nextAddressParts.detailAddress);
+    setHeroImageUrl(decodeUnicodeEscapes(data.shop.customer_page_settings?.hero_image_url ?? ""));
+    setBasicInfoFeedback({ type: "idle", message: "" });
+    setIsBasicInfoEditing(false);
   }
 
   function getBusinessHour(day: number) {
@@ -342,12 +431,14 @@ export default function OwnerSettingsPanel({
     setTimeEditorTarget(null);
   }
 
-  const closedDateMonthLabel = `${Number(closedDateMonthCursor.slice(0, 4))}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
+  const closedDateMonthLabel = `${closedDateMonthCursor.slice(2, 4)}년 ${Number(closedDateMonthCursor.slice(5, 7))}월`;
   const subscriptionEndDate = useMemo(() => {
     if (!subscriptionSummary) return "-";
 
     const serviceEndsAt = subscriptionSummary.currentPeriodEndsAt ?? subscriptionSummary.trialEndsAt;
-    return serviceEndsAt ? serviceEndsAt.slice(0, 10).replace(/-/g, ".") : "-";
+    if (!serviceEndsAt) return "-";
+    const datePart = serviceEndsAt.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
   }, [subscriptionSummary]);
 
   const closedDateMonthCells = useMemo(() => {
@@ -371,20 +462,6 @@ export default function OwnerSettingsPanel({
 
     return allSame ? formatBusinessHoursRange(first) : "요일별로 다르게 설정 중";
   }, [businessHours, regularClosedDays]);
-  const activeBookingSlotPresetId = `${bookingSlotIntervalMinutes}-${bookingSlotOffsetMinutes}`;
-  const bookingSlotPatternPreview = useMemo(() => {
-    const samples: string[] = [];
-    for (
-      let minute = bookingSlotOffsetMinutes;
-      minute < bookingSlotOffsetMinutes + bookingSlotIntervalMinutes * 3;
-      minute += bookingSlotIntervalMinutes
-    ) {
-      const hour = Math.floor(minute / 60);
-      const minutePart = String(minute % 60).padStart(2, "0");
-      samples.push(`${String(hour).padStart(2, "0")}:${minutePart}`);
-    }
-    return samples.join(" · ");
-  }, [bookingSlotIntervalMinutes, bookingSlotOffsetMinutes]);
   const parkingNoticeSummary = useMemo(() => {
     const trimmed = parkingNotice.trim();
     return trimmed || "주차 안내 문구를 입력해 주세요.";
@@ -416,6 +493,15 @@ export default function OwnerSettingsPanel({
     setNoticeEditorTarget(target);
   }
 
+  function handleAddressSelect(nextAddress: { address: string; zonecode: string }) {
+    if (!isBasicInfoEditing) return;
+    setAddress(nextAddress.address);
+    setPostalCode(nextAddress.zonecode);
+    setDetailAddress("");
+    setIsAddressSearchOpen(false);
+    window.setTimeout(() => detailAddressInputRef.current?.focus(), 80);
+  }
+
   function applyNoticeEditor() {
     if (noticeEditorTarget === "parking") {
       setParkingNotice(parkingNoticeDraft);
@@ -429,6 +515,7 @@ export default function OwnerSettingsPanel({
   }
 
   function handleProfileImageChange(file: File | null) {
+    if (!isBasicInfoEditing) return;
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -457,29 +544,96 @@ export default function OwnerSettingsPanel({
     setEditingServiceIsActive(true);
   }
 
+  function updateStaffProfileDraft(staffMemberId: string, patch: Partial<StaffProfileDraft>) {
+    setStaffProfileDrafts((prev) => ({
+      ...prev,
+      [staffMemberId]: {
+        ...(prev[staffMemberId] ?? {
+          name: "",
+          displayName: "",
+          profileImageUrl: "",
+          titlePrefix: "",
+          position: "",
+          chipColorIndex: null,
+          profileMessage: "",
+        }),
+        ...patch,
+      },
+    }));
+  }
+
+  function handleStaffProfileImageChange(staffMemberId: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        updateStaffProfileDraft(staffMemberId, { profileImageUrl: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addPendingClosedDate() {
+    if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) {
+      setIsClosedDatePickerOpen(false);
+      return;
+    }
+
+    setTemporaryClosedDates((prev) => [...prev, pendingClosedDate].sort());
+    setPendingClosedDate("");
+    setIsClosedDatePickerOpen(false);
+  }
+
   async function saveBasicInfo() {
-    setSavingBasicInfo(true);
     setBasicInfoFeedback({ type: "idle", message: "" });
 
-    try {
-      const nextCustomerPageSettings = normalizeCustomerPageSettings(
-        {
-          ...data.shop.customer_page_settings,
-          shop_name: name,
-          tagline: description,
-          hero_image_url: heroImageUrl.trim(),
-          operating_hours_note: operatingHoursNote,
-          holiday_notice: holidayNotice,
-          parking_notice: parkingNotice,
-          notices,
-          show_notices: showNotices,
-          show_parking_notice: showParkingNotice,
-        },
-        name,
-        description,
-      );
+    const nextCustomerPageSettings = normalizeCustomerPageSettings(
+      {
+        ...data.shop.customer_page_settings,
+        shop_name: name,
+        tagline: description,
+        hero_image_url: heroImageUrl.trim(),
+        operating_hours_note: operatingHoursNote,
+        holiday_notice: holidayNotice,
+        parking_notice: parkingNotice,
+        notices,
+        show_notices: showNotices,
+        show_parking_notice: showParkingNotice,
+      },
+      name,
+      description,
+    );
+    const initialCustomerPageSettings = normalizeCustomerPageSettings(
+      data.shop.customer_page_settings,
+      decodeUnicodeEscapes(data.shop.name),
+      decodeUnicodeEscapes(data.shop.description),
+    );
+    const combinedAddress = detailAddress.trim() ? `${address}, ${detailAddress.trim()}`.trim() : address;
+    const hasChanges =
+      name !== decodeUnicodeEscapes(data.shop.name) ||
+      phone !== data.shop.phone ||
+      combinedAddress !== decodeUnicodeEscapes(data.shop.address) ||
+      description !== decodeUnicodeEscapes(data.shop.description) ||
+      bookingSlotIntervalMinutes !== data.shop.booking_slot_interval_minutes ||
+      bookingSlotOffsetMinutes !== data.shop.booking_slot_offset_minutes ||
+      JSON.stringify(regularClosedDays) !== JSON.stringify(data.shop.regular_closed_days) ||
+      JSON.stringify(temporaryClosedDates) !== JSON.stringify(data.shop.temporary_closed_dates) ||
+      JSON.stringify(businessHours) !== JSON.stringify(createBusinessHoursState(data.shop.business_hours, data.shop.regular_closed_days)) ||
+      JSON.stringify(notificationSettings) !== JSON.stringify(mapShopNotificationSettingsState(data.shop.notification_settings)) ||
+      JSON.stringify(nextCustomerPageSettings) !== JSON.stringify(initialCustomerPageSettings);
 
-      const combinedAddress = detailAddress.trim() ? `${address}, ${detailAddress.trim()}`.trim() : address;
+    if (!hasChanges) {
+      setIsBasicInfoEditing(false);
+      setBasicInfoFeedback({ type: "success", message: "변경된 내용이 없어요." });
+      return;
+    }
+
+    setSavingBasicInfo(true);
+
+    try {
 
       await Promise.resolve(
         onSave({
@@ -488,9 +642,11 @@ export default function OwnerSettingsPanel({
           phone,
           address: combinedAddress,
           description,
-          concurrentCapacity,
+          concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
           bookingSlotIntervalMinutes,
           bookingSlotOffsetMinutes,
+          bookingAvailableStartTime: data.shop.booking_available_start_time,
+          bookingAvailableEndTime: data.shop.booking_available_end_time,
           approvalMode: data.shop.approval_mode,
           regularClosedDays,
           temporaryClosedDates,
@@ -507,11 +663,14 @@ export default function OwnerSettingsPanel({
       );
 
       setIsNotificationSettingsDirty(false);
+      setIsBasicInfoEditing(false);
       setBasicInfoFeedback({ type: "success", message: "설정이 저장되었어요." });
     } catch (error) {
+      const isCoreInfoLimitExceeded = error instanceof ApiRequestError && error.status === 429;
       setBasicInfoFeedback({
         type: "error",
         message: error instanceof Error ? error.message : "설정을 저장하지 못했어요.",
+        description: isCoreInfoLimitExceeded ? "추가 변경이 필요하면 설정의 1:1 문의로 요청해 주세요." : undefined,
       });
     } finally {
       setSavingBasicInfo(false);
@@ -523,11 +682,17 @@ export default function OwnerSettingsPanel({
       onSaveService({
         shopId: data.shop.id,
         serviceId: service.id,
-        name: editingServiceName,
+        name: editingServiceName.trim(),
         price: Number(editingServicePrice),
         priceType: editingServicePriceType,
         durationMinutes: Number(editingServiceDuration),
         isActive: editingServiceIsActive,
+        category: service.category ?? "미용",
+        description: service.description ?? "",
+        sortOrder: service.sort_order ?? data.services.findIndex((item) => item.id === service.id) + 1,
+        capacityLabel: service.capacity_label ?? "동일 시간 1건",
+        staffSelectionMode: service.staff_selection_mode ?? "all",
+        priceGuide: service.price_guide ?? {},
       }),
     );
     stopEditingService();
@@ -537,15 +702,53 @@ export default function OwnerSettingsPanel({
     await Promise.resolve(
       onSaveService({
         shopId: data.shop.id,
-        name: newService.name,
+        name: newService.name.trim(),
         price: Number(newService.price),
         priceType: newService.priceType,
         durationMinutes: Number(newService.duration),
         isActive: newService.isActive,
+        category: "미용",
+        description: "",
+        sortOrder: data.services.length + 1,
+        capacityLabel: "동일 시간 1건",
+        staffSelectionMode: "all",
+        priceGuide: {},
       }),
     );
     setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
     setIsNewServiceFormOpen(false);
+  }
+
+  async function handleStaffProfileSave(staffMember: BootstrapStaffMember) {
+    const draft = staffProfileDrafts[staffMember.id] ?? createStaffProfileDraft(staffMember);
+    const name = draft.name.trim() || staffMember.name;
+
+    setSavingStaffId(staffMember.id);
+    setStaffFeedback({ type: "idle", message: "" });
+
+    try {
+      await Promise.resolve(
+        onSaveStaff({
+          shopId: data.shop.id,
+          staffMemberId: staffMember.id,
+          name,
+          displayName: draft.displayName.trim(),
+          profileImageUrl: draft.profileImageUrl.trim(),
+          titlePrefix: draft.titlePrefix.trim(),
+          position: draft.position.trim() || staffMember.position || staffMember.role || "직원",
+          chipColorIndex: draft.chipColorIndex,
+          profileMessage: draft.profileMessage.trim(),
+        }),
+      );
+      setStaffFeedback({ type: "success", message: "직원 프로필이 저장되었어요." });
+    } catch (error) {
+      setStaffFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "직원 프로필을 저장하지 못했어요.",
+      });
+    } finally {
+      setSavingStaffId(null);
+    }
   }
 
   const subscriptionSection = subscriptionSummary ? (
@@ -559,28 +762,16 @@ export default function OwnerSettingsPanel({
           !subscriptionSummary.currentPeriodEndsAt &&
           subscriptionSummary.lastPaymentStatus === "none";
         const isFreePlan = currentPlan.code === "free";
-        const currentPlanTitle = isFreePlan || showTrialCard
-          ? "체험 플랜"
-          : currentPlan.months === 1
-            ? "한 달 플랜"
-            : currentPlan.months === 3
-              ? "세 달 플랜"
-              : currentPlan.months === 6
-                ? "여섯 달 플랜"
-                : "일 년 플랜";
+        const currentPlanTitle = isFreePlan || showTrialCard ? "체험 플랜" : getOwnerPlanDisplayName(currentPlan.code);
         const currentPlanLine = isFreePlan || showTrialCard
           ? "카드 등록 없이 이용 중"
-          : currentPlan.billingType === "one_time"
-            ? "일반결제"
-            : `${currentPlan.months}개월 동안 매월 ${won(currentPlan.monthlyPrice)} 결제`;
+          : `${currentPlan.staffLimitLabel} · ${currentPlan.alimtalkIncludedLabel}`;
         const currentPlanPriceLabel = isFreePlan || showTrialCard ? "무료" : `월 ${won(currentPlan.monthlyPrice)}`;
         const currentPlanSubLabel = isFreePlan
           ? "관리자 설정"
           : showTrialCard
             ? "체험 플랜"
-          : currentPlan.billingType === "one_time"
-            ? "1회 결제"
-            : currentPlan.totalLabel;
+          : currentPlan.excessAlimtalkLabel;
         const endDateLabel = "서비스 종료일";
         const isInService =
           subscriptionSummary.status === "active" ||
@@ -589,36 +780,38 @@ export default function OwnerSettingsPanel({
         const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
 
         return (
-      <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_6px_16px_rgba(21,22,19,0.04)]">
+      <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
         <div className="px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-[0.08em] text-[#8a8277]">현재 플랜</p>
-              <p className="mt-2 text-[25px] font-extrabold leading-none tracking-[-0.05em] text-[#171411]">
+              <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">현재 플랜</p>
+              <p className="mt-2 text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">
                 {currentPlanTitle}
               </p>
-              <p className="mt-2 text-[12px] font-medium leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
+              <p className="mt-2 text-[14px] font-normal leading-[1.45] text-[#6f675d]">{currentPlanLine}</p>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[24px] font-extrabold leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
-              <p className="mt-2 text-[11px] font-medium text-[#8a8277]">
+            <div className="shrink-0 pt-0.5 text-right">
+              <p className="text-[22px] font-medium leading-none tracking-[-0.04em] text-[#171411]">{currentPlanPriceLabel}</p>
+              <p className="mt-2 text-[12px] font-normal text-[#8a8277]">
                 {currentPlanSubLabel}
               </p>
             </div>
           </div>
 
           <div className="mt-4 border-t border-[#ebe5dc] pt-3.5">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex items-end justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-[0.06em] text-[#8a8277]">{endDateLabel}</p>
-                <p className="mt-1 text-[18px] font-bold tracking-[-0.03em] text-[#171411]">{subscriptionEndDate}</p>
+                <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">{endDateLabel}</p>
+                <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
-              <a
+              <Link
                 href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
-                className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] text-white transition hover:bg-[#195748]"
+                prefetch
+                onClick={() => writeOwnerBillingSummaryCache(subscriptionSummary)}
+                className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"
               >
                 {planCtaLabel}
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -629,187 +822,142 @@ export default function OwnerSettingsPanel({
   ) : null;
 
   const shopSection = (
-    <SettingsCard>
-      <div className="space-y-1.5">
-        <SettingsFieldCard label="매장 대표 이미지" className="pb-2 pt-2">
-          <div className="relative -top-[4px] flex items-center gap-3.5">
-            <div className="relative shrink-0">
+    <div className="rounded-[14px] border border-[#e2e7ed] bg-[#ffffff] p-3.5">
+      <div>
+        <input
+          ref={profileImageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
+        />
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 truncate text-[18px] font-semibold tracking-[-0.02em] text-[#0f172a]">{name || data.shop.name}</p>
+          {isBasicInfoEditing ? (
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => profileImageInputRef.current?.click()}
-                className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border border-[#dfeae5] bg-white shadow-[0_2px_8px_rgba(31,107,91,0.05)]"
-                aria-label="매장 대표 이미지 변경"
+                onClick={resetBasicInfoDraft}
+                disabled={savingBasicInfo}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[#e2e7ed] bg-white px-4 text-[14px] font-medium text-[#64748b] disabled:opacity-50"
               >
-                {heroImageUrl ? (
-                  <img src={heroImageUrl} alt={`${name || data.shop.name} 대표 이미지`} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-[#f4f5f4] text-[#9ea4a1]">
-                    <UserRound className="h-8 w-8" strokeWidth={1.8} />
-                  </div>
-                )}
+                취소
               </button>
               <button
                 type="button"
-                onClick={() => profileImageInputRef.current?.click()}
-                className="absolute bottom-0 right-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white bg-[var(--accent)] text-white shadow-[0_6px_14px_rgba(31,107,91,0.18)]"
-                aria-label="대표 이미지 선택"
+                onClick={saveBasicInfo}
+                disabled={savingBasicInfo}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#2f6fd6] px-4 text-[14px] font-medium text-white disabled:opacity-50"
               >
-                <Camera className="h-3.5 w-3.5" strokeWidth={2} />
+                {savingBasicInfo ? "저장 중..." : "저장"}
               </button>
-              <input
-                ref={profileImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => handleProfileImageChange(event.target.files?.[0] ?? null)}
-              />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">{name || data.shop.name}</p>
-              <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
-                저장하면 매장 전환 카드와 고객 예약 화면 대표 이미지에도 같이 반영돼요.
-              </p>
-            </div>
-          </div>
-        </SettingsFieldCard>
-
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <SettingsFieldCard label="매장명" className="pb-2 pt-2">
-            <input
-              className="relative -top-[4px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="매장명을 입력해 주세요"
-            />
-          </SettingsFieldCard>
-          <SettingsFieldCard label="업체 연락처" className="pb-2 pt-2">
-            <input
-              className="relative -top-[4px] w-full bg-transparent p-0 text-[16px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="연락처를 입력해 주세요"
-            />
-          </SettingsFieldCard>
-        </div>
-
-        <SettingsFieldCard label="한줄 소개" className="pb-2 pt-2">
-          <textarea
-            className="relative -top-[4px] min-h-[72px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="고객에게 보여줄 매장 소개를 간단히 적어보세요."
-          />
-        </SettingsFieldCard>
-
-        <SettingsFieldCard label="주소" className="pb-2 pt-2">
-          <div className="relative -top-[4px] space-y-2">
+          ) : (
             <button
               type="button"
-              onClick={() => setIsAddressSearchOpen(true)}
-              className="flex w-full items-center gap-3 text-left"
+              onClick={() => {
+                setBasicInfoFeedback({ type: "idle", message: "" });
+                setIsBasicInfoEditing(true);
+              }}
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-[#2f6fd6] px-4 text-[14px] font-medium text-white"
             >
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f5f4] text-[#7d847f]">
-                <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
-              </span>
-              <div className="relative -top-[1px] min-w-0 flex-1">
-                <p className={`break-words text-[15px] leading-5 ${address ? "font-normal text-[var(--text)]" : "text-[var(--muted)]"}`}>
-                  {address
-                    ? detailAddress.trim()
-                      ? `${address}, ${detailAddress.trim()}`
-                      : address
-                    : "주소를 검색해서 선택해 주세요"}
-                </p>
-              </div>
-              <span className="relative -top-[1px] shrink-0 text-[14px] font-normal text-[var(--accent)]">주소 검색</span>
+              수정
             </button>
-            <div className="border-t border-[var(--border)] pt-2">
-              <input
-                className="w-full bg-transparent p-0 text-[15px] leading-5 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                value={detailAddress}
-                onChange={(event) => setDetailAddress(event.target.value)}
-                placeholder="건물명, 층수, 호수 등 상세 주소를 입력해 주세요"
-              />
-            </div>
+          )}
+        </div>
+
+        <div className="mt-3 border-t border-[#edf0f3] pt-3">
+          <div className="grid grid-cols-2 gap-3">
+          <label className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[13px] font-semibold text-[#475569]">매장명</span>
+            <input
+              disabled={!isBasicInfoEditing}
+              className="h-[46px] w-full min-w-0 rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[16px] font-medium text-[#0f172a] outline-none disabled:cursor-default disabled:text-[#475569]"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="매장명"
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[13px] font-semibold text-[#475569]">업체 연락처</span>
+            <input
+              disabled={!isBasicInfoEditing}
+              className="h-[46px] w-full min-w-0 rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[16px] font-medium text-[#0f172a] outline-none disabled:cursor-default disabled:text-[#475569]"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="연락처"
+            />
+          </label>
           </div>
-        </SettingsFieldCard>
 
-        <SettingsFieldCard label="안내 문구 설정" className="mt-1.5 px-0 pb-0 pt-1">
-          <div className="relative -top-[2px] divide-y divide-[#ebe5dc]">
-            <div className="px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-2.5">
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <p className="shrink-0 text-[16px] tracking-[-0.02em] text-[var(--text)]">주차 안내</p>
-                  <button
-                    type="button"
-                    onClick={() => openNoticeEditor("parking")}
-                    className="relative top-[1px] shrink-0 text-[11px] font-normal leading-none tracking-[-0.02em] text-[var(--accent)]"
-                  >
-                    수정
-                  </button>
-                </div>
-                <div className="flex shrink-0 items-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowParkingNotice(!showParkingNotice)}
-                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showParkingNotice ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                  >
-                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showParkingNotice ? "left-[14px]" : "left-[2px]"}`} />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-0.5 w-full">
-                <p className="truncate text-[12px] leading-[1.4] text-[var(--muted)]">{parkingNoticeSummary}</p>
-              </div>
-            </div>
-
-            <div className="px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-2.5">
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <p className="shrink-0 text-[16px] tracking-[-0.02em] text-[var(--text)]">예약 전 안내</p>
-                  <button
-                    type="button"
-                    onClick={() => openNoticeEditor("notices")}
-                    className="relative top-[1px] shrink-0 text-[11px] font-normal leading-none tracking-[-0.02em] text-[var(--accent)]"
-                  >
-                    수정
-                  </button>
-                </div>
-                <div className="flex shrink-0 items-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowNotices(!showNotices)}
-                    className={`relative h-5 w-8.5 shrink-0 rounded-full transition ${showNotices ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-                  >
-                    <span className={`absolute top-[1.5px] size-4 rounded-full bg-white shadow-sm transition ${showNotices ? "left-[14px]" : "left-[2px]"}`} />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-0.5 w-full">
-                <p className="truncate text-[12px] leading-[1.4] text-[var(--muted)]">{noticeSummary}</p>
-              </div>
-            </div>
+          <div className="mt-3 flex flex-col gap-1.5">
+          <span className="text-[13px] font-semibold text-[#475569]">기본 주소</span>
+          <button
+            type="button"
+            disabled={!isBasicInfoEditing}
+            onClick={() => setIsAddressSearchOpen(true)}
+            className={`min-h-[46px] w-full rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 py-2 text-left text-[16px] font-medium leading-[22px] outline-none disabled:cursor-default ${
+              address ? "text-[#0f172a]" : "text-[#94a3b8]"
+            }`}
+          >
+            {address || "도로명이나 건물명으로 주소를 찾아주세요"}
+          </button>
           </div>
-        </SettingsFieldCard>
 
+          <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-[13px] font-semibold text-[#475569]">상세주소</span>
+          <input
+            ref={detailAddressInputRef}
+            disabled={!isBasicInfoEditing}
+            className="h-[46px] w-full rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 text-[16px] font-normal text-[#1e293b] outline-none disabled:cursor-default disabled:text-[#475569]"
+            value={detailAddress}
+            onChange={(event) => setDetailAddress(event.target.value)}
+            placeholder="예: 2층, 101호, 미용실 입구"
+          />
+          </label>
+
+          {isBasicInfoEditing ? (
+            <p className="mt-3 text-[12px] leading-4 text-[#94a3b8]">
+              매장 정보는 월 2회까지 수정 가능합니다. 초과 변경은 1:1 문의로 가능합니다.
+            </p>
+          ) : null}
+        </div>
+
+        {basicInfoFeedback.type !== "idle" ? (
+          <div
+            className={`mt-3 rounded-[12px] px-3.5 py-2.5 text-[13px] font-medium ${
+              basicInfoFeedback.type === "success"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            <p>{basicInfoFeedback.message}</p>
+            {basicInfoFeedback.description ? (
+              <p className="mt-1 text-[12px] leading-4 text-red-600">{basicInfoFeedback.description}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    </SettingsCard>
+    </div>
   );
 
   const closuresSection = (
-    <SettingsCard contentClassName="space-y-3">
-      <SettingsFieldCard label="운영 시간 설정" className="px-0 pb-0 pt-1.5">
-        <div className="divide-y divide-[#d6cfc4]">
-          <button
-            type="button"
-            onClick={() => openBusinessHoursEditor("all")}
-            className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-          >
-            <div className="min-w-0">
-              <p className="text-[15px] tracking-[-0.02em] text-[var(--text)]">전체 시간 설정</p>
-              <p className="mt-1 text-[12px] text-[var(--accent)]">{businessHoursSummary}</p>
-            </div>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-          </button>
+    <>
+      <div className="mb-3 rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
+        <button
+          type="button"
+          onClick={() => openBusinessHoursEditor("all")}
+          className="mb-1 flex w-full items-center justify-between gap-3 rounded-[10px] bg-[#eaf1fc] px-3 py-2.5 text-left"
+        >
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-[#1d4d9e]">전체 시간 설정</p>
+            <p className="mt-0.5 truncate text-[12px] text-[#4779c7]">{businessHoursSummary}</p>
+          </div>
+          <span className="inline-flex h-7 shrink-0 items-center rounded-[7px] border border-[#cfe0f7] bg-white px-2.5 text-[12px] font-semibold text-[#2f6fd6]">
+            일괄 적용
+          </span>
+        </button>
+        <div className="divide-y divide-[#edf1f5]">
           {businessHoursWeekOrder.map((day) => {
             const hours = getBusinessHour(day);
             const isClosed = regularClosedDays.includes(day);
@@ -818,31 +966,32 @@ export default function OwnerSettingsPanel({
                 key={day}
                 type="button"
                 onClick={() => openBusinessHoursEditor(day)}
-                className="flex min-h-[52px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+                className="flex h-[50px] w-full items-center justify-between gap-3 px-1 text-left"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="inline-flex h-5 shrink-0 items-center text-[15px] leading-none tracking-[-0.02em] text-[var(--text)]">
+                  <span className={`inline-flex w-10 shrink-0 items-center text-[14px] font-semibold leading-none ${day === 0 ? "text-[#e0594f]" : day === 6 ? "text-[#2f6fd6]" : "text-[#1e293b]"}`}>
                     {weekdayLabels[day]}요일
                   </span>
                   {isClosed ? (
-                    <span className="relative top-px inline-flex h-5 items-center justify-center self-center rounded-full bg-[#f4f5f4] px-2 text-[10px] leading-none text-[#7f776c]">휴무</span>
+                    <span className="inline-flex items-center rounded-[6px] bg-[#fdeeec] px-2 py-1 text-[11px] font-semibold leading-none text-[#b3453b]">휴무</span>
                   ) : (
-                    <p className="min-w-0 truncate text-[14px] leading-5 text-[#938a80]">{formatBusinessHoursRange(hours)}</p>
+                    <p className="min-w-0 truncate text-[15px] font-medium leading-5 text-[#334155]">{formatBusinessHoursRange(hours)}</p>
                   )}
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
+                <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.8} />
               </button>
             );
           })}
         </div>
-      </SettingsFieldCard>
+      </div>
 
-      <SettingsFieldCard label="특정 휴무일">
+      <div className="rounded-[14px] border border-[#e2e7ed] bg-white p-3.5">
+        <p className="mb-3 text-[14px] font-semibold text-[#0f172a]">특정 휴무일</p>
         <div className="space-y-3">
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex h-[46px] flex-1 items-center justify-between rounded-[14px] border border-[var(--border)] bg-white px-3.5 text-[13px] tracking-[-0.02em] text-[var(--text)]"
+              className="flex h-[40px] flex-1 items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[13px] text-[#1e293b]"
               onClick={() => setIsClosedDatePickerOpen(true)}
             >
               <span>{pendingClosedDate || "날짜 선택"}</span>
@@ -850,99 +999,45 @@ export default function OwnerSettingsPanel({
             </button>
             <button
               type="button"
-              className="h-[46px] rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-medium text-white disabled:opacity-50"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#2f6fd6] bg-[#2f6fd6] text-white disabled:opacity-50"
               disabled={!pendingClosedDate}
               onClick={() => {
-                if (!pendingClosedDate || temporaryClosedDates.includes(pendingClosedDate)) return;
-                setTemporaryClosedDates((prev) => [...prev, pendingClosedDate].sort());
-                setPendingClosedDate("");
+                addPendingClosedDate();
               }}
             >
-              추가
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
             </button>
           </div>
           {temporaryClosedDates.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {temporaryClosedDates.map((date) => (
                 <button
                   key={date}
                   type="button"
-                  className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-[12px] text-[var(--text)]"
+                  className="flex h-[38px] w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[13px] font-medium text-[#1e293b]"
                   onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
                 >
-                  {date} 삭제
+                  <span>{date}</span>
+                  <span className="text-[12px] text-[#94a3b8]">삭제</span>
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-      </SettingsFieldCard>
-
-      <SettingsFieldCard label="예약 시간 설정">
-        <div className="space-y-2.5">
-          <div>
-            <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">동시 예약 가능 수</p>
-            <div className="mt-1.5 grid grid-cols-5 gap-1.5">
-              {concurrentCapacityOptions.map((value) => {
-                const active = concurrentCapacity === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setConcurrentCapacity(value)}
-                    className={`flex h-[36px] w-full items-center justify-center rounded-[12px] border px-2 text-[14px] font-medium ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
-                    }`}
-                  >
-                    {value}명
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-            <div>
-              <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">예약 시간 패턴</p>
-              <p className="mt-1 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
-                고객이 시간을 고르기 쉽게, 예약이 열리는 리듬을 정해 주세요.
-              </p>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                {bookingSlotPresetOptions.map((option) => {
-                  const active = activeBookingSlotPresetId === option.id;
-                  return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => {
-                      setBookingSlotIntervalMinutes(option.interval);
-                      setBookingSlotOffsetMinutes(
-                        normalizeBookingSlotOffsetMinutes(option.offset, option.interval),
-                      );
-                    }}
-                    className={`flex h-[46px] w-full flex-col items-center justify-center rounded-[12px] border px-2 text-[14px] ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-white text-[var(--muted)]"
-                    }`}
-                    >
-                      <span className="text-[14px] font-medium tracking-[-0.02em]">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-[12px] leading-[18px] tracking-[-0.02em] text-[var(--muted)]">
-                예: {bookingSlotPatternPreview}부터 자연스럽게 열려요.
-              </p>
-            </div>
-        </div>
-      </SettingsFieldCard>
-    </SettingsCard>
+      </div>
+    </>
   );
 
   const notificationsSection = (
     <SettingsCard contentClassName="space-y-3">
-      <SettingsFieldCard label="알림톡 발송">
+      <SettingsFieldCard
+        label="알림톡 발송"
+        labelAccessory={
+          <InfoTip ariaLabel="알림톡 설정 안내" popoverClassName="w-[248px]">
+            매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 오너가 직접 알림을 보낼 수 있어요.
+          </InfoTip>
+        }
+      >
         <div className="relative -top-[6px] space-y-1.5">
           <ToggleRow
             label="알림톡 전체 사용"
@@ -950,6 +1045,11 @@ export default function OwnerSettingsPanel({
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
           />
+          <div className="rounded-[12px] border border-[#e4ebe7] bg-[#f8fbfa] px-3 py-2.5">
+            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#5f6c66]">
+              알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
+            </p>
+          </div>
           <div className="space-y-2">
             <ToggleRow
               label="예약 확정 안내"
@@ -985,12 +1085,6 @@ export default function OwnerSettingsPanel({
               label="미용 완료 안내"
               checked={notificationSettings.groomingCompletedEnabled}
               onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, groomingCompletedEnabled: checked }))}
-              disabled={!notificationSettings.enabled}
-            />
-            <ToggleRow
-              label="재방문 안내 기본값"
-              checked={notificationSettings.revisitEnabled}
-              onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, revisitEnabled: checked }))}
               disabled={!notificationSettings.enabled}
             />
           </div>
@@ -1054,7 +1148,7 @@ export default function OwnerSettingsPanel({
                 </div>
               ) : (
                 <SettingsFieldCard label={service.name}>
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="relative -top-[3px] flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">
                         가격 {formatServicePrice(service.price, service.price_type ?? "starting")}
@@ -1063,7 +1157,7 @@ export default function OwnerSettingsPanel({
                         <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">소비자 화면에 노출되지 않아요.</p>
                       ) : null}
                     </div>
-                    <button className="shrink-0 text-[13px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
+                    <button className="shrink-0 text-[14px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
                       수정
                     </button>
                   </div>
@@ -1075,9 +1169,6 @@ export default function OwnerSettingsPanel({
 
         {isNewServiceFormOpen ? (
           <div className="space-y-2 rounded-[10px] border border-[#d9e6e0] bg-[#f8fcfa] px-2.5 py-2.5">
-              <div className="pb-0.5">
-                <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">새 서비스 추가</p>
-              </div>
               <SettingsFieldCard label="서비스 이름">
                 <input
                   className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
@@ -1135,7 +1226,7 @@ export default function OwnerSettingsPanel({
         <div className="pt-1">
           <button
             type="button"
-            className="w-full rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 py-[11px] text-[14px] font-medium text-white"
+            className="inline-flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white"
             onClick={() => setIsNewServiceFormOpen(true)}
           >
             서비스 추가
@@ -1149,34 +1240,209 @@ export default function OwnerSettingsPanel({
   const accountSection = onLogout ? (
     <SettingsCard>
       <div className="divide-y divide-[var(--border)]">
-        {userEmail ? <AccountRow icon={Mail} label="로그인 이메일" value={userEmail} /> : null}
+        {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>
     </SettingsCard>
   ) : null;
 
+  const staffSection = (
+    <div className="space-y-3">
+      {data.staffMembers.map((staffMember) => {
+        const draft = staffProfileDrafts[staffMember.id] ?? createStaffProfileDraft(staffMember);
+        const displayName = draft.displayName.trim() || draft.name.trim() || staffMember.name;
+        const avatarLabel = displayName.slice(0, 1);
+        const imageInputId = `staff-profile-image-${staffMember.id}`;
+
+        return (
+          <div key={staffMember.id} className="rounded-[14px] border border-[#e2e7ed] bg-white p-4">
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-3 border-b border-[#edf1f5] pb-4">
+                <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eaf1fc] text-[22px] font-bold text-[#2f6fd6]">
+                  {draft.profileImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={draft.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    avatarLabel
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[16px] font-bold tracking-[-0.02em] text-[#0f172a]">{displayName}</p>
+                  <p className="mt-0.5 truncate text-[12.5px] leading-4 text-[#64748b]">
+                    {[draft.titlePrefix, draft.position].filter(Boolean).join(" · ") || "고객에게 보일 프로필"}
+                  </p>
+                  <input
+                    id={imageInputId}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => handleStaffProfileImageChange(staffMember.id, event)}
+                  />
+                  <label
+                    htmlFor={imageInputId}
+                    className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#e2e7ed] bg-[#fafbfc] px-3 text-[12px] font-semibold text-[#334155]"
+                  >
+                    <Camera className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    사진 올리기
+                  </label>
+                  {draft.profileImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => updateStaffProfileDraft(staffMember.id, { profileImageUrl: "" })}
+                      className="ml-2 inline-flex h-8 items-center rounded-[8px] px-2 text-[12px] font-semibold text-[#94a3b8]"
+                    >
+                      사진 지우기
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <StaffProfileEditField label="직원 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.name}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { name: event.target.value })}
+                  placeholder="직원 이름"
+                />
+              </StaffProfileEditField>
+
+              <StaffProfileEditField label="고객 표시 이름">
+                <input
+                  className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.displayName}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { displayName: event.target.value })}
+                  placeholder="예: 정우진 원장"
+                />
+              </StaffProfileEditField>
+
+              <div className="grid grid-cols-2 gap-2">
+                <StaffProfileEditField label="호칭">
+                  <input
+                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.titlePrefix}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { titlePrefix: event.target.value })}
+                    placeholder="원장"
+                  />
+                </StaffProfileEditField>
+                <StaffProfileEditField label="역할">
+                  <input
+                    className="w-full bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                    value={draft.position}
+                    onChange={(event) => updateStaffProfileDraft(staffMember.id, { position: event.target.value })}
+                    placeholder="대표 미용사"
+                  />
+                </StaffProfileEditField>
+              </div>
+
+              <StaffProfileEditField label="상태메시지">
+                <textarea
+                  className="min-h-[82px] w-full resize-none bg-transparent p-0 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+                  value={draft.profileMessage}
+                  onChange={(event) => updateStaffProfileDraft(staffMember.id, { profileMessage: event.target.value })}
+                  placeholder={defaultStaffProfileMessage}
+                />
+              </StaffProfileEditField>
+
+              <SolidButton
+                onClick={() => void handleStaffProfileSave(staffMember)}
+                disabled={savingStaffId === staffMember.id}
+              >
+                {savingStaffId === staffMember.id ? "저장 중..." : "프로필 저장"}
+              </SolidButton>
+            </div>
+          </div>
+        );
+      })}
+      {staffFeedback.message ? (
+        <p className={`text-[13px] leading-5 ${staffFeedback.type === "error" ? "text-[#c43d3d]" : "text-[var(--accent)]"}`}>
+          {staffFeedback.message}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const addonsSection = (
+    <SettingsCard>
+      <SettingsFieldCard
+        label="업장 추가"
+        className="pb-3 pt-2.5"
+        labelAccessory={
+          <InfoTip ariaLabel="부가기능 안내" popoverClassName="w-[248px]">
+            지점이나 타 업체 운영을 함께 관리해야 하는 경우 별도 문의로 안내받을 수 있어요.
+          </InfoTip>
+        }
+      >
+        <div className="space-y-3 px-0.5 pt-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[16px] font-normal tracking-[-0.02em] text-[var(--text)]">지점·타 업체 운영 문의</p>
+              <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
+                모든 플랜은 1개 사업자 / 1개 매장 기준입니다. 지점이 다르거나 타 업체 관리를 함께 사용하는 경우 별도 문의가 필요해요.
+              </p>
+            </div>
+            <div className="shrink-0 rounded-[10px] border border-[#dfe8e2] bg-[#f8fcfa] px-3 py-2 text-right">
+              <p className="text-[12px] font-medium text-[#7a736b]">운영 기준</p>
+              <p className="mt-0.5 text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">별도 문의</p>
+            </div>
+          </div>
+          <div className="rounded-[10px] border border-[var(--border)] bg-[#fcfaf7] px-3.5 py-3">
+            <div className="space-y-1.5 text-[13px] leading-5 text-[var(--muted)]">
+              <p>• 서비스명, 직원명, 안내 문구로 타 업체나 지점을 구분해 운영하는 것도 공동 사용으로 봅니다.</p>
+              <p>• 외부 프리랜서는 해당 매장에서 실제 예약을 수행하는 담당자만 등록할 수 있어요.</p>
+            </div>
+          </div>
+          {data.shop.customer_page_settings?.kakao_inquiry_url ? (
+            <a
+              href={data.shop.customer_page_settings.kakao_inquiry_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-medium text-[var(--text)]"
+            >
+              업장 추가 문의하기
+            </a>
+          ) : null}
+        </div>
+      </SettingsFieldCard>
+    </SettingsCard>
+  );
+
+  const supportSection = (
+    <OwnerSupportPanel
+      data={data}
+      userEmail={userEmail}
+    />
+  );
+
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
-    closures: { title: "운영시간 안내", content: closuresSection },
+    closures: { title: "영업 시간 설정", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
-    services: { title: "서비스 관리", content: servicesSection },
+    services: { title: "미용 요금", content: servicesSection },
+    staff: { title: "직원관리", content: staffSection },
+    addons: { title: "부가기능", content: addonsSection },
+    support: { title: "1:1 문의", content: supportSection },
     account: { title: "계정", content: accountSection },
   };
 
-  if (activeScreen) {
-    const isShopScreen = activeScreen === "shop";
-    const isClosuresScreen = activeScreen === "closures";
-    const isNotificationsScreen = activeScreen === "notifications";
-    const shouldShowSaveFooter = isShopScreen || isClosuresScreen || isNotificationsScreen;
+  if (effectiveActiveScreen) {
+    const isShopScreen = effectiveActiveScreen === "shop";
+    const isClosuresScreen = effectiveActiveScreen === "closures";
+    const isStaffScreen = effectiveActiveScreen === "staff";
+    const isNotificationsScreen = effectiveActiveScreen === "notifications";
+    const shouldShowSaveFooter = isClosuresScreen || isNotificationsScreen;
     const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : isNotificationsScreen ? "알림톡 설정 저장" : "매장정보 저장";
 
     return (
       <section className={`space-y-4 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+116px)]" : ""}`}>
-        <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
-          {screenMap[activeScreen].content}
-        </div>
+        {isShopScreen || isClosuresScreen || isStaffScreen ? (
+          screenMap[effectiveActiveScreen].content
+        ) : (
+          <div className={`overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-soft)] ${isClosuresScreen ? "rounded-[16px]" : "rounded-[10px]"}`}>
+            {screenMap[effectiveActiveScreen].content}
+          </div>
+        )}
 
         {shouldShowSaveFooter ? (
           <div className="pointer-events-none fixed bottom-[76px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
@@ -1189,7 +1455,10 @@ export default function OwnerSettingsPanel({
                       : "border border-red-200 bg-red-50 text-red-700"
                   }`}
                 >
-                  {basicInfoFeedback.message}
+                  <p>{basicInfoFeedback.message}</p>
+                  {basicInfoFeedback.description ? (
+                    <p className="mt-1 text-[12px] leading-4 text-red-600">{basicInfoFeedback.description}</p>
+                  ) : null}
                 </div>
               ) : null}
               <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo} className="h-[54px] rounded-[16px] text-[15px]">
@@ -1247,11 +1516,6 @@ export default function OwnerSettingsPanel({
         {timeEditorTarget !== null ? (
           <BusinessHoursSheet
             title={timeEditorTarget === "all" ? "전체 시간 설정" : `${weekdayLabels[timeEditorTarget]}요일 시간 설정`}
-            description={
-              timeEditorTarget === "all"
-                ? "월요일부터 일요일까지 같은 운영 시간을 한 번에 적용해요."
-                : `${weekdayLabels[timeEditorTarget]}요일 운영 시간을 선택해 주세요.`
-            }
             draft={timeDraft}
             showClosedToggle={timeEditorTarget !== "all"}
             onClose={() => setTimeEditorTarget(null)}
@@ -1270,6 +1534,7 @@ export default function OwnerSettingsPanel({
             onPrevMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, -1))}
             onNextMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, 1))}
             onSelectDate={setPendingClosedDate}
+            onApply={addPendingClosedDate}
           />
         ) : null}
 
@@ -1277,19 +1542,29 @@ export default function OwnerSettingsPanel({
           <KakaoPostcodeSheet
             onClose={() => setIsAddressSearchOpen(false)}
             initialQuery={address}
-            onSelect={(nextAddress) => {
-              setAddress(nextAddress.address);
-              setPostalCode(nextAddress.zonecode);
-              setIsAddressSearchOpen(false);
-            }}
+            onSelect={handleAddressSelect}
           />
         ) : null}
       </section>
     );
   }
 
+  if (isStaffApp) {
+    return (
+      <StaffSettingsHome
+        staffMember={currentStaff}
+        shopName={decodeUnicodeEscapes(data.shop.name)}
+        accountLoginId={accountLoginId}
+        pushEnabled={staffPushEnabled}
+        onPushEnabledChange={setStaffPushEnabled}
+        onSupportClick={() => updateActiveScreen("support")}
+        onAccountClick={onLogout ? () => updateActiveScreen("account") : undefined}
+      />
+    );
+  }
+
   return (
-    <section className="p-4">
+    <section className="min-h-full bg-[#F4F5F7] p-4">
       {subscriptionSummary ? <div className="mb-3.5">{subscriptionSection}</div> : null}
 
       <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white shadow-[var(--shadow-soft)] divide-y divide-[var(--border)]">
@@ -1300,18 +1575,23 @@ export default function OwnerSettingsPanel({
         />
         <SettingsNavRow
           icon={CalendarDays}
-          title="운영시간 안내"
+          title="영업 시간 설정"
           onClick={() => updateActiveScreen("closures")}
         />
         <SettingsNavRow
-          icon={Bell}
-          title="알림톡 설정"
-          onClick={() => updateActiveScreen("notifications")}
+          icon={Plus}
+          title="부가기능"
+          onClick={() => updateActiveScreen("addons")}
         />
         <SettingsNavRow
-          icon={Scissors}
-          title="서비스 관리"
-          onClick={() => updateActiveScreen("services")}
+          icon={MessageCircle}
+          title="1:1 문의"
+          onClick={() => updateActiveScreen("support")}
+        />
+        <SettingsNavRow
+          icon={UserRound}
+          title="직원관리"
+          onClick={() => updateActiveScreen("staff")}
         />
         {onLogout ? (
           <SettingsNavRow
@@ -1332,6 +1612,7 @@ export default function OwnerSettingsPanel({
           onPrevMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, -1))}
           onNextMonth={() => setClosedDateMonthCursor((prev) => shiftMonth(prev, 1))}
           onSelectDate={setPendingClosedDate}
+          onApply={addPendingClosedDate}
         />
       ) : null}
 
@@ -1339,11 +1620,7 @@ export default function OwnerSettingsPanel({
         <KakaoPostcodeSheet
           onClose={() => setIsAddressSearchOpen(false)}
           initialQuery={address}
-          onSelect={(nextAddress) => {
-            setAddress(nextAddress.address);
-            setPostalCode(nextAddress.zonecode);
-            setIsAddressSearchOpen(false);
-          }}
+          onSelect={handleAddressSelect}
         />
       ) : null}
     </section>
@@ -1390,7 +1667,6 @@ function GuideMessagesSheet({
 
 function BusinessHoursSheet({
   title,
-  description,
   draft,
   showClosedToggle,
   onClose,
@@ -1398,7 +1674,6 @@ function BusinessHoursSheet({
   onApply,
 }: {
   title: string;
-  description: string;
   draft: { open: string; close: string; closed: boolean };
   showClosedToggle: boolean;
   onClose: () => void;
@@ -1412,26 +1687,24 @@ function BusinessHoursSheet({
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">{title}</h3>
-            <p className="mt-0.5 text-xs leading-4 text-[var(--muted)]">{description}</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
 
         <div className="space-y-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
           {showClosedToggle ? (
-            <button
-              type="button"
-              onClick={() => onChange({ ...draft, closed: !draft.closed })}
+            <div
               className="flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-white px-3.5 py-2.5 text-left"
             >
               <div className="min-w-0">
                 <p className="text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">휴무일로 설정</p>
-                <p className="mt-1 text-[12px] leading-4 text-[var(--muted)]">이 요일은 고객 예약 화면에서 선택되지 않아요.</p>
               </div>
-              <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${draft.closed ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}>
-                <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${draft.closed ? "left-6" : "left-1"}`} />
-              </span>
-            </button>
+              <Switch
+                checked={draft.closed}
+                aria-label="휴무일로 설정"
+                onCheckedChange={(checked) => onChange({ ...draft, closed: checked })}
+              />
+            </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <SettingsFieldCard label="시작 시간">
@@ -1453,9 +1726,6 @@ function BusinessHoursSheet({
               />
             </SettingsFieldCard>
           </div>
-          <p className="text-[11px] leading-4 text-[var(--muted)]">
-            {draft.closed ? "휴무일로 적용하면 이 요일은 예약을 받지 않아요." : "시간을 고른 뒤 적용하면 바로 화면에 반영되고, 아래 저장 버튼으로 최종 저장돼요."}
-          </p>
         </div>
 
         <div className="mt-3.5 grid grid-cols-2 gap-2">
@@ -1476,6 +1746,7 @@ function ClosedDatePickerSheet({
   onPrevMonth,
   onNextMonth,
   onSelectDate,
+  onApply,
 }: {
   monthCursor: string;
   monthLabel: string;
@@ -1485,6 +1756,7 @@ function ClosedDatePickerSheet({
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onSelectDate: (date: string) => void;
+  onApply: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
@@ -1493,7 +1765,6 @@ function ClosedDatePickerSheet({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-[var(--text)]">특정 휴무일 추가</h3>
-            <p className="mt-1 text-xs text-[var(--muted)]">휴무로 둘 날짜를 선택해 주세요.</p>
           </div>
           <button className="text-sm font-semibold text-[var(--muted)]" onClick={onClose}>닫기</button>
         </div>
@@ -1530,6 +1801,10 @@ function ClosedDatePickerSheet({
               );
             })}
           </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <OutlineButton onClick={onClose}>취소</OutlineButton>
+          <SolidButton onClick={onApply} disabled={!selectedDate}>확인</SolidButton>
         </div>
       </div>
     </div>
@@ -1574,32 +1849,122 @@ function SettingsNavRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-[60px] w-full items-center justify-between gap-3 px-4 py-3 text-left ${
+      className={`flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3.5 text-left ${
         accent ? "bg-[#f6fbf9]" : "bg-white"
       }`}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-3">
         <div className={`flex h-6 w-6 shrink-0 items-center justify-center ${
           accent ? "text-[var(--accent)]" : "text-[var(--text)]"
         }`}>
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          <Icon className="h-5 w-5" strokeWidth={1.9} />
         </div>
         <div className="min-w-0">
-          <p className="text-[15px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
+          <p className="text-[17px] font-normal tracking-[-0.02em] text-[var(--text)]">{title}</p>
         </div>
       </div>
-      <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
+      <ChevronRight className={`h-4 w-4 shrink-0 ${accent ? "text-[var(--accent)]" : "text-[var(--muted)]"}`} strokeWidth={1.9} />
     </button>
+  );
+}
+
+function StaffSettingsHome({
+  staffMember,
+  shopName,
+  accountLoginId,
+  pushEnabled,
+  onPushEnabledChange,
+  onSupportClick,
+  onAccountClick,
+}: {
+  staffMember: BootstrapStaffMember | null;
+  shopName: string;
+  accountLoginId: string | null;
+  pushEnabled: boolean;
+  onPushEnabledChange: (checked: boolean) => void;
+  onSupportClick: () => void;
+  onAccountClick?: () => void;
+}) {
+  const staffName = staffMember?.displayName || staffMember?.name || "직원";
+  const staffRole = staffMember?.position || "직원";
+  const staffInitial = staffName.trim().slice(0, 1) || "직";
+
+  return (
+    <section className="min-h-full bg-[#F4F5F7] p-4">
+      <div className="mb-4">
+        <h1 className="text-[24px] font-medium tracking-[-0.02em] text-[#101828]">설정</h1>
+      </div>
+
+      <div className="space-y-3.5">
+        <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
+          <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">내 계정 정보</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[18px] font-medium text-[#2563eb]">
+              {staffInitial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[18px] font-medium tracking-[-0.02em] text-[#101828]">{staffName}</p>
+              <p className="mt-0.5 truncate text-[15px] text-[#667085]">{shopName} · {staffRole}</p>
+            </div>
+          </div>
+          <div className="mt-4 rounded-[14px] bg-[#f8fafc] px-3.5 py-3">
+            <p className="text-[15px] leading-6 text-[#475467]">
+              프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
+          <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">업무 알림</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <Bell className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={1.9} />
+              <div className="min-w-0">
+                <p className="text-[17px] font-medium tracking-[-0.02em] text-[#101828]">앱 알림 수신</p>
+                <p className="mt-1 text-[15px] leading-5 text-[#667085]">내 예약과 일정 변경 알림을 앱에서 받아요.</p>
+              </div>
+            </div>
+            <Switch checked={pushEnabled} aria-label="앱 알림 수신" onCheckedChange={onPushEnabledChange} />
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-[#dfe7f0] bg-white">
+          <p className="px-4 pt-4 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">계정 / 문의</p>
+          <div className="mt-2 overflow-hidden divide-y divide-[#edf1f5]">
+            {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
+            <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
+            <button type="button" onClick={onSupportClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+              <div className="flex min-w-0 items-center gap-3">
+                <MessageCircle className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
+                <p className="text-[16px] font-medium text-[#101828]">1:1 문의</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+            </button>
+            {onAccountClick ? (
+              <button type="button" onClick={onAccountClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                <div className="flex min-w-0 items-center gap-3">
+                  <LogOut className="h-[18px] w-[18px] shrink-0 text-[#c43d3d]" strokeWidth={1.9} />
+                  <p className="text-[16px] font-medium text-[#c43d3d]">로그아웃</p>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
 function SettingsFieldCard({
   label,
+  labelAccessory,
   children,
   className = "",
   variant = "floating",
 }: {
   label: string;
+  labelAccessory?: ReactNode;
   children: ReactNode;
   className?: string;
   variant?: "floating" | "inside-title";
@@ -1607,7 +1972,10 @@ function SettingsFieldCard({
   if (variant === "inside-title") {
     return (
       <div className={`rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`.trim()}>
-        <p className="mb-3 text-[14px] font-normal tracking-[-0.01em] text-[#6f675d]">{label}</p>
+        <div className="mb-3 flex items-center gap-1">
+          <p className="text-[14px] font-normal tracking-[-0.01em] text-[#6f675d]">{label}</p>
+          {labelAccessory}
+        </div>
         {children}
       </div>
     );
@@ -1616,7 +1984,10 @@ function SettingsFieldCard({
   return (
     <fieldset className={`min-w-0 overflow-visible rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 pb-2.5 pt-2 ${className}`.trim()}>
       <legend className="ml-0.5 px-1.5 text-[16px] font-normal tracking-[-0.01em] text-[var(--muted)]">
-        {label}
+        <span className="inline-flex items-center gap-1 align-middle">
+          <span>{label}</span>
+          {labelAccessory}
+        </span>
       </legend>
       {children}
     </fieldset>
@@ -1645,14 +2016,22 @@ function ToggleRow({
       }`}
     >
       <p className="text-[15px] font-normal text-[var(--text)]">{label}</p>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"} disabled:cursor-not-allowed`}
-      >
-        <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} />
-      </button>
+      <Switch checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+function StaffProfileEditField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 py-2.5">
+      <span className="mb-1.5 block text-[12px] font-semibold leading-4 text-[#334155]">{label}</span>
+      {children}
     </label>
   );
 }
@@ -1672,7 +2051,7 @@ function SolidButton({
     <button
       disabled={disabled}
       onClick={() => void onClick()}
-      className={`flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50 ${className}`.trim()}
+      className={`flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-50 ${className}`.trim()}
     >
       {children}
     </button>
@@ -1681,7 +2060,7 @@ function SolidButton({
 
 function OutlineButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
-    <button disabled={disabled} onClick={onClick} className="flex h-[43px] w-full items-center justify-center rounded-[10px] border border-[var(--border)] bg-white px-4 text-sm font-semibold text-[var(--muted)] disabled:opacity-50">
+    <button disabled={disabled} onClick={onClick} className="flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold text-[var(--muted)] disabled:opacity-50">
       {children}
     </button>
   );

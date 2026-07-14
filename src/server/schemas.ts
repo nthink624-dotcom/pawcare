@@ -7,28 +7,42 @@ export const appointmentInputSchema = z.object({
   guardianId: z.string(),
   petId: z.string(),
   serviceId: z.string(),
+  staffId: z.string().trim().optional().nullable(),
   customServiceName: z.string().optional().default(""),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
   memo: z.string().default(""),
   source: z.enum(["owner", "customer"]).default("customer"),
+  visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
 });
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
+  mediaAssetIds: z.array(z.string()).max(10).optional(),
+  notifyCustomer: z.boolean().optional().default(true),
 });
 
 export const appointmentEditSchema = z.object({
   appointmentId: z.string(),
   shopId: z.string(),
   serviceId: z.string(),
+  staffId: z.string().nullable().optional(),
   appointmentDate: z.string(),
   appointmentTime: z.string(),
+  durationMinutes: z.coerce.number().min(15).max(24 * 60).optional(),
   memo: z.string().default(""),
+  visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).optional(),
+  eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
+  enforceShopCapacity: z.boolean().optional().default(true),
+  allowOutsideShopHours: z.boolean().optional().default(false),
+  notifyCustomer: z.boolean().optional().default(true),
+  preserveStatus: z.boolean().optional().default(false),
 });
 
 export const guardianInputSchema = z.object({
@@ -39,15 +53,18 @@ export const guardianInputSchema = z.object({
 });
 
 export const guardianUpdateSchema = z.object({
+  shopId: z.string().optional(),
   guardianId: z.string(),
   name: z.string().trim().min(1).optional(),
   phone: z.string().trim().min(1).optional(),
   memo: z.string().default("").optional(),
   enabled: z.boolean().optional(),
   revisitEnabled: z.boolean().optional(),
+  notificationSettings: z.record(z.string(), z.boolean()).optional(),
 });
 
 export const guardianDeleteSchema = z.object({
+  shopId: z.string().optional(),
   guardianId: z.string().optional(),
   guardianIds: z.array(z.string()).default([]).optional(),
 });
@@ -70,10 +87,15 @@ export const petInputSchema = z.object({
 });
 
 export const petUpdateSchema = z.object({
+  shopId: z.string().optional(),
   petId: z.string(),
   name: z.string().trim().min(1),
   breed: z.string().trim().min(1),
   birthday: z.string().nullable().optional(),
+  weight: z.coerce.number().nullable().optional(),
+  age: z.coerce.number().nullable().optional(),
+  notes: z.string().optional(),
+  groomingCycleWeeks: z.coerce.number().min(1).max(52).optional(),
 });
 
 export const serviceInputSchema = z.object({
@@ -86,6 +108,20 @@ export const serviceInputSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+export const staffMemberProfileSchema = z.object({
+  shopId: z.string(),
+  staffMemberId: z.string().optional(),
+  name: z.string().trim().min(1),
+  displayName: z.string().trim().optional().default(""),
+  profileImageUrl: z.string().trim().optional().default(""),
+  profileImageUrls: z.array(z.string().trim()).max(3).optional().default([]),
+  profileImageAssetIds: z.array(z.string().trim()).max(3).optional().default([]),
+  titlePrefix: z.string().trim().optional().default(""),
+  position: z.string().trim().optional().default(""),
+  chipColorIndex: z.coerce.number().int().min(0).max(31).nullable().optional(),
+  profileMessage: z.string().trim().optional().default(""),
+});
+
 export const shopSettingsSchema = z.object({
   shopId: z.string(),
   name: z.string().min(1),
@@ -95,9 +131,11 @@ export const shopSettingsSchema = z.object({
   concurrentCapacity: z.coerce.number().min(1).max(5),
   bookingSlotIntervalMinutes: z.coerce.number().refine(
     (value) => bookingSlotIntervalOptions.includes(value as (typeof bookingSlotIntervalOptions)[number]),
-    { message: "지원하지 않는 예약 시간 간격입니다." },
+    { message: "지?�하지 ?�는 ?�약 ?�간 간격?�니??" },
   ),
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
+  bookingAvailableStartTime: z.string().default("10:00"),
+  bookingAvailableEndTime: z.string().default("17:00"),
   approvalMode: z.enum(["manual", "auto"]),
   regularClosedDays: z.array(z.number().min(0).max(6)),
   temporaryClosedDates: z.array(z.string()),
@@ -116,15 +154,22 @@ export const shopSettingsSchema = z.object({
     bookingRejectedEnabled: z.boolean(),
     bookingCancelledEnabled: z.boolean(),
     bookingRescheduledEnabled: z.boolean(),
+    appointmentReminder10mEnabled: z.boolean().default(true),
+    appointmentReminder10mMode: z.enum(["manual", "auto"]).default("manual"),
+    visitReminderOffsetMinutes: z.coerce.number().int().min(0).max(180).default(10),
+    groomingStartedEnabled: z.boolean().default(true),
     groomingAlmostDoneEnabled: z.boolean(),
+    pickupReadyEtaMinutes: z.coerce.number().int().min(0).max(180).default(5),
     groomingCompletedEnabled: z.boolean(),
+    groomingStartWithoutPhotoEnabled: z.boolean().default(false),
+    groomingCompleteWithoutPhotoEnabled: z.boolean().default(false),
   }),
 }).superRefine((value, ctx) => {
   if (value.bookingSlotOffsetMinutes >= value.bookingSlotIntervalMinutes) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기준 분은 예약 간격보다 작아야 합니다.",
+      message: "기�? 분�? ?�약 간격보다 ?�아???�니??",
     });
   }
 
@@ -132,29 +177,7 @@ export const shopSettingsSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["bookingSlotOffsetMinutes"],
-      message: "기준 분은 5분 단위로 선택해 주세요.",
+      message: "기�? 분�? 5�??�위�??�택??주세??",
     });
   }
-});
-
-export const customerPageSettingsSchema = z.object({
-  shopId: z.string(),
-  customerPageSettings: z.object({
-    shop_name: z.string().min(1),
-    tagline: z.string().min(1).max(120),
-    hero_image_url: z.string().default(""),
-    primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-    notices: z.array(z.string()).max(3),
-    operating_hours_note: z.string().default(""),
-    holiday_notice: z.string().default(""),
-    parking_notice: z.string().default(""),
-    kakao_inquiry_url: z.string().default(""),
-    show_notices: z.boolean(),
-    show_parking_notice: z.boolean(),
-    show_services: z.boolean(),
-    booking_button_label: z.string().min(1).max(30),
-    show_kakao_inquiry: z.boolean(),
-    font_preset: z.enum(["soft", "clean", "classic"]),
-    font_scale: z.enum(["compact", "comfortable"]),
-  }),
 });

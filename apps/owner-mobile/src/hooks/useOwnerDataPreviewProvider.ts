@@ -152,7 +152,15 @@ export function useOwnerDataPreviewProvider({
   useEffect(() => {
     if (!autoLoad) return;
 
-    return load();
+    let cleanup: ReturnType<typeof load>;
+    const timer = setTimeout(() => {
+      cleanup = load();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      cleanup?.();
+    };
   }, [autoLoad, load]);
 
   return {

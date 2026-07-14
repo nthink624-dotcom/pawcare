@@ -218,6 +218,8 @@ function getAppTemplateConfigValues(): Record<AlimtalkTemplateConfigKey, string>
     templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled || "",
     templateBookingRescheduledConfirmed: serverEnv.alimtalkTemplateBookingRescheduledConfirmed || "",
     templateAppointmentReminder10m: serverEnv.alimtalkTemplateAppointmentReminder10m || "",
+    templateVisitScheduleNotice: serverEnv.alimtalkTemplateVisitScheduleNotice || "",
+    templateVisitReminderNotice: serverEnv.alimtalkTemplateVisitReminderNotice || "",
     templateGroomingStarted: serverEnv.alimtalkTemplateGroomingStarted || "",
     templateGroomingAlmostDone: serverEnv.alimtalkTemplateGroomingAlmostDone || "",
     templateGroomingCompleted: serverEnv.alimtalkTemplateGroomingCompleted || "",

@@ -2,10 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { OwnerApiError } from "@/server/owner-api-auth";
+import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
+import { updateShopSettings } from "@/server/owner-mutations";
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    await requireOwnerShop(request, body?.shopId);
+    const result = await updateShopSettings(body);
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof OwnerApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
+    const message = error instanceof Error ? error.message : "매장 정보를 저장하지 못했어요.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
 }
 
 export async function GET(request: NextRequest) {

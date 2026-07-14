@@ -1,5 +1,19 @@
 # PawCare MVP
 
+## Runtime Split
+
+- PC web: separate `D:\petmanager` repository
+- Mobile web/app: this repository on `http://127.0.0.1:3100`
+
+Mobile work should use:
+
+```powershell
+npm run server:up
+npm run mobile:android
+```
+
+See `docs/mobile-web-app-runtime.md`.
+
 PawCare는 모바일 퍼스트 반려동물 미용샵 SaaS MVP입니다. 현재 구조는 Next.js 프론트와 `backend/` Node API 서버가 분리되어 있으며, 프론트는 화면과 폼 중심으로만 동작하고 서버 권한 로직은 백엔드가 담당합니다.
 
 ## 실행

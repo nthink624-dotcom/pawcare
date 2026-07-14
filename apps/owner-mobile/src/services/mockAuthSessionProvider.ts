@@ -10,7 +10,7 @@ export const MOCK_AUTH_SESSION: AuthSession = {
   isAuthenticated: true,
 };
 
-export function createMockAuthSessionProvider(initialSession: AuthSession | null = null): AuthSessionProvider {
+export function createMockAuthSessionProvider(initialSession: AuthSession | null = MOCK_AUTH_SESSION): AuthSessionProvider {
   let currentSession = initialSession;
 
   return {
@@ -33,4 +33,4 @@ export function createMockAuthSessionProvider(initialSession: AuthSession | null
   };
 }
 
-export const mockAuthSessionProvider = createMockAuthSessionProvider();
+export const mockAuthSessionProvider = createMockAuthSessionProvider(MOCK_AUTH_SESSION);

@@ -28,7 +28,7 @@ export const ownerBootstrapMock: OwnerBootstrapDto = {
     concurrent_capacity: 2,
     booking_slot_interval_minutes: 30,
     booking_slot_offset_minutes: 0,
-    approval_mode: "manual",
+    approval_mode: "auto",
     notification_settings: {
       enabled: true,
       revisit_enabled: true,
@@ -103,6 +103,21 @@ export const ownerBootstrapMock: OwnerBootstrapDto = {
     },
   ],
   deletedGuardians: [],
+  staffMembers: [
+    {
+      id: "staff-owner",
+      shopId: "mock-shop",
+      name: "Staff",
+      displayName: "Staff",
+      profileImageUrl: null,
+      titlePrefix: null,
+      position: null,
+      chipColorIndex: 0,
+      profileMessage: "아이 성향에 맞춰 차분하게 미용해드려요.",
+      created_at: now,
+      updated_at: now,
+    },
+  ],
   pets: [
     {
       id: "P-1001",
@@ -235,7 +250,7 @@ export const ownerBootstrapMock: OwnerBootstrapDto = {
       service_id: "S-full",
       appointment_date: "2026-05-11",
       appointment_time: "10:30",
-      status: "pending",
+      status: "confirmed",
       memo: "첫 방문 / 피부 민감",
       rejection_reason: null,
       start_at: "2026-05-11T10:30:00.000Z",

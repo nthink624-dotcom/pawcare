@@ -111,6 +111,13 @@ export type SettingsSummaryViewModel = {
   serviceSummary: string;
   customerPageSummary: string;
   accountEmail: string;
+  serviceRows: Array<{
+    id: string;
+    name: string;
+    priceLabel: string;
+    durationLabel: string;
+    visibilityLabel: string;
+  }>;
   rows: Array<{
     key: string;
     label: string;
@@ -122,10 +129,12 @@ const DEFAULT_STAFF_LABEL = "담당자 미지정";
 const EMPTY_LABEL = "없음";
 
 export function buildAppointmentRows(dto: OwnerBootstrapDto, date?: string): AppointmentRowViewModel[] {
+  const completedAppointmentIds = getRecordCompletedAppointmentIds(dto);
+
   return dto.appointments
     .filter((appointment) => !date || appointment.appointment_date === date)
     .sort(compareAppointments)
-    .map((appointment) => toAppointmentRow(dto, appointment));
+    .map((appointment) => toAppointmentRow(dto, appointment, completedAppointmentIds));
 }
 
 export function buildTodayHomeViewModel(dto: OwnerBootstrapDto, today: string): TodayHomeViewModel {
@@ -156,7 +165,7 @@ export function buildAppointmentDetailViewModel(dto: OwnerBootstrapDto, appointm
   const appointment = dto.appointments.find((item) => item.id === appointmentId);
   if (!appointment) return null;
 
-  const row = toAppointmentRow(dto, appointment);
+  const row = toAppointmentRow(dto, appointment, getRecordCompletedAppointmentIds(dto));
   const service = findService(dto, appointment.service_id);
   const pet = findPet(dto, appointment.pet_id);
 
@@ -184,7 +193,7 @@ export function buildCustomerDetailViewModel(dto: OwnerBootstrapDto, guardianId:
   const appointments = dto.appointments
     .filter((appointment) => appointment.guardian_id === guardian.id || petIds.has(appointment.pet_id))
     .sort(compareAppointments)
-    .map((appointment) => toAppointmentRow(dto, appointment));
+    .map((appointment) => toAppointmentRow(dto, appointment, getRecordCompletedAppointmentIds(dto)));
   const groomingRecords = dto.groomingRecords
     .filter((record) => record.guardian_id === guardian.id || petIds.has(record.pet_id))
     .sort((a, b) => b.groomed_at.localeCompare(a.groomed_at))
@@ -222,10 +231,17 @@ export function buildSettingsSummaryViewModel(dto: OwnerBootstrapDto): SettingsS
     serviceSummary: `${activeServices.length}개 서비스 운영 중`,
     customerPageSummary: dto.shop.customer_page_settings.show_notices ? "고객 예약 화면 안내 노출 중" : "고객 예약 화면 안내 숨김",
     accountEmail: dto.ownerProfile.email ?? "계정 이메일 미지정",
+    serviceRows: dto.services.map((service) => ({
+      id: service.id,
+      name: service.name,
+      priceLabel: formatWon(service.price, service.price_type),
+      durationLabel: `${service.duration_minutes}분`,
+      visibilityLabel: service.is_active ? "노출 중" : "숨김",
+    })),
     rows: [
       { key: "shop", label: "매장 기본 정보", description: "대표 이미지, 매장명, 연락처, 소개 문구" },
       { key: "hours", label: "운영 시간", description: formatBusinessHoursSummary(dto.shop) },
-      { key: "policy", label: "예약 정책", description: `동시 예약 ${dto.shop.concurrent_capacity}명, ${dto.shop.approval_mode === "manual" ? "직접 승인" : "바로 승인"}` },
+      { key: "policy", label: "예약 정책", description: `동시 예약 ${dto.shop.concurrent_capacity}명, 고객 예약 즉시 확정` },
       { key: "alerts", label: "알림톡 설정", description: dto.shop.notification_settings.enabled ? "예약 확정, 취소, 변경, 완료 안내 사용" : "알림톡 전체 꺼짐" },
       { key: "services", label: "서비스 관리", description: `${activeServices.length}개 활성 서비스, 총 ${dto.services.length}개 등록` },
       { key: "billing", label: "결제 설정", description: "구독 플랜과 결제 수단은 다음 단계에서 연결" },
@@ -245,10 +261,13 @@ function buildShopSummaryViewModel(shop: ShopDto, ownerEmail: string | null): Sh
   };
 }
 
-function toAppointmentRow(dto: OwnerBootstrapDto, appointment: AppointmentDto): AppointmentRowViewModel {
+function toAppointmentRow(dto: OwnerBootstrapDto, appointment: AppointmentDto, completedAppointmentIds = getRecordCompletedAppointmentIds(dto)): AppointmentRowViewModel {
   const guardian = findGuardian(dto, appointment.guardian_id);
   const pet = findPet(dto, appointment.pet_id);
   const service = findService(dto, appointment.service_id);
+  const isCompletedByRecord = completedAppointmentIds.has(appointment.id);
+  const effectiveStatus: AppointmentStatus = isCompletedByRecord ? "completed" : appointment.status;
+  const isMissedPending = !isCompletedByRecord && isMissedPendingAppointment(appointment);
 
   return {
     id: appointment.id,
@@ -260,13 +279,17 @@ function toAppointmentRow(dto: OwnerBootstrapDto, appointment: AppointmentDto): 
     petAvatarSeed: pet?.avatar_seed ?? "•",
     serviceName: service?.name ?? "서비스 없음",
     serviceDurationMinutes: service?.duration_minutes ?? 0,
-    status: appointment.status,
-    statusLabel: getAppointmentStatusLabel(appointment.status),
-    section: getAppointmentStatusSection(appointment.status),
+    status: effectiveStatus,
+    statusLabel: isMissedPending ? "누락" : getAppointmentStatusLabel(effectiveStatus),
+    section: isMissedPending ? "completed" : getAppointmentStatusSection(effectiveStatus),
     sourceLabel: getAppointmentSourceLabel(appointment.source),
     memo: appointment.memo,
     staffLabel: DEFAULT_STAFF_LABEL,
   };
+}
+
+function getRecordCompletedAppointmentIds(dto: OwnerBootstrapDto) {
+  return new Set(dto.groomingRecords.map((record) => record.appointment_id).filter((appointmentId): appointmentId is string => Boolean(appointmentId)));
 }
 
 function toCustomerSummary(dto: OwnerBootstrapDto, guardian: GuardianDto): CustomerSummaryViewModel {
@@ -339,6 +362,33 @@ function compareAppointments(a: AppointmentDto, b: AppointmentDto) {
   return `${a.appointment_date} ${a.appointment_time}`.localeCompare(`${b.appointment_date} ${b.appointment_time}`);
 }
 
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function minutesFromTime(value: string) {
+  const [hour = "0", minute = "0"] = value.split(":");
+  return Number(hour) * 60 + Number(minute);
+}
+
+function getLocalMinutes(date = new Date()) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function isMissedPendingAppointment(appointment: AppointmentDto, now = new Date()) {
+  if (appointment.status !== "pending") return false;
+
+  const today = getLocalDateKey(now);
+  if (appointment.appointment_date < today) return true;
+  if (appointment.appointment_date > today) return false;
+
+  return minutesFromTime(appointment.appointment_time) < getLocalMinutes(now);
+}
+
 function formatClockTime(value: string) {
   return value.slice(0, 5);
 }
@@ -359,7 +409,6 @@ function formatWon(value: number, priceType?: ServiceDto["price_type"]) {
 
 function formatGuardianAlertLabel(guardian: GuardianDto) {
   if (!guardian.notification_settings.enabled) return "알림톡 수신 꺼짐";
-  if (guardian.notification_settings.revisit_enabled) return "재방문 안내 켜짐";
   return "알림톡 수신 중";
 }
 
@@ -370,8 +419,6 @@ function buildCustomerTags(guardian: GuardianDto, pets: PetDto[], appointments: 
   if (guardian.memo.trim()) tags.push("상담 필요");
   if (groomingRecords.length >= 2) tags.push("정기 고객");
   if (pets.some((pet) => pet.grooming_cycle_weeks <= 4)) tags.push("재방문 임박");
-  if (appointments.some((appointment) => appointment.status === "pending")) tags.push("승인 대기");
-
   return tags.length > 0 ? tags : ["미납 없음"];
 }
 

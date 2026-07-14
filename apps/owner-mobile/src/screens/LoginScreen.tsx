@@ -1,7 +1,5 @@
 import { useState } from "react";
 import {
-  Image,
-  type ImageSourcePropType,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ownerColors } from "@/components/ownerTheme";
 import type { OwnerAuthProviderMode } from "@/services/selectAuthSessionProvider";
@@ -19,11 +18,6 @@ type LoginScreenProps = {
   errorMessage?: string | null;
   isSigningIn?: boolean;
   onSignedIn: (credentials?: AuthSignInCredentials) => void | Promise<void>;
-};
-
-const socialIconSources = {
-  kakao: require("../../assets/auth/kakao-symbol.png") as ImageSourcePropType,
-  naver: require("../../assets/auth/naver-symbol.png") as ImageSourcePropType,
 };
 
 export default function LoginScreen({
@@ -37,7 +31,6 @@ export default function LoginScreen({
   const [rememberLoginId, setRememberLoginId] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
-  const canSubmit = !isSigningIn && Boolean(loginId.trim()) && Boolean(password);
   const visibleMessage = errorMessage ?? localMessage;
 
   const submitLogin = () => {
@@ -53,12 +46,21 @@ export default function LoginScreen({
     });
   };
 
-  const showPlaceholderMessage = () => {
-    setLocalMessage("소셜 로그인 처리 중 문제가 발생했어요. 다시 시도해 주세요.");
+  const submitSocialOrPreviewLogin = () => {
+    if (authMode === "mock") {
+      setLocalMessage(null);
+      void onSignedIn({
+        loginId: "mock-owner",
+        password: "mock-password",
+      });
+      return;
+    }
+
+    setLocalMessage("현재 앱은 실제 소셜 인증을 연결하지 않았습니다. 기존 로그인으로 먼저 확인해 주세요.");
   };
 
-  const submitSocialOrPreviewLogin = () => {
-    showPlaceholderMessage();
+  const showHelperMessage = (label: string) => {
+    setLocalMessage(`${label} 기능은 다음 단계에서 실제 인증 화면으로 연결됩니다.`);
   };
 
   return (
@@ -117,14 +119,14 @@ export default function LoginScreen({
             style={styles.passwordToggle}
             onPress={() => setShowPassword((current) => !current)}
           >
-            <Text style={styles.passwordToggleText}>{showPassword ? "숨김" : "보기"}</Text>
+            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#6f665d" />
           </Pressable>
         </View>
       </View>
 
       <Pressable style={styles.rememberRow} onPress={() => setRememberLoginId((current) => !current)}>
         <View style={[styles.checkbox, rememberLoginId && styles.checkboxOn]}>
-          {rememberLoginId ? <Text style={styles.checkText}>✓</Text> : null}
+          {rememberLoginId ? <Ionicons name="checkmark" size={13} color="#ffffff" /> : null}
         </View>
         <Text style={styles.rememberText}>아이디 저장</Text>
       </Pressable>
@@ -132,23 +134,23 @@ export default function LoginScreen({
       {visibleMessage ? <Text style={styles.message}>{visibleMessage}</Text> : null}
 
       <AuthButton
-        label={isSigningIn ? "로그인 중..." : "로그인"}
+        label={isSigningIn ? "로그인 중..." : "로그인 미리보기"}
         onPress={submitLogin}
-        disabled={!canSubmit}
+        disabled={isSigningIn}
         tone="primary"
         style={styles.loginButton}
       />
 
       <View style={styles.helperLinks}>
-        <Pressable onPress={showPlaceholderMessage}>
+        <Pressable hitSlop={8} onPress={() => showHelperMessage("아이디 찾기")}>
           <Text style={styles.helperText}>아이디 찾기</Text>
         </Pressable>
         <Text style={styles.helperDivider}>|</Text>
-        <Pressable onPress={showPlaceholderMessage}>
+        <Pressable hitSlop={8} onPress={() => showHelperMessage("비밀번호 찾기")}>
           <Text style={styles.helperText}>비밀번호 찾기</Text>
         </Pressable>
         <Text style={styles.helperDivider}>|</Text>
-        <Pressable onPress={showPlaceholderMessage}>
+        <Pressable hitSlop={8} onPress={() => showHelperMessage("회원가입")}>
           <Text style={styles.helperText}>회원가입</Text>
         </Pressable>
       </View>
@@ -176,25 +178,8 @@ function AuthButton({ label, onPress, disabled = false, tone, style }: AuthButto
       onPress={disabled ? undefined : onPress}
       style={[styles.authButton, buttonToneStyles[tone], disabled && styles.authButtonDisabled, style]}
     >
-      {tone !== "primary" ? (
-        <View style={styles.socialSymbol}>
-          {tone === "google" ? (
-            <GoogleSymbol />
-          ) : (
-            <Image source={socialIconSources[tone]} style={styles.socialSymbolImage} resizeMode="contain" />
-          )}
-        </View>
-      ) : null}
       <Text style={[styles.authButtonText, buttonTextToneStyles[tone]]}>{label}</Text>
     </Pressable>
-  );
-}
-
-function GoogleSymbol() {
-  return (
-    <View style={styles.googleSymbol}>
-      <Text style={styles.googleBlue}>G</Text>
-    </View>
   );
 }
 
@@ -224,14 +209,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   kakaoButton: {
-    marginTop: 32,
+    marginTop: 21,
   },
   form: {
-    gap: 12,
-    marginTop: 24,
+    gap: 13,
+    marginTop: 28,
   },
   input: {
-    height: 50,
+    height: 64,
     backgroundColor: ownerColors.input,
     paddingHorizontal: 16,
     color: "#111111",
@@ -246,18 +231,13 @@ const styles = StyleSheet.create({
   },
   passwordToggle: {
     position: "absolute",
-    top: 7,
+    top: 14,
     right: 8,
     height: 36,
     minWidth: 44,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 18,
-  },
-  passwordToggleText: {
-    color: "#6f665d",
-    fontSize: 13,
-    fontWeight: "700",
   },
   rememberRow: {
     flexDirection: "row",
@@ -277,11 +257,6 @@ const styles = StyleSheet.create({
   checkboxOn: {
     backgroundColor: ownerColors.accent,
     borderColor: ownerColors.accent,
-  },
-  checkText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "900",
   },
   rememberText: {
     color: "#111111",
@@ -317,7 +292,7 @@ const styles = StyleSheet.create({
   },
   authButton: {
     position: "relative",
-    height: 48,
+    height: 56,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
@@ -332,36 +307,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  socialSymbol: {
-    position: "absolute",
-    left: 17,
-    top: 13,
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  socialSymbolImage: {
-    width: 22,
-    height: 22,
-  },
-  googleSymbol: {
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleBlue: {
-    color: "#4285f4",
-    fontSize: 18,
-    fontWeight: "900",
-  },
 });
 
 const buttonToneStyles = StyleSheet.create({
   primary: {
-    height: 52,
-    borderRadius: 6,
+    height: 56,
+    borderRadius: 8,
     borderColor: "#0e8c6d",
     backgroundColor: "#0e8c6d",
   },

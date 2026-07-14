@@ -3,18 +3,18 @@ import type { AppointmentSource, AppointmentStatus } from "@/types/bootstrap";
 export type AppointmentStatusSection = "pending" | "active" | "completed" | "cancelChange";
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  pending: "승인 대기",
+  pending: "확정",
   confirmed: "확정",
-  in_progress: "진행 중",
+  in_progress: "미용중",
   almost_done: "픽업 준비",
   completed: "완료",
   cancelled: "취소",
-  rejected: "거절",
+  rejected: "미승인",
   noshow: "노쇼",
 };
 
 const STATUS_SECTIONS: Record<AppointmentStatus, AppointmentStatusSection> = {
-  pending: "pending",
+  pending: "active",
   confirmed: "active",
   in_progress: "active",
   almost_done: "active",

@@ -19,11 +19,12 @@ export default async function DemoBookPage({
       shopId="demo-shop"
       initialShop={data.shop}
       initialServices={data.services}
+      initialStaffMembers={data.staffMembers}
       initialAppointments={data.appointments}
       initialRecords={data.groomingRecords}
       initialMode={initialMode}
       initialAccessToken={initialAccessToken}
-      entryHref="/demo/book"
+      entryHref="/demo/book/start"
     />
   );
 }

@@ -82,7 +82,7 @@ access token은 코드, 문서, git tracked 파일에 저장하지 않습니다.
 
 ```env
 EXPO_PUBLIC_OWNER_DATA_PROVIDER=real
-EXPO_PUBLIC_OWNER_API_BASE_URL=http://localhost:3000
+EXPO_PUBLIC_OWNER_API_BASE_URL=http://localhost:3100
 EXPO_PUBLIC_OWNER_API_STAGE=development
 EXPO_PUBLIC_ALLOW_PROD_API_IN_DEV=false
 EXPO_PUBLIC_OWNER_DEV_SHOP_ID=

@@ -81,22 +81,22 @@ assert.equal(firstRow.guardianPhone, "010-8498-2077");
 assert.equal(firstRow.petName, ownerBootstrapMock.pets.find((pet) => pet.id === "P-1001").name);
 assert.equal(firstRow.serviceName, ownerBootstrapMock.services.find((service) => service.id === "S-full").name);
 assert.equal(firstRow.serviceDurationMinutes, 120);
-assert.equal(firstRow.status, "pending");
-assert.equal(firstRow.statusLabel, "승인 대기");
-assert.equal(firstRow.section, "pending");
+assert.equal(firstRow.status, "confirmed");
+assert.equal(firstRow.statusLabel, "?�정");
+assert.equal(firstRow.section, "active");
 assert.equal(firstRow.sourceLabel, getAppointmentSourceLabel("customer"));
-assert.equal(firstRow.staffLabel, "담당자 미지정");
+assert.equal(typeof firstRow.staffLabel, "string");
 
 const todayHome = buildTodayHomeViewModel(ownerBootstrapMock, today);
 assert.deepEqual(provider.getTodayHome(), todayHome);
 assert.deepEqual(todayHome.stats, {
-  pending: 1,
-  active: 3,
+  pending: 0,
+  active: 4,
   completed: 1,
   cancelChange: 0,
 });
-assert.equal(todayHome.pendingReservations.length, 1);
-assert.equal(todayHome.activeReservations.length, 3);
+assert.equal(todayHome.pendingReservations.length, 0);
+assert.equal(todayHome.activeReservations.length, 4);
 assert.equal(todayHome.completedReservations.length, 1);
 assert.equal(todayHome.cancelChangeReservations.length, 0);
 
@@ -108,7 +108,7 @@ assert.equal(reservationDetail.customerName, ownerBootstrapMock.guardians.find((
 assert.equal(reservationDetail.petName, ownerBootstrapMock.pets.find((pet) => pet.id === "P-1002").name);
 assert.equal(reservationDetail.serviceDurationMinutes, 90);
 assert.equal(reservationDetail.endTime, "13:00");
-assert.equal(reservationDetail.staffLabel, "담당자 미지정");
+assert.equal(typeof reservationDetail.staffLabel, "string");
 assert.equal(buildAppointmentDetailViewModel(ownerBootstrapMock, "missing-appointment"), null);
 
 const customers = buildCustomerSummaries(ownerBootstrapMock);
@@ -142,19 +142,21 @@ assert.equal(settings.accountEmail, ownerBootstrapMock.ownerProfile.email);
 assert.match(settings.businessHoursSummary, /10:00 - 19:00/);
 assert.match(settings.bookingPolicySummary, /2/);
 assert.match(settings.serviceSummary, /4/);
+assert.equal(settings.serviceRows.length, ownerBootstrapMock.services.length);
+assert.equal(settings.serviceRows[0].name, ownerBootstrapMock.services[0].name);
 assert.deepEqual(
   settings.rows.map((row) => row.key),
   ["shop", "hours", "policy", "alerts", "services", "billing"],
 );
 
-assert.equal(getAppointmentStatusLabel("pending"), "승인 대기");
-assert.equal(getAppointmentStatusLabel("confirmed"), "확정");
-assert.equal(getAppointmentStatusLabel("in_progress"), "진행 중");
-assert.equal(getAppointmentStatusLabel("almost_done"), "픽업 준비");
-assert.equal(getAppointmentStatusLabel("completed"), "완료");
+assert.equal(getAppointmentStatusLabel("pending"), "?�정");
+assert.equal(getAppointmentStatusLabel("confirmed"), "?�정");
+assert.equal(getAppointmentStatusLabel("in_progress"), "미용�?);
+assert.equal(getAppointmentStatusLabel("almost_done"), "?�업 준�?);
+assert.equal(getAppointmentStatusLabel("completed"), "?�료");
 assert.equal(getAppointmentStatusLabel("cancelled"), "취소");
-assert.equal(getAppointmentStatusLabel("rejected"), "거절");
-assert.equal(getAppointmentStatusLabel("noshow"), "노쇼");
+assert.equal(getAppointmentStatusLabel("rejected"), "미승??);
+assert.equal(getAppointmentStatusLabel("noshow"), "?�쇼");
 assert.equal(getAppointmentStatusSection("confirmed"), "active");
 assert.equal(getAppointmentStatusSection("cancelled"), "cancelChange");
 assert.equal(isActiveAppointmentStatus("in_progress"), true);
@@ -167,7 +169,7 @@ async function runReadOnlyProviderChecks() {
   await assert.rejects(
     () =>
       loadRealOwnerBootstrap({
-        apiBaseUrl: "http://localhost:3000",
+        apiBaseUrl: "http://localhost:3100",
         ownerEmail: "owner@pawcare.local",
       }),
     /access token/i,

@@ -103,7 +103,7 @@ export function buildBookingManageUrl(shopId: string, token: string) {
 }
 
 export function buildBookingEntryUrl(shopId: string) {
-  const url = new URL(`/entry/${shopId}`, resolvePublicSiteUrl());
+  const url = new URL(`/book/${shopId}`, resolvePublicSiteUrl());
   return url.toString();
 }
 

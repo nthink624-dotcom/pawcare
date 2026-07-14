@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
 
 function splitOrigins(value: string | undefined) {
-  return (value || "http://localhost:3000")
+  return (value || "http://localhost:3100")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -14,8 +14,8 @@ function splitOrigins(value: string | undefined) {
 
 export const env = {
   appName: process.env.APP_NAME || "PawCare Backend",
-  siteUrl: process.env.SITE_URL || "http://localhost:3000",
-  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
+  siteUrl: process.env.SITE_URL || "http://localhost:3100",
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3100",
   port: Number(process.env.PORT || 4000),
   corsOrigins: splitOrigins(process.env.CORS_ORIGINS),
   supabaseUrl: process.env.SUPABASE_URL,

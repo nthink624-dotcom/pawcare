@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const result = await createCustomerBooking(body);
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "예약 신청 중 문제가 발생했습니다.";
+    const message = error instanceof Error ? error.message : "예약 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

@@ -20,7 +20,7 @@
 
 ## 3. ?????? ?? ?? env ??
 ```env
-NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000
+NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3100
 AUTH_FLOW_SECRET=???_?_???
 
 NEXT_PUBLIC_SUPABASE_URL=

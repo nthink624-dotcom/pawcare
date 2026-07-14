@@ -64,7 +64,9 @@ function readMetadataValue(source: Record<string, unknown> | null | undefined, k
 }
 
 function joinAddress(baseAddress: string, detailAddress: string) {
-  return [baseAddress.trim(), detailAddress.trim()].filter(Boolean).join(" ");
+  const base = baseAddress.trim();
+  const detail = detailAddress.trim();
+  return detail ? `${base}, ${detail}` : base;
 }
 
 function FormField({

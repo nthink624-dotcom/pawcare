@@ -1,8 +1,21 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { EmptyState, InfoRow, OwnerButton, OwnerCard, OwnerScreen } from "@/components/OwnerUi";
-import { ownerColors } from "@/components/ownerTheme";
+import {
+  DetailFieldCard,
+  DetailHeader,
+  DetailInfoRow,
+  DetailListCard,
+  DetailShell,
+  DetailTabBar,
+  DetailTabBlock,
+  DetailTabPanel,
+  GroomingRecordRow,
+  NotificationHistoryRow,
+  NotificationSettingsCard,
+  PetProfileRow,
+  type CustomerDetailTab,
+} from "@/components/CustomerDetailUi";
+import { EmptyState, OwnerButton, OwnerCard, OwnerScreen } from "@/components/OwnerUi";
 import type { CustomerDetailViewModel } from "@/viewModels/ownerViewModels";
 
 type CustomerDetailScreenProps = {
@@ -10,246 +23,106 @@ type CustomerDetailScreenProps = {
   onBack: () => void;
 };
 
-type CustomerDetailTab = "records" | "pets" | "notifications";
+const customerNotificationItems = [
+  { label: "예약 확정", description: "예약이 최종 확정되었을 때 보내는 알림이에요." },
+  { label: "예약 거절", description: "예약을 받을 수 없을 때 고객에게 사유를 안내해요." },
+  { label: "예약 취소", description: "확정된 예약이 취소되면 바로 알려드려요." },
+  { label: "예약 변경 확정", description: "변경된 일정이 확정되면 새 방문 시간을 알려드려요." },
+  { label: "방문 10분 전", description: "예약 시간이 가까워졌을 때 미리 안내해요." },
+  { label: "미용 시작", description: "매장에서 미용을 시작했을 때 바로 알려드려요." },
+  { label: "픽업 준비", description: "미용이 거의 끝나 픽업 준비가 되었을 때 안내해요." },
+  { label: "미용 완료", description: "미용이 끝나 고객이 데리러 오실 수 있을 때 보내요." },
+];
 
 export default function CustomerDetailScreen({ customer, onBack }: CustomerDetailScreenProps) {
   const [activeTab, setActiveTab] = useState<CustomerDetailTab>("records");
 
   if (!customer) {
     return (
-      <OwnerScreen title="고객 상세" action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
+      <OwnerScreen title="고객 상세" hideHeader>
+        <DetailHeader onBack={onBack} />
         <OwnerCard title="고객 없음" description="선택한 고객 정보를 찾을 수 없습니다." />
       </OwnerScreen>
     );
   }
 
+  const notificationsActive = !customer.alertLabel.includes("꺼짐");
+
   return (
-    <OwnerScreen title="고객 상세" action={<OwnerButton label="목록" onPress={onBack} variant="ghost" />}>
-      <OwnerCard title="기본 정보">
-        <InfoRow label="보호자 이름" value={`${customer.name} 보호자`} />
-        <InfoRow label="연락처" value={customer.phone} />
-        <InfoRow label="반려동물" value={customer.petNames.join(", ") || "등록된 반려동물 없음"} />
-        <InfoRow label="고객 메모" value={customer.memo || "메모를 추가해 주세요"} />
-      </OwnerCard>
+    <OwnerScreen title="고객 상세" hideHeader>
+      <DetailHeader onBack={onBack} />
+      <DetailShell>
+        <DetailFieldCard title="기본 정보">
+          <DetailInfoRow label="보호자 이름" value={`${customer.name} 보호자`} />
+          <DetailInfoRow label="연락처" value={customer.phone} />
+          <DetailInfoRow label="반려동물" value={customer.petNames.join(", ") || "등록된 반려동물 없음"} />
+          <DetailInfoRow label="고객 메모" value={customer.memo || "메모를 추가해 주세요"} muted={!customer.memo} multiline />
+        </DetailFieldCard>
 
-      <OwnerCard title="개인 알림톡">
-        <View style={styles.notificationHeader}>
-          <View style={styles.profileBody}>
-            <Text style={styles.notificationTitle}>알림톡 전체 수신</Text>
-            <Text style={styles.meta}>이 고객에게 가는 예약·미용 알림을 한 번에 켜거나 끌 수 있어요.</Text>
-          </View>
-          <View style={styles.readOnlySwitch}>
-            <View style={styles.switchThumb} />
-          </View>
-        </View>
-        {["예약 확정", "예약 거절", "예약 취소", "예약 변경", "픽업 준비", "미용 완료"].map((label) => (
-          <View key={label} style={styles.notificationItem}>
-            <Text style={styles.notificationItemLabel}>{label}</Text>
-            <Text style={styles.notificationItemStatus}>{customer.alertLabel}</Text>
-          </View>
-        ))}
-      </OwnerCard>
+        <NotificationSettingsCard active={notificationsActive} items={customerNotificationItems} />
 
-      <View style={styles.tabRow}>
-        <DetailTabButton label="미용 기록" active={activeTab === "records"} onPress={() => setActiveTab("records")} />
-        <DetailTabButton label="반려동물" active={activeTab === "pets"} onPress={() => setActiveTab("pets")} />
-        <DetailTabButton label="알림 내역" active={activeTab === "notifications"} onPress={() => setActiveTab("notifications")} />
-      </View>
-
-      {activeTab === "records" ? (
-        <OwnerCard>
-          {customer.groomingRecords.length === 0 ? (
-            <EmptyState title="미용 기록이 없어요" />
-          ) : (
-            customer.groomingRecords.map((record) => (
-              <View key={record.id} style={styles.historyRow}>
-                <Text style={styles.historyTime}>{record.groomedAt}</Text>
-                <View style={styles.profileBody}>
-                  <Text style={styles.petName}>{record.petName}</Text>
-                  <Text style={styles.meta}>
-                    {record.serviceName} · {record.pricePaidLabel}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
-        </OwnerCard>
-      ) : null}
-
-      {activeTab === "pets" ? (
-        <OwnerCard>
-          {customer.pets.map((pet) => (
-            <View key={pet.id} style={styles.petRow}>
-              <View style={styles.petAvatar}>
-                <Text style={styles.petAvatarText}>{pet.avatarSeed}</Text>
-              </View>
-              <View style={styles.profileBody}>
-                <Text style={styles.petName}>{pet.name}</Text>
-                <Text style={styles.meta}>
-                  {pet.breed} · {pet.groomingCycleWeeks}주 주기
-                </Text>
-              </View>
-            </View>
-          ))}
-          <OwnerButton label="아기 추가하기" variant="secondary" />
-        </OwnerCard>
-      ) : null}
-
-      {activeTab === "notifications" ? (
-        <OwnerCard>
-          {customer.notifications.length === 0 ? (
-            <EmptyState title="발송된 알림톡이 없어요" />
-          ) : (
-            customer.notifications.map((notification) => (
-              <View key={notification.id} style={styles.historyRow}>
-                <Text style={styles.historyTime}>{notification.createdAt}</Text>
-                <View style={styles.profileBody}>
-                  <Text style={styles.petName}>{notification.channel}</Text>
-                  <Text style={styles.meta}>{notification.message}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </OwnerCard>
-      ) : null}
+        <DetailTabBlock>
+          <DetailTabBar activeTab={activeTab} onChange={setActiveTab} />
+          {activeTab === "records" ? <GroomingRecordsPanel customer={customer} /> : null}
+          {activeTab === "pets" ? <PetsPanel customer={customer} /> : null}
+          {activeTab === "notifications" ? <NotificationsPanel customer={customer} /> : null}
+        </DetailTabBlock>
+      </DetailShell>
     </OwnerScreen>
   );
 }
 
-function DetailTabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function GroomingRecordsPanel({ customer }: { customer: CustomerDetailViewModel }) {
   return (
-    <Pressable onPress={onPress} style={[styles.tabButton, active && styles.tabButtonActive]}>
-      <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>{label}</Text>
-    </Pressable>
+    <DetailListCard>
+      {customer.groomingRecords.length === 0 ? (
+        <EmptyState title="미용 기록이 없어요" />
+      ) : (
+        customer.groomingRecords.map((record) => (
+          <GroomingRecordRow
+            key={record.id}
+            petName={record.petName}
+            date={record.groomedAt}
+            serviceName={record.serviceName}
+            pricePaidLabel={record.pricePaidLabel}
+            memo={record.memo || record.styleNotes || "상세 메모 없음"}
+          />
+        ))
+      )}
+    </DetailListCard>
   );
 }
 
-const styles = StyleSheet.create({
-  profileBody: {
-    flex: 1,
-    gap: 4,
-  },
-  meta: {
-    color: ownerColors.muted,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  notificationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: ownerColors.border,
-    paddingBottom: 12,
-  },
-  notificationTitle: {
-    color: ownerColors.text,
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  readOnlySwitch: {
-    width: 48,
-    height: 28,
-    justifyContent: "center",
-    borderRadius: 999,
-    backgroundColor: ownerColors.accent,
-    paddingHorizontal: 4,
-  },
-  switchThumb: {
-    alignSelf: "flex-end",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#ffffff",
-  },
-  notificationItem: {
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ownerColors.border,
-    backgroundColor: ownerColors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
-  },
-  notificationItemLabel: {
-    color: ownerColors.text,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  notificationItemStatus: {
-    color: ownerColors.muted,
-    fontSize: 12,
-  },
-  tabRow: {
-    flexDirection: "row",
-    gap: 4,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ownerColors.border,
-    backgroundColor: "#f8f5f0",
-    padding: 4,
-  },
-  tabButton: {
-    flex: 1,
-    minHeight: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    paddingHorizontal: 6,
-  },
-  tabButtonActive: {
-    backgroundColor: "#ffffff",
-  },
-  tabButtonText: {
-    color: ownerColors.muted,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  tabButtonTextActive: {
-    color: ownerColors.text,
-  },
-  petRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ownerColors.border,
-    backgroundColor: ownerColors.surface,
-    padding: 12,
-  },
-  petAvatar: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 21,
-    backgroundColor: ownerColors.accentSoft,
-  },
-  petAvatarText: {
-    color: ownerColors.accent,
-    fontSize: 17,
-    fontWeight: "900",
-  },
-  petName: {
-    color: ownerColors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: ownerColors.border,
-    backgroundColor: ownerColors.surfaceSoft,
-    padding: 12,
-  },
-  historyTime: {
-    minWidth: 46,
-    color: ownerColors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-});
+function PetsPanel({ customer }: { customer: CustomerDetailViewModel }) {
+  return (
+    <DetailTabPanel>
+      {customer.pets.map((pet) => (
+        <PetProfileRow
+          key={pet.id}
+          name={pet.name}
+          summary={[pet.breed, pet.birthday ? `생일 ${pet.birthday}` : null].filter(Boolean).join(" · ")}
+        />
+      ))}
+      <OwnerButton label="아기 추가하기" variant="secondary" />
+    </DetailTabPanel>
+  );
+}
+
+function NotificationsPanel({ customer }: { customer: CustomerDetailViewModel }) {
+  return (
+    <DetailListCard>
+      {customer.notifications.length === 0 ? (
+        <EmptyState title="발송된 알림톡이 없어요" />
+      ) : (
+        customer.notifications.map((notification) => (
+          <NotificationHistoryRow
+            key={notification.id}
+            channel={notification.channel}
+            createdAt={notification.createdAt}
+            message={notification.message}
+          />
+        ))
+      )}
+    </DetailListCard>
+  );
+}

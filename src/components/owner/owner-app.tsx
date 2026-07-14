@@ -1,26 +1,53 @@
 ﻿"use client";
 
-import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, House, PawPrint, Plus, Settings, Trash2, UserRound, X, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, House, PawPrint, Plus, QrCode, Settings, Trash2, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import {
+  ActionButton,
+  EmptyState,
+  Field,
+  HorizontalDragScroll,
+  InfoTip,
+  Overlay,
+  Panel,
+  Sheet,
+  ToggleRow,
+} from "@/components/owner/owner-app-ui";
+import {
+  Avatar,
+  CustomerDetailFieldCard,
+  CustomerDetailHistoryPagination,
+  CustomerEmptyState,
+  CustomerMetricCard,
+  InfoItem,
+  NotificationHistoryRow,
+  PetDetailInputField,
+  QuickContactRow,
+  ShopAvatar,
+  UrgencyPill,
+} from "@/components/owner/owner-customer-detail-ui";
 import CustomerDeleteSelectionPanel from "@/components/owner/customer-delete-selection-panel";
 import OwnerSettingsPanel from "@/components/owner/owner-settings-panel";
 import { EmptyState as AppEmptyState } from "@/components/ui/empty-state";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
-import { SectionHeader as AppSectionHeader } from "@/components/ui/section-header";
 import { StatusBadge as AppStatusBadge } from "@/components/ui/status-badge";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { computeAvailableSlots, revisitInfo } from "@/lib/availability";
+import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
+import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
-import { addDate, currentDateInTimeZone, formatClockTime, phoneNormalize, shortDate, won } from "@/lib/utils";
-import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, Pet, Service } from "@/types/domain";
+import { addDate, cn, currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime, phoneNormalize, shortDate, won } from "@/lib/utils";
+import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, MediaKind, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "account" | null;
+type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "addons" | "support" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
+type MobileAppRole = "owner" | "staff";
+type HomeStaffFilterKey = "all" | "unassigned" | string;
 type OwnedShopSummary = {
   id: string;
   name: string;
@@ -38,6 +65,8 @@ type ShopProfileSavePayload = {
     concurrentCapacity: number;
     bookingSlotIntervalMinutes: number;
     bookingSlotOffsetMinutes: number;
+    bookingAvailableStartTime: string;
+    bookingAvailableEndTime: string;
     approvalMode: "manual" | "auto";
     regularClosedDays: number[];
     temporaryClosedDates: string[];
@@ -51,6 +80,8 @@ type ShopProfileSavePayload = {
       bookingRescheduledEnabled: boolean;
       groomingAlmostDoneEnabled: boolean;
       groomingCompletedEnabled: boolean;
+      groomingStartWithoutPhotoEnabled: boolean;
+      groomingCompleteWithoutPhotoEnabled: boolean;
     };
   };
   customerPageSettingsPayload: {
@@ -59,12 +90,15 @@ type ShopProfileSavePayload = {
   };
 };
 type Guardian = BootstrapPayload["guardians"][number];
+type GuardianNotificationSettings = Guardian["notification_settings"];
+type GuardianNotificationSettingKey = keyof GuardianNotificationSettings;
 type CustomerEditableField = "name" | "phone" | "pet" | "memo";
 type AppointmentStatusUpdatePayload = {
   status: AppointmentStatus;
   rejectionReasonTemplate?: string;
   rejectionReasonCustom?: string;
   eventType?: "booking_rescheduled_confirmed";
+  mediaAssetIds?: string[];
 };
 type AppointmentEditPayload = {
   mode: "edit";
@@ -74,6 +108,7 @@ type AppointmentEditPayload = {
   memo: string;
 };
 type AppointmentUpdatePayload = AppointmentStatusUpdatePayload | AppointmentEditPayload;
+type HomeReservationSectionKey = "pending" | "current" | "cancelChange" | "completed";
 type ModalState =
   | { type: "appointment"; appointment: Appointment }
   | { type: "edit-shop-profile" }
@@ -83,14 +118,40 @@ type ModalState =
   | { type: "edit-record"; record: GroomingRecord }
   | { type: "stat"; kind: "today" | "pending" | "completed" | "cancel_change" }
   | null;
+type MobilePhotoStatusAction = {
+  appointmentId: string;
+  nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">;
+  mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
+  title: string;
+  description: string;
+  buttonLabel: string;
+  skipLabel: string;
+  autoOpenCamera?: boolean;
+};
+export type OwnerMobileLaunchPhotoStatusAction = {
+  appointmentId: string;
+  statusAction: Extract<AppointmentStatus, "in_progress" | "completed">;
+  autoOpenCamera?: boolean;
+};
+type AppointmentMediaPreview = {
+  item: MediaAssetListItem;
+  signedUrl: string;
+};
+type SignedMediaUrlResponse = {
+  signedUrl: string;
+  expiresInSeconds: number;
+};
 
 const compactWeekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, string> = {
   subscription: "현재 플랜",
   shop: "매장 기본 정보",
-  closures: "운영시간 안내",
+  closures: "영업 시간 설정",
   notifications: "알림톡 설정",
-  services: "서비스 관리",
+  services: "미용 요금",
+  staff: "직원관리",
+  addons: "부가기능",
+  support: "1:1 문의",
   account: "계정",
 };
 
@@ -101,22 +162,105 @@ const rejectionReasonTemplates = [
   "\uB9E4\uC7A5 \uC0AC\uC815\uC73C\uB85C \uC608\uC57D\uC774 \uC5B4\uB824\uC6CC\uC694",
   "\uAE30\uD0C0 \uC9C1\uC811 \uC785\uB825",
 ] as const;
+const directRejectionReasonTemplate = rejectionReasonTemplates[4];
 
 const statusMeta: Record<AppointmentStatus, { label: string; color: string; bg: string }> = {
-  pending: { label: "\uB300\uAE30", color: "#7b654d", bg: "#f6eee3" },
-  confirmed: { label: "\uD655\uC815", color: "#1f6b5b", bg: "#eaf5f1" },
-  in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#1f6b5b", bg: "#eef4f2" },
-  almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#5f6b66", bg: "#f3f4f2" },
-  completed: { label: "\uC644\uB8CC", color: "#5f6b66", bg: "#f3f4f2" },
+  pending: { label: "\uB300\uAE30", color: "#9a6a16", bg: "#fff8eb" },
+  confirmed: { label: "\uD655\uC815", color: "#2f6bd4", bg: "#eef4ff" },
+  in_progress: { label: "\uBBF8\uC6A9\uC911", color: "#2f6bd4", bg: "#eef4ff" },
+  almost_done: { label: "\uD53D\uC5C5 \uC900\uBE44", color: "#4f5d73", bg: "#f3f6fb" },
+  completed: { label: "\uC644\uB8CC", color: "#4f5d73", bg: "#f3f6fb" },
   cancelled: { label: "\uCDE8\uC18C", color: "#8f6658", bg: "#f8efea" },
   rejected: { label: "\uBBF8\uC2B9\uC778", color: "#8f6658", bg: "#f8efea" },
   noshow: { label: "\uB178\uC1FC", color: "#8f6658", bg: "#f8efea" },
 };
 
+function matchesHomeStaffFilter(appointment: Appointment, filter: HomeStaffFilterKey) {
+  if (filter === "all") return true;
+  if (filter === "unassigned") return !appointment.staff_id;
+  return appointment.staff_id === filter;
+}
+
+function isMissedPendingAppointment(appointment: Appointment, todayKey: string, currentMinutes: number) {
+  if (appointment.status !== "pending") return false;
+  if (appointment.appointment_date < todayKey) return true;
+  if (appointment.appointment_date > todayKey) return false;
+  return minutesFromTime(appointment.appointment_time) < currentMinutes;
+}
+
+function getAppointmentNotificationLabel(type: BootstrapPayload["notifications"][number]["type"]) {
+  switch (type) {
+    case "booking_confirmed":
+      return "확정 알림";
+    case "booking_rejected":
+      return "거절 알림";
+    case "booking_cancelled":
+      return "취소 알림";
+    case "booking_rescheduled_confirmed":
+      return "변경 알림";
+    case "appointment_reminder_10m":
+      return "방문 안내";
+    case "grooming_started":
+      return "시작 알림";
+    case "grooming_almost_done":
+      return "픽업 알림";
+    case "grooming_completed":
+      return "완료 알림";
+    default:
+      return "알림";
+  }
+}
+
+function getNotificationResultMeta(notification: BootstrapPayload["notifications"][number] | null) {
+  if (!notification) {
+    return {
+      label: "알림 기록 없음",
+      className: "border-[#e1e4ea] bg-[#f8fafc] text-[#646a74]",
+    };
+  }
+
+  const prefix = getAppointmentNotificationLabel(notification.type);
+  if (notification.status === "sent" || notification.status === "mocked") {
+    return {
+      label: `${prefix} 완료`,
+      className: "border-[#e1e7ef] bg-[#f8fafc] text-[#334155]",
+    };
+  }
+  if (notification.status === "failed") {
+    return {
+      label: `${prefix} 실패`,
+      className: "border-[#f0d1ca] bg-[#fff8f6] text-[#a85c4c]",
+    };
+  }
+  if (notification.status === "queued") {
+    return {
+      label: `${prefix} 대기`,
+      className: "border-[#f0dfbc] bg-[#fff8eb] text-[#9a6a16]",
+    };
+  }
+  return {
+    label: `${prefix} 건너뜀`,
+    className: "border-[#e1e4ea] bg-[#f8fafc] text-[#646a74]",
+  };
+}
+
+function getAppointmentMediaKindLabel(mediaKind: MediaKind | string) {
+  switch (mediaKind) {
+    case "grooming_before":
+      return "미용 전 사진";
+    case "grooming_after":
+      return "완료 사진";
+    case "grooming_result":
+      return "결과 사진";
+    default:
+      return "사진";
+  }
+}
+
 const tabItems: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "home", label: "홈", icon: House },
-  { key: "book", label: "예약조회", icon: CalendarDays },
-  { key: "customers", label: "고객관리", icon: PawPrint },
+  { key: "book", label: "예약 조회", icon: CalendarDays },
+  { key: "customers", label: "고객 관리", icon: PawPrint },
   { key: "settings", label: "설정", icon: Settings },
 ];
 
@@ -138,21 +282,27 @@ export default function OwnerApp({
   ownedShops,
   selectedShopId,
   isPreviewDemo = false,
+  appRole = "owner",
+  currentStaffId = null,
   onLogout,
   onSwitchShop,
   loggingOut = false,
   userEmail = null,
   subscriptionSummary = null,
+  launchPhotoStatusAction = null,
 }: {
   initialData: BootstrapPayload;
   ownedShops: OwnedShopSummary[];
   selectedShopId: string | null;
   isPreviewDemo?: boolean;
+  appRole?: MobileAppRole;
+  currentStaffId?: string | null;
   onLogout?: () => void | Promise<void>;
   onSwitchShop?: (shopId: string) => Promise<void>;
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
+  launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
 }) {
   const [data, setData] = useState(initialData);
   const [ownedShopItems, setOwnedShopItems] = useState(ownedShops);
@@ -160,6 +310,8 @@ export default function OwnerApp({
   const [todayDate, setTodayDate] = useState(() => currentDateInTimeZone());
   const [homeReservationDate, setHomeReservationDate] = useState(() => currentDateInTimeZone());
   const [homeReservationSlideDirection, setHomeReservationSlideDirection] = useState<"prev" | "next">("next");
+  const [homeStaffFilter, setHomeStaffFilter] = useState<HomeStaffFilterKey>("all");
+  const [homeFocusedSection, setHomeFocusedSection] = useState<HomeReservationSectionKey>("current");
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(null);
   const [selectedCustomerPetId, setSelectedCustomerPetId] = useState<string | null>(null);
@@ -172,7 +324,6 @@ export default function OwnerApp({
   const [detailTab, setDetailTab] = useState<CustomerDetailTab>("records");
   const [recordPage, setRecordPage] = useState(1);
   const [notificationPage, setNotificationPage] = useState(1);
-  const [isCustomerNotificationSettingsOpen, setIsCustomerNotificationSettingsOpen] = useState(false);
   const [isVisitCalendarOpen, setIsVisitCalendarOpen] = useState(false);
   const [pendingVisitSelectionMode, setPendingVisitSelectionMode] = useState<"single" | "range">("single");
   const [pendingVisitDate, setPendingVisitDate] = useState(currentDateInTimeZone());
@@ -180,6 +331,8 @@ export default function OwnerApp({
   const [pendingVisitRangeEnd, setPendingVisitRangeEnd] = useState<string | null>(null);
   const [visitCalendarMonthCursor, setVisitCalendarMonthCursor] = useState(currentDateInTimeZone().slice(0, 7));
   const [modal, setModal] = useState<ModalState>(null);
+  const [mobilePhotoStatusAction, setMobilePhotoStatusAction] = useState<MobilePhotoStatusAction | null>(null);
+  const [mobilePhotoUploading, setMobilePhotoUploading] = useState(false);
   const [settingsEntryScreen, setSettingsEntryScreen] = useState<SettingsEntryScreen>(null);
   const [guideScreen, setGuideScreen] = useState<OwnerGuideScreen>(null);
   const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
@@ -206,10 +359,7 @@ export default function OwnerApp({
   const [petDraftName, setPetDraftName] = useState("");
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    setIsCustomerNotificationSettingsOpen(false);
-  }, [selectedGuardianId]);
+  const launchedPhotoStatusActionRef = useRef<string | null>(null);
 
   const resizeGuardianMemoTextarea = () => {
     const textarea = guardianMemoTextareaRef.current;
@@ -226,6 +376,7 @@ export default function OwnerApp({
     };
   }, []);
   const isOwnerDemo = isPreviewDemo || data.shop.id === "owner-demo";
+  const isStaffApp = appRole === "staff";
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -260,10 +411,37 @@ export default function OwnerApp({
     setError(nextMessage);
   }
 
+  async function copyBookingEntryUrl() {
+    try {
+      await navigator.clipboard.writeText(bookingEntryUrl);
+      setBookingLinkCopied(true);
+      if (bookingLinkCopyTimeoutRef.current) clearTimeout(bookingLinkCopyTimeoutRef.current);
+      bookingLinkCopyTimeoutRef.current = setTimeout(() => setBookingLinkCopied(false), 1800);
+    } catch {
+      setError("예약 링크 복사에 실패했습니다.");
+    }
+  }
+
+  function syncOwnedShopSummary(shop: BootstrapPayload["shop"]) {
+    setOwnedShopItems((prev) =>
+      prev.map((item) =>
+        item.id === shop.id
+          ? {
+              ...item,
+              name: shop.name,
+              address: shop.address,
+              heroImageUrl: shop.customer_page_settings?.hero_image_url || "",
+            }
+          : item,
+      ),
+    );
+  }
+
   async function refresh() {
     if (isOwnerDemo) return;
-    const next = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`);
+    const next = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store" });
     setData(next);
+    syncOwnedShopSummary(next.shop);
   }
 
   async function refreshSilently() {
@@ -281,6 +459,39 @@ export default function OwnerApp({
   useEffect(() => {
     setOwnedShopItems(ownedShops);
   }, [ownedShops]);
+
+  useEffect(() => {
+    if (!launchPhotoStatusAction) return;
+    const actionKey = `${data.shop.id}:${launchPhotoStatusAction.appointmentId}:${launchPhotoStatusAction.statusAction}`;
+    if (launchedPhotoStatusActionRef.current === actionKey) return;
+
+    const appointment = data.appointments.find((item) => item.id === launchPhotoStatusAction.appointmentId);
+    if (!appointment) {
+      setError("촬영할 예약 정보를 찾지 못했습니다.");
+      launchedPhotoStatusActionRef.current = actionKey;
+      return;
+    }
+
+    launchedPhotoStatusActionRef.current = actionKey;
+    setModal(null);
+    setActiveTab("home");
+    setTodayDate(appointment.appointment_date);
+    setHomeReservationDate(appointment.appointment_date);
+    setSelectedDate(appointment.appointment_date);
+    setMobilePhotoStatusAction({
+      appointmentId: appointment.id,
+      nextStatus: launchPhotoStatusAction.statusAction,
+      mediaKind: launchPhotoStatusAction.statusAction === "in_progress" ? "grooming_before" : "grooming_after",
+      title: launchPhotoStatusAction.statusAction === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+      description:
+        launchPhotoStatusAction.statusAction === "in_progress"
+          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
+          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
+      skipLabel: launchPhotoStatusAction.statusAction === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
+      autoOpenCamera: launchPhotoStatusAction.autoOpenCamera ?? true,
+    });
+  }, [data.appointments, data.shop.id, launchPhotoStatusAction]);
 
   useEffect(() => {
     if (!pendingShopProfileEditId || data.shop.id !== pendingShopProfileEditId) return;
@@ -325,16 +536,28 @@ export default function OwnerApp({
   const serviceMap = useMemo(() => Object.fromEntries(data.services.map((item) => [item.id, item])), [data.services]);
   const guardianMap = useMemo(() => Object.fromEntries(data.guardians.map((item) => [item.id, item])), [data.guardians]);
   const petMap = useMemo(() => Object.fromEntries(data.pets.map((item) => [item.id, item])), [data.pets]);
-  const activeServiceCount = useMemo(() => data.services.filter((item) => item.is_active).length, [data.services]);
-  const currentOwnedShop = useMemo(
-    () => ownedShopItems.find((shop) => shop.id === (selectedShopId || data.shop.id)) ?? {
-      id: data.shop.id,
-      name: data.shop.name,
-      address: data.shop.address,
-      heroImageUrl: data.shop.customer_page_settings?.hero_image_url || "",
-    },
-    [data.shop.address, data.shop.customer_page_settings, data.shop.id, data.shop.name, ownedShopItems, selectedShopId],
-  );
+  const staffMap = useMemo(() => Object.fromEntries(data.staffMembers.map((item) => [item.id, item])), [data.staffMembers]);
+  const currentOwnedShop = useMemo(() => {
+    const currentShopId = selectedShopId || data.shop.id;
+    const ownedShop = ownedShopItems.find((shop) => shop.id === currentShopId);
+    if (currentShopId === data.shop.id) {
+      return {
+        id: data.shop.id,
+        name: data.shop.name,
+        address: data.shop.address,
+        heroImageUrl: data.shop.customer_page_settings?.hero_image_url || ownedShop?.heroImageUrl || "",
+      };
+    }
+
+    return (
+      ownedShop ?? {
+        id: data.shop.id,
+        name: data.shop.name,
+        address: data.shop.address,
+        heroImageUrl: data.shop.customer_page_settings?.hero_image_url || "",
+      }
+    );
+  }, [data.shop.address, data.shop.customer_page_settings, data.shop.id, data.shop.name, ownedShopItems, selectedShopId]);
   const enabledBusinessDayCount = useMemo(
     () => Object.values(data.shop.business_hours).filter((item) => item?.enabled).length,
     [data.shop.business_hours],
@@ -342,14 +565,6 @@ export default function OwnerApp({
   const onboardingTasks = useMemo(
     () =>
       [
-        activeServiceCount === 0
-          ? {
-              key: "services" as const,
-              title: "서비스를 1개 이상 등록해 주세요",
-              description: "고객이 예약할 메뉴가 아직 없어서 예약 화면이 비어 보여요.",
-              cta: "서비스 추가",
-            }
-          : null,
         enabledBusinessDayCount === 0
           ? {
               key: "closures" as const,
@@ -359,33 +574,137 @@ export default function OwnerApp({
             }
           : null,
       ].filter(Boolean),
-    [activeServiceCount, enabledBusinessDayCount],
+    [enabledBusinessDayCount],
   );
   const isOnboardingIncomplete = onboardingTasks.length > 0;
 
-  const todayConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, todayDate]);
-  const pendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "pending"), [data.appointments, todayDate]);
-  const todayActionAppointments = useMemo(() => todayConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [todayConfirmedAppointments]);
-  const todayHistoryAppointments = useMemo(() => todayConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [todayConfirmedAppointments]);
-  const completedHistoryAppointments = useMemo(() => todayHistoryAppointments.filter((item) => item.status === "completed"), [todayHistoryAppointments]);
-  const cancelChangeAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === todayDate && item.status === "cancelled"), [data.appointments, todayDate]);
-  const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeReservationDate]);
-  const homePendingAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeReservationDate && item.status === "pending"), [data.appointments, homeReservationDate]);
-  const homeActionAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
-  const homeHistoryAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "completed").sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [homeConfirmedAppointments]);
-  const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments.filter((item) => item.status === "completed"), [homeHistoryAppointments]);
+  const currentHomeMinutes = currentMinutesInTimeZone();
+  const homeWorkDateKey = todayDate;
+  const recordCompletedAppointmentIds = useMemo(
+    () => new Set(data.groomingRecords.map((record) => record.appointment_id).filter(Boolean)),
+    [data.groomingRecords],
+  );
+  const homeConfirmedAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === homeWorkDateKey && ["confirmed", "in_progress", "almost_done", "completed", "cancelled"].includes(item.status)), [data.appointments, homeWorkDateKey]);
+  const homeMissedPendingAppointments = useMemo(
+    () =>
+      data.appointments
+        .filter((item) => item.appointment_date === homeWorkDateKey && isMissedPendingAppointment(item, todayDate, currentHomeMinutes))
+        .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)),
+    [currentHomeMinutes, data.appointments, homeWorkDateKey, todayDate],
+  );
+  const homePendingAppointments = useMemo(
+    () =>
+      data.appointments
+        .filter((item) => item.appointment_date === homeWorkDateKey && item.status === "pending" && !isMissedPendingAppointment(item, todayDate, currentHomeMinutes))
+        .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)),
+    [currentHomeMinutes, data.appointments, homeWorkDateKey, todayDate],
+  );
+  const homeActionAppointments = useMemo(
+    () =>
+      homeConfirmedAppointments
+        .filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status) && !recordCompletedAppointmentIds.has(item.id))
+        .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)),
+    [homeConfirmedAppointments, recordCompletedAppointmentIds],
+  );
+  const homeHistoryAppointments = useMemo(
+    () =>
+      [...homeConfirmedAppointments.filter((item) => item.status === "completed" || recordCompletedAppointmentIds.has(item.id)), ...homeMissedPendingAppointments].sort((a, b) =>
+        a.appointment_time.localeCompare(b.appointment_time),
+      ),
+    [homeConfirmedAppointments, homeMissedPendingAppointments, recordCompletedAppointmentIds],
+  );
+  const homeCompletedHistoryAppointments = useMemo(() => homeHistoryAppointments, [homeHistoryAppointments]);
+  const homeCancelChangeAppointments = useMemo(() => homeConfirmedAppointments.filter((item) => item.status === "cancelled"), [homeConfirmedAppointments]);
+  const homeWorkAppointments = useMemo(
+    () => [...homeActionAppointments, ...homeCompletedHistoryAppointments],
+    [homeActionAppointments, homeCompletedHistoryAppointments],
+  );
+  const homeStaffFilterOptions = useMemo(() => {
+    const options: Array<{ key: HomeStaffFilterKey; label: string; count: number }> = [
+      { key: "all", label: "전체 담당자", count: homeWorkAppointments.length },
+      ...data.staffMembers
+        .map((staffMember) => ({
+          key: staffMember.id,
+          label: staffMember.name,
+          count: homeWorkAppointments.filter((appointment) => appointment.staff_id === staffMember.id).length,
+        })),
+    ];
+
+    if (homeWorkAppointments.some((appointment) => !appointment.staff_id)) {
+      options.push({
+        key: "unassigned",
+        label: "미배정",
+        count: homeWorkAppointments.filter((appointment) => !appointment.staff_id).length,
+      });
+    }
+
+    return options;
+  }, [data.staffMembers, homeWorkAppointments]);
+  const matchesHomeRoleScope = (appointment: Appointment) => {
+    if (!isStaffApp) return true;
+    if (!currentStaffId) return true;
+    return appointment.staff_id === currentStaffId;
+  };
+  const filteredHomePendingAppointments = useMemo(
+    () =>
+      homePendingAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homePendingAppointments, homeStaffFilter, isStaffApp],
+  );
+  const filteredHomeActionAppointments = useMemo(
+    () =>
+      homeActionAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeActionAppointments, homeStaffFilter, isStaffApp],
+  );
+  const filteredHomeCompletedHistoryAppointments = useMemo(
+    () =>
+      homeCompletedHistoryAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeCompletedHistoryAppointments, homeStaffFilter, isStaffApp],
+  );
+  const filteredHomeCancelChangeAppointments = useMemo(
+    () =>
+      homeCancelChangeAppointments.filter(
+        (appointment) => matchesHomeRoleScope(appointment) && (!isStaffApp ? matchesHomeStaffFilter(appointment, homeStaffFilter) : true),
+      ),
+    [currentStaffId, homeCancelChangeAppointments, homeStaffFilter, isStaffApp],
+  );
+  const filteredHomeConfirmedAppointmentsForStat = useMemo(
+    () => [...filteredHomeActionAppointments, ...filteredHomeCompletedHistoryAppointments, ...filteredHomeCancelChangeAppointments],
+    [filteredHomeActionAppointments, filteredHomeCancelChangeAppointments, filteredHomeCompletedHistoryAppointments],
+  );
+  useEffect(() => {
+    if (homeStaffFilter === "all") return;
+    if (!homeStaffFilterOptions.some((option) => option.key === homeStaffFilter)) {
+      setHomeStaffFilter("all");
+    }
+  }, [homeStaffFilter, homeStaffFilterOptions]);
   const selectedDayAppointments = useMemo(() => data.appointments.filter((item) => item.appointment_date === selectedDate).sort((a, b) => a.appointment_time.localeCompare(b.appointment_time)), [data.appointments, selectedDate]);
+  const tomorrowDate = useMemo(() => addDate(todayDate, 1), [todayDate]);
   const homeReservationDateLabel = useMemo(() => {
     if (homeReservationDate === todayDate) return "오늘";
+    if (homeReservationDate === tomorrowDate) return "내일";
     return new Intl.DateTimeFormat("ko-KR", {
-      month: "long",
       day: "numeric",
-      weekday: "short",
     })
-      .format(new Date(homeReservationDate + "T00:00:00"))
-      .replace("요일", "");
-  }, [homeReservationDate, todayDate]);
-  const homeReservationPanelTitle = "예약관리";
+      .format(new Date(homeReservationDate + "T00:00:00"));
+  }, [homeReservationDate, todayDate, tomorrowDate]);
+  const homeReservationFullDateLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ko-KR", {
+        year: "2-digit",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      })
+        .format(new Date(homeReservationDate + "T00:00:00"))
+        .replace("요일", ""),
+    [homeReservationDate],
+  );
   const canMoveHomeReservationBackward = homeReservationDate > todayDate;
   const canMoveHomeReservationForward = homeReservationDate < maxHomeReservationDate;
 
@@ -446,12 +765,12 @@ export default function OwnerApp({
         return (
           !query ||
           summary.guardian.name.includes(query) ||
-          summary.guardian.phone.includes(query) ||
+          (!isStaffApp && summary.guardian.phone.includes(query)) ||
           summary.pets.some((pet) => pet.name.includes(query) || pet.breed.includes(query))
         );
       })
       .sort((a, b) => (b.latestActivityAt ?? "").localeCompare(a.latestActivityAt ?? "") || a.guardian.name.localeCompare(b.guardian.name, "ko-KR"));
-  }, [customerSearch, customerSummaries]);
+  }, [customerSearch, customerSummaries, isStaffApp]);
   const deletedGuardians = useMemo(
     () =>
       (data.deletedGuardians ?? [])
@@ -466,11 +785,11 @@ export default function OwnerApp({
       const pets = data.pets.filter((pet) => pet.guardian_id === guardian.id);
       return (
         guardian.name.includes(query) ||
-        guardian.phone.includes(query) ||
+        (!isStaffApp && guardian.phone.includes(query)) ||
         pets.some((pet) => pet.name.includes(query) || pet.breed.includes(query))
       );
     });
-  }, [customerSearch, data.pets, deletedGuardians]);
+  }, [customerSearch, data.pets, deletedGuardians, isStaffApp]);
 
   const visitTimeline = useMemo(() => {
     const dates = Array.from(new Set([
@@ -507,28 +826,50 @@ export default function OwnerApp({
     return dates;
   }, [selectedVisitEnd, selectedVisitStart]);
   const selectedVisitDateSet = useMemo(() => new Set(selectedVisitDates), [selectedVisitDates]);
-  const selectedVisitAppointments = useMemo(() => data.appointments.filter((item) => selectedVisitDateSet.has(item.appointment_date)).sort((a, b) => (a.appointment_date + " " + a.appointment_time).localeCompare(b.appointment_date + " " + b.appointment_time)), [data.appointments, selectedVisitDateSet]);
-  const selectedVisitRecords = useMemo(() => data.groomingRecords.filter((item) => selectedVisitDateSet.has(item.groomed_at.slice(0, 10))).sort((a, b) => b.groomed_at.localeCompare(a.groomed_at)), [data.groomingRecords, selectedVisitDateSet]);
+  const selectedVisitAppointments = useMemo(
+    () =>
+      data.appointments
+        .filter((item) => selectedVisitDateSet.has(item.appointment_date) && matchesHomeRoleScope(item))
+        .sort((a, b) => (a.appointment_date + " " + a.appointment_time).localeCompare(b.appointment_date + " " + b.appointment_time)),
+    [currentStaffId, data.appointments, isStaffApp, selectedVisitDateSet],
+  );
+  const selectedVisitRecords = useMemo(
+    () =>
+      data.groomingRecords
+        .filter((item) => {
+          if (!selectedVisitDateSet.has(item.groomed_at.slice(0, 10))) return false;
+          if (!isStaffApp || !currentStaffId) return true;
+          const appointment = item.appointment_id ? data.appointments.find((candidate) => candidate.id === item.appointment_id) : null;
+          return appointment?.staff_id === currentStaffId;
+        })
+        .sort((a, b) => b.groomed_at.localeCompare(a.groomed_at)),
+    [currentStaffId, data.appointments, data.groomingRecords, isStaffApp, selectedVisitDateSet],
+  );
   const completedAppointmentIds = useMemo(() => new Set(selectedVisitRecords.map((item) => item.appointment_id).filter(Boolean)), [selectedVisitRecords]);
   const selectedVisitReservationAppointments = useMemo(
     () =>
       selectedVisitAppointments.filter(
-        (item) => item.status !== "cancelled" && item.status !== "completed" && !completedAppointmentIds.has(item.id),
+        (item) =>
+          item.status !== "cancelled" &&
+          item.status !== "completed" &&
+          !completedAppointmentIds.has(item.id) &&
+          !isMissedPendingAppointment(item, todayDate, currentHomeMinutes),
       ),
-    [completedAppointmentIds, selectedVisitAppointments],
+    [completedAppointmentIds, currentHomeMinutes, selectedVisitAppointments, todayDate],
   );
   const selectedVisitCancelledAppointments = useMemo(() => selectedVisitAppointments.filter((item) => item.status === "cancelled"), [selectedVisitAppointments]);
   const selectedVisitCompletedAppointments = useMemo(() => selectedVisitAppointments.filter((item) => {
     if (item.status === "cancelled") return false;
+    if (isMissedPendingAppointment(item, todayDate, currentHomeMinutes)) return !completedAppointmentIds.has(item.id);
     const isPast = item.appointment_date < todayDate;
     if (isPast) return !completedAppointmentIds.has(item.id);
     return ["completed"].includes(item.status) && !completedAppointmentIds.has(item.id);
-  }), [completedAppointmentIds, selectedVisitAppointments, todayDate]);
+  }), [completedAppointmentIds, currentHomeMinutes, selectedVisitAppointments, todayDate]);
   const visitSectionOrder: Array<"reservation" | "cancel_change" | "completed"> = ["reservation", "cancel_change", "completed"];
 
   const visitCalendarMonth = visitCalendarMonthCursor;
   const visitCalendarMonthStart = visitCalendarMonth + "-01";
-  const visitCalendarMonthLabel = String(Number(visitCalendarMonth.slice(0, 4))) + "년 " + String(Number(visitCalendarMonth.slice(5, 7))) + "월";
+  const visitCalendarMonthLabel = visitCalendarMonth.slice(2, 4) + "년 " + String(Number(visitCalendarMonth.slice(5, 7))) + "월";
   const dateHeaderFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" });
   const dateRangeFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" });
   const selectedVisitDateHeader = isSelectedVisitRange ? dateRangeFormatter.format(new Date(selectedVisitStart + "T00:00:00")) + " ~ " + dateRangeFormatter.format(new Date(selectedVisitEnd + "T00:00:00")) : dateHeaderFormatter.format(new Date(selectedVisitDate + "T00:00:00"));
@@ -609,12 +950,65 @@ export default function OwnerApp({
     [notificationPage, selectedNotifications],
   );
   const guardianNotificationsEnabled = selectedGuardian?.notification_settings.enabled ?? false;
-  const guardianRevisitNotificationsEnabled = selectedGuardian?.notification_settings.revisit_enabled ?? false;
-  const customerNotificationSummary = !guardianNotificationsEnabled
-    ? "알림 수신 꺼짐"
-    : guardianRevisitNotificationsEnabled
-      ? "알림 수신 · 재방문 안내 사용 중"
-      : "알림 수신 사용 중";
+  const customerNotificationGroups: Array<{
+    title: string;
+    items: Array<{
+      label: string;
+      description: string;
+      settingKey: GuardianNotificationSettingKey;
+    }>;
+  }> = [
+    {
+      title: "예약",
+      items: [
+        {
+          label: "예약 확정",
+          description: "예약이 확정되었을 때 방문 일시와 예약 내용을 안내해요.",
+          settingKey: "booking_confirmed_enabled",
+        },
+        {
+          label: "예약 취소",
+          description: "확정된 예약이 취소되었을 때 안내해요.",
+          settingKey: "booking_cancelled_enabled",
+        },
+        {
+          label: "예약 변경 확정",
+          description: "변경된 일정이 확정되면 새 방문 시간을 안내해요.",
+          settingKey: "booking_rescheduled_enabled",
+        },
+      ],
+    },
+    {
+      title: "방문 안내",
+      items: [
+        {
+          label: "직전·오늘·내일 안내",
+          description: "예약 시점에 맞춰 직전 안내, 오늘 안내, 내일 안내 중 하나만 발송해요.",
+          settingKey: "appointment_reminder_10m_enabled",
+        },
+      ],
+    },
+    {
+      title: "미용진행",
+      items: [
+        {
+          label: "미용 시작",
+          description: "매장에서 미용을 시작했을 때 안내해요.",
+          settingKey: "grooming_started_enabled",
+        },
+        {
+          label: "픽업 준비",
+          description: "미용이 거의 끝나 픽업 준비가 되었을 때 안내해요.",
+          settingKey: "grooming_almost_done_enabled",
+        },
+        {
+          label: "미용 완료",
+          description: "미용이 끝나 고객이 데리러 오실 수 있을 때 안내해요.",
+          settingKey: "grooming_completed_enabled",
+        },
+      ],
+    },
+  ];
   const isAnyCustomerFieldEditing = Object.values(editingCustomerFields).some(Boolean);
   const canSavePetProfile = Boolean(selectedCustomerPet && petDraftName.trim() && petDraftName.trim() !== selectedCustomerPet.name);
   const canSaveGuardianProfile = Boolean(
@@ -732,6 +1126,49 @@ export default function OwnerApp({
     }
   }
 
+  async function saveStaffMemberProfile(payload: unknown) {
+    const staffPayload = payload as {
+      staffMemberId?: string;
+      name?: string;
+      displayName?: string;
+      profileImageUrl?: string;
+      titlePrefix?: string;
+      position?: string;
+      chipColorIndex?: number | null;
+      profileMessage?: string;
+    };
+
+    if (isOwnerDemo) {
+      setData((prev) => ({
+        ...prev,
+        staffMembers: prev.staffMembers.map((staffMember) =>
+          staffMember.id === staffPayload.staffMemberId
+            ? {
+                ...staffMember,
+                name: staffPayload.name ?? staffMember.name,
+                displayName: staffPayload.displayName ?? staffMember.displayName,
+                profileImageUrl: staffPayload.profileImageUrl ?? staffMember.profileImageUrl,
+                titlePrefix: staffPayload.titlePrefix ?? staffMember.titlePrefix,
+                position: staffPayload.position ?? staffMember.position,
+                chipColorIndex: staffPayload.chipColorIndex ?? staffMember.chipColorIndex,
+                profileMessage: staffPayload.profileMessage ?? "",
+              }
+            : staffMember,
+        ),
+      }));
+      return;
+    }
+
+    await mutate(
+      "/api/staff-members",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      { rethrow: true },
+    );
+  }
+
   async function updateAppointment(appointmentId: string, payload: AppointmentUpdatePayload) {
     if (isOwnerDemo) {
       const isEditPayload = "mode" in payload && payload.mode === "edit";
@@ -774,12 +1211,132 @@ export default function OwnerApp({
     });
   }
 
+  function openMobilePhotoStatusAction(
+    appointmentId: string,
+    status: Extract<AppointmentStatus, "in_progress" | "completed">,
+    autoOpenCamera = false,
+  ) {
+    setMobilePhotoStatusAction({
+      appointmentId,
+      nextStatus: status,
+      mediaKind: status === "in_progress" ? "grooming_before" : "grooming_after",
+      title: status === "in_progress" ? "미용 전 사진" : "미용 완료 사진",
+      description:
+        status === "in_progress"
+          ? "미용 전 털 상태, 엉킴, 피부 상태를 선택적으로 남길 수 있어요."
+          : "마무리된 모습을 한 장 촬영하면 미용 완료 알림톡에 함께 기록됩니다.",
+      buttonLabel: status === "in_progress" ? "사진 찍고 미용 시작" : "사진 찍고 미용 완료",
+      skipLabel: status === "in_progress" ? "사진 없이 미용 시작" : "사진 없이 미용 완료",
+      autoOpenCamera,
+    });
+  }
+
+  function requestMobileAppointmentStatusChange(appointmentId: string, status: AppointmentStatus) {
+    if (
+      status === "completed" &&
+      data.shop.notification_settings.grooming_complete_without_photo_enabled
+    ) {
+      void updateAppointment(appointmentId, { status });
+      return;
+    }
+
+    if (status === "in_progress") {
+      openMobilePhotoStatusAction(appointmentId, status);
+      return;
+    }
+
+    if (status !== "completed") {
+      void updateAppointment(appointmentId, { status });
+      return;
+    }
+
+    openMobilePhotoStatusAction(appointmentId, status);
+  }
+
+  function startMobileAppointmentWithoutPhoto(appointmentId: string) {
+    void updateAppointment(appointmentId, { status: "in_progress" });
+  }
+
+  function startMobileAppointmentWithPhoto(appointmentId: string, file: File) {
+    void updateAppointmentStatusWithMobilePhoto(appointmentId, "in_progress", "grooming_before", file);
+  }
+
+  function updateAppointmentWithMobilePhotoGuard(appointmentId: string, payload: AppointmentUpdatePayload) {
+    const isStatusUpdatePayload = "status" in payload;
+    const canSkipPhoto =
+      isStatusUpdatePayload &&
+      payload.status === "completed" && data.shop.notification_settings.grooming_complete_without_photo_enabled;
+
+    if (
+      isStatusUpdatePayload &&
+      !("mode" in payload) &&
+      payload.status === "completed" &&
+      !payload.mediaAssetIds?.length &&
+      !canSkipPhoto
+    ) {
+      requestMobileAppointmentStatusChange(appointmentId, payload.status);
+      return;
+    }
+
+    void updateAppointment(appointmentId, payload);
+  }
+
+  async function updateAppointmentStatusWithMobilePhoto(
+    appointmentId: string,
+    nextStatus: Extract<AppointmentStatus, "in_progress" | "completed">,
+    mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">,
+    file: File,
+  ) {
+    const appointment = data.appointments.find((item) => item.id === appointmentId);
+    if (!appointment) {
+      setError("사진을 연결할 예약 정보를 찾지 못했습니다.");
+      setMobilePhotoStatusAction(null);
+      return;
+    }
+
+    setMobilePhotoUploading(true);
+    setError(null);
+    try {
+      const uploaded = await createOwnerMediaAssetFromFile(
+        {
+          shopId: data.shop.id,
+          guardianId: appointment.guardian_id,
+          petId: appointment.pet_id,
+          appointmentId: appointment.id,
+          groomingRecordId: null,
+        },
+        mediaKind,
+        file,
+      );
+
+      await updateAppointment(appointment.id, {
+        status: nextStatus,
+        mediaAssetIds: [uploaded.mediaAsset.id],
+      });
+      setMobilePhotoStatusAction(null);
+    } catch (uploadError) {
+      await handleRequestError(uploadError, "사진 업로드 또는 상태 변경에 실패했습니다.");
+    } finally {
+      setMobilePhotoUploading(false);
+    }
+  }
+
+  async function handleMobilePhotoStatusFile(file: File) {
+    if (!mobilePhotoStatusAction) return;
+    await updateAppointmentStatusWithMobilePhoto(
+      mobilePhotoStatusAction.appointmentId,
+      mobilePhotoStatusAction.nextStatus,
+      mobilePhotoStatusAction.mediaKind,
+      file,
+    );
+  }
+
   function openSettingsScreen(screen: Exclude<SettingsEntryScreen, null>) {
     setSettingsEntryScreen(screen);
     setActiveTab("settings");
   }
 
-  async function updateGuardianNotifications(guardianId: string, enabled: boolean, revisitEnabled: boolean) {
+  async function updateGuardianNotifications(guardianId: string, patch: Partial<GuardianNotificationSettings>) {
     if (isOwnerDemo) {
       setData((prev) => ({
         ...prev,
@@ -789,8 +1346,7 @@ export default function OwnerApp({
                 ...guardian,
                 notification_settings: {
                   ...guardian.notification_settings,
-                  enabled,
-                  revisit_enabled: revisitEnabled,
+                  ...patch,
                 },
               }
             : guardian,
@@ -801,7 +1357,7 @@ export default function OwnerApp({
 
     await mutate("/api/guardians", {
       method: "PATCH",
-      body: JSON.stringify({ guardianId, enabled, revisitEnabled }),
+      body: JSON.stringify({ guardianId, notificationSettings: patch }),
     });
   }
 
@@ -946,6 +1502,8 @@ export default function OwnerApp({
           concurrent_capacity: payload.settingsPayload.concurrentCapacity,
           booking_slot_interval_minutes: payload.settingsPayload.bookingSlotIntervalMinutes,
           booking_slot_offset_minutes: payload.settingsPayload.bookingSlotOffsetMinutes,
+          booking_available_start_time: payload.settingsPayload.bookingAvailableStartTime,
+          booking_available_end_time: payload.settingsPayload.bookingAvailableEndTime,
           business_hours: payload.settingsPayload.businessHours,
           customer_page_settings: payload.customerPageSettingsPayload.customerPageSettings,
         },
@@ -958,7 +1516,7 @@ export default function OwnerApp({
     setSaving(true);
     setError(null);
     try {
-      await fetchJson("/api/settings", {
+      await fetchJson("/api/owner/shops", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload.settingsPayload),
@@ -1066,6 +1624,7 @@ export default function OwnerApp({
 
   function openCustomerFieldEditor(field: CustomerEditableField) {
     if (!selectedGuardian) return;
+    if (isStaffApp && field === "phone") return;
     setGuardianDraft({
       name: selectedGuardian.name,
       phone: selectedGuardian.phone,
@@ -1147,193 +1706,13 @@ export default function OwnerApp({
     });
   }
 
-  async function updateApprovalMode(nextMode: "manual" | "auto") {
-    if (isOwnerDemo) {
-      setData((prev) => ({
-        ...prev,
-        shop: {
-          ...prev.shop,
-          approval_mode: nextMode,
-        },
-        appointments:
-          nextMode === "auto"
-            ? prev.appointments.map((appointment) =>
-                appointment.status === "pending" ? { ...appointment, status: "confirmed" } : appointment,
-              )
-            : prev.appointments,
-      }));
-      return;
-    }
-
-    await mutate("/api/settings", {
-      method: "PATCH",
-      body: JSON.stringify({
-        shopId: data.shop.id,
-        name: data.shop.name,
-        phone: data.shop.phone,
-        address: data.shop.address,
-        description: data.shop.description,
-        concurrentCapacity: data.shop.concurrent_capacity,
-        bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
-        bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
-        approvalMode: nextMode,
-        regularClosedDays: data.shop.regular_closed_days,
-        temporaryClosedDates: data.shop.temporary_closed_dates,
-        businessHours: data.shop.business_hours,
-        notificationSettings: {
-          enabled: data.shop.notification_settings.enabled,
-          revisitEnabled: data.shop.notification_settings.revisit_enabled,
-          bookingConfirmedEnabled: data.shop.notification_settings.booking_confirmed_enabled,
-          bookingRejectedEnabled: data.shop.notification_settings.booking_rejected_enabled,
-          bookingCancelledEnabled: data.shop.notification_settings.booking_cancelled_enabled,
-          bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
-          groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
-          groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
-        },
-        customerPageSettings: data.shop.customer_page_settings,
-      }),
-    });
-  }
-
-  async function sendBirthdayGreeting(pet: Pet) {
-    const guardian = guardianMap[pet.guardian_id];
-    if (!guardian) return;
-    if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
-      return;
-    }
-
-    if (isOwnerDemo) {
-      const now = new Date().toISOString();
-      setData((prev) => ({
-        ...prev,
-        notifications: [
-          {
-            id: `demo-birthday-${pet.id}-${Date.now()}`,
-            shop_id: prev.shop.id,
-            appointment_id: null,
-            pet_id: pet.id,
-            guardian_id: guardian.id,
-            type: "birthday_greeting",
-            channel: "alimtalk",
-            message: `[${prev.shop.name}] ${pet.name}의 생일을 축하드려요. 오늘도 행복한 하루 보내세요.`,
-            status: "mocked",
-            provider: "mock",
-            provider_message_id: null,
-            recipient_phone: guardian.phone,
-            fail_reason: null,
-            scheduled_at: null,
-            sent_at: now,
-            created_at: now,
-            template_key: "birthday_greeting",
-            template_type: "birthday_greeting",
-            metadata: { source: "manual" },
-          },
-          ...prev.notifications,
-        ],
-      }));
-      setDetailTab("notifications");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      await fetchJson("/api/notifications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shopId: data.shop.id,
-          guardianId: guardian.id,
-          petId: pet.id,
-          type: "birthday_greeting",
-          templateKey: "birthday_greeting",
-          templateType: "birthday_greeting",
-          message: `[${data.shop.name}] ${pet.name}의 생일을 축하드려요. 오늘도 행복한 하루 보내세요.`,
-        }),
-      });
-      await refresh();
-      setDetailTab("notifications");
-    } catch (mutationError) {
-      await handleRequestError(mutationError, "생일 축하 알림 발송에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function sendRevisitNotice(pet: Pet) {
-    const guardian = guardianMap[pet.guardian_id];
-    if (!guardian) return;
-    if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
-      return;
-    }
-    if (!guardian.notification_settings.revisit_enabled) {
-      setError("이 고객은 재방문 알림이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
-      return;
-    }
-
-    if (isOwnerDemo) {
-      const now = new Date().toISOString();
-      setData((prev) => ({
-        ...prev,
-        notifications: [
-          {
-            id: `demo-revisit-${pet.id}-${Date.now()}`,
-            shop_id: prev.shop.id,
-            appointment_id: null,
-            pet_id: pet.id,
-            guardian_id: guardian.id,
-            type: "revisit_notice",
-            channel: "alimtalk",
-            message: `[${prev.shop.name}] ${pet.name} 재방문 안내 알림을 발송했어요.`,
-            status: "mocked",
-            provider: "mock",
-            provider_message_id: null,
-            recipient_phone: guardian.phone,
-            fail_reason: null,
-            scheduled_at: null,
-            sent_at: now,
-            created_at: now,
-            template_key: "revisit_notice",
-            template_type: "revisit_notice",
-            metadata: { source: "manual" },
-          },
-          ...prev.notifications,
-        ],
-      }));
-      setDetailTab("notifications");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      await fetchJson("/api/notifications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shopId: data.shop.id,
-          guardianId: guardian.id,
-          petId: pet.id,
-          type: "revisit_notice",
-          templateKey: "revisit_notice",
-          templateType: "revisit_notice",
-          message: `[${data.shop.name}] ${pet.name} 재방문 안내 알림을 발송했어요.`,
-        }),
-      });
-      await refresh();
-      setDetailTab("notifications");
-    } catch (mutationError) {
-      await handleRequestError(mutationError, "재방문 알림 발송에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function sendAppointmentReminder(appointment: Appointment, pet: Pet, guardian: Guardian, service: Service) {
     if (!guardian.notification_settings.enabled) {
-      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객관리에서 먼저 켜 주세요.");
+      setError("이 고객은 알림톡 수신이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
+      return;
+    }
+    if (!guardian.notification_settings.appointment_reminder_10m_enabled) {
+      setError("이 고객은 방문 전 안내 알림이 꺼져 있어요. 고객 관리에서 먼저 켜 주세요.");
       return;
     }
 
@@ -1396,15 +1775,14 @@ export default function OwnerApp({
 
   const overdueCount = revisitRows.filter((item) => item.status === "overdue").length;
   const urgentCount = revisitRows.filter((item) => item.status === "overdue" || item.status === "soon").length;
-  const estimatedRevenue = todayConfirmedAppointments.reduce((sum, item) => sum + (serviceMap[item.service_id]?.price || 0), 0);
   const isCustomerDetailView = activeTab === "customers" && Boolean(selectedGuardian);
   const isSettingsDetailView = activeTab === "settings" && Boolean(settingsEntryScreen);
   const currentSettingsScreenTitle = settingsEntryScreen ? settingsEntryScreenTitles[settingsEntryScreen] : "";
   const screenTitle =
     activeTab === "customers"
-      ? "고객관리"
+      ? "고객 관리"
       : tabItems.find((item) => item.key === activeTab)?.label;
-  const bookingEntryUrl = `${ownerPageOrigin || ""}/entry/${data.shop.id}`;
+  const bookingEntryUrl = `${ownerPageOrigin || ""}/s/${data.shop.id}`;
   const isHomeTab = activeTab === "home";
   const customerEmptyTitle = customerSearch.trim() ? "검색 조건과 맞는 활성 고객이 없어요" : "등록된 고객이 아직 없어요";
   const customerEmptyDescription =
@@ -1426,80 +1804,112 @@ export default function OwnerApp({
       : activeTab === "customers" && !selectedGuardian
         ? { label: "고객추가", onClick: () => setModal({ type: "new-customer" }) }
         : null;
-  const homeSecondaryAction =
-    isHomeTab
-      ? {
-          label: "예약 링크 복사",
-          onClick: () => setGuideScreen("getting-started" as OwnerGuideScreen),
-        }
-      : null;
+  const homeScheduleTabs: Array<{ key: HomeReservationSectionKey; label: string; count: number }> = [
+    { key: "current", label: ownerHomeCopy.currentSectionTitle, count: filteredHomeActionAppointments.length },
+    { key: "cancelChange", label: ownerHomeCopy.statCancelChange, count: filteredHomeCancelChangeAppointments.length },
+    { key: "completed", label: ownerHomeCopy.historySectionTitle, count: filteredHomeCompletedHistoryAppointments.length },
+  ];
 
   return (
     <div
-      className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(47,49,46,0.03)]"
+      className={cn(
+        "pm-mobile-owner relative mx-auto flex w-full max-w-[430px] flex-col bg-[var(--background)] shadow-[0_0_0_1px_rgba(15,23,42,0.04)]",
+        isHomeTab && !isCustomerDetailView ? "h-dvh overflow-hidden" : "min-h-screen",
+      )}
     >
       {!isCustomerDetailView ? (
-      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[rgba(248,246,242,0.94)] px-4 py-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
+      <header className={cn("sticky top-0 z-20 border-b border-[#edf1f5] bg-white px-4", isHomeTab ? "pb-0 pt-3" : "py-3")}>
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             {isHomeTab ? (
-              <button
-                type="button"
-                onClick={() => setIsShopPickerOpen((prev) => !prev)}
-                className="flex max-w-[250px] items-center gap-4 rounded-[18px] bg-transparent py-1 text-left"
-              >
-                <ShopAvatar name={currentOwnedShop.name} imageUrl={currentOwnedShop.heroImageUrl} />
-                <div className="min-w-0">
-                  <p className="truncate text-[16px] font-medium tracking-[-0.02em] text-[var(--text)]">{currentOwnedShop.name}</p>
+              <div className="flex w-full min-w-0 flex-col">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsShopPickerOpen((prev) => !prev)}
+                    className="flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[8px] bg-transparent text-left"
+                  >
+                    <div className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[9px] bg-[#eaf1fc] text-[#2f6fd6]">
+                      {currentOwnedShop.heroImageUrl ? (
+                        <img src={currentOwnedShop.heroImageUrl} alt={`${currentOwnedShop.name} 대표 이미지`} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold tracking-[-0.03em]">
+                          {currentOwnedShop.name.slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="min-w-0 max-w-[172px] truncate whitespace-nowrap text-[17px] font-semibold tracking-[-0.01em] text-[#0f172a]">{currentOwnedShop.name}</p>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-[#94a3b8]" />
+                  </button>
+                  {!isStaffApp ? <HomeHeaderStaffSelect options={homeStaffFilterOptions} value={homeStaffFilter} onChange={setHomeStaffFilter} staffCount={data.staffMembers.length} /> : null}
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-              </button>
+                <div className="mt-3 border-t border-[#edf1f5]">
+                  <HomeScheduleTabs
+                    tabs={homeScheduleTabs}
+                    activeKey={homeFocusedSection}
+                    onChange={setHomeFocusedSection}
+                    onAdd={!isStaffApp ? () => setModal({ type: "new-appointment" }) : undefined}
+                  />
+                </div>
+              </div>
             ) : (
               isSettingsDetailView ? (
                 <button
                   type="button"
                   onClick={() => setSettingsEntryScreen(null)}
-                  className="inline-flex h-10 w-full items-center gap-1.5 rounded-[8px] bg-transparent px-0 text-left text-sm font-semibold tracking-[-0.02em] text-[var(--text)]"
+                  className="inline-flex h-10 w-full items-center gap-2 rounded-[8px] bg-transparent px-0 text-left text-[20px] font-semibold leading-10 tracking-[-0.03em] text-[var(--text)]"
                   aria-label="설정으로 돌아가기"
                 >
-                  <ChevronRight className="h-4 w-4 shrink-0 rotate-180" strokeWidth={2} />
+                  <ChevronRight className="h-5 w-5 shrink-0 rotate-180" strokeWidth={2} />
                   <span className="truncate">{currentSettingsScreenTitle}</span>
                 </button>
               ) : (
                 <div className="space-y-1">
-                  <h1 className="text-[20px] font-medium tracking-[-0.03em] text-[var(--text)]">{screenTitle}</h1>
+                  <h1 className="text-[20px] font-semibold leading-10 tracking-[-0.03em] text-[var(--text)]">{screenTitle}</h1>
                 </div>
               )
             )}
           </div>
           {headerAction ? (
+            activeTab === "book" ? (
+              <div className="flex h-10 shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[11px] border border-[#dbe5f1] bg-white text-[#334155] transition hover:bg-[#f8fafc]"
+                  onClick={copyBookingEntryUrl}
+                  aria-label="예약 링크 복사"
+                >
+                  {bookingLinkCopied ? <Check className="h-4 w-4" strokeWidth={2.3} /> : <Copy className="h-4 w-4" strokeWidth={1.9} />}
+                </button>
+                <button
+                  type="button"
+                  disabled={headerAction.disabled}
+                  className="inline-flex h-10 min-w-[88px] shrink-0 items-center justify-center rounded-[11px] border border-[#2f6fd6] bg-[#2f6fd6] px-4 text-[14px] font-semibold tracking-[-0.01em] text-white disabled:opacity-45"
+                  onClick={headerAction.onClick}
+                >
+                  {headerAction.label}
+                </button>
+              </div>
+            ) : (
             <button
               type="button"
               disabled={headerAction.disabled}
-              className="shrink-0 rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-2 text-[13px] font-medium tracking-[-0.01em] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)] disabled:opacity-45"
+              className="inline-flex h-10 min-w-[88px] shrink-0 items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold tracking-[-0.01em] text-white disabled:opacity-45"
               onClick={headerAction.onClick}
             >
               {headerAction.label}
             </button>
-          ) : homeSecondaryAction ? (
-            <button
-              type="button"
-              className="relative top-[2px] inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[rgba(47,49,46,0.1)] bg-white px-2.5 py-1.5 text-[12px] font-medium tracking-[-0.01em] text-[var(--text)] transition hover:bg-[var(--surface)]"
-              onClick={homeSecondaryAction.onClick}
-            >
-              <Copy className="h-3.5 w-3.5 shrink-0 text-[var(--text)]" strokeWidth={1.8} />
-              {homeSecondaryAction.label}
-            </button>
+            )
           ) : null}
         </div>
       </header>
       ) : null}
 
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main className={cn("no-scrollbar flex-1", isHomeTab && !isCustomerDetailView ? "min-h-0 overflow-hidden pb-0" : "overflow-y-auto pb-24")}>
         {error && <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {activeTab === "home" && (
-          <section className="space-y-4 p-4 pb-5">
+          <section className="flex h-full min-h-0 flex-col gap-2 bg-[#f4f5f7] px-2.5 pb-[calc(env(safe-area-inset-bottom)+76px)] pt-2">
             {isOnboardingIncomplete ? (
               <Panel title="예약 오픈 전 체크리스트" action={`${onboardingTasks.length}단계 남음`}>
                 <div className="space-y-2.5">
@@ -1521,40 +1931,41 @@ export default function OwnerApp({
                 </div>
               </Panel>
             ) : null}
-            <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label={ownerHomeCopy.statPending} value={String(pendingAppointments.length) + ownerHomeCopy.countSuffix} tone="warning" onClick={() => setModal({ type: "stat", kind: "pending" })} />
-              <StatCard label={ownerHomeCopy.statUpcoming} value={String(pendingAppointments.length + todayActionAppointments.length) + ownerHomeCopy.countSuffix} tone="accent" onClick={() => setModal({ type: "stat", kind: "today" })} />
-              <StatCard label={ownerHomeCopy.statCompleted} value={String(completedHistoryAppointments.length) + ownerHomeCopy.countSuffix} tone="neutral" onClick={() => setModal({ type: "stat", kind: "completed" })} />
-              <StatCard label={ownerHomeCopy.statCancelChange} value={String(cancelChangeAppointments.length) + ownerHomeCopy.countSuffix} tone="danger" onClick={() => setModal({ type: "stat", kind: "cancel_change" })} />
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <div className="min-h-0 flex-1">
+                  <TodayConfirmedContent
+                    currentAppointments={filteredHomeActionAppointments}
+                    cancelChangeAppointments={filteredHomeCancelChangeAppointments}
+                    completedAppointments={filteredHomeCompletedHistoryAppointments}
+                    petMap={petMap}
+                    guardianMap={guardianMap}
+                    serviceMap={serviceMap}
+                    staffMap={staffMap}
+                    saving={saving}
+                    focusedSection={homeFocusedSection}
+                    selectedDateKey={homeWorkDateKey}
+                    slideDirection={homeReservationSlideDirection}
+                    onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
+                    onStatusChange={requestMobileAppointmentStatusChange}
+                    onStartWithoutPhoto={startMobileAppointmentWithoutPhoto}
+                    onStartWithPhoto={startMobileAppointmentWithPhoto}
+                    onOpenPhotoStatusAction={(appointmentId, status) => openMobilePhotoStatusAction(appointmentId, status, true)}
+                  />
+                </div>
+              </div>
             </div>
-            <Panel title={homeReservationPanelTitle} action={String(homePendingAppointments.length + homeActionAppointments.length + homeCompletedHistoryAppointments.length) + ownerHomeCopy.countSuffix}>
-              <TodayConfirmedContent
-                pendingAppointments={homePendingAppointments}
-                currentAppointments={homeActionAppointments}
-                completedAppointments={homeCompletedHistoryAppointments}
-                petMap={petMap}
-                guardianMap={guardianMap}
-                serviceMap={serviceMap}
-                approvalMode={data.shop.approval_mode}
-                saving={saving}
-                selectedDateKey={homeReservationDate}
-                slideDirection={homeReservationSlideDirection}
-                canMoveBackward={canMoveHomeReservationBackward}
-                canMoveForward={canMoveHomeReservationForward}
-                onMoveBackward={() => moveHomeReservationDate("prev")}
-                onMoveForward={() => moveHomeReservationDate("next")}
-                onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })}
-                onPendingUpdate={(appointmentId, payload) => updateAppointment(appointmentId, payload)}
-                onStatusChange={(appointmentId, status) => updateAppointment(appointmentId, { status })}
-                onApprovalModeChange={updateApprovalMode}
-              />
-            </Panel>
           </section>
         )}
 {activeTab === "book" && (
-  <section className="space-y-3.5 p-4">
+  <section className="min-h-full space-y-3.5 bg-[#F4F5F7] p-4">
     <Panel
       title="날짜선택"
+      titleAccessory={
+        <InfoTip ariaLabel="날짜선택 안내" popoverClassName="w-[238px]">
+          날짜를 선택하면 예약, 완료, 취소·변경 내역을 해당 날짜 기준으로 볼 수 있어요.
+        </InfoTip>
+      }
       titleTextClassName="text-[15px] font-medium leading-6 tracking-[-0.02em]"
       className="rounded-[12px] border-[#ece8e2] bg-white px-3 py-3 shadow-none"
       contentClassName="space-y-2"
@@ -1600,7 +2011,7 @@ export default function OwnerApp({
                 }}
                 className={`min-w-[66px] shrink-0 rounded-[12px] border border-[#ece8e2] px-[10px] py-[10px] text-center transition ${
                   active
-                    ? "border-[#1f6b5b] bg-[#1f6b5b] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                     : "bg-white text-[#23231f] hover:bg-[#fcfaf7]"
                 }`}
               >
@@ -1632,7 +2043,7 @@ export default function OwnerApp({
           <Panel
             key="reservation"
             title={ownerHomeCopy.visitActionTitle}
-            titleTextClassName="text-[15px] font-medium leading-6 tracking-[-0.02em]"
+            titleTextClassName="text-[16px] font-medium leading-6 tracking-[-0.02em]"
             action={<span className="text-[12px] font-medium tracking-[-0.01em] text-[#8d867e]">{selectedVisitReservationAppointments.length + ownerHomeCopy.countSuffix}</span>}
             className="rounded-[12px] border-[#ece8e2] bg-white px-3 py-3 shadow-none"
             contentClassName="space-y-2"
@@ -1662,7 +2073,7 @@ export default function OwnerApp({
           <Panel
             key="completed"
             title={ownerHomeCopy.visitCompletedTitle}
-            titleTextClassName="text-[15px] font-medium leading-6 tracking-[-0.02em]"
+            titleTextClassName="text-[16px] font-medium leading-6 tracking-[-0.02em]"
             action={<span className="text-[12px] font-medium tracking-[-0.01em] text-[#8d867e]">{selectedVisitCompletedAppointments.length + selectedVisitRecords.length + ownerHomeCopy.countSuffix}</span>}
             className="rounded-[12px] border-[#ece8e2] bg-white px-3 py-3 shadow-none"
             contentClassName="space-y-2"
@@ -1700,7 +2111,7 @@ export default function OwnerApp({
         <Panel
           key="cancel_change"
           title={ownerHomeCopy.visitCancelChangeTitle}
-          titleTextClassName="text-[15px] font-medium leading-6 tracking-[-0.02em]"
+          titleTextClassName="text-[16px] font-medium leading-6 tracking-[-0.02em]"
           action={<span className="text-[12px] font-medium tracking-[-0.01em] text-[#8d867e]">{selectedVisitCancelledAppointments.length + ownerHomeCopy.countSuffix}</span>}
           className="rounded-[12px] border-[#ece8e2] bg-white px-3 py-3 shadow-none"
           contentClassName="space-y-2"
@@ -1730,7 +2141,7 @@ export default function OwnerApp({
 {activeTab === "book" && isVisitCalendarOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 px-5" onClick={() => setIsVisitCalendarOpen(false)}><div className="w-full max-w-[360px] rounded-[12px] border border-[var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(35,35,31,0.12)]" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><p className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--text)]">{pendingVisitDateHeader}</p><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-[var(--text)]" onClick={() => setIsVisitCalendarOpen(false)}>{"✕"}</button></div><div className="mb-4 grid grid-cols-2 gap-1.5 rounded-[12px] bg-[#f7f4ef] p-0.5"><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "single" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("single"); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); }}>날짜 선택</button><button type="button" className={`rounded-[10px] px-2.5 py-2 text-sm font-semibold transition ${pendingVisitSelectionMode === "range" ? "bg-white text-[var(--text)] shadow-[0_6px_14px_rgba(35,35,31,0.08)]" : "text-[var(--muted)]"}`} onClick={() => { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(pendingVisitDate); setPendingVisitRangeEnd(null); }}>기간 선택</button></div><div className="mb-4 flex items-center justify-between"><p className="text-sm font-semibold text-[var(--text)]">{visitCalendarMonthLabel}</p><div className="flex items-center gap-2"><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const prev = new Date(base.getFullYear(), base.getMonth() - 1, 1); setVisitCalendarMonthCursor(String(prev.getFullYear()) + "-" + String(prev.getMonth() + 1).padStart(2, "0")); }} aria-label={"이전 달"}>{"‹"}</button><button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-white text-lg text-[var(--text)] transition hover:bg-[#f6f1ec]" onClick={() => { const base = new Date(visitCalendarMonthStart + "T00:00:00"); const next = new Date(base.getFullYear(), base.getMonth() + 1, 1); setVisitCalendarMonthCursor(String(next.getFullYear()) + "-" + String(next.getMonth() + 1).padStart(2, "0")); }} aria-label={"다음 달"}>{"›"}</button></div></div><div className="grid grid-cols-7 gap-y-3 text-center text-sm font-semibold"><span className="text-[var(--muted)]">{"일"}</span><span className="text-[var(--muted)]">{"월"}</span><span className="text-[var(--muted)]">{"화"}</span><span className="text-[var(--muted)]">{"수"}</span><span className="text-[var(--muted)]">{"목"}</span><span className="text-[var(--muted)]">{"금"}</span><span className="text-[var(--muted)]">{"토"}</span>{visitCalendarCells.map((item, index) => { if (!item) return <div key={`calendar-empty-${index}`} className="h-11" />; const isSingleActive = pendingVisitSelectionMode === "single" && pendingVisitDate === item; const isRangeStart = pendingVisitSelectionMode === "range" && pendingVisitRange?.start === item; const isRangeEnd = pendingVisitSelectionMode === "range" && pendingVisitRange?.end === item; const isRangeActive = Boolean(isRangeStart || isRangeEnd); const isInRange = pendingVisitSelectionMode === "range" && pendingVisitRange && pendingVisitRange.start < item && item < pendingVisitRange.end; const isToday = item === todayDate; return <button key={item} type="button" className="flex h-11 items-center justify-center" onClick={() => { if (pendingVisitSelectionMode === "single") { setPendingVisitDate(item); return; } if (!pendingVisitRangeStart || pendingVisitRangeEnd) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } if (item < pendingVisitRangeStart) { setPendingVisitRangeStart(item); setPendingVisitRangeEnd(null); setPendingVisitDate(item); return; } setPendingVisitRangeEnd(item); setPendingVisitDate(item); }}><span className={`flex h-10 w-10 items-center justify-center rounded-full text-[16px] font-semibold transition ${isSingleActive || isRangeActive ? "bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]" : isInRange ? "bg-[var(--accent-soft)] text-[var(--text)]" : isToday ? "border border-[var(--border)] bg-[#faf7f4] text-[var(--text)]" : "bg-transparent text-[var(--text)] hover:bg-[#f6f1ec]"}`}>{String(Number(item.slice(8, 10)))}</span></button>; })}</div><div className="mt-5 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => { if (visitSelectionMode === "range" && selectedVisitRange) { setPendingVisitSelectionMode("range"); setPendingVisitRangeStart(selectedVisitRange.start); setPendingVisitRangeEnd(selectedVisitRange.end); setPendingVisitDate(selectedVisitRange.start); } else { setPendingVisitSelectionMode("single"); setPendingVisitDate(selectedVisitDate); setPendingVisitRangeStart(null); setPendingVisitRangeEnd(null); } setIsVisitCalendarOpen(false); }}>닫기</ActionButton><ActionButton onClick={() => { if (pendingVisitSelectionMode === "range" && pendingVisitRange) { setVisitSelectionMode("range"); setVisitRange(pendingVisitRange); setVisitDateFilter(pendingVisitRange.start); } else { setVisitSelectionMode("single"); setVisitRange(null); setVisitDateFilter(pendingVisitDate); } setIsVisitCalendarOpen(false); }} disabled={!canConfirmVisitCalendar}>확인</ActionButton></div></div></div>}
 
         {activeTab === "customers" && !selectedGuardian && (
-          <section className={`space-y-4 p-4 ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
+          <section className={`min-h-full space-y-4 bg-[#F4F5F7] p-4 ${isCustomerListEditing && filteredGuardians.length > 0 ? "pb-[160px]" : "pb-4"}`}>
             {isCustomerListEditing ? (
               <CustomerDeleteSelectionPanel
                 customerSearch={customerSearch}
@@ -1762,7 +2173,7 @@ export default function OwnerApp({
                     <input
                       value={customerSearch}
                       onChange={(event) => setCustomerSearch(event.target.value)}
-                      placeholder="보호자명, 연락처, 반려동물 이름 검색"
+                      placeholder={isStaffApp ? "보호자명, 반려동물 이름 검색" : "보호자명, 연락처, 반려동물 이름 검색"}
                       className="relative -top-[1.5px] min-w-0 flex-1 bg-transparent text-[14px] font-normal leading-6 outline-none placeholder:text-[14px] placeholder:font-normal placeholder:text-[var(--muted)]"
                     />
                   </div>
@@ -1795,7 +2206,7 @@ export default function OwnerApp({
                     {filteredGuardians.map((summary) => (
                       <div
                         key={summary.guardian.id}
-                        className="rounded-[10px] border border-[var(--border)] bg-white px-3 py-1 transition hover:bg-[#fcfaf7]"
+                        className="rounded-[10px] border border-[var(--border)] bg-white px-3 py-2 transition hover:bg-[#fcfaf7]"
                       >
                         <button
                           type="button"
@@ -1807,19 +2218,23 @@ export default function OwnerApp({
                           }}
                           aria-label={`${summary.guardian.name} 상세 보기`}
                         >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[15px] font-medium tracking-[-0.02em] text-[var(--text)]">{summary.guardian.name}</p>
+                          <div className="flex min-h-[30px] items-center justify-between gap-3">
+                            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] leading-5 tracking-[-0.02em]">
+                              <span className="shrink-0 font-semibold text-[var(--text)]">{summary.guardian.name}</span>
+                              {!isStaffApp ? (
+                                <>
+                                  <span className="shrink-0 text-[#d6cec4]">·</span>
+                                  <span className="shrink-0 font-normal text-[var(--muted)]">{summary.guardian.phone}</span>
+                                </>
+                              ) : null}
+                              <span className="shrink-0 text-[#d6cec4]">·</span>
+                              <span className="min-w-0 truncate font-normal text-[#5e5a56]">
+                                {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
+                              </span>
                             </div>
                             <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#ebe3da] bg-[#fcfaf7] text-[var(--muted)] transition group-hover:text-[var(--accent)]">
                               <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
                             </span>
-                          </div>
-                          <div className="mt-0.5 border-t border-[#eee7de] pt-0.5">
-                            <p className="text-[12.5px] font-normal leading-[19px] text-[var(--muted)]">{summary.guardian.phone}</p>
-                            <p className="mt-0.5 truncate text-[12.5px] font-normal leading-[19px] text-[#5e5a56]">
-                              {summary.pets.map((pet) => pet.name).join(", ") || "등록된 반려동물 없음"}
-                            </p>
                           </div>
                         </button>
                       </div>
@@ -1838,8 +2253,8 @@ export default function OwnerApp({
           </div>
         ) : null}
         {activeTab === "customers" && selectedGuardian && (
-          <section className="space-y-4 p-4">
-            <div className="relative flex min-h-8 items-center justify-center">
+          <section className="min-h-full space-y-4 bg-[#F4F5F7] px-4 pb-4 pt-[72px]">
+            <div className="fixed left-1/2 top-0 z-30 flex min-h-[56px] w-full max-w-[430px] -translate-x-1/2 items-center justify-center border-b border-[#edf1f5] bg-white px-4">
               <button
                 type="button"
                 onClick={() => {
@@ -1848,20 +2263,21 @@ export default function OwnerApp({
                   setIsCustomerToolsOpen(false);
                 }}
                 className="absolute left-0 inline-flex h-8 w-8 items-center justify-center text-[var(--text)]"
-                aria-label="고객관리로 돌아가기"
+                aria-label="고객 관리로 돌아가기"
               >
                 <ChevronRight className="h-5 w-5 rotate-180" strokeWidth={2} />
               </button>
               <h2 className="text-[18px] font-medium tracking-[-0.03em] text-[var(--text)]">고객 상세</h2>
             </div>
 
-            <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-2">
-              <div className="space-y-3">
-                <CustomerDetailFieldCard label="기본 정보" className="relative top-[2px] overflow-hidden rounded-[10px] px-0 pb-0 pt-1.5">
-                  <div className="divide-y divide-[var(--border)]">
-                    {editingCustomerFields.name ? (
-                      <div className="px-3 py-1.5">
-                        <div className="relative">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="px-1 text-[12px] font-medium leading-4 tracking-[0.03em] text-[#64748b]">기본 정보</p>
+                <div className="overflow-hidden rounded-[14px] border border-[#e2e7ed] bg-white">
+                  {editingCustomerFields.name ? (
+                    <div className="flex items-center gap-3 px-[15px] py-[13px]">
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">보호자</span>
+                      <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
                           value={guardianDraft.name}
@@ -1872,23 +2288,35 @@ export default function OwnerApp({
                         <button
                           type="button"
                           disabled={saving || !guardianDraft.name.trim()}
-                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          className={`${customerInlineSaveButtonClass} absolute bottom-1 right-1 top-1 min-w-[64px] px-3.5`}
                           onClick={() => void handleCustomerInlineSave()}
                         >
                           저장
                         </button>
-                        </div>
                       </div>
-                    ) : (
-                      <CustomerDetailInfoRow
-                        label="보호자 이름"
-                        value={`${selectedGuardian.name} 보호자`}
-                        onClick={() => openCustomerFieldEditor("name")}
-                      />
-                    )}
-                    {editingCustomerFields.phone ? (
-                      <div className="px-3 py-1.5">
-                        <div className="relative">
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
+                      onClick={() => openCustomerFieldEditor("name")}
+                    >
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">보호자</span>
+                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-[#0f172a]">{selectedGuardian.name}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                    </button>
+                  )}
+
+                  <div className="border-t border-[#edf1f5]" />
+                  {isStaffApp ? (
+                    <div className="flex items-center gap-3 px-[15px] py-[13px]">
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
+                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-[#64748b]">관리자 확인 필요</span>
+                    </div>
+                  ) : editingCustomerFields.phone ? (
+                    <div className="flex items-center gap-3 px-[15px] py-[13px]">
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
+                      <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
                           value={guardianDraft.phone}
@@ -1899,23 +2327,32 @@ export default function OwnerApp({
                         <button
                           type="button"
                           disabled={saving || !guardianDraft.phone.trim()}
-                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          className={`${customerInlineSaveButtonClass} absolute bottom-1 right-1 top-1 min-w-[64px] px-3.5`}
                           onClick={() => void handleCustomerInlineSave()}
                         >
                           저장
                         </button>
-                        </div>
                       </div>
-                    ) : (
-                      <CustomerDetailInfoRow
-                        label="연락처"
-                        value={formatShopPhoneNumber(selectedGuardian.phone)}
-                        onClick={() => openCustomerFieldEditor("phone")}
-                      />
-                    )}
-                    {editingCustomerFields.pet ? (
-                      <div className="px-3 py-1.5">
-                        <div className="relative">
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
+                      onClick={() => openCustomerFieldEditor("phone")}
+                    >
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">연락처</span>
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[15px] font-medium text-[#0f172a]">
+                        <span className="truncate">{formatShopPhoneNumber(selectedGuardian.phone)}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                    </button>
+                  )}
+
+                  <div className="border-t border-[#edf1f5]" />
+                  {editingCustomerFields.pet ? (
+                    <div className="flex items-center gap-3 px-[15px] py-[13px]">
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">반려동물</span>
+                      <div className="relative min-w-0 flex-1">
                         <input
                           className={customerInlineInputClass}
                           value={petDraftName}
@@ -1926,99 +2363,118 @@ export default function OwnerApp({
                         <button
                           type="button"
                           disabled={saving || !petDraftName.trim()}
-                          className={`${customerInlineSaveButtonClass} absolute right-1 top-1 bottom-1 min-w-[64px] px-3.5`}
+                          className={`${customerInlineSaveButtonClass} absolute bottom-1 right-1 top-1 min-w-[64px] px-3.5`}
                           onClick={() => void handleCustomerInlineSave()}
                         >
                           저장
                         </button>
-                        </div>
                       </div>
-                    ) : (
-                      <CustomerDetailInfoRow
-                        label="반려동물"
-                        value={selectedGuardianPetNames || "등록된 반려동물 없음"}
-                        onClick={() => openCustomerFieldEditor("pet")}
-                      />
-                    )}
-                    {editingCustomerFields.memo ? (
-                      <div className="px-3 py-1.5">
-                        <div className="relative">
-                          <textarea
-                            ref={guardianMemoTextareaRef}
-                            className="field-textarea !min-h-[92px] !resize-none overflow-hidden px-3 py-2 !pb-12 leading-5"
-                            value={guardianDraft.memo}
-                            onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
-                            onInput={resizeGuardianMemoTextarea}
-                            placeholder="고객에게 기억해 둘 내용을 적어주세요"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            disabled={saving}
-                            className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
-                            onClick={() => void handleCustomerInlineSave()}
-                          >
-                            저장
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <CustomerDetailInfoRow
-                        label="고객 메모"
-                        value={selectedGuardian.memo || "메모를 추가해 주세요"}
-                        onClick={() => openCustomerFieldEditor("memo")}
-                        muted={!selectedGuardian.memo}
-                        multiline
-                      />
-                    )}
-                  </div>
-                </CustomerDetailFieldCard>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-[15px] py-[13px] text-left"
+                      onClick={() => openCustomerFieldEditor("pet")}
+                    >
+                      <span className="w-16 shrink-0 text-[13px] font-normal text-[#64748b]">반려동물</span>
+                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-[#0f172a]">{selectedGuardianPetNames || "등록된 반려동물 없음"}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                    </button>
+                  )}
 
-                <CustomerDetailFieldCard label="알림톡 설정" className="overflow-hidden rounded-[10px] px-0 pb-0 pt-0">
+                  <div className="border-t border-[#edf1f5]" />
+                  {editingCustomerFields.memo ? (
+                    <div className="px-[15px] py-[13px]">
+                      <div className="relative">
+                        <textarea
+                          ref={guardianMemoTextareaRef}
+                          className="field-textarea !min-h-[92px] !resize-none overflow-hidden px-3 py-2 !pb-12 leading-5"
+                          value={guardianDraft.memo}
+                          onChange={(event) => setGuardianDraft((prev) => ({ ...prev, memo: event.target.value }))}
+                          onInput={resizeGuardianMemoTextarea}
+                          placeholder="고객에게 기억해 둘 내용을 적어주세요"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={saving}
+                          className="absolute bottom-3 right-3 inline-flex h-8 min-w-[52px] items-center justify-center rounded-[10px] border border-[#2f6fd6] bg-[#2f6fd6] px-3 text-[12px] font-medium tracking-[-0.01em] text-white transition disabled:opacity-45"
+                          onClick={() => void handleCustomerInlineSave()}
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-start gap-3 px-[15px] py-[13px] text-left"
+                      onClick={() => openCustomerFieldEditor("memo")}
+                    >
+                      <span className="w-16 shrink-0 pt-0.5 text-[13px] font-normal text-[#64748b]">메모</span>
+                      <span className={cn("min-w-0 flex-1 overflow-hidden text-[15px] font-medium leading-5 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]", selectedGuardian.memo ? "text-[#0f172a]" : "text-[#94a3b8]")}>{selectedGuardian.memo || "메모를 추가해 주세요"}</span>
+                      <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#94a3b8]" strokeWidth={1.9} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="px-1 text-[12px] font-medium leading-4 tracking-[0.03em] text-[#64748b]">개인 알림톡</p>
+                <div className="flex items-center gap-3 rounded-[14px] border border-[#e2e7ed] bg-white px-[15px] py-[14px]">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-semibold leading-5 text-[#0f172a]">알림톡 전체 수신</p>
+                    <p className="mt-1 text-[12.5px] font-normal leading-[1.45] text-[#64748b]">이 고객에게 발송되는 예약·미용 알림톡을 한 번에 관리해요.</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setIsCustomerNotificationSettingsOpen((prev) => !prev)}
-                    className="relative -top-[2px] flex min-h-[42px] w-full items-center justify-between gap-3 px-3 py-1 text-left transition hover:bg-[#fffdfa]"
+                    disabled={saving}
+                    aria-pressed={guardianNotificationsEnabled}
+                    className={cn(
+                      "relative h-6 w-10 shrink-0 rounded-full transition disabled:opacity-45",
+                      guardianNotificationsEnabled ? "bg-[#2fbf83]" : "bg-[#d8dde3]",
+                    )}
+                    onClick={() => void updateGuardianNotifications(selectedGuardian.id, { enabled: !guardianNotificationsEnabled })}
                   >
-                    <span className="flex h-5 items-center text-[16px] font-normal leading-none tracking-[-0.02em] text-[var(--text)]">
-                      {customerNotificationSummary}
-                    </span>
-                    <span className="flex h-5 items-center justify-center self-center">
-                      <ChevronRight
-                        className={`h-4 w-4 shrink-0 text-[var(--muted)] transition ${isCustomerNotificationSettingsOpen ? "rotate-90" : ""}`}
-                        strokeWidth={1.8}
-                      />
-                    </span>
+                    <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition", guardianNotificationsEnabled ? "left-[18px]" : "left-0.5")} />
                   </button>
-                  {isCustomerNotificationSettingsOpen ? (
-                    <div className="max-h-[132px] overflow-y-auto border-t border-[var(--border)] divide-y divide-[var(--border)]">
-                      <CustomerDetailToggleRow
-                        label="알림톡 수신"
-                        description="이 고객에게 예약 확정, 취소, 픽업 준비 알림을 보낼 수 있어요."
-                        checked={guardianNotificationsEnabled}
-                        disabled={saving}
-                        onChange={(checked) => {
-                          void updateGuardianNotifications(
-                            selectedGuardian.id,
-                            checked,
-                            checked ? guardianRevisitNotificationsEnabled : false,
-                          );
-                        }}
-                      />
-                      <CustomerDetailToggleRow
-                        label="재방문 안내"
-                        description="다음 방문 시점이 가까워졌을 때 재방문 알림을 보낼 수 있어요."
-                        checked={guardianRevisitNotificationsEnabled}
-                        disabled={saving || !guardianNotificationsEnabled}
-                        onChange={(checked) => {
-                          void updateGuardianNotifications(selectedGuardian.id, guardianNotificationsEnabled, checked);
-                        }}
-                      />
-                    </div>
-                  ) : null}
-                </CustomerDetailFieldCard>
+                </div>
 
-                <div className="space-y-2.5">
+                {customerNotificationGroups.map((group) => (
+                  <div key={group.title} className="space-y-1.5">
+                    <p className="px-1 pt-2 text-[12px] font-medium leading-4 text-[#64748b]">{group.title}</p>
+                    <div className="overflow-hidden rounded-[14px] border border-[#e2e7ed] bg-white">
+                      {group.items.map((item, index) => {
+                        const active = guardianNotificationsEnabled && selectedGuardian.notification_settings[item.settingKey] !== false;
+                        const disabled = saving || !guardianNotificationsEnabled;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => void updateGuardianNotifications(selectedGuardian.id, { [item.settingKey]: !active })}
+                            className={cn(
+                              "flex w-full items-center gap-3 px-[15px] py-3 text-left transition",
+                              index > 0 ? "border-t border-[#edf1f5]" : "",
+                              disabled ? "cursor-not-allowed opacity-55" : "hover:bg-[#f8fafc]",
+                            )}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[14px] font-medium leading-5 text-[#0f172a]">{item.label}</span>
+                              <span className="mt-0.5 block text-[12.5px] font-normal leading-[1.4] text-[#94a3b8]">{item.description}</span>
+                            </span>
+                            <span className={cn("relative h-6 w-10 shrink-0 rounded-full transition", active ? "bg-[#2fbf83]" : "bg-[#d8dde3]")}>
+                              <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition", active ? "left-[18px]" : "left-0.5")} />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2.5">
                   <div className="grid grid-cols-3 gap-1 rounded-[10px] border border-[var(--border)] bg-[#f8f5f0] p-1">
                     {(["records", "pets", "notifications"] as const).map((item) => (
                       <button
@@ -2069,8 +2525,6 @@ export default function OwnerApp({
                           isSelected={selectedCustomerPet?.id === pet.id}
                           onSelect={() => setSelectedCustomerPetId(pet.id)}
                           onSave={(name, breed, birthday) => updatePetProfile(pet.id, name, breed, birthday)}
-                          onSendBirthday={() => sendBirthdayGreeting(pet)}
-                          onSendRevisit={() => sendRevisitNotice(pet)}
                         />
                       ))}
                       <button
@@ -2087,7 +2541,7 @@ export default function OwnerApp({
                   {detailTab === "notifications" ? (
                     <div className="space-y-2.5">
                       {selectedNotifications.length === 0 ? (
-                        <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내나 재방문 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
+                        <AppEmptyState title="발송된 알림톡이 없어요" description="예약 안내 알림을 보내면 여기에서 이력을 확인할 수 있어요." />
                       ) : (
                         <>
                           <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
@@ -2110,15 +2564,14 @@ export default function OwnerApp({
                   ) : null}
                 </div>
               </div>
-            </div>
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} />}
       </main>
 
-      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-[rgba(255,255,255,0.98)] px-2.5 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(31,40,37,0.08)] backdrop-blur">
-        <div className="grid grid-cols-4 gap-1.5">
+      <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
+        <div className="grid grid-cols-4 gap-1">
             {tabItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
@@ -2130,10 +2583,10 @@ export default function OwnerApp({
                   key={item.key}
                   type="button"
                   aria-label={item.label}
-                  className={`group relative flex min-h-[50px] flex-col items-center justify-center rounded-[14px] px-1 py-1 text-center transition ${
+                  className={`group relative flex min-h-[42px] flex-col items-center justify-center rounded-[12px] px-1 py-0.5 text-center transition ${
                     active
-                      ? "text-[var(--accent)]"
-                      : "text-[var(--muted)] hover:bg-[#fcfaf7]"
+                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                      : "text-[var(--muted)] hover:bg-[#f8fafc]"
                   }`}
                   onClick={() => {
                     setActiveTab(item.key);
@@ -2153,8 +2606,8 @@ export default function OwnerApp({
                   <div
                     className={`relative flex items-center justify-center rounded-full transition ${
                       active
-                        ? "h-8 w-8 text-[var(--accent)]"
-                        : "h-8 w-8 text-[var(--muted)]"
+                        ? "h-7 w-7 text-[var(--accent)]"
+                        : "h-7 w-7 text-[var(--muted)]"
                     }`}
                   >
                     <Icon
@@ -2162,7 +2615,7 @@ export default function OwnerApp({
                       strokeWidth={1.9}
                       style={shouldFill ? { fill: "currentColor" } : undefined}
                     />
-                    {isActiveHome ? <span className="pointer-events-none absolute bottom-[2px] h-[12px] w-[6px] rounded-t-[2px] bg-white" /> : null}
+                    {isActiveHome ? <span className="pointer-events-none absolute bottom-[2px] h-[12px] w-[6px] rounded-t-[2px] bg-[var(--accent-soft)]" /> : null}
                   </div>
                   <span
                     className={`relative mt-0.5 text-[11px] font-semibold leading-4 tracking-[-0.01em] ${
@@ -2177,7 +2630,23 @@ export default function OwnerApp({
         </div>
       </nav>
 
-      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointment(modal.appointment.id, payload)} onSendReminder={() => sendAppointmentReminder(modal.appointment, petMap[modal.appointment.pet_id], guardianMap[modal.appointment.guardian_id], serviceMap[modal.appointment.service_id])} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={todayConfirmedAppointments} pendingAppointments={pendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} estimatedRevenue={estimatedRevenue} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={(appointmentId: string, payload: AppointmentUpdatePayload) => updateAppointment(appointmentId, payload)} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {modal && <div>{modal.type === "appointment" ? <Overlay><AppointmentDetail data={data} appointment={modal.appointment} pet={petMap[modal.appointment.pet_id]} guardian={guardianMap[modal.appointment.guardian_id]} service={serviceMap[modal.appointment.service_id]} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onUpdate={(payload) => updateAppointmentWithMobilePhotoGuard(modal.appointment.id, payload)} /></Overlay> : null}{modal.type === "edit-shop-profile" ? <Overlay><ShopProfileEditForm data={data} saving={saving} onClose={() => setModal(null)} onSave={saveShopProfile} /></Overlay> : null}{modal.type === "new-appointment" ? <Overlay><NewAppointmentForm data={data} petId={modal.petId} saving={saving} canViewGuardianContact={!isStaffApp} onClose={() => setModal(null)} onNewCustomer={() => setModal({ type: "new-customer" })} onSave={(payload) => mutate("/api/appointments", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "new-customer" ? <Overlay><NewCustomerForm shopId={data.shop.id} saving={saving} onClose={() => setModal(null)} onSave={async (guardianPayload, petPayloads) => { await mutate("/api/guardians", { method: "POST", body: JSON.stringify(guardianPayload) }); const refreshed = await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`); setData(refreshed); const guardian = refreshed.guardians[refreshed.guardians.length - 1]; for (const petPayload of petPayloads) { await mutate("/api/pets", { method: "POST", body: JSON.stringify({ ...petPayload, guardianId: guardian.id }) }); } }} /></Overlay> : null}{modal.type === "add-pet" ? <Overlay><AddPetForm shopId={data.shop.id} guardianId={modal.guardianId} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/pets", { method: "POST", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "edit-record" ? <Overlay><EditRecordForm shopId={data.shop.id} services={data.services} record={modal.record} saving={saving} onClose={() => setModal(null)} onSave={(payload) => mutate("/api/records", { method: "PATCH", body: JSON.stringify(payload) })} /></Overlay> : null}{modal.type === "stat" ? <Overlay><StatDetail kind={modal.kind} todayAppointments={filteredHomeConfirmedAppointmentsForStat} pendingAppointments={filteredHomePendingAppointments} overdueRows={revisitRows.filter((item) => item.status === "overdue")} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onUpdate={updateAppointmentWithMobilePhotoGuard} onOpenAppointment={(appointment) => setModal({ type: "appointment", appointment })} onClose={() => setModal(null)} /></Overlay> : null}</div>}
+      {mobilePhotoStatusAction ? (
+        <MobilePhotoStatusSheet
+          action={mobilePhotoStatusAction}
+          uploading={mobilePhotoUploading || saving}
+          onClose={() => {
+            if (!mobilePhotoUploading) setMobilePhotoStatusAction(null);
+          }}
+          onSkip={() => {
+            const action = mobilePhotoStatusAction;
+            if (!action) return;
+            setMobilePhotoStatusAction(null);
+            void updateAppointment(action.appointmentId, { status: action.nextStatus });
+          }}
+          onSubmit={handleMobilePhotoStatusFile}
+        />
+      ) : null}
       {isShopPickerOpen ? (
         <Overlay>
           <ShopPickerSheet
@@ -2211,14 +2680,6 @@ export default function OwnerApp({
   );
 }
 
-function buildTelHref(phone: string) {
-  return `tel:${phoneNormalize(phone)}`;
-}
-
-function buildSmsHref(phone: string) {
-  return `sms:${phoneNormalize(phone)}`;
-}
-
 function badgeToneForAppointmentStatus(status: AppointmentStatus): "success" | "warning" | "danger" | "neutral" | "info" {
   switch (status) {
     case "pending":
@@ -2238,31 +2699,6 @@ function badgeToneForAppointmentStatus(status: AppointmentStatus): "success" | "
   }
 }
 
-function Panel({
-  title,
-  action,
-  children,
-  titleClassName = "",
-  titleTextClassName = "",
-  className = "",
-  contentClassName = "",
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  titleClassName?: string;
-  titleTextClassName?: string;
-  className?: string;
-  contentClassName?: string;
-}) {
-  return (
-      <section className={`rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 shadow-[var(--shadow-soft)] ${className}`.trim()}>
-      <AppSectionHeader title={title} action={action} className={`mb-2.5 ${titleClassName}`.trim()} titleClassName={titleTextClassName} />
-      <div className={`space-y-2.5 ${contentClassName}`.trim()}>{children}</div>
-    </section>
-  );
-}
-
 function appointmentInitial(name: string) {
   const trimmed = name.trim();
   return trimmed ? trimmed[0] : "?";
@@ -2276,10 +2712,18 @@ function AppointmentMonogram({ name }: { name: string }) {
   );
 }
 
-function AppointmentListTrailing({ status }: { status: AppointmentStatus | "record-completed" }) {
+function AppointmentListTrailing({ status }: { status: AppointmentStatus | "record-completed" | "missed-pending" }) {
+  if (status === "missed-pending") {
+    return (
+      <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#ead8b8] bg-[#fff8eb] px-2.5 text-[11px] font-normal leading-none text-[#9a6a16]">
+        누락
+      </span>
+    );
+  }
+
   if (status === "record-completed" || status === "completed") {
     return (
-      <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[#dde8e2] bg-white px-2.5 text-[11px] font-normal leading-none text-[#1f6b5b]">
+      <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-white px-2.5 text-[11px] font-normal leading-none text-[var(--text)]">
         <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
         완료
       </span>
@@ -2304,7 +2748,7 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
 
   if (status === "in_progress") {
     return (
-      <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-[#eef6f3] px-2.5 text-[11px] font-normal leading-none text-[#1f6b5b]">
+      <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-[#f3f5f7] px-2.5 text-[11px] font-normal leading-none text-[var(--text)]">
         진행
       </span>
     );
@@ -2324,65 +2768,225 @@ function AppointmentListTrailing({ status }: { status: AppointmentStatus | "reco
 function VisitTimelineSection({ date, appointments, records, petMap, guardianMap, serviceMap, onOpenAppointment }: { date: string; appointments: Appointment[]; records: GroomingRecord[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void }) { return <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{shortDate(date)}</h3><span className="text-xs text-[var(--muted)]">{appointments.length + records.length}건</span></div><div className="mt-3 space-y-2">{appointments.map((appointment) => <AppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}{records.map((record) => <VisitRecordRow key={record.id} record={record} pet={petMap[record.pet_id]} guardian={guardianMap[record.guardian_id]} service={serviceMap[record.service_id]} />)}{appointments.length === 0 && records.length === 0 ? <AppEmptyState title="이 날짜 방문 내역이 없어요" /> : null}</div></div>; }
 function VisitRecordRow({ record, pet, guardian, service }: { record: GroomingRecord; pet: Pet; guardian: Guardian; service?: Service }) {
   return (
-    <div className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{record.groomed_at.slice(11, 16)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <div className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{record.groomed_at.slice(11, 16)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service?.name || "서비스"}</p>
+        <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{service?.name || "서비스"}</p>
       </div>
       <AppointmentListTrailing status="record-completed" />
     </div>
   );
 }
 
-function StatCard({ label, value, tone, onClick }: { label: string; value: string; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }) {
+function MobileStatusSummary({ items, activeKey }: { items: Array<{ key: HomeReservationSectionKey; label: string; value: number; tone: "accent" | "warning" | "danger" | "neutral"; onClick: () => void }>; activeKey: HomeReservationSectionKey }) {
   const toneMap = {
     accent: {
-      bar: "before:bg-[var(--accent)]",
-      border: "border-[#d6e7e1]",
+      dot: "bg-[var(--accent)]",
+      text: "text-[var(--accent)]",
     },
     warning: {
-      bar: "before:bg-[#e4b08d]",
-      border: "border-[#ead8c9]",
+      dot: "bg-[#c79a37]",
+      text: "text-[#4f5d73]",
     },
     danger: {
-      bar: "before:bg-[#cf9b8d]",
-      border: "border-[#ead8d2]",
+      dot: "bg-[#b56a78]",
+      text: "text-[#4f5d73]",
     },
     neutral: {
-      bar: "before:bg-[#c9b39e]",
-      border: "border-[#e9ddd3]",
+      dot: "bg-[#8c98aa]",
+      text: "text-[#4f5d73]",
     },
   } as const;
+  return (
+    <div className="pb-0.5 text-[var(--text)]">
+      <HorizontalDragScroll>
+        {items.map((item) => {
+          const active = item.key === activeKey;
+          return (
+        <button
+          key={item.key}
+          type="button"
+          aria-pressed={active}
+          onClick={item.onClick}
+          className={`mr-2 inline-flex h-9 min-w-[118px] shrink-0 items-center rounded-[8px] border px-3 text-left transition last:mr-0 ${
+            active
+              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+              : "border-[var(--border)] bg-white text-[var(--text)] hover:bg-[#f3f6fb]"
+          }`}
+        >
+          <span className={`flex w-full items-center justify-between gap-2 text-[13px] font-medium leading-[18px] tracking-[-0.02em] ${active ? "text-white" : toneMap[item.tone].text}`}>
+            <span className="flex min-w-0 items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-white/85" : toneMap[item.tone].dot}`} />
+            <span className="min-w-0 truncate">{item.label}</span>
+            </span>
+            <span className={`shrink-0 text-[13px] ${active ? "text-white" : "text-[#8c98aa]"}`}>{item.value}</span>
+          </span>
+        </button>
+          );
+        })}
+      </HorizontalDragScroll>
+    </div>
+  );
+}
+
+function HomeScheduleTabs({
+  tabs,
+  activeKey,
+  onChange,
+  onAdd,
+}: {
+  tabs: Array<{ key: HomeReservationSectionKey; label: string; count: number }>;
+  activeKey: HomeReservationSectionKey;
+  onChange: (key: HomeReservationSectionKey) => void;
+  onAdd?: () => void;
+}) {
+  return (
+    <div className="mt-3 flex items-end border-b border-[#edf1f5] px-0.5">
+      <div className="flex min-w-0 flex-1 items-center gap-[22px]">
+        {tabs.map((tab) => {
+          const active = tab.key === activeKey;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+            className={cn(
+              "relative top-px flex min-w-0 items-center gap-[5px] border-b-2 pb-[11px] text-[14px] font-medium tracking-[-0.01em] transition",
+              active ? "border-[#2f6fd6] text-[#0f172a]" : "border-transparent text-[#64748b]",
+              )}
+              onClick={() => onChange(tab.key)}
+              aria-pressed={active}
+            >
+              <span className="truncate">{tab.label}</span>
+              <span className={cn("text-[14px] font-medium", active ? "text-[#2f6fd6]" : "text-[#64748b]")}>{tab.count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {onAdd ? (
+        <div className="relative top-px shrink-0 border-b-2 border-transparent pb-[7px]">
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d8e4f5] bg-white text-[#2f6fd6] transition hover:bg-[#f4f8ff]"
+            onClick={onAdd}
+            aria-label="예약추가"
+          >
+            <Plus className="h-[18px] w-[18px]" strokeWidth={2.3} />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function HomeHeaderStaffSelect({
+  options,
+  value,
+  onChange,
+  staffCount,
+}: {
+  options: Array<{ key: HomeStaffFilterKey; label: string; count: number }>;
+  value: HomeStaffFilterKey;
+  onChange: (value: HomeStaffFilterKey) => void;
+  staffCount: number;
+}) {
+  const selectedOption = options.find((option) => option.key === value) ?? options[0];
+  const showStaffStack = staffCount > 1 && value === "all";
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
 
   return (
-    <button
-      onClick={onClick}
-      className={`relative overflow-hidden rounded-[10px] border border-[var(--border)] bg-white px-4 py-3 text-left transition before:absolute before:inset-x-0 before:top-0 before:h-1.5 ${toneMap[tone].bar}`}
-    >
-      <p className="relative z-[1] text-[14px] font-semibold tracking-[-0.01em] text-[var(--muted)]">{label}</p>
-      <p className="relative z-[1] mt-3 text-[32px] font-extrabold leading-none tracking-[-0.05em] text-[var(--text)]">{value}</p>
-    </button>
+    <div ref={rootRef} className="relative h-[36px] min-w-[120px] shrink-0">
+      <button
+        type="button"
+        className={cn(
+          "flex h-full w-full items-center gap-2 rounded-[10px] bg-[#f4f6f9] px-3 pr-8 text-left transition",
+          open ? "bg-[#eef3fb] ring-1 ring-[#d8e4f5]" : "hover:bg-[#eef3fb]",
+        )}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="담당자 선택"
+      >
+        {showStaffStack ? (
+          <div className="flex shrink-0 items-center">
+            {[0, 1, 2].map((item) => (
+              <span key={item} className={cn("h-[22px] w-[22px] rounded-full border-[1.5px] border-[#f4f6f9] bg-[#dbe6fa]", item > 0 ? "-ml-2" : "")} />
+            ))}
+          </div>
+        ) : (
+          <UserRound className="h-4 w-4 shrink-0 text-[#64748b]" strokeWidth={1.8} />
+        )}
+        <span className="min-w-0 truncate text-[14px] font-medium tracking-[-0.01em] text-[#334155]">
+          {showStaffStack ? "전체" : selectedOption?.label ?? "담당자"}
+        </span>
+      </button>
+      <ChevronDown className={cn("pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8] transition", open ? "rotate-180" : "")} strokeWidth={2} />
+
+      {open ? (
+        <div className="absolute right-0 top-[42px] z-50 w-[164px] overflow-hidden rounded-[14px] border border-[#dbe5f1] bg-white p-1.5 shadow-[0_14px_32px_rgba(15,23,42,0.14)]" role="listbox">
+          {options.map((option) => {
+            const active = option.key === value;
+            const label = option.key === "all" ? option.label : option.label;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                className={cn(
+                  "flex h-10 w-full items-center justify-between gap-2 rounded-[10px] px-3 text-left text-[14px] tracking-[-0.01em] transition",
+                  active ? "bg-[#eef4ff] font-medium text-[#2f6fd6]" : "font-normal text-[#334155] hover:bg-[#f8fafc]",
+                )}
+                onClick={() => {
+                  onChange(option.key);
+                  setOpen(false);
+                }}
+                role="option"
+                aria-selected={active}
+              >
+                <span className="min-w-0 truncate">{label}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {option.key !== "all" ? <span className={cn("text-[12px]", active ? "text-[#2f6fd6]" : "text-[#94a3b8]")}>{option.count}건</span> : null}
+                  {active ? <Check className="h-4 w-4" strokeWidth={2.2} /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function AppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#e1e7ef] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#f8fafc]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name}</p>
+        <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{service.name}</p>
       </div>
       <AppointmentListTrailing status={appointment.status} />
     </button>
@@ -2398,18 +3002,102 @@ function AppointmentDetailInfoRow({ label, value, muted = false }: { label: stri
   );
 }
 
-function AppointmentDetail({ data, appointment, pet, guardian, service, saving, onClose, onUpdate, onSendReminder }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void; onSendReminder: () => Promise<void> }) {
-  const [template, setTemplate] = useState<(typeof rejectionReasonTemplates)[number]>(rejectionReasonTemplates[0]);
-  const [customReason, setCustomReason] = useState("");
-  const [reminderSent, setReminderSent] = useState(false);
-  const canEditSchedule = ["pending", "confirmed", "cancelled"].includes(appointment.status);
+function AppointmentDetailMediaHistory({ shopId, appointment }: { shopId: string; appointment: Appointment }) {
+  const [items, setItems] = useState<AppointmentMediaPreview[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAppointmentMedia() {
+      setLoading(true);
+      try {
+        const query = new URLSearchParams({
+          shopId,
+          appointmentId: appointment.id,
+          includeVariants: "true",
+          limit: "8",
+        });
+        const list = await fetchJson<{ items: MediaAssetListItem[] }>(`/api/owner/media/assets?${query.toString()}`);
+        const previews = await Promise.all(
+          list.items
+            .filter((item) => item.mediaAsset.media_kind === "grooming_after")
+            .map(async (item) => {
+              const signedQuery = new URLSearchParams({
+                shopId,
+                mediaAssetId: item.mediaAsset.id,
+                variant: "provider_ready",
+              });
+              const signed = await fetchJson<SignedMediaUrlResponse>(`/api/owner/media/signed-url?${signedQuery.toString()}`);
+              return { item, signedUrl: signed.signedUrl };
+            }),
+        );
+        if (!cancelled) setItems(previews);
+      } catch {
+        if (!cancelled) setItems([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadAppointmentMedia();
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment.id, shopId]);
+
+  return (
+    <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] font-medium text-[var(--text)]">사진 기록</p>
+        <span className="text-[12px] text-[var(--muted)]">{loading ? "확인 중" : `${items.length}장`}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-3 rounded-[12px] border border-dashed border-[var(--border)] px-3.5 py-3 text-[13px] leading-5 text-[var(--muted)]">
+          {loading ? "사진 기록을 불러오고 있어요." : "이 예약에 연결된 시작/완료 사진이 아직 없어요."}
+        </p>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {items.map(({ item, signedUrl }) => (
+            <a
+              key={item.mediaAsset.id}
+              href={signedUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group overflow-hidden rounded-[12px] border border-[var(--border)] bg-[#fbfaf7]"
+            >
+              <div className="aspect-[4/3] overflow-hidden bg-[#f1eee8]">
+                <img
+                  src={signedUrl}
+                  alt={getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}
+                  className="h-full w-full object-cover transition group-active:scale-[0.99]"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+                <span className="truncate text-[12px] font-medium text-[var(--text)]">{getAppointmentMediaKindLabel(item.mediaAsset.media_kind)}</span>
+                <span className="shrink-0 text-[11px] text-[var(--muted)]">{item.mediaAsset.status === "ready" ? "저장됨" : "처리 중"}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AppointmentDetail({ data, appointment, pet, guardian, service, saving, canViewGuardianContact = true, onClose, onUpdate }: { data: BootstrapPayload; appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; canViewGuardianContact?: boolean; onClose: () => void; onUpdate: (payload: AppointmentUpdatePayload) => void }) {
+  const [notificationPageState, setNotificationPageState] = useState({ appointmentId: appointment.id, page: 1 });
+  const canEditSchedule = ["pending", "confirmed"].includes(appointment.status);
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [serviceId, setServiceId] = useState(appointment.service_id);
   const [date, setDate] = useState(appointment.appointment_date);
   const [time, setTime] = useState(appointment.appointment_time);
   const [memo, setMemo] = useState(appointment.memo);
   const selectableServices = useMemo(
-    () => data.services.filter((item) => item.is_active || item.id === appointment.service_id),
+    () =>
+      data.services
+        .filter((item) => isBookableOwnerService(item) || (item.id === appointment.service_id && item.name.trim() !== "새 항목"))
+        .sort((first, second) => (first.sort_order ?? 0) - (second.sort_order ?? 0)),
     [appointment.service_id, data.services],
   );
   const selectedService = selectableServices.find((item) => item.id === serviceId) ?? service;
@@ -2433,34 +3121,71 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
     time !== appointment.appointment_time ||
     memo !== appointment.memo;
   const canSaveSchedule = Boolean(serviceId && time && hasEditChanges && !saving);
-  const canSendReminder =
-    ["pending", "confirmed"].includes(appointment.status) && guardian.notification_settings.enabled;
+  const canCancelAppointment = ["pending", "confirmed", "in_progress", "almost_done"].includes(appointment.status);
+  const notificationPageSize = 5;
+  const appointmentNotifications = useMemo(
+    () =>
+      data.notifications
+        .filter((notification) => {
+          if (notification.appointment_id === appointment.id) return true;
+          const metadataAppointmentId = notification.metadata?.appointmentId ?? notification.metadata?.appointment_id;
+          if (metadataAppointmentId === appointment.id) return true;
+          return (
+            notification.type === "booking_cancelled" &&
+            !notification.appointment_id &&
+            notification.guardian_id === appointment.guardian_id &&
+            notification.pet_id === appointment.pet_id
+          );
+        })
+        .sort((first, second) => (second.sent_at ?? second.created_at).localeCompare(first.sent_at ?? first.created_at)),
+    [appointment.guardian_id, appointment.id, appointment.pet_id, data.notifications],
+  );
+  const totalNotificationPages = Math.max(1, Math.ceil(appointmentNotifications.length / notificationPageSize));
+  const notificationPage =
+    notificationPageState.appointmentId === appointment.id
+      ? Math.min(notificationPageState.page, totalNotificationPages)
+      : 1;
+  const pagedAppointmentNotifications = appointmentNotifications.slice(
+    (notificationPage - 1) * notificationPageSize,
+    notificationPage * notificationPageSize,
+  );
+  const appointmentFooter =
+    canEditSchedule && isEditingSchedule ? (
+      <ActionButton
+        disabled={!canSaveSchedule}
+        onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}
+      >
+        예약 수정 저장
+      </ActionButton>
+    ) : canViewGuardianContact ? (
+      <div className="-mt-2.5">
+        <QuickContactRow
+          phone={guardian.phone}
+          sending={saving}
+        />
+      </div>
+    ) : null;
 
   useEffect(() => {
-    if (slots.length === 0) {
-      setTime("");
-      return;
-    }
+    const frame = window.requestAnimationFrame(() => {
+      if (slots.length === 0) {
+        setTime("");
+        return;
+      }
 
-    if (!slots.includes(time)) {
-      setTime(slots[0]);
-    }
+      if (!slots.includes(time)) {
+        setTime(slots[0]);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [slots, time]);
 
   return (
     <Sheet
       title={ownerHomeCopy.appointmentDetailTitle}
       onClose={onClose}
-      footer={
-        canEditSchedule && isEditingSchedule ? (
-          <ActionButton
-            disabled={!canSaveSchedule}
-            onClick={() => onUpdate({ mode: "edit", serviceId, appointmentDate: date, appointmentTime: time, memo })}
-          >
-            예약 수정 저장
-          </ActionButton>
-        ) : undefined
-      }
+      footer={appointmentFooter}
     >
       <div className="space-y-3.5">
         <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5 text-sm">
@@ -2485,7 +3210,12 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
             />
             <AppointmentDetailInfoRow
               label="서비스"
-              value={`${selectedService.name} ${ownerHomeCopy.separator} ${won(selectedService.price)}`}
+            value={`${selectedService.name} ${ownerHomeCopy.separator} ${won(selectedService.price)}`}
+            />
+            <AppointmentDetailInfoRow
+              label="담당"
+              value={appointment.staff_id ? data.staffMembers.find((staffMember) => staffMember.id === appointment.staff_id)?.name ?? "담당 미확인" : "미배정"}
+              muted={!appointment.staff_id}
             />
             <AppointmentDetailInfoRow
               label={ownerHomeCopy.memoLabel}
@@ -2564,33 +3294,60 @@ function AppointmentDetail({ data, appointment, pet, guardian, service, saving, 
             </div>
           ) : null}
         </div>
+        {canCancelAppointment ? (
+          <div className="rounded-[18px] border border-[#eadbd2] bg-[#fffaf7] px-4 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] font-medium text-[var(--text)]">예약 취소</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">취소 후에는 취소·변경 내역에서 확인할 수 있어요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdate({ status: "cancelled" })}
+                disabled={saving}
+                className="shrink-0 rounded-[10px] border border-[#d8c8bd] bg-white px-3 py-2 text-[13px] font-medium text-[#9a5f4f] disabled:opacity-50"
+              >
+                예약 취소
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <AppointmentDetailMediaHistory shopId={data.shop.id} appointment={appointment} />
         <div className="rounded-[18px] border border-[#e8e0d2] bg-white px-4 py-3.5">
-          <p className="text-[14px] font-medium text-[var(--text)]">빠른 연락</p>
-          <QuickContactRow
-            phone={guardian.phone}
-            reminderSent={reminderSent}
-            sending={saving}
-            onSendReminder={
-              canSendReminder
-                ? async () => {
-                    await onSendReminder();
-                    setReminderSent(true);
-                  }
-                : undefined
-            }
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-medium text-[var(--text)]">알림톡 이력</p>
+            <span className="text-[12px] text-[var(--muted)]">{appointmentNotifications.length}건</span>
+          </div>
+          <div className="mt-3 overflow-hidden rounded-[12px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+            {appointmentNotifications.length === 0 ? (
+              <p className="px-3.5 py-3 text-[13px] leading-5 text-[var(--muted)]">이 예약으로 발송된 알림톡이 아직 없어요.</p>
+            ) : (
+              pagedAppointmentNotifications.map((notification) => (
+                <NotificationHistoryRow key={notification.id} notification={notification} pet={pet} />
+              ))
+            )}
+          </div>
+          <CustomerDetailHistoryPagination
+            page={notificationPage}
+            totalPages={totalNotificationPages}
+            onChange={(page) => setNotificationPageState({ appointmentId: appointment.id, page })}
           />
         </div>
-        {appointment.status === "pending" && <div className="space-y-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-bold">미승인 사유 템플릿</p><RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} /><div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onUpdate({ status: "confirmed" })} disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton><ActionButton onClick={() => onUpdate({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason })} variant="secondary" disabled={saving}>{"\uBBF8\uC2B9\uC778"}</ActionButton></div></div>}
       </div>
     </Sheet>
   );
 }
 
-function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; onClose: () => void; onSave: (payload: unknown) => void }) {
+function isBookableOwnerService(service: Service) {
+  const name = service.name.trim();
+  return service.is_active && name.length > 0 && name !== "새 항목";
+}
+
+function NewAppointmentForm({ data, petId, saving, canViewGuardianContact = true, onClose, onNewCustomer, onSave }: { data: BootstrapPayload; petId?: string; saving: boolean; canViewGuardianContact?: boolean; onClose: () => void; onNewCustomer: () => void; onSave: (payload: unknown) => void }) {
   const [selectedPetId, setSelectedPetId] = useState(petId || "");
   const [customerQuery, setCustomerQuery] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [customServiceName, setCustomServiceName] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState(() => (data.staffMembers.length === 1 ? data.staffMembers[0]?.id ?? "" : ""));
   const [date, setDate] = useState(currentDateInTimeZone());
   const [time, setTime] = useState("");
   const [memo, setMemo] = useState("");
@@ -2598,43 +3355,242 @@ function NewAppointmentForm({ data, petId, saving, onClose, onSave }: { data: Bo
 
   const selectedPet = data.pets.find((item) => item.id === selectedPetId);
   const selectedGuardian = selectedPet ? data.guardians.find((item) => item.id === selectedPet.guardian_id) : undefined;
-  const selectableServices = data.services;
-  const customService: Service = {
-    id: "__custom__",
-    shop_id: data.shop.id,
-    name: customServiceName.trim() || "기타 직접입력",
-    price: 0,
-    duration_minutes: 60,
-    is_active: true,
-    created_at: "",
-    updated_at: "",
-  };
-  const servicesForAvailability = serviceId === "__custom__" ? [...selectableServices, customService] : selectableServices;
+  const selectableServices = useMemo(
+    () =>
+      data.services
+        .filter(isBookableOwnerService)
+        .sort((first, second) => (first.sort_order ?? 0) - (second.sort_order ?? 0)),
+    [data.services],
+  );
+  const selectableStaffMembers = useMemo(
+    () => [...data.staffMembers].sort((first, second) => first.name.localeCompare(second.name, "ko")),
+    [data.staffMembers],
+  );
   const dateOptions = useMemo(() => Array.from({ length: 14 }, (_, index) => addDate(currentDateInTimeZone(), index)), []);
   const slots = computeAvailableSlots({
     date,
-    serviceId: serviceId || customService.id,
+    serviceId,
     shop: data.shop,
-    services: servicesForAvailability,
+    services: selectableServices,
     appointments: data.appointments,
   });
-  const filteredPets = useMemo(() => {
+  const filteredGuardianGroups = useMemo(() => {
     const query = customerQuery.trim();
-    const rows = data.pets.map((pet) => ({ pet, guardian: data.guardians.find((guardian) => guardian.id === pet.guardian_id) }));
-    if (!query) return rows;
-    return rows.filter((row) => row.guardian?.name.includes(query) || row.pet.name.includes(query));
-  }, [customerQuery, data.guardians, data.pets]);
+    const normalizedPhoneQuery = phoneNormalize(query);
+    return data.guardians
+      .map((guardian) => {
+        const pets = data.pets.filter((pet) => pet.guardian_id === guardian.id);
+        return { guardian, pets };
+      })
+      .filter((row) => {
+        if (!row.pets.length) return false;
+        if (!query) return true;
+        return (
+          row.guardian.name.includes(query) ||
+          (canViewGuardianContact && row.guardian.phone.includes(query)) ||
+          (canViewGuardianContact && normalizedPhoneQuery ? phoneNormalize(row.guardian.phone).includes(normalizedPhoneQuery) : false) ||
+          row.pets.some((pet) => pet.name.includes(query))
+        );
+      });
+  }, [canViewGuardianContact, customerQuery, data.guardians, data.pets]);
 
   const canMoveToService = Boolean(selectedPet);
-  const canMoveToSchedule = Boolean(serviceId && (serviceId !== "__custom__" || customServiceName.trim()));
-  const canSave = Boolean(selectedPet && time && serviceId && (serviceId !== "__custom__" || customServiceName.trim()) && !saving);
+  const canMoveToSchedule = Boolean(serviceId && selectedStaffId);
+  const canSave = Boolean(selectedPet && time && serviceId && selectedStaffId && !saving);
+  const footer =
+    step === "customer" ? (
+      <ActionButton disabled={!canMoveToService} onClick={() => setStep("service")}>다음</ActionButton>
+    ) : step === "service" ? (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("customer")}>이전</ActionButton>
+        <ActionButton disabled={!canMoveToSchedule} onClick={() => setStep("schedule")}>다음</ActionButton>
+      </div>
+    ) : step === "schedule" ? (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("service")}>이전</ActionButton>
+        <ActionButton disabled={!time} onClick={() => setStep("memo")}>다음</ActionButton>
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-2">
+        <ActionButton variant="ghost" onClick={() => setStep("schedule")}>이전</ActionButton>
+        <ActionButton
+          disabled={!canSave}
+          onClick={() =>
+            onSave({
+              shopId: data.shop.id,
+              guardianId: selectedPet?.guardian_id,
+              petId: selectedPetId,
+              serviceId,
+              staffId: selectedStaffId,
+              appointmentDate: date,
+              appointmentTime: time,
+              memo,
+              source: "owner",
+            })
+          }
+        >
+          예약 등록
+        </ActionButton>
+      </div>
+    );
 
-  return <Sheet title="새 예약" onClose={onClose}><div className="space-y-4">{step === "customer" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-semibold">고객 검색</p><p className="mt-1 text-xs text-[var(--muted)]">보호자 이름이나 아기 이름으로 빠르게 찾아서 예약을 등록해 주세요.</p><div className="mt-3 rounded-2xl border border-[var(--border)] bg-white px-3 py-3"><input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="보호자명 또는 아기 이름 검색" className="w-full bg-transparent text-sm outline-none" /></div>{selectedPet && selectedGuardian ? <div className="mt-3 flex items-center gap-3 rounded-2xl bg-[#fcfaf7] px-3 py-3"><Avatar seed={selectedPet.avatar_seed} /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{selectedPet.name}</p><p className="text-xs text-[var(--muted)]">{selectedGuardian.name} {ownerHomeCopy.separator} {selectedGuardian.phone}</p></div><span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-bold text-[var(--accent)]">선택됨</span></div> : null}<div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2">{filteredPets.length === 0 ? <EmptyState title="검색된 고객이 없어요" /> : filteredPets.map((row) => <button key={row.pet.id} className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left ${selectedPetId === row.pet.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setSelectedPetId(row.pet.id); setServiceId(""); setCustomServiceName(""); setTime(""); setMemo(""); }}><Avatar seed={row.pet.avatar_seed} /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{row.pet.name}</p><p className="text-xs text-[var(--muted)]">{row.guardian?.name || "보호자 없음"} {ownerHomeCopy.separator} {row.pet.breed}</p></div></button>)}</div></div><div className="mt-4"><ActionButton disabled={!canMoveToService} onClick={() => setStep("service")}>다음</ActionButton></div></div> : null}{step === "service" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><p className="text-sm font-semibold">서비스 선택</p><div className="mt-2.5 grid grid-cols-2 gap-2">{selectableServices.map((item) => <button key={item.id} className={`rounded-2xl border px-3 py-4 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId(item.id); setTime(""); }}><p className="text-sm font-bold">{item.name}</p></button>)}<button className={`rounded-2xl border px-3 py-4 text-left ${serviceId === "__custom__" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId("__custom__"); setTime(""); }}><p className="text-sm font-bold">기타</p></button></div>{serviceId === "__custom__" ? <div className="mt-3"><input value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} className="field" placeholder="예: 탄산 스파, 발 관리" /></div> : null}<div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("customer")}>이전</ActionButton><ActionButton disabled={!canMoveToSchedule} onClick={() => setStep("schedule")}>다음</ActionButton></div></div> : null}{step === "schedule" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><div><p className="text-sm font-semibold">날짜 / 시간 선택</p><p className="mt-1 text-xs text-[var(--muted)]">좌우로 넘기듯 터치해서 빠르게 선택할 수 있어요.</p></div><div className="mt-3 space-y-3"><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p><HorizontalDragScroll>{dateOptions.map((item, index) => <button key={item} className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => { setDate(item); setTime(""); }}><span className="text-sm font-bold">{index === 0 ? "오늘" : shortDate(item)}</span></button>)}</HorizontalDragScroll></div><div className="rounded-2xl bg-[#fcfaf7] p-2"><p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>{slots.length === 0 ? <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div> : <HorizontalDragScroll>{slots.map((slot) => <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>{slot}</button>)}</HorizontalDragScroll>}</div></div><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("service")}>이전</ActionButton><ActionButton disabled={!time} onClick={() => setStep("memo")}>다음</ActionButton></div></div> : null}{step === "memo" ? <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4"><Field label="메모"><textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="참고 메모를 남겨주세요" /></Field><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton variant="ghost" onClick={() => setStep("schedule")}>이전</ActionButton><ActionButton disabled={!canSave} onClick={() => onSave({ shopId: data.shop.id, guardianId: selectedPet?.guardian_id, petId: selectedPetId, serviceId, customServiceName: serviceId === "__custom__" ? customServiceName.trim() : "", appointmentDate: date, appointmentTime: time, memo, source: "owner" })}>예약 등록</ActionButton></div></div> : null}</div></Sheet>;
+  const sheetTitle = step === "service" ? "서비스 선택" : step === "schedule" ? "날짜 / 시간 선택" : step === "memo" ? "메모" : "새 예약";
+
+  return (
+    <Sheet title={sheetTitle} onClose={onClose} footer={footer}>
+      <div className="space-y-4">
+        {step === "customer" ? (
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[16px] font-semibold tracking-[-0.02em] text-[#0f172a]">고객 검색</p>
+                <p className="mt-1 text-[13px] leading-5 text-[#64748b]">{canViewGuardianContact ? "보호자명, 연락처, 반려동물 이름으로 찾아주세요." : "보호자명 또는 반려동물 이름으로 찾아주세요."}</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d8e4f5] bg-white px-3 text-[14px] font-medium tracking-[-0.01em] text-[#2f6fd6]"
+                onClick={onNewCustomer}
+              >
+                신규 고객
+              </button>
+            </div>
+            <div className="rounded-[14px] border border-[#dbe5f1] bg-white px-3.5 py-3">
+              <input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="보호자명 또는 아기 이름 검색" className="w-full bg-transparent text-[16px] outline-none placeholder:text-[#94a3b8]" />
+            </div>
+            <div className="no-scrollbar max-h-[22rem] overflow-y-auto pr-1">
+              <div className="space-y-1.5">
+                {filteredGuardianGroups.length === 0 ? (
+                  <div className="rounded-[14px] border border-[#dbe5f1] bg-white px-4 py-4">
+                    <p className="text-[15px] font-medium text-[#0f172a]">검색된 고객이 없어요</p>
+                    <p className="mt-1 text-[13px] leading-5 text-[#64748b]">새 고객으로 등록한 뒤 예약을 이어가 주세요.</p>
+                    <button type="button" className="mt-3 inline-flex h-9 items-center rounded-[10px] bg-[#2f6fd6] px-3.5 text-[14px] font-medium text-white" onClick={onNewCustomer}>
+                      신규 고객 등록
+                    </button>
+                  </div>
+                ) : (
+                  filteredGuardianGroups.map((row) => (
+                    <div key={row.guardian.id} className="rounded-[14px] border border-[#dbe5f1] bg-white px-3 py-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dbe5f1] bg-[#f8fafc] text-[15px] font-medium text-[#334155]">{appointmentInitial(row.guardian.name)}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-medium leading-5 tracking-[-0.02em] text-[#0f172a]">{row.guardian.name}</p>
+                          <p className="truncate text-[13px] leading-5 text-[#64748b]">{canViewGuardianContact ? row.guardian.phone : "관리자 확인 필요"}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {row.pets.map((pet) => (
+                          <button
+                            key={pet.id}
+                            type="button"
+                            className={cn(
+                              "min-w-[92px] flex-1 rounded-[10px] border px-2.5 py-2 text-left transition",
+                              selectedPetId === pet.id ? "border-[#2f6fd6] bg-[#eaf1fc]" : "border-[#dbe5f1] bg-[#f8fafc]",
+                            )}
+                            onClick={() => {
+                              setSelectedPetId(pet.id);
+                              setServiceId("");
+                              setTime("");
+                              setMemo("");
+                            }}
+                          >
+                            <p className="truncate text-[14px] font-medium leading-4 text-[#0f172a]">{pet.name}</p>
+                            <p className="mt-0.5 truncate text-[12px] leading-4 text-[#64748b]">{pet.breed || "품종 미입력"}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "service" ? (
+          <>
+            <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">담당자</p>
+                {selectableStaffMembers.length === 1 ? <span className="text-[11px] font-bold text-[var(--muted)]">자동 선택</span> : null}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {selectableStaffMembers.map((staffMember) => {
+                  const displayName = staffMember.displayName?.trim() || staffMember.name;
+                  const description = staffMember.position || staffMember.role || "담당자";
+
+                  return (
+                    <button
+                      key={staffMember.id}
+                      type="button"
+                      className={`rounded-2xl border px-3 py-3 text-left transition ${
+                        selectedStaffId === staffMember.id
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text)]"
+                          : "border-[var(--border)] bg-white text-[var(--text)]"
+                      }`}
+                      onClick={() => setSelectedStaffId(staffMember.id)}
+                    >
+                      <p className="truncate text-sm font-bold">{displayName}</p>
+                      <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {selectableServices.length === 0 ? (
+              <EmptyState title="선택 가능한 서비스가 없어요" />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {selectableServices.map((item) => (
+                  <button key={item.id} className={`rounded-2xl border px-3 py-4 text-left ${serviceId === item.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-white"}`} onClick={() => { setServiceId(item.id); setTime(""); }}>
+                    <p className="text-sm font-bold">{item.name}</p>
+                    {item.category ? <p className="mt-1 text-xs text-[var(--muted)]">{item.category}</p> : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : null}
+
+        {step === "schedule" ? (
+          <>
+            <p className="text-xs text-[var(--muted)]">좌우로 넘기듯 터치해서 빠르게 선택할 수 있어요.</p>
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-[#fcfaf7] p-2">
+                <p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">날짜</p>
+                <HorizontalDragScroll>
+                  {dateOptions.map((item, index) => (
+                    <button key={item} className={`min-w-[110px] shrink-0 rounded-2xl border px-4 py-3 text-left ${date === item ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => { setDate(item); setTime(""); }}>
+                      <span className="text-sm font-bold">{index === 0 ? "오늘" : shortDate(item)}</span>
+                    </button>
+                  ))}
+                </HorizontalDragScroll>
+              </div>
+              <div className="rounded-2xl bg-[#fcfaf7] p-2">
+                <p className="px-2 pb-2 text-xs font-semibold text-[var(--muted)]">시간</p>
+                {slots.length === 0 ? (
+                  <div className="rounded-2xl bg-[#fcfaf7] px-4 py-6 text-center text-sm text-[var(--muted)]">선택한 조건에 가능한 시간이 없어요.</div>
+                ) : (
+                  <HorizontalDragScroll>
+                    {slots.map((slot) => (
+                      <button key={slot} className={`min-w-[92px] shrink-0 rounded-2xl border px-4 py-3 text-center text-sm font-bold ${time === slot ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--border)] bg-[#fcfaf7] text-[var(--text)]"}`} onClick={() => setTime(slot)}>
+                        {slot}
+                      </button>
+                    ))}
+                  </HorizontalDragScroll>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {step === "memo" ? (
+          <textarea value={memo} onChange={(event) => setMemo(event.target.value)} className="field min-h-24" placeholder="참고 메모를 남겨주세요" />
+        ) : null}
+      </div>
+    </Sheet>
+  );
 }
 
-function HorizontalDragScroll({ children }: { children: React.ReactNode }) {
-  return <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar">{children}</div>;
-}
 function NewCustomerForm({ shopId, saving, onClose, onSave }: { shopId: string; saving: boolean; onClose: () => void; onSave: (guardianPayload: { shopId: string; name: string; phone: string; memo: string }, petPayloads: Array<{ shopId: string; name: string; breed: string; birthday: string | null; weight: null; age: null; notes: string; groomingCycleWeeks: number }>) => void }) {
   const [guardianName, setGuardianName] = useState("");
   const [phone, setPhone] = useState("");
@@ -2961,9 +3917,11 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                 phone: phone.trim(),
                 address: combinedAddress,
                 description: description.trim(),
-                concurrentCapacity: data.shop.concurrent_capacity,
+                concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
                 bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
                 bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+                bookingAvailableStartTime: data.shop.booking_available_start_time ?? "00:00",
+                bookingAvailableEndTime: data.shop.booking_available_end_time ?? "23:59",
                 approvalMode: data.shop.approval_mode,
                 regularClosedDays: data.shop.regular_closed_days,
                 temporaryClosedDates: data.shop.temporary_closed_dates,
@@ -2977,6 +3935,8 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
                   bookingRescheduledEnabled: data.shop.notification_settings.booking_rescheduled_enabled,
                   groomingAlmostDoneEnabled: data.shop.notification_settings.grooming_almost_done_enabled,
                   groomingCompletedEnabled: data.shop.notification_settings.grooming_completed_enabled,
+                  groomingStartWithoutPhotoEnabled: data.shop.notification_settings.grooming_start_without_photo_enabled ?? false,
+                  groomingCompleteWithoutPhotoEnabled: data.shop.notification_settings.grooming_complete_without_photo_enabled ?? false,
                 },
               },
               customerPageSettingsPayload: {
@@ -3043,7 +4003,7 @@ function ShopProfileEditForm({ data, saving, onClose, onSave }: { data: Bootstra
               className={bareInputClassName}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="예: 포근한 발바닥 미용실"
+              placeholder="예: 매장명"
             />
           </CustomerDetailFieldCard>
 
@@ -3189,6 +4149,7 @@ function ShopPickerSheet({ shops, currentShopId, switching, onClose, onSelect, o
 function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=168x168&margin=12&data=${encodeURIComponent(bookingEntryUrl)}`;
 
   useEffect(() => {
     return () => {
@@ -3211,21 +4172,51 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
     <Sheet title="예약 링크 안내" onClose={onClose}>
       <div className="space-y-4 pb-2">
         <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
-          <p className="text-sm font-bold text-[var(--text)]">고객 예약 링크</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-[var(--text)]">고객 예약 링크</p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold tracking-[-0.01em] text-white"
+                onClick={handleCopy}
+              >
+                {copied ? <Check className="h-4 w-4" strokeWidth={2.4} /> : <Copy className="h-4 w-4" strokeWidth={2} />}
+                링크 복사
+              </button>
+              <a
+                href={bookingEntryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[var(--border)] bg-white px-4 text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]"
+              >
+                <ExternalLink className="h-4 w-4" strokeWidth={2} />
+                고객 화면 열기
+              </a>
+            </div>
+          </div>
           <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">
             고객이 직접 예약할 수 있는 링크예요. 인스타그램, 네이버 플레이스, 카카오 채널 등에 넣어두면 고객이 바로 예약할 수 있어요.
           </p>
           <div className="mt-3 flex items-center gap-2 rounded-[14px] bg-white px-3 py-3">
             <p className="min-w-0 flex-1 break-all text-[12px] text-[var(--muted)]">{bookingEntryUrl}</p>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--accent)]"
-              onClick={handleCopy}
-              aria-label="링크 복사하기"
-            >
-              {copied ? <Check className="h-4 w-4" strokeWidth={2.4} /> : <Copy className="h-4 w-4" />}
-            </button>
           </div>
+        </div>
+        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-[var(--muted)]" />
+            <p className="text-sm font-bold text-[var(--text)]">QR 코드</p>
+          </div>
+          <div className="mt-3 flex justify-center rounded-[16px] bg-white p-4">
+            <img src={qrImageUrl} alt="고객 예약 QR 코드" className="h-[168px] w-[168px]" />
+          </div>
+          <a
+            href={qrImageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--border)] bg-white px-4 text-[14px] font-medium text-[var(--text)]"
+          >
+            QR 크게 보기
+          </a>
         </div>
         <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-4">
           <p className="text-sm font-bold text-[var(--text)]">사용 예시</p>
@@ -3237,13 +4228,6 @@ function BookingGuideSheet({ bookingEntryUrl, onClose }: { bookingEntryUrl: stri
             <li>블로그 또는 공지글</li>
           </ul>
         </div>
-        <button
-          type="button"
-          className="inline-flex h-12 w-full items-center justify-center rounded-[14px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[15px] font-medium tracking-[-0.01em] text-white"
-          onClick={handleCopy}
-        >
-          링크 복사하기
-        </button>
         <div
           className={`pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+24px)] z-[70] flex justify-center px-6 transition-all duration-200 ${
             copied ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
@@ -3265,22 +4249,28 @@ function SettingsPanel({
   onSave,
   onSaveService,
   onSaveCustomerPageSettings,
+  onSaveStaff,
   onLogout,
   loggingOut = false,
   userEmail,
   subscriptionSummary,
   onActiveScreenChange,
+  appRole = "owner",
+  currentStaffId = null,
 }: {
   data: BootstrapPayload;
   initialScreen?: SettingsEntryScreen;
   onSave: (payload: unknown) => void;
   onSaveService: (payload: unknown) => void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
+  onSaveStaff: (payload: unknown) => void;
   onLogout?: () => void;
   loggingOut?: boolean;
   userEmail?: string | null;
   subscriptionSummary?: OwnerSubscriptionSummary | null;
   onActiveScreenChange?: (screen: SettingsEntryScreen) => void;
+  appRole?: MobileAppRole;
+  currentStaffId?: string | null;
 }) {
   return (
     <OwnerSettingsPanel
@@ -3289,11 +4279,14 @@ function SettingsPanel({
       onSave={onSave}
       onSaveService={onSaveService}
       onSaveCustomerPageSettings={onSaveCustomerPageSettings}
+      onSaveStaff={onSaveStaff}
       onLogout={onLogout}
       loggingOut={loggingOut}
       userEmail={userEmail}
       subscriptionSummary={subscriptionSummary}
       onActiveScreenChange={onActiveScreenChange}
+      appRole={appRole}
+      currentStaffId={currentStaffId}
     />
   );
 }
@@ -3315,16 +4308,95 @@ function RecordCard({ record, pet, service, onEdit }: { record: GroomingRecord; 
     </div>
   );
 }
-function StatDetail({ kind, todayAppointments, pendingAppointments, overdueRows, estimatedRevenue, petMap, guardianMap, serviceMap, saving, onUpdate, onClose }: { kind: "today" | "pending" | "completed" | "cancel_change"; todayAppointments: Appointment[]; pendingAppointments: Appointment[]; overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>; estimatedRevenue: number; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onClose: () => void }) { const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null); const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status)); const completedAppointments = todayAppointments.filter((item) => item.status === "completed"); const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled"); return <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}><div className="space-y-3">{kind === "today" && <CurrentReservationsContent currentAppointments={currentAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} saving={saving} onOpenAppointment={() => {}} onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })} />}{kind === "pending" && pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}{kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={() => {}} />}{kind === "cancel_change" && cancelChangeOnly.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => {}} onStatusChange={(status) => onUpdate(appointment.id, { status })} />)}</div></Sheet>; }
+function StatDetail({
+  kind,
+  todayAppointments,
+  pendingAppointments,
+  overdueRows,
+  petMap,
+  guardianMap,
+  serviceMap,
+  saving,
+  onUpdate,
+  onOpenAppointment,
+  onClose,
+}: {
+  kind: "today" | "pending" | "completed" | "cancel_change";
+  todayAppointments: Appointment[];
+  pendingAppointments: Appointment[];
+  overdueRows: Array<{ pet: Pet; guardian: Guardian; daysUntil: number | null }>;
+  petMap: Record<string, Pet>;
+  guardianMap: Record<string, Guardian>;
+  serviceMap: Record<string, Service>;
+  saving: boolean;
+  onUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void;
+  onOpenAppointment: (appointment: Appointment) => void;
+  onClose: () => void;
+}) {
+  const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
+  const currentAppointments = todayAppointments.filter((item) => ["confirmed", "in_progress", "almost_done"].includes(item.status));
+  const completedAppointments = todayAppointments.filter((item) => item.status === "completed");
+  const cancelChangeOnly = todayAppointments.filter((item) => item.status === "cancelled");
 
-function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void }) {
-  const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>("");
+  return (
+    <Sheet title={kind === "today" ? ownerHomeCopy.todaySheetTitle : kind === "pending" ? ownerHomeCopy.pendingSheetTitle : kind === "completed" ? ownerHomeCopy.completedSheetTitle : ownerHomeCopy.cancelChangeSheetTitle} onClose={onClose}>
+      <div className="space-y-3">
+        {kind === "today" && (
+          <CurrentReservationsContent
+            currentAppointments={currentAppointments}
+            petMap={petMap}
+            guardianMap={guardianMap}
+            serviceMap={serviceMap}
+            saving={saving}
+            onOpenAppointment={onOpenAppointment}
+            onStatusChange={(appointmentId, status) => onUpdate(appointmentId, { status })}
+          />
+        )}
+        {kind === "pending" &&
+          pendingAppointments.map((appointment) => (
+            <PendingApprovalCard
+              key={appointment.id}
+              appointment={appointment}
+              pet={petMap[appointment.pet_id]}
+              guardian={guardianMap[appointment.guardian_id]}
+              service={serviceMap[appointment.service_id]}
+              saving={saving}
+              onOpen={() => onOpenAppointment(appointment)}
+              onStatusChange={(payload) => {
+                setOpenRejectAppointmentId(null);
+                onUpdate(appointment.id, payload);
+              }}
+              isRejectOpen={openRejectAppointmentId === appointment.id}
+              onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)}
+              onRejectClose={() => setOpenRejectAppointmentId(null)}
+            />
+          ))}
+        {kind === "completed" && <CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} />}
+        {kind === "cancel_change" &&
+          cancelChangeOnly.map((appointment) => (
+            <HomeConfirmedCard
+              key={appointment.id}
+              appointment={appointment}
+              pet={petMap[appointment.pet_id]}
+              guardian={guardianMap[appointment.guardian_id]}
+              service={serviceMap[appointment.service_id]}
+              saving={saving}
+              onOpen={() => onOpenAppointment(appointment)}
+              onStatusChange={(status) => onUpdate(appointment.id, { status })}
+            />
+          ))}
+      </div>
+    </Sheet>
+  );
+}
+
+function PendingApprovalCard({ appointment, pet, guardian, service, staffName, saving, onOpen, onStatusChange, isRejectOpen, onRejectOpen, onRejectClose, hideTime = false, sequenceLabel }: { appointment: Appointment; pet: Pet; guardian: Guardian; service: Service; staffName?: string; saving: boolean; onOpen: () => void; onStatusChange: (payload: AppointmentUpdatePayload) => void; isRejectOpen: boolean; onRejectOpen: () => void; onRejectClose: () => void; hideTime?: boolean; sequenceLabel?: string }) {
+  const [template, setTemplate] = useState<"" | (typeof rejectionReasonTemplates)[number]>(directRejectionReasonTemplate);
   const [customReason, setCustomReason] = useState("");
-  const requiresCustomReason = template === "기타 직접 입력";
-  const canSubmitReject = Boolean(template) && (!requiresCustomReason || customReason.trim().length > 0);
+  const canSubmitReject = Boolean(template);
 
   const handleRejectCancel = () => {
-    setTemplate("");
+    setTemplate(directRejectionReasonTemplate);
     setCustomReason("");
     onRejectClose();
   };
@@ -3334,56 +4406,104 @@ function PendingApprovalCard({ appointment, pet, guardian, service, saving, onOp
     onStatusChange({ status: "rejected", rejectionReasonTemplate: template, rejectionReasonCustom: customReason.trim() });
     handleRejectCancel();
   };
+  const leadingLabel = hideTime ? sequenceLabel : formatClockTime(appointment.appointment_time);
 
   return (
-    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface)] p-3.5">
-      <button onClick={onOpen} className="flex w-full items-center gap-3 text-left">
-        <div className="min-w-[58px] text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">{formatClockTime(appointment.appointment_time)}</div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[var(--text)]">{pet.name} <span className="text-xs font-medium text-[var(--muted)]">({guardian.name})</span></p>
-          <p className="text-xs text-[var(--muted)]">{service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}</p>
-        </div>
-        <AppStatusBadge label={statusMeta[appointment.status].label} tone={badgeToneForAppointmentStatus(appointment.status)} />
-      </button>
-      {!isRejectOpen ? (
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
-          <ActionButton onClick={() => onStatusChange({ status: "confirmed" })} variant="warm" disabled={saving}>{ownerHomeCopy.pendingApprove}</ActionButton>
-          <ActionButton onClick={onRejectOpen} variant="secondary" disabled={saving}>{"미승인"}</ActionButton>
-        </div>
-      ) : (
+    <div className="rounded-[12px] border border-[#e1e7ef] bg-white px-3 py-2">
+      <div className="flex w-full items-center gap-2.5">
+        <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+          {leadingLabel ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="w-[39px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{leadingLabel}</div>
+              <div className="h-6 w-px bg-[#e1e7ef]" />
+            </div>
+          ) : null}
+          <AppointmentMonogram name={pet.name} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+              <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
+            </div>
+            <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">
+              {service.name} {ownerHomeCopy.separator} {staffName ?? "미배정"}
+            </p>
+          </div>
+        </button>
+        {!isRejectOpen ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onStatusChange({ status: "confirmed" })}
+              disabled={saving}
+              className="flex h-8 items-center justify-center rounded-full border border-[#111827] bg-[#111827] px-3 text-[14px] font-medium text-white transition disabled:opacity-50"
+            >
+              {ownerHomeCopy.pendingApprove}
+            </button>
+            <button
+              type="button"
+              onClick={onRejectOpen}
+              disabled={saving}
+              className="flex h-8 items-center justify-center rounded-full border border-[#e1e7ef] bg-white px-3 text-[14px] font-medium text-[#334155] transition disabled:opacity-50"
+            >
+              {"미승인"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {isRejectOpen ? (
         <div className="mt-3 space-y-3 rounded-[12px] border border-[var(--border)] bg-[#fcfaf7] p-3">
-          <p className="text-xs font-semibold text-[var(--text)]">사유를 선택해주세요</p>
-          <RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || rejectionReasonTemplates[0])} onCustomReasonChange={setCustomReason} />
+          <RejectionReasonEditor template={template} customReason={customReason} onTemplateChange={(value) => setTemplate(value || directRejectionReasonTemplate)} onCustomReasonChange={setCustomReason} />
           <div className="grid grid-cols-2 gap-2">
             <ActionButton onClick={handleRejectCancel} variant="ghost" disabled={saving}>{"취소"}</ActionButton>
             <ActionButton onClick={handleRejectConfirm} variant="secondary" disabled={saving || !canSubmitReject}>{"미승인 확정"}</ActionButton>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
 
 function CurrentReservationsContent({ currentAppointments, petMap, guardianMap, serviceMap, saving, onOpenAppointment, onStatusChange }: { currentAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; saving: boolean; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; }) {
-  const [showSwipeHint, setShowSwipeHint] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || currentAppointments.length === 0) return;
-    const hintKey = "owner-home-swipe-cancel-hint-seen";
-    if (window.localStorage.getItem(hintKey)) return;
-    window.localStorage.setItem(hintKey, "true");
-    setShowSwipeHint(true);
-    const timeout = window.setTimeout(() => setShowSwipeHint(false), 4500);
-    return () => window.clearTimeout(timeout);
-  }, [currentAppointments.length]);
-
-  return <div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div>{showSwipeHint ? <div className="mb-2.5 rounded-[10px] border border-[#d7e8e0] bg-white/90 px-3 py-2 text-[12px] font-medium leading-5 text-[#4d6b62]">예약 카드를 왼쪽으로 밀면 취소 버튼이 나타나요.</div> : null}<div className="max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
+  return <div className="overflow-hidden rounded-[10px] border border-[#dce4ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[var(--accent)]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="no-scrollbar max-h-[34rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div>;
 }
 
-function TodayConfirmedContent({ pendingAppointments, currentAppointments, completedAppointments, petMap, guardianMap, serviceMap, approvalMode, saving, selectedDateKey, slideDirection, canMoveBackward, canMoveForward, onMoveBackward, onMoveForward, onOpenAppointment, onPendingUpdate, onStatusChange, onApprovalModeChange }: { pendingAppointments: Appointment[]; currentAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; approvalMode?: "manual" | "auto"; saving: boolean; selectedDateKey: string; slideDirection: "prev" | "next"; canMoveBackward: boolean; canMoveForward: boolean; onMoveBackward: () => void; onMoveForward: () => void; onOpenAppointment: (appointment: Appointment) => void; onPendingUpdate: (appointmentId: string, payload: AppointmentUpdatePayload) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onApprovalModeChange?: (mode: "manual" | "auto") => void; }) {
-  const [openRejectAppointmentId, setOpenRejectAppointmentId] = useState<string | null>(null);
-  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+function groupAppointmentsByTime(appointments: Appointment[]) {
+  const groups = new Map<string, Appointment[]>();
+  appointments.forEach((appointment) => {
+    const key = appointment.appointment_time;
+    groups.set(key, [...(groups.get(key) ?? []), appointment]);
+  });
+  return Array.from(groups.entries()).map(([time, items]) => ({ time, items }));
+}
+
+function AppointmentTimeGroupHeader({ time, count, label }: { time: string; count: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2 px-1 pb-1 pt-0.5">
+      <div className="flex min-w-0 items-baseline gap-2 rounded-full bg-[#f8fafc] px-3 py-1.5">
+        <span className="text-[18px] font-medium leading-6 tracking-[-0.03em] text-[var(--text)]">{formatClockTime(time)}</span>
+        <span className="truncate text-[16px] leading-[22px] text-[var(--muted)]">{label} {count}건</span>
+      </div>
+      <div className="h-px min-w-0 flex-1 bg-[#e1e7ef]" />
+    </div>
+  );
+}
+
+function HomeReservationSectionHeader({ title, dotClassName, expanded, onToggle }: { title: string; dotClassName: string; expanded: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between gap-3 px-1 pb-0.5 pt-1.5 text-left ${expanded ? "mb-3" : ""}`}>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
+        <span className="truncate text-[16px] font-medium leading-[22px] tracking-[-0.02em] text-[var(--text)]">{title}</span>
+      </span>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-[#94a3b8] transition-transform ${expanded ? "" : "-rotate-90"}`} />
+    </button>
+  );
+}
+
+function TodayConfirmedContent({ currentAppointments, cancelChangeAppointments, completedAppointments, petMap, guardianMap, serviceMap, staffMap, saving, focusedSection, selectedDateKey, slideDirection, onOpenAppointment, onStatusChange, onStartWithoutPhoto, onStartWithPhoto, onOpenPhotoStatusAction }: { currentAppointments: Appointment[]; cancelChangeAppointments: Appointment[]; completedAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, Guardian>; serviceMap: Record<string, Service>; staffMap: Record<string, BootstrapPayload["staffMembers"][number]>; saving: boolean; focusedSection: HomeReservationSectionKey; selectedDateKey: string; slideDirection: "prev" | "next"; onOpenAppointment: (appointment: Appointment) => void; onStatusChange: (appointmentId: string, status: AppointmentStatus) => void; onStartWithoutPhoto: (appointmentId: string) => void; onStartWithPhoto: (appointmentId: string, file: File) => void; onOpenPhotoStatusAction: (appointmentId: string, status: Extract<AppointmentStatus, "in_progress" | "completed">) => void; }) {
+  const currentGroups = groupAppointmentsByTime(currentAppointments);
+  const cancelChangeGroups = groupAppointmentsByTime(cancelChangeAppointments);
   const animationFrameRef = useRef<number | null>(null);
   const [contentSlideStyle, setContentSlideStyle] = useState<{ transform: string; opacity: number; transition: string }>({
     transform: "translateX(0px)",
@@ -3393,12 +4513,12 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
 
   useEffect(() => {
     const offset = slideDirection === "next" ? 92 : -92;
-    setContentSlideStyle({
-      transform: `translateX(${offset}px)`,
-      opacity: 0.96,
-      transition: "none",
-    });
-    const runAnimation = () => {
+    const enterFrame = window.requestAnimationFrame(() => {
+      setContentSlideStyle({
+        transform: `translateX(${offset}px)`,
+        opacity: 0.96,
+        transition: "none",
+      });
       animationFrameRef.current = window.requestAnimationFrame(() => {
         setContentSlideStyle({
           transform: "translateX(0px)",
@@ -3406,82 +4526,145 @@ function TodayConfirmedContent({ pendingAppointments, currentAppointments, compl
           transition: "transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 280ms ease",
         });
       });
-    };
-    if (typeof window !== "undefined") {
-      runAnimation();
-    }
+    });
+
     return () => {
-      if (animationFrameRef.current !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(enterFrame);
+      if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, [selectedDateKey, slideDirection]);
 
-  const resetSwipeStart = () => {
-    swipeStartRef.current = null;
+  const openSectionBodyClassName = "no-scrollbar min-h-0 flex-1 overflow-y-auto pb-20";
+  const emptySectionClassName = "min-h-[72px] bg-[#f8fafc] px-3.5 py-4";
+
+  const renderSectionBody = () => {
+    if (focusedSection === "current") {
+      return currentAppointments.length === 0 ? (
+        <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.currentSectionEmpty} />
+      ) : (
+        <div className="space-y-2.5">
+          {currentGroups.map((group) => {
+            const isTimeGroup = group.items.length > 1;
+            return (
+              <div key={`current-${group.time}`} className="space-y-2">
+                {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 확정" /> : null}
+                <div className="space-y-2">
+                  {group.items.map((appointment) => (
+                    <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} onStartWithoutPhoto={() => onStartWithoutPhoto(appointment.id)} onStartWithPhoto={(file) => onStartWithPhoto(appointment.id, file)} onStartCamera={() => onOpenPhotoStatusAction(appointment.id, "in_progress")} allowSwipeCancel />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (focusedSection === "cancelChange") {
+      return cancelChangeAppointments.length === 0 ? (
+        <EmptyState compact className={emptySectionClassName} title="취소·변경 내역이 없어요" />
+      ) : (
+        <div className="space-y-2.5">
+          {cancelChangeGroups.map((group) => {
+            const isTimeGroup = group.items.length > 1;
+            return (
+              <div key={`cancel-change-${group.time}`} className="space-y-2">
+                {isTimeGroup ? <AppointmentTimeGroupHeader time={group.time} count={group.items.length} label="동시간 취소·변경" /> : null}
+                <div className="space-y-2">
+                  {group.items.map((appointment) => (
+                    <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return completedAppointments.length === 0 ? (
+      <EmptyState compact className={emptySectionClassName} title={ownerHomeCopy.historySectionEmpty} />
+    ) : (
+      <div className="space-y-2.5">
+        {completedAppointments.map((appointment) => (
+          <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} onClick={() => onOpenAppointment(appointment)} />
+        ))}
+      </div>
+    );
   };
 
-  const handleDatePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    swipeStartRef.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleDatePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    const start = swipeStartRef.current;
-    resetSwipeStart();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    if (!start) return;
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-    if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-    if (deltaX < 0 && canMoveForward) {
-      onMoveForward();
-      return;
-    }
-    if (deltaX > 0 && canMoveBackward) {
-      onMoveBackward();
-    }
-  };
-
-  return <div className="space-y-3"><div className="select-none" onPointerDown={handleDatePointerDown} onPointerUp={handleDatePointerUp} onPointerCancel={resetSwipeStart} /><div className="space-y-3" style={contentSlideStyle}><div className="overflow-hidden rounded-[10px] border border-[#ead9cf] bg-[#fffaf6] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#e6b091]" /><div className="space-y-2"><div className="flex items-center justify-between gap-3"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.pendingSectionTitle}</h3>{approvalMode ? <span className="text-[11px] font-medium text-[#8b6b5d]">{approvalMode === "manual" ? "직접 승인 선택됨" : "바로 승인 선택됨"}</span> : null}</div>{approvalMode && onApprovalModeChange ? <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-[#ead9cf] bg-white/80 p-1"><button type="button" onClick={() => onApprovalModeChange("manual")} disabled={saving || approvalMode === "manual"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "manual" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"직접 승인"}</button><button type="button" onClick={() => onApprovalModeChange("auto")} disabled={saving || approvalMode === "auto"} className={`rounded-[10px] px-3 py-2 text-sm font-semibold transition ${approvalMode === "auto" ? "bg-[#c99273] text-white" : "bg-white text-[var(--muted)]"}`}>{"바로 승인"}</button></div> : null}</div><div className="mt-3 max-h-64 overflow-y-auto pr-1"><div className="space-y-2.5">{pendingAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.pendingSectionEmpty} /> : pendingAppointments.map((appointment) => <PendingApprovalCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(payload) => { setOpenRejectAppointmentId(null); onPendingUpdate(appointment.id, payload); }} isRejectOpen={openRejectAppointmentId === appointment.id} onRejectOpen={() => setOpenRejectAppointmentId(appointment.id)} onRejectClose={() => setOpenRejectAppointmentId(null)} />)}</div></div></div><div className="overflow-hidden rounded-[10px] border border-[#d8e7e0] bg-[#f6fbf8] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#2f7866]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.currentSectionTitle}</h3></div><div className="max-h-[29rem] overflow-y-auto pr-1"><div className="space-y-2.5">{currentAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.currentSectionEmpty} /> : currentAppointments.map((appointment) => <HomeConfirmedCard key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} saving={saving} onOpen={() => onOpenAppointment(appointment)} onStatusChange={(status) => onStatusChange(appointment.id, status)} allowSwipeCancel />)}</div></div></div><CompletedReservationsContent historyAppointments={completedAppointments} petMap={petMap} guardianMap={guardianMap} serviceMap={serviceMap} onOpenAppointment={onOpenAppointment} /></div></div>;
-}
-
-
-function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; onOpenAppointment: (appointment: Appointment) => void; }) {
-  return <div className="overflow-hidden rounded-[10px] border border-[#e9ddd3] bg-[#fbf8f4] p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#c9b39e]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
-}
-
-function CompletedAppointmentRow({ appointment, pet, guardian, service, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-3 rounded-[12px] border border-[#ece8e2] bg-white px-[14px] py-[10px] text-left transition hover:bg-[#fcfaf7]">
-      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#4a4845]">{formatClockTime(appointment.appointment_time)}</div>
-      <div className="h-6 w-px shrink-0 bg-[#ece8e2]" />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-1 flex-col" style={contentSlideStyle}>
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className={openSectionBodyClassName}>
+            <div className="min-h-full px-1.5 pb-2.5 pt-1">
+              {renderSectionBody()}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+
+function CompletedReservationsContent({ historyAppointments, petMap, guardianMap, serviceMap, staffMap, onOpenAppointment }: { historyAppointments: Appointment[]; petMap: Record<string, Pet>; guardianMap: Record<string, BootstrapPayload["guardians"][number]>; serviceMap: Record<string, Service>; staffMap?: Record<string, BootstrapPayload["staffMembers"][number]>; onOpenAppointment: (appointment: Appointment) => void; }) {
+  return <div className="overflow-hidden rounded-[10px] border border-[#e1e7ef] bg-white p-3.5"><div className="mb-3 h-1.5 rounded-full bg-[#94a3b8]" /><div className="mb-2.5"><h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--text)]">{ownerHomeCopy.historySectionTitle}</h3></div><div className="space-y-2.5">{historyAppointments.length === 0 ? <EmptyState title={ownerHomeCopy.historySectionEmpty} /> : historyAppointments.map((appointment) => <CompletedAppointmentRow key={appointment.id} appointment={appointment} pet={petMap[appointment.pet_id]} guardian={guardianMap[appointment.guardian_id]} service={serviceMap[appointment.service_id]} staffName={appointment.staff_id ? staffMap?.[appointment.staff_id]?.name ?? "담당 미확인" : "미배정"} onClick={() => onOpenAppointment(appointment)} />)}</div></div>;
+}
+
+function CompletedAppointmentRow({ appointment, pet, guardian, service, staffName, onClick }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; staffName?: string; onClick: () => void }) {
+  const trailingStatus = appointment.status === "pending" ? "missed-pending" : "completed";
+
+  return (
+    <button onClick={onClick} className="flex min-h-[52px] w-full items-center gap-2.5 rounded-[12px] border border-[#e1e7ef] bg-white px-3 py-2 text-left transition hover:bg-[#f8fafc]">
+      <div className="min-w-[42px] text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">{formatClockTime(appointment.appointment_time)}</div>
+      <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
       <AppointmentMonogram name={pet.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#23231f]">{pet.name}</p>
-          <span className="truncate text-[14px] font-normal leading-[18px] text-[#a09c96]">{guardian.name}</span>
+          <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+          <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
         </div>
-        <p className="truncate text-[13px] font-normal leading-[17px] text-[#b0aba3]">{service.name}</p>
+        <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{service.name}</p>
       </div>
-      <AppointmentListTrailing status="completed" />
+      <AppointmentListTrailing status={trailingStatus} />
     </button>
   );
 }
-function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, allowSwipeCancel = false }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (status: AppointmentStatus) => void; allowSwipeCancel?: boolean; }) {
+
+function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen, onStatusChange, onStartWithoutPhoto, onStartWithPhoto, onStartCamera, allowSwipeCancel = false }: { appointment: Appointment; pet: Pet; guardian: BootstrapPayload["guardians"][number]; service: Service; saving: boolean; onOpen: () => void; onStatusChange: (status: AppointmentStatus) => void; onStartWithoutPhoto?: () => void; onStartWithPhoto?: (file: File) => void; onStartCamera?: () => void; allowSwipeCancel?: boolean; }) {
   const actionWidth = 96;
   const snapThreshold = 48;
+  const beforePhotoInputId = useId();
   const [startX, setStartX] = useState<number | null>(null);
   const [dragStartX, setDragStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const translateXRef = useRef(0);
   const isDragging = startX !== null;
   const actionVisible = allowSwipeCancel && (isDragging || translateX !== 0);
   const rollbackStatus = appointment.status === "cancelled" ? "confirmed" : null;
   const rollbackLabel = appointment.status === "cancelled" ? "\uCDE8\uC18C/\uBCC0\uACBD \uCCA0\uD68C" : null;
-  const closeSwipe = () => setTranslateX(0);
+  const updateTranslateX = (next: number) => {
+    translateXRef.current = next;
+    setTranslateX(next);
+  };
+  const closeSwipe = () => updateTranslateX(0);
+  const openDetailFromCard = () => {
+    if (translateX !== 0) {
+      closeSwipe();
+      return;
+    }
+    onOpen();
+  };
+  const openDetailFromCardSurface = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("button, label, input, a, textarea, select")) return;
+    openDetailFromCard();
+  };
 
   const requestCancel = () => {
     if (saving) return;
@@ -3496,26 +4679,30 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel || saving) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     setStartX(event.clientX);
-    setDragStartX(translateX);
+    setDragStartX(translateXRef.current);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel || startX === null || saving) return;
     const diff = event.clientX - startX;
     const next = Math.min(0, Math.max(-actionWidth, dragStartX + diff));
-    setTranslateX(next);
+    updateTranslateX(next);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!allowSwipeCancel) return;
-    setTranslateX(translateX <= -snapThreshold ? -actionWidth : 0);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    updateTranslateX(translateXRef.current <= -snapThreshold ? -actionWidth : 0);
     setStartX(null);
   };
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-[10px] border border-[var(--border)] bg-transparent">
+      <div className="relative w-full max-w-full overflow-hidden rounded-[12px] border border-[#dbe5f1] bg-transparent">
         <div
           className={`absolute inset-y-0 right-0 overflow-hidden rounded-r-[12px] transition-all duration-200 ${actionVisible ? "w-24 opacity-100" : "w-0 opacity-0"}`}
         >
@@ -3536,8 +4723,9 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
         </div>
 
         <div
-          className={`relative rounded-[10px] bg-[var(--surface)] transition-transform ${isDragging ? "duration-75" : "duration-200"}`}
+          className={`relative rounded-[12px] bg-white transition-transform ${isDragging ? "duration-75" : "duration-200"}`}
           style={{ transform: `translateX(${translateX}px)`, touchAction: allowSwipeCancel ? "pan-y" : "auto" }}
+          onClick={openDetailFromCardSurface}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -3545,40 +4733,81 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
           onPointerLeave={isDragging ? handlePointerUp : undefined}
         >
           <button
-            onClick={() => {
-              if (translateX !== 0) {
-                closeSwipe();
-                return;
-              }
-              onOpen();
-            }}
-            className="flex w-full items-center justify-between gap-3 px-3.5 pb-2 pt-3 text-left"
+            type="button"
+            onClick={openDetailFromCard}
+            className="flex w-full min-w-0 items-center gap-2 px-2.5 pb-1 pt-2 text-left"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <div className="min-w-[56px] text-[18px] font-semibold tracking-[-0.03em] text-[var(--text)]">
-                {formatClockTime(appointment.appointment_time)}
+            <div className="w-[40px] shrink-0 text-[15px] font-normal leading-none tracking-[-0.01em] text-[#0f172a]">
+              {formatClockTime(appointment.appointment_time)}
+            </div>
+            <div className="h-6 w-px shrink-0 bg-[#e1e7ef]" />
+            <AppointmentMonogram name={pet.name} />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="truncate text-[16px] font-normal leading-[20px] tracking-[-0.02em] text-[#0f172a]">{pet.name}</p>
+                <span className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">{guardian.name}</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-[16px] font-medium leading-5 tracking-[-0.02em] text-[var(--text)]">{pet.name}</p>
-                  <span className="truncate text-[14px] font-normal leading-[18px] text-[#9f9a92]">{guardian.name}</span>
-                </div>
-                <p className="mt-0.5 truncate text-[13px] leading-[18px] text-[#ada79f]">
-                  {service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}
-                </p>
-              </div>
+              <p className="truncate text-[14px] font-normal leading-[18px] text-[#64748b]">
+                {service.name} {ownerHomeCopy.separator} {service.duration_minutes}{ownerHomeCopy.minuteSuffix}
+              </p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-[#b8b2aa]" strokeWidth={1.9} />
           </button>
 
-          <div className="px-3.5 pb-2.5 pt-1.5">
+          <div
+            className="px-2.5 pb-2 pt-1"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center">
-              {appointment.status === "confirmed" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>{"\uC2DC\uC791"}</ActionButton>}
-              {appointment.status === "in_progress" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}
-              {appointment.status === "almost_done" && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}
-              {rollbackStatus && rollbackLabel && <ActionButton className="w-full !h-[40px] !rounded-[14px] !px-5 !text-[14px]" onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}
+              {appointment.status === "confirmed" && (
+                <div className="grid w-full grid-cols-[1.15fr_0.85fr] gap-2">
+                  <ActionButton className="!h-[34px] !rounded-[10px] !px-3 !text-[15px]" variant="ghost" onClick={onStartWithoutPhoto ?? (() => onStatusChange("in_progress"))} disabled={saving}>촬영없이 시작</ActionButton>
+                  {onStartCamera ? (
+                    <button
+                      type="button"
+                      className="flex h-[34px] w-full items-center justify-center rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-3 text-[15px] font-medium tracking-[-0.01em] text-white transition disabled:pointer-events-none disabled:bg-[#9db9ee] disabled:opacity-50"
+                      onClick={onStartCamera}
+                      disabled={saving}
+                    >
+                      촬영
+                    </button>
+                  ) : onStartWithPhoto ? (
+                    <>
+                      <input
+                        id={beforePhotoInputId}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        disabled={saving}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) onStartWithPhoto(file);
+                        }}
+                      />
+                      <label
+                        htmlFor={beforePhotoInputId}
+                        className={`flex h-[34px] w-full items-center justify-center rounded-[10px] border px-3 text-[15px] font-medium tracking-[-0.01em] text-white transition ${
+                          saving ? "pointer-events-none border-[#9db9ee] bg-[#9db9ee] opacity-50" : "border-[var(--accent)] bg-[var(--accent)]"
+                        }`}
+                      >
+                        촬영
+                      </label>
+                    </>
+                  ) : (
+                    <ActionButton className="!h-[34px] !rounded-[10px] !px-3 !text-[15px]" variant="accentSoft" onClick={() => onStatusChange("in_progress")} disabled={saving}>촬영</ActionButton>
+                  )}
+                </div>
+              )}
+              {appointment.status === "in_progress" && <ActionButton className="w-full !h-[34px] !rounded-[10px] !px-5 !text-[14px]" onClick={() => onStatusChange("almost_done")} variant="warm" disabled={saving}>{ownerHomeCopy.pickupReady}</ActionButton>}
+              {appointment.status === "almost_done" && <ActionButton className="w-full !h-[34px] !rounded-[10px] !px-5 !text-[14px]" onClick={() => onStatusChange("completed")} variant="complete" disabled={saving}>{ownerHomeCopy.groomingComplete}</ActionButton>}
+              {rollbackStatus && rollbackLabel && <ActionButton className="w-full !h-[34px] !rounded-[10px] !px-5 !text-[14px]" onClick={() => onStatusChange(rollbackStatus)} variant="ghost" disabled={saving}>{rollbackLabel}</ActionButton>}
             </div>
-            {appointment.status === "completed" && <div className="w-full rounded-[10px] border border-[#dce8e3] bg-[#f4faf7] px-4 py-3 text-center text-sm font-semibold text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}
+            {appointment.status === "completed" && <div className="w-full rounded-[10px] border border-[#dce4ef] bg-[#f8fafc] px-4 py-2 text-center text-sm font-medium text-[var(--accent)]">{ownerHomeCopy.completedNotice}</div>}
           </div>
         </div>
       </div>
@@ -3599,40 +4828,299 @@ function HomeConfirmedCard({ appointment, pet, guardian, service, saving, onOpen
   );
 }
 
-function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
+function MobilePhotoStatusSheet({
+  action,
+  uploading,
+  onClose,
+  onSkip,
+  onSubmit,
+}: {
+  action: MobilePhotoStatusAction;
+  uploading: boolean;
+  onClose: () => void;
+  onSkip: () => void;
+  onSubmit: (file: File) => void;
+}) {
+  const inputId = `mobile-photo-status-${action.appointmentId}`;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraMode, setCameraMode] = useState<"ready" | "camera" | "fallback">("ready");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
+
+  async function openCamera() {
+    setCameraError(null);
+    setCameraMode("camera");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraMode("fallback");
+      setCameraError("이 브라우저에서는 카메라 촬영을 바로 열 수 없어요.");
+      return;
+    }
+
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1600 },
+          height: { ideal: 1200 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch {
+      stopCamera();
+      setCameraMode("fallback");
+      setCameraError("카메라 권한이 없거나 기기에서 카메라를 열 수 없어요.");
+    }
+  }
+
+  function captureCameraPhoto() {
+    const video = videoRef.current;
+    const videoWidth = video?.videoWidth ?? 0;
+    const videoHeight = video?.videoHeight ?? 0;
+
+    if (!video || videoWidth <= 0 || videoHeight <= 0) {
+      setCameraError("카메라 화면을 불러오는 중입니다. 잠시 후 다시 눌러주세요.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("사진을 저장할 수 없어요. 다시 시도해 주세요.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, videoWidth, videoHeight);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError("사진을 저장할 수 없어요. 다시 시도해 주세요.");
+          return;
+        }
+
+        stopCamera();
+        onSubmit(new File([blob], `petmanager-photo-${Date.now()}.jpg`, { type: "image/jpeg" }));
+      },
+      "image/jpeg",
+      0.9,
+    );
+  }
+
+  useEffect(() => {
+    if (!action.autoOpenCamera || uploading) return;
+    const timer = window.setTimeout(() => {
+      void openCamera();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [action.appointmentId, action.autoOpenCamera, uploading]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamRef.current || cameraMode !== "camera") return;
+    video.srcObject = streamRef.current;
+    void video.play();
+  }, [cameraMode]);
+
+  useEffect(() => stopCamera, []);
+
   return (
-    <div className="mt-2 space-y-2">
-      <select className="field" value={template} onChange={(event) => onTemplateChange(event.target.value as "" | (typeof rejectionReasonTemplates)[number])}>
-        <option value="">사유를 선택해주세요</option>
-        {rejectionReasonTemplates.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
-      {template === "기타 직접 입력" && <input className="field" value={customReason} onChange={(event) => onCustomReasonChange(event.target.value)} placeholder="고객에게 보낼 사유를 입력해 주세요" />}
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/35 px-3 pb-3 pt-10" onClick={onClose}>
+      <div
+        className="w-full rounded-[22px] border border-[var(--border)] bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#d7dce2]" />
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[#f8fafc] text-[var(--text)]">
+            <Camera className="h-5 w-5" strokeWidth={1.9} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[20px] font-medium tracking-[-0.03em] text-[var(--text)]">{action.title}</h3>
+            <p className="mt-1 text-[14px] leading-6 text-[var(--muted)]">{action.description}</p>
+          </div>
+        </div>
+
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          disabled={uploading}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) onSubmit(file);
+          }}
+        />
+        <div className="mt-5 grid gap-2">
+          {cameraMode === "camera" ? (
+            <div className="overflow-hidden rounded-[18px] border border-[var(--border)] bg-black">
+              <video ref={videoRef} className="aspect-[4/3] w-full object-cover" playsInline muted autoPlay />
+            </div>
+          ) : null}
+          {cameraError ? (
+            <p className="rounded-[14px] border border-[#f0d7d7] bg-[#fff7f7] px-3 py-2 text-[14px] leading-5 text-[#a04455]">
+              {cameraError}
+            </p>
+          ) : null}
+          {cameraMode === "camera" ? (
+            <ActionButton onClick={captureCameraPhoto} disabled={uploading} className="!h-[52px] !rounded-[16px] !text-[16px]">
+              {uploading ? "업로드 중" : "촬영하기"}
+            </ActionButton>
+          ) : (
+            <ActionButton onClick={() => void openCamera()} disabled={uploading} className="!h-[52px] !rounded-[16px] !text-[16px]">
+              {uploading ? "업로드 중" : action.buttonLabel}
+            </ActionButton>
+          )}
+          {cameraMode === "fallback" ? (
+            <label
+              htmlFor={inputId}
+              className={`flex h-[48px] items-center justify-center rounded-[16px] border border-[var(--border)] bg-white px-4 text-[15px] font-medium text-[var(--text)] transition ${
+                uploading ? "pointer-events-none opacity-60" : "active:scale-[0.99]"
+              }`}
+            >
+              기기 카메라로 촬영
+            </label>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <ActionButton
+              variant="ghost"
+              onClick={() => {
+                stopCamera();
+                onClose();
+              }}
+              disabled={uploading}
+            >
+              취소
+            </ActionButton>
+            <button
+              type="button"
+              onClick={() => {
+                stopCamera();
+                onSkip();
+              }}
+              disabled={uploading}
+              className="h-[48px] rounded-[16px] border border-[var(--border)] bg-white px-4 text-[15px] font-medium text-[var(--muted)] transition active:scale-[0.99] disabled:opacity-60"
+            >
+              {action.skipLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RejectionReasonEditor({ template, customReason, onTemplateChange, onCustomReasonChange }: { template: "" | (typeof rejectionReasonTemplates)[number]; customReason: string; onTemplateChange: (value: "" | (typeof rejectionReasonTemplates)[number]) => void; onCustomReasonChange: (value: string) => void }) {
+  useEffect(() => {
+    if (template !== directRejectionReasonTemplate) {
+      onTemplateChange(directRejectionReasonTemplate);
+    }
+  }, [onTemplateChange, template]);
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[12px] font-medium text-[var(--muted)]" htmlFor="owner-rejection-reason">
+        미승인 사유
+      </label>
+      <textarea
+        id="owner-rejection-reason"
+        className="field min-h-[66px] resize-none"
+        value={customReason}
+        onChange={(event) => onCustomReasonChange(event.target.value)}
+        placeholder="필요할 때만 고객에게 보낼 사유를 적어주세요"
+      />
     </div>
   );
 }
 
 
-function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSelect, onSave, onSendBirthday, onSendRevisit }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; isSelected: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void; onSendBirthday: () => void; onSendRevisit: () => void }) {
+function PetStoreVerificationPanel({ pet }: { pet: Pet }) {
+  const biteLevelLabel =
+    pet.bite_level === "none"
+      ? "없음"
+      : pet.bite_level === "mild"
+        ? "약함"
+        : pet.bite_level === "watch"
+          ? "주의"
+          : pet.bite_level === "bite"
+            ? "입질 있음"
+            : pet.bite_level === "strong"
+              ? "강함"
+              : "미입력";
+  const items = [
+    ["몸무게", pet.weight === null ? "미입력" : `${pet.weight}kg`],
+    ["생일", pet.birthday ?? "미입력"],
+    ["입질 정도", biteLevelLabel],
+    ["요금표 그룹", "미입력"],
+  ] as const;
+
+  return (
+    <div className="col-span-2 rounded-[10px] border border-[#e2e7ed] bg-white p-3">
+      <p className="text-[13px] font-semibold text-[#0f172a]">매장 확인 정보</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-[8px] bg-[#f8fafc] px-2.5 py-2">
+            <p className="text-[11px] font-semibold text-[#64748b]">{label}</p>
+            <p className="mt-0.5 text-[13px] font-medium text-[#334155]">{value}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px] leading-4 text-[#64748b]">실제 반려동물을 확인한 뒤 요금표 기준에 맞는 그룹을 선택해 주세요.</p>
+      <p className="mt-1 text-[11px] leading-4 text-[#94a3b8]">매장 확인값 저장 필드와 요금표 그룹 연동 후 수정할 수 있어요.</p>
+    </div>
+  );
+}
+
+function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSelect, onSave }: { pet: Pet; saving: boolean; isBirthdayToday: boolean; isSelected: boolean; onSelect: () => void; onSave: (name: string, breed: string, birthday: string | null) => void }) {
   const [name, setName] = useState(pet.name);
-  const [breed, setBreed] = useState(pet.breed);
-  const [birthday, setBirthday] = useState(pet.birthday ?? "");
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    setName(pet.name);
-    setBreed(pet.breed);
-    setBirthday(pet.birthday ?? "");
-    setIsEditing(false);
+    const frame = window.requestAnimationFrame(() => {
+      setName(pet.name);
+      setIsEditing(false);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [pet.birthday, pet.breed, pet.name]);
 
-  const summary = [breed, birthday ? `생일 ${birthday}` : null, isBirthdayToday ? "오늘 생일" : null].filter(Boolean).join(" · ");
+  const summary = [pet.breed, pet.birthday ? `생일 ${pet.birthday}` : null, isBirthdayToday ? "오늘 생일" : null].filter(Boolean).join(" · ");
+  const handleSelectKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  };
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-white">
-      <button
-        type="button"
-        className="flex w-full items-start justify-between gap-3 bg-white px-3.5 py-3 text-left transition hover:bg-[#fffdfa]"
+      <div
+        role="button"
+        tabIndex={0}
+        className="flex w-full cursor-pointer items-start justify-between gap-3 bg-white px-3.5 py-3 text-left transition hover:bg-[#fffdfa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
         onClick={onSelect}
+        onKeyDown={handleSelectKeyDown}
         aria-pressed={isSelected}
       >
         <div className="min-w-0 flex-1">
@@ -3653,7 +5141,7 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
             {isEditing ? "닫기" : "수정"}
           </button>
         </div>
-      </button>
+      </div>
 
       {isEditing ? (
         <div className="border-t border-[var(--border)] px-3.5 py-3">
@@ -3661,14 +5149,15 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
             <PetDetailInputField label="아기 이름">
               <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" value={name} onChange={(event) => setName(event.target.value)} />
             </PetDetailInputField>
-            <PetDetailInputField label="견종">
-              <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" value={breed} onChange={(event) => setBreed(event.target.value)} />
-            </PetDetailInputField>
-            <div className="col-span-2">
-              <PetDetailInputField label="생일">
-                <input className="field !h-[40px] !rounded-[10px] !px-3 !py-2 text-[16px] tracking-[-0.02em]" type="date" value={birthday} onChange={(event) => setBirthday(event.target.value)} />
-              </PetDetailInputField>
+            <div className="rounded-[10px] border border-[#e2e7ed] bg-[#f8fafc] px-3 py-2">
+              <p className="text-[12px] font-semibold text-[#475569]">고객 입력 품종</p>
+              <p className="mt-1 truncate text-[15px] font-medium text-[#1e293b]">{pet.breed || "미입력"}</p>
             </div>
+            <div className="col-span-2 rounded-[10px] border border-[#e2e7ed] bg-[#f8fafc] px-3 py-2">
+              <p className="text-[12px] font-semibold text-[#475569]">고객 요청사항</p>
+              <p className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#334155]">{pet.notes || "미입력"}</p>
+            </div>
+            <PetStoreVerificationPanel pet={pet} />
           </div>
           <div className="mt-2 flex items-center justify-end gap-3">
             <button
@@ -3677,8 +5166,6 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
               className="text-[14px] font-medium text-[var(--muted)] disabled:opacity-45"
               onClick={() => {
                 setName(pet.name);
-                setBreed(pet.breed);
-                setBirthday(pet.birthday ?? "");
                 setIsEditing(false);
               }}
             >
@@ -3687,412 +5174,20 @@ function GuardianPetEditorCard({ pet, saving, isBirthdayToday, isSelected, onSel
             <button
               type="button"
               onClick={() => {
-                onSave(name.trim(), breed.trim(), birthday || null);
+                onSave(name.trim(), pet.breed, pet.birthday);
                 setIsEditing(false);
               }}
-              disabled={saving || !name.trim() || !breed.trim()}
+              disabled={saving || !name.trim()}
               className="text-[14px] font-medium text-[var(--accent)] disabled:opacity-45"
             >
               정보 저장
             </button>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border)] px-3.5 py-2">
-          <button
-            type="button"
-            onClick={onSendRevisit}
-            disabled={saving}
-            className="text-[14px] font-medium text-[var(--accent)] disabled:opacity-45"
-          >
-            재방문 알림
-          </button>
-          {birthday ? (
-            <button
-              type="button"
-              onClick={onSendBirthday}
-              disabled={saving}
-              className="text-[14px] font-medium text-[var(--muted)] disabled:opacity-45"
-            >
-              생일 축하 문자
-            </button>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
-}
-function PetDetailInputField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block min-w-0">
-      <span className="mb-1 block text-[14px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>
-      {children}
-    </label>
-  );
-}
-function QuickContactRow({ phone, sending = false, reminderSent = false, onSendReminder }: { phone: string; sending?: boolean; reminderSent?: boolean; onSendReminder?: () => Promise<void> }) {
-  return (
-    <div className="mt-2.5 grid grid-cols-2 gap-2">
-      <a
-        href={buildTelHref(phone)}
-        className="flex items-center justify-center rounded-[12px] border border-[#e8e0d2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[var(--text)]"
-      >
-        전화하기
-      </a>
-      <a
-        href={buildSmsHref(phone)}
-        className="flex items-center justify-center rounded-[12px] border border-[#e8e0d2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[var(--text)]"
-      >
-        문자 보내기
-      </a>
-      {onSendReminder ? (
-        <button
-          type="button"
-          onClick={() => void onSendReminder()}
-          disabled={sending || reminderSent}
-          className="col-span-2 flex items-center justify-center rounded-[12px] border border-[#dfe8e2] bg-[#fcfaf7] px-4 py-3 text-[14px] font-medium text-[#2f7266] disabled:opacity-60"
-        >
-          {reminderSent ? "예약 10분 전 알림톡 발송됨" : "예약 10분 전 알림톡 발송"}
-        </button>
       ) : null}
     </div>
   );
 }
-
-function ToggleRow({ label, description, checked, disabled, onChange }: { label: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) { return <label className={`flex items-center justify-between gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 ${disabled ? "opacity-50" : ""}`}><div><p className="text-[14px] font-semibold text-[var(--text)]">{label}</p><p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">{description}</p></div><button type="button" disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-6" : "left-1"}`} /></button></label>; }
-function Overlay({ children }: { children: React.ReactNode }) { return <div>{children}</div>; }
-function Sheet({ title, children, onClose, footer, headerAction }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode; headerAction?: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30" onClick={onClose}>
-      <div
-        className="flex max-h-[92vh] min-h-0 w-full max-w-[430px] flex-col overflow-hidden rounded-t-[32px] bg-white px-4 pb-5 pt-4"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-stone-200" />
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text)]">{title}</h3>
-          <div className="flex items-center gap-3">
-            {headerAction}
-            <button
-              type="button"
-              aria-label="닫기"
-              className="inline-flex size-8 items-center justify-center rounded-full border border-[rgba(47,49,46,0.12)] bg-white text-[var(--muted)] transition hover:bg-[#fcfaf7]"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" strokeWidth={1.8} />
-            </button>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          {children}
-        </div>
-        {footer ? <div className="mt-4 border-t border-[var(--border)] pt-3">{footer}</div> : null}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-[13px] text-[var(--text)]"><span className="mb-1.5 block text-[11px] font-medium tracking-[-0.01em] text-[var(--muted)]">{label}</span>{children}</label>; }
-type OwnerActionButtonVariant = "primary" | "secondary" | "ghost" | "highlight" | "warm" | "accentSoft" | "ready" | "complete";
-type OwnerActionButtonProps = {
-  children: React.ReactNode;
-  disabled?: boolean;
-  onClick: () => void;
-  variant?: OwnerActionButtonVariant;
-  className?: string;
-};
-
-function ActionButton({ children, disabled, onClick, variant = "primary", className = "" }: OwnerActionButtonProps) {
-  const variantClassName =
-    variant === "primary"
-      ? "border border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_8px_18px_rgba(31,107,91,0.12)]"
-      : variant === "secondary"
-        ? "border border-[var(--border)] bg-white text-[var(--text)]"
-        : variant === "highlight"
-          ? "border border-[#d7e7e1] bg-[var(--accent-soft)] text-[var(--accent)]"
-          : variant === "warm"
-            ? "border border-[#c99273] bg-[#c99273] text-white shadow-[0_8px_18px_rgba(201,146,115,0.15)]"
-            : variant === "accentSoft"
-              ? "border border-[#d7e7e1] bg-[#2f7866] text-white shadow-[0_8px_18px_rgba(47,120,102,0.14)]"
-              : variant === "ready"
-                ? "border border-[#cf9b8d] bg-[#cf9b8d] text-white shadow-[0_8px_18px_rgba(207,155,141,0.16)]"
-                : variant === "complete"
-                  ? "border border-[#2a8a72] bg-[#2a8a72] text-white shadow-[0_10px_20px_rgba(42,138,114,0.18)]"
-      : "border border-[var(--border)] bg-white text-[var(--muted)]";
-  return <button disabled={disabled} onClick={onClick} className={`flex h-[42px] w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-medium tracking-[-0.01em] transition hover:bg-opacity-95 disabled:opacity-50 ${variantClassName} ${className}`.trim()}>{children}</button>;
-}
-
-function CustomerDetailFieldCard({
-  label,
-  children,
-  onClick,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-}) {
-  const sharedClassName = `isolate min-w-0 overflow-visible rounded-[12px] border border-[var(--border)] bg-white px-2.5 pb-0.5 pt-0 text-left ${onClick ? "transition hover:border-[#d9d2c9] hover:bg-[#fffdfa]" : ""} ${className}`.trim();
-  const labelNode = (
-    <legend className="ml-0.5 px-1.5 text-[14px] font-normal tracking-[-0.01em] text-[#9d978e]">
-      {label}
-    </legend>
-  );
-
-  if (onClick) {
-    return (
-      <fieldset className={sharedClassName}>
-        {labelNode}
-        <button type="button" className="block w-full text-left" onClick={onClick}>
-          {children}
-        </button>
-      </fieldset>
-    );
-  }
-
-  return (
-    <fieldset className={sharedClassName}>
-      {labelNode}
-      {children}
-    </fieldset>
-  );
-}
-
-function CustomerDetailInfoRow({
-  label,
-  value,
-  onClick,
-  muted = false,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  onClick?: () => void;
-  muted?: boolean;
-  multiline?: boolean;
-}) {
-  const rowClassName = `relative -top-[2px] z-[1] flex w-full justify-between gap-3 px-3 ${multiline ? "items-start py-1.5" : "min-h-[52px] items-center py-1.5"} text-left ${onClick ? "transition hover:bg-[#fffdfa]" : ""}`.trim();
-  const valueClassName = multiline
-    ? `text-[15px] leading-5 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`
-    : `text-[16px] leading-6 tracking-[-0.02em] ${muted ? "font-normal text-[var(--muted)]" : "font-normal text-[var(--text)]"}`;
-  const body = (
-    <>
-      <div className={`relative min-w-0 flex-1 ${multiline ? "-top-[1px]" : "-top-[1px]"}`}>
-        <p className={valueClassName}>{value}</p>
-        <p className={`${multiline ? "mt-0.5" : "mt-0.5"} text-[12px] leading-4 text-[#a39d94]`}>{label}</p>
-      </div>
-      {onClick ? (
-        <span className="flex h-5 items-center justify-center self-center">
-          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.8} />
-        </span>
-      ) : null}
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <button type="button" className={rowClassName} onClick={onClick}>
-        {body}
-      </button>
-    );
-  }
-
-  return <div className={rowClassName}>{body}</div>;
-}
-
-function CustomerDetailToggleRow({
-  label,
-  description,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className={`flex min-h-[52px] items-center justify-between gap-3 px-3 py-1.5 ${disabled ? "opacity-50" : ""}`}>
-      <div className="relative -top-0.5 min-w-0 flex-1">
-        <p className="text-[17px] font-normal tracking-[-0.02em] text-[var(--text)]">{label}</p>
-        <p className="mt-0.5 text-[12px] leading-4 text-[#a39d94]">{description}</p>
-      </div>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-[26px] w-11 shrink-0 rounded-full transition ${checked ? "bg-[var(--accent)]" : "bg-[#d9d6cf]"}`}
-      >
-        <span className={`absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition ${checked ? "left-[22px]" : "left-[3px]"}`} />
-      </button>
-    </label>
-  );
-}
-
-function CustomerMetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
-  return (
-    <div className={`rounded-[16px] border border-[var(--border)] bg-white px-3.5 ${compact ? "py-3" : "py-3.5"}`}>
-      <p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p>
-      <p className={`mt-1 font-semibold tracking-[-0.02em] text-[var(--text)] ${compact ? "line-clamp-2 text-[14px] leading-5" : "text-[15px] leading-5"}`}>{value}</p>
-    </div>
-  );
-}
-
-function CustomerEmptyState({ title, description, action = null }: { title: string; description: string; action?: React.ReactNode }) {
-  return <AppEmptyState title={title} description={description} action={action} className="rounded-[18px] bg-[#fcfaf7] px-4 py-5" />;
-}
-
-function EmptyState({
-  title,
-  className = "",
-  compact = false,
-  titleClassName = "",
-}: {
-  title: string;
-  className?: string;
-  compact?: boolean;
-  titleClassName?: string;
-}) {
-  if (compact) {
-    return (
-      <div className={`flex items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-center ${className}`.trim()}>
-        <p className={`relative top-px text-[14px] font-normal leading-[20px] tracking-[-0.02em] text-[#6f6a63] ${titleClassName}`.trim()}>{title}</p>
-      </div>
-    );
-  }
-
-  return (
-    <AppEmptyState
-      title={title}
-      titleClassName={titleClassName}
-      className={`min-h-[68px] rounded-[10px] bg-white px-3.5 py-4 ${className}`.trim()}
-    />
-  );
-}
-
-function CustomerDetailHistoryPagination({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (nextPage: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-1 pt-0.5">
-      {Array.from({ length: totalPages }, (_, index) => {
-        const nextPage = index + 1;
-        const active = nextPage === page;
-        return (
-          <button
-            key={nextPage}
-            type="button"
-            onClick={() => onChange(nextPage)}
-            className={`inline-flex h-[24px] min-w-[40px] items-center justify-center rounded-[999px] border px-2 text-[11px] font-medium leading-none transition ${
-              active
-                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                : "border-[var(--border)] bg-white text-[var(--muted)]"
-            }`}
-          >
-            {nextPage}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ShopAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
-  if (imageUrl) {
-    return <img src={imageUrl} alt={`${name} 대표 이미지`} className="h-11 w-11 rounded-full border border-[#dfeae5] object-cover shadow-[0_2px_8px_rgba(31,107,91,0.05)]" />;
-  }
-
-  return <div className="flex size-11 items-center justify-center rounded-full border border-[#dfeae5] bg-[#f4f5f4] text-[#9ea4a1] shadow-[0_2px_8px_rgba(31,107,91,0.05)]"><UserRound className="h-5 w-5" strokeWidth={1.9} /></div>;
-}
-
-function Avatar({ seed }: { seed: string }) { return <div className="flex size-11 items-center justify-center rounded-full border border-[#dfeae5] bg-[#f6fbf9] text-lg shadow-[0_2px_8px_rgba(31,107,91,0.05)]">{seed}</div>; }
-function UrgencyPill({ status, days }: { status: "overdue" | "soon" | "ok" | "unknown"; days: number | null }) {
-  const text = status === "overdue" ? `${Math.abs(days || 0)}일 초과` : status === "soon" ? `${days}일 남음` : status === "ok" ? `${days}일 여유` : "미산정";
-  const cls = status === "overdue" ? "bg-red-50 text-red-700" : status === "soon" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700";
-  return <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${cls}`}>{text}</span>;
-}
-
-function InfoItem({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`rounded-[16px] border border-[var(--border)] bg-white px-4 py-2 ${className}`.trim()}><p className="text-[12px] font-medium leading-4 text-[var(--muted)]">{label}</p><p className="mt-1 flex min-h-[20px] items-center text-[15px] font-semibold leading-5 tracking-[-0.02em] text-[var(--text)]">{value}</p></div>; }
-
-function NotificationHistoryRow({ notification, pet }: { notification: BootstrapPayload["notifications"][number]; pet: Pet | null }) {
-  const typeLabel = (() => {
-    switch (notification.type) {
-      case "booking_received":
-        return "예약 접수";
-      case "booking_confirmed":
-        return "예약 완료";
-      case "owner_booking_requested":
-        return "새 예약 접수";
-      case "booking_rejected":
-        return "예약 거절";
-      case "booking_cancelled":
-        return "예약 취소";
-      case "booking_rescheduled_confirmed":
-        return "예약 변경";
-      case "appointment_reminder_10m":
-        return "방문 전 안내";
-      case "grooming_started":
-        return "미용 시작";
-      case "grooming_almost_done":
-        return "픽업 준비";
-      case "grooming_completed":
-        return "미용 완료";
-      case "revisit_notice":
-        return "재방문 안내";
-      case "birthday_greeting":
-        return "생일 축하";
-      default:
-        return "알림 발송";
-    }
-  })();
-  const statusLabel =
-    notification.status === "sent" || notification.status === "mocked"
-      ? "발송 완료"
-      : notification.status === "failed"
-        ? "발송 실패"
-        : notification.status === "queued"
-          ? "발송 대기"
-          : "건너뜀";
-  const statusTone =
-    notification.status === "sent" || notification.status === "mocked"
-      ? "bg-[#eef8f3] text-[var(--accent)]"
-      : notification.status === "failed"
-        ? "bg-[#fdf0ec] text-[#b85c47]"
-        : "bg-[#f4f0ea] text-[var(--muted)]";
-  const timestamp = notification.sent_at ?? notification.created_at;
-  const parsed = new Date(timestamp);
-  const timeLabel = Number.isNaN(parsed.getTime())
-    ? timestamp
-    : `${parsed.getFullYear()}.${String(parsed.getMonth() + 1).padStart(2, "0")}.${String(parsed.getDate()).padStart(2, "0")} ${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
-
-  return (
-    <div className="px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-[16px] font-medium tracking-[-0.01em] text-[var(--text)]">{typeLabel}</p>
-            {pet ? <span className="text-[14px] font-medium text-[var(--muted)]">{pet.name}</span> : null}
-          </div>
-          <p className="mt-1 text-[14px] leading-5 text-[var(--muted)]">{timeLabel}</p>
-        </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[14px] font-normal ${statusTone}`}>{statusLabel}</span>
-      </div>
-      <p className="mt-1.5 text-[14px] leading-5 text-[var(--text)] break-words">{notification.message}</p>
-    </div>
-  );
-}
-
 
 
 

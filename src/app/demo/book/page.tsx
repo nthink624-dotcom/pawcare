@@ -1,17 +1,19 @@
-import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
-import { getBootstrap } from "@/server/bootstrap";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function DemoBookingEntryPage() {
-  const data = await getBootstrap("demo-shop");
+export default async function DemoBookingEntryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ mode?: string; token?: string; t?: string }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const nextUrl = new URL(resolvedSearchParams?.mode === "manage" ? "/demo/book/manage" : "/demo/book/start", "http://localhost");
+  const token = resolvedSearchParams?.t || resolvedSearchParams?.token;
 
-  return (
-    <CustomerBookingEntryPage
-      shop={data.shop}
-      services={data.services.filter((item) => item.is_active)}
-      bookingHref="/demo/book/start"
-      infoHref="/demo/book/info"
-    />
-  );
+  if (token) {
+    nextUrl.searchParams.set("t", token);
+  }
+
+  redirect(`${nextUrl.pathname}${nextUrl.search}` as never);
 }

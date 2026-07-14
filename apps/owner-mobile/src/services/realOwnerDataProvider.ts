@@ -22,8 +22,9 @@ export type OwnedShopSummaryDto = {
 export type OwnerApiFetch = (
   url: string,
   init: {
-    method: "GET";
+    method: "GET" | "POST" | "PATCH" | "DELETE";
     headers: Record<string, string>;
+    body?: string;
   },
 ) => Promise<{
   ok: boolean;
@@ -49,7 +50,11 @@ export type LoadRealOwnerBootstrapResult = {
 
 const DEFAULT_REAL_PROVIDER_TODAY = "2026-05-11";
 
-export function createRealOwnerDataProvider(bootstrap: OwnerBootstrapDto, today = DEFAULT_REAL_PROVIDER_TODAY): OwnerDataProvider {
+export function createRealOwnerDataProvider(
+  bootstrap: OwnerBootstrapDto,
+  today = DEFAULT_REAL_PROVIDER_TODAY,
+  writeConfig?: { apiBaseUrl: string; accessToken: string; fetcher?: OwnerApiFetch; shopId: string },
+): OwnerDataProvider {
   return {
     getBootstrap: () => bootstrap,
     getShopSummary: () => buildSettingsSummaryViewModel(bootstrap).shop,
@@ -60,6 +65,23 @@ export function createRealOwnerDataProvider(bootstrap: OwnerBootstrapDto, today 
     getCustomerSummaries: () => buildCustomerSummaries(bootstrap),
     getCustomerDetail: (guardianId) => buildCustomerDetailViewModel(bootstrap, guardianId),
     getSettingsSummary: () => buildSettingsSummaryViewModel(bootstrap),
+    createAppointment: writeConfig
+      ? (payload) => requestJson(writeConfig, "/api/appointments", "POST", { ...payload, shopId: writeConfig.shopId, source: "owner" })
+      : undefined,
+    updateAppointmentStatus: writeConfig
+      ? (appointmentId, status, payload = {}) =>
+          requestJson(writeConfig, "/api/appointments", "PATCH", { appointmentId, status, ...payload })
+      : undefined,
+    updateAppointmentDetails: writeConfig
+      ? (appointmentId, payload) =>
+          requestJson(writeConfig, "/api/appointments", "PATCH", { appointmentId, shopId: writeConfig.shopId, mode: "edit", ...payload })
+      : undefined,
+    updateGuardian: writeConfig
+      ? (guardianId, payload) => requestJson(writeConfig, "/api/guardians", "PATCH", { guardianId, shopId: writeConfig.shopId, ...payload })
+      : undefined,
+    deleteGuardian: writeConfig
+      ? (guardianId) => requestJson(writeConfig, "/api/guardians", "DELETE", { guardianId, shopId: writeConfig.shopId })
+      : undefined,
   };
 }
 
@@ -145,6 +167,36 @@ async function getJson<T>(input: { apiBaseUrl: string; accessToken: string; fetc
       Authorization: `Bearer ${input.accessToken}`,
       "Content-Type": "application/json",
     },
+  });
+  const text = await response.text();
+  const json = text ? parseJson(text) : null;
+
+  if (!response.ok) {
+    const message =
+      json && typeof json === "object" && "message" in json && typeof json.message === "string"
+        ? json.message
+        : "Owner API request failed.";
+    throw new Error(message);
+  }
+
+  return json as T;
+}
+
+async function requestJson<T>(
+  input: { apiBaseUrl: string; accessToken: string; fetcher?: OwnerApiFetch },
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body: Record<string, unknown>,
+): Promise<T> {
+  const ownerFetch = input.fetcher ?? fetch;
+  const response = await ownerFetch(`${input.apiBaseUrl}${path}`, {
+    method,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${input.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
   const text = await response.text();
   const json = text ? parseJson(text) : null;

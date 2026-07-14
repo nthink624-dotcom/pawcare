@@ -9,3 +9,4 @@ dist
 *.log
 *.tsbuildinfo
 .local-secrets/
+supabase/.temp/

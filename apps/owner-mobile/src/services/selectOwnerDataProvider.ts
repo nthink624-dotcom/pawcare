@@ -72,7 +72,11 @@ export async function selectOwnerDataProvider(
 
   return {
     mode: "real",
-    provider: createRealOwnerDataProvider(result.bootstrap, options.today),
+    provider: createRealOwnerDataProvider(result.bootstrap, options.today, {
+      apiBaseUrl: apiConfig.apiBaseUrl,
+      accessToken,
+      shopId: result.selectedShopId,
+    }),
     ownedShops: result.ownedShops,
     selectedShopId: result.selectedShopId,
   };

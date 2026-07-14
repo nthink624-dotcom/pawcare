@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { X } from "lucide-react";
 
-import OwnerApp from "@/components/owner/owner-app";
+import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -43,9 +43,10 @@ function getResumePlanCode(summary: OwnerSubscriptionSummary) {
 }
 
 function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
-  if (summary.status === "past_due" || summary.status === "expired") return null;
-  if (summary.noticeLevel !== "3days" && summary.noticeLevel !== "1day") return null;
-
+  const shouldShow =
+    summary.status !== "past_due" &&
+    summary.status !== "expired" &&
+    (summary.noticeLevel === "3days" || summary.noticeLevel === "1day");
   const dismissKey = `owner-trial-banner:${summary.noticeLevel}:${summary.trialEndsAt}`;
   const [dismissed, setDismissed] = useState(false);
 
@@ -59,11 +60,17 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
       : "이용 기간이 끝나면 서비스 이용이 제한될 수 있습니다.";
 
   useEffect(() => {
-    const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
-    setDismissed(savedDismissKey === dismissKey);
-  }, [dismissKey]);
+    if (!shouldShow) return;
 
-  if (dismissed) return null;
+    const timer = window.setTimeout(() => {
+      const savedDismissKey = window.localStorage.getItem("owner-trial-banner-dismissed");
+      setDismissed(savedDismissKey === dismissKey);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [dismissKey, shouldShow]);
+
+  if (!shouldShow || dismissed) return null;
 
   const handleDismiss = () => {
     window.localStorage.setItem("owner-trial-banner-dismissed", dismissKey);
@@ -179,6 +186,9 @@ export default function OwnerShell({
   subscriptionSummary,
   userEmail,
   onSwitchShop,
+  appRole = "owner",
+  currentStaffId = null,
+  launchPhotoStatusAction = null,
 }: {
   initialData: BootstrapPayload;
   ownedShops: OwnedShopSummary[];
@@ -186,6 +196,9 @@ export default function OwnerShell({
   subscriptionSummary: OwnerSubscriptionSummary | null;
   userEmail: string | null;
   onSwitchShop: (shopId: string) => Promise<void>;
+  appRole?: "owner" | "staff";
+  currentStaffId?: string | null;
+  launchPhotoStatusAction?: OwnerMobileLaunchPhotoStatusAction | null;
 }) {
   const router = useRouter();
   const [supabase] = useState<SupabaseClient | null>(() => getSupabaseBrowserClient());
@@ -284,6 +297,9 @@ export default function OwnerShell({
         onSwitchShop={onSwitchShop}
         loggingOut={loggingOut}
         userEmail={userEmail}
+        appRole={appRole}
+        currentStaffId={currentStaffId}
+        launchPhotoStatusAction={launchPhotoStatusAction}
       />
     </div>
   );

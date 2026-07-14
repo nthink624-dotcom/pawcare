@@ -3,7 +3,7 @@
 ## 실행 명령
 - 프론트: 루트에서 `npm run dev:frontend`
 - 백엔드: 루트에서 `npm run dev:backend`
-- 프론트 기본 주소: `http://localhost:3000`
+- 프론트 기본 주소: `http://localhost:3100`
 - 백엔드 기본 주소: `http://localhost:4000`
 
 ## 환경 변수 파일

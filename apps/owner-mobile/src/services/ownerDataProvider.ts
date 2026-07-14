@@ -1,4 +1,5 @@
 import type { OwnerBootstrapDto } from "@/types/bootstrap";
+import type { AppointmentStatus } from "@/types/bootstrap";
 import type {
   AppointmentDetailViewModel,
   AppointmentRowViewModel,
@@ -18,4 +19,9 @@ export type OwnerDataProvider = {
   getCustomerSummaries(): CustomerSummaryViewModel[];
   getCustomerDetail(guardianId: string): CustomerDetailViewModel | null;
   getSettingsSummary(): SettingsSummaryViewModel;
+  createAppointment?(payload: Record<string, unknown>): Promise<unknown>;
+  updateAppointmentStatus?(appointmentId: string, status: AppointmentStatus, payload?: Record<string, unknown>): Promise<unknown>;
+  updateAppointmentDetails?(appointmentId: string, payload: Record<string, unknown>): Promise<unknown>;
+  updateGuardian?(guardianId: string, payload: Record<string, unknown>): Promise<unknown>;
+  deleteGuardian?(guardianId: string): Promise<unknown>;
 };

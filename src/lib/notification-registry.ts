@@ -14,6 +14,8 @@ export type ShopSettingKey =
   | "booking_rejected_enabled"
   | "booking_cancelled_enabled"
   | "booking_rescheduled_enabled"
+  | "appointment_reminder_10m_enabled"
+  | "grooming_started_enabled"
   | "grooming_almost_done_enabled"
   | "grooming_completed_enabled"
   | null;
@@ -27,6 +29,8 @@ export type AlimtalkTemplateAlias =
   | "booking_cancelled"
   | "booking_rescheduled_confirmed"
   | "appointment_reminder_10m"
+  | "visit_schedule_notice"
+  | "visit_reminder_notice"
   | "grooming_started"
   | "grooming_almost_done"
   | "grooming_completed"
@@ -40,6 +44,8 @@ export type AlimtalkTemplateConfigKey =
   | "templateBookingCancelled"
   | "templateBookingRescheduledConfirmed"
   | "templateAppointmentReminder10m"
+  | "templateVisitScheduleNotice"
+  | "templateVisitReminderNotice"
   | "templateGroomingStarted"
   | "templateGroomingAlmostDone"
   | "templateGroomingCompleted"
@@ -61,10 +67,12 @@ export type NotificationRegistryItem = {
   draftBody: string | null;
 };
 
+export type NotificationTemplateVariables = Record<string, string | null | undefined>;
+
 export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   {
     type: "booking_received",
-    title: "예약 접수",
+    title: "예약 완료",
     target: "guardian",
     channel: "alimtalk",
     trigger: "고객이 예약을 접수하면 즉시 발송",
@@ -73,7 +81,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     templateConfigKey: "templateBookingReceived",
     shopSettingKey: "enabled",
     guardianSettingKey: "enabled",
-    notes: "수동 승인 매장에서도 예약 접수 완료 안내용으로 사용",
+    notes: "고객 예약 완료 안내용으로 사용",
     draftBody:
       "[#{매장명}] #{반려동물명} 예약이 접수되었어요.\n방문 일정: #{예약일시}\n\n매장에서 예약을 확인한 뒤 확정 알림을 보내드릴게요.\n\n예약 정보는 아래 링크에서 확인하실 수 있어요.\n#{예약관리링크}",
   },
@@ -94,10 +102,10 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
   {
     type: "owner_booking_requested",
-    title: "새 예약 접수",
+    title: "새 예약",
     target: "owner",
     channel: "in_app",
-    trigger: "고객 예약 접수 시 오너 인앱 알림 생성",
+    trigger: "고객 예약 확정 시 오너 인앱 알림 생성",
     dispatchSource: "src/server/customer-bookings.ts",
     templateAlias: null,
     templateConfigKey: null,
@@ -160,11 +168,41 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
     dispatchSource: "src/server/notification-dispatch.ts / src/components/owner/owner-app.tsx",
     templateAlias: "appointment_reminder_10m",
     templateConfigKey: "templateAppointmentReminder10m",
-    shopSettingKey: "enabled",
-    guardianSettingKey: "enabled",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
     notes: "수동 버튼은 force 전송, 자동 발송은 예약 10분 전 조건 사용",
     draftBody:
       "[#{매장명}]\n#{반려동물명} 보호자님, 이제 곧 만나요! (방긋)\n\n방문 일시: #{예약일시}\n예약 서비스: #{서비스명}\n\n준비 마치고 기다리고 있을게요.\n오시는 길 조심히 오세요.\n\n#{예약관리링크}",
+  },
+  {
+    type: "visit_schedule_notice",
+    title: "예약 안내 - 내일",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 하루 전 발송",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_schedule_notice",
+    templateConfigKey: "templateVisitScheduleNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "예약 안내 3종 중 내일 예약 안내에 사용",
+    draftBody:
+      "[#{매장명}]\n내일은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
+  },
+  {
+    type: "visit_reminder_notice",
+    title: "예약 안내 - 오늘",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "예약 당일 여유 시간이 남아 있을 때 발송",
+    dispatchSource: "src/server/visit-reminder-processor.ts",
+    templateAlias: "visit_reminder_notice",
+    templateConfigKey: "templateVisitReminderNotice",
+    shopSettingKey: "appointment_reminder_10m_enabled",
+    guardianSettingKey: "appointment_reminder_10m_enabled",
+    notes: "예약 안내 3종 중 오늘 예약 안내에 사용",
+    draftBody:
+      "[#{매장명}]\n오늘은 #{반려동물명} 미용 예약일입니다.\n\n예약 일시: #{예약일시}\n예약 서비스: #{서비스명}",
   },
   {
     type: "grooming_started",
@@ -290,6 +328,23 @@ export function getNotificationTitle(type: NotificationType) {
   return getNotificationRegistryItem(type)?.title ?? type;
 }
 
+export function getNotificationDraftBody(type: NotificationType) {
+  return getNotificationRegistryItem(type)?.draftBody ?? null;
+}
+
+export function fillNotificationTemplate(template: string, values: NotificationTemplateVariables) {
+  return Object.entries(values).reduce((message, [key, value]) => {
+    const resolvedValue = value ?? "";
+    return message.replaceAll(`#{${key}}`, resolvedValue);
+  }, template);
+}
+
+export function renderNotificationTemplateBody(type: NotificationType, values: NotificationTemplateVariables) {
+  const template = getNotificationDraftBody(type);
+  if (!template) return null;
+  return fillNotificationTemplate(template, values);
+}
+
 export function getAlimtalkTemplateAlias(type: NotificationType) {
   const spec = getNotificationRegistryItem(type);
   return spec?.channel === "alimtalk" ? spec.templateAlias : null;
@@ -321,9 +376,6 @@ export function shouldSendByShopSettings(
   switch (type) {
     case "booking_received":
     case "owner_booking_requested":
-    case "appointment_reminder_10m":
-    case "grooming_started":
-    case "birthday_greeting":
       return true;
     case "booking_confirmed":
       return settings.booking_confirmed_enabled;
@@ -333,12 +385,20 @@ export function shouldSendByShopSettings(
       return settings.booking_cancelled_enabled;
     case "booking_rescheduled_confirmed":
       return settings.booking_rescheduled_enabled;
+    case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
+      return settings.appointment_reminder_10m_enabled;
+    case "grooming_started":
+      return settings.grooming_started_enabled;
     case "grooming_almost_done":
       return settings.grooming_almost_done_enabled;
     case "grooming_completed":
       return settings.grooming_completed_enabled;
     case "revisit_notice":
       return settings.revisit_enabled;
+    case "birthday_greeting":
+      return true;
     case "landing_feedback":
     case "waitlist_interest":
       return null;
@@ -355,6 +415,27 @@ export function shouldSendByGuardianSettings(
   if (!settings.enabled) return false;
 
   switch (type) {
+    case "booking_confirmed":
+      return settings.booking_confirmed_enabled;
+    case "booking_rejected":
+      return settings.booking_rejected_enabled;
+    case "booking_cancelled":
+      return settings.booking_cancelled_enabled;
+    case "booking_time_proposed":
+    case "booking_rescheduled_confirmed":
+      return settings.booking_rescheduled_enabled;
+    case "appointment_reminder_10m":
+    case "visit_schedule_notice":
+    case "visit_reminder_notice":
+      return settings.appointment_reminder_10m_enabled;
+    case "grooming_started":
+      return settings.grooming_started_enabled;
+    case "grooming_almost_done":
+      return settings.grooming_almost_done_enabled;
+    case "grooming_completed":
+      return settings.grooming_completed_enabled;
+    case "birthday_greeting":
+      return settings.birthday_greeting_enabled;
     case "revisit_notice":
       return settings.revisit_enabled;
     case "landing_feedback":

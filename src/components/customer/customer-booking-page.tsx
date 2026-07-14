@@ -32,7 +32,7 @@ import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import CustomerShopInfoContent from "@/components/customer/customer-shop-info-content";
 import { fetchApiJson } from "@/lib/api";
 import { currentDateInTimeZone, formatServicePrice, phoneNormalize } from "@/lib/utils";
-import type { Appointment, GroomingRecord, Service, Shop } from "@/types/domain";
+import type { Appointment, GroomingRecord, Service, Shop, StaffMember } from "@/types/domain";
 
 type ActiveMode = "first" | "returning" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4;
@@ -132,6 +132,7 @@ const initialReturningVisitState: ReturningVisitState = {
 const CUSTOM_SERVICE_ID = "__custom__";
 const FIRST_VISIT_DRAFT_STORAGE_KEY_PREFIX = "petmanager:first-visit-draft:";
 const BOOKING_PROFILE_STORAGE_KEY = "petmanager:booking-profile";
+const DEFAULT_STAFF_PROFILE_MESSAGE = "아이 성향에 맞춰 차분하게 미용해드려요.";
 
 type FirstVisitDraftPayload = {
   version: 1;
@@ -230,13 +231,13 @@ function saveBookingProfile(source: FirstVisitState) {
 }
 
 const statusLabelMap: Record<Appointment["status"], string> = {
-  pending: "승인 대기",
+  pending: "확정",
   confirmed: "확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",
   completed: "완료",
   cancelled: "취소",
-  rejected: "미승인",
+  rejected: "취소",
   noshow: "노쇼",
 };
 
@@ -307,19 +308,11 @@ function getLatestRecord(records: GroomingRecord[]) {
   return [...records].sort((a, b) => (b.groomed_at || "").localeCompare(a.groomed_at || ""))[0];
 }
 
-function getCustomerBookingSuccessFeedback(approvalMode: Shop["approval_mode"]): SubmitFeedback {
-  if (approvalMode === "auto") {
-    return {
-      type: "success",
-      title: "예약이 바로 확정되었어요",
-      message: "선택한 일정이 바로 반영되었어요. 안내 메시지를 확인해 주세요.",
-    };
-  }
-
+function getCustomerBookingSuccessFeedback(): SubmitFeedback {
   return {
     type: "success",
-    title: "예약 신청이 완료되었어요",
-    message: "매장에서 확인한 뒤 승인 여부를 안내해드려요.",
+    title: "예약이 확정되었어요",
+    message: "선택한 일정이 바로 반영되었어요. 안내 메시지를 확인해 주세요.",
   };
 }
 
@@ -335,6 +328,7 @@ export default function CustomerBookingPage({
   shopId,
   initialShop,
   initialServices,
+  initialStaffMembers = [],
   initialMode = "first",
   initialAccessToken,
   entryHref,
@@ -342,6 +336,7 @@ export default function CustomerBookingPage({
   shopId: string;
   initialShop: Shop;
   initialServices: Service[];
+  initialStaffMembers?: StaffMember[];
   initialAppointments?: Appointment[];
   initialRecords?: GroomingRecord[];
   initialMode?: ActiveMode;
@@ -370,6 +365,12 @@ export default function CustomerBookingPage({
   const firstVisitUsesCustomService = firstVisit.serviceId === CUSTOM_SERVICE_ID;
   const returningVisitUsesCustomService = returningVisit.serviceId === CUSTOM_SERVICE_ID;
   const firstVisitProgress = (firstVisitStep / 4) * 100;
+  const primaryStaffMember = initialStaffMembers[0] ?? null;
+  const staffDisplayName = primaryStaffMember
+    ? primaryStaffMember.displayName?.trim() || primaryStaffMember.name
+    : initialShop.name;
+  const staffProfileMessage =
+    primaryStaffMember?.profileMessage?.trim() || DEFAULT_STAFF_PROFILE_MESSAGE;
 
   useEffect(() => {
     if (draftHydrated || typeof window === "undefined") return;
@@ -496,7 +497,7 @@ export default function CustomerBookingPage({
   }, [returningVisit.date, returningVisit.serviceId, returningVisit.timeSlot, shopId]);
 
   function resetView() {
-    window.location.href = entryHref || `/entry/${shopId}`;
+    window.location.href = entryHref || `/book/${shopId}`;
   }
 
   function saveFirstVisitDraft() {
@@ -599,12 +600,12 @@ export default function CustomerBookingPage({
         saveBookingProfile(reusableFirstVisit);
       }
 
-      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
+      const nextFeedback = getCustomerBookingSuccessFeedback();
       setSubmitFeedback({ ...nextFeedback, action: "reset" });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
-        title: "예약 신청에 실패했습니다",
+        title: "예약에 실패했습니다",
         message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
         action: "dismiss",
       });
@@ -709,12 +710,12 @@ export default function CustomerBookingPage({
         body: JSON.stringify(bookingPayload),
       });
 
-      const nextFeedback = getCustomerBookingSuccessFeedback(initialShop.approval_mode);
+      const nextFeedback = getCustomerBookingSuccessFeedback();
       setSubmitFeedback({ ...nextFeedback, action: "reset" });
     } catch (error) {
       setSubmitFeedback({
         type: "error",
-        title: "예약 신청에 실패했습니다",
+        title: "예약에 실패했습니다",
         message: error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
         action: "dismiss",
       });
@@ -728,6 +729,33 @@ export default function CustomerBookingPage({
     <>
       <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[var(--background)] pb-28">
         <div className="space-y-3.5 px-4 pt-4">
+          <section className="rounded-[28px] border border-[var(--border)] bg-white p-5 shadow-[var(--shadow-soft)]">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">
+                {primaryStaffMember?.profileImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={primaryStaffMember.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  staffDisplayName.slice(0, 1)
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--muted)]">담당 미용사</p>
+                <h1 className="mt-1 truncate text-[22px] font-semibold tracking-[-0.03em] text-[var(--text)]">
+                  {staffDisplayName}
+                </h1>
+                <p className="mt-2 text-[14px] leading-6 text-[var(--text)]">{staffProfileMessage}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShopInfoOpen(true)}
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-[14px] border border-[var(--border)] bg-white px-4 text-[13px] font-semibold text-[var(--text)]"
+            >
+              매장 정보 보기
+            </button>
+          </section>
+
           {activeMode === "first" ? (
             <BookingBottomSheet>
               <BookingStageCard>
@@ -1008,7 +1036,7 @@ export default function CustomerBookingPage({
                 shop={initialShop}
                 services={services}
                 initialAccessToken={initialAccessToken}
-                onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/entry/${shopId}`; } : resetView}
+                onBack={initialMode === "manage" ? () => { window.location.href = entryHref || `/book/${shopId}`; } : resetView}
               />
             </BookingBottomSheet>
           ) : null}
@@ -1024,7 +1052,7 @@ export default function CustomerBookingPage({
             {firstVisitStep < 4 ? (
               <ActionButton disabled={!getFirstVisitStepValidity(firstVisitStep)} onClick={() => setFirstVisitStep((prev) => (prev + 1) as FirstVisitStep)}>다음</ActionButton>
             ) : (
-              <ActionButton disabled={submitting || !getFirstVisitStepValidity(4)} onClick={submitFirstVisit}>{submitting ? "예약 신청 중..." : "예약하기"}</ActionButton>
+              <ActionButton disabled={submitting || !getFirstVisitStepValidity(4)} onClick={submitFirstVisit}>{submitting ? "예약 중..." : "예약하기"}</ActionButton>
             )}
           </div>
         </BottomBar>

@@ -5,9 +5,15 @@ import {
   shouldSendByGuardianSettings,
   shouldSendByShopSettings,
 } from "@/lib/notification-registry";
-import { hasAlimtalkServerEnv, hasSupabaseServerEnv, resolveAlimtalkTemplateKey, serverEnv } from "@/lib/server-env";
+import {
+  hasAlimtalkServerEnv,
+  hasSupabaseServerEnv,
+  resolveAlimtalkTemplateKey,
+  serverEnv,
+} from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
+import { renderNotificationTemplateBodyWithOverrides } from "@/server/alimtalk-template-overrides";
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
@@ -43,6 +49,7 @@ type DispatchNotificationInput = {
   scheduledAt?: string | null;
   skipIfExists?: boolean;
   force?: boolean;
+  mediaAssetIds?: string[];
 };
 
 type DispatchNotificationResult = {
@@ -80,6 +87,23 @@ function shouldSendNotification(shop: BootstrapPayload["shop"], type: Notificati
   return shouldSendByShopSettings(shop.notification_settings, type) ?? false;
 }
 
+function getAlimtalkSenderConfig(shop: BootstrapPayload["shop"]) {
+  const settings = shop.notification_settings;
+  const canUseShopChannel =
+    settings.alimtalk_sender_mode === "shop_channel" &&
+    settings.alimtalk_shop_channel_status === "active" &&
+    Boolean(settings.alimtalk_sender_profile_key?.trim());
+
+  return {
+    mode: canUseShopChannel ? "shop_channel" : "petmanager",
+    requestedMode: settings.alimtalk_sender_mode,
+    status: settings.alimtalk_shop_channel_status,
+    senderProfileKey: canUseShopChannel ? settings.alimtalk_sender_profile_key?.trim() ?? null : null,
+    channelName: settings.alimtalk_shop_channel_name?.trim() || shop.name,
+    channelUrl: settings.alimtalk_shop_channel_url?.trim() || null,
+  } as const;
+}
+
 function shouldSendGuardianNotification(
   guardian: BootstrapPayload["guardians"][number] | null,
   type: NotificationType,
@@ -105,7 +129,7 @@ function buildBookingLinksBlock(params: {
   return lines.join("\n");
 }
 
-function buildNotificationMessage(params: {
+async function buildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
   appointment: Appointment | null;
@@ -120,6 +144,20 @@ function buildNotificationMessage(params: {
     params.appointment
       ? `${shortDate(params.appointment.appointment_date)} ${formatClockTime(params.appointment.appointment_time)}`
       : "";
+  const rendered = await renderNotificationTemplateBodyWithOverrides(params.type, {
+    "매장명": params.shopName,
+    "반려동물명": params.petName,
+    "보호자명": params.recipientName,
+    "예약일시": dateLabel,
+    "서비스명": params.serviceName ?? "",
+    "거절사유": params.rejectionReason ?? "",
+    "픽업안내": "잠시 후 픽업하실 수 있어요.",
+    "예약 링크": params.bookingEntryUrl,
+    "예약 확인 링크": params.bookingManageUrl,
+    "예약관리링크": params.bookingManageUrl ?? params.bookingEntryUrl,
+  });
+  if (rendered) return rendered;
+
   const bookingLinksBlock = buildBookingLinksBlock({
     bookingEntryUrl: params.bookingEntryUrl,
     bookingManageUrl: params.bookingManageUrl,
@@ -379,9 +417,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       : "";
   const recipientName = input.recipientName?.trim() ? input.recipientName.trim() : guardian?.name ?? null;
   const templateAlias = (input.channel ?? "alimtalk") === "in_app" ? null : input.templateKey ?? getTemplateKey(input.type);
-  const templateKey = resolveAlimtalkTemplateKey(templateAlias);
-  const templateType = input.templateType ?? "alimtalk";
   const usesAlimtalkRelay = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret);
+  const templateKey = usesAlimtalkRelay ? null : resolveAlimtalkTemplateKey(templateAlias);
+  const notificationTemplateKey = usesAlimtalkRelay ? templateAlias : templateKey;
+  const templateType = input.templateType ?? "alimtalk";
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
@@ -395,7 +434,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const message =
     input.message?.trim() ||
-    buildNotificationMessage({
+    await buildNotificationMessage({
       type: input.type,
       shopName: bootstrap.shop.name,
       appointment,
@@ -412,6 +451,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   let sentAt: string | null = null;
   let failReason: string | null = null;
   let providerMessageId: string | null = null;
+  const alimtalkSenderConfig = getAlimtalkSenderConfig(bootstrap.shop);
   const scheduledAt = input.scheduledAt ?? null;
   const shouldSendNow = !scheduledAt || new Date(scheduledAt).getTime() <= Date.now();
   const canSendShop = input.force ? true : shouldSendNotification(bootstrap.shop, input.type);
@@ -494,6 +534,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           templateAlias,
           templateKey,
           templateType,
+          senderChannelMode: alimtalkSenderConfig.mode,
+          senderProfileKey: alimtalkSenderConfig.senderProfileKey,
+          senderChannelName: alimtalkSenderConfig.channelName,
+          senderChannelUrl: alimtalkSenderConfig.channelUrl,
           recipientName,
           metadata: input.metadata ?? null,
         });
@@ -529,7 +573,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     channel: input.channel ?? "alimtalk",
     message,
     status,
-    template_key: templateKey ?? null,
+    template_key: notificationTemplateKey ?? null,
     template_type: templateType,
     provider,
     provider_message_id: providerMessageId,
@@ -542,6 +586,11 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
       serviceName: service?.name ?? null,
       bookingEntryUrl,
       bookingManageUrl,
+      alimtalkSenderMode: alimtalkSenderConfig.mode,
+      alimtalkSenderRequestedMode: alimtalkSenderConfig.requestedMode ?? null,
+      alimtalkShopChannelStatus: alimtalkSenderConfig.status ?? null,
+      alimtalkShopChannelName: alimtalkSenderConfig.channelName,
+      alimtalkShopChannelUrl: alimtalkSenderConfig.channelUrl,
     },
     sent_at: sentAt,
     created_at: nowIso(),

@@ -39,7 +39,7 @@ type Feedback = {
 };
 
 const statusLabelMap: Record<Appointment["status"], string> = {
-  pending: "승인 대기",
+  pending: "확정",
   confirmed: "확정",
   in_progress: "미용 중",
   almost_done: "픽업 준비",

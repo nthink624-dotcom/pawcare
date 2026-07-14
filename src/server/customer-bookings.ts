@@ -15,6 +15,7 @@ import {
 } from "@/lib/utils";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { updateAppointmentWithCapacityLock } from "@/server/appointment-capacity";
 import { getBootstrap } from "@/server/bootstrap";
 import {
   buildBookingManageUrl,
@@ -446,44 +447,6 @@ export async function createCustomerBooking(input: unknown) {
     source: "customer",
   });
 
-  await dispatchNotification({
-    shopId: appointment.shop_id,
-    appointmentId: appointment.id,
-    guardianId: appointment.guardian_id,
-    petId: appointment.pet_id,
-    type: "owner_booking_requested",
-    channel: "in_app",
-    force: true,
-    skipIfExists: true,
-    message: [
-      "새 예약이 접수되었어요.",
-      `${payload.guardianName.trim()} / ${payload.petName.trim()}`,
-      `${payload.appointmentDate} ${formatClockTime(payload.appointmentTime)}`,
-    ].join("\n"),
-    metadata: {
-      source: "customer_booking",
-      guardianName: payload.guardianName.trim(),
-      petName: payload.petName.trim(),
-      appointmentDate: payload.appointmentDate,
-      appointmentTime: payload.appointmentTime,
-    },
-  });
-
-  if (appointment.status === "pending") {
-    await dispatchNotification({
-      shopId: appointment.shop_id,
-      appointmentId: appointment.id,
-      guardianId: appointment.guardian_id,
-      petId: appointment.pet_id,
-      type: "booking_received",
-      channel: "alimtalk",
-      templateKey: "booking_received",
-      recipientPhone: payload.phone,
-      recipientName: payload.guardianName.trim(),
-      skipIfExists: true,
-    });
-  }
-
   const bookingAccessToken = createBookingAccessToken({
     shopId: payload.shopId,
     guardianId: entityIds.guardianId,
@@ -570,6 +533,30 @@ async function updateMockAppointment(appointmentId: string, updater: (appointmen
 async function updateSupabaseAppointment(appointmentId: string, values: Partial<Appointment>) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결을 확인할 수 없습니다.");
+
+  if (
+    typeof values.service_id === "string" &&
+    typeof values.appointment_date === "string" &&
+    typeof values.appointment_time === "string" &&
+    typeof values.memo === "string" &&
+    typeof values.status === "string" &&
+    Object.prototype.hasOwnProperty.call(values, "rejection_reason") &&
+    typeof values.start_at === "string" &&
+    typeof values.end_at === "string" &&
+    typeof values.updated_at === "string"
+  ) {
+    return updateAppointmentWithCapacityLock(supabase, appointmentId, {
+      service_id: values.service_id,
+      appointment_date: values.appointment_date,
+      appointment_time: values.appointment_time,
+      memo: values.memo,
+      status: values.status,
+      rejection_reason: values.rejection_reason ?? null,
+      start_at: values.start_at,
+      end_at: values.end_at,
+      updated_at: values.updated_at,
+    });
+  }
 
   const { data, error } = await supabase
     .from("appointments")
@@ -678,7 +665,7 @@ export async function updateCustomerBooking(input: unknown) {
     appointment_date: payload.appointmentDate,
     appointment_time: payload.appointmentTime,
     memo: payload.memo.trim(),
-    status: (bootstrap.shop.approval_mode === "auto" ? "confirmed" : "pending") as Appointment["status"],
+    status: "confirmed" as Appointment["status"],
     rejection_reason: null,
     start_at: appointmentWindow.start_at,
     end_at: appointmentWindow.end_at,

@@ -12,7 +12,14 @@ import {
   saveOwnerSubscriptionPreferences,
   retryOwnerSubscriptionPayment,
 } from "@/lib/billing/owner-billing-client";
-import { billableOwnerPlans, getOwnerPlanByCode, getOwnerPlanDisplayName, type OwnerPlanCode } from "@/lib/billing/owner-plans";
+import {
+  OWNER_PLAN_SHARED_USE_NOTICE,
+  OWNER_PLAN_SINGLE_SHOP_NOTICE,
+  billableOwnerPlans,
+  getOwnerPlanByCode,
+  getOwnerPlanDisplayName,
+  type OwnerPlanCode,
+} from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { env } from "@/lib/env";
 import { won } from "@/lib/utils";
@@ -221,11 +228,15 @@ export default function OwnerBillingScreen({
   const consentLines = usesOneTimePayment
     ? [
         "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
+        OWNER_PLAN_SINGLE_SHOP_NOTICE,
+        OWNER_PLAN_SHARED_USE_NOTICE,
         "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
         "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
       ]
     : [
         "선택한 플랜은 등록된 카드로 매 결제일 자동 결제됩니다.",
+        OWNER_PLAN_SINGLE_SHOP_NOTICE,
+        OWNER_PLAN_SHARED_USE_NOTICE,
         "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
         "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
       ];
@@ -592,7 +603,7 @@ export default function OwnerBillingScreen({
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
-              ? "한 달 플랜은 한 번 결제하고 바로 시작할 수 있습니다."
+              ? "선택한 플랜은 결제 후 바로 시작할 수 있습니다."
               : `${selectedPlanLabel}은 카드 등록 후 이용 기간 동안 계속 사용할 수 있습니다.`}
           </p>
         </div>
@@ -608,7 +619,7 @@ export default function OwnerBillingScreen({
                 {isFreePlan
                   ? "체험 플랜은 결제가 필요하지 않습니다."
                   : usesOneTimePayment
-                  ? "한 달 플랜은 일반결제로 한 번 결제하고 바로 시작합니다."
+                  ? "선택한 플랜은 일반결제로 한 번 결제하고 바로 시작합니다."
                   : "약정 플랜은 카드 등록 후 매달 자동 청구로 이어집니다."}
               </p>
             </div>

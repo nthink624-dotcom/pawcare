@@ -7,7 +7,7 @@ export const LEGAL_BUSINESS_INFO = {
   representativeName: "정우진",
   businessRegistrationNumber: "689-01-03675",
   address: "충청남도 천안시 동남구 미라9길 14 지하 1층",
-  customerServicePhone: "010-8357-2070",
+  customerServicePhone: "041-557-5529",
   customerServiceEmail: "nthink624@gmail.com",
   hostingProvider: "Vercel Inc.",
   privacyTrusteeName: "정우진",

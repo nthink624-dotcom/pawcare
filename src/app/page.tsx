@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 
+import LandingPage from "@/components/landing/landing-page";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "PetManager | Owner",
-  description: "Redirects to the PetManager owner workspace.",
+  title: "PetManager | 반려동물 미용샵 예약·고객관리 자동화",
+  description: "반려동물 미용샵을 위한 예약, 고객관리, 알림톡 자동화 서비스와 월 요금제를 확인하세요.",
 };
 
 export default async function Home({
@@ -37,5 +39,5 @@ export default async function Home({
     redirect(`/auth/callback?${callbackParams.toString()}` as never);
   }
 
-  redirect("/owner");
+  return <LandingPage />;
 }

@@ -87,9 +87,9 @@ export default function LandingPage() {
       <OwnerValueSection />
       <PricingSection />
       <FinalCta />
-      <footer className="mx-auto w-full max-w-[1180px] px-5 pb-10 pt-2">
+      <div className="mx-auto w-full max-w-[1180px] px-5 pb-10 pt-2">
         <LegalLinksFooter />
-      </footer>
+      </div>
     </main>
   );
 }
@@ -275,22 +275,33 @@ function PricingSection() {
       />
       <div className="mt-8 grid gap-5 lg:grid-cols-3">
         {billableOwnerPlans.map((plan) => (
-          <div key={plan.code} className={`rounded-[8px] border bg-white p-6 ${plan.featured ? "border-[#2563eb] shadow-[0_18px_46px_rgba(37,99,235,0.14)]" : "border-[#dce5f2]"}`}>
+          <article
+            key={plan.code}
+            itemScope
+            itemType="https://schema.org/Product"
+            className={`rounded-[8px] border bg-white p-6 ${plan.featured ? "border-[#2563eb] shadow-[0_18px_46px_rgba(37,99,235,0.14)]" : "border-[#dce5f2]"}`}
+          >
+            <meta itemProp="category" content="반려동물 미용샵 운영 SaaS" />
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[25px] font-black">{plan.title}</h3>
+              <h3 itemProp="name" className="text-[25px] font-black">{plan.title}</h3>
               {plan.badge ? <span className="rounded-full bg-[#2563eb] px-3 py-1 text-[13px] font-black text-white">{plan.badge}</span> : null}
             </div>
-            <p className="mt-2 text-[14px] font-semibold text-[#64748b]">{plan.targetLabel}</p>
-            <p className="mt-6 text-[42px] font-black tracking-normal">
-              {formatWon(plan.monthlyPrice)}
-              <span className="text-[15px] font-bold text-[#64748b]"> / 월</span>
-            </p>
+            <p itemProp="description" className="mt-2 text-[14px] font-semibold text-[#64748b]">{plan.targetLabel}</p>
+            <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
+              <meta itemProp="priceCurrency" content="KRW" />
+              <meta itemProp="price" content={String(plan.monthlyPrice)} />
+              <meta itemProp="availability" content="https://schema.org/InStock" />
+              <p className="mt-6 text-[42px] font-black tracking-normal">
+                {formatWon(plan.monthlyPrice)}
+                <span className="text-[15px] font-bold text-[#64748b]"> / 월 정기결제</span>
+              </p>
+            </div>
             <PlanLine label="포함 알림톡" value={plan.alimtalkIncludedLabel} />
             <PlanLine label="운영 기준" value={plan.staffLimitLabel} />
             <Link href="/signup" className={`mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] text-[16px] font-black ${plan.featured ? "bg-[#2563eb] text-white" : "border border-[#d7e0ec] bg-white text-[#111827]"}`}>
               시작하기
             </Link>
-          </div>
+          </article>
         ))}
       </div>
     </section>

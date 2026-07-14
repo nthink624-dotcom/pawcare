@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { LEGAL_BUSINESS_INFO, LEGAL_LINKS } from "@/lib/legal/legal-info";
 
 export default function LegalLinksFooter() {
@@ -17,10 +19,13 @@ export default function LegalLinksFooter() {
         </p>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1 text-[10.5px] font-medium text-[#4f5a55]">
+        <Link href="/#pricing" className="underline underline-offset-2">
+          상품 및 요금
+        </Link>
         {LEGAL_LINKS.map((link) => (
-          <a key={link.href} href={link.href} className="underline underline-offset-2">
+          <Link key={link.href} href={link.href} className="underline underline-offset-2">
             {link.label}
-          </a>
+          </Link>
         ))}
       </div>
     </footer>

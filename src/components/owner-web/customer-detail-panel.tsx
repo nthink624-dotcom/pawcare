@@ -214,7 +214,7 @@ export default function CustomerDetailPanel({
         </header>
 
         <div className="grid min-h-0 flex-1 grid-cols-[310px_minmax(0,1fr)] overflow-hidden">
-          <aside className="min-h-0 overflow-y-auto border-r border-[#e1e7ef] bg-white px-4 py-4">
+          <aside className="min-h-0 overflow-y-auto border-r border-[#e1e7ef] bg-white py-4 pl-4 pr-1">
             <SummaryCard
               detail={detail}
               phone={phone}
@@ -235,7 +235,7 @@ export default function CustomerDetailPanel({
             />
           </aside>
 
-          <main className="min-h-0 overflow-y-auto px-4 py-4">
+          <main className="min-h-0 overflow-y-auto py-4 pl-4 pr-1">
             {selectedPet ? (
               <div className="space-y-3">
                 <PetOverviewSection

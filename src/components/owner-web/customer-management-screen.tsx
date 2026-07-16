@@ -1649,7 +1649,7 @@ function NewCustomerModal({
             onSubmit();
           }}
         >
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex-1 space-y-4 overflow-y-auto py-4 pl-5 pr-1">
             <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-[16px] font-semibold text-[#111827]">보호자</h3>
@@ -1943,7 +1943,7 @@ function CustomerDetailSheet({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3.5">
+        <div className="flex-1 overflow-y-auto py-3.5 pl-5 pr-1">
           <section className="relative rounded-[8px] border border-[#dbe2ea] border-l-4 border-l-[#1f6b5b] bg-[#fbfcfd] py-3 pl-4 pr-[112px]">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[16px] font-medium text-[#64748b]">다음 예약</p>

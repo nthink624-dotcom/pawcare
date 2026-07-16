@@ -90,6 +90,19 @@ function normalizeMinutesText(value: string) {
   return value.replace(/[^0-9]/g, "");
 }
 
+function getBreedLabels(note: string) {
+  return note
+    .split(/[,/·\n]/)
+    .map((label) => label.trim().replace(/\s*등$/, ""))
+    .filter(Boolean);
+}
+
+function formatGroupDisplayName(title: string) {
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle) return "이름 없는 그룹";
+  return trimmedTitle.endsWith("그룹") ? trimmedTitle : `${trimmedTitle} 그룹`;
+}
+
 function formatPriceInput(value: string) {
   const numericValue = Number(normalizePriceText(value));
   if (!numericValue) return "";
@@ -228,23 +241,18 @@ function cloneDefaultExtraFees() {
 function normalizeExtraFees(value: unknown): ServicePriceGuideExtraFee[] {
   if (!Array.isArray(value)) return cloneDefaultExtraFees();
 
-  const rows = value
-    .map((row, index) => {
+  return value
+    .map((row) => {
       if (!row || typeof row !== "object") return null;
       const source = row as Partial<ServicePriceGuideExtraFee>;
-      const fallback = defaultExtraFees[index];
-      const label = typeof source.label === "string" ? source.label.trim() : "";
-      const price = typeof source.price === "string" ? source.price.trim() : "";
 
       return {
         id: typeof source.id === "string" && source.id ? source.id : createExtraFeeId(),
-        label: label || fallback?.label || `추가 비용 ${index + 1}`,
-        price: price || fallback?.price || "",
+        label: typeof source.label === "string" ? source.label : "",
+        price: typeof source.price === "string" ? source.price : "",
       };
     })
     .filter((row): row is ServicePriceGuideExtraFee => Boolean(row));
-
-  return rows.length > 0 ? rows : cloneDefaultExtraFees();
 }
 
 function legacyItemsFromSections(sections: ServicePriceGuideSection[]) {
@@ -482,6 +490,7 @@ export function ServicePriceGuideEditor({
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
   const [activeSpecies, setActiveSpecies] = useState<ServicePriceGuideSpecies>("dog");
+  const [editingSectionIds, setEditingSectionIds] = useState<string[]>([]);
   const activeSpeciesOption = speciesOptions.find((option) => option.value === activeSpecies) ?? speciesOptions[0];
   const activeSections = sections.filter((section) => normalizeSpecies(section.species) === activeSpecies);
 
@@ -496,6 +505,12 @@ export function ServicePriceGuideEditor({
 
   function updateExtraFees(nextExtraFees: ServicePriceGuideExtraFee[]) {
     onChange({ ...guide, extraFees: nextExtraFees });
+  }
+
+  function toggleSectionEdit(sectionId: string) {
+    setEditingSectionIds((current) =>
+      current.includes(sectionId) ? current.filter((id) => id !== sectionId) : [...current, sectionId],
+    );
   }
 
   function updateExtraFee(rowId: string, patch: Partial<ServicePriceGuideExtraFee>) {
@@ -746,79 +761,121 @@ export function ServicePriceGuideEditor({
                   )}
                 >
                   {option.label}
-                  <span className={cn("text-[13px]", selected ? "text-[#607080]" : "text-[#94a3b8]")}>{count}</span>
+                  <span className={cn("text-[16px]", selected ? "text-[#607080]" : "text-[#94a3b8]")}>{count}</span>
                 </button>
               );
             })}
           </div>
 
           <div className="space-y-3">
-            {activeSections.map((section) => (
-              <section key={section.id} className="overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white">
-                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
-                  <div className="min-w-[240px] flex-1">
-                    <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
-                      <div className="group relative">
-                        <input
-                          type="text"
-                          value={section.title}
-                          onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                          aria-label="서비스 그룹명 수정"
-                          className="h-9 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-9 text-[16px] font-normal text-[#111827] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
-                        />
-                        <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
-                      </div>
-                      <div className="group relative">
-                        <input
-                          type="text"
-                          value={section.note}
-                          onChange={(event) => updateSection(section.id, { note: event.target.value })}
-                          placeholder="예: 말티, 요키, 시츄"
-                          aria-label="노출 견종 설명 수정"
-                          className="h-9 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-9 text-[16px] font-normal text-[#334155] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
-                        />
-                        <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
-                      </div>
+            {activeSections.map((section) => {
+              const breedLabels = getBreedLabels(section.note);
+              const isEditing = editingSectionIds.includes(section.id);
+
+              return (
+              <section
+                key={section.id}
+                className={cn(
+                  "relative w-full min-w-0 overflow-hidden rounded-[16px] border border-[#e2e7ed] bg-white px-[22px] pb-[22px] pt-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
+                )}
+              >
+                <div className="flex items-start gap-3 border-b border-[#edf1f5] bg-white pb-3">
+                    <div className="grid min-w-0 flex-1 items-start gap-3 px-1 py-0.5 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4">
+                      <label className="group relative flex min-h-8 items-center border-r border-[#e2e7ed] pr-3">
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={section.title}
+                              onChange={(event) => updateSection(section.id, { title: event.target.value })}
+                              aria-label="서비스 그룹명 수정"
+                              className="h-10 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-8 text-[16px] font-bold text-[#0f172a] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
+                            />
+                            <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                          </>
+                        ) : (
+                          <span className="text-[16px] font-bold text-[#0f172a]">{formatGroupDisplayName(section.title)}</span>
+                        )}
+                      </label>
+                      <label className="group relative block min-h-8 min-w-0">
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={section.note}
+                              onChange={(event) => updateSection(section.id, { note: event.target.value })}
+                              placeholder="예: 말티, 요키, 시츄"
+                              aria-label="노출 견종 설명 수정"
+                              className="h-10 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-8 text-[16px] font-normal text-[#1e293b] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
+                            />
+                            <PencilLine className="pointer-events-none absolute right-3 top-[calc(50%+7px)] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                          </>
+                        ) : (
+                          <div className="flex max-h-[64px] max-w-full flex-wrap content-start items-start gap-1.5 overflow-y-auto">
+                            {breedLabels.length > 0 ? breedLabels.map((breed, index) => (
+                              <span key={`${breed}-${index}`} className="inline-flex h-7 w-max items-center rounded-[7px] border border-[#e4e9ef] bg-[#f8fafc] px-2.5 text-[15px] font-normal text-[#334155]">
+                                {breed}
+                              </span>
+                            )) : <span className="text-[16px] text-[#9a6b1f]">품종을 입력해 주세요</span>}
+                          </div>
+                        )}
+                      </label>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
-                      <Plus className="h-4 w-4" strokeWidth={1.9} />
-                      무게
-                    </button>
-                    <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[86px] items-center justify-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
-                      <Plus className="h-4 w-4" strokeWidth={1.9} />
-                      항목
-                    </button>
-                  </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                        {isEditing ? <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[16px] font-semibold text-[#334155] transition hover:bg-[#eef0f3]">
+                          <Plus className="h-4 w-4" strokeWidth={1.9} />
+                          무게
+                        </button> : null}
+                        {isEditing ? <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[16px] font-semibold text-[#334155] transition hover:bg-[#eef0f3]">
+                          <Plus className="h-4 w-4" strokeWidth={1.9} />
+                          항목
+                        </button> : null}
+                        <button
+                          type="button"
+                          onClick={() => toggleSectionEdit(section.id)}
+                          className={cn(
+                            "inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] border px-2.5 text-[15px] font-medium transition",
+                            isEditing ? "border-[#0f172a] bg-[#0f172a] text-white hover:bg-[#1e293b]" : "border-[#e2e7ed] bg-white text-[#334155] hover:bg-[#f6f7f9]",
+                          )}
+                        >
+                          <PencilLine className="h-3.5 w-3.5" strokeWidth={1.9} />
+                          {isEditing ? "완료" : "편집"}
+                        </button>
+                    </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 104 + 116 + section.items.length * 196 + 34 }}>
+                <div className="mt-[14px] w-full max-w-full overflow-x-auto overscroll-x-contain rounded-[8px] pb-1 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#b8c1cc] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#edf1f5]">
+                  <table className="mr-2 w-full table-fixed border-collapse text-[16px]" style={{ minWidth: 108 + 108 + section.items.length * 181 + 48 }}>
                     <colgroup>
-                      <col className="w-[104px]" />
-                      <col className="w-[116px]" />
+                      <col className="w-[108px]" />
+                      <col className="w-[108px]" />
                       {section.items.map((item) => (
-                        <col key={item.id} className="w-[196px]" />
+                        <col key={item.id} className="w-[181px]" />
                       ))}
-                      <col className="w-[34px]" />
+                      <col className="w-[48px]" />
                     </colgroup>
                     <thead>
-                      <tr className="bg-[#f8fafc] text-[#334155]">
-                        <th className="whitespace-nowrap border-b border-r border-[#dbe2ea] px-3 py-2 text-center font-medium">그룹</th>
-                        <th className="whitespace-nowrap border-b border-r border-[#dbe2ea] px-3 py-2 text-center font-medium">무게</th>
+                      <tr className="bg-[#f6f7f9] text-[#334155]">
+                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-left text-[16px] font-bold" aria-label="그룹">그룹</th>
+                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-left text-[16px] font-bold">무게</th>
                         {section.items.map((item) => (
-                          <th key={item.id} className="border-b border-r border-[#dbe2ea] px-2 py-2 text-center last:border-r-0">
-                            <div className="group flex items-center justify-center gap-1.5">
+                          <th key={item.id} className="border-b border-[#e2e7ed] px-3 py-2.5 text-left last:border-r-0">
+                            <div className="group flex items-center justify-between gap-1.5">
                               <input
                                 type="text"
                                 value={item.label}
                                 onChange={(event) => updateItemLabel(section.id, item.id, event.target.value)}
                                 aria-label={`${item.label} 항목명 수정`}
                                 title="클릭해서 항목명 수정"
-                                className="h-7 min-w-0 flex-1 cursor-text rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-center text-[16px] font-medium text-[#334155] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:text-[#111827] focus:ring-2 focus:ring-[#e8f0f7]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                  "h-8 min-w-0 flex-1 rounded-[7px] px-0 text-left text-[16px] font-bold text-[#334155] outline-none transition placeholder:text-[#94a3b8]",
+                                  isEditing
+                                    ? "cursor-text border border-[#dbe2ea] bg-white hover:border-[#94a3b8] focus:border-[var(--accent)] focus:text-[#111827] focus:ring-2 focus:ring-[#e8f0f7]"
+                                    : "pointer-events-none border border-transparent bg-transparent",
+                                )}
                               />
-                              <button
+                              {isEditing ? <button
                                 type="button"
                                 onClick={() => removeItem(section.id, item.id)}
                                 disabled={section.items.length <= 1}
@@ -826,22 +883,22 @@ export function ServicePriceGuideEditor({
                                 aria-label="요금 항목 삭제"
                               >
                                 <BasilIcon name="trash" className="h-5 w-5" />
-                              </button>
+                              </button> : null}
                             </div>
                           </th>
                         ))}
-                        <th className="sticky right-0 z-20 w-[34px] border-b border-l border-[#dbe2ea] bg-[#f8fafc] shadow-[-6px_0_10px_rgba(15,23,42,0.06)]" />
+                        <th className="w-[48px] border-b border-[#e2e7ed] bg-[#f6f7f9]" aria-label="행 관리" />
                       </tr>
                     </thead>
                     <tbody>
                       {section.weightBands.map((band, bandIndex) => (
                         <tr key={`${section.id}-weight-${bandIndex}`}>
                           {bandIndex === 0 ? (
-                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-t border-[#edf2f7] bg-white px-3 py-2 text-center align-middle text-[16px] font-normal text-[#111827]">
-                              {section.title}
+                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-b border-[#edf1f5] bg-white px-3 py-[9px] text-left align-middle text-[16px] font-bold text-[#0f172a]">
+                              {formatGroupDisplayName(section.title)}
                             </td>
                           ) : null}
-                          <td className="border-r border-t border-[#edf2f7] px-2 py-2">
+                          <td className="border-b border-[#edf1f5] px-3 py-[9px]">
                             <div className="group relative">
                               <input
                                 type="text"
@@ -849,44 +906,60 @@ export function ServicePriceGuideEditor({
                                 onChange={(event) => updateWeightBand(section.id, bandIndex, event.target.value)}
                                 aria-label={`${band} 무게 구간 수정`}
                                 title="클릭해서 무게 구간 수정"
-                                className="h-8 w-full cursor-text rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] px-2 pr-7 text-center text-[16px] font-normal text-[#111827] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:bg-white focus:ring-2 focus:ring-[#e8f0f7]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                  "h-8 w-full rounded-[8px] px-0 pr-6 text-left text-[16px] font-semibold text-[#1e293b] outline-none transition",
+                                  isEditing
+                                    ? "cursor-text border border-[#dbe2ea] bg-[#fbfdff] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:bg-white focus:ring-2 focus:ring-[#e8f0f7]"
+                                    : "pointer-events-none border border-transparent bg-transparent",
+                                )}
                               />
-                              <PencilLine className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] opacity-80 transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
+                              {isEditing ? <PencilLine className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] opacity-80 transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} /> : null}
                             </div>
                           </td>
                           {section.items.map((item) => {
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
-                              <td key={item.id} className="border-r border-t border-[#edf2f7] px-2 py-2 last:border-r-0">
-                                <div className="group flex h-9 min-w-0 items-center justify-center gap-0.5 whitespace-nowrap rounded-[8px] border border-transparent px-1.5 transition hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]" title="클릭해서 가격과 시간을 수정">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={formatPriceInput(cell.price)}
-                                    onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
-                                    placeholder="-"
-                                    aria-label={`${item.label} ${band} 가격 수정`}
-                                    className="h-7 w-[64px] shrink-0 cursor-text bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
-                                  />
-                                  <span className="shrink-0 text-[16px] font-normal text-[#94a3b8]">/</span>
-                                  <div className="flex w-[76px] shrink-0 items-center gap-0.5">
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      value={cell.durationMinutes}
-                                      onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
-                                      placeholder="-"
-                                      aria-label={`${item.label} ${band} 예상 시간 수정`}
-                                      className="h-7 w-[34px] shrink-0 cursor-text bg-transparent text-right text-[16px] font-normal tabular-nums text-[#111827] outline-none placeholder:text-[#a3afbd]"
-                                    />
-                                    <span className="shrink-0 text-[16px] font-normal text-[#64748b]">분 예상</span>
-                                  </div>
+                              <td key={item.id} className="border-b border-[#edf1f5] px-3 py-[9px] last:border-r-0">
+                                <div className={cn("group inline-flex h-8 min-w-0 items-center justify-start whitespace-nowrap rounded-[8px] border border-transparent transition", isEditing && "hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]")} title={isEditing ? "클릭해서 가격과 시간을 수정" : undefined}>
+                                  {isEditing ? (
+                                    <>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={formatPriceInput(cell.price)}
+                                        onChange={(event) => updateCell(section.id, item.id, band, { price: event.target.value })}
+                                        placeholder="-"
+                                        aria-label={`${item.label} ${band} 가격 수정`}
+                                        style={{ width: `${Math.max(1, formatPriceInput(cell.price).length)}ch` }}
+                                        className="h-7 shrink-0 cursor-text bg-transparent p-0 text-left text-[16px] font-bold tabular-nums text-black outline-none placeholder:text-[#a3afbd]"
+                                      />
+                                      <span className="shrink-0 text-[14px] font-normal text-[#64748b]">/</span>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={cell.durationMinutes}
+                                        onChange={(event) => updateCell(section.id, item.id, band, { durationMinutes: event.target.value })}
+                                        placeholder="-"
+                                        aria-label={`${item.label} ${band} 예상 시간 수정`}
+                                        style={{ width: `${Math.max(1, cell.durationMinutes.length)}ch` }}
+                                        className="ml-1 h-7 shrink-0 cursor-text bg-transparent p-0 text-left text-[14px] font-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#a3afbd]"
+                                      />
+                                      <span className="shrink-0 text-[14px] font-normal text-[#64748b]">분 예상</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-[16px] font-bold tabular-nums text-black">{formatPriceInput(cell.price) || "-"}</span>
+                                      <span className="text-[14px] font-normal text-[#64748b]">/</span>
+                                      <span className="ml-1 text-[14px] font-normal tabular-nums text-[#64748b]">{cell.durationMinutes || "-"}분 예상</span>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             );
                           })}
-                          <td className="sticky right-0 z-10 border-l border-t border-[#d5dde7] bg-white px-0 py-2 text-center shadow-[-6px_0_10px_rgba(15,23,42,0.035)]">
-                            <button
+                          <td className="w-[48px] border-b border-[#edf1f5] bg-white px-0 py-[9px] text-center">
+                            {isEditing ? <button
                               type="button"
                               onClick={() => removeWeightBand(section.id, bandIndex)}
                               disabled={section.weightBands.length <= 1}
@@ -894,7 +967,7 @@ export function ServicePriceGuideEditor({
                               aria-label="무게 구간 삭제"
                             >
                               <BasilIcon name="trash" className="h-5 w-5" />
-                            </button>
+                            </button> : null}
                           </td>
                         </tr>
                       ))}
@@ -902,7 +975,8 @@ export function ServicePriceGuideEditor({
                   </table>
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

@@ -868,26 +868,13 @@ export default function ServiceManagementScreen({
         ) : null}
 
         <div className="space-y-5">
-          <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-3.5">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">
-              <div>
-                <p className="text-[15px] font-medium text-[#334155]">상세 요금표 원본</p>
-                <p className="mt-0.5 text-[13px] font-normal leading-5 text-[#64748b]">
-                  그룹, 무게, 항목별 금액과 예상 시간을 편집합니다.
-                </p>
-              </div>
-              <span className="inline-flex h-7 items-center rounded-full border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-medium text-[#64748b]">
-                편집 원본
-              </span>
-            </div>
-            <ServicePriceGuideEditor
-              value={{ ...serviceForm.priceGuide, enabled: true }}
-              onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
-              framed={false}
-              showHeader={false}
-              showEnabledToggle={false}
-            />
-          </div>
+          <ServicePriceGuideEditor
+            value={{ ...serviceForm.priceGuide, enabled: true }}
+            onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
+            framed={false}
+            showHeader={false}
+            showEnabledToggle={false}
+          />
 
           <div className="rounded-[12px] border border-[#dbe2ea] bg-[#fbfcfd] p-3.5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-[#e6ebf2] pb-3">

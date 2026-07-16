@@ -106,7 +106,7 @@ function scrollToSection(sectionId: string) {
 
 export default function LandingPage() {
   return (
-    <main className="owner-font min-h-screen bg-[#f6f8fb] text-[#111827]">
+    <main className="owner-font min-h-screen bg-white text-[#111827]">
       <Header />
       <Hero />
       <PainPointsSection />
@@ -207,22 +207,24 @@ function Hero() {
 
 function PainPointsSection() {
   return (
-    <section id="pain-points" className="mx-auto w-full max-w-[1180px] px-5 py-14">
-      <SectionTitle
-        eyebrow="미용샵 사장님이라면 익숙한 하루"
-        title="미용은 내가 제일 잘하는데, 그 사이 놓치는 손님이 생깁니다"
-        body="예약을 많이 받는 날일수록 이런 순간이 늘어납니다. 넘친 Day는 이 네 가지부터 막아드립니다."
-      />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {painPoints.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-[8px] border border-[#dce5f2] bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#fef2f2] text-[#dc2626]">
-              <Icon size={18} />
+    <section id="pain-points" className="border-y border-[#e7edf5] bg-[#f5f7fb] py-16">
+      <div className="mx-auto w-full max-w-[1180px] px-5">
+        <SectionTitle
+          eyebrow="미용샵 사장님이라면 익숙한 하루"
+          title="미용은 내가 제일 잘하는데, 그 사이 놓치는 손님이 생깁니다"
+          body="예약을 많이 받는 날일수록 이런 순간이 늘어납니다. 넘친 Day는 이 네 가지부터 막아드립니다."
+        />
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {painPoints.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-[8px] border border-[#dce5f2] bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#eff6ff] text-[#2563eb]">
+                <Icon size={18} />
+              </div>
+              <h3 className="mt-4 text-[17px] font-black leading-snug">{title}</h3>
+              <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{body}</p>
             </div>
-            <h3 className="mt-4 text-[17px] font-black leading-snug">{title}</h3>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{body}</p>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -271,33 +273,35 @@ function SavingsSection() {
 
 function CustomerFlowSection() {
   return (
-    <section className="mx-auto w-full max-w-[1180px] px-5 py-14">
-      <SectionTitle
-        eyebrow="고객이 예약할 때 이미 시작됩니다"
-        title="고객이 남긴 정보가, 오너의 고객관리로 자동 연결됩니다"
-        body="고객 예약 화면도 실제 라우트에서 캡처했습니다. 개인정보를 다시 묻지 않고 자동으로 모으는 흐름을 그대로 보여드립니다."
-      />
-      <div className="mt-8 grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
-          {customerScreens.map((screen) => (
-            <PhoneScreenCard key={screen.title} {...screen} />
-          ))}
-        </div>
-        <div className="rounded-[8px] border border-[#dce5f2] bg-white p-6 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
-          <h3 className="text-[28px] font-black tracking-normal">예약 접수와 고객관리 사이의 반복 입력을 줄입니다</h3>
-          <p className="mt-3 text-[16px] leading-8 text-[#526071]">
-            고객이 예약할 때 보호자명, 연락처, 반려동물 정보를 직접 남기기 때문에 오너가 상담 후 다시 고객정보로 옮겨 적는 흐름을 줄일 수 있습니다.
-          </p>
-          <div className="mt-6 grid gap-3">
-            {sellingPoints.map((point) => (
-              <div key={point} className="flex gap-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfdff] p-4">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" />
-                <p className="text-[15px] font-bold leading-7 text-[#334155]">{point}</p>
-              </div>
+    <section id="customer-flow" className="border-y border-[#e7edf5] bg-[#f5f7fb] py-16">
+      <div className="mx-auto w-full max-w-[1180px] px-5">
+        <SectionTitle
+          eyebrow="고객이 예약할 때 이미 시작됩니다"
+          title="고객이 남긴 정보가, 오너의 고객관리로 자동 연결됩니다"
+          body="고객 예약 화면도 실제 라우트에서 캡처했습니다. 개인정보를 다시 묻지 않고 자동으로 모으는 흐름을 그대로 보여드립니다."
+        />
+        <div className="mt-8 grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+            {customerScreens.map((screen) => (
+              <PhoneScreenCard key={screen.title} {...screen} />
             ))}
           </div>
-          <div className="mt-6">
-            <ActualImageFrame title="고객관리 실제 화면" src="/images/landing/actual-customers.png" />
+          <div className="rounded-[8px] border border-[#dce5f2] bg-white p-6 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+            <h3 className="text-[28px] font-black tracking-normal">예약 접수와 고객관리 사이의 반복 입력을 줄입니다</h3>
+            <p className="mt-3 text-[16px] leading-8 text-[#526071]">
+              고객이 예약할 때 보호자명, 연락처, 반려동물 정보를 직접 남기기 때문에 오너가 상담 후 다시 고객정보로 옮겨 적는 흐름을 줄일 수 있습니다.
+            </p>
+            <div className="mt-6 grid gap-3">
+              {sellingPoints.map((point) => (
+                <div key={point} className="flex gap-3 rounded-[8px] border border-[#e2e8f0] bg-[#fbfdff] p-4">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" />
+                  <p className="text-[15px] font-bold leading-7 text-[#334155]">{point}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6">
+              <ActualImageFrame title="고객관리 실제 화면" src="/images/landing/actual-customers.png" />
+            </div>
           </div>
         </div>
       </div>
@@ -330,20 +334,21 @@ function OwnerValueSection() {
 
 function PricingSection() {
   return (
-    <section id="pricing" className="mx-auto w-full max-w-[1180px] px-5 py-16">
-      <SectionTitle
-        eyebrow="요금제"
-        title="혼자든 여럿이든, 매장 규모에 맞춰 선택하세요"
-        body="광고에서 실제 화면을 확인한 뒤, 오너가 자신의 매장 규모에 맞는 플랜으로 바로 이어질 수 있게 구성했습니다."
-      />
-      <div className="mt-8 grid gap-5 lg:grid-cols-3">
-        {billableOwnerPlans.map((plan) => (
-          <article
-            key={plan.code}
-            itemScope
-            itemType="https://schema.org/Product"
-            className={`rounded-[8px] border bg-white p-6 ${plan.featured ? "border-[#2563eb] shadow-[0_18px_46px_rgba(37,99,235,0.14)]" : "border-[#dce5f2]"}`}
-          >
+    <section id="pricing" className="border-t border-[#e7edf5] bg-[#f5f7fb] py-16">
+      <div className="mx-auto w-full max-w-[1180px] px-5">
+        <SectionTitle
+          eyebrow="요금제"
+          title="혼자든 여럿이든, 매장 규모에 맞춰 선택하세요"
+          body="광고에서 실제 화면을 확인한 뒤, 오너가 자신의 매장 규모에 맞는 플랜으로 바로 이어질 수 있게 구성했습니다."
+        />
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {billableOwnerPlans.map((plan) => (
+            <article
+              key={plan.code}
+              itemScope
+              itemType="https://schema.org/Product"
+              className={`rounded-[8px] border bg-white p-6 ${plan.featured ? "border-[#2563eb] shadow-[0_18px_46px_rgba(37,99,235,0.14)]" : "border-[#dce5f2]"}`}
+            >
             <meta itemProp="category" content="반려동물 미용샵 운영 SaaS" />
             <div className="flex items-center justify-between gap-3">
               <h3 itemProp="name" className="text-[25px] font-black">{plan.title}</h3>
@@ -368,8 +373,9 @@ function PricingSection() {
             >
               시작하기
             </Link>
-          </article>
-        ))}
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -465,8 +471,15 @@ function PhoneScreenCard({ title, body, src }: { title: string; body: string; sr
         </div>
       </div>
       <p className="mb-4 text-[15px] leading-7 text-[#526071]">{body}</p>
-      <div className="mx-auto max-h-[620px] max-w-[290px] overflow-hidden rounded-[28px] border-[7px] border-[#111827] bg-white">
-        <Image src={src} alt={`${title} 실제 화면 캡처`} width={430} height={1200} className="h-auto w-full" sizes="290px" />
+      <div className="mx-auto h-[440px] max-w-[290px] overflow-hidden rounded-[28px] border-[7px] border-[#111827] bg-white md:h-[500px]">
+        <Image
+          src={src}
+          alt={`${title} 실제 화면 캡처`}
+          width={430}
+          height={1200}
+          className="h-full w-full object-cover object-top"
+          sizes="290px"
+        />
       </div>
     </article>
   );

@@ -1861,6 +1861,14 @@ function BookingSidePanel({
 
   function buildStatusConfirmCopy(nextStatus: string) {
     const petName = selectedBooking?.pet ?? "선택한 예약";
+    if (nextStatus === "취소") {
+      return {
+        title: "예약 취소하시겠습니까?",
+        message: `${petName} 예약이 취소됩니다. 취소된 예약은 스케줄 보드에서 사라지고 캘린더에서 확인할 수 있어요.`,
+        confirmLabel: "예약 취소",
+        danger: true,
+      };
+    }
     if (nextStatus === "진행 중") {
       return {
         title: "미용을 시작할까요?",
@@ -1883,7 +1891,7 @@ function BookingSidePanel({
   }
 
   function requestStatusChange(bookingId: string, nextStatus: string) {
-    if (nextStatus !== "진행 중" && nextStatus !== "픽업 준비") {
+    if (nextStatus !== "진행 중" && nextStatus !== "픽업 준비" && nextStatus !== "취소") {
       onChangeStatus(bookingId, nextStatus);
       return;
     }
@@ -2214,14 +2222,19 @@ function BookingSidePanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">몸무게</span>
-                  <input
-                    value={petProfileDraft.weight}
-                    onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
-                    onBlur={() => void savePetProfile()}
-                    inputMode="decimal"
-                    placeholder="kg"
-                    className="h-9 w-full rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:bg-white"
-                  />
+                  <span className="relative block">
+                    <input
+                      value={petProfileDraft.weight}
+                      onChange={(event) => setPetProfileDraft((current) => ({ ...current, weight: event.target.value }))}
+                      onBlur={() => void savePetProfile()}
+                      inputMode="decimal"
+                      placeholder="kg"
+                      className="h-9 w-full rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:bg-white"
+                    />
+                    {petProfileDraft.weight.trim() ? (
+                      <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[14px] text-[#64748b]">kg</span>
+                    ) : null}
+                  </span>
                 </label>
                 <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">생일</span>
@@ -2273,7 +2286,7 @@ function BookingSidePanel({
 
             {benefitSummary ? (
               <section className="pt-3">
-                <div className="border-y border-[#e6edf2] py-2.5">
+                <div className="border-b border-[#e6edf2] py-2.5">
                   <div className="grid gap-1.5">
                     {benefitSummary.coupons.map((coupon) => (
                       <div
@@ -2432,7 +2445,7 @@ function BookingSidePanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
+                      onClick={() => requestStatusChange(selectedBooking.id, "취소")}
                       className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-normal text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                     >
                       예약 취소
@@ -2482,7 +2495,7 @@ function BookingSidePanel({
                   {!workflowCompleted && !changeEventSelected ? (
                     <button
                       type="button"
-                      onClick={() => onChangeStatus(selectedBooking.id, "취소")}
+                      onClick={() => requestStatusChange(selectedBooking.id, "취소")}
                       className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] transition hover:bg-[#f8fafc]"
                     >
                       <X className="h-4 w-4 text-[#64748b]" />
@@ -4493,6 +4506,16 @@ export default function CalendarManagementScreen({
     ) return;
 
     const nextBooking = { ...targetBooking, status: nextStatus };
+    const optimisticBootstrapData = nextAppointmentStatus
+      ? {
+          ...bootstrapData,
+          appointments: bootstrapData.appointments.map((appointment) =>
+            appointment.id === bookingId ? { ...appointment, status: nextAppointmentStatus } : appointment,
+          ),
+        }
+      : bootstrapData;
+
+    statusChangeInFlightRef.current = true;
     setBoardError("");
     if (nextAppointmentStatus) {
       recentStatusOverridesRef.current[bookingId] = {
@@ -4500,12 +4523,13 @@ export default function CalendarManagementScreen({
         createdAt: Date.now(),
       };
     }
+    setBootstrapData(optimisticBootstrapData);
+    onDataChange?.(optimisticBootstrapData);
     setBookings((current) =>
       current.map((booking) => (booking.id === bookingId ? nextBooking : booking)),
     );
     setScheduleStatusHour(getCurrentDayHour());
 
-    statusChangeInFlightRef.current = true;
     try {
       const shouldSendPickupReadyNotification = nextStatus === "픽업 준비" && options.notifyCustomer !== false;
       await persistBookingStatusChange(

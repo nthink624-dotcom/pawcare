@@ -605,7 +605,7 @@ export default function ShopInfoSettingsPanel({
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_352px]">
+    <div className="grid h-full min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[18px] border border-transparent bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)] after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[18px] after:border after:border-[#dbe2ea] after:content-['']">
           <div className="shrink-0 border-b border-[#e1e4ea] bg-white/90 px-5 py-3 backdrop-blur">
             <div className="flex items-center justify-between gap-4">
@@ -627,7 +627,7 @@ export default function ShopInfoSettingsPanel({
             </div>
           </div>
 
-          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white px-5 py-5 [scrollbar-width:thin]">
+          <div ref={settingsScrollRef} className="min-h-0 overflow-y-auto bg-white py-5 pl-5 pr-1 [scrollbar-width:thin]">
             <div className="w-full space-y-[18px] pb-24">
               <PanelCard
                 id="shop-info-basic"

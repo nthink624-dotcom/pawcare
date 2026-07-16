@@ -235,7 +235,7 @@ export function StaffList({
   const todayDate = currentDateInTimeZone();
 
   return (
-    <div className="max-h-[560px] overflow-y-auto px-4 py-4">
+    <div className="max-h-[560px] overflow-y-auto py-4 pl-4 pr-1">
       <div className="grid gap-3 2xl:grid-cols-2">
           {staff.map((staffMember, staffIndex) => {
             const active = selectedStaffId === staffMember.id;

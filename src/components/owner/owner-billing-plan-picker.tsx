@@ -195,6 +195,7 @@ function PlanCard({
 
       <div className="mt-4 grid gap-1.5">
         <PlanFact label="운영 기준" value={operatingLabel} />
+        <PlanFact label="이용 기간" value={plan.code === "free" ? "14일 무료 체험" : "결제일부터 1개월"} />
         <PlanFact label="포함 알림톡" value={plan.alimtalkIncludedLabel} />
         <PlanFact label="직원 계정·권한" value={staffAccountLabel} />
       </div>

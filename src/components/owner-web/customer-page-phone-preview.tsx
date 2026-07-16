@@ -191,8 +191,8 @@ export function CustomerPagePreviewLayout({
   hidePreview?: boolean;
 }) {
   return (
-    <div className={cn("grid h-full min-h-0 gap-4", !hidePreview && "xl:grid-cols-[minmax(0,1fr)_352px]", className)}>
-      <div className="min-h-0 min-w-0 overflow-y-auto pr-1">{children}</div>
+    <div className={cn("grid h-full min-h-0 gap-2", !hidePreview && "xl:grid-cols-[minmax(0,1fr)_320px]", className)}>
+      <div className="min-h-0 min-w-0 overflow-y-auto">{children}</div>
       {!hidePreview ? (
         <aside className="hidden h-full min-h-0 rounded-[18px] border border-[#e1e4ea] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.06)] xl:flex">
           <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden px-6 py-5">

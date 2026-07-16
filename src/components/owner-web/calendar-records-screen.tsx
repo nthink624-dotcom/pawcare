@@ -1257,7 +1257,7 @@ function GroomingRecordSheet({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto py-5 pl-5 pr-1">
           <section className={cn("rounded-[8px] border bg-white p-4", getWrapIndicatorClass(getStatusAccent(item)))}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1431,7 +1431,7 @@ function GroomingRecordSheet({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto py-5 pl-5 pr-1">
           <section className={cn("rounded-[8px] border bg-white px-3 py-2.5", getWrapIndicatorClass(getStatusAccent(item)))}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">

@@ -374,8 +374,8 @@ export function DailyScheduleGrid({
   const columnFlexBasis = columnCount === 0
     ? "0 0 100%"
     : scrollable
-      ? "0 0 calc((100% - 24px) / 4)"
-      : `0 0 calc((100% - ${(columnCount - 1) * 8}px) / ${columnCount})`;
+      ? "0 0 25%"
+      : `0 0 calc(100% / ${columnCount})`;
   const scheduleTrackStyle = scheduleTrackWidth ? { width: scheduleTrackWidth, minWidth: scheduleTrackWidth } : undefined;
   const displayedVisibleBookings = resizingBooking
     ? visibleBookings.map((booking) =>

@@ -944,7 +944,7 @@ export default function CustomerBookingEntryPage({
                 <span className="p">{formatServicePrice(service.price, service.priceType)}</span>
               </div>
             ))}
-            <div className="full" onClick={() => setPriceSheetOpen(true)}>서비스 안내 전체보기 ›</div>
+            <div className="full" onClick={() => setPriceSheetOpen(true)}>요금표 전체 보기 ›</div>
           </div>
         </div>
       </div>
@@ -1055,13 +1055,13 @@ export default function CustomerBookingEntryPage({
             <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#f3d8d1]" />
             <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
               <div>
-                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">서비스 안내</h3>
+                <h3 className="text-[20px] font-semibold tracking-[-0.03em] text-[#2f211d]">요금표</h3>
               </div>
               <button
                 type="button"
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#f1d7d1] bg-white text-[#8b6259] shadow-sm"
                 onClick={() => setPriceSheetOpen(false)}
-                aria-label="서비스 안내 닫기"
+                aria-label="요금표 닫기"
               >
                 <X className="h-4.5 w-4.5" strokeWidth={1.8} />
               </button>
@@ -1085,11 +1085,9 @@ export default function CustomerBookingEntryPage({
                             className="flex w-full items-start justify-between gap-2 rounded-[10px] px-2 py-1 text-left transition hover:bg-[#fff4f1]"
                             aria-expanded={breedGuideOpen}
                           >
-                            <span className="min-w-0">
-                              <span className="block text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
-                              <span className="mt-0.5 block truncate text-[12px] font-normal leading-5 text-[#9a7168]">대표 품종: {breedGuide.summary}</span>
-                            </span>
-                            <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] text-[#e76557]">
+                            <span className="min-w-0 text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
+                            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] border border-[#f2cfc8] bg-[#fff8f6] px-2.5 text-[13px] font-normal text-[#8b6259]">
+                              품종 확인
                               <ChevronDown className={`h-3.5 w-3.5 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
                             </span>
                           </button>

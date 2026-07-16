@@ -281,12 +281,15 @@ function getScheduleOperatingWindow(shop: BootstrapPayload["shop"], date: string
   const [year, month, day] = date.split("-").map(Number);
   const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
   const hours = shop.business_hours[weekday];
-  if (!hours?.enabled) return { enabled: false, openHour: 0, closeHour: 0 };
+  const fallbackHours = [1, 2, 3, 4, 5, 6, 0]
+    .map((dayIndex) => shop.business_hours[dayIndex])
+    .find((candidate) => candidate?.enabled) ?? { open: "10:00", close: "19:00", enabled: true };
+  const displayHours = hours?.enabled ? hours : fallbackHours;
 
   return {
     enabled: true,
-    openHour: timeToHour(hours.open),
-    closeHour: timeToHour(hours.close),
+    openHour: timeToHour(displayHours.open),
+    closeHour: timeToHour(displayHours.close),
   };
 }
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { AppButton } from "@/components/ui/app-button";
+import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 
 import type { BillingConsentProps } from "./types";
 
-function BillingSummaryRow({
+function BillingSummaryItem({
   label,
   value,
 }: {
@@ -12,21 +12,21 @@ function BillingSummaryRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5">
-      <p className="text-[13px] text-[#6e665c]">{label}</p>
-      <p className="text-right text-[14px] font-medium tracking-[-0.02em] text-[#171411]">{value}</p>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 md:border-r md:border-[#e7edf3] md:last:border-r-0">
+      <p className="min-w-0 whitespace-nowrap text-[13px] font-medium text-[#64748b]">{label}</p>
+      <p className="min-w-0 whitespace-nowrap text-right text-[15px] font-medium text-[#0f172a]">{value}</p>
     </div>
   );
 }
 
 export function BillingConsent({
-  eyebrow = "플랜 이용 안내",
-  title = "정기결제 안내",
+  eyebrow = "플랜 결제",
+  title = "정기결제 확인",
   planLabel,
   billingCycleLabel,
   nextBillingDateLabel,
   consentLines,
-  checkboxLabel = "위 정기결제 안내에 동의합니다.",
+  checkboxLabel = "정기결제 안내와 결제 조건을 확인했습니다.",
   agreed,
   loading = false,
   message = null,
@@ -38,69 +38,85 @@ export function BillingConsent({
   continueButtonRef,
 }: BillingConsentProps) {
   return (
-    <div className="owner-font mx-auto w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-8 pt-6 text-[#171411]">
-      <section className="rounded-[22px] border border-[#e1dacd] bg-[#fffdf8] px-4.5 pb-5 pt-4.5 shadow-[0_10px_30px_rgba(41,41,38,0.04)]">
-        <p className="text-[12px] font-medium tracking-[-0.02em] text-[#1f6b5b]">{eyebrow}</p>
-        <h1 className="mt-1.5 text-[28px] font-semibold leading-[1.12] tracking-[-0.05em] text-[#171411]">{title}</h1>
+    <div className="owner-font min-h-full bg-[#f5f8fb] px-4 py-8 text-[#0f172a] lg:px-8 lg:py-10">
+      <section className="mx-auto w-full max-w-[760px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+        <header className="border-b border-[#e7edf3] px-6 py-5 lg:px-8">
+          <p className="text-[13px] font-medium text-[#2563eb]">{eyebrow}</p>
+          <h1 className="mt-1 text-[24px] font-semibold leading-8 text-[#0f172a]">{title}</h1>
+          <p className="mt-2 text-[14px] leading-5 text-[#64748b]">선택한 요금제와 결제 조건을 확인한 뒤 계속해 주세요.</p>
+        </header>
 
-        <div className="mt-4 rounded-[16px] border border-[#e4dccf] bg-white px-3.5 py-2.5">
-          <BillingSummaryRow label="선택 플랜" value={planLabel} />
-          <div className="border-t border-[#efe8dc]" />
-          <BillingSummaryRow label="결제 주기" value={billingCycleLabel} />
-          <div className="border-t border-[#efe8dc]" />
-          <BillingSummaryRow label="다음 결제 예정일" value={nextBillingDateLabel} />
-        </div>
+        <div className="px-6 py-6 lg:px-8">
+          <section className="grid overflow-hidden divide-y divide-[#e7edf3] rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(230px,1.1fr)] md:divide-x md:divide-y-0">
+            <BillingSummaryItem label="선택 플랜" value={planLabel} />
+            <BillingSummaryItem label="결제 주기" value={billingCycleLabel} />
+            <BillingSummaryItem label="다음 결제 예정일" value={nextBillingDateLabel} />
+          </section>
 
-        <div className="mt-3 rounded-[16px] border border-[#e4dccf] bg-white px-3.5 py-3.5">
-          <div className="space-y-2 text-[14px] leading-[1.45] tracking-[-0.02em] text-[#5f5951]">
-            {consentLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+          <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+            <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+              <h2 className="text-[15px] font-medium text-[#334155]">결제 안내</h2>
+              <ul className="mt-3 space-y-2 text-[14px] leading-5 text-[#475569]">
+                {consentLines.map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#94a3b8]" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <aside className="rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-4">
+              <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
+              <p className="mt-3 text-[14px] font-medium text-[#334155]">안전한 카드 등록</p>
+              <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+                카드 정보는 PG사의 보안창에서 입력되며, 넘친 Day는 카드번호 전체를 저장하지 않습니다.
+              </p>
+              <p className="mt-2 text-[12px] leading-5 text-[#64748b]">
+                카드 등록 과정에서 KCP 휴대폰 본인확인(PASS 또는 문자)이 1회 진행될 수 있습니다.
+              </p>
+            </aside>
           </div>
 
-          <label className="mt-3.5 flex items-center gap-3 rounded-[12px] border border-[#e4dccf] bg-white px-3.5 py-2.5">
+          <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
             <input
               type="checkbox"
               checked={agreed}
               onChange={(event) => onAgreeChange(event.target.checked)}
-              className="h-[18px] w-[18px] rounded border-[#cdc4b7] text-[#1f6b5b] focus:ring-[#1f6b5b]"
+              className="h-4 w-4 rounded border-[#94a3b8] text-[#2563eb] focus:ring-[#93c5fd]"
             />
-            <span className="relative -top-[1px] text-[15px] tracking-[-0.02em] text-[#171411]">{checkboxLabel}</span>
+            <span className="text-[14px] font-medium text-[#334155]">{checkboxLabel}</span>
           </label>
-        </div>
 
-        <div className="mt-4 grid gap-2.5">
-          <AppButton
-            ref={continueButtonRef}
-            fullWidth
-            disabled={loading || !agreed}
-            className={`h-[48px] rounded-[12px] text-[15px] font-semibold tracking-[-0.03em] text-white disabled:text-white disabled:opacity-100 ${
-              agreed
-                ? "bg-[#1f5b51] hover:bg-[#194a42] disabled:bg-[#1f5b51]"
-                : "bg-[#8fb1a7] disabled:bg-[#8fb1a7]"
-            }`}
-            onClick={onContinue}
-          >
-            {continueLabel}
-          </AppButton>
-
-          {onBack ? (
-            <AppButton
-              fullWidth
-              variant="secondary"
-              className="h-[48px] rounded-[12px] border-[#ddd5c8] bg-white text-[15px] font-medium tracking-[-0.02em] text-[#171411]"
-              onClick={onBack}
-            >
-              {backLabel}
-            </AppButton>
+          {message ? (
+            <p className="mt-4 rounded-[8px] border border-[#f1d3a6] bg-[#fff9ef] px-3 py-2.5 text-[14px] leading-5 text-[#9a5b13]">
+              {message}
+            </p>
           ) : null}
         </div>
 
-        {message ? (
-          <p className="mt-3.5 rounded-[12px] border border-[#ddd5c8] bg-white px-3.5 py-2.5 text-[14px] leading-[1.5] text-[#4a4640]">
-            {message}
-          </p>
-        ) : null}
+        <footer className="flex flex-col-reverse gap-2 border-t border-[#e7edf3] bg-[#fbfdff] px-6 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[14px] font-medium text-[#475569] transition hover:bg-[#eef2f7]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {backLabel}
+            </button>
+          ) : <span />}
+          <button
+            ref={continueButtonRef}
+            type="button"
+            disabled={loading || !agreed}
+            onClick={onContinue}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-5 text-[14px] font-medium text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
+          >
+            <CreditCard className="h-4 w-4" />
+            {continueLabel}
+          </button>
+        </footer>
       </section>
     </div>
   );

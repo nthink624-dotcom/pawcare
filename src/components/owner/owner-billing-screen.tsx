@@ -230,6 +230,8 @@ export default function OwnerBillingScreen({
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
+  const hasUserSelectedPlanRef = useRef(false);
+  const lastPreferredPlanCodeRef = useRef(preferredPlanCode);
 
   const selectedPlan = useMemo(() => getOwnerPlanByCode(selectedPlanCode) ?? initialSummary.currentPlan, [initialSummary.currentPlan, selectedPlanCode]);
   const selectedBillingAmount = useMemo(
@@ -316,11 +318,24 @@ export default function OwnerBillingScreen({
   }, [initialSummary]);
 
   useEffect(() => {
+    const preferredPlanChanged = lastPreferredPlanCodeRef.current !== preferredPlanCode;
+    lastPreferredPlanCodeRef.current = preferredPlanCode;
+
+    if (preferredPlanChanged) {
+      hasUserSelectedPlanRef.current = false;
+    }
+    if (hasUserSelectedPlanRef.current) {
+      return;
+    }
+
     setSelectedPlanCode(preferredPlanCode ?? (forcePlanPicker ? defaultPickerPlanCode : initialSummary.currentPlanCode));
+  }, [defaultPickerPlanCode, forcePlanPicker, initialSummary.currentPlanCode, preferredPlanCode]);
+
+  useEffect(() => {
     setIsSelectingPlan((forcePlanPicker || !preferredPlanCode) && !showPaymentRequiredNotice);
     setSelectionStep(openPaymentSheet ? "agreement" : "plan");
     setAgreementAccepted(false);
-  }, [defaultPickerPlanCode, forcePlanPicker, initialSummary.currentPlanCode, openPaymentSheet, preferredPlanCode, showPaymentRequiredNotice]);
+  }, [forcePlanPicker, openPaymentSheet, preferredPlanCode, showPaymentRequiredNotice]);
 
   useEffect(() => {
     setSelectedPaymentOption(summary.paymentMethodExists && !summary.paymentMethodResetRequired ? "saved" : "new");
@@ -413,6 +428,10 @@ export default function OwnerBillingScreen({
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
       });
+
+      if (!registeredSummary) {
+        return;
+      }
 
       setSummary(registeredSummary);
       setSelectedPlanCode(registeredSummary.currentPlanCode);
@@ -524,6 +543,13 @@ export default function OwnerBillingScreen({
     const savedSummary = await saveOwnerSubscriptionPreferences({ currentPlanCode: selectedPlanCode });
     setSummary(savedSummary);
     return savedSummary;
+  }
+
+  function handleSelectPlanCode(planCode: OwnerPlanCode) {
+    hasUserSelectedPlanRef.current = true;
+    setSelectedPlanCode(planCode);
+    setAgreementAccepted(false);
+    setMessage(null);
   }
 
   async function handlePaymentSheetSubmit() {
@@ -721,7 +747,7 @@ export default function OwnerBillingScreen({
           currentPlanCode={summary.currentPlanCode}
           selectedPlanCode={selectedPlanCode}
           totalShopCount={summary.billingAmount.multiShopDiscount.totalShopCount}
-          onSelectPlanCode={setSelectedPlanCode}
+          onSelectPlanCode={handleSelectPlanCode}
           onContinue={() => {
             setMessage(null);
             setSelectionStep("agreement");

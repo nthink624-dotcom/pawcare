@@ -1,7 +1,6 @@
 "use client";
 
-import { BellRing, CalendarCheck, ChevronLeft, ChevronRight, Clock3, Database, MessageSquareText, MessagesSquare, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { ChevronLeft, MessageSquareText } from "lucide-react";
 
 import {
   getOwnerPlanStaffAccountLabel,
@@ -52,39 +51,6 @@ const planUiByCode: Partial<Record<OwnerPlanCode, PlanUi>> = {
   },
 };
 
-const commonFeatures = [
-  {
-    icon: CalendarCheck,
-    title: "간편 예약",
-    description: "고객이 직접 예약하고 필요한 정보를 남깁니다.",
-  },
-  {
-    icon: MessagesSquare,
-    title: "예약 수집",
-    description: "전화·문자·DM 예약까지 한곳에서 관리합니다.",
-  },
-  {
-    icon: Clock3,
-    title: "추천시간",
-    description: "예약 공백을 줄이도록 가능한 시간을 안내합니다.",
-  },
-  {
-    icon: Database,
-    title: "고객 DB",
-    description: "고객과 반려견 정보가 자연스럽게 쌓입니다.",
-  },
-  {
-    icon: BellRing,
-    title: "자동 알림톡",
-    description: "예약부터 미용 완료까지 고객 안내를 보냅니다.",
-  },
-  {
-    icon: Sparkles,
-    title: "예약 현황",
-    description: "오늘 예약과 직원별 스케줄을 한눈에 봅니다.",
-  },
-];
-
 function getPlanUi(plan: OwnerPlan): PlanUi {
   return (
     planUiByCode[plan.code] ?? {
@@ -106,9 +72,9 @@ function isCurrentVisiblePlan(currentPlanCode: OwnerPlanCode, planCode: OwnerPla
 
 function PlanFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex h-8 items-center justify-between rounded-[8px] border border-[#e2e8f0] bg-[#fbfdff] px-3">
-      <span className="text-[12px] font-medium text-[#64748b]">{label}</span>
-      <span className="text-[13px] font-semibold text-[#111827]">{value}</span>
+    <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] py-2.5 last:border-b-0">
+      <span className="text-[13px] text-[#64748b]">{label}</span>
+      <span className="text-right text-[13px] font-medium text-[#334155]">{value}</span>
     </div>
   );
 }
@@ -154,42 +120,36 @@ function PlanCard({
         }
       }}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col rounded-[8px] border bg-white p-4 transition",
+        "flex min-w-0 cursor-pointer flex-col rounded-[8px] border bg-white p-5 transition",
         selected
-          ? "border-[var(--pm-brand-blue)] shadow-[0_16px_34px_var(--pm-brand-blue-shadow)]"
-          : "border-[#dde7f2] shadow-[0_10px_24px_rgba(15,23,42,0.04)] hover:border-[var(--pm-brand-blue-border)]",
+          ? "border-[#2563eb] shadow-[0_10px_26px_rgba(37,99,235,0.12)]"
+          : "border-[#dbe2ea] hover:border-[#94a3b8]",
       )}
     >
-      <div className={cn("-m-4 mb-0 rounded-t-[8px] px-4 py-4", selected ? "bg-[image:var(--pm-brand-blue-soft-gradient)]" : "bg-white")}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-[21px] font-semibold leading-tight text-[#0f172a]">{ui.title}</h2>
-            <p className="mt-1 text-[13px] font-medium text-[#64748b]">{subtitle}</p>
-          </div>
-          {badgeLabel ? (
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold",
-                current
-                  ? "bg-[#e8f7ef] text-[#1f9d55]"
-                  : selected || recommended
-                    ? "bg-[var(--pm-brand-blue)] text-white"
-                    : "bg-[#eef2f7] text-[#64748b]",
-              )}
-            >
-              {badgeLabel}
-            </span>
-          ) : null}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[20px] font-semibold leading-tight text-[#0f172a]">{ui.title}</h2>
+          <p className="mt-1 text-[13px] leading-5 text-[#64748b]">{subtitle}</p>
         </div>
+        {badgeLabel ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium",
+              current ? "bg-[#ecfdf3] text-[#1f9d55]" : selected || recommended ? "bg-[#eff6ff] text-[#2563eb]" : "bg-[#f1f5f9] text-[#64748b]",
+            )}
+          >
+            {badgeLabel}
+          </span>
+        ) : null}
       </div>
 
-      <div className="mt-4 border-t border-[#e5edf5] pt-4">
-        <p className="flex items-end gap-2 text-[#0f172a]">
-          <span className="pb-1 text-[14px] font-semibold text-[#334155]">월</span>
-          <span className={cn("text-[34px] font-semibold leading-none tracking-normal", selected ? "text-[var(--pm-brand-blue)]" : "text-[#0f172a]")}>
+      <div className="mt-6 border-t border-[#e7edf3] pt-5">
+        <p className="flex items-end gap-1.5 text-[#0f172a]">
+          <span className="pb-1 text-[13px] text-[#64748b]">월</span>
+          <span className={cn("text-[34px] font-semibold leading-none tracking-normal", selected ? "text-[#2563eb]" : "text-[#0f172a]")}>
             {won(plan.monthlyPrice).replace("원", "")}
           </span>
-          <span className="pb-1 text-[14px] font-semibold text-[#334155]">원</span>
+          <span className="pb-1 text-[14px] font-medium text-[#334155]">원</span>
         </p>
       </div>
 
@@ -212,8 +172,8 @@ function PlanCard({
         }}
         disabled={loading || current}
         className={cn(
-          "mt-3 flex h-10 w-full items-center justify-center rounded-[8px] text-[14px] font-semibold transition disabled:cursor-default disabled:opacity-60",
-          selected && !current ? "bg-[image:var(--pm-brand-blue-button-gradient)] text-white hover:bg-[var(--pm-brand-blue-hover)]" : "bg-[#eef3f9] text-[#334155] hover:bg-[#e2e8f0]",
+          "mt-5 flex h-10 w-full items-center justify-center rounded-[8px] border text-[14px] font-medium transition disabled:cursor-default disabled:opacity-60",
+          selected && !current ? "border-[#2563eb] bg-[#2563eb] text-white hover:bg-[#1d4ed8]" : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
         )}
       >
         {loading && selected ? "처리 중..." : actionLabel}
@@ -240,37 +200,33 @@ export function OwnerBillingPlanPicker({
   const visiblePlans = plans.filter((plan) => !plan.hidden);
   const selectedPlan = visiblePlans.find((plan) => plan.code === selectedPlanCode) ?? visiblePlans[0];
   const recommendedPlanCode = getRecommendedPlanCode(currentPlanCode);
-  const [featureIndex, setFeatureIndex] = useState(0);
-  const activeFeature = commonFeatures[featureIndex] ?? commonFeatures[0];
-  const ActiveFeatureIcon = activeFeature.icon;
-  const goPreviousFeature = () => setFeatureIndex((current) => (current - 1 + commonFeatures.length) % commonFeatures.length);
-  const goNextFeature = () => setFeatureIndex((current) => (current + 1) % commonFeatures.length);
 
   if (!selectedPlan) return null;
 
   return (
-    <div className="owner-font min-h-screen bg-[image:var(--pm-brand-blue-page-gradient)] px-4 py-3 text-[#0f172a] lg:px-6 lg:py-4">
-      <div className="mx-auto w-full max-w-[1320px]">
-        <section className="rounded-[8px] border border-[#dbe6f2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(37,99,235,0.08)] lg:px-6">
-          <header className="grid grid-cols-[minmax(96px,1fr)_auto_minmax(96px,1fr)] items-center gap-3 border-b border-[#e5edf5] pb-3">
-            <div className="flex justify-start">
+    <div className="owner-font min-h-screen bg-[#f6f8fb] px-4 py-6 text-[#0f172a] lg:px-8 lg:py-8">
+      <div className="mx-auto w-full max-w-[1180px]">
+        <section className="rounded-[8px] border border-[#dbe2ea] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)] lg:px-7 lg:py-6">
+          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7edf3] pb-5">
+            <div className="flex min-w-0 items-start gap-3">
               <button
                 type="button"
                 onClick={onBack}
-                className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dbe6f2] bg-white px-2.5 text-[13px] font-semibold text-[#475569] transition hover:bg-[#f8fafc]"
+                className="inline-flex h-9 shrink-0 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 이전
               </button>
+              <div>
+                <p className="text-[13px] font-medium text-[#64748b]">이용 플랜</p>
+                <h1 className="mt-1 text-[22px] font-semibold leading-tight text-[#0f172a]">매장 운영 인원에 맞는 플랜을 선택하세요</h1>
+              </div>
             </div>
-            <h1 className="min-w-0 text-center text-[19px] font-semibold leading-tight text-[#0f172a] lg:text-[21px]">
-              단일 매장 운영 인원에 맞는 플랜을 선택하세요
-            </h1>
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onOpenSupport}
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#cfe0f5] bg-white px-3 text-[13px] font-semibold text-[#316fe8] transition hover:bg-[#f8fbff]"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
               >
                 <MessageSquareText className="h-4 w-4" aria-hidden="true" />
                 1:1 문의
@@ -280,7 +236,7 @@ export function OwnerBillingPlanPicker({
                   type="button"
                   onClick={onCancelRenewal}
                   disabled={cancellingRenewal}
-                  className="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#e5d4d7] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:bg-[#fff7f8] disabled:opacity-60"
+                  className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#ead3d8] bg-white px-3 text-[13px] font-medium text-[#a04455] transition hover:bg-[#fff7f8] disabled:opacity-60"
                 >
                   {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
                 </button>
@@ -288,62 +244,12 @@ export function OwnerBillingPlanPicker({
             </div>
           </header>
 
-          <section className="mt-3 rounded-[8px] border border-[#cfe0f5] bg-[#f8fbff] px-3 py-2.5">
-            <div>
-              <h2 className="text-[16px] font-semibold leading-tight text-[#0f172a]">예약·고객 관리 기능은 그대로, 매장 규모에 맞춰 선택하세요</h2>
-            </div>
-            <div className="mt-2 rounded-[8px] border border-[#e3edf8] bg-white px-3 py-2.5">
-              <div className="grid min-h-[78px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-                <button
-                  type="button"
-                  onClick={goPreviousFeature}
-                  className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fbff] text-[#475569] transition hover:border-[var(--pm-brand-blue-border)] hover:text-[var(--pm-brand-blue)]"
-                  aria-label="이전 포함 기능"
-                >
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pm-brand-blue-soft)] text-[var(--pm-brand-blue)]">
-                    <ActiveFeatureIcon className="h-[22px] w-[22px]" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 pr-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[15px] font-semibold text-[#0f172a]">{activeFeature.title}</p>
-                      <span className="text-[11px] font-semibold text-[#94a3b8]">
-                        {featureIndex + 1}/{commonFeatures.length}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-[13px] font-medium leading-5 text-[#64748b]">{activeFeature.description}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={goNextFeature}
-                  className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#dbe6f2] bg-[#f8fbff] text-[#475569] transition hover:border-[var(--pm-brand-blue-border)] hover:text-[var(--pm-brand-blue)]"
-                  aria-label="다음 포함 기능"
-                >
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="mt-2 flex justify-center gap-1.5">
-                {commonFeatures.map((feature, index) => (
-                  <button
-                    key={feature.title}
-                    type="button"
-                    onClick={() => setFeatureIndex(index)}
-                    className={cn(
-                      "h-1.5 rounded-full transition",
-                      index === featureIndex ? "w-5 bg-[var(--pm-brand-blue)]" : "w-1.5 bg-[#cbd5e1] hover:bg-[#94a3b8]",
-                    )}
-                    aria-label={`${feature.title} 보기`}
-                    aria-current={index === featureIndex ? "true" : undefined}
-                  />
-                ))}
-              </div>
-            </div>
+          <section className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3">
+            <p className="text-[14px] font-medium text-[#334155]">모든 플랜에 기본 제공</p>
+            <p className="text-[13px] text-[#64748b]">간편 예약 · 고객 관리 · 예약 스케줄 · 자동 알림톡 · 직원 관리</p>
           </section>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
             {visiblePlans.map((plan) => (
               <PlanCard
                 key={plan.code}
@@ -359,18 +265,16 @@ export function OwnerBillingPlanPicker({
             ))}
           </div>
 
-          <section className="mt-4 rounded-[8px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
-            <p className="text-[12px] font-semibold text-[#0f172a]">모든 플랜은 1개 사업자/1개 매장 기준입니다.</p>
-            <p className="mt-0.5 text-[11.5px] font-medium leading-[18px] text-[#64748b]">
-              동일 브랜드라도 지점이 다르거나, 타 업체 예약·고객·직원 관리를 함께 사용하는 경우에는 별도 문의가 필요합니다.
-              서비스명, 직원명, 안내 문구로 타 업체나 지점을 구분해 운영하는 것도 공동 사용으로 봅니다. 외부 프리랜서는 해당 매장에서 실제 예약을 수행하는 담당자만 등록할 수 있습니다.
-            </p>
-          </section>
-
-          <section className="mt-3 rounded-[8px] border border-[#cfe0f5] bg-white px-3 py-2 text-[12px] font-semibold leading-5 text-[#2563eb]">
-            선택한 플랜의 매장당 월 금액을 기준으로 2개 매장부터 10%, 3개 매장부터 20% 다점포 할인이 전체 매장에 적용되며,
-            매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
-          </section>
+          <div className="mt-5 grid gap-4 border-t border-[#e7edf3] pt-4 lg:grid-cols-2">
+            <section>
+              <p className="text-[13px] font-medium text-[#334155]">이용 기준</p>
+              <p className="mt-1 text-[12px] leading-5 text-[#64748b]">모든 플랜은 1개 사업자/1개 매장 기준입니다. 동일 브랜드라도 지점이 다르거나, 타 업체 예약·고객·직원 관리를 함께 사용하는 경우에는 별도 문의가 필요합니다.</p>
+            </section>
+            <section>
+              <p className="text-[13px] font-medium text-[#334155]">다점포 할인</p>
+              <p className="mt-1 text-[12px] leading-5 text-[#64748b]">선택한 플랜의 매장당 월 금액을 기준으로 2개 매장부터 10%, 3개 매장부터 20% 할인이 적용됩니다. 변경분은 다음 결제일부터 반영됩니다.</p>
+            </section>
+          </div>
 
           {message ? (
             <p className="mt-4 rounded-[8px] border border-[#fecaca] bg-[#fff7f7] px-4 py-3 text-[14px] leading-6 text-[#b91c1c]">{message}</p>

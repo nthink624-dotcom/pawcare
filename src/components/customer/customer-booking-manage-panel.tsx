@@ -7,6 +7,7 @@ import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
 
 import { fetchApiJson } from "@/lib/api";
 import { isShopClosedOnDate } from "@/lib/availability";
+import { fetchCustomerAvailability } from "@/lib/customer-availability";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, formatServicePrice, minutesFromTime, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, GroomingRecord, Service, Shop } from "@/types/domain";
@@ -21,8 +22,6 @@ type LookupPayload = {
     action?: "reschedule" | null;
   };
 };
-
-type AvailabilityPayload = { slots: string[]; recommendedSlots?: string[] };
 
 type DateOption = {
   value: string;
@@ -244,13 +243,12 @@ export default function CustomerBookingManagePanel({
 
       setLoadingManageSlots(true);
       try {
-        const query = new URLSearchParams({
+        const result = await fetchCustomerAvailability({
           shopId,
           date: manageForm.date,
           serviceId: manageForm.serviceId,
           excludeAppointmentId: manageForm.appointmentId,
         });
-        const result = await fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`, { cache: "no-store" });
         if (!active) return;
         setManageSlots(result.slots);
         setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 2));
@@ -266,7 +264,7 @@ export default function CustomerBookingManagePanel({
     return () => {
       active = false;
     };
-  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, manageForm?.timeSlot, shopId]);
+  }, [manageForm?.appointmentId, manageForm?.date, manageForm?.serviceId, shopId]);
 
   useEffect(() => {
     let active = true;

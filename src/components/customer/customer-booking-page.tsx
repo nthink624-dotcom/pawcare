@@ -14,14 +14,13 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
+import { fetchCustomerAvailability, type CustomerAvailabilityPayload } from "@/lib/customer-availability";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
 
 type ActiveMode = "first" | "manage" | null;
 type FirstVisitStep = 1 | 2 | 3 | 4 | 5;
-
-type AvailabilityPayload = { slots: string[]; recommendedSlots?: string[] };
 
 type DateOption = {
   value: string;
@@ -328,18 +327,6 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });
-}
-
-async function fetchAvailabilitySlots(
-  shopId: string,
-  date: string,
-  options: { serviceId?: string; previewDurationMinutes?: number; staffId?: string | null },
-) {
-  const query = new URLSearchParams({ shopId, date });
-  if (options.serviceId) query.set("serviceId", options.serviceId);
-  if (options.previewDurationMinutes) query.set("previewDurationMinutes", String(options.previewDurationMinutes));
-  if (options.staffId) query.set("staffId", options.staffId);
-  return fetchJson<AvailabilityPayload>(`/api/availability?${query.toString()}`, { cache: "no-store" });
 }
 
 function buildDateOptions(shop: Shop): DateOption[] {
@@ -662,15 +649,13 @@ export default function CustomerBookingPage({
       try {
         const usesPreviewSlots = !firstVisit.serviceId || firstVisit.serviceId === CUSTOM_SERVICE_ID;
         const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
-        const result = await fetchAvailabilitySlots(
+        const result: CustomerAvailabilityPayload = await fetchCustomerAvailability({
           shopId,
-          firstVisit.date,
-          {
+          date: firstVisit.date,
             serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
             previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? (firstVisit.serviceId === CUSTOM_SERVICE_ID ? 120 : 30) : undefined),
             staffId: firstVisit.staffId || null,
-          },
-        );
+        });
         if (!active) return;
         setFirstVisitSlots(result.slots);
         setFirstVisitRecommendedSlots(result.recommendedSlots ?? []);
@@ -683,7 +668,7 @@ export default function CustomerBookingPage({
     }
     void load();
     return () => { active = false; };
-  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, firstVisit.timeSlot, firstVisitStep, hasInitialFirstVisitSlot, selectedFirstServiceOption?.durationMinutes, shopId]);
+  }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, selectedFirstServiceOption?.durationMinutes, shopId]);
 
   function resetView() {
     window.location.href = entryHref || `/entry/${shopId}`;

@@ -536,28 +536,34 @@ export default function ServiceManagementScreen({
     });
   }
 
-  async function saveService({ showError = true }: { showError?: boolean } = {}) {
-    const draftError = getServiceDraftError(serviceForm);
+  async function saveService({
+    showError = true,
+    formToSave = serviceForm,
+  }: {
+    showError?: boolean;
+    formToSave?: ServiceForm;
+  } = {}) {
+    const draftError = getServiceDraftError(formToSave);
     if (draftError) {
       if (showError) setFormError(draftError);
       setAutosaveStatus("needs-info");
       return false;
     }
 
-    const saveSignature = getServiceFormSignature(serviceForm);
-    const price = formatPrice(serviceForm.price);
+    const saveSignature = getServiceFormSignature(formToSave);
+    const price = formatPrice(formToSave.price);
     const nextService: ManagedService = {
-      id: serviceForm.id ?? createServiceId(),
-      name: serviceForm.name.trim(),
-      category: serviceForm.category,
-      duration: `${Number(serviceForm.duration) || 60}분`,
+      id: formToSave.id ?? createServiceId(),
+      name: formToSave.name.trim(),
+      category: formToSave.category,
+      duration: `${Number(formToSave.duration) || 60}분`,
       price,
       capacity: "동일 시간 1건",
-      staff: serviceForm.staff,
-      visible: serviceForm.visible,
-      description: serviceForm.description.trim(),
-      priceGuide: normalizeServicePriceGuide(serviceForm.priceGuide),
-      order: serviceForm.id ? (selectedService?.order ?? services.length + 1) : services.length + 1,
+      staff: formToSave.staff,
+      visible: formToSave.visible,
+      description: formToSave.description.trim(),
+      priceGuide: normalizeServicePriceGuide(formToSave.priceGuide),
+      order: formToSave.id ? (selectedService?.order ?? services.length + 1) : services.length + 1,
     };
 
     const previousServices = services;
@@ -670,13 +676,18 @@ export default function ServiceManagementScreen({
           ? "서비스명과 가격 입력 시 자동 저장"
           : "입력하면 자동 저장됩니다";
 
-  function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false) {
+  function updatePriceGuide(priceGuide: ServicePriceGuide, forceEnabled = false, saveImmediately = false) {
     const nextPriceGuide = normalizeServicePriceGuide(forceEnabled ? { ...priceGuide, enabled: true } : priceGuide);
-    setServiceForm((form) => ({ ...form, priceGuide: nextPriceGuide }));
+    const nextForm = { ...serviceForm, priceGuide: nextPriceGuide };
+    latestServiceFormSignatureRef.current = getServiceFormSignature(nextForm);
+    setServiceForm(nextForm);
     if (selectedServiceId) {
       setServices((current) =>
         current.map((service) => (service.id === selectedServiceId ? { ...service, priceGuide: nextPriceGuide } : service)),
       );
+    }
+    if (saveImmediately) {
+      void saveService({ showError: false, formToSave: nextForm });
     }
   }
 
@@ -870,7 +881,7 @@ export default function ServiceManagementScreen({
         <div className="space-y-5">
           <ServicePriceGuideEditor
             value={{ ...serviceForm.priceGuide, enabled: true }}
-            onChange={(priceGuide) => updatePriceGuide(priceGuide, true)}
+            onChange={(priceGuide, options) => updatePriceGuide(priceGuide, true, options?.saveImmediately)}
             framed={false}
             showHeader={false}
             showEnabledToggle={false}
@@ -971,7 +982,7 @@ export default function ServiceManagementScreen({
                 <div className="border-b border-[#edf2f7] bg-[#fbfdff] px-5 py-4">
                   <ServicePriceGuideEditor
                     value={serviceForm.priceGuide}
-                    onChange={(priceGuide) => updatePriceGuide(priceGuide)}
+                    onChange={(priceGuide, options) => updatePriceGuide(priceGuide, false, options?.saveImmediately)}
                   />
                 </div>
               ) : null}

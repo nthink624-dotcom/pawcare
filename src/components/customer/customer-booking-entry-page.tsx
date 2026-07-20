@@ -3,6 +3,7 @@
 import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
+import { DenseBreedChipList } from "@/components/customer/dense-breed-chip-list";
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
   applyConfiguredCustomerServiceOverrides,
@@ -1077,33 +1078,27 @@ export default function CustomerBookingEntryPage({
 
                     return (
                     <section key={breedGuideKey} className="overflow-hidden rounded-[16px] border border-[#f1d7d1] bg-white shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
-                      <div className="border-b border-[#f6e2dd] bg-white p-2.5">
+                      <div className="border-b border-[#f6e2dd] bg-white">
                         {breedGuide ? (
                           <button
                             type="button"
                             onClick={() => toggleBreedGuide(breedGuideKey)}
-                            className="flex w-full items-start justify-between gap-2 rounded-[10px] px-2 py-1 text-left transition hover:bg-[#fff4f1]"
+                            className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition hover:bg-[#fffaf8]"
                             aria-expanded={breedGuideOpen}
                           >
-                            <span className="min-w-0 text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
-                            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] border border-[#f2cfc8] bg-[#fff8f6] px-2.5 text-[13px] font-normal text-[#8b6259]">
+                            <span className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
+                            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[7px] bg-[#fff1ed] px-2.5 text-[13px] font-medium text-[#9a5f54]">
                               품종 확인
                               <ChevronDown className={`h-3.5 w-3.5 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
                             </span>
                           </button>
                         ) : (
-                          <div className="px-2 py-1">
-                            <p className="text-[14px] font-normal text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</p>
+                          <div className="flex min-h-12 items-center px-4 py-2.5">
+                            <p className="truncate text-[15px] font-semibold leading-5 text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</p>
                           </div>
                         )}
                         {breedGuide && breedGuideOpen ? (
-                          <div className="mt-1 flex flex-wrap gap-1.5 px-2 pb-1">
-                            {breedGuide.breeds.map((breed) => (
-                              <span key={`${breedGuideKey}-${breed}`} className="inline-flex h-7 items-center rounded-full border border-[#f2cfc8] bg-[#fff8f6] px-2 text-[13px] font-normal text-[#6d4b43]">
-                                {breed}
-                              </span>
-                            ))}
-                          </div>
+                          <DenseBreedChipList breeds={breedGuide.breeds} groupKey={breedGuideKey} />
                         ) : null}
                       </div>
                       <div className="overflow-x-auto">

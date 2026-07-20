@@ -251,18 +251,12 @@ function defaultBookingSettings(shop?: Shop): BookingSettingsState {
     firstBookingTime: shop?.booking_available_start_time ?? "10:00",
     lastBookingTime: shop?.booking_available_end_time ?? "17:00",
     intervalMinutes: String(shop?.booking_slot_interval_minutes ?? 30),
-    blockedWindows:
-      blockedWindows.length > 0
-        ? blockedWindows.map((windowItem, index) => ({
-            id: windowItem.id ?? `block-${index + 1}`,
-            start: windowItem.start,
-            end: windowItem.end,
-            label: windowItem.label ?? "",
-          }))
-        : [
-            { id: "lunch", start: "13:00", end: "14:00", label: "점심시간" },
-            { id: "cleaning", start: "16:00", end: "16:30", label: "정리 시간" },
-          ],
+    blockedWindows: blockedWindows.map((windowItem, index) => ({
+      id: windowItem.id ?? `block-${index + 1}`,
+      start: windowItem.start,
+      end: windowItem.end,
+      label: windowItem.label ?? "",
+    })),
     temporaryHolidays: shop ? createTemporaryHolidaysFromShop(shop) : [],
   };
 
@@ -955,6 +949,10 @@ export default function OperatingHoursSettings({
                 금지 시간
               </button>
             </div>
+            <div className="mt-2 flex items-start gap-2 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-[13px] leading-5 text-[#64748b]">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#607080]" />
+              <p>금지 시간을 넣으면 서비스 소요 시간이나 예약 간격과 겹쳐 예약 가능한 시간이 애매하게 끊길 수 있어요. 꼭 필요한 시간만 설정해 주세요.</p>
+            </div>
             {bookingSettings.blockedWindows.length > 0 ? (
               <div className="mt-3 grid gap-2">
                 {bookingSettings.blockedWindows.map((windowItem) => (
@@ -976,6 +974,12 @@ export default function OperatingHoursSettings({
             ) : null}
           </div>
         </div>
+        <AiBookingRecommendationSettings
+          shop={shop}
+          onShopChange={onShopChange}
+          persistToSupabase={persistToSupabase}
+          compact
+        />
         {pendingTemporaryHolidayDate ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
             <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
@@ -1015,7 +1019,8 @@ export default function OperatingHoursSettings({
       ) : null}
       <div className={cn("flex items-center border-b border-[#dbe2ea]", compact ? "mb-2 gap-2 pb-2" : "mb-3 gap-5 pb-3")}>
         {[
-  { key: "business" as const, label: "매장 영업 시간" },
+          { key: "business" as const, label: "매장 영업 시간" },
+          { key: "booking" as const, label: "예약 시간 설정" },
         ].map((item) => (
           <button
             key={item.key}
@@ -1198,6 +1203,10 @@ export default function OperatingHoursSettings({
                 <Plus className="h-4 w-4" />
                 금지 시간 추가
               </button>
+            </div>
+            <div className={cn("mt-2 flex items-start gap-2 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] text-[#64748b]", compact ? "px-2.5 py-2 text-[13px] leading-5" : "px-3 py-2.5 text-[14px] leading-5")}>
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#607080]" />
+              <p>금지 시간을 넣으면 서비스 소요 시간이나 예약 간격과 겹쳐 예약 가능한 시간이 애매하게 끊길 수 있어요. 꼭 필요한 시간만 설정해 주세요.</p>
             </div>
 
             <div className="mt-3 space-y-2">

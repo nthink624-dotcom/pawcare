@@ -65,11 +65,6 @@ const defaultExtraFees: ServicePriceGuideExtraFee[] = [
   { id: "coat_length_fee", label: "모량/기장 추가", price: "5,000" },
 ];
 
-const speciesOptions: Array<{ value: ServicePriceGuideSpecies; label: string; addLabel: string }> = [
-  { value: "dog", label: "강아지", addLabel: "강아지 그룹 추가" },
-  { value: "cat", label: "고양이", addLabel: "고양이 그룹 추가" },
-];
-
 function createGuideItemId() {
   return `price_item_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -359,14 +354,13 @@ function buildEmptySectionCells(weightBands: string[]) {
 function createBlankSectionFromTemplate(
   template: ServicePriceGuideSection,
   title: string,
-  species: ServicePriceGuideSpecies,
 ): ServicePriceGuideSection {
   const weightBands = template.weightBands.length > 0 ? [...template.weightBands] : [...basicWeightBands];
   const sourceItems = template.items.length > 0 ? template.items : defaultGuideSections[0].items;
 
   return {
     id: createGuideSectionId(),
-    species,
+    species: normalizeSpecies(template.species),
     title,
     note: "",
     weightBands,
@@ -480,7 +474,7 @@ export function ServicePriceGuideEditor({
   showEnabledToggle = true,
 }: {
   value: ServicePriceGuide;
-  onChange: (value: ServicePriceGuide) => void;
+  onChange: (value: ServicePriceGuide, options?: { saveImmediately?: boolean }) => void;
   framed?: boolean;
   showHeader?: boolean;
   showEnabledToggle?: boolean;
@@ -489,18 +483,15 @@ export function ServicePriceGuideEditor({
   const sections = guide.sections ?? [];
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
-  const [activeSpecies, setActiveSpecies] = useState<ServicePriceGuideSpecies>("dog");
   const [editingSectionIds, setEditingSectionIds] = useState<string[]>([]);
-  const activeSpeciesOption = speciesOptions.find((option) => option.value === activeSpecies) ?? speciesOptions[0];
-  const activeSections = sections.filter((section) => normalizeSpecies(section.species) === activeSpecies);
 
-  function updateSections(nextSections: ServicePriceGuideSection[]) {
+  function updateSections(nextSections: ServicePriceGuideSection[], saveImmediately = false) {
     onChange({
       ...guide,
       sections: nextSections,
       weightBands: [...(nextSections[0]?.weightBands ?? [])],
       items: legacyItemsFromSections(nextSections),
-    });
+    }, { saveImmediately });
   }
 
   function updateExtraFees(nextExtraFees: ServicePriceGuideExtraFee[]) {
@@ -527,7 +518,7 @@ export function ServicePriceGuideEditor({
 
   function commitDelete(nextSections: ServicePriceGuideSection[]) {
     setDeleteHistory((history) => [cloneSectionsSnapshot(sections), ...history].slice(0, 3));
-    updateSections(nextSections);
+    updateSections(nextSections, true);
     setPendingDelete(null);
   }
 
@@ -695,12 +686,11 @@ export function ServicePriceGuideEditor({
   }
 
   function addSection() {
-    const speciesDefaultSection = defaultGuideSections.find((section) => section.species === activeSpecies) ?? defaultGuideSections[0];
-    const template = activeSections[activeSections.length - 1] ?? speciesDefaultSection;
-    const baseTitle = activeSpecies === "cat" ? "새 고양이 그룹" : "새 강아지 그룹";
-    const newGroupCount = activeSections.filter((section) => section.title.trim().startsWith(baseTitle)).length + 1;
+    const template = sections[sections.length - 1] ?? defaultGuideSections[0];
+    const baseTitle = "새 그룹";
+    const newGroupCount = sections.filter((section) => section.title.trim().startsWith(baseTitle)).length + 1;
     const title = newGroupCount === 1 ? baseTitle : `${baseTitle} ${newGroupCount}`;
-    updateSections([...sections, createBlankSectionFromTemplate(template, title, activeSpecies)]);
+    updateSections([...sections, createBlankSectionFromTemplate(template, title)], true);
   }
 
   function removeSection(sectionId: string) {
@@ -746,29 +736,8 @@ export function ServicePriceGuideEditor({
 
       {guide.enabled ? (
         <div className={cn("space-y-4", showHeader || showEnabledToggle ? "mt-4" : "")}>
-          <div className="inline-flex rounded-[8px] bg-[#f1f5f9] p-1">
-            {speciesOptions.map((option) => {
-              const selected = option.value === activeSpecies;
-              const count = sections.filter((section) => normalizeSpecies(section.species) === option.value).length;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setActiveSpecies(option.value)}
-                  className={cn(
-                    "inline-flex h-9 min-w-[104px] items-center justify-center gap-1.5 rounded-[7px] px-4 text-[16px] font-normal transition",
-                    selected ? "bg-white text-[#111827] shadow-[0_1px_4px_rgba(15,23,42,0.08)]" : "text-[#64748b] hover:text-[#111827]",
-                  )}
-                >
-                  {option.label}
-                  <span className={cn("text-[16px]", selected ? "text-[#607080]" : "text-[#94a3b8]")}>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-
           <div className="space-y-3">
-            {activeSections.map((section) => {
+            {sections.map((section) => {
               const breedLabels = getBreedLabels(section.note);
               const isEditing = editingSectionIds.includes(section.id);
 
@@ -829,6 +798,16 @@ export function ServicePriceGuideEditor({
                         {isEditing ? <button type="button" onClick={() => addItem(section.id)} className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[16px] font-semibold text-[#334155] transition hover:bg-[#eef0f3]">
                           <Plus className="h-4 w-4" strokeWidth={1.9} />
                           항목
+                        </button> : null}
+                        {isEditing ? <button
+                          type="button"
+                          onClick={() => removeSection(section.id)}
+                          disabled={sections.length <= 1}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#ead3d8] bg-white px-3 text-[15px] font-normal text-[#8f2438] transition hover:bg-[#fff7f8] disabled:cursor-not-allowed disabled:opacity-40"
+                          title={sections.length <= 1 ? "그룹은 최소 1개가 필요합니다." : "그룹 삭제"}
+                        >
+                          <BasilIcon name="trash" className="h-4 w-4" />
+                          그룹 삭제
                         </button> : null}
                         <button
                           type="button"
@@ -982,7 +961,7 @@ export function ServicePriceGuideEditor({
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={addSection} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[var(--accent)] bg-white px-3 text-[16px] font-normal text-[var(--accent)] transition hover:bg-[#f6f9ff]">
               <Plus className="h-3.5 w-3.5" strokeWidth={1.9} />
-              {activeSpeciesOption.addLabel}
+              그룹 추가
             </button>
             {deleteHistory.length > 0 ? (
               <button

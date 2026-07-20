@@ -26,7 +26,42 @@ type DeepSeekChatResponse = {
   }>;
 };
 
-export async function recommendAvailableSlotsWithAi(params: SlotRecommendationParams) {
+export type SlotRecommendationSource = "ai" | "rule";
+
+type SlotRecommendationResult = {
+  recommendedSlots: string[];
+  source: SlotRecommendationSource;
+};
+
+const recommendationDedupeWindowMs = 5_000;
+const recommendationRequests = new Map<
+  string,
+  { expiresAt: number; request: Promise<SlotRecommendationResult> }
+>();
+
+export function recommendAvailableSlotsWithAi(params: SlotRecommendationParams) {
+  const requestKey = JSON.stringify(params);
+  const now = Date.now();
+  const cached = recommendationRequests.get(requestKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.request;
+  }
+
+  for (const [key, entry] of recommendationRequests) {
+    if (entry.expiresAt <= now) recommendationRequests.delete(key);
+  }
+
+  const request = computeAvailableSlotRecommendations(params);
+  recommendationRequests.set(requestKey, {
+    expiresAt: now + recommendationDedupeWindowMs,
+    request,
+  });
+  return request;
+}
+
+async function computeAvailableSlotRecommendations(
+  params: SlotRecommendationParams,
+): Promise<SlotRecommendationResult> {
   const fallback = normalizeRecommendedSlots(params.baselineRecommendedSlots, params.availableSlots);
 
   if (
@@ -34,15 +69,17 @@ export async function recommendAvailableSlotsWithAi(params: SlotRecommendationPa
     serverEnv.aiSlotRecommendationProvider.toLowerCase() === "off" ||
     !serverEnv.deepseekApiKey
   ) {
-    return fallback;
+    return { recommendedSlots: fallback, source: "rule" as const };
   }
 
   try {
     const aiSlots = await requestDeepSeekSlotRecommendations(params);
     const normalized = normalizeRecommendedSlots(aiSlots, params.availableSlots);
-    return normalized.length > 0 ? normalized : fallback;
+    return normalized.length > 0
+      ? { recommendedSlots: normalized, source: "ai" as const }
+      : { recommendedSlots: fallback, source: "rule" as const };
   } catch {
-    return fallback;
+    return { recommendedSlots: fallback, source: "rule" as const };
   }
 }
 

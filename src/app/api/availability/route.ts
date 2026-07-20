@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
             }),
           ),
         }));
-    const recommendedSlots = await recommendAvailableSlotsWithAi({
+    const recommendation = await recommendAvailableSlotsWithAi({
       date,
       availableSlots: slots,
       baselineRecommendedSlots,
@@ -88,7 +88,11 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { slots, recommendedSlots },
+      {
+        slots,
+        recommendedSlots: recommendation.recommendedSlots,
+        recommendationSource: recommendation.source,
+      },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",

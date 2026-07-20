@@ -53,6 +53,7 @@ function extractIssueId(result: BillingKeyIssueResponse) {
 
 function buildOwnerBillingReturnUrl(planCode: OwnerPlanCode) {
   const url = new URL("/owner/billing", window.location.origin);
+  url.searchParams.set("billingReturn", "1");
   url.searchParams.set("compare", "1");
   url.searchParams.set("plan", planCode);
   return url.toString();
@@ -175,13 +176,25 @@ export async function requestOwnerOneTimePayment(params: {
   return confirmOwnerSubscriptionPayment(result.paymentId);
 }
 
+export async function registerOwnerBillingKey(params: {
+  billingKey: string;
+  issueId?: string | null;
+  paymentMethodLabel?: string | null;
+  planCode: OwnerPlanCode;
+}) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/payment-method", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function issueOwnerBillingKey(params: {
   customerId: string;
   customerName: string;
   phoneNumber?: string | null;
   email?: string | null;
   planCode: OwnerPlanCode;
-}) {
+}): Promise<OwnerSubscriptionSummary | null> {
   if (!env.portoneStoreId || !env.portoneBillingChannelKey) {
     throw new Error("PortOne 정기결제 설정을 먼저 확인해 주세요.");
   }
@@ -200,8 +213,12 @@ export async function issueOwnerBillingKey(params: {
       email: params.email || undefined,
     },
     offerPeriod: buildOwnerBillingOfferPeriod(params.planCode),
-    redirectUrl: buildOwnerBillingReturnUrl(params.planCode),
   });
+
+  if (!result && typeof window !== "undefined") {
+    // Successful redirect flows leave this page before the SDK resolves.
+    return null;
+  }
 
   if (!result) {
     throw new Error("결제수단 등록 창을 열지 못했습니다.");
@@ -216,13 +233,10 @@ export async function issueOwnerBillingKey(params: {
     throw new Error("빌링키를 확인하지 못했습니다.");
   }
 
-  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/payment-method", {
-    method: "POST",
-    body: JSON.stringify({
-      billingKey,
-      issueId: extractIssueId(result),
-      paymentMethodLabel: buildPaymentMethodLabel(result),
-      planCode: params.planCode,
-    }),
+  return registerOwnerBillingKey({
+    billingKey,
+    issueId: extractIssueId(result),
+    paymentMethodLabel: buildPaymentMethodLabel(result),
+    planCode: params.planCode,
   });
 }

@@ -251,7 +251,7 @@ export default function OwnerSupportPanel({
       </div>
 
       {activeView === "write" ? (
-      <div className="space-y-3.5">
+      <div className="space-y-3">
         <label className="block space-y-1.5">
           <span className="text-[14px] font-medium text-[var(--text)]">문의 유형</span>
           <select
@@ -293,15 +293,15 @@ export default function OwnerSupportPanel({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="문의 내용을 자세히 적어주세요."
-            className="min-h-[118px] w-full resize-none rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 py-3 text-[14px] leading-[1.55] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            className="min-h-[104px] w-full resize-none rounded-[10px] border border-[#e2e7ed] bg-[#fafbfc] px-3.5 py-3 text-[14px] leading-[1.55] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
           />
         </label>
 
-        <div className="flex items-start gap-3 rounded-[12px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] px-3.5 py-3.5">
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-[#e2e7ed] bg-white text-[#64748b]">
+        <div className="flex h-11 items-center gap-2.5 rounded-[10px] border border-dashed border-[#e2e7ed] bg-[#f8fafc] px-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[#e2e7ed] bg-white text-[#64748b]">
             <ImagePlus className="h-4 w-4" strokeWidth={2} />
           </div>
-          <div>
+          <div className="min-w-0 [&>p:last-child]:hidden">
             <p className="text-[13px] font-semibold text-[#334155]">사진 첨부</p>
             <p className="mt-1 text-[11.5px] leading-[1.5] text-[#94a3b8]">이미지 첨부는 업로드 API 연결 후 1~3장까지 사용할 수 있어요.</p>
           </div>

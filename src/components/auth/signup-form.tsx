@@ -23,6 +23,7 @@ import {
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
+import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 import {
   getSocialOAuthProvider,
   PENDING_SOCIAL_PROVIDER_COOKIE,
@@ -63,10 +64,10 @@ const initialAgreements: AgreementState = {
 };
 
 const termLinkById: Record<OwnerSignupTermId, string> = {
-  service: "/terms",
-  privacy: "/privacy",
-  location: "/terms",
-  marketing: "/privacy",
+  service: PUBLIC_LEGAL_URLS.terms,
+  privacy: PUBLIC_LEGAL_URLS.privacy,
+  location: PUBLIC_LEGAL_URLS.terms,
+  marketing: PUBLIC_LEGAL_URLS.privacy,
 };
 
 function normalizePhone(value: string) {

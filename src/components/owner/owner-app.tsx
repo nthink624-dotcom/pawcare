@@ -44,7 +44,7 @@ import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, 
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "support" | "account" | null;
+type SettingsEntryScreen = "shop" | "closures" | "notifications" | "staff" | "support" | "legal" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -144,13 +144,12 @@ type SignedMediaUrlResponse = {
 
 const compactWeekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, string> = {
-  subscription: "현재 플랜",
   shop: "매장 기본 정보",
   closures: "영업 시간 설정",
   notifications: "알림톡 설정",
-  services: "미용 요금",
   staff: "직원관리",
   support: "1:1 문의",
+  legal: "약관 및 정책",
   account: "계정",
 };
 
@@ -2566,7 +2565,7 @@ export default function OwnerApp({
           </section>
         )}
 
-        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveService={(payload) => mutate("/api/services", { method: "POST", body: JSON.stringify(payload) })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} />}
+        {activeTab === "settings" && <SettingsPanel data={data} initialScreen={settingsEntryScreen} onActiveScreenChange={setSettingsEntryScreen} onSave={(payload) => mutate("/api/owner/shops", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveCustomerPageSettings={(payload) => mutate("/api/customer-page-settings", { method: "PATCH", body: JSON.stringify(payload) }, { rethrow: true })} onSaveStaff={saveStaffMemberProfile} onLogout={onLogout} loggingOut={loggingOut} userEmail={userEmail} subscriptionSummary={subscriptionSummary} appRole={appRole} currentStaffId={currentStaffId} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-white/95 px-2.5 pb-[calc(env(safe-area-inset-bottom)+2px)] pt-1 backdrop-blur-xl">
@@ -4246,7 +4245,6 @@ function SettingsPanel({
   data,
   initialScreen = null,
   onSave,
-  onSaveService,
   onSaveCustomerPageSettings,
   onSaveStaff,
   onLogout,
@@ -4260,7 +4258,6 @@ function SettingsPanel({
   data: BootstrapPayload;
   initialScreen?: SettingsEntryScreen;
   onSave: (payload: unknown) => void;
-  onSaveService: (payload: unknown) => void;
   onSaveCustomerPageSettings: (payload: unknown) => void;
   onSaveStaff: (payload: unknown) => void;
   onLogout?: () => void;
@@ -4276,7 +4273,6 @@ function SettingsPanel({
       data={data}
       initialScreen={initialScreen}
       onSave={onSave}
-      onSaveService={onSaveService}
       onSaveCustomerPageSettings={onSaveCustomerPageSettings}
       onSaveStaff={onSaveStaff}
       onLogout={onLogout}

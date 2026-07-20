@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { SocialProvider } from "@/lib/auth/social-auth";
+import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 
 function GoogleSymbol() {
   return (
@@ -195,6 +196,12 @@ export default function MobileLoginScreenTemplate({
             </Link>
           </span>
         ))}
+      </div>
+
+      <div className="mt-3 text-center text-[13px] text-[#8b847b]">
+        <a href={PUBLIC_LEGAL_URLS.privacy} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-[#111111]">
+          개인정보처리방침
+        </a>
       </div>
 
       <div className="mt-7 space-y-2.5">

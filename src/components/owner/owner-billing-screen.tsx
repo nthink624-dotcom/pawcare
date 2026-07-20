@@ -22,6 +22,7 @@ import {
 } from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { env } from "@/lib/env";
+import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 import { won } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
@@ -642,6 +643,12 @@ export default function OwnerBillingScreen({
           >
             플랜 다시 선택하기
           </button>
+        </div>
+
+        <div className="mt-4 text-center">
+          <a href={PUBLIC_LEGAL_URLS.refund} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-[#6f675d] underline underline-offset-4">
+            환불 및 이용 안내
+          </a>
         </div>
       </section>
 

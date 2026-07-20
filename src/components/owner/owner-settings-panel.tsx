@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CreditCard, KeyRound, LogOut, MapPin, MessageCircle, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
@@ -14,13 +14,18 @@ import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
-import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, formatServicePrice, won } from "@/lib/utils";
-import type { BootstrapPayload, BootstrapStaffMember, BusinessHours, Service } from "@/types/domain";
+import {
+  PUBLIC_LEGAL_CONTACT,
+  PUBLIC_LEGAL_LINKS,
+  getPublicLegalMailtoHref,
+  getPublicLegalTelHref,
+} from "@/lib/legal/public-legal-links";
+import { addDate, currentDateInTimeZone, decodeUnicodeEscapes, won } from "@/lib/utils";
+import type { BootstrapPayload, BootstrapStaffMember, BusinessHours } from "@/types/domain";
 
 type SettingsPanelProps = {
   data: BootstrapPayload;
   onSave: (payload: unknown) => Promise<unknown> | void;
-  onSaveService: (payload: unknown) => Promise<unknown> | void;
   onSaveCustomerPageSettings: (payload: unknown) => Promise<unknown> | void;
   onSaveStaff: (payload: unknown) => Promise<unknown> | void;
   onLogout?: () => void;
@@ -41,9 +46,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "subscription" | "shop" | "closures" | "notifications" | "services" | "staff" | "support" | "account" | null;
-
-type PriceType = "fixed" | "starting";
+type SettingsScreen = "shop" | "closures" | "notifications" | "staff" | "support" | "legal" | "account" | null;
 type StaffProfileDraft = {
   name: string;
   displayName: string;
@@ -203,7 +206,6 @@ function resolveLoginIdFromOwnerAuthEmail(email?: string | null) {
 export default function OwnerSettingsPanel({
   data,
   onSave,
-  onSaveService,
   onSaveCustomerPageSettings,
   onSaveStaff,
   onLogout,
@@ -251,20 +253,6 @@ export default function OwnerSettingsPanel({
   const [noticeEditorTarget, setNoticeEditorTarget] = useState<"parking" | "notices" | null>(null);
   const [parkingNoticeDraft, setParkingNoticeDraft] = useState("");
   const [noticeDrafts, setNoticeDrafts] = useState<string[]>(["", "", ""]);
-  const [newService, setNewService] = useState({
-    name: "",
-    price: "",
-    duration: "60",
-    priceType: "starting" as PriceType,
-    isActive: true,
-  });
-  const [isNewServiceFormOpen, setIsNewServiceFormOpen] = useState(false);
-  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
-  const [editingServiceName, setEditingServiceName] = useState("");
-  const [editingServicePrice, setEditingServicePrice] = useState("");
-  const [editingServiceDuration, setEditingServiceDuration] = useState("");
-  const [editingServicePriceType, setEditingServicePriceType] = useState<PriceType>("starting");
-  const [editingServiceIsActive, setEditingServiceIsActive] = useState(true);
   const [staffProfileDrafts, setStaffProfileDrafts] = useState<Record<string, StaffProfileDraft>>(() =>
     createStaffProfileDrafts(data.staffMembers),
   );
@@ -272,17 +260,25 @@ export default function OwnerSettingsPanel({
   const [staffFeedback, setStaffFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const [savingBasicInfo, setSavingBasicInfo] = useState(false);
   const [basicInfoFeedback, setBasicInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const [savingOperatingInfo, setSavingOperatingInfo] = useState(false);
+  const [operatingInfoFeedback, setOperatingInfoFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const operatingSaveQueueRef = useRef(Promise.resolve());
+  const operatingSaveCountRef = useRef(0);
   const [isBasicInfoEditing, setIsBasicInfoEditing] = useState(false);
   const [localActiveScreen, setLocalActiveScreen] = useState<SettingsScreen>(initialScreen ?? null);
   const [notificationSettings, setNotificationSettings] = useState<ShopNotificationSettingsState>(
     mapShopNotificationSettingsState(data.shop.notification_settings),
   );
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [notificationSettingsFeedback, setNotificationSettingsFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
+  const notificationSaveQueueRef = useRef(Promise.resolve());
+  const notificationSaveCountRef = useRef(0);
   const [staffPushEnabled, setStaffPushEnabled] = useState(true);
 
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
   const isStaffApp = appRole === "staff";
-  const effectiveActiveScreen = isStaffApp && activeScreen && activeScreen !== "support" && activeScreen !== "account" ? null : activeScreen;
+  const effectiveActiveScreen = isStaffApp && activeScreen && activeScreen !== "support" && activeScreen !== "legal" && activeScreen !== "account" ? null : activeScreen;
   const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
   const currentStaff = useMemo(
     () => data.staffMembers.find((staffMember) => staffMember.id === currentStaffId) ?? data.staffMembers[0] ?? null,
@@ -344,8 +340,12 @@ export default function OwnerSettingsPanel({
   }
 
   useEffect(() => {
+    const savedSettings = mapShopNotificationSettingsState(data.shop.notification_settings);
     if (isNotificationSettingsDirty) return;
-    setNotificationSettings(mapShopNotificationSettingsState(data.shop.notification_settings));
+
+    setNotificationSettings((currentSettings) =>
+      JSON.stringify(currentSettings) === JSON.stringify(savedSettings) ? currentSettings : savedSettings,
+    );
   }, [data.shop.notification_settings, isNotificationSettingsDirty]);
 
   useEffect(() => {
@@ -358,9 +358,31 @@ export default function OwnerSettingsPanel({
     return () => window.clearTimeout(timeout);
   }, [basicInfoFeedback]);
 
+  useEffect(() => {
+    if (operatingInfoFeedback.type !== "success") return;
+
+    const timeout = window.setTimeout(() => {
+      setOperatingInfoFeedback({ type: "idle", message: "" });
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [operatingInfoFeedback]);
+
+  useEffect(() => {
+    if (notificationSettingsFeedback.type !== "success") return;
+
+    const timeout = window.setTimeout(() => {
+      setNotificationSettingsFeedback({ type: "idle", message: "" });
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [notificationSettingsFeedback]);
+
   function updateNotificationSettings(updater: (previous: ShopNotificationSettingsState) => ShopNotificationSettingsState) {
-    setNotificationSettings((previous) => withPrimedShopNotificationSettings(previous, updater(previous)));
+    const nextSettings = withPrimedShopNotificationSettings(notificationSettings, updater(notificationSettings));
+    setNotificationSettings(nextSettings);
     setIsNotificationSettingsDirty(true);
+    saveNotificationSettings(nextSettings);
   }
 
   function resetBasicInfoDraft() {
@@ -395,39 +417,38 @@ export default function OwnerSettingsPanel({
   }
 
   function applyBusinessHoursEditor() {
-    setBusinessHours((prev) => {
-      const next = { ...prev };
+    if (timeEditorTarget === null) return;
 
-      if (timeEditorTarget === "all") {
-        businessHoursWeekOrder.forEach((day) => {
-          next[day] = {
-            ...(prev[day] ?? defaultBusinessHoursEntry),
-            open: timeDraft.open,
-            close: timeDraft.close,
-            enabled: !regularClosedDays.includes(day),
-          };
-        });
-      } else if (timeEditorTarget !== null) {
-        const isClosed = timeDraft.closed;
-        next[timeEditorTarget] = {
-          ...(prev[timeEditorTarget] ?? defaultBusinessHoursEntry),
+    const nextBusinessHours = { ...businessHours };
+    const nextRegularClosedDays = [...regularClosedDays];
+
+    if (timeEditorTarget === "all") {
+      businessHoursWeekOrder.forEach((day) => {
+        nextBusinessHours[day] = {
+          ...(businessHours[day] ?? defaultBusinessHoursEntry),
           open: timeDraft.open,
           close: timeDraft.close,
-          enabled: !isClosed,
+          enabled: !regularClosedDays.includes(day),
         };
-      }
-
-      return next;
-    });
-    if (timeEditorTarget !== null && timeEditorTarget !== "all") {
-      setRegularClosedDays((prev) => {
-        const hasDay = prev.includes(timeEditorTarget);
-        if (timeDraft.closed) {
-          return hasDay ? prev : [...prev, timeEditorTarget].sort((a, b) => a - b);
-        }
-        return hasDay ? prev.filter((item) => item !== timeEditorTarget) : prev;
       });
+    } else {
+      const isClosed = timeDraft.closed;
+      nextBusinessHours[timeEditorTarget] = {
+        ...(businessHours[timeEditorTarget] ?? defaultBusinessHoursEntry),
+        open: timeDraft.open,
+        close: timeDraft.close,
+        enabled: !isClosed,
+      };
+
+      const hasDay = nextRegularClosedDays.includes(timeEditorTarget);
+      if (isClosed && !hasDay) nextRegularClosedDays.push(timeEditorTarget);
+      if (!isClosed && hasDay) nextRegularClosedDays.splice(nextRegularClosedDays.indexOf(timeEditorTarget), 1);
+      nextRegularClosedDays.sort((left, right) => left - right);
     }
+
+    setBusinessHours(nextBusinessHours);
+    setRegularClosedDays(nextRegularClosedDays);
+    saveOperatingInfo(nextBusinessHours, nextRegularClosedDays, temporaryClosedDates);
     setTimeEditorTarget(null);
   }
 
@@ -526,24 +547,6 @@ export default function OwnerSettingsPanel({
     reader.readAsDataURL(file);
   }
 
-  function startEditingService(service: Service) {
-    setEditingServiceId(service.id);
-    setEditingServiceName(service.name);
-    setEditingServicePrice(String(service.price));
-    setEditingServiceDuration(String(service.duration_minutes));
-    setEditingServicePriceType(service.price_type ?? "starting");
-    setEditingServiceIsActive(service.is_active);
-  }
-
-  function stopEditingService() {
-    setEditingServiceId(null);
-    setEditingServiceName("");
-    setEditingServicePrice("");
-    setEditingServiceDuration("");
-    setEditingServicePriceType("starting");
-    setEditingServiceIsActive(true);
-  }
-
   function updateStaffProfileDraft(staffMemberId: string, patch: Partial<StaffProfileDraft>) {
     setStaffProfileDrafts((prev) => ({
       ...prev,
@@ -582,9 +585,104 @@ export default function OwnerSettingsPanel({
       return;
     }
 
-    setTemporaryClosedDates((prev) => [...prev, pendingClosedDate].sort());
+    const nextTemporaryClosedDates = [...temporaryClosedDates, pendingClosedDate].sort();
+    setTemporaryClosedDates(nextTemporaryClosedDates);
+    saveOperatingInfo(businessHours, regularClosedDays, nextTemporaryClosedDates);
     setPendingClosedDate("");
     setIsClosedDatePickerOpen(false);
+  }
+
+  function removeTemporaryClosedDate(date: string) {
+    const nextTemporaryClosedDates = temporaryClosedDates.filter((item) => item !== date);
+    setTemporaryClosedDates(nextTemporaryClosedDates);
+    saveOperatingInfo(businessHours, regularClosedDays, nextTemporaryClosedDates);
+  }
+
+  function saveOperatingInfo(
+    nextBusinessHours: BusinessHours,
+    nextRegularClosedDays: number[],
+    nextTemporaryClosedDates: string[],
+  ) {
+    operatingSaveCountRef.current += 1;
+    setSavingOperatingInfo(true);
+    setOperatingInfoFeedback({ type: "idle", message: "" });
+
+    const saveTask = async () => {
+      try {
+        await Promise.resolve(
+          onSave({
+            shopId: data.shop.id,
+            name: decodeUnicodeEscapes(data.shop.name),
+            phone: data.shop.phone,
+            address: decodeUnicodeEscapes(data.shop.address),
+            description: decodeUnicodeEscapes(data.shop.description),
+            concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
+            bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+            bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+            bookingAvailableStartTime: data.shop.booking_available_start_time,
+            bookingAvailableEndTime: data.shop.booking_available_end_time,
+            approvalMode: data.shop.approval_mode,
+            regularClosedDays: nextRegularClosedDays,
+            temporaryClosedDates: nextTemporaryClosedDates,
+            businessHours: nextBusinessHours,
+            notificationSettings,
+          }),
+        );
+        setOperatingInfoFeedback({ type: "success", message: "자동 저장되었습니다." });
+      } catch (error) {
+        setOperatingInfoFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "운영 정보를 저장하지 못했습니다.",
+        });
+      } finally {
+        operatingSaveCountRef.current -= 1;
+        if (operatingSaveCountRef.current === 0) setSavingOperatingInfo(false);
+      }
+    };
+
+    operatingSaveQueueRef.current = operatingSaveQueueRef.current.then(saveTask, saveTask);
+  }
+
+  function saveNotificationSettings(nextSettings: ShopNotificationSettingsState) {
+    notificationSaveCountRef.current += 1;
+    setSavingNotificationSettings(true);
+    setNotificationSettingsFeedback({ type: "idle", message: "" });
+
+    const saveTask = async () => {
+      try {
+        await Promise.resolve(
+          onSave({
+            shopId: data.shop.id,
+            name: decodeUnicodeEscapes(data.shop.name),
+            phone: data.shop.phone,
+            address: decodeUnicodeEscapes(data.shop.address),
+            description: decodeUnicodeEscapes(data.shop.description),
+            concurrentCapacity: concurrentCapacityForApprovalMode(data.shop.approval_mode),
+            bookingSlotIntervalMinutes: data.shop.booking_slot_interval_minutes,
+            bookingSlotOffsetMinutes: data.shop.booking_slot_offset_minutes,
+            bookingAvailableStartTime: data.shop.booking_available_start_time,
+            bookingAvailableEndTime: data.shop.booking_available_end_time,
+            approvalMode: data.shop.approval_mode,
+            regularClosedDays,
+            temporaryClosedDates,
+            businessHours,
+            notificationSettings: nextSettings,
+          }),
+        );
+        setIsNotificationSettingsDirty(false);
+        setNotificationSettingsFeedback({ type: "success", message: "자동 저장되었습니다." });
+      } catch (error) {
+        setNotificationSettingsFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "알림톡 설정을 저장하지 못했습니다.",
+        });
+      } finally {
+        notificationSaveCountRef.current -= 1;
+        if (notificationSaveCountRef.current === 0) setSavingNotificationSettings(false);
+      }
+    };
+
+    notificationSaveQueueRef.current = notificationSaveQueueRef.current.then(saveTask, saveTask);
   }
 
   async function saveBasicInfo() {
@@ -675,48 +773,6 @@ export default function OwnerSettingsPanel({
     } finally {
       setSavingBasicInfo(false);
     }
-  }
-
-  async function handleServiceSave(service: Service) {
-    await Promise.resolve(
-      onSaveService({
-        shopId: data.shop.id,
-        serviceId: service.id,
-        name: editingServiceName.trim(),
-        price: Number(editingServicePrice),
-        priceType: editingServicePriceType,
-        durationMinutes: Number(editingServiceDuration),
-        isActive: editingServiceIsActive,
-        category: service.category ?? "미용",
-        description: service.description ?? "",
-        sortOrder: service.sort_order ?? data.services.findIndex((item) => item.id === service.id) + 1,
-        capacityLabel: service.capacity_label ?? "동일 시간 1건",
-        staffSelectionMode: service.staff_selection_mode ?? "all",
-        priceGuide: service.price_guide ?? {},
-      }),
-    );
-    stopEditingService();
-  }
-
-  async function handleServiceCreate() {
-    await Promise.resolve(
-      onSaveService({
-        shopId: data.shop.id,
-        name: newService.name.trim(),
-        price: Number(newService.price),
-        priceType: newService.priceType,
-        durationMinutes: Number(newService.duration),
-        isActive: newService.isActive,
-        category: "미용",
-        description: "",
-        sortOrder: data.services.length + 1,
-        capacityLabel: "동일 시간 1건",
-        staffSelectionMode: "all",
-        priceGuide: {},
-      }),
-    );
-    setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
-    setIsNewServiceFormOpen(false);
   }
 
   async function handleStaffProfileSave(staffMember: BootstrapStaffMember) {
@@ -1015,7 +1071,7 @@ export default function OwnerSettingsPanel({
                   key={date}
                   type="button"
                   className="flex h-[38px] w-full items-center justify-between rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[13px] font-medium text-[#1e293b]"
-                  onClick={() => setTemporaryClosedDates((prev) => prev.filter((item) => item !== date))}
+                  onClick={() => removeTemporaryClosedDate(date)}
                 >
                   <span>{date}</span>
                   <span className="text-[12px] text-[#94a3b8]">삭제</span>
@@ -1025,28 +1081,44 @@ export default function OwnerSettingsPanel({
           ) : null}
         </div>
       </div>
+
+      {savingOperatingInfo || operatingInfoFeedback.type !== "idle" ? (
+        <p
+          aria-live="polite"
+          className={`px-1 text-[13px] font-medium ${
+            savingOperatingInfo
+              ? "text-[#4779c7]"
+              : operatingInfoFeedback.type === "error"
+                ? "text-[#b3453b]"
+                : "text-[#3b7d5b]"
+          }`}
+        >
+          {savingOperatingInfo ? "자동 저장 중..." : operatingInfoFeedback.message}
+        </p>
+      ) : null}
     </>
   );
 
   const notificationsSection = (
-    <SettingsCard contentClassName="space-y-3">
+    <SettingsCard contentClassName="space-y-4">
       <SettingsFieldCard
         label="알림톡 발송"
+        className="border-[#dfe7f1] bg-white px-4 pb-3 pt-2.5"
         labelAccessory={
           <InfoTip ariaLabel="알림톡 설정 안내" popoverClassName="w-[248px]">
             매장 알림톡과 고객별 수신 설정이 모두 켜져 있어야 오너가 직접 알림을 보낼 수 있어요.
           </InfoTip>
         }
       >
-        <div className="relative -top-[6px] space-y-1.5">
+        <div className="space-y-2.5 pt-1">
           <ToggleRow
             label="알림톡 전체 사용"
             checked={notificationSettings.enabled}
             onChange={(checked) => updateNotificationSettings((prev) => ({ ...prev, enabled: checked }))}
             emphasized
           />
-          <div className="rounded-[12px] border border-[#e4ebe7] bg-[#f8fbfa] px-3 py-2.5">
-            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#5f6c66]">
+          <div className="rounded-[10px] border border-[#e1e8f0] bg-[#f7f9fc] px-3 py-2.5">
+            <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#607080]">
               알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
             </p>
           </div>
@@ -1090,150 +1162,20 @@ export default function OwnerSettingsPanel({
           </div>
         </div>
       </SettingsFieldCard>
-    </SettingsCard>
-  );
-
-  const servicesSection = (
-    <SettingsCard>
-      <div className="space-y-1">
-        {data.services.map((service) => {
-          const isEditing = editingServiceId === service.id;
-          return (
-            <div key={service.id}>
-              {isEditing ? (
-                <div className="space-y-2">
-                  <SettingsFieldCard label="서비스 이름">
-                    <input
-                      className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                      value={editingServiceName}
-                      onChange={(event) => setEditingServiceName(event.target.value)}
-                      placeholder="서비스 이름 입력"
-                    />
-                  </SettingsFieldCard>
-                  <SettingsFieldCard label="가격">
-                    <div className="flex items-center gap-2">
-                      <input
-                        className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                        value={editingServicePrice}
-                        onChange={(event) => setEditingServicePrice(event.target.value)}
-                        placeholder="최소 가격 입력"
-                      />
-                      <span className="shrink-0 text-[14px] font-normal tracking-[-0.01em] text-[var(--muted)]">원</span>
-                    </div>
-                    <label className="mt-2 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-2">
-                      <span className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">시작가로 표시</span>
-                      <input
-                        className="h-4 w-4 accent-[var(--accent)]"
-                        type="checkbox"
-                        checked={editingServicePriceType === "starting"}
-                        onChange={(event) => setEditingServicePriceType(event.target.checked ? "starting" : "fixed")}
-                      />
-                    </label>
-                  </SettingsFieldCard>
-                  <SettingsFieldCard label="노출 설정" className="pb-2.5 pt-2">
-                    <label className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</p>
-                        <p className="mt-0.5 text-[12px] leading-4 text-[var(--muted)]">고객 예약 화면에 바로 보여줘요.</p>
-                      </div>
-                      <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={editingServiceIsActive} onChange={(event) => setEditingServiceIsActive(event.target.checked)} />
-                    </label>
-                  </SettingsFieldCard>
-                  <div className="grid grid-cols-2 gap-2">
-                    <OutlineButton onClick={stopEditingService}>취소</OutlineButton>
-                    <SolidButton onClick={() => handleServiceSave(service)} disabled={!editingServiceName || !editingServicePrice}>
-                      저장
-                    </SolidButton>
-                  </div>
-                </div>
-              ) : (
-                <SettingsFieldCard label={service.name}>
-                  <div className="relative -top-[3px] flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--text)]">
-                        가격 {formatServicePrice(service.price, service.price_type ?? "starting")}
-                      </p>
-                      {!service.is_active ? (
-                        <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">소비자 화면에 노출되지 않아요.</p>
-                      ) : null}
-                    </div>
-                    <button className="shrink-0 text-[14px] font-medium text-[var(--accent)]" onClick={() => startEditingService(service)}>
-                      수정
-                    </button>
-                  </div>
-                </SettingsFieldCard>
-              )}
-            </div>
-          );
-        })}
-
-        {isNewServiceFormOpen ? (
-          <div className="space-y-2 rounded-[10px] border border-[#d9e6e0] bg-[#f8fcfa] px-2.5 py-2.5">
-              <SettingsFieldCard label="서비스 이름">
-                <input
-                  className="w-full bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                  placeholder="서비스 이름 입력"
-                  value={newService.name}
-                  onChange={(event) => setNewService((prev) => ({ ...prev, name: event.target.value }))}
-                />
-              </SettingsFieldCard>
-              <SettingsFieldCard label="가격">
-                <div className="flex items-center gap-2">
-                  <input
-                    className="min-w-0 flex-1 bg-transparent p-0 text-[15px] font-normal tracking-[-0.02em] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-                    placeholder="최소 가격 입력"
-                    value={newService.price}
-                    onChange={(event) => setNewService((prev) => ({ ...prev, price: event.target.value }))}
-                  />
-                  <span className="shrink-0 text-[14px] font-normal tracking-[-0.01em] text-[var(--muted)]">원</span>
-                </div>
-                <label className="mt-2 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-2">
-                  <span className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">시작가로 표시</span>
-                  <input
-                    className="h-4 w-4 accent-[var(--accent)]"
-                    type="checkbox"
-                    checked={newService.priceType === "starting"}
-                    onChange={(event) => setNewService((prev) => ({ ...prev, priceType: event.target.checked ? "starting" : "fixed" }))}
-                  />
-                </label>
-              </SettingsFieldCard>
-              <SettingsFieldCard label="노출 설정" className="pb-2.5 pt-2">
-                <label className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-normal tracking-[-0.01em] text-[var(--text)]">소비자 화면에 노출</p>
-                    <p className="mt-0.5 text-[12px] leading-4 text-[var(--muted)]">고객 예약 화면에 바로 보여줘요.</p>
-                  </div>
-                  <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={newService.isActive} onChange={(event) => setNewService((prev) => ({ ...prev, isActive: event.target.checked }))} />
-                </label>
-              </SettingsFieldCard>
-              <div className="grid grid-cols-2 gap-2">
-                <OutlineButton
-                  onClick={() => {
-                    setIsNewServiceFormOpen(false);
-                    setNewService({ name: "", price: "", duration: "60", priceType: "starting", isActive: true });
-                  }}
-                >
-                  취소
-                </OutlineButton>
-                <SolidButton onClick={() => void handleServiceCreate()} disabled={!newService.name || !newService.price}>
-                  추가
-                </SolidButton>
-              </div>
-          </div>
-        ) : null}
-
-        {!isNewServiceFormOpen ? (
-        <div className="pt-1">
-          <button
-            type="button"
-            className="inline-flex h-10 w-full items-center justify-center rounded-[12px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[14px] font-semibold text-white"
-            onClick={() => setIsNewServiceFormOpen(true)}
-          >
-            서비스 추가
-          </button>
-        </div>
-        ) : null}
-      </div>
+      {savingNotificationSettings || notificationSettingsFeedback.type !== "idle" ? (
+        <p
+          aria-live="polite"
+          className={`px-1 text-[13px] font-medium ${
+            savingNotificationSettings
+              ? "text-[#4779c7]"
+              : notificationSettingsFeedback.type === "error"
+                ? "text-[#b3453b]"
+                : "text-[#3b7d5b]"
+          }`}
+        >
+          {savingNotificationSettings ? "자동 저장 중..." : notificationSettingsFeedback.message}
+        </p>
+      ) : null}
     </SettingsCard>
   );
 
@@ -1369,14 +1311,57 @@ export default function OwnerSettingsPanel({
     />
   );
 
+  const legalSection = (
+    <SettingsCard contentClassName="space-y-4">
+      <div className="overflow-hidden rounded-[14px] border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
+        {PUBLIC_LEGAL_LINKS.map((link) => (
+          <a
+            key={link.key}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            className="flex min-h-[54px] items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0 text-[15px] font-medium text-[var(--text)]">{link.label}</span>
+            <ExternalLink className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+        ))}
+      </div>
+
+      <div className="rounded-[14px] border border-[var(--border)] bg-white px-4 py-4">
+        <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text)]">고객 및 개인정보 문의</h3>
+        <div className="mt-3 space-y-2 text-[14px] leading-6 text-[var(--muted)]">
+          <p>상호: {PUBLIC_LEGAL_CONTACT.companyName}</p>
+          <p>대표자: {PUBLIC_LEGAL_CONTACT.representativeName}</p>
+          <p>사업자등록번호: {PUBLIC_LEGAL_CONTACT.businessRegistrationNumber}</p>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-[12px] border border-[var(--border)] divide-y divide-[var(--border)]">
+          <a href={getPublicLegalTelHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Phone className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+              <span className="text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.phone}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+          <a href={getPublicLegalMailtoHref()} className="flex min-h-[50px] items-center justify-between gap-3 px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Mail className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={1.9} />
+              <span className="truncate text-[14px] font-medium text-[var(--text)]">{PUBLIC_LEGAL_CONTACT.email}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" strokeWidth={1.9} />
+          </a>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
-    subscription: { title: "현재 플랜", content: subscriptionSection },
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "영업 시간 설정", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
-    services: { title: "미용 요금", content: servicesSection },
     staff: { title: "직원관리", content: staffSection },
     support: { title: "1:1 문의", content: supportSection },
+    legal: { title: "약관 및 정책", content: legalSection },
     account: { title: "계정", content: accountSection },
   };
 
@@ -1384,12 +1369,9 @@ export default function OwnerSettingsPanel({
     const isShopScreen = effectiveActiveScreen === "shop";
     const isClosuresScreen = effectiveActiveScreen === "closures";
     const isStaffScreen = effectiveActiveScreen === "staff";
-    const isNotificationsScreen = effectiveActiveScreen === "notifications";
-    const shouldShowSaveFooter = isClosuresScreen || isNotificationsScreen;
-    const saveButtonLabel = isClosuresScreen ? "운영 정보 저장" : isNotificationsScreen ? "알림톡 설정 저장" : "매장정보 저장";
 
     return (
-      <section className={`space-y-4 p-4 ${shouldShowSaveFooter ? "pb-[calc(env(safe-area-inset-bottom)+116px)]" : ""}`}>
+      <section className="space-y-4 p-4">
         {isShopScreen || isClosuresScreen || isStaffScreen ? (
           screenMap[effectiveActiveScreen].content
         ) : (
@@ -1397,30 +1379,6 @@ export default function OwnerSettingsPanel({
             {screenMap[effectiveActiveScreen].content}
           </div>
         )}
-
-        {shouldShowSaveFooter ? (
-          <div className="pointer-events-none fixed bottom-[76px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
-            <div className="pointer-events-auto space-y-2 rounded-[18px] bg-[rgba(248,246,242,0.94)] px-2 pb-[calc(env(safe-area-inset-bottom)+4px)] pt-3 shadow-[0_10px_30px_rgba(21,22,19,0.08)] backdrop-blur">
-              {basicInfoFeedback.type !== "idle" ? (
-                <div
-                  className={`rounded-[14px] px-4 py-2.5 text-[13px] font-medium ${
-                    basicInfoFeedback.type === "success"
-                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border border-red-200 bg-red-50 text-red-700"
-                  }`}
-                >
-                  <p>{basicInfoFeedback.message}</p>
-                  {basicInfoFeedback.description ? (
-                    <p className="mt-1 text-[12px] leading-4 text-red-600">{basicInfoFeedback.description}</p>
-                  ) : null}
-                </div>
-              ) : null}
-              <SolidButton onClick={saveBasicInfo} disabled={savingBasicInfo} className="h-[54px] rounded-[16px] text-[15px]">
-                {savingBasicInfo ? "저장 중..." : saveButtonLabel}
-              </SolidButton>
-            </div>
-          </div>
-        ) : null}
 
         {noticeEditorTarget !== null ? (
           <GuideMessagesSheet
@@ -1512,6 +1470,7 @@ export default function OwnerSettingsPanel({
         pushEnabled={staffPushEnabled}
         onPushEnabledChange={setStaffPushEnabled}
         onSupportClick={() => updateActiveScreen("support")}
+        onLegalClick={() => updateActiveScreen("legal")}
         onAccountClick={onLogout ? () => updateActiveScreen("account") : undefined}
       />
     );
@@ -1533,14 +1492,19 @@ export default function OwnerSettingsPanel({
           onClick={() => updateActiveScreen("closures")}
         />
         <SettingsNavRow
-          icon={MessageCircle}
-          title="1:1 문의"
-          onClick={() => updateActiveScreen("support")}
+          icon={Bell}
+          title="알림톡 설정"
+          onClick={() => updateActiveScreen("notifications")}
         />
         <SettingsNavRow
           icon={UserRound}
           title="직원관리"
           onClick={() => updateActiveScreen("staff")}
+        />
+        <SettingsNavRow
+          icon={MessageCircle}
+          title="1:1 문의"
+          onClick={() => updateActiveScreen("support")}
         />
         {onLogout ? (
           <SettingsNavRow
@@ -1549,6 +1513,11 @@ export default function OwnerSettingsPanel({
             onClick={() => updateActiveScreen("account")}
           />
         ) : null}
+        <SettingsNavRow
+          icon={FileText}
+          title="약관 및 정책"
+          onClick={() => updateActiveScreen("legal")}
+        />
       </div>
 
       {isClosedDatePickerOpen ? (
@@ -1824,6 +1793,7 @@ function StaffSettingsHome({
   pushEnabled,
   onPushEnabledChange,
   onSupportClick,
+  onLegalClick,
   onAccountClick,
 }: {
   staffMember: BootstrapStaffMember | null;
@@ -1832,6 +1802,7 @@ function StaffSettingsHome({
   pushEnabled: boolean;
   onPushEnabledChange: (checked: boolean) => void;
   onSupportClick: () => void;
+  onLegalClick: () => void;
   onAccountClick?: () => void;
 }) {
   const staffName = staffMember?.displayName || staffMember?.name || "직원";
@@ -1886,6 +1857,13 @@ function StaffSettingsHome({
               <div className="flex min-w-0 items-center gap-3">
                 <MessageCircle className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
                 <p className="text-[16px] font-medium text-[#101828]">1:1 문의</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
+            </button>
+            <button type="button" onClick={onLegalClick} className="flex min-h-[58px] w-full items-center justify-between gap-3 px-4 py-3 text-left">
+              <div className="flex min-w-0 items-center gap-3">
+                <FileText className="h-[18px] w-[18px] shrink-0 text-[#101828]" strokeWidth={1.9} />
+                <p className="text-[16px] font-medium text-[#101828]">약관 및 정책</p>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-[#98a2b3]" />
             </button>
@@ -1959,13 +1937,19 @@ function ToggleRow({
   return (
     <label
       className={`flex items-center justify-between gap-3 rounded-[10px] border px-4 py-3 ${
-        emphasized ? "border-[#dce8e2] bg-[#f8fcfa]" : "border-[var(--border)] bg-[var(--surface)]"
+        emphasized ? "border-[#d9e4f3] bg-[#f7faff]" : "border-[#e1e8f0] bg-white"
       } ${
         disabled ? "opacity-55" : ""
       }`}
     >
-      <p className="text-[15px] font-normal text-[var(--text)]">{label}</p>
-      <Switch checked={checked} disabled={disabled} aria-label={label} onCheckedChange={onChange} />
+      <p className="text-[15px] font-medium text-[#25364d]">{label}</p>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        onCheckedChange={onChange}
+        className={checked ? "!border-[#2f6fd6] !bg-[#2f6fd6]" : "!border-[#cfd9e6] !bg-[#edf2f7]"}
+      />
     </label>
   );
 }

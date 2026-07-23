@@ -77,7 +77,7 @@ const initialAgreements: AgreementState = {
 
 const termLinkById: Record<OwnerSignupTermId, string> = {
   service: "/terms",
-  privacy: "/privacy",
+  privacy: "/privacy-consent",
   location: "/terms",
   marketing: "/privacy",
 };

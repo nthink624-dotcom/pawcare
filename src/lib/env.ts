@@ -11,6 +11,7 @@ export const env = {
     ((process.env.NEXT_PUBLIC_SITE_URL || "").includes("petmanager.co.kr") ? "production" : "development"),
   allowProdSupabaseInDev: process.env.NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV === "true",
   allowedDevSupabaseRefs: process.env.NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS || "",
+  vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV || "",
   portoneStoreId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID,
   portoneIdentityChannelKey: process.env.NEXT_PUBLIC_PORTONE_IDENTITY_CHANNEL_KEY,
   portoneIdentityKcpChannelKey:
@@ -38,6 +39,16 @@ export function hasPortonePaymentBrowserEnv() {
 }
 
 export function getSupabaseRuntimeStage() {
+  if (env.vercelEnv === "production") {
+    return "production" as const;
+  }
+  if (env.vercelEnv === "preview") {
+    return "preview" as const;
+  }
+  if (env.vercelEnv === "development") {
+    return "development" as const;
+  }
+
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname.toLowerCase();
     if (hostname === "localhost" || hostname === "127.0.0.1") {

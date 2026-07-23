@@ -9,6 +9,7 @@ const errorMessages: Record<string, string> = {
   "social-access-denied": "소셜 로그인 동의가 취소되었거나 완료되지 않았어요. 다시 시도해 주세요.",
   "social-oauth": "소셜 로그인 연결에 실패했어요. OAuth 설정과 Supabase Redirect URL을 확인해 주세요.",
   "social-callback": "소셜 로그인 연결을 완료하지 못했어요. 다시 시도해 주세요.",
+  "social-provider-profile": "네이버 계정의 이메일 정보를 확인하지 못했어요. 네이버 계정의 연락처 이메일과 제공 동의 설정을 확인해 주세요.",
   "social-session": "소셜 로그인 세션을 만들지 못했어요. 다시 시도해 주세요.",
 };
 

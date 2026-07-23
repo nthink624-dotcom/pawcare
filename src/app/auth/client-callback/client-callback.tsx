@@ -81,11 +81,45 @@ export default function AuthClientCallback() {
         return;
       }
 
-      const session = exchanged.data.session;
-      const user = exchanged.data.user ?? (await oauthSupabase.auth.getUser()).data.user;
+      let session = exchanged.data.session;
+      let user = exchanged.data.user ?? (await oauthSupabase.auth.getUser()).data.user;
       if (!session?.access_token || !user) {
         redirectToLogin("social-session", next, "소셜 로그인 세션이 생성되지 않았습니다.");
         return;
+      }
+
+      const requestedProvider = resolveProvider(params.get("provider"));
+      const storedProvider = resolveProvider(window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE));
+      const provider = requestedProvider ?? storedProvider ?? resolveSocialProviderFromAuthUser(user);
+
+      if (provider === "naver" && !user.email) {
+        if (!session.provider_token) {
+          redirectToLogin("social-provider-profile", next, "네이버 프로필 접근 토큰이 없습니다.");
+          return;
+        }
+
+        const profileResponse = await fetch("/api/auth/naver-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ providerToken: session.provider_token }),
+        });
+        if (!profileResponse.ok) {
+          const payload = (await profileResponse.json().catch(() => null)) as { message?: string } | null;
+          redirectToLogin("social-provider-profile", next, payload?.message || "네이버 프로필 정보를 확인하지 못했습니다.");
+          return;
+        }
+
+        const refreshed = await oauthSupabase.auth.refreshSession();
+        if (refreshed.error || !refreshed.data.session) {
+          redirectToLogin("social-session", next, refreshed.error?.message || "로그인 세션을 갱신하지 못했습니다.");
+          return;
+        }
+
+        session = refreshed.data.session;
+        user = (await oauthSupabase.auth.getUser()).data.user ?? user;
       }
 
       const handoffSession = {
@@ -94,10 +128,6 @@ export default function AuthClientCallback() {
       };
       writeOwnerAuthHandoff(handoffSession);
       writeOwnerAuthSessionCache(handoffSession);
-
-      const requestedProvider = resolveProvider(params.get("provider"));
-      const storedProvider = resolveProvider(window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE));
-      const provider = requestedProvider ?? storedProvider ?? resolveSocialProviderFromAuthUser(user);
 
       try {
         const response = await fetch("/api/owner/shops", {

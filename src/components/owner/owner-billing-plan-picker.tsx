@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, MessageSquareText } from "lucide-react";
+import { CalendarX2, ChevronLeft } from "lucide-react";
 
 import {
   getOwnerPlanStaffAccountLabel,
@@ -19,7 +19,6 @@ type OwnerBillingPlanPickerProps = {
   onSelectPlanCode: (code: OwnerPlanCode) => void;
   onContinue: () => void;
   onBack: () => void;
-  onOpenSupport: () => void;
   canCancelRenewal: boolean;
   cancellingRenewal: boolean;
   onCancelRenewal: () => void;
@@ -190,7 +189,6 @@ export function OwnerBillingPlanPicker({
   onSelectPlanCode,
   onContinue,
   onBack,
-  onOpenSupport,
   canCancelRenewal,
   cancellingRenewal,
   onCancelRenewal,
@@ -207,41 +205,38 @@ export function OwnerBillingPlanPicker({
     <div className="owner-font min-h-screen bg-[#f6f8fb] px-4 py-6 text-[#0f172a] lg:px-8 lg:py-8">
       <div className="mx-auto w-full max-w-[1180px]">
         <section className="rounded-[8px] border border-[#dbe2ea] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)] lg:px-7 lg:py-6">
-          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e7edf3] pb-5">
-            <div className="flex min-w-0 items-start gap-3">
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex h-9 shrink-0 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-2.5 text-[13px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                이전
-              </button>
-              <div>
-                <p className="text-[13px] font-medium text-[#64748b]">이용 플랜</p>
-                <h1 className="mt-1 text-[22px] font-semibold leading-tight text-[#0f172a]">매장 운영 인원에 맞는 플랜을 선택하세요</h1>
-              </div>
+          <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#e7edf3] pb-5">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              이전
+            </button>
+
+            <div className="min-w-0 text-center">
+              <h1 className="text-[19px] font-semibold leading-7 text-[#0f172a] sm:text-[22px]">
+                매장 운영 인원에 맞는 플랜을 선택하세요
+              </h1>
             </div>
-            <div className="flex items-center justify-end gap-2">
+
+            {canCancelRenewal ? (
               <button
                 type="button"
-                onClick={onOpenSupport}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:bg-[#f8fafc]"
+                onClick={onCancelRenewal}
+                disabled={cancellingRenewal}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[#e7cfd4] bg-white px-3 text-[13px] font-medium text-[#a04455] transition hover:border-[#d9b4bc] hover:bg-[#fffafb] disabled:opacity-60"
               >
-                <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-                1:1 문의
-              </button>
-              {canCancelRenewal ? (
-                <button
-                  type="button"
-                  onClick={onCancelRenewal}
-                  disabled={cancellingRenewal}
-                  className="inline-flex h-9 items-center justify-center rounded-[8px] border border-[#ead3d8] bg-white px-3 text-[13px] font-medium text-[#a04455] transition hover:bg-[#fff7f8] disabled:opacity-60"
-                >
+                <CalendarX2 className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">
                   {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
-                </button>
-              ) : null}
-            </div>
+                </span>
+                <span className="sm:hidden">{cancellingRenewal ? "처리 중" : "결제 취소"}</span>
+              </button>
+            ) : (
+              <span className="w-10" aria-hidden="true" />
+            )}
           </header>
 
           <section className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3">

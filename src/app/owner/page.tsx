@@ -95,10 +95,6 @@ function isOwnerAuthRecoveryError(message: string) {
   );
 }
 
-function shouldBlockOwnerAccessBySubscription(summary: OwnerSubscriptionSummary) {
-  return summary.status === "expired" || summary.status === "past_due";
-}
-
 function shouldUseOwnerDemoFallback(message?: string) {
   if (typeof window === "undefined") return false;
   const hostname = window.location.hostname.toLowerCase();
@@ -297,14 +293,6 @@ export default function OwnerPage() {
           "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
         );
 
-        if (shouldBlockOwnerAccessBySubscription(subscription)) {
-          const billingReason = subscription.status === "past_due" ? "past_due" : "expired";
-          router.replace(
-            `/owner/billing?notice=${billingReason}&compare=1&plan=${encodeURIComponent(subscription.autoRenewPlanCode)}` as never,
-          );
-          router.refresh();
-          return;
-        }
         writeOwnerBillingSummaryCache(subscription);
         setSubscriptionSummary(subscription);
 
@@ -324,12 +312,6 @@ export default function OwnerPage() {
         if (isOwnerAuthRecoveryError(nextMessage)) {
           clearOwnerAuthTokenCache();
           router.replace("/login" as never);
-          router.refresh();
-          return;
-        }
-
-        if (nextMessage.includes("서비스 이용 기간이 만료") || nextMessage.includes("결제 정보를 확인")) {
-          router.replace("/owner/billing?notice=expired&compare=1" as never);
           router.refresh();
           return;
         }

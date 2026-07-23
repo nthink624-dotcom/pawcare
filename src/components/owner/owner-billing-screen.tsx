@@ -1,14 +1,20 @@
 ﻿"use client";
 
-import { CreditCard } from "lucide-react";
+import { CalendarX2, CreditCard, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
-import { BillingConsent, PaymentMethodSheet, type PaymentMethodOption } from "@/features/billing";
+import {
+  BillingConsent,
+  OwnerBillingCardRegistrationForm,
+  PaymentMethodSheet,
+  type OwnerBillingCardCredentials,
+  type PaymentMethodOption,
+} from "@/features/billing";
 import {
   cancelOwnerSubscriptionRenewal,
-  issueOwnerBillingKey,
+  issueOwnerBillingKeyByApi,
   requestOwnerOneTimePayment,
   saveOwnerSubscriptionPreferences,
   retryOwnerSubscriptionPayment,
@@ -222,6 +228,7 @@ export default function OwnerBillingScreen({
   const [cancelReason, setCancelReason] = useState("");
   const [cancelAcknowledged, setCancelAcknowledged] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [cardRegistrationOpen, setCardRegistrationOpen] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<"saved" | "new">(
     initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "saved" : "new",
@@ -266,13 +273,13 @@ export default function OwnerBillingScreen({
     ? [
         "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
         "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+        "카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, 펫매니저에는 저장되지 않습니다.",
       ]
     : [
         "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
         "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
         `${selectedPlan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
-        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+        "카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, 펫매니저에는 저장되지 않습니다.",
       ];
   const agreementContinueLabel =
     registeringCard || retryingPayment || resumingRegisteredCardPayment
@@ -406,12 +413,15 @@ export default function OwnerBillingScreen({
     };
   }, [resumingRegisteredCardPayment, retryingPayment, summary, usesOneTimePayment]);
 
-  async function handleRegisterCard() {
+  function handleRegisterCard() {
     if (registeringCard || retryingPayment) return;
-    if (!env.portoneBillingChannelKey) {
-      setMessage("PortOne 정기결제 채널 설정을 먼저 확인해 주세요.");
-      return;
-    }
+    setPaymentSheetOpen(false);
+    setCardRegistrationOpen(true);
+    setMessage(null);
+  }
+
+  async function handleApiCardRegistration(credentials: OwnerBillingCardCredentials) {
+    if (registeringCard || retryingPayment) return;
 
     setRegisteringCard(true);
     setRetryingPayment(true);
@@ -421,8 +431,8 @@ export default function OwnerBillingScreen({
       await persistSelectedPlanIfNeeded();
       storePendingBillingRegistration(selectedPlanCode);
 
-      const registeredSummary = await issueOwnerBillingKey({
-        customerId: `owner_${summary.userId}`,
+      const registeredSummary = await issueOwnerBillingKeyByApi({
+        ...credentials,
         customerName: summary.ownerName || "펫매니저 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
@@ -603,71 +613,89 @@ export default function OwnerBillingScreen({
   }
 
   const cancelRenewalDialog = cancelRenewalDialogOpen ? (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4">
-      <div className="w-full max-w-[420px] rounded-[20px] border border-[#e5d4d7] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-semibold text-[#a04455]">정기결제 취소</p>
-            <h2 className="mt-1 text-[21px] font-extrabold tracking-[-0.03em] text-[#111111]">
-              다음 결제부터 중단할까요?
-            </h2>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0f172a]/40 px-4 py-6 backdrop-blur-[2px]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-renewal-title"
+        className="w-full max-w-[460px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_28px_80px_rgba(15,23,42,0.24)]"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7edf3] px-6 py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#fff7f8] text-[#a04455]">
+              <CalendarX2 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] font-medium text-[#a04455]">정기결제 취소</p>
+              <h2 id="cancel-renewal-title" className="mt-1 text-[21px] font-semibold leading-7 text-[#0f172a]">
+                다음 결제부터 중단할까요?
+              </h2>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => setCancelRenewalDialogOpen(false)}
             disabled={cancellingRenewal}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-[18px] font-semibold text-[#64748b] transition hover:bg-[#e2e8f0] disabled:opacity-60"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#334155] disabled:opacity-60"
             aria-label="닫기"
           >
-            ×
+            <X className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mt-4 rounded-[14px] border border-[#eadde0] bg-[#fff8f9] px-4 py-3">
-          <p className="text-[13px] font-semibold text-[#7f3544]">
-            현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일에는 자동 결제가 진행되지 않습니다.
-          </p>
-          <p className="mt-1 text-[12px] font-medium leading-5 text-[#8f5d66]">
-            포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 이미 충전한 유료 알림톡은 정책에 따라 유지됩니다.
-          </p>
+        <div className="px-6 py-5">
+          <div className="rounded-[8px] border border-[#eadde0] bg-[#fffafb] px-4 py-3.5">
+            <p className="text-[13px] font-medium leading-5 text-[#7f3544]">
+              현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일에는 자동 결제가 진행되지 않습니다.
+            </p>
+            <p className="mt-1.5 text-[12px] leading-5 text-[#8f5d66]">
+              포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 이미 충전한 유료 알림톡은 정책에 따라 유지됩니다.
+            </p>
+          </div>
+
+          <label className="mt-5 grid gap-2">
+            <span className="text-[13px] font-medium text-[#334155]">취소 사유</span>
+            <select
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+              disabled={cancellingRenewal}
+              className="h-11 rounded-[8px] border border-[#cfd8e3] bg-white px-3 text-[14px] font-medium text-[#0f172a] outline-none transition focus:border-[#a04455] focus:ring-2 focus:ring-[#f4d9df] disabled:opacity-60"
+            >
+              <option value="">사유를 선택해 주세요</option>
+              {cancellationReasons.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3.5 py-3">
+            <input
+              type="checkbox"
+              checked={cancelAcknowledged}
+              onChange={(event) => setCancelAcknowledged(event.target.checked)}
+              disabled={cancellingRenewal}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#94a3b8] text-[#a04455] focus:ring-[#e7bcc5]"
+            />
+            <span className="text-[12px] leading-5 text-[#475569]">
+              현재 이용 기간 종료일까지는 서비스를 사용할 수 있으며, 다음 결제일부터 자동 갱신이 중단된다는 내용을 확인했습니다.
+            </span>
+          </label>
+
+          {message ? (
+            <p className="mt-4 rounded-[8px] border border-[#fecaca] bg-[#fff7f7] px-3 py-2.5 text-[13px] leading-5 text-[#b91c1c]">
+              {message}
+            </p>
+          ) : null}
         </div>
 
-        <label className="mt-4 grid gap-1.5">
-          <span className="text-[13px] font-semibold text-[#334155]">취소 사유</span>
-          <select
-            value={cancelReason}
-            onChange={(event) => setCancelReason(event.target.value)}
-            disabled={cancellingRenewal}
-            className="h-11 rounded-[12px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#111827] outline-none transition focus:border-[#a04455] focus:ring-2 focus:ring-[#f8dbe1] disabled:opacity-60"
-          >
-            <option value="">사유를 선택해 주세요</option>
-            {cancellationReasons.map((reason) => (
-              <option key={reason} value={reason}>
-                {reason}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="mt-4 flex items-start gap-2 rounded-[12px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
-          <input
-            type="checkbox"
-            checked={cancelAcknowledged}
-            onChange={(event) => setCancelAcknowledged(event.target.checked)}
-            disabled={cancellingRenewal}
-            className="mt-0.5 h-4 w-4 rounded border-[#cbd5e1]"
-          />
-          <span className="text-[12px] font-medium leading-5 text-[#475569]">
-            취소 후에도 현재 이용 기간 종료일까지는 서비스를 사용할 수 있으며, 다음 결제일부터 자동 갱신이 중단된다는 내용을 확인했습니다.
-          </span>
-        </label>
-
-        <div className="mt-5 grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 border-t border-[#e7edf3] bg-[#fbfdff] px-6 py-4">
           <button
             type="button"
             onClick={() => setCancelRenewalDialogOpen(false)}
             disabled={cancellingRenewal}
-            className="flex h-11 items-center justify-center rounded-[14px] border border-[#dbe2ea] bg-white text-[14px] font-semibold text-[#475569] transition hover:bg-[#f8fafc] disabled:opacity-60"
+            className="flex h-11 items-center justify-center rounded-[8px] border border-[#cfd8e3] bg-white text-[14px] font-medium text-[#475569] transition hover:bg-[#f8fafc] disabled:opacity-60"
           >
             유지하기
           </button>
@@ -675,7 +703,7 @@ export default function OwnerBillingScreen({
             type="button"
             onClick={() => void handleCancelRenewal()}
             disabled={cancellingRenewal || !cancelReason || !cancelAcknowledged}
-            className="flex h-11 items-center justify-center rounded-[14px] bg-[#a04455] text-[14px] font-semibold text-white transition hover:bg-[#8e3948] disabled:opacity-50"
+            className="flex h-11 items-center justify-center rounded-[8px] border border-[#a04455] bg-[#a04455] text-[14px] font-medium text-white transition hover:border-[#8e3948] hover:bg-[#8e3948] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:bg-[#e2e8f0] disabled:text-[#94a3b8]"
           >
             {cancellingRenewal ? "취소 처리 중..." : "정기결제 취소"}
           </button>
@@ -683,6 +711,25 @@ export default function OwnerBillingScreen({
       </div>
     </div>
   ) : null;
+
+  if (cardRegistrationOpen) {
+    return (
+      <OwnerBillingCardRegistrationForm
+        planLabel={selectedPlanLabel}
+        amountLabel={`월 ${won(selectedBillingAmount.monthlyTotalAmount)}`}
+        loading={registeringCard || retryingPayment}
+        message={message}
+        onBack={() => {
+          if (registeringCard || retryingPayment) return;
+          setCardRegistrationOpen(false);
+          setMessage(null);
+        }}
+        onSubmit={async (credentials) => {
+          await handleApiCardRegistration(credentials);
+        }}
+      />
+    );
+  }
 
   if (isSelectingPlan) {
     if (selectionStep === "agreement") {
@@ -753,7 +800,6 @@ export default function OwnerBillingScreen({
             setSelectionStep("agreement");
           }}
           onBack={() => router.push("/owner")}
-          onOpenSupport={() => router.push("/owner?screen=help")}
           canCancelRenewal={canCancelRenewal}
           cancellingRenewal={cancellingRenewal}
           onCancelRenewal={openCancelRenewalDialog}

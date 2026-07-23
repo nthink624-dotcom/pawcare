@@ -78,7 +78,6 @@ const ownerWebSidebarGroups: Array<{
       { key: "benefits", label: "혜택 관리" },
       { key: "staff", label: "직원 관리" },
       { key: "alerts", label: "알림 설정" },
-      { key: "billing", label: "요금/결제", href: "/owner/billing?compare=1" as Route },
     ],
   },
 ];
@@ -317,7 +316,7 @@ export default function OwnerWebAppShell({
                   {group.label}
                 </p>
                 <div className="space-y-1.5">
-                  {group.items.filter((item) => item.key !== "billing").map((screen) => {
+                  {group.items.map((screen) => {
                     const active = activeScreen === screen.key;
                     const itemClassName = cn(
                       "relative flex h-[40px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
@@ -351,30 +350,24 @@ export default function OwnerWebAppShell({
         </nav>
 
         <div className="border-t border-[var(--nav-bd)] px-5 py-4">
-          <Link
-            href="/owner/billing?compare=1"
-            prefetch
-            className="group block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c6d8] hover:shadow-[0_12px_24px_rgba(49,111,232,0.10)]"
-          >
+          <div className="rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
                 <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">{currentPlanMeta}</p>
               </div>
-              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8] transition group-hover:bg-[#316fe8] group-hover:text-white">
-                플랜 확인
+              <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8]">
+                이용 플랜
               </span>
             </div>
-          </Link>
+          </div>
           <div className="hidden rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-[var(--nav-ink)]">{currentPlanLabel}</p>
                 <p className="mt-1 text-[12px] font-medium text-[var(--nav-mut)]">{currentPlanMeta}</p>
               </div>
-              <Link href="/owner/billing?compare=1" prefetch className="text-[13px] font-bold text-[var(--acc)]">
-                플랜 확인
-              </Link>
+              <span className="text-[13px] font-bold text-[var(--acc)]">이용 플랜</span>
             </div>
           </div>
         </div>

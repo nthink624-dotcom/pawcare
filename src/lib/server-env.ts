@@ -41,6 +41,9 @@ export const serverEnv = {
   ),
   bookingAccessSecret: readOptionalSecret(process.env.BOOKING_ACCESS_SECRET),
   portoneStoreId: readOptionalSecret(process.env.PORTONE_STORE_ID || process.env.NEXT_PUBLIC_PORTONE_STORE_ID),
+  portoneBillingChannelKey: readOptionalSecret(
+    process.env.PORTONE_BILLING_CHANNEL_KEY || process.env.NEXT_PUBLIC_PORTONE_BILLING_CHANNEL_KEY,
+  ),
   portoneApiSecret: readOptionalSecret(process.env.PORTONE_API_SECRET),
   portoneWebhookSecret: readOptionalSecret(process.env.PORTONE_WEBHOOK_SECRET),
   billingKeyEncryptionSecret: readOptionalSecret(process.env.BILLING_KEY_ENCRYPTION_SECRET),

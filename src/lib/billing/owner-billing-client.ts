@@ -188,6 +188,23 @@ export async function registerOwnerBillingKey(params: {
   });
 }
 
+export async function issueOwnerBillingKeyByApi(params: {
+  cardNumber: string;
+  expiryYear: string;
+  expiryMonth: string;
+  birthOrBusinessRegistrationNumber: string;
+  passwordTwoDigits: string;
+  planCode: OwnerPlanCode;
+  customerName?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
+}) {
+  return fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription/payment-method/issue", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function issueOwnerBillingKey(params: {
   customerId: string;
   customerName: string;

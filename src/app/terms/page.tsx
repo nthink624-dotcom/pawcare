@@ -1,5 +1,6 @@
 import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
 import { ownerSignupTerms } from "@/lib/auth/owner-signup-terms";
+import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 
 export default function TermsPage() {
   const serviceTerms = ownerSignupTerms.find((term) => term.id === "service");
@@ -8,7 +9,7 @@ export default function TermsPage() {
   return (
     <LegalPageLayout
       title="이용약관"
-      subtitle="넘친 Day 서비스 이용과 관련된 기본 규정과 위치기반서비스 안내를 확인할 수 있어요."
+      subtitle={`${LEGAL_SERVICE_NAME} 이용과 관련된 기본 규정입니다. 운영 주체는 ${LEGAL_OPERATOR_NAME}입니다.`}
     >
       {serviceTerms ? <LegalSection title={serviceTerms.title} body={serviceTerms.content} /> : null}
       {locationTerms ? <LegalSection title={locationTerms.title} body={locationTerms.content} /> : null}

@@ -16,8 +16,6 @@ import {
 import {
   INLINE_ERROR,
   INPUT_BASE,
-  PAGE_EYEBROW,
-  PAGE_FRAME,
   cn,
 } from "@/lib/ui-system";
 import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
@@ -35,41 +33,57 @@ const providerLabelMap: Record<SocialProvider, string> = {
   naver: "네이버",
 };
 
-function GoogleSymbol() {
+const providerVisuals: Record<
+  SocialProvider,
+  {
+    gradient: string;
+    logoSrc: string;
+    decorativeLogoSrc?: string;
+    logoClassName: string;
+  }
+> = {
+  kakao: {
+    gradient: "linear-gradient(180deg, #fff3b0 0%, #ffffff 100%)",
+    logoSrc: "/icons/social/kakaotalk_sharing_btn_medium.png",
+    decorativeLogoSrc: "/images/auth/kakao-symbol.png",
+    logoClassName: "h-[38px] w-[38px] rounded-[10px]",
+  },
+  naver: {
+    gradient: "linear-gradient(180deg, #c9f3da 0%, #ffffff 100%)",
+    logoSrc: "/images/auth/naver-login-light-kr-green-wide-h48.png",
+    logoClassName: "h-[38px] w-[38px] rounded-full",
+  },
+  google: {
+    gradient: "linear-gradient(180deg, #eef2fb 0%, #ffffff 100%)",
+    logoSrc: "/images/auth/google-symbol.png",
+    logoClassName: "h-[34px] w-[34px]",
+  },
+};
+
+function ProviderLogo({
+  provider,
+  decorative = false,
+}: {
+  provider?: SocialProvider;
+  decorative?: boolean;
+}) {
+  if (!provider) return null;
+
+  const visual = providerVisuals[provider];
   return (
-    <svg viewBox="0 0 18 18" aria-hidden="true" className="h-[18px] w-[18px]">
-      <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.88 2.68-6.62Z"
-      />
-      <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H1v2.33A9 9 0 0 0 9 18Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M3.97 10.72A5.41 5.41 0 0 1 3.69 9c0-.6.1-1.18.28-1.72V4.95H1A9 9 0 0 0 0 9c0 1.45.35 2.82 1 4.05l2.97-2.33Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.33l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 1 4.95l2.97 2.33c.71-2.12 2.69-3.7 5.03-3.7Z"
-      />
-    </svg>
+    <Image
+      src={decorative ? (visual.decorativeLogoSrc ?? visual.logoSrc) : visual.logoSrc}
+      alt={decorative ? "" : `${providerLabelMap[provider]} 로고`}
+      width={decorative ? 130 : 24}
+      height={decorative ? 130 : 24}
+      className={
+        decorative
+          ? "h-[130px] w-[130px] object-contain"
+          : cn("object-contain", visual.logoClassName)
+      }
+      aria-hidden={decorative}
+    />
   );
-}
-
-function ProviderLogo({ provider }: { provider?: SocialProvider }) {
-  if (provider === "google") return <GoogleSymbol />;
-
-  if (provider === "kakao") {
-    return <Image src="/images/auth/kakao-symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px]" />;
-  }
-
-  if (provider === "naver") {
-    return <Image src="/images/auth/naver-symbol.png" alt="" width={18} height={18} className="h-[18px] w-[18px]" />;
-  }
-
-  return null;
 }
 
 function normalizePhone(value: string) {
@@ -127,19 +141,14 @@ function joinAddress(baseAddress: string, detailAddress: string) {
 
 function FormField({
   label,
-  hint,
   children,
 }: {
   label: string;
-  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="block">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[16px] font-medium text-[#3d3833]">{label}</span>
-        {hint ? <span className="text-[14px] text-[#8b847b]">{hint}</span> : null}
-      </div>
+    <div className="mb-[14px] block">
+      <label className="mb-1.5 block text-[12.5px] font-semibold text-[#64748b]">{label}</label>
       {children}
     </div>
   );
@@ -170,7 +179,7 @@ function TextInput({
       readOnly={readOnly}
       className={cn(
         INPUT_BASE,
-        "h-[58px] rounded-[12px] border-[#d9dee7] px-5 text-[18px] font-medium focus:border-[#111827] focus:ring-[#111827]/8 disabled:bg-[#f6f7f9] disabled:text-[#6b7280] read-only:cursor-default read-only:bg-[#f8fafc]",
+        "h-12 rounded-[11px] border-[#e5e9f0] bg-[#f8fafc] px-[14px] text-[13.5px] font-normal text-[#0f172a] placeholder:text-[#b0b8c4] focus:border-[#0f172a] focus:bg-white focus:ring-0 disabled:bg-[#f8fafc] disabled:text-[#64748b] read-only:cursor-default read-only:bg-[#f8fafc]",
       )}
     />
   );
@@ -192,7 +201,6 @@ export default function SocialSignupCompleteForm({
   const [email, setEmail] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopPhoneNumber, setShopPhoneNumber] = useState("");
-  const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
   const [shopAddress, setShopAddress] = useState("");
   const [shopDetailAddress, setShopDetailAddress] = useState("");
   const [shopPostalCode, setShopPostalCode] = useState("");
@@ -258,13 +266,9 @@ export default function SocialSignupCompleteForm({
     void syncUser();
   }, [nextPath, router, supabase]);
 
-  useEffect(() => {
-    if (shopPhoneSameAsOwner) {
-      setShopPhoneNumber(phoneNumber);
-    }
-  }, [phoneNumber, shopPhoneSameAsOwner]);
-
   const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
+  const providerVisual = resolvedProvider ? providerVisuals[resolvedProvider] : null;
+  const phoneIsEditable = resolvedProvider === "google";
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -344,102 +348,107 @@ export default function SocialSignupCompleteForm({
 
   return (
     <>
-      <div className={cn(PAGE_FRAME, "bg-white px-6 pb-8 pt-7 text-[#111111]")}>
-        <div className="relative flex h-9 items-center justify-center">
+      <main className="owner-font mx-auto min-h-screen w-full max-w-[390px] overflow-hidden bg-white text-[#0f172a] sm:min-h-0 sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+        <header
+          className="relative overflow-hidden px-6 pb-5 pt-[18px]"
+          style={{ background: providerVisual?.gradient ?? "linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%)" }}
+        >
+          <div className="pointer-events-none absolute -right-[18px] -top-[18px] z-0 opacity-[0.16]">
+            <ProviderLogo provider={resolvedProvider} decorative />
+          </div>
+
           <MobileBackLinkButton
             href="/login"
             replace
             aria-label="로그인으로 돌아가기"
-            className="absolute left-0 h-9 w-9 rounded-[10px] bg-white shadow-none"
+            className="relative z-10 mb-[14px] h-8 w-8 rounded-[9px] border-0 bg-white/60 text-[#0f172a] shadow-none hover:bg-white/80 [&_svg]:h-[15px] [&_svg]:w-[15px]"
           />
-          <div className="flex items-center justify-center gap-2">
-            <ProviderLogo provider={resolvedProvider} />
-            <p className={cn(PAGE_EYEBROW, "text-[16px] font-medium text-[#6b7280]")}>{providerLabel} 간편가입</p>
+
+          <div className="relative z-10 flex items-center gap-[14px]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+              <ProviderLogo provider={resolvedProvider} />
+            </div>
+            <div>
+              <h1 className="mb-1 text-[17px] font-extrabold leading-tight text-[#0f172a]">
+                {ownerName.trim() ? `${ownerName.trim()}님, 반가워요!` : "반가워요!"}
+              </h1>
+              <p className="text-[12px] leading-[1.45] text-[#475569]">
+                {providerLabel} 계정 정보로 빠르게 가입할게요.
+                <br />
+                매장 정보만 입력하면 끝나요.
+              </p>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="mt-6 space-y-7">
-          <div className="space-y-5">
-            <h1 className="text-[17px] font-semibold text-[#111827]">계정 정보</h1>
-            <FormField label="이름">
-              <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" readOnly />
-            </FormField>
+        <div className="px-7 pb-9 pt-1">
+          <div className="mb-2.5 flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
+            <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">이름</span>
+            <span className="truncate text-[13.5px] font-semibold text-[#0f172a]">
+              {ownerName.trim() || "이름 확인 중"}
+            </span>
+          </div>
 
-            <FormField label="휴대폰번호">
-              <TextInput
+          <div className="flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
+            <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">휴대폰번호</span>
+            {phoneIsEditable ? (
+              <input
                 value={formatPhone(phoneNumber)}
-                onChange={(value) => setPhoneNumber(normalizePhone(value))}
+                onChange={(event) => setPhoneNumber(normalizePhone(event.target.value))}
                 placeholder="010-0000-0000"
                 inputMode="numeric"
-                readOnly
+                aria-label="휴대폰번호"
+                className="w-[140px] border-0 bg-transparent p-0 text-right text-[13.5px] font-semibold text-[#0f172a] outline-none placeholder:font-medium placeholder:text-[#b0b8c4]"
               />
-            </FormField>
+            ) : (
+              <span className="whitespace-nowrap text-[13.5px] font-semibold text-[#0f172a]">
+                {formatPhone(phoneNumber) || "번호 확인 중"}
+              </span>
+            )}
+          </div>
 
-            <FormField label="이메일">
-              <TextInput value={email} onChange={() => undefined} placeholder="이메일 주소" readOnly />
-            </FormField>
-
-            <div className="h-px bg-[#e5e7eb]" aria-hidden="true" />
-            <h2 className="text-[17px] font-semibold text-[#111827]">매장 정보</h2>
-
+          <section className="mt-[22px] border-t border-[#eef1f5] pt-5">
+            <h2 className="mb-[14px] text-[15px] font-extrabold text-[#0f172a]">매장 정보</h2>
             <FormField label="매장명">
               <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />
             </FormField>
 
-            <FormField
-              label="매장 연락처"
-              hint={
-                <label className="flex items-center gap-1.5 text-[14px] text-[#6b7280]">
-                  <input
-                    type="checkbox"
-                    checked={shopPhoneSameAsOwner}
-                    onChange={(event) => {
-                      setShopPhoneSameAsOwner(event.target.checked);
-                      if (event.target.checked) {
-                        setShopPhoneNumber(phoneNumber);
-                      }
-                    }}
-                    className="h-[15px] w-[15px] rounded border-[#cbd5e1] accent-[#111827]"
-                  />
-                  <span>휴대폰 번호와 같습니다.</span>
-                </label>
-              }
-            >
+            <FormField label="매장 연락처">
               <TextInput
                 value={formatShopPhone(shopPhoneNumber)}
                 onChange={(value) => setShopPhoneNumber(normalizeShopPhone(value))}
                 placeholder="02-0000-0000"
                 inputMode="numeric"
-                disabled={shopPhoneSameAsOwner}
               />
             </FormField>
 
             <FormField label="매장 주소">
-              <div className="space-y-2.5">
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setAddressSheetOpen(true)}
-                  className={cn(
-                    INPUT_BASE,
-                    "flex h-auto min-h-[58px] items-center justify-between gap-3 rounded-[12px] border-[#d9dee7] px-5 py-3 text-left text-[18px] font-medium transition hover:bg-[#f7f8fa] focus:border-[#111827] focus:ring-[#111827]/8",
-                  )}
+                  className="h-12 min-w-0 flex-1 truncate rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-[14px] text-left text-[13.5px] text-[#0f172a] outline-none transition hover:bg-white focus:border-[#0f172a]"
                 >
-                  <div className="min-w-0">
-                    <span className={shopAddress ? "block truncate text-[#111827]" : "block truncate text-[#b0b7bf]"}>
-                      {shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-[15px] font-semibold text-[#111827]">주소 검색</span>
+                  <span className={shopAddress ? "block truncate" : "block truncate text-[#b0b8c4]"}>
+                    {shopAddress || "매장 주소를 입력해 주세요"}
+                  </span>
                 </button>
-
-                <TextInput
-                  value={shopDetailAddress}
-                  onChange={setShopDetailAddress}
-                  placeholder="상세 주소를 입력해 주세요"
-                />
+                <button
+                  type="button"
+                  onClick={() => setAddressSheetOpen(true)}
+                  className="h-12 shrink-0 whitespace-nowrap rounded-[11px] border border-[#0f172a] bg-white px-4 text-[12.5px] font-bold text-[#0f172a] transition hover:bg-[#f8fafc]"
+                >
+                  주소 검색
+                </button>
               </div>
             </FormField>
-          </div>
+
+            <TextInput
+              value={shopDetailAddress}
+              onChange={setShopDetailAddress}
+              placeholder="상세 주소를 입력해 주세요"
+            />
+          </section>
 
           {message ? <p className={INLINE_ERROR}>{message}</p> : null}
 
@@ -447,13 +456,13 @@ export default function SocialSignupCompleteForm({
             type="button"
             onClick={handleSubmit}
             aria-disabled={loading}
-            className="flex h-[62px] w-full items-center justify-center rounded-[12px] bg-[#111827] px-5 text-[19px] font-semibold text-white transition hover:bg-[#1f2937] aria-disabled:cursor-wait aria-disabled:bg-[#111827] aria-disabled:text-white"
+            className="mt-[22px] flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[13px] bg-[#334155] px-5 text-[14.5px] font-semibold text-white transition hover:bg-[#293548] aria-disabled:cursor-wait aria-disabled:bg-[#334155] aria-disabled:text-white"
           >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
-            {!loading ? <ChevronRight className="ml-1 h-4 w-4" /> : null}
+            {!loading ? <ChevronRight className="h-[15px] w-[15px]" /> : null}
           </button>
         </div>
-      </div>
+      </main>
 
       {addressSheetOpen ? (
         <KakaoPostcodeSheet

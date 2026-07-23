@@ -4,6 +4,10 @@ import { useState } from "react";
 import { PencilLine, Plus } from "lucide-react";
 
 import { BasilIcon } from "@/components/owner-web/basil-icon";
+import {
+  BreedManagementDialog,
+  GroupNameDialog,
+} from "@/components/owner-web/service-price-guide-group-dialogs";
 import { cn } from "@/lib/utils";
 
 export type ServicePriceGuideCell = {
@@ -50,6 +54,10 @@ type DeleteTarget =
   | { kind: "section"; sectionId: string; title: string }
   | { kind: "item"; sectionId: string; itemId: string; title: string }
   | { kind: "weight"; sectionId: string; index: number; title: string };
+
+type SectionDialog =
+  | { kind: "groupName"; sectionId: string }
+  | { kind: "breeds"; sectionId: string };
 
 const defaultExtraNote = [
   "얼굴 가위컷 추가 +5,000원",
@@ -484,6 +492,7 @@ export function ServicePriceGuideEditor({
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [deleteHistory, setDeleteHistory] = useState<ServicePriceGuideSection[][]>([]);
   const [editingSectionIds, setEditingSectionIds] = useState<string[]>([]);
+  const [sectionDialog, setSectionDialog] = useState<SectionDialog | null>(null);
 
   function updateSections(nextSections: ServicePriceGuideSection[], saveImmediately = false) {
     onChange({
@@ -503,6 +512,10 @@ export function ServicePriceGuideEditor({
       current.includes(sectionId) ? current.filter((id) => id !== sectionId) : [...current, sectionId],
     );
   }
+
+  const dialogSection = sectionDialog
+    ? sections.find((section) => section.id === sectionDialog.sectionId)
+    : undefined;
 
   function updateExtraFee(rowId: string, patch: Partial<ServicePriceGuideExtraFee>) {
     updateExtraFees(guide.extraFees.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
@@ -748,49 +761,54 @@ export function ServicePriceGuideEditor({
                   "relative w-full min-w-0 overflow-hidden rounded-[16px] border border-[#e2e7ed] bg-white px-[22px] pb-[22px] pt-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
                 )}
               >
-                <div className="flex items-start gap-3 border-b border-[#edf1f5] bg-white pb-3">
-                    <div className="grid min-w-0 flex-1 items-start gap-3 px-1 py-0.5 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4">
-                      <label className="group relative flex min-h-8 items-center border-r border-[#e2e7ed] pr-3">
-                        {isEditing ? (
-                          <>
-                            <input
-                              type="text"
-                              value={section.title}
-                              onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                              aria-label="서비스 그룹명 수정"
-                              className="h-10 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-8 text-[16px] font-bold text-[#0f172a] outline-none transition hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
-                            />
-                            <PencilLine className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
-                          </>
-                        ) : (
-                          <span className="text-[16px] font-bold text-[#0f172a]">{formatGroupDisplayName(section.title)}</span>
+                <div className="flex flex-col items-center gap-3 border-b border-[#edf1f5] bg-white pb-4">
+                    <div className="flex w-full min-w-0 flex-col items-center gap-3 px-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditing) {
+                            setSectionDialog({ kind: "groupName", sectionId: section.id });
+                          }
+                        }}
+                        disabled={!isEditing}
+                        className={cn(
+                          "group inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] px-4 text-center text-[17px] font-bold text-[#0f172a] transition",
+                          isEditing
+                            ? "border border-[#dbe2ea] bg-white hover:border-[#94a3b8] hover:bg-[#f8fafc]"
+                            : "cursor-default border border-transparent bg-transparent",
                         )}
-                      </label>
-                      <label className="group relative block min-h-8 min-w-0">
+                        aria-label={`${formatGroupDisplayName(section.title)} 그룹명 설정`}
+                      >
+                        {formatGroupDisplayName(section.title)}
                         {isEditing ? (
-                          <>
-                            <input
-                              type="text"
-                              value={section.note}
-                              onChange={(event) => updateSection(section.id, { note: event.target.value })}
-                              placeholder="예: 말티, 요키, 시츄"
-                              aria-label="노출 견종 설명 수정"
-                              className="h-10 w-full cursor-text rounded-[8px] border border-[#cbd5e1] bg-white px-3 pr-8 text-[16px] font-normal text-[#1e293b] outline-none transition placeholder:text-[#94a3b8] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:ring-2 focus:ring-[#e8f0f7]"
-                            />
-                            <PencilLine className="pointer-events-none absolute right-3 top-[calc(50%+7px)] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8] transition group-focus-within:text-[var(--accent)]" strokeWidth={1.8} />
-                          </>
-                        ) : (
-                          <div className="flex max-h-[64px] max-w-full flex-wrap content-start items-start gap-1.5 overflow-y-auto">
-                            {breedLabels.length > 0 ? breedLabels.map((breed, index) => (
-                              <span key={`${breed}-${index}`} className="inline-flex h-7 w-max items-center rounded-[7px] border border-[#e4e9ef] bg-[#f8fafc] px-2.5 text-[15px] font-normal text-[#334155]">
-                                {breed}
-                              </span>
-                            )) : <span className="text-[16px] text-[#9a6b1f]">품종을 입력해 주세요</span>}
-                          </div>
-                        )}
-                      </label>
+                          <PencilLine
+                            className="h-4 w-4 text-[#94a3b8] transition group-hover:text-[var(--accent)]"
+                            strokeWidth={1.9}
+                          />
+                        ) : null}
+                      </button>
+
+                      <div className="flex w-full min-w-0 flex-col items-center gap-2">
+                        <div className="flex max-h-[68px] max-w-full flex-wrap content-center items-center justify-center gap-1.5 overflow-y-auto">
+                          {breedLabels.length > 0 ? breedLabels.map((breed, index) => (
+                            <span key={`${breed}-${index}`} className="inline-flex h-7 w-max items-center justify-center rounded-[7px] border border-[#e4e9ef] bg-[#f8fafc] px-2.5 text-center text-[15px] font-normal text-[#334155]">
+                              {breed}
+                            </span>
+                          )) : <span className="text-center text-[15px] text-[#9a6b1f]">등록된 품종이 없습니다.</span>}
+                        </div>
+                        {isEditing ? (
+                          <button
+                            type="button"
+                            onClick={() => setSectionDialog({ kind: "breeds", sectionId: section.id })}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] font-semibold text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]"
+                          >
+                            <PencilLine className="h-3.5 w-3.5 text-[#64748b]" strokeWidth={1.9} />
+                            품종 관리
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
                         {isEditing ? <button type="button" onClick={() => addWeightBand(section.id)} className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#e2e7ed] bg-[#f6f7f9] px-3 text-[16px] font-semibold text-[#334155] transition hover:bg-[#eef0f3]">
                           <Plus className="h-4 w-4" strokeWidth={1.9} />
                           무게
@@ -835,11 +853,11 @@ export function ServicePriceGuideEditor({
                     </colgroup>
                     <thead>
                       <tr className="bg-[#f6f7f9] text-[#334155]">
-                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-left text-[16px] font-bold" aria-label="그룹">그룹</th>
-                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-left text-[16px] font-bold">무게</th>
+                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-center text-[16px] font-bold" aria-label="그룹">그룹</th>
+                        <th className="whitespace-nowrap border-b border-[#e2e7ed] px-3 py-2.5 text-center text-[16px] font-bold">무게</th>
                         {section.items.map((item) => (
-                          <th key={item.id} className="border-b border-[#e2e7ed] px-3 py-2.5 text-left last:border-r-0">
-                            <div className="group flex items-center justify-between gap-1.5">
+                          <th key={item.id} className="border-b border-[#e2e7ed] px-3 py-2.5 text-center last:border-r-0">
+                            <div className="group flex items-center justify-center gap-1.5">
                               <input
                                 type="text"
                                 value={item.label}
@@ -848,7 +866,7 @@ export function ServicePriceGuideEditor({
                                 title="클릭해서 항목명 수정"
                                 readOnly={!isEditing}
                                 className={cn(
-                                  "h-8 min-w-0 flex-1 rounded-[7px] px-0 text-left text-[16px] font-bold text-[#334155] outline-none transition placeholder:text-[#94a3b8]",
+                                  "h-8 min-w-0 flex-1 rounded-[7px] px-1 text-center text-[16px] font-bold text-[#334155] outline-none transition placeholder:text-[#94a3b8]",
                                   isEditing
                                     ? "cursor-text border border-[#dbe2ea] bg-white hover:border-[#94a3b8] focus:border-[var(--accent)] focus:text-[#111827] focus:ring-2 focus:ring-[#e8f0f7]"
                                     : "pointer-events-none border border-transparent bg-transparent",
@@ -873,7 +891,7 @@ export function ServicePriceGuideEditor({
                       {section.weightBands.map((band, bandIndex) => (
                         <tr key={`${section.id}-weight-${bandIndex}`}>
                           {bandIndex === 0 ? (
-                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-b border-[#edf1f5] bg-white px-3 py-[9px] text-left align-middle text-[16px] font-bold text-[#0f172a]">
+                            <td rowSpan={section.weightBands.length} className="whitespace-nowrap border-r border-b border-[#edf1f5] bg-white px-3 py-[9px] text-center align-middle text-[16px] font-bold text-[#0f172a]">
                               {formatGroupDisplayName(section.title)}
                             </td>
                           ) : null}
@@ -887,7 +905,7 @@ export function ServicePriceGuideEditor({
                                 title="클릭해서 무게 구간 수정"
                                 readOnly={!isEditing}
                                 className={cn(
-                                  "h-8 w-full rounded-[8px] px-0 pr-6 text-left text-[16px] font-semibold text-[#1e293b] outline-none transition",
+                                  "h-8 w-full rounded-[8px] px-6 text-center text-[16px] font-semibold text-[#1e293b] outline-none transition",
                                   isEditing
                                     ? "cursor-text border border-[#dbe2ea] bg-[#fbfdff] hover:border-[#94a3b8] focus:border-[var(--accent)] focus:bg-white focus:ring-2 focus:ring-[#e8f0f7]"
                                     : "pointer-events-none border border-transparent bg-transparent",
@@ -899,8 +917,8 @@ export function ServicePriceGuideEditor({
                           {section.items.map((item) => {
                             const cell = item.cells[band] ?? { price: "", durationMinutes: "" };
                             return (
-                              <td key={item.id} className="border-b border-[#edf1f5] px-3 py-[9px] last:border-r-0">
-                                <div className={cn("group inline-flex h-8 min-w-0 items-center justify-start whitespace-nowrap rounded-[8px] border border-transparent transition", isEditing && "hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]")} title={isEditing ? "클릭해서 가격과 시간을 수정" : undefined}>
+                              <td key={item.id} className="border-b border-[#edf1f5] px-3 py-[9px] text-center last:border-r-0">
+                                <div className={cn("group inline-flex h-8 min-w-0 items-center justify-center whitespace-nowrap rounded-[8px] border border-transparent transition", isEditing && "hover:border-[#dbe2ea] hover:bg-[#f8fafc] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]")} title={isEditing ? "클릭해서 가격과 시간을 수정" : undefined}>
                                   {isEditing ? (
                                     <>
                                       <input
@@ -911,7 +929,7 @@ export function ServicePriceGuideEditor({
                                         placeholder="-"
                                         aria-label={`${item.label} ${band} 가격 수정`}
                                         style={{ width: `${Math.max(1, formatPriceInput(cell.price).length)}ch` }}
-                                        className="h-7 shrink-0 cursor-text bg-transparent p-0 text-left text-[16px] font-bold tabular-nums text-black outline-none placeholder:text-[#a3afbd]"
+                                        className="h-7 shrink-0 cursor-text bg-transparent p-0 text-center text-[16px] font-bold tabular-nums text-black outline-none placeholder:text-[#a3afbd]"
                                       />
                                       <span className="shrink-0 text-[14px] font-normal text-[#64748b]">/</span>
                                       <input
@@ -922,7 +940,7 @@ export function ServicePriceGuideEditor({
                                         placeholder="-"
                                         aria-label={`${item.label} ${band} 예상 시간 수정`}
                                         style={{ width: `${Math.max(1, cell.durationMinutes.length)}ch` }}
-                                        className="ml-1 h-7 shrink-0 cursor-text bg-transparent p-0 text-left text-[14px] font-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#a3afbd]"
+                                        className="ml-1 h-7 shrink-0 cursor-text bg-transparent p-0 text-center text-[14px] font-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#a3afbd]"
                                       />
                                       <span className="shrink-0 text-[14px] font-normal text-[#64748b]">분 예상</span>
                                     </>
@@ -1038,6 +1056,28 @@ export function ServicePriceGuideEditor({
             </div>
           </section>
         </div>
+      ) : null}
+
+      {sectionDialog?.kind === "groupName" && dialogSection ? (
+        <GroupNameDialog
+          initialName={dialogSection.title}
+          onClose={() => setSectionDialog(null)}
+          onSave={(name) => {
+            updateSection(dialogSection.id, { title: name });
+            setSectionDialog(null);
+          }}
+        />
+      ) : null}
+
+      {sectionDialog?.kind === "breeds" && dialogSection ? (
+        <BreedManagementDialog
+          initialBreeds={getBreedLabels(dialogSection.note)}
+          onClose={() => setSectionDialog(null)}
+          onSave={(breeds) => {
+            updateSection(dialogSection.id, { note: breeds.join(", ") });
+            setSectionDialog(null);
+          }}
+        />
       ) : null}
 
       {pendingDelete ? (

@@ -1,5 +1,6 @@
-export const LEGAL_SERVICE_NAME = "넘친 Day";
+export const LEGAL_SERVICE_NAME = "넘친Day 펫매니저";
 export const LEGAL_OPERATOR_NAME = "넘친 Day";
+export const LEGAL_SERVICE_OPERATOR_NOTICE = `${LEGAL_SERVICE_NAME}는 ${LEGAL_OPERATOR_NAME}가 운영하는 반려동물 미용샵 운영 지원 서비스입니다.`;
 
 export const LEGAL_BUSINESS_INFO = {
   serviceName: LEGAL_SERVICE_NAME,
@@ -10,8 +11,11 @@ export const LEGAL_BUSINESS_INFO = {
   customerServicePhone: "041-557-5529",
   customerServiceEmail: "nthink624@gmail.com",
   hostingProvider: "Vercel Inc.",
+  telecomSalesRegistration: "2026-충남천안-1640",
+  paymentProvider: "NHN KCP",
   privacyTrusteeName: "코리아포트원 주식회사",
   privacyTrusteeTask: "전자결제 및 휴대폰 본인인증 연동",
+  paymentStatementName: LEGAL_OPERATOR_NAME,
 } as const;
 
 export const LEGAL_LINKS = [

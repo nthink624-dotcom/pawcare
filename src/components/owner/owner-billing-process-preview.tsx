@@ -197,7 +197,6 @@ export function OwnerBillingProcessPreview() {
                 onSelectPlanCode={setSelectedPlanCode}
                 onContinue={() => undefined}
                 onBack={() => undefined}
-                onOpenSupport={() => undefined}
                 canCancelRenewal={false}
                 cancellingRenewal={false}
                 onCancelRenewal={() => undefined}

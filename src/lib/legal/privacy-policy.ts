@@ -1,9 +1,11 @@
 import { LEGAL_BUSINESS_INFO, LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 
 export const PUBLIC_PRIVACY_POLICY = `개인정보처리방침
-시행일자: 2026년 3월 31일
+시행일자: 2026년 7월 21일
 
-${LEGAL_OPERATOR_NAME}(이하 "회사")는 ${LEGAL_SERVICE_NAME} 서비스 운영과 관련하여 이용자의 개인정보를 중요하게 생각하며, 「개인정보 보호법」 등 관련 법령을 준수합니다.
+${LEGAL_SERVICE_NAME}는 ${LEGAL_OPERATOR_NAME}(이하 "회사")가 운영하는 서비스입니다. 결제, 본인인증, 개인정보 보호 및 고객 응대의 법적 책임 주체는 ${LEGAL_OPERATOR_NAME}입니다.
+
+${LEGAL_OPERATOR_NAME}는 ${LEGAL_SERVICE_NAME} 서비스 운영과 관련하여 이용자의 개인정보를 중요하게 생각하며, 「개인정보 보호법」 등 관련 법령을 준수합니다.
 
 1. 수집하는 개인정보 항목
 - 필수: 아이디, 비밀번호, 이름, 생년월일, 휴대폰번호, 매장명, 매장 주소

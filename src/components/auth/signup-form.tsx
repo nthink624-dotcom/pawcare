@@ -4,9 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, Eye, EyeOff, Smartphone } from "lucide-react";
+import { Check, ChevronLeft, Smartphone } from "lucide-react";
 
 import SocialLoginButtons from "@/components/auth/social-login-buttons";
+import SignupRedesignView, {
+  type SignupProfileStage,
+} from "@/components/auth/signup-redesign-view";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import {
@@ -282,26 +285,6 @@ function AuthField({
   );
 }
 
-function AuthSectionBlock({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-2">
-      <div className="space-y-0.5">
-        <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">{title}</h2>
-        {description ? <p className="text-[13px] leading-5 text-[#64748b]">{description}</p> : null}
-      </div>
-      <div className="space-y-2.5">{children}</div>
-    </section>
-  );
-}
-
 function AuthInput({
   value,
   onChange,
@@ -412,8 +395,9 @@ export default function SignupForm({
     () => verificationMethods.find((method) => method.id === selectedVerificationMethod) ?? null,
     [selectedVerificationMethod],
   );
-  const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [profileStage, setProfileStage] = useState<SignupProfileStage>("account");
+  const [pendingProfileStage, setPendingProfileStage] = useState<SignupProfileStage | null>(null);
+  const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
   const [loginIdCheck, setLoginIdCheck] = useState<LoginIdCheckState>({
     status: "idle",
     loginId: "",
@@ -539,8 +523,19 @@ export default function SignupForm({
   useEffect(() => {
     if (initialStart !== "email") return;
     setStep("profile");
-    setStartTarget({ kind: "email" });
+    setProfileStage("account");
   }, [initialStart]);
+
+  useEffect(() => {
+    if (!verificationToken || profileStage !== "verification") return;
+    setVerificationSheetOpen(false);
+    setVerificationDetailSheetOpen(false);
+    setProfileStage("verified");
+  }, [profileStage, verificationToken]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [profileStage]);
 
   const updateField = (key: keyof typeof fields, value: string) => {
     const normalizedValue =
@@ -602,6 +597,7 @@ export default function SignupForm({
 
   const openStart = (target: StartTarget) => {
     setMessage(null);
+    setPendingProfileStage(null);
     setStartTarget(target);
   };
 
@@ -616,6 +612,10 @@ export default function SignupForm({
 
     if (target.kind === "email") {
       setStep("profile");
+      if (pendingProfileStage) {
+        setProfileStage(pendingProfileStage);
+        setPendingProfileStage(null);
+      }
       return;
     }
 
@@ -645,23 +645,13 @@ export default function SignupForm({
       setMessage("비밀번호 확인이 일치하지 않습니다.");
       return;
     }
-    if (!fields.shopName.trim()) {
-      setMessage("매장명을 입력해 주세요.");
-      return;
-    }
-    if (!isValidShopPhone(fields.shopPhone)) {
-      setMessage("매장 연락처를 올바르게 입력해 주세요.");
-      return;
-    }
-    if (!fields.shopAddress.trim()) {
-      setMessage("매장 주소를 입력해 주세요.");
-      return;
-    }
-
     setMessage(null);
-    setSelectedVerificationMethod(null);
-    setVerificationDetailSheetOpen(false);
-    setVerificationSheetOpen(true);
+    if (!requiredAgreed) {
+      setPendingProfileStage("verification");
+      setStartTarget({ kind: "email" });
+      return;
+    }
+    setProfileStage("verification");
   };
 
   const requestCode = async () => {
@@ -952,174 +942,92 @@ export default function SignupForm({
   };
 
   return (
-    <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
-      <div className="relative flex min-h-9 items-center justify-center">
-        <MobileBackLinkButton
-          href={step === "entry" ? `/login?next=${encodeURIComponent(nextPath)}` : "/signup"}
-          replace
-          aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
-          className="absolute left-0 top-0 h-9 w-9 rounded-[8px] border-[#dbe2ea] bg-white text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:bg-[#f8fafc]"
-        />
-
-        <h1 className={cn(PAGE_TITLE, "text-center text-[27px] leading-9")}>회원가입</h1>
-      </div>
-
-      <div className={cn(step === "entry" ? "mt-7" : "mt-4")}>
-        {step === "entry" ? (
-          <EntryStep
-            loading={loading}
-            socialLoading={socialLoading}
+    <>
+      {step === "entry" ? (
+        <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
+          <div className="relative flex min-h-9 items-center justify-center">
+            <MobileBackLinkButton
+              href={`/login?next=${encodeURIComponent(nextPath)}`}
+              replace
+              aria-label="로그인으로 이동"
+              className="absolute left-0 top-0 h-9 w-9 rounded-[8px] border-[#dbe2ea] bg-white text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:bg-[#f8fafc]"
+            />
+            <h1 className={cn(PAGE_TITLE, "text-center text-[27px] leading-9")}>회원가입</h1>
+          </div>
+          <div className="mt-7">
+            <EntryStep
+              loading={loading}
+              socialLoading={socialLoading}
             onStartEmail={() => openStart({ kind: "email" })}
             onStartSocial={(provider) => openStart({ kind: "social", provider })}
-            nextPath={nextPath}
-          />
-        ) : null}
-
-        {step === "profile" ? (
-          <div className="space-y-5">
-            <AuthSectionBlock
-              title="계정 정보"
-            >
-              <AuthField
-                label="아이디"
-                tone={loginIdFieldTone}
-                helper={loginIdFieldHelper}
-                error={loginIdFieldError}
-              >
-                <AuthInput
-                  value={fields.loginId}
-                  onChange={(value) => updateField("loginId", value)}
-                  placeholder="영문 소문자·숫자 4자 이상"
-                />
-              </AuthField>
-
-              <AuthField
-                label="비밀번호"
-                tone={passwordFieldTone}
-                helper={passwordFieldHelper}
-                error={passwordRuleError}
-              >
-                <AuthInput
-                  type={showPassword ? "text" : "password"}
-                  value={fields.password}
-                  onChange={(value) => updateField("password", value)}
-                  placeholder="대소문자·숫자·특수문자 중 3종"
-                  rightSlot={
-                    <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="text-[#64748b]">
-                      {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                    </button>
-                  }
-                />
-              </AuthField>
-
-              <AuthField
-                label="비밀번호 확인"
-                tone={passwordConfirmState?.tone}
-                helper={passwordConfirmState && "helper" in passwordConfirmState ? passwordConfirmState.helper : undefined}
-                error={passwordConfirmState && "error" in passwordConfirmState ? passwordConfirmState.error : undefined}
-              >
-                <AuthInput
-                  type={showPasswordConfirm ? "text" : "password"}
-                  value={fields.passwordConfirm}
-                  onChange={(value) => updateField("passwordConfirm", value)}
-                  placeholder="비밀번호를 한 번 더 입력해 주세요"
-                  rightSlot={
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                      className="text-[#64748b]"
-                    >
-                      {showPasswordConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                    </button>
-                  }
-                />
-              </AuthField>
-            </AuthSectionBlock>
-
-            <AuthSectionBlock
-              title="매장 정보"
-            >
-              <AuthField label="매장명">
-                <AuthInput
-                  value={fields.shopName}
-                  onChange={(value) => updateField("shopName", value)}
-                  placeholder="예: 매장명"
-                />
-              </AuthField>
-
-              <AuthField label="매장 연락처">
-                <AuthInput
-                  value={formatShopPhone(fields.shopPhone)}
-                  onChange={(value) => updateField("shopPhone", value)}
-                  placeholder="02-0000-0000"
-                  inputMode="numeric"
-                />
-              </AuthField>
-
-              <AuthField label="매장 주소">
-                  <div className="space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setAddressSheetOpen(true)}
-                      className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 py-2 text-left transition hover:bg-[#f8fafc] focus:border-[#1f6b5b] focus:outline-none focus:ring-[3px] focus:ring-[#1f6b5b]/10"
-                    >
-                      <div className="min-w-0">
-                        <p
-                          className={cn(
-                            "truncate text-[15px] font-medium tracking-[-0.02em]",
-                            fields.shopAddress ? "text-[#111827]" : "text-[#a8b0bd]",
-                          )}
-                        >
-                          {fields.shopAddress || "주소 검색으로 매장 주소를 선택해 주세요"}
-                        </p>
-                        {shopPostalCode ? (
-                          <p className="mt-1 text-[12px] font-medium text-[#64748b]">우편번호 {shopPostalCode}</p>
-                        ) : null}
-                      </div>
-                      <span className="shrink-0 rounded-[7px] border border-[#cfded8] px-2.5 py-1.5 text-[12px] font-semibold text-[#1f6b5b]">주소 검색</span>
-                    </button>
-
-                    <AuthInput
-                      value={shopDetailAddress}
-                      onChange={setShopDetailAddress}
-                      placeholder="상세 주소를 입력해 주세요"
-                    />
-                    <p className={cn(INLINE_HELP, "px-0.5 text-[#94a3b8]")}>건물명, 층수, 호수는 상세 주소에 적어 주세요.</p>
-                  </div>
-
-                  <AuthInput
-                    className="hidden"
-                  value={fields.shopAddress}
-                  onChange={(value) => updateField("shopAddress", value)}
-                  placeholder="매장 주소를 입력해 주세요"
-                />
-              </AuthField>
-            </AuthSectionBlock>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  initialStart === "email" ? router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never) : setStep("entry")
-                }
-                className="inline-flex h-[44px] w-full items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white px-4 text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-              >
-                이전
-              </button>
-              <button
-                type="button"
-                onClick={moveToVerificationStep}
-                disabled={loading}
-                className="inline-flex h-[44px] w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-4 text-[15px] font-semibold text-white transition hover:bg-[#185848] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
-              >
-                다음
-              </button>
-            </div>
+              nextPath={nextPath}
+            />
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {message ? <p className={cn(INLINE_ERROR, "mt-3.5")}>{message}</p> : null}
-      </div>
+      {step === "profile" ? (
+        <SignupRedesignView
+          stage={profileStage}
+          fields={fields}
+          shopDetailAddress={shopDetailAddress}
+          shopPhoneSameAsOwner={shopPhoneSameAsOwner}
+          loading={loading}
+          message={profileStage === "verified" ? null : message}
+          loginIdStatus={{
+            text: loginIdFieldError ?? loginIdFieldHelper,
+            tone: loginIdFieldError ? "error" : loginIdFieldTone === "success" ? "success" : "default",
+          }}
+          passwordStatus={{
+            text: passwordRuleError ?? passwordFieldHelper,
+            tone: passwordRuleError ? "error" : passwordFieldTone === "success" ? "success" : "default",
+          }}
+          passwordConfirmStatus={{
+            text:
+              passwordConfirmState && "error" in passwordConfirmState
+                ? passwordConfirmState.error
+                : passwordConfirmState && "helper" in passwordConfirmState
+                  ? passwordConfirmState.helper
+                  : undefined,
+            tone:
+              passwordConfirmState && "error" in passwordConfirmState
+                ? "error"
+                : passwordConfirmState?.tone === "success"
+                  ? "success"
+                  : "default",
+          }}
+          onBack={() => {
+            setMessage(null);
+            if (profileStage === "shop") {
+              setProfileStage("verified");
+              return;
+            }
+            if (profileStage === "verification" || profileStage === "verified") {
+              setProfileStage("account");
+              return;
+            }
+            if (initialStart === "email") {
+              router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
+              return;
+            }
+            setStep("entry");
+          }}
+          onChangeField={updateField}
+          onChangeShopDetailAddress={setShopDetailAddress}
+          onChangeShopPhoneSameAsOwner={(checked) => {
+            setShopPhoneSameAsOwner(checked);
+            if (checked) updateField("shopPhone", fields.phoneNumber);
+          }}
+          onNextAccount={moveToVerificationStep}
+          onStartVerification={startPhoneIdentity}
+          onContinueToShop={() => {
+            setMessage(null);
+            setProfileStage("shop");
+          }}
+          onOpenAddress={() => setAddressSheetOpen(true)}
+          onSubmit={submitSignup}
+        />
+      ) : null}
 
       {startTarget ? (
         <div
@@ -1628,6 +1536,6 @@ export default function SignupForm({
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }

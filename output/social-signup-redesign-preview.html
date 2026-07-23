@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>펫매니저 소셜 간편가입 미리보기</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        padding: 0 32px 24px;
+        background: #f8f6f2;
+        color: #0f172a;
+        font-family:
+          Pretendard,
+          "Apple SD Gothic Neo",
+          "Noto Sans KR",
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 390px);
+        justify-content: center;
+        gap: 50px;
+      }
+
+      .screen {
+        width: 390px;
+        overflow: hidden;
+        border-radius: 28px;
+        background: #fff;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.14);
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 18px 24px 20px;
+      }
+
+      .hero.kakao {
+        background: linear-gradient(180deg, #fff3b0, #fff);
+      }
+
+      .hero.naver {
+        background: linear-gradient(180deg, #c9f3da, #fff);
+      }
+
+      .hero.google {
+        background: linear-gradient(180deg, #eef2fb, #fff);
+      }
+
+      .hero-deco {
+        position: absolute;
+        z-index: 0;
+        top: -18px;
+        right: -18px;
+        width: 130px;
+        height: 130px;
+        object-fit: contain;
+        opacity: 0.16;
+      }
+
+      .back {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        width: 32px;
+        height: 32px;
+        margin-bottom: 14px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.6);
+        color: #0f172a;
+      }
+
+      .hero-row {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .avatar {
+        display: flex;
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .avatar img {
+        width: 38px;
+        height: 38px;
+        object-fit: contain;
+      }
+
+      .avatar img.naver-logo {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+      }
+
+      .avatar img.google-logo {
+        width: 34px;
+        height: 34px;
+      }
+
+      h1 {
+        margin-bottom: 4px;
+        color: #0f172a;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .hero-copy {
+        color: #475569;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .body {
+        padding: 4px 28px 36px;
+      }
+
+      .chip {
+        display: flex;
+        height: 50px;
+        margin-bottom: 10px;
+        padding: 0 14px;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid #eef1f5;
+        border-radius: 12px;
+        background: #f8fafc;
+      }
+
+      .chip-key {
+        margin-right: 10px;
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .chip-value,
+      .chip input {
+        color: #0f172a;
+        font-family: inherit;
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .chip input {
+        width: 140px;
+        padding: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        text-align: right;
+      }
+
+      .chip input::placeholder {
+        color: #b0b8c4;
+        font-weight: 500;
+      }
+
+      .shop-section {
+        margin-top: 22px;
+        padding-top: 20px;
+        border-top: 1px solid #eef1f5;
+      }
+
+      h2 {
+        margin-bottom: 14px;
+        color: #0f172a;
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        color: #64748b;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
+      .field-input,
+      .address-value {
+        width: 100%;
+        height: 48px;
+        padding: 0 14px;
+        border: 1px solid #e5e9f0;
+        border-radius: 11px;
+        outline: 0;
+        background: #f8fafc;
+        color: #0f172a;
+        font-family: inherit;
+        font-size: 13.5px;
+      }
+
+      .field-input::placeholder {
+        color: #b0b8c4;
+      }
+
+      .field-input:focus {
+        border-color: #0f172a;
+        background: #fff;
+      }
+
+      .address-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .address-value {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        align-items: center;
+        color: #b0b8c4;
+        white-space: nowrap;
+      }
+
+      .address-button {
+        height: 48px;
+        padding: 0 16px;
+        border: 1px solid #0f172a;
+        border-radius: 11px;
+        background: #fff;
+        color: #0f172a;
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .primary {
+        display: flex;
+        width: 100%;
+        height: 52px;
+        margin-top: 22px;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 0;
+        border-radius: 13px;
+        background: #334155;
+        color: #fff;
+        font-family: inherit;
+        font-size: 14.5px;
+        font-weight: 600;
+      }
+
+      @media (max-width: 1300px) {
+        .preview-grid {
+          grid-template-columns: repeat(2, 390px);
+        }
+      }
+
+      @media (max-width: 860px) {
+        body {
+          padding: 0;
+        }
+
+        .preview-grid {
+          grid-template-columns: 390px;
+          gap: 32px;
+        }
+      }
+
+      @media (max-width: 390px) {
+        body {
+          padding: 0;
+        }
+
+        .preview-grid {
+          display: block;
+        }
+
+        .screen {
+          width: 100vw;
+          min-height: 100vh;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        .screen + .screen {
+          margin-top: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview-grid">
+      <section class="screen">
+        <header class="hero kakao">
+          <img class="hero-deco" src="../public/images/auth/kakao-symbol.png" alt="" />
+          <button class="back" type="button" aria-label="뒤로가기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="hero-row">
+            <div class="avatar">
+              <img
+                src="../public/icons/social/kakaotalk_sharing_btn_medium.png"
+                alt="카카오톡 로고"
+                style="width: 38px; height: 38px; border-radius: 10px"
+              />
+            </div>
+            <div>
+              <h1>정우진님, 반가워요!</h1>
+              <p class="hero-copy">카카오 계정 정보로 빠르게 가입할게요.<br />매장 정보만 입력하면 끝나요.</p>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <div class="chip"><span class="chip-key">이름</span><span class="chip-value">정우진</span></div>
+          <div class="chip"><span class="chip-key">휴대폰번호</span><span class="chip-value">010-8498-2077</span></div>
+          <div class="shop-section">
+            <h2>매장 정보</h2>
+            <div class="field"><label>매장명</label><input class="field-input" placeholder="매장 이름을 입력해 주세요" /></div>
+            <div class="field"><label>매장 연락처</label><input class="field-input" placeholder="02-0000-0000" /></div>
+            <div class="field">
+              <label>매장 주소</label>
+              <div class="address-row">
+                <div class="address-value">매장 주소를 입력해 주세요</div>
+                <button class="address-button" type="button">주소 검색</button>
+              </div>
+            </div>
+            <input class="field-input" placeholder="상세 주소를 입력해 주세요" />
+          </div>
+          <button class="primary" type="button">
+            무료체험 시작하기
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <section class="screen">
+        <header class="hero naver">
+          <img class="hero-deco" src="../public/images/auth/naver-login-light-kr-green-wide-h48.png" alt="" />
+          <button class="back" type="button" aria-label="뒤로가기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="hero-row">
+            <div class="avatar">
+              <img class="naver-logo" src="../public/images/auth/naver-login-light-kr-green-wide-h48.png" alt="네이버 로고" />
+            </div>
+            <div>
+              <h1>정우진님, 반가워요!</h1>
+              <p class="hero-copy">네이버 계정 정보로 빠르게 가입할게요.<br />매장 정보만 입력하면 끝나요.</p>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <div class="chip"><span class="chip-key">이름</span><span class="chip-value">정우진</span></div>
+          <div class="chip"><span class="chip-key">휴대폰번호</span><span class="chip-value">010-8498-2077</span></div>
+          <div class="shop-section">
+            <h2>매장 정보</h2>
+            <div class="field"><label>매장명</label><input class="field-input" placeholder="매장 이름을 입력해 주세요" /></div>
+            <div class="field"><label>매장 연락처</label><input class="field-input" placeholder="02-0000-0000" /></div>
+            <div class="field">
+              <label>매장 주소</label>
+              <div class="address-row">
+                <div class="address-value">매장 주소를 입력해 주세요</div>
+                <button class="address-button" type="button">주소 검색</button>
+              </div>
+            </div>
+            <input class="field-input" placeholder="상세 주소를 입력해 주세요" />
+          </div>
+          <button class="primary" type="button">
+            무료체험 시작하기
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <section class="screen">
+        <header class="hero google">
+          <img class="hero-deco" src="../public/images/auth/google-symbol.png" alt="" />
+          <button class="back" type="button" aria-label="뒤로가기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="hero-row">
+            <div class="avatar">
+              <img class="google-logo" src="../public/images/auth/google-symbol.png" alt="구글 로고" />
+            </div>
+            <div>
+              <h1>정우진님, 반가워요!</h1>
+              <p class="hero-copy">Google 계정 정보로 빠르게 가입할게요.<br />매장 정보만 입력하면 끝나요.</p>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <div class="chip"><span class="chip-key">이름</span><span class="chip-value">정우진</span></div>
+          <div class="chip">
+            <span class="chip-key">휴대폰번호</span>
+            <input type="text" inputmode="numeric" placeholder="010-0000-0000" />
+          </div>
+          <div class="shop-section">
+            <h2>매장 정보</h2>
+            <div class="field"><label>매장명</label><input class="field-input" placeholder="매장 이름을 입력해 주세요" /></div>
+            <div class="field"><label>매장 연락처</label><input class="field-input" placeholder="02-0000-0000" /></div>
+            <div class="field">
+              <label>매장 주소</label>
+              <div class="address-row">
+                <div class="address-value">매장 주소를 입력해 주세요</div>
+                <button class="address-button" type="button">주소 검색</button>
+              </div>
+            </div>
+            <input class="field-input" placeholder="상세 주소를 입력해 주세요" />
+          </div>
+          <button class="primary" type="button">
+            무료체험 시작하기
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

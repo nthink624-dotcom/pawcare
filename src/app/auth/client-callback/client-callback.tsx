@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import SocialAuthProgress from "@/components/auth/social-auth-progress";
 import {
   writeOwnerAuthHandoff,
   writeOwnerAuthSessionCache,
@@ -162,9 +163,5 @@ export default function AuthClientCallback() {
     };
   }, [paramsKey]);
 
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-white px-6 text-center text-[#111827]">
-      <p className="text-[15px]">{message}</p>
-    </main>
-  );
+  return <SocialAuthProgress message={message} />;
 }

@@ -22,7 +22,9 @@ const naverProfileSchema = z.object({
 });
 
 function normalizePhone(value: string | undefined) {
-  return (value ?? "").replace(/\D/g, "").slice(0, 11);
+  const digits = (value ?? "").replace(/\D/g, "");
+  const domesticDigits = digits.startsWith("82") ? `0${digits.slice(2)}` : digits;
+  return domesticDigits.slice(0, 11);
 }
 
 export async function POST(request: NextRequest) {

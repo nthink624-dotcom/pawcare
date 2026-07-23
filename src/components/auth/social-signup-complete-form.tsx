@@ -73,7 +73,9 @@ function ProviderLogo({ provider }: { provider?: SocialProvider }) {
 }
 
 function normalizePhone(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
+  const digits = value.replace(/\D/g, "");
+  const domesticDigits = digits.startsWith("82") ? `0${digits.slice(2)}` : digits;
+  return domesticDigits.slice(0, 11);
 }
 
 function normalizeShopPhone(value: string) {
@@ -149,12 +151,14 @@ function TextInput({
   placeholder,
   inputMode,
   disabled = false,
+  readOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   disabled?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <input
@@ -163,9 +167,10 @@ function TextInput({
       placeholder={placeholder}
       inputMode={inputMode}
       disabled={disabled}
+      readOnly={readOnly}
       className={cn(
         INPUT_BASE,
-        "h-[58px] rounded-[12px] border-[#d9dee7] px-5 text-[18px] font-medium focus:border-[#111827] focus:ring-[#111827]/8 disabled:bg-[#f6f7f9] disabled:text-[#6b7280]",
+        "h-[58px] rounded-[12px] border-[#d9dee7] px-5 text-[18px] font-medium focus:border-[#111827] focus:ring-[#111827]/8 disabled:bg-[#f6f7f9] disabled:text-[#6b7280] read-only:cursor-default read-only:bg-[#f8fafc]",
       )}
     />
   );
@@ -184,6 +189,7 @@ export default function SocialSignupCompleteForm({
   const [resolvedProvider, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
   const [ownerName, setOwnerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopPhoneNumber, setShopPhoneNumber] = useState("");
   const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
@@ -242,6 +248,7 @@ export default function SocialSignupCompleteForm({
           prev ||
           normalizePhone(readMetadataValue(user.user_metadata, ["phone", "phone_number", "phoneNumber"]) || user.phone || ""),
       );
+      setEmail((previous) => previous || user.email || "");
 
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
@@ -264,6 +271,11 @@ export default function SocialSignupCompleteForm({
 
     if (!ownerName.trim()) {
       setMessage("이름을 입력해 주세요.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setMessage("소셜 계정의 이메일 정보를 확인하지 못했어요. 다시 로그인해 주세요.");
       return;
     }
 
@@ -348,8 +360,9 @@ export default function SocialSignupCompleteForm({
 
         <div className="mt-6 space-y-7">
           <div className="space-y-5">
+            <h1 className="text-[17px] font-semibold text-[#111827]">계정 정보</h1>
             <FormField label="이름">
-              <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" />
+              <TextInput value={ownerName} onChange={setOwnerName} placeholder="대표자 이름을 입력해 주세요" readOnly />
             </FormField>
 
             <FormField label="휴대폰번호">
@@ -358,8 +371,16 @@ export default function SocialSignupCompleteForm({
                 onChange={(value) => setPhoneNumber(normalizePhone(value))}
                 placeholder="010-0000-0000"
                 inputMode="numeric"
+                readOnly
               />
             </FormField>
+
+            <FormField label="이메일">
+              <TextInput value={email} onChange={() => undefined} placeholder="이메일 주소" readOnly />
+            </FormField>
+
+            <div className="h-px bg-[#e5e7eb]" aria-hidden="true" />
+            <h2 className="text-[17px] font-semibold text-[#111827]">매장 정보</h2>
 
             <FormField label="매장명">
               <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />

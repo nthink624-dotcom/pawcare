@@ -60,7 +60,9 @@ function readMetadataValue(source: Record<string, unknown> | null | undefined, k
 }
 
 function normalizePhone(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
+  const digits = value.replace(/\D/g, "");
+  const domesticDigits = digits.startsWith("82") ? `0${digits.slice(2)}` : digits;
+  return domesticDigits.slice(0, 11);
 }
 
 function resolveOwnerName(user: {

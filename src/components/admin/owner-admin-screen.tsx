@@ -1,338 +1,24 @@
 ﻿"use client";
 
-import { ChevronLeft, Loader2, MessageSquareText, RefreshCcw, RotateCcw, Search, ShieldAlert, Store } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronLeft, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import OwnerAdminPasswordPanel from "@/components/admin/owner-admin-password-panel";
+import OwnerAdminDetailPanel from "@/components/admin/owner-admin-detail-panel";
 import { fetchApiJson } from "@/lib/api";
-
-type OwnerSubscriptionStatus = "trialing" | "trial_will_end" | "active" | "past_due" | "canceled" | "expired";
-type OwnerPlanCode = "free" | "monthly" | "quarterly" | "halfyearly" | "yearly";
-type OwnerLastPaymentStatus = "none" | "scheduled" | "paid" | "failed" | "cancelled";
-type AdminOwnerEventType =
-  | "trial_extended"
-  | "service_extended"
-  | "plan_changed"
-  | "status_changed"
-  | "payment_status_changed"
-  | "suspended"
-  | "restored"
-  | "temporary_password_issued";
-type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
-
-type AdminOwnerHistoryItem = {
-  id: string;
-  type: AdminOwnerEventType;
-  adminEmail: string;
-  note: string | null;
-  previousPayload: Record<string, unknown>;
-  nextPayload: Record<string, unknown>;
-  createdAt: string;
-};
-
-type AdminOwnerPaymentStatus = "PAID" | "FAILED" | "CANCELLED" | "REQUESTED" | "SCHEDULED" | null;
-
-type AdminOwnerPaymentItem = {
-  id: string;
-  paymentId: string;
-  amount: number | null;
-  status: AdminOwnerPaymentStatus;
-  planCode: OwnerPlanCode | null;
-  createdAt: string;
-  refundable: boolean;
-};
-
-type AdminOwnerUsageWarning = {
-  level: "info" | "warning" | "danger";
-  code: "multiple_shops" | "identity_changes" | "branch_terms" | "shared_contact";
-  message: string;
-  evidence: string[];
-};
-
-type TemporaryPasswordResult = {
-  loginId: string;
-  temporaryPassword: string;
-  issuedAt: string;
-};
-
-type AdminAlimtalkCreditBalance = {
-  shopId: string;
-  shopName: string;
-  includedTotal: number;
-  includedUsed: number;
-  includedRemaining: number;
-  includedPeriodStartedAt: string | null;
-  includedPeriodEndsAt: string | null;
-  purchasedTotal: number;
-  purchasedUsed: number;
-  purchasedRemaining: number;
-  remainingTotal: number;
-};
-
-type AdminOwnerItem = {
-  userId: string;
-  ownerName: string;
-  loginId: string | null;
-  ownerPhoneNumber: string | null;
-  ownerEmail: string | null;
-  loginMethods: AdminLoginMethod[];
-  shopId: string;
-  shopName: string;
-  shopAddress: string;
-  joinedAt: string;
-  serviceStartedAt: string;
-  status: OwnerSubscriptionStatus;
-  currentPlanCode: OwnerPlanCode;
-  currentPlanName: string;
-  trialEndsAt: string;
-  currentPeriodEndsAt: string | null;
-  lastPaymentStatus: OwnerLastPaymentStatus;
-  paymentMethodExists: boolean;
-  paymentMethodLabel: string | null;
-  suspended: boolean;
-  suspensionReason: string | null;
-  usageWarnings: AdminOwnerUsageWarning[];
-  recentEvents: AdminOwnerHistoryItem[];
-  recentPayments: AdminOwnerPaymentItem[];
-};
-
-type OwnerDraft = {
-  currentPlanCode: OwnerPlanCode;
-  serviceStartedAt: string;
-  currentPeriodEndsAt: string;
-  trialEndsAt: string;
-  lastPaymentStatus: OwnerLastPaymentStatus;
-  suspended: boolean;
-  suspensionReason: string;
-};
-
-const planOptions = [
-  { value: "free", label: "체험 플랜" },
-  { value: "monthly", label: "1인 운영" },
-  { value: "quarterly", label: "2~4인 운영" },
-  { value: "halfyearly", label: "2~4인 운영(기존)" },
-  { value: "yearly", label: "5인 이상 운영" },
-] as const satisfies Array<{ value: OwnerPlanCode; label: string }>;
-
-const statusOptions = [
-  { value: "trialing", label: "체험 플랜 이용 중" },
-  { value: "trial_will_end", label: "체험 플랜 종료 임박" },
-  { value: "active", label: "이용 중" },
-  { value: "past_due", label: "결제 확인 필요" },
-  { value: "canceled", label: "해지" },
-  { value: "expired", label: "만료" },
-] as const satisfies Array<{ value: OwnerSubscriptionStatus; label: string }>;
-
-const paymentStatusOptions = [
-  { value: "none", label: "결제 이력 없음" },
-  { value: "scheduled", label: "결제 예정" },
-  { value: "paid", label: "결제 완료" },
-  { value: "failed", label: "결제 실패" },
-  { value: "cancelled", label: "결제 취소" },
-] as const satisfies Array<{ value: OwnerLastPaymentStatus; label: string }>;
-
-const recentPaymentStatusMeta: Record<
-  NonNullable<AdminOwnerPaymentStatus>,
-  { label: string; tone: string }
-> = {
-  PAID: {
-    label: "결제 완료",
-    tone: "border-[#cfe4d7] bg-[#f2fbf5] text-[#1f6b5b]",
-  },
-  CANCELLED: {
-    label: "취소 완료",
-    tone: "border-[#e7d8cf] bg-[#fcf7f2] text-[#8a5a41]",
-  },
-  REQUESTED: {
-    label: "취소 요청",
-    tone: "border-[#ecdcb9] bg-[#fff9ea] text-[#8f6a18]",
-  },
-  FAILED: {
-    label: "결제 실패",
-    tone: "border-[#efcfcf] bg-[#fff4f4] text-[#bb4f4f]",
-  },
-  SCHEDULED: {
-    label: "예약 결제",
-    tone: "border-[#d8e1ed] bg-[#f6f8fc] text-[#54657e]",
-  },
-};
-
-const loginMethodLabels: Record<AdminLoginMethod, string> = {
-  id: "아이디",
-  google: "구글",
-  kakao: "카카오",
-  naver: "네이버",
-};
-
-const loginMethodToneMap: Record<AdminLoginMethod, string> = {
-  id: "border-[#ddd4c8] bg-[#fcfbf8] text-[#5e564f]",
-  google: "border-[#d7e3f5] bg-[#f6f9ff] text-[#3f63a2]",
-  kakao: "border-[#f3e08e] bg-[#fff9db] text-[#7f6200]",
-  naver: "border-[#cde9d8] bg-[#f2fbf5] text-[#1f6b5b]",
-};
-
-const statusToneMap: Record<OwnerSubscriptionStatus, string> = {
-  trialing: "bg-[#eef7f2] text-[#1f6b5b]",
-  trial_will_end: "bg-[#f9f1df] text-[#7f622f]",
-  active: "bg-[#edf5ff] text-[#2d5f9a]",
-  past_due: "bg-[#fdf0f0] text-[#b54b4b]",
-  canceled: "bg-[#f3f1ef] text-[#746d67]",
-  expired: "bg-[#f3f1ef] text-[#746d67]",
-};
-
-const usageWarningToneMap: Record<AdminOwnerUsageWarning["level"], string> = {
-  info: "border-[#d8e6f7] bg-[#f7fbff] text-[#315f91]",
-  warning: "border-[#f1dfb7] bg-[#fffaf0] text-[#8a6211]",
-  danger: "border-[#efcaca] bg-[#fff6f6] text-[#a23f3f]",
-};
-
-const eventLabelMap: Record<AdminOwnerEventType, string> = {
-  trial_extended: "체험 플랜 연장",
-  service_extended: "서비스 기간 연장",
-  plan_changed: "플랜 변경",
-  status_changed: "이용 상태 변경",
-  payment_status_changed: "결제 상태 변경",
-  suspended: "계정 정지",
-  restored: "계정 복구",
-  temporary_password_issued: "임시비밀번호 발급",
-};
-
-function getEventLabel(event: AdminOwnerHistoryItem) {
-  if (event.nextPayload.systemAlertType === "browser_storage_pressure") {
-    return "브라우저 저장소 경고";
-  }
-  return eventLabelMap[event.type];
-}
-
-function getPlanLabel(value: OwnerPlanCode | string | null | undefined) {
-  if (!value) return "-";
-  return planOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function getStatusLabel(value: OwnerSubscriptionStatus | string | null | undefined) {
-  if (!value) return "-";
-  return statusOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function getPaymentStatusLabel(value: OwnerLastPaymentStatus | string | null | undefined) {
-  if (!value) return "-";
-  return paymentStatusOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function getRecentPaymentStatusMeta(value: AdminOwnerPaymentStatus) {
-  if (!value) {
-    return {
-      label: "상태 확인 필요",
-      tone: "border-[#e8dfd3] bg-[#fcfbf8] text-[#6f665f]",
-    };
-  }
-
-  return recentPaymentStatusMeta[value];
-}
-
-function formatDateLabel(value: string | null) {
-  if (!value) return "-";
-  const datePart = value.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? `${datePart.slice(2, 4)}.${datePart.slice(5, 7)}.${datePart.slice(8, 10)}` : datePart.replace(/-/g, ".");
-}
-
-function formatDateTimeLabel(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${String(date.getFullYear()).slice(-2)}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function toDateInputValue(value: string | null) {
-  return value ? value.slice(0, 10) : "";
-}
-
-function toKstIsoEndOfDay(dateText: string) {
-  return dateText ? `${dateText}T23:59:59+09:00` : null;
-}
-
-function todayKstDateText() {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const year = kst.getUTCFullYear();
-  const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(kst.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function plusDays(dateText: string, days: number) {
-  const base = dateText || new Date().toISOString().slice(0, 10);
-  const date = new Date(`${base}T00:00:00+09:00`);
-  date.setDate(date.getDate() + days);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function buildDraft(item: AdminOwnerItem): OwnerDraft {
-  return {
-    currentPlanCode: item.currentPlanCode,
-    serviceStartedAt: toDateInputValue(item.serviceStartedAt),
-    currentPeriodEndsAt: toDateInputValue(item.currentPlanCode === "free" ? item.trialEndsAt : item.currentPeriodEndsAt),
-    trialEndsAt: toDateInputValue(item.trialEndsAt),
-    lastPaymentStatus: item.lastPaymentStatus,
-    suspended: item.suspended,
-    suspensionReason: item.suspensionReason ?? "",
-  };
-}
-
-function summarizeEvent(event: AdminOwnerHistoryItem) {
-  if (event.nextPayload.systemAlertType === "browser_storage_pressure") {
-    const usagePercent = typeof event.nextPayload.usagePercent === "number" ? `${event.nextPayload.usagePercent}%` : "확인 필요";
-    const reason =
-      event.nextPayload.reason === "storage_usage_over_80_percent"
-        ? "저장소 사용량 80% 이상"
-        : "브라우저 저장소 쓰기 실패";
-    return `${reason} 감지. 사용량: ${usagePercent}`;
-  }
-
-  switch (event.type) {
-    case "plan_changed":
-      return `${getPlanLabel(
-        typeof event.previousPayload.currentPlanName === "string"
-          ? event.previousPayload.currentPlanName
-          : typeof event.previousPayload.currentPlanCode === "string"
-            ? event.previousPayload.currentPlanCode
-            : null,
-      )} → ${getPlanLabel(
-        typeof event.nextPayload.currentPlanName === "string"
-          ? event.nextPayload.currentPlanName
-          : typeof event.nextPayload.currentPlanCode === "string"
-            ? event.nextPayload.currentPlanCode
-            : null,
-      )}`;
-    case "status_changed":
-      return `${getStatusLabel(typeof event.previousPayload.status === "string" ? event.previousPayload.status : null)} → ${getStatusLabel(
-        typeof event.nextPayload.status === "string" ? event.nextPayload.status : null,
-      )}`;
-    case "payment_status_changed":
-      return `${getPaymentStatusLabel(
-        typeof event.previousPayload.lastPaymentStatus === "string" ? event.previousPayload.lastPaymentStatus : null,
-      )} → ${getPaymentStatusLabel(typeof event.nextPayload.lastPaymentStatus === "string" ? event.nextPayload.lastPaymentStatus : null)}`;
-    case "trial_extended":
-      return `${formatDateLabel(typeof event.previousPayload.trialEndsAt === "string" ? event.previousPayload.trialEndsAt : null)} → ${formatDateLabel(typeof event.nextPayload.trialEndsAt === "string" ? event.nextPayload.trialEndsAt : null)}`;
-    case "service_extended":
-      return `${formatDateLabel(typeof event.previousPayload.currentPeriodEndsAt === "string" ? event.previousPayload.currentPeriodEndsAt : null)} → ${formatDateLabel(typeof event.nextPayload.currentPeriodEndsAt === "string" ? event.nextPayload.currentPeriodEndsAt : null)}`;
-    case "suspended":
-      return typeof event.nextPayload.suspensionReason === "string" && event.nextPayload.suspensionReason
-        ? event.nextPayload.suspensionReason
-        : "운영자에 의해 계정이 일시 정지되었습니다.";
-    case "restored":
-      return "정지 상태가 해제되어 다시 접속할 수 있습니다.";
-    case "temporary_password_issued":
-      return typeof event.nextPayload.loginId === "string"
-        ? `${event.nextPayload.loginId} 계정에 임시비밀번호를 발급했습니다.`
-        : "오너 계정에 임시비밀번호를 발급했습니다.";
-    default:
-      return event.note ?? "-";
-  }
-}
+import {
+  buildDraft,
+  loginMethodLabels,
+  loginMethodToneMap,
+  statusOptions,
+  statusToneMap,
+  toKstIsoEndOfDay,
+  usageWarningToneMap,
+  type AdminAlimtalkCreditBalance,
+  type AdminOwnerItem,
+  type OwnerDraft,
+  type TemporaryPasswordResult,
+} from "@/components/admin/owner-admin-model";
 
 async function fetchOwners() {
   return fetchApiJson<AdminOwnerItem[]>("/api/admin/owners", { cache: "no-store" });
@@ -350,6 +36,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   const [refundingPaymentId, setRefundingPaymentId] = useState<string | null>(null);
   const [resettingPaymentMethodUserId, setResettingPaymentMethodUserId] = useState<string | null>(null);
   const [issuingTemporaryPasswordUserId, setIssuingTemporaryPasswordUserId] = useState<string | null>(null);
+  const [withdrawingUserId, setWithdrawingUserId] = useState<string | null>(null);
   const [temporaryPasswords, setTemporaryPasswords] = useState<Record<string, TemporaryPasswordResult>>({});
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
   const [alimtalkBalances, setAlimtalkBalances] = useState<AdminAlimtalkCreditBalance[]>([]);
@@ -637,85 +324,127 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-[#f7f8f6] px-6 py-6 text-[#172033] md:px-8">
-      <div className="mx-auto w-full max-w-[1560px]">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/admin" as never)}
-            className="inline-flex h-[42px] items-center gap-2 rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            관리자 메인으로
-          </button>
-          <button
-            type="button"
-            onClick={() => void logoutAdmin()}
-            className="inline-flex h-[42px] items-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]"
-          >
-            관리자 로그아웃
-          </button>
-        </div>
+  async function withdrawOwner(item: AdminOwnerItem) {
+    const firstConfirmed = window.confirm(
+      `${item.ownerName} 오너를 회원탈퇴 처리할까요?\n\n로그인 계정과 소유 매장 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`,
+    );
+    if (!firstConfirmed) return;
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-          <section className="overflow-hidden rounded-[16px] border border-[#dfe7e2] bg-white shadow-[0_10px_30px_rgba(23,32,51,0.05)]">
-            <div className="border-b border-[#edf2f7] px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
+    const typedShopName = window.prompt(
+      `최종 확인입니다.\n탈퇴 후 같은 아이디·이메일·소셜 계정으로 다시 가입할 수 있습니다.\n\n계속하려면 매장명 "${item.shopName}"을 입력해 주세요.`,
+    );
+    if (typedShopName !== item.shopName) {
+      if (typedShopName !== null) {
+        setError("매장명이 일치하지 않아 회원탈퇴를 취소했습니다.");
+      }
+      return;
+    }
+
+    setWithdrawingUserId(item.userId);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchApiJson<{ success: true; message: string }>("/api/admin/owners/withdraw", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: item.userId,
+          shopId: item.shopId,
+          confirmation: item.shopId,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const nextOwners = owners.filter((owner) => owner.userId !== item.userId);
+      setOwners(nextOwners);
+      setDrafts(Object.fromEntries(nextOwners.map((owner) => [owner.userId, buildDraft(owner)])));
+      setSelectedUserId(nextOwners[0]?.userId ?? null);
+      setNotice(response.message);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "회원탈퇴를 처리하지 못했습니다.");
+    } finally {
+      setWithdrawingUserId(null);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f7f8f6] p-1.5 text-[#172033]">
+      <div className="mx-auto w-full max-w-[1700px]">
+        <div className="grid gap-1.5 xl:grid-cols-[minmax(0,1.35fr)_390px]">
+          <section className="flex flex-col overflow-hidden rounded-[10px] border border-[#dfe7e2] bg-white xl:h-[calc(100vh-12px)]">
+            <div className="border-b border-[#edf2f7] px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[16px] text-[#1f6b5b]">운영자 모드</p>
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[16px] ${adminSurfaceTone}`}>
+                    <p className="text-[12px] text-[#1f6b5b]">운영자 모드</p>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[12px] ${adminSurfaceTone}`}>
                       {adminSurfaceLabel}
                     </span>
                   </div>
-                  <h1 className="mt-2 text-[30px] tracking-[-0.03em] text-[#0f172a]">오너 계정 관리</h1>
+                  <h1 className="mt-0.5 text-[18px] font-semibold tracking-[-0.03em] text-[#0f172a]">오너 계정 관리</h1>
                 </div>
-                <div className="rounded-[10px] border border-[#dfe7e2] bg-white px-4 py-3 text-right">
-                  <p className="text-[16px] text-[#64748b]">현재 운영자 계정</p>
-                  <p className="mt-1 text-[17px] text-[#0f172a]">{adminId}</p>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="px-1.5 text-right">
+                    <p className="text-[10px] text-[#64748b]">현재 운영자</p>
+                    <p className="text-[12px] text-[#0f172a]">{adminId}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin" as never)}
+                    className="inline-flex h-7 items-center gap-0.5 rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[11px] text-[#172033] transition hover:bg-[#f8fafc]"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    관리자 메인
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void logoutAdmin()}
+                    className="inline-flex h-7 items-center rounded-[7px] border border-[#dbe2ea] bg-white px-2 text-[11px] text-[#172033] transition hover:bg-[#f8fafc]"
+                  >
+                    로그아웃
+                  </button>
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <label className="relative min-w-[320px] flex-1">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9b9084]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9084]" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="오너 이름, 상호명, 전화번호, 매장명, 로그인 계정으로 검색"
-                    className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white pl-11 pr-4 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
+                    className="h-8 w-full rounded-[7px] border border-[#dbe2ea] bg-white pl-9 pr-3 text-[12px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
                   />
                 </label>
-                <div className="inline-flex h-[46px] items-center rounded-[10px] border border-[#dbe2ea] bg-white px-4 text-[16px] text-[#475569]">
+                <div className="inline-flex h-8 items-center rounded-[7px] border border-[#dbe2ea] bg-white px-2.5 text-[12px] text-[#475569]">
                   총 {filteredOwners.length}명
                 </div>
               </div>
 
               {error ? (
-                <p className="mt-4 rounded-[14px] border border-[#f0d1d1] bg-[#fff7f7] px-4 py-3 text-[16px] leading-6 text-[#b54b4b]">
+                <p className="mt-2 rounded-[8px] border border-[#f0d1d1] bg-[#fff7f7] px-3 py-2 text-[13px] leading-5 text-[#b54b4b]">
                   {error}
                 </p>
               ) : null}
               {notice ? (
-                <p className="mt-4 rounded-[14px] border border-[#d7e7e1] bg-[#f4faf7] px-4 py-3 text-[16px] leading-6 text-[#1f6b5b]">
+                <p className="mt-2 rounded-[8px] border border-[#d7e7e1] bg-[#f4faf7] px-3 py-2 text-[13px] leading-5 text-[#1f6b5b]">
                   {notice}
                 </p>
               ) : null}
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(180px,0.95fr)_170px_140px] border-b border-[#edf2f7] bg-[#fbfcfd] px-6 py-3 text-[16px] text-[#64748b]">
+            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(140px,0.8fr)_130px_120px] border-b border-[#edf2f7] bg-[#fbfcfd] px-4 py-2 text-[12px] text-[#64748b]">
               <span>오너 / 매장</span>
               <span>로그인 수단</span>
               <span>전화번호</span>
               <span>이용 상태</span>
             </div>
 
-            <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto">
               {loading ? (
-                <div className="px-6 py-16 text-center text-[16px] text-[#6f665f]">오너 계정을 불러오는 중이에요.</div>
+                <div className="px-4 py-12 text-center text-[13px] text-[#6f665f]">오너 계정을 불러오는 중이에요.</div>
               ) : filteredOwners.length === 0 ? (
-                <div className="px-6 py-16 text-center text-[16px] text-[#6f665f]">검색 결과가 없습니다.</div>
+                <div className="px-4 py-12 text-center text-[13px] text-[#6f665f]">검색 결과가 없습니다.</div>
               ) : (
                 filteredOwners.map((item) => {
                   const selected = item.userId === selectedUserId;
@@ -724,25 +453,25 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                       key={item.userId}
                       type="button"
                       onClick={() => setSelectedUserId(item.userId)}
-                      className={`grid w-full grid-cols-[minmax(0,1.25fr)_minmax(180px,0.95fr)_170px_140px] items-center gap-3 border-b border-[#f1ece4] px-6 py-4 text-left transition ${
+                      className={`grid w-full grid-cols-[minmax(0,1.25fr)_minmax(140px,0.8fr)_130px_120px] items-center gap-2 border-b border-[#f1ece4] px-4 py-2.5 text-left transition ${
                         selected ? "bg-[#f8fbf9]" : "bg-white hover:bg-[#fcfbf8]"
                       }`}
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="truncate text-[16px] font-semibold text-[#171411]">{item.ownerName}</p>
+                          <p className="truncate text-[13px] font-semibold text-[#171411]">{item.ownerName}</p>
                           {item.suspended ? (
-                            <span className="rounded-full bg-[#fff2f2] px-2 py-0.5 text-[16px] font-semibold text-[#b54b4b]">정지</span>
+                            <span className="rounded-full bg-[#fff2f2] px-1.5 py-0.5 text-[11px] font-semibold text-[#b54b4b]">정지</span>
                           ) : null}
                         </div>
-                        <p className="mt-1 truncate text-[16px] font-medium text-[#36302b]">{item.shopName}</p>
-                        <p className="mt-1 truncate text-[16px] text-[#8a8277]">{item.shopAddress}</p>
+                        <p className="mt-0.5 truncate text-[12px] font-medium text-[#36302b]">{item.shopName}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-[#8a8277]">{item.shopAddress}</p>
                         {item.usageWarnings.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-1 flex flex-wrap gap-1">
                             {item.usageWarnings.slice(0, 2).map((warning) => (
                               <span
                                 key={`${item.userId}-${warning.code}`}
-                                className={`rounded-full border px-2 py-0.5 text-[13px] font-semibold ${usageWarningToneMap[warning.level]}`}
+                                className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${usageWarningToneMap[warning.level]}`}
                               >
                                 운영 검토 · {warning.message}
                               </span>
@@ -751,18 +480,18 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
                         ) : null}
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1">
                         {item.loginMethods.map((method) => (
-                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2.5 py-1 text-[16px] font-semibold ${loginMethodToneMap[method]}`}>
+                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2 py-0.5 text-[12px] font-semibold ${loginMethodToneMap[method]}`}>
                             {loginMethodLabels[method]}
                           </span>
                         ))}
                       </div>
 
-                      <div className="text-[16px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
+                      <div className="text-[12px] text-[#5e564f]">{item.ownerPhoneNumber ?? "-"}</div>
 
                       <div>
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[16px] font-semibold ${statusToneMap[item.status]}`}>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${statusToneMap[item.status]}`}>
                           {statusOptions.find((option) => option.value === item.status)?.label ?? item.status}
                         </span>
                       </div>
@@ -773,511 +502,37 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
             </div>
           </section>
 
-          <section className="sticky top-6 self-start overflow-hidden rounded-[16px] border border-[#dfe7e2] bg-white shadow-[0_10px_30px_rgba(23,32,51,0.05)] xl:max-h-[calc(100vh-48px)]">
-            {selectedOwner && selectedDraft ? (
-              <>
-                <div className="border-b border-[#edf2f7] px-4 py-3.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef7f2] text-[#1f6b5b]">
-                        <Store className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-[18px] text-[#0f172a]">{selectedOwner.ownerName}</p>
-                        <p className="mt-0.5 truncate text-[16px] text-[#64748b]">{selectedOwner.shopName}</p>
-                      </div>
-                    </div>
-                    <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[16px] ${statusToneMap[selectedOwner.status]}`}>
-                      {statusOptions.find((option) => option.value === selectedOwner.status)?.label ?? selectedOwner.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 space-y-2 rounded-[10px] border border-[#edf2f7] bg-[#fbfcfd] px-3 py-3">
-                    <DetailRow label="로그인 수단">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {selectedOwner.loginMethods.map((method) => (
-                          <span key={`${selectedOwner.userId}-detail-${method}`} className={`rounded-full border px-2.5 py-1 text-[16px] ${loginMethodToneMap[method]}`}>
-                            {loginMethodLabels[method]}
-                          </span>
-                        ))}
-                      </div>
-                    </DetailRow>
-                    <DetailRow
-                      label="로그인 계정"
-                      value={
-                        selectedOwner.loginId ??
-                        (selectedOwner.ownerEmail?.endsWith("@owner.petmanager.local") ? "-" : selectedOwner.ownerEmail ?? "-")
-                      }
-                    />
-                    <DetailRow label="연동 이메일" value={selectedOwner.ownerEmail ?? "-"} />
-                    <DetailRow label="전화번호" value={selectedOwner.ownerPhoneNumber ?? "-"} />
-                    <DetailRow label="매장 ID" value={selectedOwner.shopId} mono />
-                  </div>
-                </div>
-
-                <div className="space-y-4 overflow-y-auto px-5 py-5 xl:max-h-[calc(100vh-160px)]">
-                  {selectedOwner.usageWarnings.length > 0 ? (
-                    <section className="rounded-[12px] border border-[#f1dfb7] bg-[#fffaf0] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-[16px] font-semibold text-[#7c5208]">운영 검토 필요</h3>
-                        <span className="rounded-full bg-white/70 px-2.5 py-1 text-[13px] font-semibold text-[#8a6211]">
-                          {selectedOwner.usageWarnings.length}건
-                        </span>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {selectedOwner.usageWarnings.map((warning) => (
-                          <div key={warning.code} className={`rounded-[10px] border bg-white px-3 py-3 ${usageWarningToneMap[warning.level]}`}>
-                            <p className="text-[15px] font-semibold">{warning.message}</p>
-                            {warning.evidence.length > 0 ? (
-                              <ul className="mt-2 space-y-1 text-[13px] leading-5">
-                                {warning.evidence.map((evidence) => (
-                                  <li key={evidence} className="break-words">
-                                    {evidence}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  <OwnerAdminPasswordPanel
-                    ownerName={selectedOwner.ownerName}
-                    loginId={selectedOwner.loginId}
-                    issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
-                    result={temporaryPasswords[selectedOwner.userId] ?? null}
-                    onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}
-                  />
-
-                  <div className="rounded-[12px] border border-[#edf2f7] bg-white p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#eef7f2] text-[#1f6b5b]">
-                          <MessageSquareText className="h-4 w-4" />
-                        </div>
-                        <h3 className="text-[16px] text-[#0f172a]">알림톡</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void loadAlimtalkBalances()}
-                        disabled={loadingAlimtalkCredits || savingAlimtalkCredits}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#475569] disabled:opacity-50"
-                      >
-                        <RefreshCcw className="h-3.5 w-3.5" />
-                        새로고침
-                      </button>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <MiniStat label="총 잔여" value={`${(selectedAlimtalkBalance?.remainingTotal ?? 0).toLocaleString("ko-KR")}건`} />
-                      <MiniStat label="포함" value={`${(selectedAlimtalkBalance?.includedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
-                      <MiniStat label="추가" value={`${(selectedAlimtalkBalance?.purchasedRemaining ?? 0).toLocaleString("ko-KR")}건`} />
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-[1fr_92px] gap-2">
-                      <select
-                        value={alimtalkAction}
-                        onChange={(event) => setAlimtalkAction(event.target.value === "reset-included" ? "reset-included" : "grant")}
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#172033] outline-none focus:border-[#2f7866]"
-                      >
-                        <option value="grant">건수 추가</option>
-                        <option value="reset-included">포함 건수 리셋</option>
-                      </select>
-                      <input
-                        value={alimtalkAmount}
-                        onChange={(event) => setAlimtalkAmount(event.target.value.replace(/[^\d]/g, ""))}
-                        inputMode="numeric"
-                        className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[15px] text-[#172033] outline-none focus:border-[#2f7866]"
-                      />
-                    </div>
-
-                    {alimtalkAction === "grant" ? (
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAlimtalkBucket("purchased")}
-                          className={`h-9 rounded-[8px] border text-[15px] ${alimtalkBucket === "purchased" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
-                        >
-                          추가
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAlimtalkBucket("included")}
-                          className={`h-9 rounded-[8px] border text-[15px] ${alimtalkBucket === "included" ? "border-[#1f6b5b] bg-[#f4faf7] text-[#1f6b5b]" : "border-[#dbe2ea] bg-white text-[#475569]"}`}
-                        >
-                          포함
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => void saveOwnerAlimtalkCredits(selectedOwner)}
-                      disabled={savingAlimtalkCredits || loadingAlimtalkCredits}
-                      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#1f6b5b] px-3 text-[15px] text-white disabled:opacity-50"
-                    >
-                      {savingAlimtalkCredits ? "저장 중..." : "알림톡 저장"}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <SelectField
-                      label="현재 플랜"
-                      value={selectedDraft.currentPlanCode}
-                      onChange={(value) =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: { ...prev[selectedOwner.userId], currentPlanCode: value as OwnerPlanCode },
-                        }))
-                      }
-                      options={planOptions}
-                    />
-                    <SelectField
-                      label="결제 상태"
-                      value={selectedDraft.lastPaymentStatus}
-                      onChange={(value) =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: { ...prev[selectedOwner.userId], lastPaymentStatus: value as OwnerLastPaymentStatus },
-                        }))
-                      }
-                      options={paymentStatusOptions}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <DateField
-                      label="서비스 시작일"
-                      value={selectedDraft.serviceStartedAt}
-                      onChange={(value) =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: { ...prev[selectedOwner.userId], serviceStartedAt: value },
-                        }))
-                      }
-                    />
-                    <DateField
-                      label="서비스 종료일"
-                      value={selectedDraft.currentPeriodEndsAt}
-                      onChange={(value) =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: { ...prev[selectedOwner.userId], currentPeriodEndsAt: value },
-                        }))
-                      }
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <ActionButton
-                      onClick={() =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: {
-                            ...prev[selectedOwner.userId],
-                            serviceStartedAt: todayKstDateText(),
-                            currentPeriodEndsAt: plusDays(todayKstDateText(), 7),
-                          },
-                        }))
-                      }
-                    >
-                      서비스 7일 연장
-                    </ActionButton>
-                    <ActionButton
-                      onClick={() =>
-                        setDrafts((prev) => ({
-                          ...prev,
-                          [selectedOwner.userId]: {
-                            ...prev[selectedOwner.userId],
-                            serviceStartedAt: todayKstDateText(),
-                            currentPeriodEndsAt: plusDays(todayKstDateText(), 30),
-                          },
-                        }))
-                      }
-                    >
-                      서비스 30일 연장
-                    </ActionButton>
-                  </div>
-
-                  <div className="sticky top-0 z-10 -mx-5 border-y border-[#edf2f7] bg-white/96 px-5 py-3 backdrop-blur">
-                    <button
-                      type="button"
-                      onClick={() => void saveOwner(selectedOwner)}
-                      disabled={savingUserId === selectedOwner.userId}
-                      className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50"
-                    >
-                      {savingUserId === selectedOwner.userId ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          저장 중...
-                        </span>
-                      ) : (
-                        "변경사항 저장"
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff4f1] text-[#b54b4b]">
-                        <ShieldAlert className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[16px] text-[#0f172a]">계정 정지 / 정지 해제</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [selectedOwner.userId]: {
-                              ...prev[selectedOwner.userId],
-                              suspended: true,
-                              suspensionReason: prev[selectedOwner.userId]?.suspensionReason || "운영자에 의해 계정이 일시 정지되었습니다.",
-                            },
-                          }))
-                        }
-                        className="inline-flex h-[40px] items-center justify-center rounded-[10px] border border-[#f0d1d1] bg-[#fff7f7] px-3 text-[16px] text-[#b54b4b]"
-                      >
-                        계정 정지
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspended: false, suspensionReason: "" },
-                          }))
-                        }
-                        className="inline-flex h-[40px] items-center justify-center rounded-[10px] border border-[#d7e7e1] bg-[#f4faf7] px-3 text-[16px] text-[#1f6b5b]"
-                      >
-                        정지 해제
-                      </button>
-                    </div>
-
-                    {selectedDraft.suspended ? (
-                      <label className="mt-3 block">
-                        <span className="mb-1.5 block text-[16px] text-[#64748b]">정지 사유</span>
-                        <textarea
-                          value={selectedDraft.suspensionReason}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [selectedOwner.userId]: { ...prev[selectedOwner.userId], suspensionReason: event.target.value },
-                            }))
-                          }
-                          className="min-h-[88px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-3 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
-                          placeholder="왜 계정을 정지했는지 운영 메모를 남겨 주세요."
-                        />
-                      </label>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff5f1] text-[#b86945]">
-                        <RotateCcw className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[16px] text-[#0f172a]">결제 내역 / 취소</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-[10px] border border-[#edf2f7] bg-white px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[16px] text-[#0f172a]">등록 결제수단 복구</p>
-                          <p className="mt-1 text-[16px] leading-5 text-[#6f665f]">
-                            {selectedOwner.paymentMethodExists ? selectedOwner.paymentMethodLabel ?? "등록된 카드" : "등록 카드 없음"}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void resetOwnerPaymentMethod(selectedOwner)}
-                          disabled={!selectedOwner.paymentMethodExists || resettingPaymentMethodUserId === selectedOwner.userId}
-                          className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#475569] disabled:opacity-50"
-                        >
-                          {resettingPaymentMethodUserId === selectedOwner.userId ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              초기화 중...
-                            </span>
-                          ) : (
-                            "결제수단 초기화"
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <label className="mt-4 block">
-                      <span className="mb-1.5 block text-[16px] text-[#64748b]">취소 사유</span>
-                      <textarea
-                        value={refundReasons[selectedOwner.userId] ?? ""}
-                        onChange={(event) =>
-                          setRefundReasons((prev) => ({
-                            ...prev,
-                            [selectedOwner.userId]: event.target.value,
-                          }))
-                        }
-                        className="min-h-[72px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 py-3 text-[16px] text-[#172033] outline-none placeholder:text-[#94a3b8] focus:border-[#2f7866]"
-                        placeholder="예: 중복 결제 확인, 고객 요청 환불"
-                      />
-                    </label>
-
-                    <div className="mt-4 space-y-2.5">
-                      {selectedOwner.recentPayments.length === 0 ? (
-                        <p className="rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3 text-[16px] leading-5 text-[#64748b]">
-                          확인된 결제 내역이 아직 없습니다.
-                        </p>
-                      ) : (
-                        selectedOwner.recentPayments.map((payment) => (
-                          <div key={payment.paymentId} className="rounded-[10px] border border-[#edf2f7] bg-white px-4 py-3.5">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-[16px] text-[#0f172a]">
-                                  {payment.planCode ? planOptions.find((option) => option.value === payment.planCode)?.label ?? payment.planCode : "플랜 정보 없음"}
-                                </p>
-                                <p className="mt-1 text-[16px] text-[#475569]">
-                                  {payment.amount !== null ? `${payment.amount.toLocaleString("ko-KR")}원` : "금액 확인 필요"}
-                                </p>
-                                <p className="mt-2 text-[16px] text-[#8a8277]">결제 시각 · {formatDateTimeLabel(payment.createdAt)}</p>
-                                <p className="mt-1 break-all rounded-[8px] bg-[#f8fafc] px-2.5 py-2 text-[16px] text-[#64748b]">
-                                  결제 번호 · {payment.paymentId}
-                                </p>
-                              </div>
-                              <span
-                                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[16px] ${getRecentPaymentStatusMeta(payment.status).tone}`}
-                              >
-                                {getRecentPaymentStatusMeta(payment.status).label}
-                              </span>
-                            </div>
-                            {payment.refundable ? (
-                              <button
-                                type="button"
-                                onClick={() => void refundOwner(selectedOwner, payment.paymentId)}
-                                disabled={refundingPaymentId === payment.paymentId}
-                                className="mt-3 inline-flex h-[38px] w-full items-center justify-center rounded-[10px] border border-[#efcfc2] bg-[#fff8f4] px-3 text-[16px] text-[#b45d3c] disabled:opacity-50"
-                              >
-                                {refundingPaymentId === payment.paymentId ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    취소 처리 중...
-                                  </span>
-                                ) : (
-                                  "이 결제 취소"
-                                )}
-                              </button>
-                            ) : null}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[12px] border border-[#edf2f7] bg-[#fbfcfd] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[16px] text-[#0f172a]">최근 변경 이력</h3>
-                      <span className="text-[16px] font-medium text-[#8a8277]">{selectedOwner.recentEvents.length}건</span>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {selectedOwner.recentEvents.length === 0 ? (
-                        <p className="text-[16px] leading-5 text-[#8a8277]">아직 기록된 변경 이력이 없습니다.</p>
-                      ) : (
-                        selectedOwner.recentEvents.map((event) => (
-                          <div key={event.id} className="rounded-[10px] border border-[#edf2f7] bg-white px-3 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-[16px] text-[#0f172a]">{getEventLabel(event)}</p>
-                              <span className="text-[16px] font-medium text-[#8a8277]">{formatDateTimeLabel(event.createdAt)}</span>
-                            </div>
-                            <p className="mt-1.5 text-[16px] leading-5 text-[#6f665f]">{summarizeEvent(event)}</p>
-                            <p className="mt-1 text-[16px] font-medium text-[#8a8277]">{event.adminEmail}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="hidden border-t border-[#edf2f7] bg-white px-5 py-4 xl:block">
-                  <button
-                    type="button"
-                    onClick={() => void saveOwner(selectedOwner)}
-                    disabled={savingUserId === selectedOwner.userId}
-                    className="inline-flex h-[46px] w-full items-center justify-center rounded-[10px] bg-[#1f6b5b] px-4 text-[16px] text-white disabled:opacity-50"
-                  >
-                    {savingUserId === selectedOwner.userId ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        저장 중...
-                      </span>
-                    ) : (
-                      "변경사항 저장"
-                    )}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="px-5 py-14 text-center text-[16px] text-[#6f665f]">왼쪽에서 오너 계정을 선택하면 상세 정보와 편집 영역이 열립니다.</div>
-            )}
-          </section>
+          <OwnerAdminDetailPanel
+            selectedOwner={selectedOwner}
+            selectedDraft={selectedDraft}
+            selectedAlimtalkBalance={selectedAlimtalkBalance}
+            issuingTemporaryPasswordUserId={issuingTemporaryPasswordUserId}
+            temporaryPasswords={temporaryPasswords}
+            issueOwnerTemporaryPassword={issueOwnerTemporaryPassword}
+            loadingAlimtalkCredits={loadingAlimtalkCredits}
+            savingAlimtalkCredits={savingAlimtalkCredits}
+            loadAlimtalkBalances={loadAlimtalkBalances}
+            alimtalkAction={alimtalkAction}
+            setAlimtalkAction={setAlimtalkAction}
+            alimtalkAmount={alimtalkAmount}
+            setAlimtalkAmount={setAlimtalkAmount}
+            alimtalkBucket={alimtalkBucket}
+            setAlimtalkBucket={setAlimtalkBucket}
+            saveOwnerAlimtalkCredits={saveOwnerAlimtalkCredits}
+            setDrafts={setDrafts}
+            savingUserId={savingUserId}
+            saveOwner={saveOwner}
+            withdrawingUserId={withdrawingUserId}
+            withdrawOwner={withdrawOwner}
+            resettingPaymentMethodUserId={resettingPaymentMethodUserId}
+            resetOwnerPaymentMethod={resetOwnerPaymentMethod}
+            refundReasons={refundReasons}
+            setRefundReasons={setRefundReasons}
+            refundingPaymentId={refundingPaymentId}
+            refundOwner={refundOwner}
+          />
         </div>
       </div>
     </main>
   );
 }
-
-function DetailRow({ label, value, children, mono = false }: { label: string; value?: string; children?: ReactNode; mono?: boolean }) {
-  return (
-    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2">
-      <span className="text-[16px] text-[#64748b]">{label}</span>
-      <div className={`min-w-0 truncate text-right text-[16px] text-[#0f172a] ${mono ? "font-mono" : ""}`}>{children ?? value ?? "-"}</div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[8px] border border-[#edf2f7] bg-[#fbfcfd] px-2.5 py-2">
-      <p className="text-[13px] text-[#64748b]">{label}</p>
-      <p className="mt-1 truncate text-[15px] text-[#0f172a]">{value}</p>
-    </div>
-  );
-}
-
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[16px] text-[#64748b]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] outline-none focus:border-[#2f7866]">
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[16px] text-[#64748b]">{label}</span>
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="h-[46px] w-full rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] outline-none focus:border-[#2f7866]" />
-    </label>
-  );
-}
-
-function ActionButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="inline-flex h-[38px] items-center justify-center rounded-[10px] border border-[#dbe2ea] bg-white px-3 text-[16px] text-[#172033] transition hover:bg-[#f8fafc]">
-      {children}
-    </button>
-  );
-}
-

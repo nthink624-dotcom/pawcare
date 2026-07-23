@@ -3,30 +3,53 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { SocialProvider } from "@/lib/auth/social-auth";
 
 function GoogleSymbol() {
   return (
-    <svg viewBox="0 0 18 18" aria-hidden="true" className="h-[22px] w-[22px]">
+    <svg viewBox="0 0 20 20" aria-hidden="true" className="h-5 w-5">
       <path
         fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.88 2.68-6.62Z"
+        d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.4a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 3-4.32 3-7.3z"
       />
       <path
         fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H1v2.33A9 9 0 0 0 9 18Z"
+        d="M10 20c2.7 0 4.97-.89 6.63-2.42l-3.24-2.5c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H1.06v2.59A10 10 0 0 0 10 20z"
       />
       <path
         fill="#FBBC05"
-        d="M3.97 10.72A5.41 5.41 0 0 1 3.69 9c0-.6.1-1.18.28-1.72V4.95H1A9 9 0 0 0 0 9c0 1.45.35 2.82 1 4.05l2.97-2.33Z"
+        d="M4.41 11.92a6 6 0 0 1 0-3.84V5.49H1.06a10 10 0 0 0 0 9.02l3.35-2.6z"
       />
       <path
         fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.33l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 1 4.95l2.97 2.33c.71-2.12 2.69-3.7 5.03-3.7Z"
+        d="M10 3.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.96 9.96 0 0 0 10 0a10 10 0 0 0-8.94 5.49l3.35 2.6C5.2 5.72 7.4 3.96 10 3.96z"
       />
     </svg>
+  );
+}
+
+function KakaoSymbol() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className="h-5 w-5">
+      <path
+        fill="#191600"
+        d="M10 1.5C4.75 1.5.5 4.9.5 9.1c0 2.68 1.76 5.03 4.4 6.38-.19.71-.71 2.63-.81 3.04-.13.51.19.5.4.36.16-.11 2.56-1.74 3.6-2.45.62.09 1.26.14 1.91.14 5.25 0 9.5-3.4 9.5-7.6S15.25 1.5 10 1.5z"
+      />
+    </svg>
+  );
+}
+
+function NaverSymbol() {
+  return (
+    <Image
+      src="/images/auth/naver-symbol.png"
+      alt=""
+      width={20}
+      height={20}
+      className="h-5 w-5 object-contain"
+    />
   );
 }
 
@@ -149,10 +172,10 @@ export default function MobileLoginScreenTemplate({
   }, [syncBrowserFilledCredentials]);
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white px-6 pb-12 pt-10 text-[#111111]">
-      <div className="text-center">
-        <h1 className="text-[30px] font-extrabold tracking-[-0.05em] text-[#111111]">{heading}</h1>
-        <p className="mt-4 text-[15px] leading-7 text-[#7b746b]">
+    <main className="flex min-h-screen w-screen items-center justify-center bg-[#eef0f3] py-6 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#0f172a] antialiased">
+      <section className="w-full max-w-[390px] overflow-hidden rounded-[28px] bg-white px-7 pb-8 pt-11 shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+        <h1 className="mb-2 text-center text-xl font-extrabold leading-[normal] tracking-[-0.3px] text-[#0f172a]">{heading}</h1>
+        <p className="mb-6 text-center text-[13px] leading-[1.55] text-[#94a3b8]">
           {descriptionLines.map((line, index) => (
             <span key={`${line}-${index}`}>
               {line}
@@ -160,46 +183,34 @@ export default function MobileLoginScreenTemplate({
             </span>
           ))}
         </p>
-      </div>
 
-      {socialProviders.includes("kakao") ? (
-        <button
-          type="button"
-          onClick={() => onSocialLogin("kakao")}
-          disabled={loading || socialLoading !== null || socialDisabled}
-          className="mt-8 h-[48px] w-full rounded-[8px] bg-[#fee500] text-[#191600] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span className="flex h-full w-full items-center">
-            <span className="relative h-full w-[56px] shrink-0">
-              <Image
-                src="/images/auth/kakao-symbol.png"
-                alt=""
-                width={22}
-                height={22}
-                className="absolute left-[17px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 object-contain"
-              />
-            </span>
-            <span className="min-w-0 flex-1 -translate-x-[18px] text-center font-[Roboto,Arial,sans-serif] text-[14px] font-medium tracking-[0.25px]">
-              {socialLoading === "kakao" ? resolvedSocialLabels.kakao.loading : resolvedSocialLabels.kakao.idle}
-            </span>
-          </span>
-        </button>
-      ) : null}
+        {socialProviders.includes("kakao") ? (
+          <SocialButton
+            provider="kakao"
+            onClick={() => onSocialLogin("kakao")}
+            disabled={loading || socialLoading !== null || socialDisabled}
+            label={socialLoading === "kakao" ? resolvedSocialLabels.kakao.loading : resolvedSocialLabels.kakao.idle}
+            icon={<KakaoSymbol />}
+          />
+        ) : null}
 
-      <div className="mt-6 space-y-3">
-        <input
-          data-testid="owner-login-id"
-          ref={loginIdInputRef}
-          type="text"
-          value={loginId}
-          onChange={(event) => onLoginIdChange(event.target.value)}
-          onBlur={syncBrowserFilledCredentials}
-          placeholder={loginIdPlaceholder}
-          autoComplete="username"
-          className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
-        />
+        <Divider>또는 아이디로 로그인</Divider>
 
-        <div className="relative">
+        <div className="mb-2">
+          <input
+            data-testid="owner-login-id"
+            ref={loginIdInputRef}
+            type="text"
+            value={loginId}
+            onChange={(event) => onLoginIdChange(event.target.value)}
+            onBlur={syncBrowserFilledCredentials}
+            placeholder={loginIdPlaceholder}
+            autoComplete="username"
+            className="h-12 w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
+          />
+        </div>
+
+        <div className="relative mb-2">
           <input
             data-testid="owner-login-password"
             ref={passwordInputRef}
@@ -209,100 +220,118 @@ export default function MobileLoginScreenTemplate({
             onBlur={syncBrowserFilledCredentials}
             placeholder={passwordPlaceholder}
             autoComplete="current-password"
-            className="h-[50px] w-full border-0 bg-[#eef3ff] px-4 pr-12 text-[18px] font-semibold tracking-[-0.03em] text-[#111111] outline-none placeholder:text-[#8f98ac]"
+            className="h-12 w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 pr-12 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
           />
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#6f665d] transition hover:bg-white/70 active:scale-[0.96]"
+            className="absolute right-3.5 top-1/2 flex -translate-y-1/2 items-center text-[#94a3b8]"
             aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
           >
-            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            {showPassword ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />}
           </button>
         </div>
-      </div>
 
-      {message ? <p className="mt-3 text-[14px] font-medium leading-6 text-[#d34b4b]">{message}</p> : null}
+        {message ? <p className="mb-2 text-[12px] font-medium leading-5 text-[#d34b4b]">{message}</p> : null}
 
-      <div className="mt-4 flex items-center gap-6 text-[15px] text-[#111111]">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={rememberLoginId}
-            onChange={(event) => onRememberLoginIdChange(event.target.checked)}
-            className="h-[18px] w-[18px] rounded-none border border-[#111111] accent-[#0e8c6d]"
-          />
-          <span>{rememberLoginIdLabel}</span>
-        </label>
-      </div>
+        <div className="mb-4 mt-3 flex items-center justify-between leading-[normal]">
+          <label className="flex items-center gap-[7px] text-[13px] text-[#64748b]">
+            <input
+              type="checkbox"
+              checked={rememberLoginId}
+              onChange={(event) => onRememberLoginIdChange(event.target.checked)}
+              className="h-4 w-4 accent-[#0f172a]"
+            />
+            <span>{rememberLoginIdLabel}</span>
+          </label>
+        </div>
 
-      <button
-        data-testid="owner-login-submit"
-        type="button"
-        onClick={() => onLogin(syncBrowserFilledCredentials())}
-        disabled={loading}
-        className="mt-6 flex h-[52px] w-full items-center justify-center rounded-[6px] bg-[#0e8c6d] px-5 text-[20px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {loading ? loginButtonLoadingLabel : loginButtonLabel}
-      </button>
+        <button
+          data-testid="owner-login-submit"
+          type="button"
+          onClick={() => onLogin(syncBrowserFilledCredentials())}
+          disabled={loading}
+          className="h-[50px] w-full rounded-[13px] border-0 bg-[#0f172a] text-[15px] font-bold text-white transition-[filter] duration-150 hover:brightness-[1.12] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? loginButtonLoadingLabel : loginButtonLabel}
+        </button>
 
-      <div className="mt-7 flex items-center justify-center gap-3 text-[15px] text-[#8b847b]">
-        {resolvedHelperLinks.map((link, index) => (
-          <span key={`${link.href}-${link.label}`} className="contents">
-            {index > 0 ? <span>|</span> : null}
-            <Link href={link.href as never} replace className="hover:text-[#111111]">
-              {link.label}
-            </Link>
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-7 space-y-2.5">
-        {socialProviders.includes("naver") ? (
-          <button
-            type="button"
-            onClick={() => onSocialLogin("naver")}
-            disabled={loading || socialLoading !== null || socialDisabled}
-            className="h-[48px] w-full rounded-[8px] bg-[#05AC4F] text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span className="flex h-full w-full items-center">
-              <span className="relative h-full w-[56px] shrink-0">
-                <Image
-                  src="/images/auth/naver-symbol.png"
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="absolute left-[16px] top-1/2 h-[24px] w-[24px] -translate-y-1/2 object-contain"
-                  style={{ mixBlendMode: "screen" }}
-                />
-              </span>
-              <span className="min-w-0 flex-1 -translate-x-[18px] truncate text-center font-[Roboto,Arial,sans-serif] text-[14px] font-medium tracking-[0.25px]">
-                {socialLoading === "naver" ? resolvedSocialLabels.naver.loading : resolvedSocialLabels.naver.idle}
-              </span>
+        <div className="mb-1 mt-4 flex items-center justify-center gap-2.5 text-[12.5px] leading-[normal] text-[#94a3b8]">
+          {resolvedHelperLinks.map((link, index) => (
+            <span key={`${link.href}-${link.label}`} className="contents">
+              {index > 0 ? <span className="text-[#e2e8f0]">|</span> : null}
+              <Link href={link.href as never} replace className="text-[#94a3b8] hover:text-[#64748b]">
+                {link.label}
+              </Link>
             </span>
-          </button>
-        ) : null}
+          ))}
+        </div>
 
-        {socialProviders.includes("google") ? (
-          <button
-            type="button"
-            onClick={() => onSocialLogin("google")}
-            disabled={loading || socialLoading !== null || socialDisabled}
-            className="h-[48px] w-full rounded-[8px] border border-[#747775] bg-white text-[#1f1f1f] shadow-none transition-colors duration-200 hover:bg-[#f8f9fa] disabled:cursor-default disabled:border-[#1f1f1f1f] disabled:bg-[#ffffff61] disabled:text-[#1f1f1f61]"
-          >
-            <span className="flex h-full w-full items-center">
-              <span className="relative h-full w-[56px] shrink-0">
-                <span className="absolute left-[17px] top-1/2 -translate-y-1/2">
-                  <GoogleSymbol />
-                </span>
-              </span>
-              <span className="min-w-0 flex-1 -translate-x-[18px] truncate text-center font-[Roboto,Arial,sans-serif] text-[14px] font-medium tracking-[0.25px]">
-                {socialLoading === "google" ? resolvedSocialLabels.google.loading : resolvedSocialLabels.google.idle}
-              </span>
-            </span>
-          </button>
-        ) : null}
-      </div>
+        <Divider>또는</Divider>
+
+        <div className="flex flex-col gap-2">
+          {socialProviders.includes("naver") ? (
+            <SocialButton
+              provider="naver"
+              onClick={() => onSocialLogin("naver")}
+              disabled={loading || socialLoading !== null || socialDisabled}
+              label={socialLoading === "naver" ? resolvedSocialLabels.naver.loading : resolvedSocialLabels.naver.idle}
+              icon={<NaverSymbol />}
+            />
+          ) : null}
+
+          {socialProviders.includes("google") ? (
+            <SocialButton
+              provider="google"
+              onClick={() => onSocialLogin("google")}
+              disabled={loading || socialLoading !== null || socialDisabled}
+              label={socialLoading === "google" ? resolvedSocialLabels.google.loading : resolvedSocialLabels.google.idle}
+              icon={<GoogleSymbol />}
+            />
+          ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Divider({ children }: { children: ReactNode }) {
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs leading-[normal] text-[#94a3b8] before:h-px before:flex-1 before:bg-[#e5e9f0] after:h-px after:flex-1 after:bg-[#e5e9f0]">
+      {children}
     </div>
+  );
+}
+
+function SocialButton({
+  provider,
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  provider: "kakao" | "naver" | "google";
+  label: string;
+  icon: ReactNode;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const tone =
+    provider === "kakao"
+      ? "border-transparent bg-[#FEE500] text-[#191600]"
+      : provider === "naver"
+        ? "border-transparent bg-[#03C75A] text-white"
+        : "border-[#e2e8f0] bg-white text-[#1f2937]";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative flex h-[50px] w-full items-center rounded-[13px] border px-[18px] text-[15px] font-semibold transition-[filter,transform] duration-150 hover:-translate-y-px hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${tone}`}
+    >
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
+      <span className="mr-5 min-w-0 flex-1 truncate text-center">{label}</span>
+    </button>
   );
 }

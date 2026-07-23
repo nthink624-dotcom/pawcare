@@ -51,11 +51,16 @@ export async function POST(request: NextRequest) {
     const isNaverSuccess = profilePayload.success && profilePayload.data.resultcode === "00";
     const profile = profilePayload.success ? profilePayload.data.response : null;
 
-    if (!profileResponse.ok || !isNaverSuccess || !profile?.email) {
+    const name = profile?.name ?? "";
+    const email = profile?.email ?? "";
+    const phone = normalizePhone(profile?.mobile_e164 || profile?.mobile);
+    const hasRequiredProfile = Boolean(name && email && /^01\d{8,9}$/.test(phone));
+
+    if (!profileResponse.ok || !isNaverSuccess || !hasRequiredProfile) {
       return NextResponse.json(
         {
           message:
-            "네이버에서 이메일 정보를 받지 못했어요. 네이버 계정의 연락처 이메일과 제공 동의 설정을 확인해 주세요.",
+            "네이버에서 이름, 휴대전화번호, 이메일 정보를 모두 받지 못했어요. 네이버 제공 동의 설정을 확인해 주세요.",
         },
         { status: 422 },
       );
@@ -67,10 +72,8 @@ export async function POST(request: NextRequest) {
     }
 
     const user = userResult.data.user;
-    const name = profile.name || (typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "");
-    const phone = normalizePhone(profile.mobile_e164 || profile.mobile);
     const updateResult = await admin.auth.admin.updateUserById(user.id, {
-      email: profile.email,
+      email,
       email_confirm: true,
       user_metadata: {
         ...user.user_metadata,
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      email: profile.email,
+      email,
       name,
       phone,
     });

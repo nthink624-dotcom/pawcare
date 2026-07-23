@@ -200,6 +200,12 @@ export async function POST(request: NextRequest) {
       agreed_at: now,
       terms_version: payload.termsVersion || OWNER_SIGNUP_TERMS_VERSION,
       agreements: payload.agreements,
+      ...(provider === "naver"
+        ? {
+            consent_source: "naver_login_plus",
+            consent_provider: "naver",
+          }
+        : {}),
     };
 
     const profileInsert = await admin.from("owner_profiles").upsert({

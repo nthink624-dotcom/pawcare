@@ -348,7 +348,7 @@ export default function SocialSignupCompleteForm({
 
   return (
     <>
-      <main className="owner-font mx-auto min-h-screen w-full max-w-[390px] overflow-hidden bg-white text-[#0f172a] sm:min-h-0 sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+      <main className="owner-font mx-auto min-h-screen w-full max-w-[390px] overflow-hidden bg-white text-[#0f172a] sm:my-6 sm:min-h-0 sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
         <header
           className="relative overflow-hidden px-6 pb-5 pt-[18px]"
           style={{ background: providerVisual?.gradient ?? "linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%)" }}

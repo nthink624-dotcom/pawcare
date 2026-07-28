@@ -145,6 +145,25 @@ assertIncludes(
   "Only non-Kakao signup completion may render owner name and phone fields.",
 );
 assertIncludes(
+  "src/components/auth/login-form.tsx",
+  'scopes: provider === "kakao" ? "name,phone_number" : undefined',
+  "Kakao OAuth must request the approved owner name and phone number scopes.",
+);
+assertIncludes(
+  "src/app/auth/client-callback/client-callback.tsx",
+  'fetch("/api/auth/kakao-profile"',
+  "Kakao OAuth callback must hydrate the verified Kakao owner profile before signup completion.",
+);
+assertFile(
+  "src/app/api/auth/kakao-profile/route.ts",
+  "Kakao profile hydration API must exist.",
+);
+assertIncludes(
+  "src/app/api/auth/kakao-profile/route.ts",
+  'JSON.stringify(["kakao_account.name", "kakao_account.phone_number"])',
+  "Kakao profile hydration must request only the required owner name and phone number.",
+);
+assertIncludes(
   "src/app/api/auth/social-complete/route.ts",
   'provider === "kakao" ? providerOwnerName',
   "Kakao owner names must come from verified Kakao auth metadata.",

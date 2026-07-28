@@ -57,6 +57,16 @@ function hasRequiredNaverProfile(user: {
   return Boolean(name && /^01\d{8,9}$/.test(phone.replace(/\D/g, "")));
 }
 
+function hasRequiredKakaoProfile(user: {
+  phone?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) {
+  const name = readMetadataText(user.user_metadata, ["name", "full_name"]);
+  const phone =
+    readMetadataText(user.user_metadata, ["phone", "phone_number", "phoneNumber"]) || user.phone || "";
+  return Boolean(name && /^01\d{8,9}$/.test(phone.replace(/\D/g, "")));
+}
+
 export default function AuthClientCallback() {
   const searchParams = useSearchParams();
   const callbackStartedRef = useRef(false);
@@ -138,6 +148,48 @@ export default function AuthClientCallback() {
             const refreshed = await oauthSupabase.auth.refreshSession();
             if (refreshed.error || !refreshed.data.session) {
               redirectToLogin("social-session", next, refreshed.error?.message || "로그인 세션을 갱신하지 못했습니다.");
+              return;
+            }
+
+            session = refreshed.data.session;
+            user = (await oauthSupabase.auth.getUser()).data.user ?? user;
+          }
+        }
+      }
+
+      if (provider === "kakao") {
+        if (!session.provider_token && !hasRequiredKakaoProfile(user)) {
+          redirectToLogin("social-provider-profile", next, "카카오 프로필 접근 토큰이 없습니다.");
+          return;
+        }
+
+        if (session.provider_token) {
+          const profileResponse = await fetch("/api/auth/kakao-profile", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ providerToken: session.provider_token }),
+          });
+          if (!profileResponse.ok && !hasRequiredKakaoProfile(user)) {
+            const payload = (await profileResponse.json().catch(() => null)) as { message?: string } | null;
+            redirectToLogin(
+              "social-provider-profile",
+              next,
+              payload?.message || "카카오 프로필 정보를 확인하지 못했습니다.",
+            );
+            return;
+          }
+
+          if (profileResponse.ok) {
+            const refreshed = await oauthSupabase.auth.refreshSession();
+            if (refreshed.error || !refreshed.data.session) {
+              redirectToLogin(
+                "social-session",
+                next,
+                refreshed.error?.message || "로그인 세션을 갱신하지 못했습니다.",
+              );
               return;
             }
 

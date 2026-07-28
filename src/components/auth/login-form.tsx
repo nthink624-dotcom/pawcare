@@ -435,6 +435,7 @@ export default function LoginForm({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: {
           redirectTo,
+          scopes: provider === "kakao" ? "name,phone_number" : undefined,
           queryParams:
             provider === "google"
               ? { prompt: "select_account" }

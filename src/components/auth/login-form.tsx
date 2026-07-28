@@ -72,6 +72,8 @@ const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages",
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
 const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY = "petmanager.socialOAuthRateLimitCooldownUntil";
 const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
+const KAKAO_SIMPLE_SIGNUP_ENABLED =
+  process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true";
 
 type FailedLoginState = {
   count: number;
@@ -412,6 +414,11 @@ export default function LoginForm({
   };
 
   const handleSocialLogin = async (provider: SocialProvider) => {
+    if (provider === "kakao" && !KAKAO_SIMPLE_SIGNUP_ENABLED) {
+      setMessage("카카오 간편가입 권한 심사 중입니다. 승인 후 이용할 수 있어요.");
+      return;
+    }
+
     const activeCooldownUntil = clearExpiredSocialCooldown();
     if (activeCooldownUntil && activeCooldownUntil > Date.now()) {
       setMessage(getSocialRateLimitMessage());
@@ -435,7 +442,10 @@ export default function LoginForm({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: {
           redirectTo,
-          scopes: provider === "kakao" ? "name,phone_number" : undefined,
+          scopes:
+            provider === "kakao" && KAKAO_SIMPLE_SIGNUP_ENABLED
+              ? "name,phone_number"
+              : undefined,
           queryParams:
             provider === "google"
               ? { prompt: "select_account" }

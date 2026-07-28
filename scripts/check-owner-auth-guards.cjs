@@ -146,7 +146,22 @@ assertIncludes(
 );
 assertIncludes(
   "src/components/auth/login-form.tsx",
-  'scopes: provider === "kakao" ? "name,phone_number" : undefined',
+  'process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true"',
+  "Kakao OAuth must stay gated until Kakao approves the required personal-information scopes.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  'provider === "kakao" && !KAKAO_SIMPLE_SIGNUP_ENABLED',
+  "Kakao OAuth must stop before redirecting while the required scopes are under review.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  "카카오 간편가입 권한 심사 중입니다. 승인 후 이용할 수 있어요.",
+  "Kakao OAuth must explain why signup is temporarily unavailable.",
+);
+assertIncludes(
+  "src/components/auth/login-form.tsx",
+  'provider === "kakao" && KAKAO_SIMPLE_SIGNUP_ENABLED',
   "Kakao OAuth must request the approved owner name and phone number scopes.",
 );
 assertIncludes(

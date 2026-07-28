@@ -7,7 +7,7 @@ export const LEGAL_BUSINESS_INFO = {
   operatorName: LEGAL_OPERATOR_NAME,
   representativeName: "정우진",
   businessRegistrationNumber: "462-16-02885",
-  address: "충청남도 천안시 동남구 미라9길 14 지하 1층",
+  address: "충청남도 천안시 서북구 미라9길 14 지하 1층",
   customerServicePhone: "041-557-5529",
   customerServiceEmail: "nthink624@gmail.com",
   hostingProvider: "Vercel Inc.",

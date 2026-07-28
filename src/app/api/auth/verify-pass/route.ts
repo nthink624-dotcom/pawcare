@@ -47,6 +47,14 @@ function toKoreanPortoneIdentityMessage(message?: string) {
     return "이미 완료된 본인인증 요청입니다. 창을 닫고 다시 인증해 주세요.";
   }
 
+  if (
+    normalized.includes("permission denied") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("forbidden")
+  ) {
+    return "본인인증 결과 조회 권한을 확인하지 못했어요. PortOne 서버 API 설정을 확인해 주세요.";
+  }
+
   return message;
 }
 
@@ -63,20 +71,16 @@ function wait(ms: number) {
 function buildPortoneIdentityVerificationUrls(identityVerificationId: string) {
   const encodedId = encodeURIComponent(identityVerificationId);
   const getEndpoint = new URL(`/identity-verifications/${encodedId}`, "https://api.portone.io");
-  const confirmEndpoint = new URL(`/identity-verifications/${encodedId}/confirm`, "https://api.portone.io");
 
   if (serverEnv.portoneStoreId) {
     getEndpoint.searchParams.set("storeId", serverEnv.portoneStoreId);
   }
 
-  return {
-    getEndpoint: getEndpoint.toString(),
-    confirmEndpoint: confirmEndpoint.toString(),
-  };
+  return getEndpoint.toString();
 }
 
 async function fetchPortoneIdentityVerification(identityVerificationId: string) {
-  const { getEndpoint, confirmEndpoint } = buildPortoneIdentityVerificationUrls(identityVerificationId);
+  const getEndpoint = buildPortoneIdentityVerificationUrls(identityVerificationId);
   const headers = {
     Authorization: `PortOne ${serverEnv.portoneApiSecret}`,
     "Content-Type": "application/json",
@@ -102,22 +106,8 @@ async function fetchPortoneIdentityVerification(identityVerificationId: string) 
       return { response: getResponse, result: getResult };
     }
 
-    const confirmResponse = await fetch(confirmEndpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(serverEnv.portoneStoreId ? { storeId: serverEnv.portoneStoreId } : {}),
-      cache: "no-store",
-    });
-    const confirmResult = await readPortoneJson(confirmResponse);
-    lastResponse = confirmResponse.ok ? getResponse : confirmResponse;
-    lastResult = confirmResult.identityVerification || confirmResult.message ? confirmResult : getResult;
-
-    if (confirmResponse.ok && isVerifiedPortoneIdentity(confirmResult.identityVerification)) {
-      return { response: confirmResponse, result: confirmResult };
-    }
-
-    if (isAlreadyVerifiedPortoneMessage(confirmResult)) {
-      return { response: confirmResponse, result: confirmResult };
+    if (getResponse.status === 401 || getResponse.status === 403) {
+      break;
     }
   }
 

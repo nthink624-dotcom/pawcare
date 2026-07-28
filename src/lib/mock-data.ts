@@ -78,10 +78,10 @@ export const demoShop: Shop = {
     ],
     show_services: true,
     booking_button_label: "예약하기",
-    kakao_inquiry_url: "https://pf.kakao.com/_petmanager",
+    kakao_inquiry_url: "",
     social_links: {
       instagram_url: "https://instagram.com/petmanager.demo",
-      kakao_channel_url: "https://pf.kakao.com/_petmanager",
+      kakao_channel_url: "",
       tiktok_url: "https://tiktok.com/@petmanager.demo",
       threads_url: "https://threads.net/@petmanager.demo",
     },

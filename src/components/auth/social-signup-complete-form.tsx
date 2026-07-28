@@ -7,25 +7,23 @@ import { useRouter } from "next/navigation";
 
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
-import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import SocialSignupRequiredTerms from "@/components/auth/social-signup-required-terms";
 import {
   PENDING_SOCIAL_PROVIDER_STORAGE,
   resolveSocialProviderFromAuthUser,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
 import {
+  initialSocialSignupAgreements,
+  requiresPetManagerSocialTerms,
+  resolveSocialSignupAgreements,
+} from "@/lib/auth/social-signup-consent";
+import {
   INLINE_ERROR,
   INPUT_BASE,
   cn,
 } from "@/lib/ui-system";
 import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
-
-const AGREEMENTS = {
-  service: true,
-  privacy: true,
-  location: false,
-  marketing: false,
-};
 
 const providerLabelMap: Record<SocialProvider, string> = {
   google: "Google",
@@ -198,13 +196,13 @@ export default function SocialSignupCompleteForm({
   const [resolvedProvider, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
   const [ownerName, setOwnerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [email, setEmail] = useState("");
   const [shopName, setShopName] = useState("");
   const [shopPhoneNumber, setShopPhoneNumber] = useState("");
   const [shopAddress, setShopAddress] = useState("");
   const [shopDetailAddress, setShopDetailAddress] = useState("");
   const [shopPostalCode, setShopPostalCode] = useState("");
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [agreements, setAgreements] = useState(initialSocialSignupAgreements);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -256,7 +254,6 @@ export default function SocialSignupCompleteForm({
           prev ||
           normalizePhone(readMetadataValue(user.user_metadata, ["phone", "phone_number", "phoneNumber"]) || user.phone || ""),
       );
-      setEmail((previous) => previous || user.email || "");
 
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
@@ -268,18 +265,21 @@ export default function SocialSignupCompleteForm({
 
   const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
   const providerVisual = resolvedProvider ? providerVisuals[resolvedProvider] : null;
-  const phoneIsEditable = resolvedProvider === "google";
+  const isKakaoSignup = resolvedProvider === "kakao";
+  const phoneIsEditable = !isKakaoSignup && (resolvedProvider === "google" || !phoneNumber);
+  const needsPetManagerTerms = requiresPetManagerSocialTerms(resolvedProvider);
+  const requiredAgreed = agreements.service && agreements.privacy;
 
   const handleSubmit = async () => {
     if (loading) return;
 
-    if (!ownerName.trim()) {
-      setMessage("이름을 입력해 주세요.");
+    if (isKakaoSignup && (!ownerName.trim() || !/^01\d{8,9}$/.test(phoneNumber))) {
+      setMessage("카카오에서 이름과 휴대폰번호를 확인하지 못했어요. 카카오 정보 제공에 동의한 뒤 다시 시도해 주세요.");
       return;
     }
 
-    if (!email.trim()) {
-      setMessage("소셜 계정의 이메일 정보를 확인하지 못했어요. 다시 로그인해 주세요.");
+    if (!ownerName.trim()) {
+      setMessage("이름을 입력해 주세요.");
       return;
     }
 
@@ -300,6 +300,16 @@ export default function SocialSignupCompleteForm({
 
     if (!shopAddress.trim()) {
       setMessage("매장 주소를 선택해 주세요.");
+      return;
+    }
+
+    if (!resolvedProvider) {
+      setMessage("소셜 로그인 종류를 확인하지 못했어요. 로그인 화면에서 다시 시도해 주세요.");
+      return;
+    }
+
+    if (needsPetManagerTerms && !requiredAgreed) {
+      setMessage("필수 약관에 동의해 주세요.");
       return;
     }
 
@@ -326,8 +336,7 @@ export default function SocialSignupCompleteForm({
           shopName: shopName.trim(),
           shopPhoneNumber,
           shopAddress: joinAddress(shopAddress, shopDetailAddress),
-          agreements: AGREEMENTS,
-          termsVersion: OWNER_SIGNUP_TERMS_VERSION,
+          agreements: resolveSocialSignupAgreements(resolvedProvider, agreements),
         }),
       });
 
@@ -382,32 +391,36 @@ export default function SocialSignupCompleteForm({
         </header>
 
         <div className="px-7 pb-9 pt-1">
-          <div className="mb-2.5 flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
-            <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">이름</span>
-            <span className="truncate text-[13.5px] font-semibold text-[#0f172a]">
-              {ownerName.trim() || "이름 확인 중"}
-            </span>
-          </div>
+          {!isKakaoSignup ? (
+            <>
+              <div className="mb-2.5 flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
+                <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">이름</span>
+                <span className="truncate text-[13.5px] font-semibold text-[#0f172a]">
+                  {ownerName.trim() || "이름 확인 중"}
+                </span>
+              </div>
 
-          <div className="flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
-            <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">휴대폰번호</span>
-            {phoneIsEditable ? (
-              <input
-                value={formatPhone(phoneNumber)}
-                onChange={(event) => setPhoneNumber(normalizePhone(event.target.value))}
-                placeholder="010-0000-0000"
-                inputMode="numeric"
-                aria-label="휴대폰번호"
-                className="w-[140px] border-0 bg-transparent p-0 text-right text-[13.5px] font-semibold text-[#0f172a] outline-none placeholder:font-medium placeholder:text-[#b0b8c4]"
-              />
-            ) : (
-              <span className="whitespace-nowrap text-[13.5px] font-semibold text-[#0f172a]">
-                {formatPhone(phoneNumber) || "번호 확인 중"}
-              </span>
-            )}
-          </div>
+              <div className="flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
+                <span className="mr-2.5 shrink-0 text-[12px] font-semibold text-[#94a3b8]">휴대폰번호</span>
+                {phoneIsEditable ? (
+                  <input
+                    value={formatPhone(phoneNumber)}
+                    onChange={(event) => setPhoneNumber(normalizePhone(event.target.value))}
+                    placeholder="010-0000-0000"
+                    inputMode="numeric"
+                    aria-label="휴대폰번호"
+                    className="w-[140px] border-0 bg-transparent p-0 text-right text-[13.5px] font-semibold text-[#0f172a] outline-none placeholder:font-medium placeholder:text-[#b0b8c4]"
+                  />
+                ) : (
+                  <span className="whitespace-nowrap text-[13.5px] font-semibold text-[#0f172a]">
+                    {formatPhone(phoneNumber) || "번호 확인 중"}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : null}
 
-          <section className="mt-[22px] border-t border-[#eef1f5] pt-5">
+          <section className={cn(!isKakaoSignup && "mt-[22px] border-t border-[#eef1f5] pt-5")}>
             <h2 className="mb-[14px] text-[15px] font-extrabold text-[#0f172a]">매장 정보</h2>
             <FormField label="매장명">
               <TextInput value={shopName} onChange={setShopName} placeholder="매장 이름을 입력해 주세요" />
@@ -450,13 +463,17 @@ export default function SocialSignupCompleteForm({
             />
           </section>
 
+          {needsPetManagerTerms ? (
+            <SocialSignupRequiredTerms value={agreements} onChange={setAgreements} />
+          ) : null}
+
           {message ? <p className={INLINE_ERROR}>{message}</p> : null}
 
           <button
             type="button"
             onClick={handleSubmit}
-            aria-disabled={loading}
-            className="mt-[22px] flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[13px] bg-[#334155] px-5 text-[14.5px] font-semibold text-white transition hover:bg-[#293548] aria-disabled:cursor-wait aria-disabled:bg-[#334155] aria-disabled:text-white"
+            disabled={loading || (needsPetManagerTerms && !requiredAgreed)}
+            className="mt-[22px] flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[13px] bg-[#334155] px-5 text-[14.5px] font-semibold text-white transition hover:bg-[#293548] disabled:cursor-not-allowed disabled:bg-[#cbd5e1] disabled:text-white"
           >
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="h-[15px] w-[15px]" /> : null}

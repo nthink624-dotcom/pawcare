@@ -7,6 +7,10 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { resolveSocialProviderFromAuthUser } from "@/lib/auth/social-auth";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
+import {
+  resolveSocialConsentSource,
+  resolveSocialSignupAgreements,
+} from "@/lib/auth/social-signup-consent";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
@@ -19,14 +23,13 @@ function isValidShopPhone(value: string) {
 }
 
 const payloadSchema = z.object({
-  ownerName: z.string().trim().min(1),
+  ownerName: z.string().trim().optional().default(""),
   phoneNumber: z
     .string()
     .trim()
-    .transform((value) => value.replace(/\D/g, "").slice(0, 11))
-    .refine((value) => /^01\d{8,9}$/.test(value), {
-      message: "휴대폰 번호를 올바르게 입력해 주세요.",
-    }),
+    .optional()
+    .default("")
+    .transform((value) => value.replace(/\D/g, "").slice(0, 11)),
   shopName: z.string().trim().min(1),
   shopPhoneNumber: z
     .string()
@@ -43,7 +46,6 @@ const payloadSchema = z.object({
     location: z.boolean().optional().default(false),
     marketing: z.boolean().optional().default(false),
   }),
-  termsVersion: z.string().trim().optional(),
 });
 
 function nowIso() {
@@ -96,9 +98,6 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = parsed.data;
-    if (!payload.agreements.service || !payload.agreements.privacy) {
-      return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
-    }
 
     const authorization = request.headers.get("authorization") || "";
     const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
@@ -127,6 +126,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "로그인 정보를 확인할 수 없습니다." }, { status: 401 });
     }
 
+    const provider = resolveSocialProviderFromAuthUser(user);
+    const effectiveAgreements = resolveSocialSignupAgreements(provider, payload.agreements);
+    if (!effectiveAgreements.service || !effectiveAgreements.privacy) {
+      return NextResponse.json({ message: "필수 약관에 동의해 주세요." }, { status: 400 });
+    }
+
     const admin = getSupabaseAdmin();
     if (!admin) {
       return NextResponse.json({ message: "Supabase 관리자 설정을 확인해 주세요." }, { status: 503 });
@@ -149,10 +154,37 @@ export async function POST(request: NextRequest) {
 
     const shopId = `shop-${randomUUID().slice(0, 8)}`;
     const now = nowIso();
-    const provider = resolveSocialProviderFromAuthUser(user);
     const loginId = `social_${provider}_${user.id.replace(/-/g, "").slice(0, 12)}`;
-    const ownerName = payload.ownerName.trim() || resolveOwnerName(user);
-    const ownerPhoneNumber = payload.phoneNumber || resolvePhoneNumber(user) || null;
+    const providerOwnerName = readMetadataValue(user.user_metadata, ["name", "full_name", "nickname", "given_name"]);
+    const providerPhoneNumber = resolvePhoneNumber(user);
+    const ownerName = provider === "kakao" ? providerOwnerName : payload.ownerName.trim() || resolveOwnerName(user);
+    const ownerPhoneNumber =
+      provider === "kakao" ? providerPhoneNumber || null : payload.phoneNumber || providerPhoneNumber || null;
+
+    if (!ownerName) {
+      return NextResponse.json(
+        {
+          message:
+            provider === "kakao"
+              ? "카카오에서 이름을 확인하지 못했어요. 카카오 정보 제공에 동의한 뒤 다시 시도해 주세요."
+              : "이름을 확인해 주세요.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!ownerPhoneNumber || !/^01\d{8,9}$/.test(ownerPhoneNumber)) {
+      return NextResponse.json(
+        {
+          message:
+            provider === "kakao"
+              ? "카카오에서 휴대폰번호를 확인하지 못했어요. 카카오 정보 제공에 동의한 뒤 다시 시도해 주세요."
+              : "휴대폰 번호를 올바르게 입력해 주세요.",
+        },
+        { status: 400 },
+      );
+    }
+
     const shopPhoneNumber = payload.shopPhoneNumber || ownerPhoneNumber;
 
     const shopInsert = await admin.from("shops").insert({
@@ -198,14 +230,11 @@ export async function POST(request: NextRequest) {
 
     const agreementPayload = {
       agreed_at: now,
-      terms_version: payload.termsVersion || OWNER_SIGNUP_TERMS_VERSION,
-      agreements: payload.agreements,
-      ...(provider === "naver"
-        ? {
-            consent_source: "naver_login_plus",
-            consent_provider: "naver",
-          }
-        : {}),
+      terms_version: OWNER_SIGNUP_TERMS_VERSION,
+      agreements: effectiveAgreements,
+      consent_source: resolveSocialConsentSource(provider),
+      consent_provider: provider,
+      consent_user_agent: request.headers.get("user-agent")?.slice(0, 500) || null,
     };
 
     const profileInsert = await admin.from("owner_profiles").upsert({

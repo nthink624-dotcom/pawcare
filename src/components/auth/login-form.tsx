@@ -30,7 +30,7 @@ function toKoreanAuthError(message: string) {
     normalized.includes("error getting user email from external provider") ||
     (normalized.includes("external provider") && normalized.includes("email"))
   ) {
-    return "네이버에서 이메일 정보를 받지 못해 로그인 연결이 막혔어요. 네이버 개발자센터에서 제공 정보에 이메일 주소를 추가한 뒤 다시 시도해 주세요.";
+    return "인증 서버가 소셜 계정 이메일을 요구하고 있어 연결이 막혔어요. 이메일 없는 가입 허용 설정을 확인해 주세요.";
   }
 
   if (normalized.includes("invalid login credentials")) {

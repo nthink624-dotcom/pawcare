@@ -9,7 +9,7 @@ const errorMessages: Record<string, string> = {
   "social-access-denied": "소셜 로그인 동의가 취소되었거나 완료되지 않았어요. 다시 시도해 주세요.",
   "social-oauth": "소셜 로그인 연결에 실패했어요. OAuth 설정과 Supabase Redirect URL을 확인해 주세요.",
   "social-callback": "소셜 로그인 연결을 완료하지 못했어요. 다시 시도해 주세요.",
-  "social-provider-profile": "네이버 계정의 이메일 정보를 확인하지 못했어요. 네이버 계정의 연락처 이메일과 제공 동의 설정을 확인해 주세요.",
+  "social-provider-profile": "네이버 계정의 이름 또는 휴대전화번호를 확인하지 못했어요. 네이버 제공 동의 설정을 확인해 주세요.",
   "social-session": "소셜 로그인 세션을 만들지 못했어요. 다시 시도해 주세요.",
 };
 
@@ -60,7 +60,7 @@ export default async function LoginPage({
   const isProviderEmailMissing = errorKey === "social-callback" && isProviderEmailMissingDetail(errorDetail);
   const shouldShowDetail = Boolean(errorKey) && !isRateLimited && !isOAuthExpired && !isProviderEmailMissing;
   const resolvedErrorMessage = isProviderEmailMissing
-    ? "네이버에서 이메일 정보를 받지 못해 로그인 연결이 막혔어요. 네이버 개발자센터에서 제공 정보에 이메일 주소를 추가한 뒤 다시 시도해 주세요."
+    ? "인증 서버가 소셜 계정 이메일을 요구하고 있어 연결이 막혔어요. 네이버·카카오의 이메일 없는 가입 허용 설정을 확인해 주세요."
     : errorKey
       ? (errorMessages[errorKey] ?? null)
       : null;

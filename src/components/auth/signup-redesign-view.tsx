@@ -72,7 +72,8 @@ function SignupShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="owner-font mx-auto w-full max-w-[390px] overflow-hidden bg-white px-7 pb-10 pt-6 text-[#0f172a] sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+    <div className="flex min-h-dvh w-full items-center justify-center px-0 py-5 sm:px-5 sm:py-6">
+      <main className="owner-font w-full max-w-[390px] overflow-hidden bg-white px-7 pb-10 pt-6 text-[#0f172a] sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
       <div className="mb-[22px] flex items-center">
         <button
           type="button"
@@ -86,7 +87,8 @@ function SignupShell({
         <span className="h-9 w-9 shrink-0" aria-hidden="true" />
       </div>
       {children}
-    </main>
+      </main>
+    </div>
   );
 }
 

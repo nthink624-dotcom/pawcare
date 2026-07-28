@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
 import OwnerWebPreview from "@/components/owner-web/owner-web-preview";
+import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   clearOwnerAuthTokenCache,
@@ -129,6 +130,7 @@ export default function OwnerPage() {
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   function loadOwnerDemoFallback() {
     const demoBootstrap = buildOwnerDemoBootstrap();
@@ -271,6 +273,18 @@ export default function OwnerPage() {
         setCurrentOwnerAccessToken(ownerAccess.accessToken);
         setAccessToken(ownerAccess.accessToken);
 
+        const subscription = await withOwnerLoadTimeout(
+          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+          "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
+        );
+
+        writeOwnerBillingSummaryCache(subscription);
+        setSubscriptionSummary(subscription);
+
+        if (subscription.status === "expired" || subscription.status === "past_due") {
+          return;
+        }
+
         const shops = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
           "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
@@ -287,14 +301,6 @@ export default function OwnerPage() {
         if (typeof window !== "undefined") {
           window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
         }
-
-        const subscription = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-          "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
-        );
-
-        writeOwnerBillingSummaryCache(subscription);
-        setSubscriptionSummary(subscription);
 
         const bootstrap = await withOwnerLoadTimeout(
           fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
@@ -380,6 +386,33 @@ export default function OwnerPage() {
       document.removeEventListener("visibilitychange", refreshDesktopData);
     };
   }, [accessToken, selectedShopId]);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      clearOwnerAuthTokenCache();
+      await supabase?.auth.signOut();
+    } finally {
+      router.replace("/login" as never);
+      router.refresh();
+      setLoggingOut(false);
+    }
+  };
+
+  if (
+    subscriptionSummary &&
+    (subscriptionSummary.status === "expired" || subscriptionSummary.status === "past_due")
+  ) {
+    return (
+      <OwnerServiceExpiredScreen
+        summary={subscriptionSummary}
+        onLogout={handleLogout}
+        loggingOut={loggingOut}
+      />
+    );
+  }
 
   if (!data) {
     return (

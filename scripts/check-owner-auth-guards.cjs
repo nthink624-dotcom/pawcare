@@ -99,4 +99,110 @@ assertIncludes(
 assertFile("scripts/smoke-owner-login.cjs", "Owner login API smoke test must exist.");
 assertFile("tests/e2e/owner-login.spec.ts", "Owner login browser E2E test must exist.");
 
+assertIncludes(
+  "src/components/auth/signup-form.tsx",
+  "identityVerificationToken: verificationToken",
+  "General owner signup must submit the completed identity verification token.",
+);
+assertIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "name: payload.name.trim()",
+  "General owner signup must save the verified owner name.",
+);
+assertIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "phone_number: payload.phoneNumber",
+  "General owner signup must save the verified owner phone number.",
+);
+assertIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "identity_verified_at: now",
+  "General owner signup must record successful identity verification.",
+);
+assertNotIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "if (!email.trim())",
+  "Social signup completion must not require an email for Naver or Kakao owners.",
+);
+assertNotIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "const AGREEMENTS =",
+  "Social signup completion must not hard-code owner agreement consent.",
+);
+assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "SocialSignupRequiredTerms",
+  "Google social signup completion must collect required PetManager terms.",
+);
+assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  'const isKakaoSignup = resolvedProvider === "kakao";',
+  "Kakao Simple Signup must keep owner name and phone out of the manual completion form.",
+);
+assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "{!isKakaoSignup ? (",
+  "Only non-Kakao signup completion may render owner name and phone fields.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  'provider === "kakao" ? providerOwnerName',
+  "Kakao owner names must come from verified Kakao auth metadata.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  'provider === "kakao" ? providerPhoneNumber || null',
+  "Kakao owner phone numbers must come from verified Kakao auth metadata.",
+);
+assertIncludes(
+  "src/lib/auth/social-signup-consent.ts",
+  'process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true"',
+  "Kakao Simple Signup must stay feature-gated until the production Kakao app cutover is complete.",
+);
+assertIncludes(
+  "src/lib/auth/social-signup-consent.ts",
+  'if (provider === "kakao") return !kakaoSimpleSignupEnabled;',
+  "Kakao owners must keep the in-app PetManager terms until Kakao Simple Signup is enabled.",
+);
+assertIncludes(
+  "src/lib/auth/social-signup-consent.ts",
+  '"kakao_simple_signup"',
+  "Kakao social signup must retain Kakao Simple Signup as its consent source.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  "resolveSocialSignupAgreements(provider, payload.agreements)",
+  "The social signup API must derive effective agreements from the verified auth provider.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  "resolveSocialConsentSource(provider)",
+  "The social signup API must retain the consent source for audit records.",
+);
+assertNotIncludes(
+  "src/app/api/auth/verify-pass/route.ts",
+  "/confirm",
+  "Browser-based PortOne identity verification must poll the completed result instead of confirming it again.",
+);
+assertIncludes(
+  "src/app/api/auth/verify-pass/route.ts",
+  'normalized.includes("unauthorized")',
+  "PortOne server API authorization failures must be translated into a useful configuration error.",
+);
+assertNotIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  "payload.termsVersion",
+  "The social signup API must use the server-owned current terms version.",
+);
+assertNotIncludes(
+  "src/app/api/auth/naver-profile/route.ts",
+  "email_confirm: true",
+  "Naver profile hydration must not persist a contact email.",
+);
+assertIncludes(
+  "src/app/api/auth/naver-profile/route.ts",
+  "Boolean(name && /^01\\d{8,9}$/.test(phone))",
+  "Naver profile hydration must require only the owner name and mobile phone number.",
+);
+
 console.log("OK owner auth guard checks passed");

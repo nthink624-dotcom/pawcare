@@ -1,5 +1,5 @@
 ﻿import type { ReactNode } from "react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ImagePlus, UserRound, X } from "lucide-react";
 
@@ -784,11 +784,11 @@ export function StaffScheduleEditModal({
 }
 
 export function StaffModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
 
   if (!mounted) return null;
 

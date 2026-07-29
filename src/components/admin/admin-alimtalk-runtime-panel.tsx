@@ -1,13 +1,15 @@
 "use client";
 
 import { RefreshCcw, Send } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
-import type { AlimtalkTemplateAlias } from "@/lib/notification-registry";
+import {
+  ALIMTALK_NOTIFICATION_REGISTRY,
+  type AlimtalkTemplateAlias,
+} from "@/lib/notification-registry";
 import type {
   AdminAlimtalkTestResult,
-  AppTemplateDraft,
   RelayRuntimeDiagnostics,
 } from "@/server/admin-alimtalk";
 
@@ -23,17 +25,7 @@ function statusTone(ok: boolean) {
     : "border-[#efd4d4] bg-[#fff7f7] text-[#b54b4b]";
 }
 
-export default function AdminAlimtalkRuntimePanel({
-  appTemplateDrafts,
-}: {
-  appTemplateDrafts: AppTemplateDraft[];
-}) {
-  const defaultAlias =
-    appTemplateDrafts.find((item) => item.alias === "visit_reminder_notice")?.alias ??
-    appTemplateDrafts.find((item) => item.alias === "appointment_reminder_10m")?.alias ??
-    appTemplateDrafts[0]?.alias ??
-    "";
-
+export default function AdminAlimtalkRuntimePanel() {
   const [diagnostics, setDiagnostics] = useState<RelayRuntimeDiagnostics | null>(null);
   const [loadingDiagnostics, setLoadingDiagnostics] = useState(true);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
@@ -41,7 +33,7 @@ export default function AdminAlimtalkRuntimePanel({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<AdminAlimtalkTestResult | null>(null);
   const [form, setForm] = useState({
-    alias: defaultAlias,
+    alias: "visit_reminder_notice" as AlimtalkTemplateAlias,
     phone: "",
     recipientName: "보호자",
     shopName: "펫매니저 테스트 매장",
@@ -50,11 +42,6 @@ export default function AdminAlimtalkRuntimePanel({
     appointmentDateTime: "2026-05-19 14:00",
     bookingManageUrl: "https://www.petmanager.co.kr",
   });
-
-  const selectedDraft = useMemo(
-    () => appTemplateDrafts.find((item) => item.alias === form.alias) ?? null,
-    [appTemplateDrafts, form.alias],
-  );
 
   async function loadDiagnostics() {
     setLoadingDiagnostics(true);
@@ -212,7 +199,8 @@ export default function AdminAlimtalkRuntimePanel({
           <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">관리자 테스트 발송</p>
           <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#171411]">쏘다 + 릴레이 즉시 테스트</h2>
           <p className="text-[14px] leading-6 text-[#6f665f]">
-            이미 승인된 템플릿 코드가 릴레이에 연결되어 있을 때만 실제 발송 테스트를 하세요. 승인 전 템플릿은 공급자에서 거절될 수 있습니다.
+            쏘다에서 승인·사용 가능한 템플릿만 발송합니다. 고정 문구와 버튼은 쏘다 승인본을 그대로 사용하고,
+            아래 입력값은 승인된 변수 자리에만 들어갑니다.
           </p>
         </div>
 
@@ -226,9 +214,9 @@ export default function AdminAlimtalkRuntimePanel({
               }
               className="h-11 w-full rounded-[6px] border border-[#d8d4ce] bg-white px-3 text-[16px] text-[#171411] outline-none focus:border-[#1f6b5b]"
             >
-              {appTemplateDrafts.map((item) => (
-                <option key={item.alias} value={item.alias}>
-                  {reservationNoticeTitles[item.alias] ?? item.title} ({item.alias})
+              {ALIMTALK_NOTIFICATION_REGISTRY.map((item) => (
+                <option key={item.templateAlias} value={item.templateAlias}>
+                  {reservationNoticeTitles[item.templateAlias] ?? item.title} ({item.templateAlias})
                 </option>
               ))}
             </select>
@@ -263,11 +251,12 @@ export default function AdminAlimtalkRuntimePanel({
           </label>
         </div>
 
-        <div className="mt-4 rounded-[6px] border border-[#e6e3dd] bg-white p-4">
-          <p className="text-[14px] font-semibold tracking-[0.04em] text-[#8a8277]">현재 전송될 초안 본문</p>
-          <pre className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-[#171411]">
-            {selectedDraft?.body || "선택한 템플릿 초안이 없습니다."}
-          </pre>
+        <div className="mt-4 rounded-[6px] border border-[#d8e7e1] bg-[#f5fbf8] p-4">
+          <p className="text-[14px] font-semibold text-[#2f7266]">발송 문구 기준</p>
+          <p className="mt-2 text-[14px] leading-6 text-[#5f6f69]">
+            관리자페이지에는 별도 본문을 저장하지 않습니다. 발송 순간 쏘다에 연결된 승인 템플릿을 불러오며,
+            승인 상태·본문·필수 버튼을 확인할 수 없으면 발송하지 않습니다.
+          </p>
         </div>
 
         {sendError ? (

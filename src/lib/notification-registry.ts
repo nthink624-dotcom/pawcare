@@ -429,6 +429,21 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
   },
 ] as const;
 
+export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
+  "booking_confirmed",
+  "booking_cancelled",
+  "booking_time_proposed",
+  "booking_rescheduled_confirmed",
+  "appointment_reminder_10m",
+  "visit_schedule_notice",
+  "visit_reminder_notice",
+  "grooming_started",
+  "grooming_almost_done",
+  "grooming_completed",
+];
+
+const activeAlimtalkTemplateAliases = new Set<AlimtalkTemplateAlias>(ACTIVE_ALIMTALK_TEMPLATE_ALIASES);
+
 export const ALIMTALK_NOTIFICATION_REGISTRY = NOTIFICATION_REGISTRY.filter(
   (item): item is NotificationRegistryItem & {
     channel: "alimtalk";
@@ -436,11 +451,9 @@ export const ALIMTALK_NOTIFICATION_REGISTRY = NOTIFICATION_REGISTRY.filter(
     templateConfigKey: AlimtalkTemplateConfigKey;
     draftBody: string;
   } =>
-    item.type !== "booking_received" &&
-    item.type !== "booking_rejected" &&
-    item.type !== "booking_time_proposed" &&
     item.channel === "alimtalk" &&
     Boolean(item.templateAlias) &&
+    activeAlimtalkTemplateAliases.has(item.templateAlias as AlimtalkTemplateAlias) &&
     Boolean(item.templateConfigKey) &&
     typeof item.draftBody === "string",
 );

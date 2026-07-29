@@ -8,16 +8,11 @@ import { getConfiguredAlimtalkTemplateKey, hasSupabaseServerEnv, serverEnv } fro
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendAlimtalkMessage, type AlimtalkButton } from "@/server/alimtalk-provider";
 import {
-  getConnectedSsodaaTemplateButtons,
-  getAppTemplateDrafts,
-  requiresConnectedSsodaaTemplate,
-  renderNotificationTemplateBodyWithOverrides,
-  type AppTemplateDraft,
-} from "@/server/alimtalk-template-overrides";
+  getApprovedSsodaaTemplateButtons,
+  requiresApprovedSsodaaTemplate,
+  renderApprovedSsodaaTemplateBody,
+} from "@/server/alimtalk-approved-template";
 import type { ChannelType, NotificationStatus, NotificationType } from "@/types/domain";
-
-export { getAppTemplateDrafts };
-export type { AppTemplateDraft };
 
 export type RelayAdminConfig = {
   relaySecret: string;
@@ -57,61 +52,6 @@ export type RelayTemplateCatalogResponse = {
   items: RelaySsodaaTemplateItem[];
   allTemplates?: RelaySsodaaTemplateDetail[];
   relayError?: string | null;
-};
-
-export type RelayTemplateCodeCheckInput = {
-  templateCode: string;
-};
-
-export type RelayTemplateCodeCheckResponse = {
-  ok: true;
-  templateCode: string;
-  providerResponse: unknown;
-};
-
-export type RelayTemplateRegisterInput = {
-  templateCode: string;
-  templateName: string;
-  templateContent: string;
-  categoryCode: string;
-  templateMessageType: "BA" | "EX" | "AD" | "MI";
-  templateEmphasizeType: "NONE" | "TEXT" | "IMAGE" | "ITEM_LIST";
-  templateExtra?: string | null;
-  templateAd?: string | null;
-  templateTitle?: string | null;
-  templateSubtitle?: string | null;
-  comment?: string | null;
-  requestReview: boolean;
-  templateConfigKey?: AlimtalkTemplateConfigKey | null;
-  templateButtons?: Array<{
-    buttonType: "WL";
-    buttonName: string;
-    linkMobile: string;
-    linkPc?: string | null;
-  }> | null;
-};
-
-export type RelayTemplateRegisterResponse = {
-  ok: true;
-  templateCode: string;
-  registered: boolean;
-  reviewRequested: boolean;
-  mappedConfigKey: AlimtalkTemplateConfigKey | null;
-  providerResponse: unknown;
-};
-
-export type RelayTemplateCategory = {
-  code: string;
-  name: string;
-  groupName: string | null;
-  inclusion: string | null;
-  exclusion: string | null;
-};
-
-export type RelayTemplateCategoryListResponse = {
-  ok: true;
-  categories: RelayTemplateCategory[];
-  providerResponse: unknown;
 };
 
 export type RelayAdminConfigResponse = {
@@ -471,85 +411,6 @@ export async function getRelayTemplateCatalog() {
   }
 }
 
-export async function checkRelayTemplateCode(input: RelayTemplateCodeCheckInput) {
-  const response = await fetchRelayFromCandidates(
-    getRelayAdminUrlCandidates("/admin/templates/code-check"),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
-      },
-      body: JSON.stringify(input),
-      cache: "no-store",
-    },
-    "쏘다 템플릿 코드 검증",
-  );
-
-  const body = await parseRelayResponse(response);
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "message" in body && typeof body.message === "string"
-        ? body.message
-        : "쏘다 템플릿 코드 검증에 실패했습니다.";
-    throw new Error(message);
-  }
-
-  return body as RelayTemplateCodeCheckResponse;
-}
-
-export async function registerRelayTemplate(input: RelayTemplateRegisterInput) {
-  const response = await fetchRelayFromCandidates(
-    getRelayAdminUrlCandidates("/admin/templates/register"),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
-      },
-      body: JSON.stringify(input),
-      cache: "no-store",
-    },
-    "쏘다 템플릿 등록",
-  );
-
-  const body = await parseRelayResponse(response);
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "message" in body && typeof body.message === "string"
-        ? body.message
-        : "쏘다 템플릿 등록에 실패했습니다.";
-    throw new Error(message);
-  }
-
-  return body as RelayTemplateRegisterResponse;
-}
-
-export async function getRelayTemplateCategories() {
-  const response = await fetchRelayFromCandidates(
-    getRelayAdminUrlCandidates("/admin/templates/categories"),
-    {
-      method: "GET",
-      headers: {
-        "x-relay-secret": serverEnv.alimtalkRelaySecret ?? "",
-      },
-      cache: "no-store",
-    },
-    "쏘다 템플릿 카테고리 조회",
-  );
-
-  const body = await parseRelayResponse(response);
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "message" in body && typeof body.message === "string"
-        ? body.message
-        : "쏘다 템플릿 카테고리 조회에 실패했습니다.";
-    throw new Error(message);
-  }
-
-  return body as RelayTemplateCategoryListResponse;
-}
-
 export function getAppAlimtalkConfig(): AppAlimtalkConfig {
   return {
     provider: serverEnv.alimtalkProvider || "",
@@ -782,13 +643,6 @@ function buildAdminTestButtons(alias: AlimtalkTemplateAlias, input: AdminAlimtal
   return [];
 }
 
-function fillTemplateDraft(template: string, values: Record<string, string>) {
-  return Object.entries(values).reduce(
-    (message, [key, value]) => message.replaceAll(new RegExp(`#\\{${key}\\}`, "g"), value),
-    template,
-  );
-}
-
 export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Promise<AdminAlimtalkTestResult> {
   const normalizedPhone = input.phone.replace(/\D/g, "");
   if (normalizedPhone.length < 10) {
@@ -800,21 +654,12 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     throw new Error("테스트용 알림 타입을 찾지 못했습니다.");
   }
 
-  const fallbackMessage = fillTemplateDraft(spec.draftBody, {
-    매장명: input.shopName?.trim() || "펫매니저 테스트 매장",
-    반려동물명: input.petName?.trim() || "우유",
-    예약일시: input.appointmentDateTime?.trim() || "2026-05-04(월) 14:00",
-    서비스명: input.serviceName?.trim() || "전체 미용",
-    매장주소: "서울시 강남구 테헤란로 123",
-    예약관리링크: input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr",
-    예약관리토큰: "demo",
-    예약시간변경토큰: "demo",
-    길찾기링크: `https://map.kakao.com/link/search/${encodeURIComponent(`${input.shopName?.trim() || "펫매니저 테스트 매장"} 서울시 강남구 테헤란로 123`)}`,
-  });
-
   const templateValues = buildAdminTestTemplateValues(input);
-  const message = (await renderNotificationTemplateBodyWithOverrides(spec.type, templateValues)) ?? fallbackMessage;
-  const connectedTemplateButtons = await getConnectedSsodaaTemplateButtons(spec.type, templateValues);
+  const message = await renderApprovedSsodaaTemplateBody(spec.type, templateValues);
+  if (!message) {
+    throw new Error(`${spec.title} 쏘다 승인 템플릿 본문을 확인할 수 없습니다.`);
+  }
+  const connectedTemplateButtons = await getApprovedSsodaaTemplateButtons(spec.type, templateValues);
   const templateKey = getConfiguredAlimtalkTemplateKey(spec.templateAlias);
   const requiresExplicitTemplateCode = Boolean(serverEnv.alimtalkRelayUrl && serverEnv.alimtalkRelaySecret) || serverEnv.alimtalkProvider === "ssodaa";
   if (requiresExplicitTemplateCode && !templateKey) {
@@ -826,7 +671,7 @@ export async function sendAdminAlimtalkTest(input: AdminAlimtalkTestInput): Prom
     message,
     templateAlias: spec.templateAlias,
     templateKey,
-    buttons: connectedTemplateButtons ?? (requiresConnectedSsodaaTemplate() ? [] : buildAdminTestButtons(spec.templateAlias, input)),
+    buttons: connectedTemplateButtons ?? (requiresApprovedSsodaaTemplate() ? [] : buildAdminTestButtons(spec.templateAlias, input)),
     recipientName: input.recipientName?.trim() || "보호자",
     metadata: {
       source: "admin-alimtalk-test",

@@ -7,17 +7,14 @@ import { useEffect, useState } from "react";
 
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
-import AdminAlimtalkTemplateComparisonPanel from "@/components/admin/admin-alimtalk-template-comparison-panel";
 import { fetchApiJson } from "@/lib/api";
-import { ALIMTALK_NOTIFICATION_REGISTRY, type AlimtalkTemplateAlias, type AlimtalkTemplateConfigKey } from "@/lib/notification-registry";
+import type { AlimtalkTemplateConfigKey } from "@/lib/notification-registry";
 import type {
   AdminNotificationActivity,
   AppAlimtalkConfig,
-  AppTemplateDraft,
   RelayAdminConfig,
   RelayAdminConfigResponse,
   RelaySsodaaTemplateDetail,
-  RelaySsodaaTemplateItem,
   RelayTemplateCatalogResponse,
 } from "@/server/admin-alimtalk";
 
@@ -78,17 +75,6 @@ const appTemplateCodeFieldGroups: Array<{
     ],
   },
 ];
-
-const hiddenAdminTemplateAliases = new Set<AlimtalkTemplateAlias>([
-  "booking_received",
-  "booking_rejected",
-  "revisit_notice",
-  "birthday_greeting",
-]);
-
-function getVisibleAppTemplateDrafts(items: AppTemplateDraft[]) {
-  return items.filter((item) => !hiddenAdminTemplateAliases.has(item.alias));
-}
 
 function isUsableSsodaaTemplate(template: RelaySsodaaTemplateDetail | null | undefined) {
   if (!template) return false;
@@ -166,28 +152,18 @@ function AdminCollapsibleSection({
 }
 
 export default function AdminAlimtalkScreen({
-  sessionLoginId,
   appConfig,
-  appTemplateDrafts: initialAppTemplateDrafts,
   notificationActivity,
 }: {
-  sessionLoginId: string;
   appConfig: AppAlimtalkConfig;
-  appTemplateDrafts: AppTemplateDraft[];
   notificationActivity: AdminNotificationActivity;
 }) {
   const [relayConfig, setRelayConfig] = useState<RelayAdminConfig | null>(null);
-  const [relayTemplateItems, setRelayTemplateItems] = useState<RelaySsodaaTemplateItem[]>([]);
   const [allSsodaaTemplates, setAllSsodaaTemplates] = useState<RelaySsodaaTemplateDetail[]>([]);
-  const [appTemplateDrafts, setAppTemplateDrafts] = useState<AppTemplateDraft[]>(() =>
-    getVisibleAppTemplateDrafts(initialAppTemplateDrafts),
-  );
   const [loading, setLoading] = useState(true);
-  const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [templateError, setTemplateError] = useState<string | null>(null);
   const [templateCodesOpen, setTemplateCodesOpen] = useState(false);
 
   async function loadRelayConfig() {
@@ -207,20 +183,13 @@ export default function AdminAlimtalkScreen({
   }
 
   async function loadRelayTemplates() {
-    setLoadingTemplates(true);
     try {
       const response = await fetchApiJson<RelayTemplateCatalogResponse>("/api/admin/alimtalk/relay/templates", {
         cache: "no-store",
       });
-      setRelayTemplateItems(response.items);
       setAllSsodaaTemplates(response.allTemplates ?? []);
-      setTemplateError(response.relayError ?? null);
-      return response;
     } catch (nextError) {
-      setTemplateError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 상세를 불러오지 못했습니다.");
-      return null;
-    } finally {
-      setLoadingTemplates(false);
+      setError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 상세를 불러오지 못했습니다.");
     }
   }
 
@@ -322,81 +291,6 @@ export default function AdminAlimtalkScreen({
     }
   }
 
-  async function handleSaveAppTemplate(alias: AlimtalkTemplateAlias, body: string) {
-    const response = await fetchApiJson<{ item: AppTemplateDraft }>("/api/admin/alimtalk/templates", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ alias, body }),
-    });
-    if (!hiddenAdminTemplateAliases.has(response.item.alias)) {
-      setAppTemplateDrafts((prev) => prev.map((item) => (item.alias === alias ? response.item : item)));
-    }
-    setMessage("우리 템플릿을 저장했습니다. 다음 발송부터 저장한 본문이 적용됩니다.");
-    setError(null);
-  }
-
-  async function handleSelectRelayTemplate(alias: AlimtalkTemplateAlias, templateCode: string) {
-    const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.templateAlias === alias);
-    const templateConfigKey = spec?.templateConfigKey as AlimtalkTemplateConfigKey | null | undefined;
-    if (!templateConfigKey) {
-      throw new Error("연결할 알림톡 템플릿 설정을 찾지 못했습니다.");
-    }
-
-    const selectedTemplate = allSsodaaTemplates.find((item) => item.templateCode === templateCode) ?? null;
-    if (!isUsableSsodaaTemplate(selectedTemplate)) {
-      throw new Error("승인 완료, 발송 가능 또는 사용 중 상태의 쏘다 템플릿만 연결할 수 있습니다.");
-    }
-
-    const currentConfig = (
-      await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
-        cache: "no-store",
-      })
-    ).config;
-    const previousTemplateCode = currentConfig[templateConfigKey]?.trim() ?? "";
-    const previousTemplate = allSsodaaTemplates.find((item) => item.templateCode === previousTemplateCode) ?? null;
-    const previousTemplateBlocked = Boolean(
-      previousTemplate &&
-        (["REJ", "STP", "BLK", "DMT"].includes(previousTemplate.inspectionStatus ?? "") ||
-          ["REJ", "STP", "S", "BLK", "DMT"].includes(previousTemplate.serviceStatus ?? "")),
-    );
-    const nextConfig: RelayAdminConfig = {
-      ...currentConfig,
-      [templateConfigKey]: templateCode,
-    };
-
-    setSaving(true);
-    try {
-      const response = await fetchApiJson<RelayAdminConfigResponse>("/api/admin/alimtalk/relay", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(nextConfig),
-      });
-      setRelayConfig(response.config);
-      const templateCatalog = await loadRelayTemplates();
-      const selectedTemplate =
-        templateCatalog?.items.find((item) => item.alias === alias && item.configuredCode === templateCode)?.detail ??
-        templateCatalog?.allTemplates?.find((item) => item.templateCode === templateCode) ??
-        null;
-      setMessage(
-        previousTemplateBlocked && previousTemplateCode && previousTemplateCode !== templateCode
-          ? `${spec?.title ?? alias}의 차단된 기존 연결(${previousTemplateCode})을 해제하고 ${templateCode}로 연결했습니다.`
-          : `${spec?.title ?? alias} 템플릿을 ${templateCode}로 연결했습니다.`,
-      );
-      setError(null);
-      return selectedTemplate;
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "쏘다 템플릿 연결 저장에 실패했습니다.");
-      setMessage(null);
-      throw nextError;
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <main className="min-h-screen bg-white px-5 py-5 text-[#171411] md:px-8 md:py-7">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5">
@@ -421,16 +315,6 @@ export default function AdminAlimtalkScreen({
             </p>
           ) : null}
         </section>
-
-        <AdminAlimtalkTemplateComparisonPanel
-          appTemplateDrafts={appTemplateDrafts}
-          relayTemplateItems={relayTemplateItems}
-          allSsodaaTemplates={allSsodaaTemplates}
-          loadingTemplates={loadingTemplates}
-          templateError={templateError}
-          onReload={() => void loadRelayTemplates()}
-          onSelectTemplate={handleSelectRelayTemplate}
-        />
 
         <section className="rounded-[8px] border border-[#eceff3] bg-[#fbfcfd] shadow-[0_3px_10px_rgba(15,23,42,0.015)]">
           <button
@@ -625,7 +509,7 @@ export default function AdminAlimtalkScreen({
         <AdminCollapsibleSection
           title="릴레이 상태와 즉시 발송 테스트"
         >
-          <AdminAlimtalkRuntimePanel appTemplateDrafts={appTemplateDrafts} />
+          <AdminAlimtalkRuntimePanel />
         </AdminCollapsibleSection>
 
         <AdminCollapsibleSection

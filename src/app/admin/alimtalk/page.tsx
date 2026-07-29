@@ -5,7 +5,6 @@ import { getServerAdminSession } from "@/server/admin-session";
 import {
   getAdminNotificationActivity,
   getAppAlimtalkConfig,
-  getAppTemplateDrafts,
 } from "@/server/admin-alimtalk";
 
 export default async function AdminAlimtalkPage() {
@@ -17,9 +16,7 @@ export default async function AdminAlimtalkPage() {
 
   return (
     <AdminAlimtalkScreen
-      sessionLoginId={session.loginId}
       appConfig={getAppAlimtalkConfig()}
-      appTemplateDrafts={await getAppTemplateDrafts()}
       notificationActivity={await getAdminNotificationActivity()}
     />
   );

@@ -14,6 +14,12 @@ for (const key of [
 process.env.BOOKING_ACCESS_SECRET = "appointment-flow-test-secret";
 
 const { addDate, currentDateInTimeZone } = await import("../../src/lib/utils.ts");
+const { ACTIVE_ALIMTALK_TEMPLATE_ALIASES } = await import(
+  "../../src/lib/notification-registry.ts"
+);
+const { dispatchNotification } = await import(
+  "../../src/server/notification-dispatch.ts"
+);
 const { getMockStore, resetMockStore } = await import("../../src/server/mock-store.ts");
 const {
   createAppointment,
@@ -108,6 +114,37 @@ beforeEach(() => {
 });
 
 describe("appointment and alimtalk flow guards", () => {
+  it("uses exactly the ten active customer alimtalk templates", () => {
+    assert.deepEqual(ACTIVE_ALIMTALK_TEMPLATE_ALIASES, [
+      "booking_confirmed",
+      "booking_cancelled",
+      "booking_time_proposed",
+      "booking_rescheduled_confirmed",
+      "appointment_reminder_10m",
+      "visit_schedule_notice",
+      "visit_reminder_notice",
+      "grooming_started",
+      "grooming_almost_done",
+      "grooming_completed",
+    ]);
+  });
+
+  it("ignores caller-provided text for customer alimtalk messages", async () => {
+    const { guardian, pet } = getFixture();
+    const result = await dispatchNotification({
+      shopId: "demo-shop",
+      guardianId: guardian.id,
+      petId: pet.id,
+      type: "booking_cancelled",
+      recipientPhone: guardian.phone,
+      message: "관리자에서 임의로 입력한 발송 문구",
+      force: true,
+    });
+
+    assert.notEqual(result.notification.message, "관리자에서 임의로 입력한 발송 문구");
+    assert.match(result.notification.message, /예약 취소가 처리되었어요/);
+  });
+
   it("creates an owner appointment and records one booking confirmation notification", async () => {
     const appointment = await createAvailableOwnerAppointment();
 

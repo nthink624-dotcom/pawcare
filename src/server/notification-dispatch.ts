@@ -15,10 +15,10 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import {
-  getConnectedSsodaaTemplateButtons,
-  requiresConnectedSsodaaTemplate,
-  renderNotificationTemplateBodyWithOverrides,
-} from "@/server/alimtalk-template-overrides";
+  getApprovedSsodaaTemplateButtons,
+  requiresApprovedSsodaaTemplate,
+  renderApprovedSsodaaTemplateBody,
+} from "@/server/alimtalk-approved-template";
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
@@ -652,7 +652,7 @@ async function buildNotificationMessage(params: {
     shopAddress: params.shopAddress,
     shopName: params.shopName,
   });
-  const rendered = await renderNotificationTemplateBodyWithOverrides(params.type, templateValues);
+  const rendered = await renderApprovedSsodaaTemplateBody(params.type, templateValues);
 
   if (rendered) {
     return rendered;
@@ -665,24 +665,9 @@ async function buildNotificationMessage(params: {
     });
   }
 
-  return params.serviceName ? `${params.petName} / ${params.serviceName}` : params.petName;
-}
-
-function buildPhotoLessGroomingCompletedMessage(params: {
-  shopName: string;
-  petName: string;
-  bookingManageUrl: string | null;
-}) {
-  return [
-    `[${params.shopName}]`,
-    `${params.petName} 미용이 완료됐어요.`,
-    "",
-    "오늘도 믿고 맡겨주셔서 감사합니다.",
-    "편하신 시간에 픽업 부탁드립니다.",
-    "",
-    params.bookingManageUrl ? "예약 확인 링크" : "",
-    params.bookingManageUrl ?? "",
-  ].filter(Boolean).join("\n");
+  throw new Error(
+    `${params.type} 알림은 쏘다에 승인되어 연결된 템플릿이 없어 발송할 수 없습니다.`,
+  );
 }
 
 function buildNaverMapSearchUrl(shopName: string, shopAddress: string | null | undefined) {
@@ -896,13 +881,8 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
   const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
   const message =
-    input.message?.trim() ||
-    (input.type === "grooming_completed" && mediaAssetIds.length === 0
-      ? buildPhotoLessGroomingCompletedMessage({
-          shopName: bootstrap.shop.name,
-          petName: pet?.name ?? "pet",
-          bookingManageUrl,
-        })
+    (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
+      ? input.message.trim()
       : await buildNotificationMessage({
           type: input.type,
           shopName: bootstrap.shop.name,
@@ -916,7 +896,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           bookingEntryUrl,
           bookingManageUrl,
           directionsUrl,
-        }));
+        });
   const abusePolicy = evaluateNotificationAbusePolicy({
     notifications: bootstrap.notifications,
     type: input.type,
@@ -961,10 +941,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     shopAddress: bootstrap.shop.address ?? null,
     shopName: bootstrap.shop.name,
   });
-  const connectedTemplateButtons = await getConnectedSsodaaTemplateButtons(input.type, notificationTemplateValues);
+  const connectedTemplateButtons = await getApprovedSsodaaTemplateButtons(input.type, notificationTemplateValues);
   const alimtalkButtons =
     connectedTemplateButtons ??
-    (requiresConnectedSsodaaTemplate()
+    (requiresApprovedSsodaaTemplate()
       ? []
       : buildNotificationButtons({
           type: input.type,

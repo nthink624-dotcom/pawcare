@@ -1,10 +1,10 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import PetManagerBrand from "@/components/brand/petmanager-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import {
   AutomationSection,
@@ -19,6 +19,7 @@ import {
   SavingsSection,
   TrustSection,
 } from "@/components/landing/landing-conversion-sections";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 const navigationItems = [
   { id: "customer-data", label: "자동 고객관리" },
@@ -78,8 +79,13 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
   return (
     <header className="sticky top-0 z-50 border-b border-[#e2e8f0] bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5">
-        <Link href="/" aria-label="넘친 Day 홈" className="flex shrink-0 items-center">
-          <Image src="/icons/logo/nemchin-day-logo.svg" alt="넘친 Day" width={132} height={36} priority />
+        <Link href="/" aria-label={`${PETMANAGER_SERVICE_NAME} 홈`} className="flex shrink-0 items-center">
+          <PetManagerBrand
+            priority
+            markSize={36}
+            imageClassName="h-9 w-9"
+            nameClassName="text-[16px] text-[#173b33] sm:text-[18px]"
+          />
         </Link>
 
         <nav className="hidden items-center gap-6 lg:flex" aria-label="랜딩페이지 메뉴">

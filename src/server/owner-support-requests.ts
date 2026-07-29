@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { nowIso } from "@/lib/utils";
 import { notifyAdminOwnerSupportRequest } from "@/server/admin-support-email";
 import { createMediaSignedReadUrl } from "@/server/media-storage";
@@ -685,7 +686,7 @@ export async function updateOwnerSupportRequest(input: {
       channel: "in_app",
       status: "sent",
       title: "문의 답변이 도착했습니다.",
-      body: "넘친데이 운영팀에서 문의에 답변을 남겼어요.",
+      body: `${PETMANAGER_SERVICE_NAME} 운영팀에서 문의에 답변을 남겼어요.`,
       sent_at: now,
       created_at: now,
     });

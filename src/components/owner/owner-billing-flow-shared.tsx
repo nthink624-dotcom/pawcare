@@ -3,6 +3,7 @@
 import { CheckCircle2, X } from "lucide-react";
 
 import { AppButton } from "@/components/ui/app-button";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
@@ -62,7 +63,7 @@ export function OwnerBillingSuccessCard({
           결제가 완료되었습니다
         </h1>
         <p className="mt-4 text-center text-[18px] font-semibold tracking-[-0.03em] text-[#173b33]">
-          펫매니저를 선택해주셔서 감사합니다.
+          {PETMANAGER_SERVICE_NAME}를 선택해주셔서 감사합니다.
         </p>
         <p className="mx-auto mt-5 max-w-[296px] whitespace-pre-line text-center text-[14px] leading-[1.58] tracking-[-0.02em] text-[#666056]">
           {"선택하신 플랜이 적용되어 지금 바로\n서비스를 이용하실 수 있어요."}

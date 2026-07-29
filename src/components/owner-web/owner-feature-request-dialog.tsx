@@ -4,6 +4,7 @@ import { CheckCircle2, Send, Star, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const requestKinds = [
@@ -123,7 +124,7 @@ export default function OwnerFeatureRequestDialog({
         <div className="flex items-start justify-between gap-4 border-b border-[#edf1f5] px-6 py-5">
           <div>
             <h2 id="feature-request-title" className="text-[22px] font-semibold text-[#111827]">
-              넘친Day에 바라는 점을 알려주세요
+              {PETMANAGER_SERVICE_NAME}에 바라는 점을 알려주세요
             </h2>
             <p className="mt-1 text-[14px] leading-5 text-[#64748b]">
               보내주신 의견은 서비스 개선 우선순위를 정하는 데 활용됩니다.

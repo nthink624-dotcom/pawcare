@@ -25,6 +25,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
 
-    return NextResponse.json({ message: "알림톡 충전을 완료하지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ message: "알림톡 추가 발송 이용권 구매를 완료하지 못했습니다." }, { status: 500 });
   }
 }

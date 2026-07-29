@@ -9,8 +9,9 @@ import {
   Headphones,
   ShieldCheck,
 } from "lucide-react";
-import Image from "next/image";
 
+import PetManagerBrand from "@/components/brand/petmanager-brand";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
@@ -64,20 +65,18 @@ export default function OwnerServiceExpiredScreen({
   const isPastDue = summary.status === "past_due";
   const resumePlanCode = getResumePlanCode(summary);
   const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent(
-    "펫매니저 서비스 기간 연장 문의",
+    `${PETMANAGER_SERVICE_NAME} 서비스 기간 연장 문의`,
   )}`;
 
   return (
     <main className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <header className="h-[68px] border-b border-[var(--line)] bg-white">
         <div className="mx-auto flex h-full w-full max-w-[1240px] items-center px-8">
-          <Image
-            src="/icons/logo/nemchin-day-logo.svg"
-            alt="넘친 Day"
-            width={142}
-            height={48}
-            className="h-[30px] w-auto object-contain"
+          <PetManagerBrand
             priority
+            markSize={34}
+            imageClassName="h-[34px] w-[34px]"
+            nameClassName="text-[17px] text-[#173b33]"
           />
           <div className="ml-auto flex items-center gap-4">
             <span className="text-[13px] font-medium text-[var(--mut)]">서비스 이용 제한</span>

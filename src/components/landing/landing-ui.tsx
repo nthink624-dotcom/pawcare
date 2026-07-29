@@ -1,6 +1,8 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+
 export function SectionHeading({
   eyebrow,
   title,
@@ -51,7 +53,7 @@ export function ScreenshotFrame({
           </span>
           {label}
         </span>
-        <span>넘친 Day</span>
+        <span>{PETMANAGER_SERVICE_NAME}</span>
       </figcaption>
       <div className={`relative w-full ${compact ? "aspect-[16/12]" : "aspect-[16/11]"}`}>
         <Image

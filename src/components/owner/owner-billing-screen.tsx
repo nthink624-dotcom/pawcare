@@ -28,6 +28,7 @@ import {
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { env } from "@/lib/env";
 import { won } from "@/lib/utils";
 
@@ -173,7 +174,7 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
 
   if (summary.noticeLevel === "3days") {
     return {
-      title: `펫매니저 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
+      title: `${PETMANAGER_SERVICE_NAME} 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
       body: "이용 기간이 끝나면 예약·고객 관리 기능 이용이 제한될 수 있습니다.\n서비스를 계속 이용하시려면 플랜 연장이 필요합니다.",
     };
   }
@@ -272,14 +273,14 @@ export default function OwnerBillingScreen({
   const consentLines = usesOneTimePayment
     ? [
         "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
-        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-        "카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, 펫매니저에는 저장되지 않습니다.",
+        `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
+        `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
       ]
     : [
         "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
         "카드 등록이 완료되면 선택한 플랜 결제가 바로 진행됩니다.",
         `${selectedPlan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
-        "카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, 펫매니저에는 저장되지 않습니다.",
+        `카드 정보는 자동결제 등록을 위해 KCP와 포트원에 전송되며, ${PETMANAGER_SERVICE_NAME}에는 저장되지 않습니다.`,
       ];
   const agreementContinueLabel =
     registeringCard || retryingPayment || resumingRegisteredCardPayment
@@ -433,7 +434,7 @@ export default function OwnerBillingScreen({
 
       const registeredSummary = await issueOwnerBillingKeyByApi({
         ...credentials,
-        customerName: summary.ownerName || "펫매니저 사장님",
+        customerName: summary.ownerName || "매장 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
@@ -496,14 +497,14 @@ export default function OwnerBillingScreen({
     try {
       const nextSummary = await requestOwnerOneTimePayment({
         customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "펫매니저 사장님",
+        customerName: summary.ownerName || "매장 사장님",
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         userId: summary.userId,
         shopId: summary.shopId,
         planCode: selectedPlanCode,
         amount: selectedPlan.totalPrice,
-        orderName: `펫매니저 ${selectedPlan.title} 결제`,
+        orderName: `${PETMANAGER_SERVICE_NAME} ${selectedPlan.title} 결제`,
       });
 
       setSummary(nextSummary);
@@ -649,7 +650,7 @@ export default function OwnerBillingScreen({
               현재 이용 기간까지는 계속 사용할 수 있고, 다음 결제일에는 자동 결제가 진행되지 않습니다.
             </p>
             <p className="mt-1.5 text-[12px] leading-5 text-[#8f5d66]">
-              포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 이미 충전한 유료 알림톡은 정책에 따라 유지됩니다.
+              포함 알림톡은 다음 유료 결제 주기에 다시 제공되지 않으며, 구매한 추가 발송 이용권은 정책에 따라 유지됩니다.
             </p>
           </div>
 
@@ -814,7 +815,9 @@ export default function OwnerBillingScreen({
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 플랜 및 결제</p>
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">
+          {PETMANAGER_SERVICE_NAME} 플랜 및 결제
+        </p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">{copy.title}</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
 

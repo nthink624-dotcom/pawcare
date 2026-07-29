@@ -5,7 +5,7 @@ Last updated: 2026-07-21
 ## Merchant And Service Names
 
 - Legal merchant name for the KCP contract, insurance, and settlement: `넘친 Day`
-- Customer-facing service and site name: `넘친Day 펫매니저`
+- Customer-facing service and site name: `넘친데이 펫매니저`
 - Website: `https://www.petmanager.co.kr`
 
 ## Completed by PetManager
@@ -20,7 +20,7 @@ Last updated: 2026-07-21
 2. Submit a card-company review request in `Customer Center > Customer Inquiry > Ask a Question`.
    - Inquiry type: `Card company registration request`
    - Request: `General payment + recurring billing review`
-   - Service description: `넘친Day 펫매니저는 반려동물 미용샵 운영자를 위한 월 구독형 SaaS입니다.`
+   - Service description: `넘친데이 펫매니저는 반려동물 미용샵 운영자를 위한 월 구독형 SaaS입니다.`
 3. Submit online contract documents in `Store Information Management > Store Information > Contract Information`.
    - Complete contract consent, identity verification, then supporting-document upload.
 4. Apply for a KRW 2,000,000 performance/payment guarantee insurance policy.

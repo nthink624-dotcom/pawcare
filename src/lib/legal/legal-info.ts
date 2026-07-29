@@ -1,4 +1,6 @@
-export const LEGAL_SERVICE_NAME = "넘친Day 펫매니저";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+
+export const LEGAL_SERVICE_NAME = PETMANAGER_SERVICE_NAME;
 export const LEGAL_OPERATOR_NAME = "넘친 Day";
 export const LEGAL_SERVICE_OPERATOR_NOTICE = `${LEGAL_SERVICE_NAME}는 ${LEGAL_OPERATOR_NAME}가 운영하는 반려동물 미용샵 운영 지원 서비스입니다.`;
 

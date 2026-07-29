@@ -18,6 +18,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { PhoneScreenshot, ScreenshotFrame, SectionHeading, ValueItem } from "@/components/landing/landing-ui";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 const bookingDelaySteps = [
   {
@@ -100,7 +101,9 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
             고객은 답을 기다릴 필요 없고,
             <br />오너는 미용하던 손을 멈출 필요 없습니다.
           </p>
-          <p className="mt-5 text-[21px] font-semibold text-[#1f6b5b] md:text-[24px]">예약이 넘치는 Day.</p>
+          <p className="mt-5 text-[21px] font-semibold text-[#1f6b5b] md:text-[24px]">
+            예약이 넘쳐도, 놓치지 않게.
+          </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
@@ -181,8 +184,10 @@ export function PainSection() {
           <article className="min-w-0 rounded-[8px] border border-[#cfe0d7] bg-white px-5 py-6 md:px-7 md:py-7">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-[12px] font-semibold text-[#1f6b5b]">넘친 Day</p>
-                <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">넘친 Day를 사용하면</h3>
+                <p className="text-[12px] font-semibold text-[#1f6b5b]">{PETMANAGER_SERVICE_NAME}</p>
+                <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">
+                  {PETMANAGER_SERVICE_NAME}를 사용하면
+                </h3>
               </div>
               <span className="text-[12px] font-medium text-[#5d756d]">고객 직접 예약</span>
             </div>

@@ -2,10 +2,10 @@
 
 import { ChevronDown, Lightbulb, LogOut, Search } from "lucide-react";
 import type { Route } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 
+import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { type OwnerWebScreenKey } from "@/components/owner-web/owner-web-data";
 import OwnerFeatureRequestDialog from "@/components/owner-web/owner-feature-request-dialog";
 import { SoftSelect } from "@/components/owner-web/owner-web-ui";
@@ -214,21 +214,21 @@ function AlimtalkCreditMenu({
             </div>
             <div className="rounded-[9px] border border-[#dbe6f2] bg-[#f8fbff] px-3 py-2.5">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-[#334155]">결제 잔여</span>
+                <span className="text-[12px] font-semibold text-[#334155]">추가 이용권</span>
                 <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">
                   {purchasedRemaining}건
                 </span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-2.5">
-              <span className="text-[12px] font-semibold text-[var(--ink2)]">전체 잔여</span>
+              <span className="text-[12px] font-semibold text-[var(--ink2)]">남은 발송 건수</span>
               <span className="text-[14px] font-semibold tabular-nums text-[var(--pm-brand-blue)]">{totalRemaining}건</span>
             </div>
           </div>
           {helpOpen ? (
             <div className="mt-3 rounded-[8px] bg-[#f8fafc] px-3 py-2 text-[12px] font-medium leading-5 text-[#64748b]">
-              <p>무료 제공분을 먼저 사용하고, 부족하면 유료 충전분을 사용합니다.</p>
-              <p className="mt-1">무료 제공분은 다음 결제 주기에 초기화되고, 유료 충전분은 사용 전까지 이월됩니다.</p>
+              <p>월 제공분을 먼저 사용하고, 부족하면 구매한 추가 발송 이용권을 사용합니다.</p>
+              <p className="mt-1">월 제공분은 다음 결제 주기에 새로 제공되며, 구매한 이용권은 모두 사용할 때까지 유지됩니다.</p>
             </div>
           ) : null}
           <Link
@@ -236,7 +236,7 @@ function AlimtalkCreditMenu({
             prefetch
             className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[9px] border border-[#cbd5e1] bg-white text-[13px] font-semibold text-[#334155] transition hover:border-[#94a3b8] hover:bg-[#f8fafc]"
           >
-            알림톡 충전하기
+            추가 발송 이용권 구매
           </Link>
         </div>
       ) : null}
@@ -305,7 +305,11 @@ export default function OwnerWebAppShell({
     <div className="owner-font pm-owner-web flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
       <aside className="pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)] lg:flex">
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
-          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 Day" width={142} height={48} className="h-[30px] w-auto shrink-0 object-contain" />
+          <PetManagerBrand
+            markSize={32}
+            imageClassName="h-8 w-8"
+            nameClassName="text-[15px] text-[#173b33]"
+          />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
@@ -323,7 +327,7 @@ export default function OwnerWebAppShell({
                       active &&
                         "bg-[#316fe8] font-semibold text-white shadow-[0_10px_22px_rgba(49,111,232,0.20)] hover:bg-[#316fe8] hover:text-white",
                     );
-                    if (screen.href) {
+                    if (screen.key === "billing") {
                       return (
                         <Link key={screen.key} href={screen.href} prefetch className={itemClassName}>
                           <PhosphorSidebarIcon screen={screen.key} active={false} />
@@ -444,7 +448,11 @@ export default function OwnerWebAppShell({
         </header>
 
         <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--line2)] bg-[var(--card)] px-5 lg:hidden">
-          <Image src="/icons/logo/넘친 Day.svg" alt="넘친 Day" width={142} height={48} className="h-8 w-auto shrink-0 object-contain" />
+          <PetManagerBrand
+            markSize={32}
+            imageClassName="h-8 w-8"
+            nameClassName="text-[15px] text-[#173b33]"
+          />
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -472,7 +480,7 @@ export default function OwnerWebAppShell({
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-[#8a4f08]">알림톡 잔여 건수가 모두 소진되었습니다</p>
                 <p className="mt-0.5 text-[13px] font-medium text-[#9a5d12]">
-                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 유료 충전 또는 상위 플랜을 확인해 주세요.
+                  고객 예약 안내와 미용 상태 알림톡을 더 보낼 수 없습니다. 추가 발송 이용권을 구매하거나 상위 플랜을 확인해 주세요.
                 </p>
               </div>
               <Link
@@ -480,7 +488,7 @@ export default function OwnerWebAppShell({
                 prefetch
                 className="inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#b98121] px-3 text-[13px] font-semibold text-white transition hover:bg-[#9a681a]"
               >
-                알림톡 충전하기
+                추가 발송 이용권 구매
               </Link>
             </div>
           </div>

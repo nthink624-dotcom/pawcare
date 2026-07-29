@@ -1,9 +1,10 @@
 ﻿import LegalPageLayout, { LegalSection } from "@/components/legal/legal-page-layout";
 import { ownerPaidServiceTerms } from "@/lib/auth/owner-paid-service-terms";
+import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 
-const refundSummary = `넘친Day 펫매니저는 넘친 Day가 운영합니다. 카드 명세서와 결제대행 과정에는 운영사명인 넘친 Day로 표시될 수 있습니다.
+const refundSummary = `${LEGAL_SERVICE_NAME}는 ${LEGAL_OPERATOR_NAME}가 운영합니다. 카드 명세서와 결제대행 과정에는 운영사명인 ${LEGAL_OPERATOR_NAME}로 표시될 수 있습니다.
 
-넘친Day 펫매니저는 카드 등록 없이 2주 무료체험을 시작하고, 계속 사용하려는 시점에 직접 결제를 진행하는 방식으로 운영됩니다.
+${LEGAL_SERVICE_NAME}는 카드 등록 없이 2주 무료체험을 시작하고, 계속 사용하려는 시점에 직접 결제를 진행하는 방식으로 운영됩니다.
 
 - 무료체험 기간 중에는 요금이 청구되지 않습니다.
 - 무료체험이 끝난 뒤에는 자동결제되지 않으며, 결제 전까지 서비스 사용이 제한될 수 있습니다.

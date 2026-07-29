@@ -3,6 +3,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { env } from "@/lib/env";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import {
   calculateOwnerBillingAmountBreakdown,
   getOwnerPlanByCode,
@@ -365,7 +366,7 @@ function buildBillingKeyStorageColumns(
 }
 
 function buildPortoneCustomer(identity: BillingIdentity, profile: OwnerProfileRecord | null) {
-  const fullName = profile?.name ?? "펫매니저 사장님";
+  const fullName = profile?.name ?? "매장 사장님";
 
   return {
     id: `owner_${identity.id}`,
@@ -1026,7 +1027,7 @@ async function scheduleUpcomingCharge(identity: BillingIdentity, profile: OwnerP
       storeId: env.portoneStoreId,
       payment: {
         billingKey,
-        orderName: `펫매니저 ${plan.name} 정기결제`,
+        orderName: `${PETMANAGER_SERVICE_NAME} ${plan.name} 정기결제`,
         customer: buildPortoneCustomer(identity, profile),
         amount: { total: chargeAmount },
         currency: "KRW",
@@ -1540,7 +1541,7 @@ export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, sh
     body: JSON.stringify({
       storeId: env.portoneStoreId,
       billingKey,
-      orderName: `펫매니저 ${plan.name} 정기결제`,
+      orderName: `${PETMANAGER_SERVICE_NAME} ${plan.name} 정기결제`,
       customer: buildPortoneCustomer(identity, profile),
       amount: { total: chargeAmount },
       currency: "KRW",

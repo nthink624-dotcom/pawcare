@@ -14,10 +14,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
 import { alimtalkCreditProducts, type AlimtalkCreditProduct, type AlimtalkCreditProductId } from "@/lib/alimtalk-credit-products";
 import { confirmAlimtalkCreditPurchase, requestAlimtalkCreditPurchase } from "@/lib/alimtalk-credit-purchase-client";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
+import {
+  isOwnerSubscriptionBlocked,
+  type OwnerSubscriptionSummary,
+} from "@/lib/billing/owner-subscription";
 import { cn, won } from "@/lib/utils";
 import type { AlimtalkCreditSummary, BootstrapPayload } from "@/types/domain";
 
@@ -42,7 +47,7 @@ function ProductOption({ product, selected, onSelect }: { product: AlimtalkCredi
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[19px] font-bold tracking-tight text-[#0f172a]">{product.creditCount.toLocaleString("ko-KR")}건</span>
+            <span className="text-[16px] font-bold leading-6 text-[#0f172a]">{product.title}</span>
             {product.badge ? <span className="rounded-md bg-[#e8f1ff] px-2 py-0.5 text-[11px] font-bold text-[#2563eb]">{product.badge}</span> : null}
           </div>
           <p className="mt-1 text-[13px] font-medium text-[#64748b]">건당 <span className="font-bold text-[#2563eb]">{product.unitPriceBeforeVat.toLocaleString("ko-KR")}원</span> · VAT 별도</p>
@@ -85,12 +90,19 @@ export default function OwnerAlimtalkCreditsPage() {
 
   async function loadData() {
     const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" });
+    writeOwnerBillingSummaryCache(nextSubscription);
+    setSubscription(nextSubscription);
+
+    if (isOwnerSubscriptionBlocked(nextSubscription.status)) {
+      return false;
+    }
+
     const bootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
       `/api/bootstrap?shopId=${encodeURIComponent(nextSubscription.shopId)}`,
       { cache: "no-store" },
     );
-    setSubscription(nextSubscription);
     setCreditSummary(bootstrap.alimtalkCreditSummary ?? null);
+    return true;
   }
 
   useEffect(() => {
@@ -98,7 +110,9 @@ export default function OwnerAlimtalkCreditsPage() {
 
     async function run() {
       try {
-        await loadData();
+        const serviceAvailable = await loadData();
+        if (!serviceAvailable) return;
+
         const paymentId = new URLSearchParams(window.location.search).get("paymentId");
         if (!paymentId) return;
 
@@ -107,12 +121,12 @@ export default function OwnerAlimtalkCreditsPage() {
         setCreditSummary(result.summary);
         setMessage({
           type: "success",
-          text: result.alreadyProcessed ? "이미 반영된 결제입니다. 현재 잔여 건수를 다시 확인해 주세요." : "알림톡 충전이 완료되었습니다.",
+          text: result.alreadyProcessed ? "이미 반영된 결제입니다. 현재 남은 발송 건수를 다시 확인해 주세요." : "알림톡 추가 발송 이용권 구매가 완료되었습니다.",
         });
         window.history.replaceState({}, "", "/owner/alimtalk-credits");
       } catch (error) {
         if (!active) return;
-        const nextMessage = error instanceof Error ? error.message : "알림톡 충전 정보를 불러오지 못했습니다.";
+        const nextMessage = error instanceof Error ? error.message : "알림톡 추가 발송 이용권 결제 정보를 불러오지 못했습니다.";
         if (nextMessage === "로그인이 필요합니다." || nextMessage.includes("로그인 상태를 확인하지 못했습니다.")) {
           router.replace("/login?next=/owner/alimtalk-credits" as never);
           router.refresh();
@@ -138,7 +152,7 @@ export default function OwnerAlimtalkCreditsPage() {
         productId: selectedProduct.id,
         userId: subscription.userId,
         shopId: subscription.shopId,
-        customerName: subscription.ownerName || "펫매니저 사장님",
+        customerName: subscription.ownerName || "매장 사장님",
         phoneNumber: subscription.ownerPhoneNumber,
         email: subscription.ownerEmail,
       });
@@ -146,14 +160,18 @@ export default function OwnerAlimtalkCreditsPage() {
       setMessage({
         type: "success",
         text: result.alreadyProcessed
-          ? "이미 반영된 결제입니다. 현재 잔여 건수를 다시 확인해 주세요."
-          : `${selectedProduct.creditCount.toLocaleString("ko-KR")}건 충전이 완료되었습니다.`,
+          ? "이미 반영된 결제입니다. 현재 남은 발송 건수를 다시 확인해 주세요."
+          : `${selectedProduct.title} 구매가 완료되었습니다.`,
       });
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "알림톡 충전에 실패했습니다." });
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "알림톡 추가 발송 이용권 구매에 실패했습니다." });
     } finally {
       setPurchaseLoading(false);
     }
+  }
+
+  if (subscription && isOwnerSubscriptionBlocked(subscription.status)) {
+    return <OwnerServiceExpiredScreen summary={subscription} />;
   }
 
   if (!subscription) {
@@ -185,20 +203,20 @@ export default function OwnerAlimtalkCreditsPage() {
             <div>
               <div className="flex items-center gap-2 text-[13px] font-bold text-[#2563eb]">
                 <BellRing className="h-4 w-4" aria-hidden="true" />
-                알림톡 충전
+                알림톡 추가 발송 이용권
               </div>
-              <h1 id="product-title" className="mt-2 text-[28px] font-bold tracking-tight text-[#0f172a]">충전할수록 낮아지는 알림톡 단가</h1>
-              <p className="mt-1 text-[16px] font-medium text-[#334155]">최대 <span className="font-bold text-[#2563eb]">건당 7원</span></p>
+              <h1 id="product-title" className="mt-2 text-[28px] font-bold tracking-tight text-[#0f172a]">필요한 만큼 구매하는 알림톡 추가 발송 이용권</h1>
+              <p className="mt-1 text-[15px] font-medium text-[#334155]">구매한 발송 건수는 모두 사용할 때까지 유지됩니다.</p>
             </div>
             <div className="flex items-center gap-4 rounded-[10px] border border-white bg-white/85 px-4 py-3">
               <div>
-                <p id="balance-title" className="text-[12px] font-semibold text-[#64748b]">사용 가능</p>
+                <p id="balance-title" className="text-[12px] font-semibold text-[#64748b]">남은 발송 건수</p>
                 <p className="mt-0.5 text-[23px] font-bold tabular-nums tracking-tight text-[#0f172a]">{count(creditSummary?.remaining_total)}<span className="ml-1 text-[12px] font-semibold text-[#64748b]">건</span></p>
               </div>
               <div className="h-9 w-px bg-[#dbe6f2]" aria-hidden="true" />
               <div className="grid gap-1 text-right text-[12px] font-medium text-[#64748b]">
-                <span>무료 {count(creditSummary?.included_remaining)}건</span>
-                <span>결제 {count(creditSummary?.purchased_remaining)}건</span>
+                <span>월 제공 {count(creditSummary?.included_remaining)}건</span>
+                <span>추가 이용권 {count(creditSummary?.purchased_remaining)}건</span>
               </div>
             </div>
           </div>
@@ -223,7 +241,7 @@ export default function OwnerAlimtalkCreditsPage() {
 
           <aside className="mt-4 flex shrink-0 flex-wrap items-center gap-3 rounded-[10px] border border-white bg-white p-3" aria-label="선택 상품 결제">
             <div className="mr-auto flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <p className="text-[14px] font-bold text-[#0f172a]">{selectedProduct.creditCount.toLocaleString("ko-KR")}건 선택</p>
+              <p className="text-[14px] font-bold text-[#0f172a]">{selectedProduct.title} 선택</p>
               <p className="text-[13px] font-medium text-[#64748b]">공급가 {won(selectedProduct.supplyPrice)}</p>
               <p className="text-[13px] font-medium text-[#64748b]">부가세 {won(selectedProduct.price - selectedProduct.supplyPrice)}</p>
               <p className="text-[18px] font-bold tabular-nums text-[#2563eb]">총 {won(selectedProduct.price)}</p>
@@ -235,7 +253,7 @@ export default function OwnerAlimtalkCreditsPage() {
               className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-bold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {purchaseLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />}
-              결제하기
+              이용권 구매하기
             </button>
           </aside>
         </section>

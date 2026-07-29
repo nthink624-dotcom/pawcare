@@ -171,7 +171,7 @@ export async function confirmOwnerAlimtalkCreditPurchase(
   const customData = parseCustomData(payment.customData);
 
   if (!customData || customData.kind !== "alimtalk-credit-purchase") {
-    throw new OwnerBillingError("알림톡 충전 결제 정보를 찾지 못했습니다.", 400);
+    throw new OwnerBillingError("알림톡 추가 발송 이용권 결제 정보를 찾지 못했습니다.", 400);
   }
 
   const userId = typeof customData.userId === "string" ? customData.userId : null;
@@ -180,15 +180,15 @@ export async function confirmOwnerAlimtalkCreditPurchase(
   const product = getAlimtalkCreditProduct(productId);
 
   if (!userId || !shopId || userId !== expected.identity.id || shopId !== expected.shopId || !product) {
-    throw new OwnerBillingError("현재 매장의 알림톡 충전 결제가 아닙니다.", 403);
+    throw new OwnerBillingError("현재 매장의 알림톡 추가 발송 이용권 결제가 아닙니다.", 403);
   }
 
   if (payment.status !== "PAID") {
-    throw new OwnerBillingError("결제가 완료된 뒤 알림톡이 충전됩니다.", 400);
+    throw new OwnerBillingError("결제가 완료된 뒤 추가 발송 이용권이 반영됩니다.", 400);
   }
 
   if (payment.amount !== product.price) {
-    throw new OwnerBillingError("결제 금액이 충전 상품과 일치하지 않습니다.", 400);
+    throw new OwnerBillingError("결제 금액이 선택한 추가 발송 이용권과 일치하지 않습니다.", 400);
   }
 
   const ledgerPayload = {

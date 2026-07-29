@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { InfoTip } from "@/components/owner/owner-app-ui";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -1044,7 +1045,8 @@ export default function OwnerSettingsPanel({
           />
           <div className="rounded-[12px] border border-[#e4ebe7] bg-[#f8fbfa] px-3 py-2.5">
             <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#5f6c66]">
-              알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
+              알림톡은 {PETMANAGER_SERVICE_NAME} 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이
+              표시됩니다.
             </p>
           </div>
           <Link
@@ -1052,7 +1054,7 @@ export default function OwnerSettingsPanel({
             prefetch
             className="inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-[image:var(--pm-brand-blue-button-gradient)] text-[14px] font-semibold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)]"
           >
-            알림톡 충전하기
+            추가 발송 이용권 구매
           </Link>
           <div className="space-y-2">
             <ToggleRow

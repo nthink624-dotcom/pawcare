@@ -1,5 +1,7 @@
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+
 export const env = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "petmanager",
+  appName: process.env.NEXT_PUBLIC_APP_NAME || PETMANAGER_SERVICE_NAME,
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,

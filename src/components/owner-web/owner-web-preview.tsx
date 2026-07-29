@@ -23,6 +23,7 @@ import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
 import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
@@ -225,7 +226,7 @@ export default function OwnerWebPreview({
   });
   const staffMembers = demoMode ? demoStaffMembers : liveStaffMembers;
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
-  const shopDisplayName = ownerData.shop.name.trim() || "PetManager";
+  const shopDisplayName = ownerData.shop.name.trim() || PETMANAGER_SERVICE_NAME;
   const shopInitials = buildShopInitials(shopDisplayName);
   const currentPlanLabel = subscriptionSummary
     ? getOwnerPlanDisplayName(subscriptionSummary.currentPlanCode)

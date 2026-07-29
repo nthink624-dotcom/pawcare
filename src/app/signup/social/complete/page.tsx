@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import SocialSignupSuccessScreen from "@/components/auth/social-signup-success-screen";
 
 export const metadata: Metadata = {
-  title: "가입 완료 | 펫매니저",
+  title: "가입 완료",
 };
 
 export default async function SocialSignupCompletePage({

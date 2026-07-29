@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 
 import OwnerApp, { type OwnerMobileLaunchPhotoStatusAction } from "@/components/owner/owner-app";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
@@ -51,7 +52,7 @@ function TrialNoticeBanner({ summary }: { summary: OwnerSubscriptionSummary }) {
   const title =
     summary.noticeLevel === "1day"
       ? "체험 플랜이 내일 종료됩니다"
-      : `펫매니저 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`;
+      : `${PETMANAGER_SERVICE_NAME} 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`;
   const body =
     summary.noticeLevel === "1day"
       ? "계속 사용하려면 종료 후 플랜을 확인하고 결제를 진행해 주세요. 자동결제는 되지 않습니다."
@@ -104,7 +105,7 @@ function ServiceLockedScreen({ summary, onLogout, loggingOut }: { summary: Owner
       ? "결제가 완료되지 않아 현재 예약·고객 관리 기능이 일시적으로 제한되어 있습니다. 결제를 완료하면 바로 다시 이용할 수 있습니다."
       : "서비스 이용 기간이 종료되어 현재 예약·고객 관리 기능이 일시적으로 제한되어 있습니다. 플랜을 다시 선택하고 결제하면 바로 이용을 재개할 수 있습니다.";
   const resumePlanCode = getResumePlanCode(summary);
-  const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent("펫매니저 이용 재개 문의")}`;
+  const supportHref = `mailto:${LEGAL_BUSINESS_INFO.customerServiceEmail}?subject=${encodeURIComponent(`${PETMANAGER_SERVICE_NAME} 이용 재개 문의`)}`;
 
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 py-6 text-[#111111]">

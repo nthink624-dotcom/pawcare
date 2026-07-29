@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { isOwnerSubscriptionBlocked } from "@/lib/billing/owner-subscription";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { getOwnerSubscriptionSummary, OwnerBillingError } from "@/server/owner-billing";
@@ -15,10 +16,6 @@ export class OwnerApiError extends Error {
 
 function isSuspendedMetadata(metadata: Record<string, unknown> | null | undefined) {
   return metadata?.account_suspended === true;
-}
-
-function isBlockedSubscriptionStatus(status: string) {
-  return status === "expired" || status === "past_due";
 }
 
 export type OwnerShopRole = "owner" | "manager" | "staff";
@@ -248,7 +245,7 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
       resolvedShopId,
     );
 
-    if (isBlockedSubscriptionStatus(subscription.status)) {
+    if (isOwnerSubscriptionBlocked(subscription.status)) {
       throw new OwnerApiError("서비스 이용 기간이 만료되었습니다. 결제 정보를 확인해 주세요.", 402);
     }
   } catch (error) {

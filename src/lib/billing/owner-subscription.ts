@@ -13,6 +13,11 @@ export type OwnerSubscriptionStatus =
   | "past_due"
   | "canceled"
   | "expired";
+
+export function isOwnerSubscriptionBlocked(status: OwnerSubscriptionStatus) {
+  return status === "expired" || status === "past_due";
+}
+
 export type SubscriptionNoticeLevel = "none" | "3days" | "1day" | "expired" | "past_due";
 export type BillingCycle = "0m" | "1m" | "3m" | "6m" | "12m";
 export type OwnerLastPaymentStatus = "none" | "scheduled" | "paid" | "failed" | "cancelled";

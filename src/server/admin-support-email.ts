@@ -60,7 +60,9 @@ function buildAdminSupportEmailHtml(request: OwnerSupportRequestItem) {
 export async function notifyAdminOwnerSupportRequest(request: OwnerSupportRequestItem) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const recipients = readRecipientEmails();
-  const from = process.env.ADMIN_SUPPORT_NOTIFICATION_FROM?.trim() || "PetManager <onboarding@resend.dev>";
+  const from =
+    process.env.ADMIN_SUPPORT_NOTIFICATION_FROM?.trim() ||
+    `${LEGAL_BUSINESS_INFO.serviceName} <onboarding@resend.dev>`;
 
   if (!apiKey || recipients.length === 0) {
     console.warn("[admin-support-email] skipped: missing RESEND_API_KEY or recipient email");
@@ -76,7 +78,7 @@ export async function notifyAdminOwnerSupportRequest(request: OwnerSupportReques
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `[넘친데이] 새 오너 문의 · ${request.shopName ?? request.shopId}`,
+      subject: `[${LEGAL_BUSINESS_INFO.serviceName}] 새 오너 문의 · ${request.shopName ?? request.shopId}`,
       html: buildAdminSupportEmailHtml(request),
     }),
   });

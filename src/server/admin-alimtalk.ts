@@ -4,6 +4,7 @@ import {
   type AlimtalkTemplateConfigKey,
   getNotificationTitle,
 } from "@/lib/notification-registry";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getConfiguredAlimtalkTemplateKey, hasSupabaseServerEnv, serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { sendAlimtalkMessage, type AlimtalkButton } from "@/server/alimtalk-provider";
@@ -527,7 +528,7 @@ export async function getRelayRuntimeDiagnostics(): Promise<RelayRuntimeDiagnost
 }
 
 function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
-  const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
+  const shopName = input.shopName?.trim() || `${PETMANAGER_SERVICE_NAME} 테스트 매장`;
   const shopAddress = "서울시 강남구 테헤란로 123";
   const bookingManageToken = "demo";
   const bookingManageUrl = input.bookingManageUrl?.trim() || `https://www.petmanager.co.kr/m?t=${bookingManageToken}`;
@@ -550,7 +551,7 @@ function buildAdminTestTemplateValues(input: AdminAlimtalkTestInput) {
 }
 
 function buildAdminTestButtons(alias: AlimtalkTemplateAlias, input: AdminAlimtalkTestInput): AlimtalkButton[] {
-  const shopName = input.shopName?.trim() || "펫매니저 테스트 매장";
+  const shopName = input.shopName?.trim() || `${PETMANAGER_SERVICE_NAME} 테스트 매장`;
   const shopAddress = "서울시 강남구 테헤란로 123";
   const bookingManageUrl = input.bookingManageUrl?.trim() || "https://www.petmanager.co.kr/m?t=demo";
   const directionsUrl = `https://map.kakao.com/link/search/${encodeURIComponent(`${shopName} ${shopAddress}`)}`;

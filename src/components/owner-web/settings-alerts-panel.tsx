@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
+import { PETMANAGER_BRAND_MARK_SRC, PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import {
   renderNotificationTemplateBody,
   type NotificationTemplateVariables,
@@ -339,11 +340,11 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
         <div className="w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
           <div className="flex items-center gap-2">
             <img
-              src="/icons/logo/넘친 Day 이니셜.svg"
+              src={PETMANAGER_BRAND_MARK_SRC}
               alt=""
               className="h-9 w-9 rounded-full bg-white object-contain p-1"
             />
-            <p className="min-w-0 truncate text-[14px] text-[#0f172a]">넘친 Day</p>
+            <p className="min-w-0 truncate text-[14px] text-[#0f172a]">{PETMANAGER_SERVICE_NAME}</p>
           </div>
 
           <div className="relative ml-[35px] mt-1 w-[214px] rounded-[2px] bg-white text-[#111827] shadow-sm">
@@ -437,7 +438,8 @@ export default function SettingsAlertsPanel({
               <div>
                 <p className="text-[16px] text-[#111827]">알림톡 발신 채널</p>
                 <p className="mt-1 text-[15px] leading-6 text-[#64748b]">
-                  결제와 잔여 건수는 펫매니저에서 관리하고, 발신자만 매장 채널로 바꿀 수 있습니다.
+                  결제와 잔여 건수는 {PETMANAGER_SERVICE_NAME}에서 관리하고, 발신자만 매장 채널로 바꿀 수
+                  있습니다.
                 </p>
               </div>
               <span
@@ -467,9 +469,9 @@ export default function SettingsAlertsPanel({
                     : "border-[#dbe2ea] bg-white hover:border-[#cbd5e1]",
                 )}
               >
-                <span className="block text-[16px] text-[#111827]">펫매니저 기본 채널</span>
+                <span className="block text-[16px] text-[#111827]">{PETMANAGER_SERVICE_NAME} 기본 채널</span>
                 <span className="mt-1 block text-[14px] leading-5 text-[#64748b]">
-                  바로 사용합니다. 고객에게는 펫매니저 기본 발신 채널로 보입니다.
+                  바로 사용합니다. 고객에게는 {PETMANAGER_SERVICE_NAME} 기본 발신 채널로 보입니다.
                 </span>
               </button>
               <button
@@ -561,7 +563,8 @@ export default function SettingsAlertsPanel({
               </div>
             ) : null}
             <p className="mt-3 text-[14px] leading-5 text-[#64748b]">
-              매장 채널을 사용해도 알림톡 결제, 잔여 건수, 발송 이력은 펫매니저에서 그대로 관리됩니다.
+              매장 채널을 사용해도 알림톡 결제, 잔여 건수, 발송 이력은 {PETMANAGER_SERVICE_NAME}에서 그대로
+              관리됩니다.
             </p>
           </div>
           ) : null}

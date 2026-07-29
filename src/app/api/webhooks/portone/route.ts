@@ -5,20 +5,25 @@ import { requireServerSecret, serverEnv, ServerEnvError } from "@/lib/server-env
 import { syncOwnerAlimtalkCreditPurchaseFromPayment } from "@/server/owner-alimtalk-credit-purchase";
 import { OwnerBillingError, syncOwnerSubscriptionFromPayment } from "@/server/owner-billing";
 
-function extractPaymentId(webhook: { data?: unknown }) {
+type PortoneWebhookPayload = {
+  type?: unknown;
+  data?: unknown;
+};
+
+const SYNCABLE_PAYMENT_EVENT_TYPES = new Set([
+  "Transaction.Paid",
+  "Transaction.Failed",
+  "Transaction.Cancelled",
+]);
+
+function extractPaymentId(webhook: PortoneWebhookPayload) {
   const data = webhook.data;
   if (!data || typeof data !== "object") {
     return null;
   }
 
   const record = data as Record<string, unknown>;
-  if (typeof record.paymentId === "string") {
-    return record.paymentId;
-  }
-  if (typeof record.id === "string") {
-    return record.id;
-  }
-  return null;
+  return typeof record.paymentId === "string" ? record.paymentId : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -28,16 +33,26 @@ export async function POST(request: NextRequest) {
     const headers = Object.fromEntries(request.headers.entries());
 
     await Webhook.verify(webhookSecret, rawBody, headers);
-    const payload = rawBody ? (JSON.parse(rawBody) as { data?: unknown }) : null;
+    const payload = rawBody ? (JSON.parse(rawBody) as PortoneWebhookPayload) : null;
+    const eventType = typeof payload?.type === "string" ? payload.type : null;
+
+    if (!eventType || !SYNCABLE_PAYMENT_EVENT_TYPES.has(eventType)) {
+      return NextResponse.json({ ok: true, ignored: true, eventType });
+    }
+
     const paymentId = extractPaymentId(payload ?? {});
 
     if (!paymentId) {
-      return NextResponse.json({ ok: true, ignored: true });
+      return NextResponse.json({ ok: true, ignored: true, eventType });
     }
 
     const summary = await syncOwnerSubscriptionFromPayment(paymentId);
     if (summary) {
       return NextResponse.json({ ok: true, paymentId, synced: true });
+    }
+
+    if (eventType !== "Transaction.Paid") {
+      return NextResponse.json({ ok: true, paymentId, ignored: true, eventType });
     }
 
     const alimtalkCreditResult = await syncOwnerAlimtalkCreditPurchaseFromPayment(paymentId);

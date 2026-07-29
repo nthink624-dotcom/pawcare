@@ -2,6 +2,8 @@
 
 import { ArrowLeft, CreditCard, ShieldCheck } from "lucide-react";
 
+import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
+
 import type { BillingConsentProps } from "./types";
 
 function BillingSummaryItem({
@@ -70,10 +72,11 @@ export function BillingConsent({
               <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
               <p className="mt-3 text-[14px] font-medium text-[#334155]">안전한 카드 등록</p>
               <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
-                넘친Day 펫매니저는 넘친 Day가 운영합니다. 카드 정보는 KCP와 포트원을 통해 처리되며, 넘친 Day는 카드번호 전체를 저장하지 않습니다.
+                {LEGAL_SERVICE_NAME}는 {LEGAL_OPERATOR_NAME}가 운영합니다. 카드 정보는 KCP와 포트원을 통해
+                처리되며, {LEGAL_OPERATOR_NAME}는 카드번호 전체를 저장하지 않습니다.
               </p>
               <p className="mt-2 text-[12px] leading-5 text-[#64748b]">
-                카드 명세서와 결제대행 과정에는 운영사명인 넘친 Day로 표시될 수 있습니다.
+                카드 명세서와 결제대행 과정에는 운영사명인 {LEGAL_OPERATOR_NAME}로 표시될 수 있습니다.
               </p>
             </aside>
           </div>

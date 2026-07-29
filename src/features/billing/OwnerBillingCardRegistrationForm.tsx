@@ -4,6 +4,7 @@ import { ArrowLeft, CreditCard } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { AppButton } from "@/components/ui/app-button";
+import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 
 export type OwnerBillingCardCredentials = {
   cardNumber: string;
@@ -134,7 +135,8 @@ export function OwnerBillingCardRegistrationForm({
         </div>
 
         <p className="mt-4 border-l-[3px] border-[#1f6b5b] bg-[#f4f8f6] px-3 py-2.5 text-[12px] leading-5 text-[#51615b]">
-          넘친Day 펫매니저는 넘친 Day가 운영합니다. 카드 명세서와 결제대행 과정에는 넘친 Day로 표시될 수 있습니다.
+          {LEGAL_SERVICE_NAME}는 {LEGAL_OPERATOR_NAME}가 운영합니다. 카드 명세서와 결제대행 과정에는{" "}
+          {LEGAL_OPERATOR_NAME}로 표시될 수 있습니다.
         </p>
 
         <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
@@ -216,7 +218,9 @@ export function OwnerBillingCardRegistrationForm({
               disabled={loading}
               className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#9fb2aa] text-[#1f6b5b] focus:ring-[#b9d8cd]"
             />
-            <span className="text-[12px] leading-5 text-[#51615b]">넘친Day 펫매니저의 자동결제 카드 등록 및 개인정보 처리에 동의합니다.</span>
+            <span className="text-[12px] leading-5 text-[#51615b]">
+              {LEGAL_SERVICE_NAME}의 자동결제 카드 등록 및 개인정보 처리에 동의합니다.
+            </span>
           </label>
 
           {formError || message ? (

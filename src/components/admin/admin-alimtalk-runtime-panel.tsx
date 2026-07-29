@@ -4,6 +4,7 @@ import { RefreshCcw, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { fetchApiJson } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import {
   ALIMTALK_NOTIFICATION_REGISTRY,
   type AlimtalkTemplateAlias,
@@ -36,7 +37,7 @@ export default function AdminAlimtalkRuntimePanel() {
     alias: "visit_reminder_notice" as AlimtalkTemplateAlias,
     phone: "",
     recipientName: "보호자",
-    shopName: "펫매니저 테스트 매장",
+    shopName: `${PETMANAGER_SERVICE_NAME} 테스트 매장`,
     petName: "우유",
     serviceName: "전체 미용",
     appointmentDateTime: "2026-05-19 14:00",

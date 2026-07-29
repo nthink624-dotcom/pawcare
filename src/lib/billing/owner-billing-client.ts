@@ -1,6 +1,7 @@
 import { requestIssueBillingKey, requestPayment } from "@portone/browser-sdk/v2";
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { env } from "@/lib/env";
 import { getOwnerPlanByCode, type OwnerPlanCode } from "@/lib/billing/owner-plans";
 import { createPortoneId } from "@/lib/billing/portone-ids";
@@ -222,7 +223,7 @@ export async function issueOwnerBillingKey(params: {
     channelKey: env.portoneBillingChannelKey,
     billingKeyMethod: "CARD",
     issueId,
-    issueName: "펫매니저 정기결제 카드 등록",
+    issueName: `${PETMANAGER_SERVICE_NAME} 정기결제 카드 등록`,
     customer: {
       customerId: params.customerId,
       fullName: params.customerName,

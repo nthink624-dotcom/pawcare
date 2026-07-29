@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import AdminAlimtalkActivitySections from "@/components/admin/admin-alimtalk-activity-sections";
 import AdminAlimtalkRuntimePanel from "@/components/admin/admin-alimtalk-runtime-panel";
 import { fetchApiJson } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { AlimtalkTemplateConfigKey } from "@/lib/notification-registry";
 import type {
   AdminNotificationActivity,
@@ -44,7 +45,7 @@ const appRuntimeFieldGroups: Array<{
 }> = [
   {
     title: "현재 발송 서버 설정",
-    description: "PetManager 서버가 실제 발송 시 읽는 값입니다. 확인용이라 이 화면에서 직접 수정하지 않습니다.",
+    description: `${PETMANAGER_SERVICE_NAME} 서버가 실제 발송 시 읽는 값입니다. 확인용이라 이 화면에서 직접 수정하지 않습니다.`,
     fields: [
       { key: "provider", label: "발송 방식" },
       { key: "relayUrl", label: "릴레이 발송 주소" },

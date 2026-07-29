@@ -15,7 +15,7 @@ export const ALIMTALK_CREDIT_VAT_RATE = 0.1;
 export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
   {
     id: "credits_1000",
-    title: "1,000건 충전",
+    title: "알림톡 추가 발송 이용권 1,000건",
     creditCount: 1000,
     unitPriceBeforeVat: 10,
     supplyPrice: 10000,
@@ -23,7 +23,7 @@ export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
   },
   {
     id: "credits_3000",
-    title: "3,000건 충전",
+    title: "알림톡 추가 발송 이용권 3,000건",
     creditCount: 3000,
     unitPriceBeforeVat: 9,
     supplyPrice: 27000,
@@ -32,7 +32,7 @@ export const alimtalkCreditProducts: AlimtalkCreditProduct[] = [
   },
   {
     id: "credits_10000",
-    title: "10,000건 충전",
+    title: "알림톡 추가 발송 이용권 10,000건",
     creditCount: 10000,
     unitPriceBeforeVat: 7,
     supplyPrice: 70000,

@@ -3,6 +3,7 @@
 import { CalendarDays, CheckCircle2, PawPrint, Settings, Store, Users, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { formatClockTime, shortDate } from "@/lib/utils";
 import type { Appointment, BootstrapPayload } from "@/types/domain";
@@ -146,7 +147,7 @@ export default function OwnerDesktopApp({
               <PawPrint className="h-5 w-5" strokeWidth={2} />
             </span>
             <div className="min-w-0">
-              <p className="text-[12px] font-medium text-white/65">PETMANAGER</p>
+              <p className="text-[12px] font-medium text-white/65">{PETMANAGER_SERVICE_NAME}</p>
               <p className="truncate text-[16px] font-semibold">{data.shop.name}</p>
             </div>
           </div>

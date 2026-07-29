@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { OwnerBillingSuccessCard } from "@/components/owner/owner-billing-flow-shared";
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
 import { BillingConsent, PaymentMethodSheet, type PaymentMethodOptionId } from "@/features/billing";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { billableOwnerPlans, getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel, type OwnerPlan } from "@/lib/billing/owner-plans";
 import { won } from "@/lib/utils";
 
@@ -41,16 +42,16 @@ function getConsentLines(plan: OwnerPlan) {
   if (plan.billingType === "one_time") {
     return [
       "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
-      "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-      "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+      `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
+      `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
     ];
   }
 
   return [
     "선택한 요금제는 등록된 카드로 매월 자동 결제됩니다.",
     `${plan.alimtalkIncludedLabel}이며, 초과 알림톡은 11원/건으로 부가세가 포함됩니다.`,
-    "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-    "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+    `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
+    `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
   ];
 }
 
@@ -390,7 +391,8 @@ export function OwnerBillingProcessPreview() {
               <div className="text-[13px] leading-[1.6] text-[#5e5750]">
                 <p className="font-medium text-[#171411]">심사자료 기재 안내</p>
                 <p className="mt-1">
-                  카드번호 전체와 CVC는 PG 보안창에서만 입력되며, 펫매니저는 빌링용 마스킹 카드 정보만 관리하는 구조로 안내합니다.
+                  카드번호 전체와 CVC는 PG 보안창에서만 입력되며, {PETMANAGER_SERVICE_NAME}는 빌링용
+                  마스킹 카드 정보만 관리하는 구조로 안내합니다.
                 </p>
               </div>
             </div>

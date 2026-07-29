@@ -33,7 +33,7 @@ const naverGuideScreenshots = [
   {
     step: "2",
     title: "부가정보에서 홈페이지/SNS 확인",
-    description: "부가정보 탭에서 홈페이지/SNS 항목을 찾아 펫매니저 예약 링크를 등록합니다.",
+    description: "부가정보 탭에서 홈페이지/SNS 항목을 찾아 넘친데이 펫매니저 예약 링크를 등록합니다.",
     src: "/images/naver-smartplace-pc-additional-info.png",
     alt: "네이버 스마트플레이스 부가정보 실제 화면",
   },

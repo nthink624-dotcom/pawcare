@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchApiJson } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 type AdminDashboardAccount = {
   id: string;
@@ -313,7 +314,7 @@ export default function AdminDashboard({ sessionLoginId }: { sessionLoginId: str
             <div className="flex flex-wrap items-center gap-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#edf6f2] px-3 py-1 text-[15px] text-[#1f6b5b]">
                 <Sparkles className="h-4 w-4" />
-                PetManager Admin
+                {PETMANAGER_SERVICE_NAME} 관리자
               </div>
               <h1 className="text-[28px] tracking-[-0.03em] text-[#0f172a]">운영 콘솔</h1>
             </div>

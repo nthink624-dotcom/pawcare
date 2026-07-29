@@ -4,7 +4,7 @@ import SocialSignupCompleteForm from "@/components/auth/social-signup-complete-f
 import type { SocialProvider } from "@/lib/auth/social-auth";
 
 export const metadata: Metadata = {
-  title: "간편가입 | 펫매니저",
+  title: "간편가입",
 };
 
 function resolveProvider(provider: string | string[] | undefined): SocialProvider | undefined {

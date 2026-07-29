@@ -2,6 +2,7 @@ import { requestPayment } from "@portone/browser-sdk/v2";
 
 import { getAlimtalkCreditProduct, type AlimtalkCreditProductId } from "@/lib/alimtalk-credit-products";
 import { fetchApiJsonWithAuth } from "@/lib/api";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { createPortoneId } from "@/lib/billing/portone-ids";
 import { env } from "@/lib/env";
 import { kpnApprovedCardCompanies } from "@/lib/portone/cards";
@@ -50,7 +51,7 @@ export async function requestAlimtalkCreditPurchase(params: {
 }) {
   const product = getAlimtalkCreditProduct(params.productId);
   if (!product) {
-    throw new Error("충전 상품을 찾지 못했습니다.");
+    throw new Error("알림톡 추가 발송 이용권을 찾지 못했습니다.");
   }
 
   if (!env.portoneStoreId || !env.portonePaymentChannelKey) {
@@ -62,7 +63,7 @@ export async function requestAlimtalkCreditPurchase(params: {
     storeId: env.portoneStoreId,
     channelKey: env.portonePaymentChannelKey,
     paymentId,
-    orderName: `펫매니저 알림톡 ${product.creditCount.toLocaleString("ko-KR")}건 충전`,
+    orderName: `${PETMANAGER_SERVICE_NAME} 알림톡 추가 발송 이용권 ${product.creditCount.toLocaleString("ko-KR")}건`,
     totalAmount: product.price,
     currency: "KRW",
     payMethod: "CARD",

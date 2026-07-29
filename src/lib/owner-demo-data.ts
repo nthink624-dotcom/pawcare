@@ -1,4 +1,5 @@
 import { currentDateInTimeZone, addDate } from "@/lib/utils";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { buildDemoBootstrap } from "@/lib/mock-data";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications } from "@/lib/notification-settings";
@@ -158,7 +159,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
     shop: {
       ...base.shop,
       id: "owner-demo",
-      name: "펫매니저 데모 매장",
+      name: `${PETMANAGER_SERVICE_NAME} 데모 매장`,
       description: "오너 설득 페이지에서 보여주는 체험용 데모 매장입니다.",
       customer_page_settings: normalizeCustomerPageSettings(
         {

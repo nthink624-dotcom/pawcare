@@ -20,7 +20,10 @@ import {
   resolveSocialProviderFromAuthUser,
 } from "@/lib/auth/social-auth";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
-import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import {
+  isOwnerSubscriptionBlocked,
+  type OwnerSubscriptionSummary,
+} from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
@@ -281,7 +284,7 @@ export default function OwnerPage() {
         writeOwnerBillingSummaryCache(subscription);
         setSubscriptionSummary(subscription);
 
-        if (subscription.status === "expired" || subscription.status === "past_due") {
+        if (isOwnerSubscriptionBlocked(subscription.status)) {
           return;
         }
 
@@ -363,6 +366,18 @@ export default function OwnerPage() {
       if (document.visibilityState !== "visible") return;
 
       try {
+        const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {
+          cache: "no-store",
+        });
+        if (!active) return;
+
+        writeOwnerBillingSummaryCache(nextSubscription);
+        setSubscriptionSummary(nextSubscription);
+
+        if (isOwnerSubscriptionBlocked(nextSubscription.status)) {
+          return;
+        }
+
         const nextBootstrap = await fetchApiJsonWithAuth<BootstrapPayload>(
           `/api/bootstrap?shopId=${encodeURIComponent(selectedShopId)}`,
           { cache: "no-store" },
@@ -403,7 +418,7 @@ export default function OwnerPage() {
 
   if (
     subscriptionSummary &&
-    (subscriptionSummary.status === "expired" || subscriptionSummary.status === "past_due")
+    isOwnerSubscriptionBlocked(subscriptionSummary.status)
   ) {
     return (
       <OwnerServiceExpiredScreen

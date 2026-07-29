@@ -14,7 +14,7 @@ export const appointmentInputSchema = z.object({
 
 export const appointmentStatusSchema = z.object({
   appointmentId: z.string(),
-  status: z.enum(["pending", "confirmed", "in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
+  status: z.enum(["in_progress", "almost_done", "completed", "cancelled", "rejected", "noshow"]),
   rejectionReasonTemplate: z.string().optional(),
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
@@ -89,7 +89,7 @@ export const shopSettingsSchema = z.object({
   address: z.string().min(1),
   description: z.string().default(""),
   concurrentCapacity: z.coerce.number().min(1).max(5),
-  approvalMode: z.enum(["manual", "auto"]),
+  approvalMode: z.enum(["manual", "auto"]).optional().default("auto"),
   regularClosedDays: z.array(z.number().min(0).max(6)),
   temporaryClosedDates: z.array(z.string()),
   businessHours: z.record(z.string(), z.object({

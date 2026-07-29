@@ -313,7 +313,6 @@ export function DailyScheduleGrid({
   staffMembers,
   staffScheduleOverrides,
   activeMetric,
-  manualApprovalEnabled,
     selectedBookingId,
     selectedDate,
     operatingWindow,
@@ -331,7 +330,6 @@ export function DailyScheduleGrid({
   staffMembers: OwnerWebStaffMember[];
   staffScheduleOverrides?: StaffScheduleOverride[];
   activeMetric: SummaryMetricKey;
-  manualApprovalEnabled: boolean;
     selectedBookingId: string;
     selectedDate: string;
     operatingWindow: { enabled: boolean; openHour: number; closeHour: number };

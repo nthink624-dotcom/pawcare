@@ -4,12 +4,11 @@ import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } fro
 import { useEffect, useMemo, useState } from "react";
 
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
-import { patchOwnerAppointmentStatus, replaceAppointmentInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
 import { getDotIndicatorClass, getWrapIndicatorClass, statusIndicatorBgClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { isShopClosedOnDate } from "@/lib/availability";
-import { cn, currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime } from "@/lib/utils";
+import { cn, currentDateInTimeZone, formatClockTime } from "@/lib/utils";
 import type { AppointmentChangeEvent, AppointmentStatus, BootstrapPayload } from "@/types/domain";
 
 type GroomingCalendarRecord = {
@@ -113,7 +112,7 @@ const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const staffDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
-  confirmed: "확정",
+  confirmed: "예약 예정",
   in_progress: "진행 중",
   almost_done: "픽업 준비",
   completed: "완료",
@@ -121,10 +120,6 @@ const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   rejected: "거절",
   noshow: "노쇼",
 };
-function isOverduePendingStatus(status: string) {
-  return false;
-}
-
 function buildBootstrapLookup(data: BootstrapPayload) {
   const notificationsByAppointmentId = new Map<string, BootstrapPayload["notifications"]>();
   for (const notification of data.notifications ?? []) {
@@ -649,14 +644,6 @@ function getStaffWorkNotice(data: BootstrapPayload, date: string, staffFilter: C
   };
 }
 
-function isPastPendingReservation(date: string, time?: string) {
-  const today = currentDateInTimeZone();
-  if (date < today) return true;
-  if (date > today) return false;
-  if (!time) return false;
-  return minutesFromTime(time) <= currentMinutesInTimeZone();
-}
-
 export default function CalendarRecordsScreen({
   initialData,
   onDataChange,
@@ -675,8 +662,6 @@ export default function CalendarRecordsScreen({
   const [staffFilter, setStaffFilter] = useState<CalendarStaffFilter>("all");
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
-  const [confirmingReservationId, setConfirmingReservationId] = useState<string | null>(null);
-  const [calendarError, setCalendarError] = useState("");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -757,51 +742,11 @@ export default function CalendarRecordsScreen({
   );
   const statusOptions: Array<{ value: CalendarStatusFilter; label: string }> = [
     { value: "all", label: "전체 상태" },
-    { value: "confirmed", label: "확정/진행" },
+    { value: "confirmed", label: "예정/진행" },
     { value: "changed", label: "변경" },
     { value: "cancelled", label: "취소/거절" },
     { value: "completed", label: "완료" },
   ];
-
-  async function confirmReservation(reservationId: string) {
-    const reservation = reservations.find((item) => item.id === reservationId);
-    if (!reservation) return;
-
-    if (isPastPendingReservation(reservation.date, reservation.time)) {
-      setCalendarError("이미 지난 예약 시간입니다. 다른 시간 안내 또는 예약 거절로 처리해 주세요.");
-      return;
-    }
-
-    setCalendarError("");
-    setConfirmingReservationId(reservationId);
-
-    try {
-      const updatedAppointment = await patchOwnerAppointmentStatus({
-        appointmentId: reservationId,
-        status: "confirmed",
-      });
-      const nextData = replaceAppointmentInBootstrap(initialData, updatedAppointment);
-      const nextReservations = buildReservationsFromBootstrap(nextData);
-      const updatedReservation = nextReservations.find((item) => item.id === reservationId);
-
-      setReservations(nextReservations);
-      setSelectedItem((current) =>
-        current?.id === reservationId && current.type === "reservation" && updatedReservation
-          ? {
-              ...current,
-              status: updatedReservation.status,
-              eventUpdatedAt: updatedReservation.eventUpdatedAt,
-              reservationConfirmedAt: updatedReservation.reservationConfirmedAt,
-            }
-          : current,
-      );
-      onDataChange?.(nextData);
-    } catch (error) {
-      setCalendarError(error instanceof Error ? error.message : "예약 확정 중 문제가 발생했습니다.");
-    } finally {
-      setConfirmingReservationId(null);
-    }
-  }
 
   function openDate(date: string) {
     setSelectedDate(date);
@@ -997,11 +942,8 @@ export default function CalendarRecordsScreen({
             date={selectedDate}
             items={selectedItems}
             birthdays={selectedBirthdays}
-            error={calendarError}
             workNotice={selectedWorkNotice}
-            confirmingReservationId={confirmingReservationId}
             onSelectItem={openItem}
-            onConfirmReservation={confirmReservation}
             onAddReservation={onCreateReservationForDate ? () => onCreateReservationForDate(selectedDate) : undefined}
           />
         </div>
@@ -1027,21 +969,15 @@ function GroomingDatePanel({
   date,
   items,
   birthdays,
-  error,
   workNotice,
-  confirmingReservationId,
   onSelectItem,
-  onConfirmReservation,
   onAddReservation,
 }: {
   date: string;
   items: DayItem[];
   birthdays: BirthdayItem[];
-  error: string;
   workNotice: ReturnType<typeof getStaffWorkNotice>;
-  confirmingReservationId: string | null;
   onSelectItem: (item: DayItem) => void;
-  onConfirmReservation: (reservationId: string) => void | Promise<void>;
   onAddReservation?: () => void;
 }) {
   const visibleItems = sortOperationalItems(items);
@@ -1067,11 +1003,6 @@ function GroomingDatePanel({
         </div>
 
         <div className="mt-3">
-          {error ? (
-            <div className="mb-2 rounded-[8px] border border-[#ead28e] bg-[#fff8e7] px-3 py-2 text-[13px] leading-5 text-[#8a5a00]">
-              {error}
-            </div>
-          ) : null}
           {!hasVisibleContent ? (
             <div
               className={cn(
@@ -1090,9 +1021,7 @@ function GroomingDatePanel({
               title="일정"
               count={visibleItems.length}
               items={visibleItems}
-              confirmingReservationId={confirmingReservationId}
               onSelectItem={onSelectItem}
-              onConfirmReservation={onConfirmReservation}
               hideHeader
             />
           ) : null}
@@ -1132,17 +1061,13 @@ function DayItemSection({
   title,
   count,
   items,
-  confirmingReservationId,
   onSelectItem,
-  onConfirmReservation,
   hideHeader = false,
 }: {
   title: string;
   count: number;
   items: DayItem[];
-  confirmingReservationId: string | null;
   onSelectItem: (item: DayItem) => void;
-  onConfirmReservation: (reservationId: string) => void | Promise<void>;
   hideHeader?: boolean;
 }) {
   return (
@@ -1156,8 +1081,6 @@ function DayItemSection({
       {items.length > 0 ? (
         <div className="space-y-1">
           {items.map((item) => {
-            const confirming = confirmingReservationId === item.id;
-            const confirmable = false;
             return (
             <div
               key={`${item.type}-${item.id}`}
@@ -1184,18 +1107,6 @@ function DayItemSection({
                   </span>
                 </div>
               </button>
-              {confirmable ? (
-                <div className="border-t border-[#f1e4c2] px-3 pb-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => onConfirmReservation(item.id)}
-                    disabled={confirming}
-                    className="h-8 w-full rounded-[7px] bg-[#dca93b] text-[13px] font-medium text-white transition hover:bg-[#c79024] disabled:cursor-not-allowed disabled:bg-[#d8c6a7]"
-                  >
-                    {confirming ? "확정 중" : "예약 확정"}
-                  </button>
-                </div>
-              ) : null}
             </div>
           );
           })}
@@ -1521,11 +1432,10 @@ function historyTime(value?: string | null) {
 
 function buildRecordHistoryTimeline(item: DayItem, sourceLabel: string): RecordHistoryTimelineItem[] {
   const reservationTime = historyTime(item.eventReceivedAt);
-  const confirmedTime = historyTime(item.reservationConfirmedAt);
+  const confirmedNotificationTime = historyTime(item.reservationConfirmedAt);
   const groomingStartedTime = historyTime(item.groomingStartedAt);
   const pickupReadyTime = historyTime(item.pickupReadyAt);
   const groomingCompletedTime = historyTime(item.recordCompletedAt ?? item.groomingCompletedAt ?? item.actualCompletedAt);
-  const shouldShowConfirmed = item.type === "record" || !isOverduePendingStatus(item.status);
   const shouldShowGroomingStarted = item.type === "record" || item.status === "진행 중" || item.status === "픽업 준비" || item.status === "완료";
   const shouldShowPickupReady = Boolean(item.pickupReadyAt) || item.status === "픽업 준비";
   const shouldShowCompleted = item.type === "record" || item.status === "완료";
@@ -1533,18 +1443,18 @@ function buildRecordHistoryTimeline(item: DayItem, sourceLabel: string): RecordH
 
   items.push({
     key: "reservation-created",
-    title: "예약 접수",
-    description: `${sourceLabel}으로 예약이 접수되었습니다.`,
+    title: "예약 등록",
+    description: `${sourceLabel}으로 예약이 바로 등록되었습니다.`,
     ...reservationTime,
-    dotClassName: "bg-[#b98121]",
+    dotClassName: "bg-[#2f7866]",
   });
 
-  if (shouldShowConfirmed) {
+  if (item.reservationConfirmedAt) {
     items.push({
-      key: "reservation-confirmed",
-      title: "예약 확정",
-      description: "예약이 확정되었습니다.",
-      ...confirmedTime,
+      key: "booking-confirmed-notification",
+      title: "예약 확정 안내",
+      description: "오너가 직접 등록한 예약의 확정 알림톡을 발송했습니다.",
+      ...confirmedNotificationTime,
       dotClassName: "bg-[#2f7866]",
     });
   }

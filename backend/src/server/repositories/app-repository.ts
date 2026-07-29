@@ -118,7 +118,7 @@ function getRejectReason(payload: { rejectionReasonTemplate?: string; rejectionR
 }
 
 function canCustomerManageAppointment(appointment: Appointment) {
-  if (!["pending", "confirmed"].includes(appointment.status)) return false;
+  if (appointment.status !== "confirmed") return false;
 
   const today = currentDateInTimeZone();
   if (appointment.appointment_date > today) return true;
@@ -192,7 +192,7 @@ export async function createAppointment(input: unknown) {
   });
   if (!availableSlots.includes(payload.appointmentTime)) throw new Error("선택한 시간에는 예약할 수 없습니다.");
 
-  const status = payload.source === "owner" ? "confirmed" : data.shop.approval_mode === "auto" ? "confirmed" : "pending";
+  const status = "confirmed";
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
   const appointment: Appointment = {
     id: randomUUID(),
@@ -216,7 +216,7 @@ export async function createAppointment(input: unknown) {
     const store = normalizeBootstrapNotifications(getMockStore());
     store.shop = { ...store.shop, customer_page_settings: normalizeCustomerPageSettings(store.shop.customer_page_settings, store.shop.name, store.shop.description) };
     store.appointments = [...store.appointments, appointment];
-    if (status === "confirmed") {
+    if (appointment.source === "owner") {
       await queueEventNotification({
         store,
         type: "booking_confirmed",
@@ -275,9 +275,7 @@ export async function updateAppointmentStatus(input: unknown) {
 
     const eventType = payload.eventType
       ? payload.eventType
-      : payload.status === "confirmed"
-        ? "booking_confirmed"
-        : payload.status === "rejected"
+      : payload.status === "rejected"
           ? "booking_rejected"
           : payload.status === "cancelled"
             ? "booking_cancelled"
@@ -358,7 +356,7 @@ export async function updateCustomerAppointment(input: unknown) {
     throw new Error("선택한 시간에는 예약을 변경할 수 없습니다.");
   }
 
-  const nextStatus = data.shop.approval_mode === "auto" ? "confirmed" : "pending";
+  const nextStatus = "confirmed";
   const nextMemo = payload.memo.trim();
   const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
 
@@ -594,8 +592,8 @@ export async function updateShopSettings(input: unknown) {
       phone: payload.phone,
       address: payload.address,
       description: payload.description,
-      concurrent_capacity: payload.concurrentCapacity,
-      approval_mode: payload.approvalMode,
+      concurrent_capacity: 1,
+      approval_mode: "auto",
       regular_closed_days: payload.regularClosedDays,
       temporary_closed_dates: payload.temporaryClosedDates,
       business_hours: Object.fromEntries(Object.entries(payload.businessHours).map(([key, value]) => [Number(key), value])),
@@ -614,8 +612,8 @@ export async function updateShopSettings(input: unknown) {
       phone: payload.phone,
       address: payload.address,
       description: payload.description,
-      concurrent_capacity: payload.concurrentCapacity,
-      approval_mode: payload.approvalMode,
+      concurrent_capacity: 1,
+      approval_mode: "auto",
       regular_closed_days: payload.regularClosedDays,
       temporary_closed_dates: payload.temporaryClosedDates,
       business_hours: payload.businessHours,

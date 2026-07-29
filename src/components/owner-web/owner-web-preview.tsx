@@ -104,8 +104,6 @@ function mergeOwnerWebShop(current: OwnerWebShop, incoming: OwnerWebShop): Owner
 
 function renderScreen(
   screen: OwnerWebScreenKey,
-  manualApprovalEnabled: boolean,
-  onManualApprovalChange: (enabled: boolean) => void,
   initialData: BootstrapPayload,
   onDataChange: (data: BootstrapPayload) => void,
   onShopChange: (shop: BootstrapPayload["shop"]) => void,
@@ -130,9 +128,7 @@ function renderScreen(
           initialData={initialData}
           onDataChange={onDataChange}
           staffMembers={staffMembers}
-          manualApprovalEnabled={manualApprovalEnabled}
           automaticVisitReminderAvailable={automaticVisitReminderAvailable}
-          onManualApprovalChange={onManualApprovalChange}
           createRequest={createRequest}
           onCreateRequestHandled={onCreateRequestHandled}
         />
@@ -192,8 +188,6 @@ function renderScreen(
           onServicesChange={(services: BootstrapPayload["services"]) => onDataChange({ ...initialData, services })}
           onStaffMembersChange={onStaffMembersChange}
           persistShopProfile={!isDemoOwnerWebData(initialData)}
-          manualApprovalEnabled={manualApprovalEnabled}
-          onManualApprovalChange={onManualApprovalChange}
           automaticVisitReminderAvailable={automaticVisitReminderAvailable}
         />
       );
@@ -214,7 +208,6 @@ export default function OwnerWebPreview({
   currentPlanCode?: string | null;
 }) {
   const [activeScreen, setActiveScreen] = useState<OwnerWebScreenKey>(() => getInitialOwnerWebScreen(initialData));
-  const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -253,7 +246,6 @@ export default function OwnerWebPreview({
   const priceGuideOnboarding = shouldStartWithPriceGuideSetup(ownerData);
 
   useEffect(() => {
-    setManualApprovalEnabled(false);
     setOwnerData(initialData);
     setSubscriptionSummary(null);
     if (!isDemoOwnerWebData(initialData)) {
@@ -328,31 +320,6 @@ export default function OwnerWebPreview({
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [alimtalkCreditMenuOpen]);
-
-  function handleManualApprovalChange(_enabled: boolean) {
-    setManualApprovalEnabled(false);
-    const nextMode = "auto";
-    setOwnerData((current) => ({
-      ...current,
-      shop: {
-        ...current.shop,
-        approval_mode: nextMode,
-        concurrent_capacity: 1,
-      },
-      appointments: current.appointments,
-    }));
-    if (!demoMode) {
-      void fetchApiJsonWithAuth("/api/owner/shops", {
-        method: "PATCH",
-        body: JSON.stringify({
-          shopId: ownerData.shop.id,
-          approvalMode: nextMode,
-        }),
-      }).catch((error) => {
-        console.error("[OWNER WEB] failed to save approval mode", error);
-      });
-    }
-  }
 
   function handleShopProfileChange(shop: BootstrapPayload["shop"]) {
     setOwnerData((current) => {
@@ -492,8 +459,6 @@ export default function OwnerWebPreview({
     >
       {renderScreen(
         activeScreen,
-        manualApprovalEnabled,
-        handleManualApprovalChange,
         ownerData,
         setOwnerData,
         handleShopProfileChange,

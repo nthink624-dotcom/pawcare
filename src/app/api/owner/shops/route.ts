@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import { normalizeCustomerServiceOverrides } from "@/lib/customer-service-options";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
@@ -40,9 +39,7 @@ const updateShopSchema = z.object({
   additionalContact: z.string().trim().max(30).optional(),
   postalCode: z.string().trim().max(20).optional(),
   addressDetail: z.string().trim().max(120).optional(),
-  approvalMode: z.enum(["manual", "auto"]).optional(),
   cancelWindow: z.enum(["none", "1h", "2h", "6h", "24h"]).optional(),
-  pendingHoldLimit: z.coerce.number().int().min(1).max(3).optional().transform((value) => (value === undefined ? undefined : 1)),
   customerServiceOverrides: z.unknown().optional(),
   discountCoupons: z.unknown().optional(),
 });
@@ -170,8 +167,8 @@ export async function PATCH(request: NextRequest) {
           phone: body.phone ?? "",
           address: body.address ?? "",
           description: body.description ?? "",
-          approval_mode: body.approvalMode ?? "auto",
-          concurrent_capacity: concurrentCapacityForApprovalMode(body.approvalMode ?? "auto"),
+          approval_mode: "auto",
+          concurrent_capacity: 1,
           reservation_policy_settings: {
             cancel_window: body.cancelWindow ?? "2h",
             customer_change_enabled: body.cancelWindow !== "none",
@@ -216,11 +213,6 @@ export async function PATCH(request: NextRequest) {
     if (body.phone !== undefined) updates.phone = body.phone;
     if (body.address !== undefined) updates.address = body.address;
     if (body.description !== undefined) updates.description = body.description;
-    if (body.approvalMode !== undefined) {
-      updates.approval_mode = body.approvalMode;
-      updates.concurrent_capacity = concurrentCapacityForApprovalMode(body.approvalMode);
-    }
-
     const hasCustomerPageUpdates =
       body.name !== undefined ||
       body.tagline !== undefined ||
@@ -240,7 +232,6 @@ export async function PATCH(request: NextRequest) {
     if (
       Object.keys(updates).length === 0 &&
       body.cancelWindow === undefined &&
-      body.pendingHoldLimit === undefined &&
       !hasCustomerPageUpdates
     ) {
       throw new OwnerApiError("저장할 매장 정보가 없습니다.", 400);
@@ -249,7 +240,6 @@ export async function PATCH(request: NextRequest) {
     const needsCurrentShop =
       hasCustomerPageUpdates ||
       body.cancelWindow !== undefined ||
-      body.pendingHoldLimit !== undefined ||
       body.name !== undefined ||
       body.phone !== undefined ||
       body.address !== undefined ||
@@ -314,7 +304,7 @@ export async function PATCH(request: NextRequest) {
         };
       }
 
-      if (body.cancelWindow !== undefined || body.pendingHoldLimit !== undefined) {
+      if (body.cancelWindow !== undefined) {
         updates.reservation_policy_settings = {
           ...(currentShop?.reservation_policy_settings ?? {}),
           ...(body.cancelWindow !== undefined
@@ -323,7 +313,6 @@ export async function PATCH(request: NextRequest) {
                 customer_change_enabled: body.cancelWindow !== "none",
               }
             : {}),
-          ...(body.pendingHoldLimit !== undefined ? { pending_hold_limit: body.pendingHoldLimit } : {}),
         };
       }
     }

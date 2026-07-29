@@ -47,8 +47,8 @@ export const demoShop: Shop = {
   },
   regular_closed_days: [0],
   temporary_closed_dates: [temporaryClosedDate],
-  concurrent_capacity: 2,
-  approval_mode: "manual",
+  concurrent_capacity: 1,
+  approval_mode: "auto",
   notification_settings: normalizeShopNotificationSettings({
     enabled: true,
     revisit_enabled: true,
@@ -105,7 +105,7 @@ export const demoAppointments: Appointment[] = [
   { id: "a-5", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-full", appointment_date: today, appointment_time: "15:00", status: "confirmed", memo: "다리 컷 유지", rejection_reason: null, start_at: at(today, "15:00"), end_at: at(today, "17:00"), source: "customer", created_at: now, updated_at: now },
   { id: "a-6", shop_id: "demo-shop", guardian_id: "g-3", pet_id: "p-4", service_id: "svc-care", appointment_date: tomorrow, appointment_time: "17:00", status: "confirmed", memo: "", rejection_reason: null, start_at: at(tomorrow, "17:00"), end_at: at(tomorrow, "17:30"), source: "owner", created_at: now, updated_at: now },
   { id: "a-7", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-1", service_id: "svc-bath", appointment_date: dayAfterTomorrow, appointment_time: "11:00", status: "confirmed", memo: "짧게", rejection_reason: null, start_at: at(dayAfterTomorrow, "11:00"), end_at: at(dayAfterTomorrow, "12:20"), source: "customer", created_at: now, updated_at: now },
-  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "16:30", status: "pending", memo: "", rejection_reason: null, start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
+  { id: "a-8", shop_id: "demo-shop", guardian_id: "g-1", pet_id: "p-2", service_id: "svc-bath-only", appointment_date: today, appointment_time: "16:30", status: "confirmed", memo: "", rejection_reason: null, start_at: at(today, "16:30"), end_at: at(today, "17:15"), source: "customer", created_at: now, updated_at: now },
   { id: "a-9", shop_id: "demo-shop", guardian_id: "g-2", pet_id: "p-3", service_id: "svc-bath-only", appointment_date: twoDaysAgo, appointment_time: "09:30", status: "confirmed", memo: "", rejection_reason: null, start_at: at(twoDaysAgo, "09:30"), end_at: at(twoDaysAgo, "10:15"), source: "customer", created_at: now, updated_at: now },
 ];
 

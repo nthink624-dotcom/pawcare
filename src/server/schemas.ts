@@ -181,7 +181,7 @@ export const shopSettingsSchema = z.object({
   bookingSlotOffsetMinutes: z.coerce.number().int().min(0).max(55),
   bookingAvailableStartTime: z.string().regex(timePattern).default("10:00"),
   bookingAvailableEndTime: z.string().regex(timePattern).default("17:00"),
-  approvalMode: z.enum(["manual", "auto"]),
+  approvalMode: z.enum(["manual", "auto"]).optional().default("auto"),
   regularClosedDays: z.array(z.number().min(0).max(6)),
   regularClosedCycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).default("weekly"),
   regularClosedAnchorDate: z.string().nullable().optional().default(null),

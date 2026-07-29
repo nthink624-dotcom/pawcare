@@ -346,18 +346,6 @@ function isActiveBookingStatus(status: string) {
   return status === "진행 중" || status === "픽업 준비";
 }
 
-function isPendingBookingStatus(status: string) {
-  return false;
-}
-
-function isOverduePendingBookingStatus(status: string) {
-  return false;
-}
-
-function isApprovalQueueBookingStatus(status: string) {
-  return isPendingBookingStatus(status) || isOverduePendingBookingStatus(status);
-}
-
 function isConfirmedBookingStatus(status: string) {
   return status === "확정";
 }
@@ -416,10 +404,6 @@ function canSendCompletionNotice(sourceStatus: string, displayStatus: string) {
   return sourceStatus === "진행 중" && (displayStatus === "진행 중" || displayStatus === "완료 확인 필요" || displayStatus === "픽업 준비" || displayStatus === "완료");
 }
 
-function normalizeBookingForApprovalMode(booking: DailyBooking, manualApprovalEnabled: boolean): DailyBooking {
-  return booking;
-}
-
 function buildScheduleMetrics(bookings: DailyBooking[]): ScheduleMetric[] {
   const bookableCount = bookings.filter((booking) => isBookableStatus(booking.status)).length;
   const completedCount = bookings.filter((booking) => isCompletedBookingStatus(booking.status)).length;
@@ -433,7 +417,7 @@ function buildScheduleMetrics(bookings: DailyBooking[]): ScheduleMetric[] {
   ];
 }
 
-function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEnabled: boolean) {
+function getReservationFilterOptions(bookings: DailyBooking[]) {
   const bookableBookings = bookings.filter((booking) => isBookableStatus(booking.status));
   const changeBookings = bookings.filter((booking) => isChangeBookingStatus(booking.status));
   const options: Array<{ key: ReservationStatusFilter; label: string; count: number }> = [
@@ -441,7 +425,7 @@ function getReservationFilterOptions(bookings: DailyBooking[], manualApprovalEna
   ];
 
   options.push(
-    { key: "confirmed", label: "확정", count: bookableBookings.filter((booking) => isConfirmedBookingStatus(booking.status)).length },
+    { key: "confirmed", label: "예정", count: bookableBookings.filter((booking) => isConfirmedBookingStatus(booking.status)).length },
   );
 
   return options;
@@ -658,25 +642,6 @@ function getStaffBookingLayouts<T extends { id: string; start: number; duration:
   }
 
   return layouts;
-}
-
-function bookingWindowsOverlap(first: Pick<DailyBooking, "start" | "duration">, second: Pick<DailyBooking, "start" | "duration">) {
-  return first.start < second.start + second.duration && second.start < first.start + first.duration;
-}
-
-function getPendingOverlapBookings(booking: DailyBooking, bookings: DailyBooking[]) {
-  if (!isApprovalQueueBookingStatus(booking.sourceStatus ?? booking.status)) return [];
-
-  return bookings.filter((item) => {
-    if (item.id === booking.id) return false;
-    if (item.staffKey !== booking.staffKey) return false;
-    if (!isApprovalQueueBookingStatus(item.sourceStatus ?? item.status)) return false;
-    return bookingWindowsOverlap(booking, item);
-  });
-}
-
-function getPendingOverlapLabel(booking: DailyBooking, bookings: DailyBooking[]) {
-  return "";
 }
 
 function getBookingLayoutStyle(lane: number, laneCount: number) {
@@ -1687,15 +1652,12 @@ function BookingSidePanel({
   activeMetric,
   shopId,
   bootstrapData,
-  manualApprovalEnabled,
   automaticVisitReminderAvailable,
   selectedBooking,
   selectedBookingId,
   selectedDate,
   currentHour,
   bookings,
-  approvalModeBookings,
-  onManualApprovalChange,
   onChangeStatus,
   onRequestBeforePhotoStatusChange,
   onSelectBooking,
@@ -1710,15 +1672,12 @@ function BookingSidePanel({
   activeMetric: SummaryMetricKey;
   shopId: string;
   bootstrapData: BootstrapPayload;
-  manualApprovalEnabled: boolean;
   automaticVisitReminderAvailable: boolean;
   selectedBooking: DailyBooking | undefined;
   selectedBookingId: string;
   selectedDate: string;
   currentHour: number;
   bookings: DailyBooking[];
-  approvalModeBookings: DailyBooking[];
-  onManualApprovalChange: (enabled: boolean) => void;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onRequestBeforePhotoStatusChange: (booking: DailyBooking) => void;
   onSelectBooking: (id: string) => void;
@@ -1742,7 +1701,6 @@ function BookingSidePanel({
   const timeRange = selectedBooking
     ? `${formatHourLabel(selectedBooking.start)}–${formatHourLabel(selectedBooking.start + selectedBooking.duration)}`
     : "";
-  const pendingOverlapLabel = selectedBooking ? getPendingOverlapLabel(selectedBooking, bookings) : "";
   const previousTimeRange =
     selectedBooking?.previousStart !== undefined
       ? `${formatHourLabel(selectedBooking.previousStart)} - ${formatHourLabel(
@@ -1987,10 +1945,8 @@ function BookingSidePanel({
   const rawRequestText = selectedBooking.memo?.trim() || getCustomerRequest(selectedBooking.id);
   const hasRequestText = Boolean(rawRequestText);
   const requestText = rawRequestText || "고객 요청사항이 없습니다.";
-  const workflowPending = isApprovalQueueBookingStatus(sourceStatus);
   const workflowCompleted = isCompletedBookingStatus(sourceStatus) || isCompletedBookingStatus(displayStatus);
   const canResendCurrentNotification =
-    !workflowPending &&
     !changeEventSelected &&
     (sourceStatus !== "확정" || selectedBooking.source === "owner");
   const canSendVisitReminder = sourceStatus === "확정" || sourceStatus === "진행 중" || sourceStatus === "픽업 준비";
@@ -2420,15 +2376,7 @@ function BookingSidePanel({
           <section className="shrink-0 bg-white px-4 pb-4 pt-3 shadow-[0_-10px_24px_rgba(15,23,42,0.04)]">
             <div className="mx-3 mb-3 h-px bg-[#e6edf2]" />
             <div className="grid gap-2">
-              {isPendingBookingStatus(sourceStatus) ? (
-                <button
-                  type="button"
-                  onClick={() => onChangeStatus(selectedBooking.id, "확정")}
-                  className="h-10 rounded-[8px] bg-[#2f6fd6] text-[15px] font-medium text-white transition hover:bg-[#255fc1]"
-                >
-                  예약 확정
-                </button>
-              ) : sourceStatus === "확정" ? (
+              {sourceStatus === "확정" ? (
                 <>
                   <button
                     type="button"
@@ -3127,30 +3075,26 @@ function MissedStartAlert({
 function PersistentBookingPanelHero({
   booking,
   timeRange,
-  isPending,
   startEnabled,
   finalActionEnabled,
   finalActionStatus,
   finalActionLabel,
-  pendingOverlapLabel,
   onChangeStatus,
 }: {
   booking: DailyBooking;
   timeRange: string;
-  isPending: boolean;
   startEnabled: boolean;
   finalActionEnabled: boolean;
   finalActionStatus: string;
   finalActionLabel: string;
-  pendingOverlapLabel: string;
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
 }) {
   const profile = getPetProfile(booking);
   const needsAttention = booking.status === "방문 확인 필요" || booking.status === "완료 확인 필요";
-  const statusClass = isPending || needsAttention
+  const statusClass = needsAttention
     ? "border-[#e8c67e] bg-[#fff7ed] text-[#9a640f]"
     : "border-[#b7d8cd] bg-[#eef8f4] text-[#1f6b5b]";
-  const statusLabel = isPending ? "예약 확인" : needsAttention ? booking.status : "예약 확정";
+  const statusLabel = needsAttention ? booking.status : "예약 예정";
 
   return (
     <div className="border-b border-[#edf2f7] pb-4">
@@ -3159,11 +3103,6 @@ function PersistentBookingPanelHero({
           <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", statusClass)}>
             {statusLabel}
           </span>
-          {pendingOverlapLabel ? (
-            <span className="ml-2 inline-flex rounded-full border border-[#e8c67e] bg-[#fffaf0] px-3 py-1.5 text-[13px] font-medium text-[#9a640f]">
-              {pendingOverlapLabel}
-            </span>
-          ) : null}
           <p className="mt-3 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[#111827]">
             오늘 {timeRange} <span className="text-[14px] font-normal text-[#64748b]">(예상)</span>
           </p>
@@ -3175,52 +3114,33 @@ function PersistentBookingPanelHero({
         <PetImageBlock pet={booking.pet} />
       </div>
 
-      {isPending ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onChangeStatus(booking.id, "확정")}
-            className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#b98121] px-2 text-[14px] font-semibold text-white transition hover:bg-[#9a640f]"
-          >
-            예약 확정
+      <div className="mt-4 space-y-2">
+        <button
+          type="button"
+          disabled={!startEnabled && !finalActionEnabled}
+          onClick={() => {
+            if (startEnabled) onChangeStatus(booking.id, "진행 중");
+            else if (finalActionEnabled) onChangeStatus(booking.id, finalActionStatus);
+          }}
+          className={cn(
+            "inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-[16px] font-semibold transition",
+            startEnabled || finalActionEnabled
+              ? "bg-[#334155] text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]"
+              : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]",
+          )}
+        >
+          {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+          {startEnabled ? "미용 시작하기" : finalActionLabel}
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
+            노쇼 처리
           </button>
-          <button
-            type="button"
-            onClick={() => onChangeStatus(booking.id, "취소")}
-            className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#ead6dc] bg-white px-2 text-[13px] font-medium text-[#8f2438] transition hover:bg-[#fffafa]"
-          >
+          <button type="button" onClick={() => onChangeStatus(booking.id, "취소")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
             예약 취소
           </button>
         </div>
-      ) : (
-        <div className="mt-4 space-y-2">
-          <button
-            type="button"
-            disabled={!startEnabled && !finalActionEnabled}
-            onClick={() => {
-              if (startEnabled) onChangeStatus(booking.id, "진행 중");
-              else if (finalActionEnabled) onChangeStatus(booking.id, finalActionStatus);
-            }}
-            className={cn(
-              "inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-[16px] font-semibold transition",
-              startEnabled || finalActionEnabled
-                ? "bg-[#334155] text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] hover:bg-[#1f2937]"
-                : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]",
-            )}
-          >
-            {startEnabled ? <Play className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
-            {startEnabled ? "미용 시작하기" : finalActionLabel}
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => onChangeStatus(booking.id, "노쇼")} disabled={!startEnabled} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa] disabled:cursor-not-allowed disabled:border-[#e2e8f0] disabled:text-[#cbd5e1]">
-              노쇼 처리
-            </button>
-            <button type="button" onClick={() => onChangeStatus(booking.id, "취소")} className="h-10 rounded-[8px] border border-[#ead6dc] bg-white text-[13px] font-medium text-[#8f2438] hover:bg-[#fffafa]">
-              예약 취소
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -3244,9 +3164,6 @@ function ReservationDetailSheet({
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
   onChangeStaffComment: (commentKey: string, value: string, booking?: DailyBooking) => void;
 }) {
-  const sourceStatus = booking.sourceStatus ?? booking.status;
-  const isPending = isApprovalQueueBookingStatus(sourceStatus);
-
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/10" onClick={onClose}>
       <aside
@@ -3263,25 +3180,14 @@ function ReservationDetailSheet({
           </button>
         </div>
         <div className="space-y-4 p-6">
-          {isPending ? (
-            <PendingReservationDetail
-              booking={booking}
-              shopId={shopId}
-              selectedDate={selectedDate}
-              staffComments={staffComments}
-              onChangeStatus={onChangeStatus}
-              onChangeStaffComment={onChangeStaffComment}
-            />
-          ) : (
-            <ConfirmedReservationDetail
-              booking={booking}
-              selectedDate={selectedDate}
-              currentHour={currentHour}
-              staffComments={staffComments}
-              onChangeStatus={onChangeStatus}
-              onChangeStaffComment={onChangeStaffComment}
-            />
-          )}
+          <ConfirmedReservationDetail
+            booking={booking}
+            selectedDate={selectedDate}
+            currentHour={currentHour}
+            staffComments={staffComments}
+            onChangeStatus={onChangeStatus}
+            onChangeStaffComment={onChangeStaffComment}
+          />
         </div>
       </aside>
     </div>
@@ -3408,21 +3314,18 @@ function PendingReservationDetail({
   const commentKey = getCustomerCommentKey(booking);
   const staffComment = getStaffCommentValue(staffComments, booking);
   const timeRange = `${formatHourLabel(booking.start)} - ${formatHourLabel(booking.start + booking.duration)}`;
-  const overdue = isOverduePendingBookingStatus(booking.sourceStatus ?? booking.status);
-  const badgeClass = overdue
-    ? "border-[#ead6dc] bg-[#fffafa] text-[#8f2438]"
-    : "border-[#e8c67e] bg-[#fff7ed] text-[#9a640f]";
+  const badgeClass = "border-[#b7d8cd] bg-[#eef8f4] text-[#1f6b5b]";
 
   return (
     <>
-      <section className={cn("rounded-[8px] border bg-white p-5", overdue ? "border-[#ead6dc]" : "border-[#ead7c7]")}>
+      <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <span className={cn("inline-flex rounded-full border px-3 py-1.5 text-[15px] font-medium", badgeClass)}>
-              {overdue ? "확인 필요" : "예약 확인"}
+              예약 예정
             </span>
-            <p className={cn("mt-3 text-[15px] font-medium", overdue ? "text-[#8f2438]" : "text-[#9a640f]")}>
-              {overdue ? "처리 기한이 지난 예약입니다. 예약 취소 안내에서 다른 시간 조율을 함께 안내해 주세요." : "고객이 예약 확정을 기다리는 중입니다."}
+            <p className="mt-3 text-[15px] font-medium text-[#1f6b5b]">
+              고객 예약은 승인 대기 없이 바로 등록됩니다.
             </p>
             <p className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[#111827]">{formatPanelDateLabel(selectedDate)} {timeRange}</p>
             <p className="mt-2 text-[20px] font-semibold text-[#111827]">{booking.pet} · {profile.breed} · {profile.weight}</p>
@@ -3432,15 +3335,6 @@ function PendingReservationDetail({
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          {overdue ? (
-            <div className="col-span-2 rounded-[8px] border border-[#ead6dc] bg-[#fffafa] px-4 py-3 text-[15px] leading-6 text-[#8f2438]">
-              지난 예약은 바로 확정할 수 없습니다.
-            </div>
-          ) : (
-            <button type="button" onClick={() => onChangeStatus(booking.id, "확정")} className="col-span-2 min-h-[56px] rounded-[8px] bg-[#b98121] text-[18px] font-semibold text-white shadow-[0_10px_20px_rgba(185,129,33,0.16)] hover:bg-[#9a640f]">
-              예약 확정
-            </button>
-          )}
           <button type="button" onClick={() => setCancelOpen(true)} className="col-span-2 h-11 rounded-[8px] border border-[#f2b8b8] bg-white text-[14px] font-medium text-[#b42318]">
             예약 취소/시간 조율
           </button>
@@ -3802,8 +3696,6 @@ export default function CalendarManagementScreen({
   initialData,
   onDataChange,
   staffMembers = [],
-  manualApprovalEnabled: controlledManualApprovalEnabled,
-  onManualApprovalChange,
   automaticVisitReminderAvailable = true,
   createRequest,
   onCreateRequestHandled,
@@ -3811,8 +3703,6 @@ export default function CalendarManagementScreen({
   initialData: BootstrapPayload;
   onDataChange?: (data: BootstrapPayload) => void;
   staffMembers?: OwnerWebStaffMember[];
-  manualApprovalEnabled?: boolean;
-  onManualApprovalChange?: (enabled: boolean) => void;
   automaticVisitReminderAvailable?: boolean;
   createRequest?: OwnerScheduleCreateRequest | null;
   onCreateRequestHandled?: (requestId: number) => void;
@@ -3847,7 +3737,6 @@ export default function CalendarManagementScreen({
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => buildStaffCommentsFromBootstrap(initialData));
   const staffCommentSaveTimersRef = useRef<Record<string, number>>({});
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
-  const [internalManualApprovalEnabled, setInternalManualApprovalEnabled] = useState(true);
   const [earlyStartBooking, setEarlyStartBooking] = useState<DailyBooking | null>(null);
   const [photoStatusAction, setPhotoStatusAction] = useState<PhotoStatusAction | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
@@ -3860,7 +3749,6 @@ export default function CalendarManagementScreen({
   const [pendingOutOfHoursMove, setPendingOutOfHoursMove] = useState<PendingOutOfHoursMove | null>(null);
   const statusChangeInFlightRef = useRef(false);
   const recentStatusOverridesRef = useRef<Record<string, RecentStatusOverride>>({});
-  const manualApprovalEnabled = controlledManualApprovalEnabled ?? internalManualApprovalEnabled;
   useEffect(() => {
     if (!createRequest) return;
     const targetDate = createRequest.date ?? selectedDate;
@@ -3910,21 +3798,20 @@ export default function CalendarManagementScreen({
       staffScopedBookings
         .filter((booking) => !(isChangeBookingStatus(booking.status) && acknowledgedChangeBookingIds.has(booking.id)))
           .map((booking) => {
-            const normalizedBooking = normalizeBookingForApprovalMode(booking, manualApprovalEnabled);
-            const timedStatus = getTimedBookingStatus(normalizedBooking, selectedDate, scheduleStatusHour);
-            const sourceStatus = isOverduePendingBookingStatus(timedStatus) ? timedStatus : normalizedBooking.status;
+            const timedStatus = getTimedBookingStatus(booking, selectedDate, scheduleStatusHour);
+            const sourceStatus = booking.status;
             return {
-              ...normalizedBooking,
+              ...booking,
               sourceStatus,
               status: timedStatus,
             };
           }),
-    [acknowledgedChangeBookingIds, manualApprovalEnabled, scheduleStatusHour, selectedDate, staffScopedBookings],
+    [acknowledgedChangeBookingIds, scheduleStatusHour, selectedDate, staffScopedBookings],
   );
   const summaryMetrics = useMemo(() => buildScheduleMetrics(displayScopedBookings), [displayScopedBookings]);
   const reservationFilterOptions = useMemo(
-    () => getReservationFilterOptions(displayScopedBookings, manualApprovalEnabled),
-    [displayScopedBookings, manualApprovalEnabled],
+    () => getReservationFilterOptions(displayScopedBookings),
+    [displayScopedBookings],
   );
 
   function applyRecentStatusOverrides(data: BootstrapPayload): BootstrapPayload {
@@ -4045,13 +3932,11 @@ export default function CalendarManagementScreen({
   }, [staff, visibleStaff]);
 
   useEffect(() => {
-    const nextBookings = manualApprovalEnabled
-      ? selectedDateBookings
-      : selectedDateBookings.map((booking) => normalizeBookingForApprovalMode(booking, false));
+    const nextBookings = selectedDateBookings;
     setBookings(nextBookings);
     setScheduleStatusHour(getCurrentDayHour());
     setSelectedBookingId((current) => (current && nextBookings.some((booking) => booking.id === current) ? current : ""));
-  }, [manualApprovalEnabled, selectedDateBookings]);
+  }, [selectedDateBookings]);
 
   useEffect(() => {
     setStaffComments((current) => ({ ...current, ...buildStaffCommentsFromBootstrap(bootstrapData) }));
@@ -4670,18 +4555,6 @@ export default function CalendarManagementScreen({
     setSelectedBookingId((current) => (current === bookingId ? "" : current));
   }
 
-  function handleManualApprovalChange(enabled: boolean) {
-    if (controlledManualApprovalEnabled === undefined) {
-      setInternalManualApprovalEnabled(enabled);
-    }
-    onManualApprovalChange?.(enabled);
-    if (!enabled) {
-      setBookings((current) =>
-        current.map((booking) => (isPendingBookingStatus(booking.status) ? { ...booking, status: "확정" } : booking)),
-      );
-    }
-  }
-
   function handleAddSchedule() {
     const targetStaff =
       (selectedBoardStaffKey ? visibleStaff.find((item) => item.key === selectedBoardStaffKey) : null) ??
@@ -4778,7 +4651,7 @@ export default function CalendarManagementScreen({
       setBootstrapData(nextBootstrapData);
       onDataChange?.(nextBootstrapData);
       setSelectedDate(scheduleForm.date);
-      setBookings(manualApprovalEnabled ? nextBookings : nextBookings.map((booking) => normalizeBookingForApprovalMode(booking, false)));
+      setBookings(nextBookings);
       setSelectedBookingId(appointment.id);
       setActiveMetric("today");
       setReservationStatusFilter("all");
@@ -5038,7 +4911,6 @@ export default function CalendarManagementScreen({
             staffMembers={staffMembers}
             staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
             activeMetric={activeMetric}
-            manualApprovalEnabled={manualApprovalEnabled}
             selectedBookingId={selectedBookingId}
               selectedDate={selectedDate}
               operatingWindow={getScheduleOperatingWindow(bootstrapData.shop, selectedDate)}
@@ -5056,15 +4928,12 @@ export default function CalendarManagementScreen({
           activeMetric={activeMetric}
           shopId={bootstrapData.shop.id}
           bootstrapData={bootstrapData}
-          manualApprovalEnabled={manualApprovalEnabled}
           automaticVisitReminderAvailable={automaticVisitReminderAvailable}
           selectedBooking={selectedBooking}
           selectedBookingId={selectedBookingId}
           selectedDate={selectedDate}
           currentHour={scheduleStatusHour}
           bookings={filteredBookings}
-          approvalModeBookings={[]}
-          onManualApprovalChange={handleManualApprovalChange}
           onChangeStatus={handleChangeBookingStatus}
           onRequestBeforePhotoStatusChange={requestBeforePhotoStatusChange}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}

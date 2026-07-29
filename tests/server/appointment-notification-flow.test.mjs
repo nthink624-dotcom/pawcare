@@ -118,6 +118,13 @@ describe("appointment and alimtalk flow guards", () => {
     assert.equal(confirmations[0].status, "mocked");
   });
 
+  it("creates a customer appointment as confirmed without an approval confirmation notification", async () => {
+    const appointment = await createAvailableOwnerAppointment({ source: "customer" });
+
+    assert.equal(getAppointment(appointment.id).status, "confirmed");
+    assert.equal(notificationsFor(appointment.id, "booking_confirmed").length, 0);
+  });
+
   it("reschedules a confirmed appointment and sends only a real change notification", async () => {
     const appointment = await createAvailableOwnerAppointment({ source: "customer" });
     const updated = await rescheduleToAvailableSlot(appointment);

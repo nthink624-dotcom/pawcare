@@ -16,7 +16,6 @@ import ShopInfoSettingsPanel from "@/components/owner-web/settings-shop-info-pan
 import { Switch } from "@/components/ui/switch";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { fetchApiJsonWithAuth } from "@/lib/api";
-import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { MAX_CUSTOMER_PAGE_HERO_IMAGES, normalizeDiscountCoupons } from "@/lib/customer-page-settings";
 import {
   applyConfiguredCustomerServiceOverrides,
@@ -30,7 +29,7 @@ import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-cli
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
-import type { ApprovalMode, BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
+import type { BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
 
 type SettingControl = "text" | "address" | "select" | "toggle" | "readonly" | "stepper" | "businessHours" | "closedDays";
 
@@ -62,9 +61,7 @@ type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description">
   addressDetail: string;
 };
 type ShopPolicyPatch = {
-  approvalMode: ApprovalMode;
   cancelWindow: ReservationPolicySettings["cancel_window"];
-  pendingHoldLimit: 1;
 };
 
 type PublicMediaSignedUrlsResponse = {
@@ -73,14 +70,6 @@ type PublicMediaSignedUrlsResponse = {
     signedUrl: string;
   }>;
 };
-
-function approvalModeLabel(value: ApprovalMode | null | undefined) {
-  return value === "auto" ? "바로 승인" : "직접 승인";
-}
-
-function approvalModeFromLabel(value: string): ApprovalMode {
-  return value === "바로 승인" || value === "auto" ? "auto" : "manual";
-}
 
 function cancelWindowLabel(value: ReservationPolicySettings["cancel_window"] | string | null | undefined) {
   switch (value) {
@@ -358,13 +347,6 @@ const initialSettings: Record<SettingsTabKey, SettingsTab> = {
         control: "readonly",
       },
       {
-        id: "approvalMode",
-        label: "예약 확정",
-        value: "자동 확정",
-        description: "고객 예약은 승인 대기 없이 바로 스케줄에 등록됩니다.",
-        control: "readonly",
-      },
-      {
         id: "cancelWindow",
         label: "취소 허용 시간",
         value: "예약 2시간 전까지",
@@ -469,7 +451,6 @@ function applyShopToSettings(settings: Record<SettingsTabKey, SettingsTab>, shop
         if (row.id === "postalCode") return { ...row, value: shop.customer_page_settings.postal_code || "" };
         if (row.id === "address") return { ...row, value: shop.address };
         if (row.id === "addressDetail") return { ...row, value: shop.customer_page_settings.address_detail || "" };
-        if (row.id === "approvalMode") return { ...row, value: approvalModeLabel(shop.approval_mode) };
         if (row.id === "cancelWindow") {
           return { ...row, value: cancelWindowLabel(shop.reservation_policy_settings?.cancel_window) };
         }
@@ -642,9 +623,7 @@ function readShopProfileFromSettings(settings: Record<SettingsTabKey, SettingsTa
 function readShopPolicyFromSettings(settings: Record<SettingsTabKey, SettingsTab>): ShopPolicyPatch {
   const rows = settings.shop.rows;
   return {
-    approvalMode: approvalModeFromLabel(String(rows.find((row) => row.id === "approvalMode")?.value ?? "")),
     cancelWindow: cancelWindowFromLabel(String(rows.find((row) => row.id === "cancelWindow")?.value ?? "")),
-    pendingHoldLimit: 1,
   };
 }
 
@@ -1045,8 +1024,6 @@ export default function SettingsManagementScreen({
   onServicesChange,
   onStaffMembersChange,
   persistShopProfile = true,
-  manualApprovalEnabled,
-  onManualApprovalChange,
   automaticVisitReminderAvailable = true,
 }: {
   activeTab?: SettingsTabKey;
@@ -1061,8 +1038,6 @@ export default function SettingsManagementScreen({
   onServicesChange?: (services: Service[]) => void;
   onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
   persistShopProfile?: boolean;
-  manualApprovalEnabled?: boolean;
-  onManualApprovalChange?: (enabled: boolean) => void;
   automaticVisitReminderAvailable?: boolean;
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTabKey>("shop");
@@ -1298,8 +1273,6 @@ export default function SettingsManagementScreen({
       ...profilePatch,
       ...(policyPatch
         ? {
-            approval_mode: policyPatch.approvalMode,
-            concurrent_capacity: concurrentCapacityForApprovalMode(policyPatch.approvalMode),
             reservation_policy_settings: {
               ...shop.reservation_policy_settings,
               cancel_window: policyPatch.cancelWindow,
@@ -1338,8 +1311,6 @@ export default function SettingsManagementScreen({
         | "phone"
         | "address"
         | "description"
-        | "approval_mode"
-        | "concurrent_capacity"
         | "reservation_policy_settings"
         | "customer_page_settings"
       >;
@@ -1358,7 +1329,6 @@ export default function SettingsManagementScreen({
           heroImageUrls: persistentHeroImageUrls,
           heroMediaAssetIds: stableHeroMediaAssetIds,
           ...(policyPatch ?? {}),
-          ...(policyPatch ? { pendingHoldLimit: policyPatch.pendingHoldLimit } : {}),
         }),
       },
     );
@@ -1377,9 +1347,6 @@ export default function SettingsManagementScreen({
           : {}),
       }),
     });
-    if (policyPatch) {
-      onManualApprovalChange?.(policyPatch.approvalMode !== "auto");
-    }
   }
 
   async function persistShopProfileImageSettings(nextImages: string[], nextMediaAssetIds: string[]) {
@@ -2117,7 +2084,6 @@ export default function SettingsManagementScreen({
           bookingSlotOffsetMinutes: shop.booking_slot_offset_minutes,
           bookingAvailableStartTime: shop.booking_available_start_time,
           bookingAvailableEndTime: shop.booking_available_end_time,
-          approvalMode: shop.approval_mode,
           regularClosedDays: shop.regular_closed_days,
           regularClosedCycle: shop.regular_closed_cycle ?? "weekly",
           regularClosedAnchorDate: shop.regular_closed_anchor_date ?? null,

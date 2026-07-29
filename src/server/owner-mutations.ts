@@ -2,7 +2,6 @@
 
 import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
 import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
-import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import {
@@ -567,7 +566,7 @@ export async function updateShopSettings(
     grooming_complete_without_photo_enabled: payload.notificationSettings.groomingCompleteWithoutPhotoEnabled,
   };
   const normalizedNotificationSettings = coerceEnabledShopNotificationSettings(nextNotificationSettings);
-  const concurrentCapacity = concurrentCapacityForApprovalMode(payload.approvalMode);
+  const concurrentCapacity = 1;
   const regularClosedAnchorDate = payload.regularClosedCycle === "biweekly" ? payload.regularClosedAnchorDate : null;
   const normalizedReservationPolicySettings = {
     ...normalizeReservationPolicySettings(payload.reservationPolicySettings),
@@ -584,7 +583,7 @@ export async function updateShopSettings(
     booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
     booking_available_start_time: payload.bookingAvailableStartTime,
     booking_available_end_time: payload.bookingAvailableEndTime,
-    approval_mode: payload.approvalMode,
+    approval_mode: "auto" as const,
     regular_closed_days: payload.regularClosedDays,
     temporary_closed_dates: payload.temporaryClosedDates,
     business_hours: payload.businessHours,
@@ -607,7 +606,7 @@ export async function updateShopSettings(
       booking_slot_offset_minutes: payload.bookingSlotOffsetMinutes,
       booking_available_start_time: payload.bookingAvailableStartTime,
       booking_available_end_time: payload.bookingAvailableEndTime,
-      approval_mode: payload.approvalMode,
+      approval_mode: "auto",
       regular_closed_days: payload.regularClosedDays,
       regular_closed_cycle: payload.regularClosedCycle,
       regular_closed_anchor_date: regularClosedAnchorDate,

@@ -656,7 +656,6 @@ export default function OperatingHoursSettings({
           bookingSlotOffsetMinutes: nextShop.booking_slot_offset_minutes,
           bookingAvailableStartTime: nextShop.booking_available_start_time,
           bookingAvailableEndTime: nextShop.booking_available_end_time,
-          approvalMode: nextShop.approval_mode,
           regularClosedDays: nextShop.regular_closed_days,
           regularClosedCycle: nextShop.regular_closed_cycle ?? "weekly",
           regularClosedAnchorDate: nextShop.regular_closed_anchor_date ?? null,

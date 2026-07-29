@@ -75,7 +75,6 @@ function buildSettingsPayload(shop: Shop, reservationPolicySettings: Shop["reser
     bookingSlotOffsetMinutes: shop.booking_slot_offset_minutes,
     bookingAvailableStartTime: shop.booking_available_start_time,
     bookingAvailableEndTime: shop.booking_available_end_time,
-    approvalMode: shop.approval_mode,
     regularClosedDays: shop.regular_closed_days,
     regularClosedCycle: shop.regular_closed_cycle ?? "weekly",
     regularClosedAnchorDate: shop.regular_closed_anchor_date ?? null,

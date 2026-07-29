@@ -91,19 +91,6 @@ export function SwipeCancelInfoButton() {
   );
 }
 
-export function ApprovalModeInfoButton() {
-  return (
-    <InfoTip
-      ariaLabel="승인 방식 안내"
-      tone="warm"
-      size="small"
-      popoverClassName="w-[208px] rounded-[11px] text-[11px] leading-[18px]"
-    >
-      직접 승인은 예약마다 승인 여부를 선택해요. 바로 승인은 고객 예약이 자동 확정돼요.
-    </InfoTip>
-  );
-}
-
 export function HorizontalDragScroll({ children }: { children: React.ReactNode }) {
   return <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar">{children}</div>;
 }

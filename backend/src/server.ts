@@ -656,7 +656,7 @@ app.post("/api/auth/signup", async (request, response) => {
       regular_closed_days: [],
       temporary_closed_dates: [],
       concurrent_capacity: 1,
-      approval_mode: "manual",
+      approval_mode: "auto",
       created_at: now,
       updated_at: now,
     });

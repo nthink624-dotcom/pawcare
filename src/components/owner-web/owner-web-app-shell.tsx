@@ -253,7 +253,6 @@ export default function OwnerWebAppShell({
   ownerPhone,
   shopInitials,
   currentPlanLabel,
-  currentPlanMeta,
   alimtalkCreditSummary,
   alimtalkCreditMenuOpen,
   alimtalkCreditMenuRef,
@@ -277,7 +276,6 @@ export default function OwnerWebAppShell({
   ownerPhone: string;
   shopInitials: string;
   currentPlanLabel: string;
-  currentPlanMeta: string;
   alimtalkCreditSummary: BootstrapPayload["alimtalkCreditSummary"];
   alimtalkCreditMenuOpen: boolean;
   alimtalkCreditMenuRef: RefObject<HTMLDivElement | null>;
@@ -354,26 +352,19 @@ export default function OwnerWebAppShell({
         </nav>
 
         <div className="border-t border-[var(--nav-bd)] px-5 py-4">
-          <div className="rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+          <Link
+            href="/owner/billing?compare=1"
+            prefetch
+            aria-label={`${currentPlanLabel} 요금표 보기`}
+            className="block rounded-[13px] border border-[#dbe2ea] bg-white px-3.5 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#b8c7dc] hover:bg-[#f8fbff]"
+          >
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
-                <p className="mt-0.5 truncate text-[12px] font-medium text-[#8b95a3]">{currentPlanMeta}</p>
-              </div>
+              <p className="min-w-0 truncate text-[14px] font-semibold text-[#273142]">{currentPlanLabel}</p>
               <span className="shrink-0 rounded-full bg-[#edf4ff] px-2.5 py-1 text-[12px] font-bold text-[#316fe8]">
                 이용 플랜
               </span>
             </div>
-          </div>
-          <div className="hidden rounded-[12px] border border-[var(--nav-bd)] bg-white/55 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-[var(--nav-ink)]">{currentPlanLabel}</p>
-                <p className="mt-1 text-[12px] font-medium text-[var(--nav-mut)]">{currentPlanMeta}</p>
-              </div>
-              <span className="text-[13px] font-bold text-[var(--acc)]">이용 플랜</span>
-            </div>
-          </div>
+          </Link>
         </div>
       </aside>
 

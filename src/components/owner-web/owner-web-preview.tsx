@@ -21,7 +21,7 @@ import StaffManagementScreen from "@/components/owner-web/staff-management-scree
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
-import { getOwnerPlanDisplayName, getOwnerPlanStaffLimitLabel } from "@/lib/billing/owner-plans";
+import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
@@ -233,16 +233,6 @@ export default function OwnerWebPreview({
     : currentPlanCode
       ? getOwnerPlanDisplayName(currentPlanCode)
       : "플랜 확인";
-  const currentPlanMeta = subscriptionSummary
-    ? subscriptionSummary.cancelAtPeriodEnd
-      ? "다음 결제 취소됨"
-      : getOwnerPlanStaffLimitLabel(
-          subscriptionSummary.currentPlan,
-          subscriptionSummary.billingAmount.multiShopDiscount.totalShopCount,
-        )
-    : currentPlanCode
-      ? "현재 이용 플랜"
-      : "구독 정보 확인";
   const automaticVisitReminderAvailable = true;
   const priceGuideOnboarding = shouldStartWithPriceGuideSetup(ownerData);
 
@@ -433,7 +423,6 @@ export default function OwnerWebPreview({
       ownerPhone={ownerData.ownerProfile?.phone_number ?? ownerData.shop.phone ?? ""}
       shopInitials={shopInitials}
       currentPlanLabel={currentPlanLabel}
-      currentPlanMeta={currentPlanMeta}
       alimtalkCreditSummary={ownerData.alimtalkCreditSummary}
       alimtalkCreditMenuOpen={alimtalkCreditMenuOpen}
       alimtalkCreditMenuRef={alimtalkCreditMenuRef}

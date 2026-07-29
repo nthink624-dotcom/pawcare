@@ -5,8 +5,10 @@ const npxCommand = process.platform === "win32" ? "D:\\Node\\node.exe" : "npx";
 const npxPrefixArgs = process.platform === "win32" ? ["D:\\Node\\node_modules\\npm\\bin\\npx-cli.js"] : [];
 const envFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
 const targetEnvironment = process.argv.find((arg) => arg.startsWith("--environment="))?.slice("--environment=".length) || "production";
+const removeEmpty = process.argv.includes("--remove-empty");
 
 const keys = [
+  "ALIMTALK_SENDER_KEY",
   "ALIMTALK_RELAY_URL",
   "ALIMTALK_RELAY_ADMIN_URL",
   "ALIMTALK_RELAY_SECRET",
@@ -26,7 +28,7 @@ const keys = [
   "ALIMTALK_TEMPLATE_BIRTHDAY_GREETING",
 ];
 
-const sensitiveKeys = new Set(["ALIMTALK_RELAY_SECRET"]);
+const sensitiveKeys = new Set(["ALIMTALK_SENDER_KEY", "ALIMTALK_RELAY_SECRET"]);
 
 function parseEnv(filePath) {
   const values = {};
@@ -66,12 +68,29 @@ function runVercel(args, options = {}) {
 
 const envValues = parseEnv(envFile);
 const changed = [];
+const removed = [];
 const skipped = [];
 
 for (const key of keys) {
   const value = envValues[key] || "";
   if (!value) {
-    skipped.push(key);
+    if (!removeEmpty) {
+      skipped.push(key);
+      continue;
+    }
+
+    const removeResult = runVercel(["env", "rm", key, targetEnvironment, "--yes"]);
+    if (
+      !removeResult.ok &&
+      !/not found|does not exist|no environment variable/i.test(`${removeResult.stdout}\n${removeResult.stderr}`)
+    ) {
+      console.error(`ERROR ${key}: failed to remove from Vercel ${targetEnvironment}`);
+      console.error(removeResult.stderr.split(/\r?\n/).filter(Boolean).slice(-2).join("\n"));
+      process.exitCode = 1;
+      break;
+    }
+
+    removed.push(key);
     continue;
   }
 
@@ -100,4 +119,5 @@ for (const key of keys) {
 
 console.log(`Synced ${changed.length} Alimtalk env values to Vercel ${targetEnvironment}.`);
 for (const item of changed) console.log(`SET ${item}`);
+for (const key of removed) console.log(`REMOVE ${key}`);
 for (const key of skipped) console.log(`SKIP ${key}: empty locally`);

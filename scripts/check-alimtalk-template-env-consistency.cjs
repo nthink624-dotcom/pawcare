@@ -20,7 +20,8 @@ const TEMPLATE_KEYS = [
 ];
 
 const RELAY_KEYS = ["ALIMTALK_RELAY_URL", "ALIMTALK_RELAY_ADMIN_URL", "ALIMTALK_RELAY_SECRET"];
-const SENSITIVE_PULL_KEYS = new Set(["ALIMTALK_RELAY_SECRET"]);
+const PROFILE_KEYS = ["ALIMTALK_SENDER_KEY"];
+const SENSITIVE_PULL_KEYS = new Set(["ALIMTALK_RELAY_SECRET", "ALIMTALK_SENDER_KEY"]);
 const args = new Set(process.argv.slice(2));
 const shouldPullVercel = args.has("--pull-vercel-production");
 const localEnvFile = process.argv.find((arg) => arg.startsWith("--local="))?.slice("--local=".length) || ".env.local";
@@ -57,7 +58,16 @@ function parseEnvFile(filePath) {
 }
 
 function valueStatus(key, localValue, productionValue) {
-  if (SENSITIVE_PULL_KEYS.has(key) && localValue && !productionValue) return "present-sensitive";
+  const isProtectedProductionValue =
+    typeof productionValue === "string" &&
+    /^(?:vercel:|@)|sensitive|encrypted|secret/i.test(productionValue);
+  if (
+    SENSITIVE_PULL_KEYS.has(key) &&
+    localValue &&
+    (!productionValue || isProtectedProductionValue)
+  ) {
+    return "present-sensitive";
+  }
   if (!localValue && !productionValue) return "both-missing";
   if (!localValue) return "local-missing";
   if (!productionValue) return "production-missing";
@@ -119,11 +129,12 @@ try {
   console.log(`production=${path.normalize(productionEnvFile)}`);
 
   const relayHasIssue = printGroup("Relay", RELAY_KEYS, localValues, productionValues);
+  const profileHasIssue = printGroup("Sender Profile", PROFILE_KEYS, localValues, productionValues);
   const templateHasIssue = printGroup("Alimtalk Templates", TEMPLATE_KEYS, localValues, productionValues);
 
-  if (relayHasIssue || templateHasIssue) {
+  if (relayHasIssue || profileHasIssue || templateHasIssue) {
     console.error(
-      "\nAlimtalk relay/template values must stay identical between local development and Vercel production.",
+      "\nAlimtalk sender/relay/template values must stay identical between local development and Vercel production.",
     );
     process.exitCode = 1;
   }

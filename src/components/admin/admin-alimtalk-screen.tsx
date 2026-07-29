@@ -67,6 +67,7 @@ const appTemplateCodeFieldGroups: Array<{
     fields: [
       { key: "templateBookingConfirmed", label: "예약 확정" },
       { key: "templateBookingCancelled", label: "예약 취소" },
+      { key: "templateBookingTimeProposed", label: "다른 시간 제안" },
       { key: "templateBookingRescheduledConfirmed", label: "예약 변경 확정" },
       { key: "templateVisitScheduleNotice", label: "예약 안내 - 내일" },
       { key: "templateVisitReminderNotice", label: "예약 안내 - 오늘" },
@@ -74,14 +75,19 @@ const appTemplateCodeFieldGroups: Array<{
       { key: "templateGroomingStarted", label: "미용 시작" },
       { key: "templateGroomingAlmostDone", label: "픽업 준비" },
       { key: "templateGroomingCompleted", label: "미용 완료 사진" },
-      { key: "templateRevisitNotice", label: "재방문 안내" },
-      { key: "templateBirthdayGreeting", label: "생일 축하" },
     ],
   },
 ];
 
+const hiddenAdminTemplateAliases = new Set<AlimtalkTemplateAlias>([
+  "booking_received",
+  "booking_rejected",
+  "revisit_notice",
+  "birthday_greeting",
+]);
+
 function getVisibleAppTemplateDrafts(items: AppTemplateDraft[]) {
-  return items.filter((item) => item.alias !== "booking_received");
+  return items.filter((item) => !hiddenAdminTemplateAliases.has(item.alias));
 }
 
 function isUsableSsodaaTemplate(template: RelaySsodaaTemplateDetail | null | undefined) {
@@ -324,7 +330,7 @@ export default function AdminAlimtalkScreen({
       },
       body: JSON.stringify({ alias, body }),
     });
-    if (response.item.alias !== "booking_received") {
+    if (!hiddenAdminTemplateAliases.has(response.item.alias)) {
       setAppTemplateDrafts((prev) => prev.map((item) => (item.alias === alias ? response.item : item)));
     }
     setMessage("우리 템플릿을 저장했습니다. 다음 발송부터 저장한 본문이 적용됩니다.");

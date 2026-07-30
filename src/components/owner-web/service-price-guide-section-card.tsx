@@ -60,21 +60,17 @@ export function ServicePriceGuideSectionCard({
   onRemoveWeightBand,
   onUpdateCell,
 }: ServicePriceGuideSectionCardProps) {
-  const actionColumnWidth = isEditing ? 34 : 0;
   const smallButtonStyle = {
     fontSize: "12.5px",
     fontWeight: 600,
-    letterSpacing: "-0.7px",
     lineHeight: "normal",
   } as const;
+  const editOnlyClassName = isEditing
+    ? "opacity-100"
+    : "pointer-events-none invisible opacity-0";
 
   return (
-    <section
-      className={cn(
-        "relative left-1/2 w-[calc(100%+32px)] max-w-[900px] min-w-0 -translate-x-1/2 rounded-[16px] border border-[#e2e7ed] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
-        isEditing ? "px-[30px] py-7" : "px-[22px] py-5",
-      )}
-    >
+    <section className="relative left-1/2 w-[calc(100%+32px)] max-w-[900px] min-w-0 -translate-x-1/2 rounded-[16px] border border-[#e2e7ed] bg-white px-[26px] pb-[26px] pt-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
       <div className="mb-[18px] flex min-w-0 items-center justify-between">
         <div className="flex min-w-0 items-center gap-[10px]">
           {isEditing ? (
@@ -156,7 +152,7 @@ export function ServicePriceGuideSectionCard({
               type="button"
               onClick={onToggleEdit}
               style={smallButtonStyle}
-              className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#f6f7f9]"
+              className="inline-flex h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#0f172a] bg-[#0f172a] px-[13px] text-[12.5px] font-semibold text-white transition-colors hover:bg-[#1c2a3e]"
             >
               <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
               편집
@@ -171,7 +167,7 @@ export function ServicePriceGuideSectionCard({
             <span
               key={`${breed}-${index}`}
               style={{ letterSpacing: "-0.7px" }}
-              className="inline-flex h-7 items-center whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-[11px] text-[12px] font-semibold leading-[14px] text-[#334155]"
+              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-[11px] py-[5px] text-[12px] font-semibold leading-[14px] text-[#334155]"
             >
               {breed}
             </span>
@@ -186,21 +182,16 @@ export function ServicePriceGuideSectionCard({
             type="button"
             onClick={onOpenBreedManagement}
             style={smallButtonStyle}
-            className="ml-auto inline-flex h-[28px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[11px] text-[12px] font-semibold text-[#334155] transition-colors hover:bg-white"
+            className="ml-auto inline-flex h-[34px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-white px-[13px] text-[12.5px] font-semibold text-[#334155] transition-colors hover:bg-[#f6f7f9]"
           >
-            <PencilLine className="h-3 w-3" strokeWidth={2} />
+            <PencilLine className="h-[13px] w-[13px]" strokeWidth={2} />
             품종 관리
           </button>
         ) : null}
       </div>
 
       <div className="w-full max-w-full overflow-x-auto rounded-[11px] border border-[#e2e7ed]">
-        <table
-          className="w-full border-collapse text-[13.5px] leading-[17px] text-[#1e293b]"
-          style={{
-            minWidth: 96 + 96 + section.items.length * 150 + actionColumnWidth,
-          }}
-        >
+        <table className="w-full border-collapse text-[13.5px] leading-[17px] text-[#1e293b]">
           <colgroup>
             <col className="w-24" />
             <col className="w-24" />
@@ -322,6 +313,9 @@ export function ServicePriceGuideSectionCard({
                       price: "",
                       durationMinutes: "",
                     };
+                    const formattedPrice = formatPriceInput(cell.price);
+                    const priceInputWidth = `calc(${Math.max(formattedPrice.length, 1)}ch + 2px)`;
+                    const durationInputWidth = `calc(${Math.max(cell.durationMinutes.length, 1)}ch + 1px)`;
 
                     return (
                       <td
@@ -333,26 +327,13 @@ export function ServicePriceGuideSectionCard({
                             "border-r border-[#edf1f5]",
                         )}
                       >
-                        <div className="relative min-w-0">
-                          <div
-                            className={cn(
-                              "flex items-baseline gap-1.5 whitespace-nowrap",
-                              isEditing && "invisible",
-                            )}
-                          >
-                            <span className="font-extrabold tabular-nums text-[#0f172a]">
-                              {formatPriceInput(cell.price) || "-"}
-                            </span>
-                            <span className="text-[12px] leading-[normal] text-[#64748b]">
-                              / {cell.durationMinutes || "-"}분 예상
-                            </span>
-                          </div>
+                        <div className="flex items-baseline gap-[6px] whitespace-nowrap">
                           {isEditing ? (
-                            <div className="absolute inset-0 flex min-w-0 items-baseline gap-1.5 overflow-hidden whitespace-nowrap">
+                            <>
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                value={formatPriceInput(cell.price)}
+                                value={formattedPrice}
                                 onChange={(event) =>
                                   onUpdateCell(item.id, band, { price: event.target.value })
                                 }
@@ -362,35 +343,44 @@ export function ServicePriceGuideSectionCard({
                                   fontSize: "13.5px",
                                   fontWeight: 800,
                                   lineHeight: "17px",
+                                  width: priceInputWidth,
                                 }}
-                                className="min-w-[1ch] max-w-[58px] border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
+                                className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
                               />
-                              <span className="text-[12px] leading-[normal] text-[#64748b]">
-                                /
+                              <span className="inline-flex items-baseline whitespace-nowrap text-[12px] leading-[normal] text-[#64748b]">
+                                <span className="mr-1">/</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={cell.durationMinutes}
+                                  onChange={(event) =>
+                                    onUpdateCell(item.id, band, {
+                                      durationMinutes: event.target.value,
+                                    })
+                                  }
+                                  placeholder="-"
+                                  aria-label={`${item.label} ${band} 예상 시간 수정`}
+                                  style={{
+                                    fontSize: "12px",
+                                    fontWeight: 400,
+                                    lineHeight: "15px",
+                                    width: durationInputWidth,
+                                  }}
+                                  className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-right text-[12px] leading-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
+                                />
+                                <span>분 예상</span>
                               </span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={cell.durationMinutes}
-                                onChange={(event) =>
-                                  onUpdateCell(item.id, band, {
-                                    durationMinutes: event.target.value,
-                                  })
-                                }
-                                placeholder="-"
-                                aria-label={`${item.label} ${band} 예상 시간 수정`}
-                                style={{
-                                  fontSize: "12px",
-                                  fontWeight: 400,
-                                  lineHeight: "15px",
-                                }}
-                                className="min-w-[1ch] max-w-[24px] border-0 bg-transparent p-0 text-right text-[12px] leading-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
-                              />
-                              <span className="text-[12px] leading-[normal] text-[#64748b]">
-                                분 예상
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-extrabold tabular-nums text-[#0f172a]">
+                                {formattedPrice || "-"}
                               </span>
-                            </div>
-                          ) : null}
+                              <span className="text-[12px] leading-[normal] text-[#64748b]">
+                                / {cell.durationMinutes || "-"}분 예상
+                              </span>
+                            </>
+                          )}
                         </div>
                       </td>
                     );

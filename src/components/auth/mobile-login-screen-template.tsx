@@ -172,10 +172,10 @@ export default function MobileLoginScreenTemplate({
   }, [syncBrowserFilledCredentials]);
 
   return (
-    <main className="flex min-h-screen w-screen items-center justify-center bg-[#eef0f3] py-6 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#0f172a] antialiased">
-      <section className="w-full max-w-[390px] overflow-hidden rounded-[28px] bg-white px-7 pb-8 pt-11 shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
-        <h1 className="mb-2 text-center text-xl font-extrabold leading-[normal] tracking-[-0.3px] text-[#0f172a]">{heading}</h1>
-        <p className="mb-6 text-center text-[13px] leading-[1.55] text-[#94a3b8]">
+    <main className="flex min-h-screen w-screen items-center justify-center bg-[#eef0f3] py-10 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#0f172a] antialiased">
+      <section className="w-full max-w-[390px] overflow-hidden rounded-[28px] bg-white px-7 pb-10 pt-[52px] shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+        <h1 className="mb-[10px] text-center text-xl font-extrabold leading-[normal] tracking-[-0.3px] text-[#0f172a]">{heading}</h1>
+        <p className="mb-7 text-center text-[13px] leading-[1.55] text-[#94a3b8]">
           {descriptionLines.map((line, index) => (
             <span key={`${line}-${index}`}>
               {line}
@@ -196,7 +196,7 @@ export default function MobileLoginScreenTemplate({
 
         <Divider>또는 아이디로 로그인</Divider>
 
-        <div className="mb-2">
+        <div className="mb-[10px]">
           <input
             data-testid="owner-login-id"
             ref={loginIdInputRef}
@@ -206,11 +206,11 @@ export default function MobileLoginScreenTemplate({
             onBlur={syncBrowserFilledCredentials}
             placeholder={loginIdPlaceholder}
             autoComplete="username"
-            className="h-12 w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
+            className="h-[50px] w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
           />
         </div>
 
-        <div className="relative mb-2">
+        <div className="relative mb-[10px]">
           <input
             data-testid="owner-login-password"
             ref={passwordInputRef}
@@ -220,7 +220,7 @@ export default function MobileLoginScreenTemplate({
             onBlur={syncBrowserFilledCredentials}
             placeholder={passwordPlaceholder}
             autoComplete="current-password"
-            className="h-12 w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 pr-12 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
+            className="h-[50px] w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 pr-12 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
           />
           <button
             type="button"
@@ -234,7 +234,7 @@ export default function MobileLoginScreenTemplate({
 
         {message ? <p className="mb-2 text-[12px] font-medium leading-5 text-[#d34b4b]">{message}</p> : null}
 
-        <div className="mb-4 mt-3 flex items-center justify-between leading-[normal]">
+        <div className="mb-5 mt-[14px] flex items-center justify-between leading-[normal]">
           <label className="flex items-center gap-[7px] text-[13px] text-[#64748b]">
             <input
               type="checkbox"
@@ -251,12 +251,12 @@ export default function MobileLoginScreenTemplate({
           type="button"
           onClick={() => onLogin(syncBrowserFilledCredentials())}
           disabled={loading}
-          className="h-[50px] w-full rounded-[13px] border-0 bg-[#0f172a] text-[15px] font-bold text-white transition-[filter] duration-150 hover:brightness-[1.12] disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-[54px] w-full rounded-[13px] border-0 bg-[#0f172a] text-[15px] font-bold text-white transition-[filter] duration-150 hover:brightness-[1.12] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? loginButtonLoadingLabel : loginButtonLabel}
         </button>
 
-        <div className="mb-1 mt-4 flex items-center justify-center gap-2.5 text-[12.5px] leading-[normal] text-[#94a3b8]">
+        <div className="mb-2 mt-5 flex items-center justify-center gap-2.5 text-[12.5px] leading-[normal] text-[#94a3b8]">
           {resolvedHelperLinks.map((link, index) => (
             <span key={`${link.href}-${link.label}`} className="contents">
               {index > 0 ? <span className="text-[#e2e8f0]">|</span> : null}
@@ -269,7 +269,7 @@ export default function MobileLoginScreenTemplate({
 
         <Divider>또는</Divider>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {socialProviders.includes("naver") ? (
             <SocialButton
               provider="naver"
@@ -297,7 +297,7 @@ export default function MobileLoginScreenTemplate({
 
 function Divider({ children }: { children: ReactNode }) {
   return (
-    <div className="my-5 flex items-center gap-3 text-xs leading-[normal] text-[#94a3b8] before:h-px before:flex-1 before:bg-[#e5e9f0] after:h-px after:flex-1 after:bg-[#e5e9f0]">
+    <div className="my-6 flex items-center gap-3 text-xs leading-[normal] text-[#94a3b8] before:h-px before:flex-1 before:bg-[#e5e9f0] after:h-px after:flex-1 after:bg-[#e5e9f0]">
       {children}
     </div>
   );
@@ -328,10 +328,10 @@ function SocialButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`relative flex h-[50px] w-full items-center rounded-[13px] border px-[18px] text-[15px] font-semibold transition-[filter,transform] duration-150 hover:-translate-y-px hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${tone}`}
+      className={`relative flex h-[54px] w-full items-center rounded-[13px] border px-[18px] text-[15px] font-semibold transition-[filter,transform] duration-150 hover:-translate-y-px hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60 ${tone}`}
     >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
-      <span className="mr-5 min-w-0 flex-1 truncate text-center">{label}</span>
+      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">{icon}</span>
+      <span className="mr-[22px] min-w-0 flex-1 truncate text-center">{label}</span>
     </button>
   );
 }

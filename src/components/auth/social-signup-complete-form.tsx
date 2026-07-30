@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -180,6 +180,26 @@ function joinAddress(baseAddress: string, detailAddress: string) {
   return [baseAddress.trim(), detailAddress.trim()].filter(Boolean).join(" ");
 }
 
+function readPendingSocialProvider() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE);
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingSocialProvider() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
+  } catch {
+    // Browser storage can be unavailable. The OAuth session remains the source of truth.
+  }
+}
+
 function FormField({
   label,
   children,
@@ -234,7 +254,6 @@ export default function SocialSignupCompleteForm({
   provider?: SocialProvider;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
 
   const [resolvedProvider, setResolvedProvider] = useState<SocialProvider | undefined>(provider);
   const [ownerName, setOwnerName] = useState("");
@@ -250,41 +269,49 @@ export default function SocialSignupCompleteForm({
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const pendingProvider =
-      typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
+    let active = true;
+    const pendingProvider = readPendingSocialProvider();
 
     async function syncUser() {
-      if (!supabase) return;
+      const supabase = getSupabaseOAuthBrowserClient();
+      if (!supabase) {
+        if (active) {
+          setMessage("소셜 로그인 정보를 확인하지 못했어요. 로그인 화면에서 다시 시도해 주세요.");
+        }
+        return;
+      }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const sessionResult = await supabase.auth.getSession();
+      if (sessionResult.error) {
+        throw sessionResult.error;
+      }
 
-      if (!user) {
+      const session = sessionResult.data.session;
+      const user = session?.user;
+      if (!active) return;
+
+      if (!session?.access_token || !user) {
         setMessage("소셜 로그인 정보를 확인하지 못했어요. 로그인 화면에서 다시 시도해 주세요.");
         return;
       }
 
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token;
-      if (accessToken) {
-        try {
-          const response = await fetch("/api/owner/shops", {
-            cache: "no-store",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-          const shops = response.ok ? await response.json() : [];
-          if (Array.isArray(shops) && shops.length > 0) {
-            router.replace(nextPath as never);
-            return;
-          }
-        } catch {
-          // Existing-shop detection is only a convenience; keep the social signup form usable.
+      try {
+        const response = await fetch("/api/owner/shops", {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const shops = response.ok ? await response.json() : [];
+        if (active && Array.isArray(shops) && shops.length > 0) {
+          router.replace(nextPath as never);
+          return;
         }
+      } catch {
+        // Existing-shop detection is only a convenience; keep the social signup form usable.
       }
 
+      if (!active) return;
       const detectedProvider =
         pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
           ? pendingProvider
@@ -298,13 +325,22 @@ export default function SocialSignupCompleteForm({
           normalizePhone(readMetadataValue(user.user_metadata, ["phone", "phone_number", "phoneNumber"]) || user.phone || ""),
       );
 
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(PENDING_SOCIAL_PROVIDER_STORAGE);
-      }
+      clearPendingSocialProvider();
     }
 
-    void syncUser();
-  }, [nextPath, router, supabase]);
+    void syncUser().catch((error) => {
+      if (!active) return;
+
+      console.error("[SOCIAL SIGNUP] failed to restore OAuth session", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      setMessage("소셜 로그인 정보를 불러오지 못했어요. 로그인 화면에서 다시 시도해 주세요.");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [nextPath, router]);
 
   const providerLabel = resolvedProvider ? providerLabelMap[resolvedProvider] : "소셜";
   const providerVisual = resolvedProvider ? providerVisuals[resolvedProvider] : null;
@@ -360,6 +396,7 @@ export default function SocialSignupCompleteForm({
     setMessage(null);
 
     try {
+      const supabase = getSupabaseOAuthBrowserClient();
       const session = await supabase?.auth.getSession();
       const accessToken = session?.data.session?.access_token;
       if (!accessToken) {

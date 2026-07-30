@@ -160,6 +160,16 @@ assertIncludes(
   "Social signup completion must preserve the new shop id for parallel owner bootstrap.",
 );
 assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "const pendingProvider = readPendingSocialProvider();",
+  "Social signup completion must tolerate unavailable browser storage.",
+);
+assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "void syncUser().catch",
+  "Social signup session restoration must handle rejected auth promises.",
+);
+assertIncludes(
   "src/components/owner-web/service-management-screen.tsx",
   "useRef(getServiceFormSignature(initialServiceForm))",
   "The service editor must treat its initial server state as saved and avoid write-on-load.",

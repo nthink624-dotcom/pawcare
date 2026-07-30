@@ -1,11 +1,16 @@
 "use client";
 
 import { CircleHelp, MessageCircle } from "lucide-react";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
-import { PETMANAGER_BRAND_MARK_SRC, PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import {
+  PETMANAGER_BRAND_MARK_SRC,
+  PETMANAGER_MASTER_BRAND_NAME,
+  PETMANAGER_SERVICE_NAME,
+} from "@/lib/brand";
 import {
   renderNotificationTemplateBody,
   type NotificationTemplateVariables,
@@ -339,9 +344,11 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
       <div className="mt-4 flex justify-center">
         <div className="w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
           <div className="flex items-center gap-2">
-            <img
+            <Image
               src={PETMANAGER_BRAND_MARK_SRC}
-              alt=""
+              alt={PETMANAGER_MASTER_BRAND_NAME}
+              width={36}
+              height={36}
               className="h-9 w-9 rounded-full bg-white object-contain p-1"
             />
             <p className="min-w-0 truncate text-[14px] text-[#0f172a]">{PETMANAGER_SERVICE_NAME}</p>

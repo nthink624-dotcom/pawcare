@@ -82,8 +82,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
         <Link href="/" aria-label={`${PETMANAGER_SERVICE_NAME} 홈`} className="flex shrink-0 items-center">
           <PetManagerBrand
             priority
-            markSize={36}
-            imageClassName="h-9 w-9"
+            imageClassName="h-[22px] w-auto"
             nameClassName="text-[16px] text-[#173b33] sm:text-[18px]"
           />
         </Link>

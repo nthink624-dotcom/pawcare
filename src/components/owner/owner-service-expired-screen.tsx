@@ -74,8 +74,7 @@ export default function OwnerServiceExpiredScreen({
         <div className="mx-auto flex h-full w-full max-w-[1240px] items-center px-8">
           <PetManagerBrand
             priority
-            markSize={34}
-            imageClassName="h-[34px] w-[34px]"
+            imageClassName="h-[21px] w-auto"
             nameClassName="text-[17px] text-[#173b33]"
           />
           <div className="ml-auto flex items-center gap-4">

@@ -304,8 +304,7 @@ export default function OwnerWebAppShell({
       <aside className="pm-owner-sidebar hidden h-screen w-[236px] shrink-0 flex-col border-r border-[var(--nav-bd)] bg-[var(--nav-bg)] lg:flex">
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
-            markSize={32}
-            imageClassName="h-8 w-8"
+            imageClassName="h-5 w-auto"
             nameClassName="text-[15px] text-[#173b33]"
           />
         </div>
@@ -440,8 +439,7 @@ export default function OwnerWebAppShell({
 
         <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--line2)] bg-[var(--card)] px-5 lg:hidden">
           <PetManagerBrand
-            markSize={32}
-            imageClassName="h-8 w-8"
+            imageClassName="h-5 w-auto"
             nameClassName="text-[15px] text-[#173b33]"
           />
           <div className="flex items-center gap-2">

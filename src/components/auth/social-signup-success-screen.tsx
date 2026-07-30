@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+import PetManagerBrand from "@/components/brand/petmanager-brand";
 import { cn, PAGE_FRAME } from "@/lib/ui-system";
 
 export default function SocialSignupSuccessScreen({ nextPath = "/owner" }: { nextPath?: string }) {
   return (
     <main className="min-h-screen bg-white px-6 py-7 text-[#111827]">
       <section className={cn(PAGE_FRAME, "flex min-h-[calc(100vh-56px)] flex-col bg-white pb-8 pt-7")}>
-        <p className="text-center text-[16px] font-medium text-[#6b7280]">{PETMANAGER_SERVICE_NAME}</p>
+        <PetManagerBrand
+          priority
+          className="justify-center"
+          imageClassName="h-[18px] w-auto"
+          nameClassName="text-[15px] text-[#111827]"
+        />
         <div className="flex flex-1 flex-col items-center justify-center pb-16 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#eef2f5] text-[#111827]">
             <Check className="h-7 w-7" strokeWidth={2.25} aria-hidden="true" />

@@ -72,7 +72,7 @@ export function ServicePriceGuideSectionCard({
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {isEditing ? (
-            <label className="relative flex h-10 w-[135px] max-w-full min-w-0 items-center rounded-[9px] border border-[#d8dee7] bg-[#f8f9fb] px-3 pr-8 transition hover:border-[#b8c2cf] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]">
+            <label className="relative flex h-10 w-[135px] max-w-full min-w-0 items-center gap-1 rounded-[9px] border border-[#d8dee7] bg-[#f8f9fb] px-3 pr-8 transition hover:border-[#b8c2cf] focus-within:border-[var(--accent)] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#e8f0f7]">
               <span className="sr-only">그룹명</span>
               <input
                 type="text"
@@ -81,7 +81,7 @@ export function ServicePriceGuideSectionCard({
                 placeholder="그룹명"
                 aria-label={`${formatGroupDisplayName(section.title)} 그룹명 수정`}
                 style={{ fontWeight: 800 }}
-                className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] tracking-[-0.02em] text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
+                className="h-full min-w-[1ch] max-w-[72px] border-0 bg-transparent p-0 text-[15px] tracking-[-0.02em] text-[#0f172a] outline-none placeholder:text-[#94a3b8] [field-sizing:content]"
               />
               {section.title.trim() && !section.title.trim().endsWith("그룹") ? (
                 <span

@@ -869,10 +869,31 @@ export function ServicePriceGuideEditor({
 
       {pendingDelete ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/30 px-4">
-          <div className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
-            <p className="text-[17px] font-semibold tracking-[-0.02em] text-[#111827]">정말 삭제하시겠습니까?</p>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-              {pendingDelete.title} 항목이 삭제됩니다. 최근 삭제 3건까지는 복구할 수 있어요.
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="price-guide-delete-title"
+            aria-describedby="price-guide-delete-description"
+            className="w-full max-w-[360px] rounded-[10px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.18)]"
+          >
+            <p
+              id="price-guide-delete-title"
+              className="text-[17px] font-semibold tracking-[-0.02em] text-[#111827]"
+            >
+              정말 삭제하시겠습니까?
+            </p>
+            <p
+              id="price-guide-delete-description"
+              className="mt-2 text-[14px] leading-6 text-[#64748b]"
+            >
+              {pendingDelete.kind === "section"
+                ? `${
+                    pendingDelete.title.trim().endsWith("그룹")
+                      ? pendingDelete.title
+                      : `${pendingDelete.title} 그룹`
+                  } 전체가 삭제됩니다.`
+                : `${pendingDelete.title} 항목이 삭제됩니다.`}{" "}
+              최근 삭제 3건까지는 복구할 수 있어요.
             </p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
@@ -25,6 +25,7 @@ import {
   type OwnerSubscriptionSummary,
 } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
+import { readCurrentOwnerShopId, writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -47,7 +48,6 @@ type OwnerAccessContext = {
   session: Session | null;
 };
 
-const CURRENT_OWNER_SHOP_STORAGE = "petmanager:owner-current-shop";
 const OWNER_LOAD_TIMEOUT_MS = 30000;
 const OWNER_SESSION_SLOW_NOTICE_MS = 8000;
 const OWNER_SESSION_TIMEOUT_MS = 10000;
@@ -134,6 +134,7 @@ export default function OwnerPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
   const [loggingOut, setLoggingOut] = useState(false);
+  const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
 
   function loadOwnerDemoFallback() {
     const demoBootstrap = buildOwnerDemoBootstrap();
@@ -276,43 +277,74 @@ export default function OwnerPage() {
         setCurrentOwnerAccessToken(ownerAccess.accessToken);
         setAccessToken(ownerAccess.accessToken);
 
-        const subscription = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
-          "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
-        );
+        const storedShopId = readCurrentOwnerShopId();
+        const loadSubscription = async () => {
+          const subscription = await withOwnerLoadTimeout(
+            fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", { cache: "no-store" }),
+            "구독 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
+          );
+          if (active) {
+            writeOwnerBillingSummaryCache(subscription);
+            setSubscriptionSummary(subscription);
+          }
+          return subscription;
+        };
+        const loadOwnedShops = () =>
+          withOwnerLoadTimeout(
+            fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
+            "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
+          );
+        const loadBootstrap = (shopId: string) =>
+          withOwnerLoadTimeout(
+            fetchApiJsonWithAuth<BootstrapPayload>(
+              `/api/bootstrap?shopId=${encodeURIComponent(shopId)}`,
+            ),
+            "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
+          );
 
-        writeOwnerBillingSummaryCache(subscription);
-        setSubscriptionSummary(subscription);
+        let resolvedShopId = storedShopId;
+        let bootstrap: BootstrapPayload;
 
-        if (isOwnerSubscriptionBlocked(subscription.status)) {
-          return;
+        try {
+          if (resolvedShopId) {
+            try {
+              bootstrap = await loadBootstrap(resolvedShopId);
+            } catch (storedShopError) {
+              const shops = await loadOwnedShops();
+              if (shops.length === 0) {
+                throw new Error("소유한 매장이 없습니다.");
+              }
+              const fallbackShopId = shops.find((shop) => shop.id !== resolvedShopId)?.id ?? null;
+              if (!fallbackShopId) {
+                throw storedShopError;
+              }
+              resolvedShopId = fallbackShopId;
+              bootstrap = await loadBootstrap(resolvedShopId);
+            }
+          } else {
+            const shops = await loadOwnedShops();
+            resolvedShopId = shops[0]?.id ?? null;
+            if (!resolvedShopId) {
+              throw new Error("소유한 매장이 없습니다.");
+            }
+            bootstrap = await loadBootstrap(resolvedShopId);
+          }
+        } catch (initialLoadError) {
+          const subscription = await loadSubscription().catch(() => null);
+          if (subscription && isOwnerSubscriptionBlocked(subscription.status)) {
+            return;
+          }
+          throw initialLoadError;
         }
-
-        const shops = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<OwnedShopSummary[]>("/api/owner/shops"),
-          "매장 정보를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
-        );
-        const storedShopId =
-          typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_OWNER_SHOP_STORAGE) : null;
-        const resolvedShopId =
-          (storedShopId && shops.some((shop) => shop.id === storedShopId) ? storedShopId : shops[0]?.id) ?? null;
-
-        if (!resolvedShopId) {
-          throw new Error("소유한 매장이 없습니다.");
-        }
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(CURRENT_OWNER_SHOP_STORAGE, resolvedShopId);
-        }
-
-        const bootstrap = await withOwnerLoadTimeout(
-          fetchApiJsonWithAuth<BootstrapPayload>(`/api/bootstrap?shopId=${encodeURIComponent(resolvedShopId)}`),
-          "오너 초기 데이터를 준비하는 중입니다. 첫 실행 또는 새 빌드 직후에는 조금 더 걸릴 수 있습니다.",
-        );
 
         if (!active) return;
+        writeCurrentOwnerShopId(resolvedShopId);
         setSelectedShopId(resolvedShopId);
         setData(bootstrap);
+        backgroundRefreshReadyAtRef.current = Date.now() + 5000;
+        void loadSubscription().catch(() => {
+          // The bootstrap endpoint already validated access. Keep the home visible if this secondary summary misses.
+        });
       } catch (error) {
         if (!active) return;
 
@@ -364,6 +396,7 @@ export default function OwnerPage() {
 
     const refreshDesktopData = async () => {
       if (document.visibilityState !== "visible") return;
+      if (Date.now() < backgroundRefreshReadyAtRef.current) return;
 
       try {
         const nextSubscription = await fetchApiJsonWithAuth<OwnerSubscriptionSummary>("/api/subscription", {

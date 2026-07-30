@@ -65,6 +65,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "카카오 로그인 정보를 확인할 수 없습니다." }, { status: 401 });
     }
 
+    const admin = getSupabaseAdmin();
+    if (!admin) {
+      return NextResponse.json({ message: "계정 정보를 저장할 수 없습니다." }, { status: 503 });
+    }
+
+    const existingShopResult = await admin
+      .from("shops")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .order("created_at")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingShopResult.error) {
+      return NextResponse.json({ message: "매장 연결 정보를 확인하지 못했어요." }, { status: 500 });
+    }
+
+    if (existingShopResult.data?.id) {
+      return NextResponse.json({
+        shopId: existingShopResult.data.id,
+        profileUpdated: false,
+      });
+    }
+
     const profileUrl = new URL(KAKAO_PROFILE_URL);
     profileUrl.searchParams.set(
       "property_keys",
@@ -98,11 +122,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const admin = getSupabaseAdmin();
-    if (!admin) {
-      return NextResponse.json({ message: "계정 정보를 저장할 수 없습니다." }, { status: 503 });
-    }
-
     const updateResult = await admin.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...user.user_metadata,
@@ -115,7 +134,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "카카오 계정 정보를 저장하지 못했어요." }, { status: 500 });
     }
 
-    return NextResponse.json({ name, phone });
+    return NextResponse.json({
+      name,
+      phone,
+      shopId: null,
+      profileUpdated: true,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "카카오 로그인 정보를 다시 확인해 주세요." }, { status: 400 });

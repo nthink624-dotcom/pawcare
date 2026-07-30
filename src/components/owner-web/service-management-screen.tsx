@@ -367,9 +367,13 @@ export default function ServiceManagementScreen({
     () => (demoMode ? normalizeServices(serviceRows) : normalizeBootstrapServices(initialServices)),
     [demoMode, initialServices],
   );
+  const initialServiceForm = useMemo(
+    () => buildForm(initialManagedServices[0] ?? normalizeServices(serviceRows)[0]),
+    [initialManagedServices],
+  );
   const [services, setServices] = useState<ManagedService[]>(() => initialManagedServices);
   const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id ?? "");
-  const [serviceForm, setServiceForm] = useState<ServiceForm>(() => buildForm(services[0] ?? normalizeServices(serviceRows)[0]));
+  const [serviceForm, setServiceForm] = useState<ServiceForm>(() => initialServiceForm);
   const [formError, setFormError] = useState("");
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "pending" | "saved" | "needs-info">("saved");
   const [customerServiceOverrides, setCustomerServiceOverrides] = useState<CustomerServiceDisplayOverrides>(() =>
@@ -380,8 +384,8 @@ export default function ServiceManagementScreen({
   const [storageReady, setStorageReady] = useState(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const customerServiceSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSavedSignatureRef = useRef("");
-  const latestServiceFormSignatureRef = useRef("");
+  const lastSavedSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
+  const latestServiceFormSignatureRef = useRef(getServiceFormSignature(initialServiceForm));
   const lastExternalServicesSignatureRef = useRef(demoMode ? "" : getBootstrapServicesSignature(initialServices));
   const lastPreviewServicesEmitSignatureRef = useRef("");
 
@@ -463,7 +467,18 @@ export default function ServiceManagementScreen({
 
   useEffect(() => {
     if (!onlyStaffName) return;
-    setServiceForm((form) => (form.staff === onlyStaffName ? form : { ...form, staff: onlyStaffName }));
+    setServiceForm((form) => {
+      if (form.staff === onlyStaffName) return form;
+
+      const nextForm = { ...form, staff: onlyStaffName };
+      const currentSignature = getServiceFormSignature(form);
+      if (currentSignature === lastSavedSignatureRef.current) {
+        const nextSignature = getServiceFormSignature(nextForm);
+        lastSavedSignatureRef.current = nextSignature;
+        latestServiceFormSignatureRef.current = nextSignature;
+      }
+      return nextForm;
+    });
   }, [onlyStaffName]);
 
   useEffect(() => {

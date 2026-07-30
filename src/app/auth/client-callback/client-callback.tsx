@@ -14,6 +14,7 @@ import {
   resolveSocialProviderFromAuthUser,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
+import { writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 function safeNextPath(value: string | null) {
@@ -122,6 +123,7 @@ export default function AuthClientCallback() {
       const requestedProvider = resolveProvider(params.get("provider"));
       const storedProvider = resolveProvider(window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE));
       const provider = requestedProvider ?? storedProvider ?? resolveSocialProviderFromAuthUser(user);
+      let resolvedShopId: string | null | undefined;
 
       if (provider === "naver") {
         if (!session.provider_token && !hasRequiredNaverProfile(user)) {
@@ -152,7 +154,7 @@ export default function AuthClientCallback() {
             }
 
             session = refreshed.data.session;
-            user = (await oauthSupabase.auth.getUser()).data.user ?? user;
+            user = refreshed.data.user ?? refreshed.data.session.user ?? user;
           }
         }
       }
@@ -172,8 +174,12 @@ export default function AuthClientCallback() {
             },
             body: JSON.stringify({ providerToken: session.provider_token }),
           });
+          const payload = (await profileResponse.json().catch(() => null)) as {
+            message?: string;
+            shopId?: string | null;
+            profileUpdated?: boolean;
+          } | null;
           if (!profileResponse.ok && !hasRequiredKakaoProfile(user)) {
-            const payload = (await profileResponse.json().catch(() => null)) as { message?: string } | null;
             redirectToLogin(
               "social-provider-profile",
               next,
@@ -183,18 +189,24 @@ export default function AuthClientCallback() {
           }
 
           if (profileResponse.ok) {
-            const refreshed = await oauthSupabase.auth.refreshSession();
-            if (refreshed.error || !refreshed.data.session) {
-              redirectToLogin(
-                "social-session",
-                next,
-                refreshed.error?.message || "로그인 세션을 갱신하지 못했습니다.",
-              );
-              return;
-            }
+            if (typeof payload?.shopId === "string" && payload.shopId) {
+              resolvedShopId = payload.shopId;
+              writeCurrentOwnerShopId(payload.shopId);
+            } else if (payload?.profileUpdated) {
+              resolvedShopId = null;
+              const refreshed = await oauthSupabase.auth.refreshSession();
+              if (refreshed.error || !refreshed.data.session) {
+                redirectToLogin(
+                  "social-session",
+                  next,
+                  refreshed.error?.message || "로그인 세션을 갱신하지 못했습니다.",
+                );
+                return;
+              }
 
-            session = refreshed.data.session;
-            user = (await oauthSupabase.auth.getUser()).data.user ?? user;
+              session = refreshed.data.session;
+              user = refreshed.data.user ?? refreshed.data.session.user ?? user;
+            }
           }
         }
       }
@@ -206,21 +218,38 @@ export default function AuthClientCallback() {
       writeOwnerAuthHandoff(handoffSession);
       writeOwnerAuthSessionCache(handoffSession);
 
-      try {
-        const response = await fetch("/api/owner/shops", {
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-        const shops = response.ok ? await response.json() : [];
-        if (Array.isArray(shops) && shops.length === 0) {
-          clearPendingProvider();
-          window.location.replace(`/signup/social?next=${encodeURIComponent(next)}&provider=${encodeURIComponent(provider)}`);
-          return;
+      if (resolvedShopId === undefined) {
+        try {
+          const response = await fetch("/api/owner/shops", {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          const shops = response.ok ? await response.json() : [];
+          if (Array.isArray(shops)) {
+            const firstShopId =
+              shops.length > 0 &&
+              shops[0] &&
+              typeof shops[0] === "object" &&
+              "id" in shops[0] &&
+              typeof shops[0].id === "string"
+                ? shops[0].id
+                : null;
+            resolvedShopId = firstShopId;
+            if (firstShopId) {
+              writeCurrentOwnerShopId(firstShopId);
+            }
+          }
+        } catch {
+          // If shop lookup fails, keep the signed-in session and continue to the requested page.
         }
-      } catch {
-        // If shop lookup fails, keep the signed-in session and continue to the requested page.
+      }
+
+      if (resolvedShopId === null) {
+        clearPendingProvider();
+        window.location.replace(`/signup/social?next=${encodeURIComponent(next)}&provider=${encodeURIComponent(provider)}`);
+        return;
       }
 
       clearPendingProvider();

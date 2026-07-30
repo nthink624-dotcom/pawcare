@@ -23,6 +23,7 @@ import {
   INPUT_BASE,
   cn,
 } from "@/lib/ui-system";
+import { writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 const providerLabelMap: Record<SocialProvider, string> = {
@@ -36,14 +37,12 @@ const providerVisuals: Record<
   {
     gradient: string;
     logoSrc: string;
-    decorativeLogoSrc?: string;
     logoClassName: string;
   }
 > = {
   kakao: {
     gradient: "linear-gradient(180deg, #fff3b0 0%, #ffffff 100%)",
     logoSrc: "/icons/social/kakaotalk_sharing_btn_medium.png",
-    decorativeLogoSrc: "/images/auth/kakao-symbol.png",
     logoClassName: "h-[38px] w-[38px] rounded-[10px]",
   },
   naver: {
@@ -68,9 +67,53 @@ function ProviderLogo({
   if (!provider) return null;
 
   const visual = providerVisuals[provider];
+
+  if (provider === "kakao") {
+    if (decorative) {
+      return (
+        <svg
+          viewBox="0 0 130 130"
+          aria-hidden="true"
+          className="h-[130px] w-[130px] text-[#3c1e1e]"
+        >
+          <path
+            fill="currentColor"
+            d="M65 17C35.7 17 12 34.7 12 56.6c0 14.5 10.5 27.2 26.1 34.1l-6.7 23.7c-.8 2.8 2.4 5 4.8 3.4l27.4-18.1h1.4c29.3 0 53-17.7 53-43.1S94.3 17 65 17Z"
+          />
+        </svg>
+      );
+    }
+
+    return (
+      <svg
+        viewBox="0 0 64 64"
+        role="img"
+        aria-label="카카오 로고"
+        className="h-[38px] w-[38px]"
+      >
+        <rect width="64" height="64" rx="13" fill="#FEE500" />
+        <path
+          fill="#191919"
+          d="M32 13.5c-12.4 0-22.5 7.7-22.5 17.2 0 6.3 4.4 11.8 11 14.8l-2.8 9.4c-.3 1.1.9 2 1.9 1.3l10.9-7.4H32c12.4 0 22.5-7.7 22.5-18.1S44.4 13.5 32 13.5Z"
+        />
+        <text
+          x="32"
+          y="35"
+          fill="#FEE500"
+          textAnchor="middle"
+          fontFamily="Arial, sans-serif"
+          fontSize="13"
+          fontWeight="700"
+        >
+          TALK
+        </text>
+      </svg>
+    );
+  }
+
   return (
     <Image
-      src={decorative ? (visual.decorativeLogoSrc ?? visual.logoSrc) : visual.logoSrc}
+      src={visual.logoSrc}
       alt={decorative ? "" : `${providerLabelMap[provider]} 로고`}
       width={decorative ? 130 : 24}
       height={decorative ? 130 : 24}
@@ -340,14 +383,16 @@ export default function SocialSignupCompleteForm({
         }),
       });
 
-      const result = (await response.json()) as { message?: string };
+      const result = (await response.json()) as { message?: string; shopId?: string };
       if (!response.ok) {
         setMessage(result.message ?? "기본 정보를 저장하지 못했어요. 다시 시도해 주세요.");
         return;
       }
 
-      await supabase?.auth.refreshSession();
-      window.location.assign(`/signup/social/complete?next=${encodeURIComponent(nextPath)}`);
+      if (result.shopId) {
+        writeCurrentOwnerShopId(result.shopId);
+      }
+      router.replace(`/signup/social/complete?next=${encodeURIComponent(nextPath)}` as never);
     } catch {
       setMessage("기본 정보를 저장하지 못했어요. 다시 시도해 주세요.");
     } finally {
@@ -357,40 +402,41 @@ export default function SocialSignupCompleteForm({
 
   return (
     <>
-      <main className="owner-font mx-auto min-h-screen w-full max-w-[390px] overflow-hidden bg-white text-[#0f172a] sm:my-6 sm:min-h-0 sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
-        <header
-          className="relative overflow-hidden px-6 pb-5 pt-[18px]"
-          style={{ background: providerVisual?.gradient ?? "linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%)" }}
-        >
-          <div className="pointer-events-none absolute -right-[18px] -top-[18px] z-0 opacity-[0.16]">
-            <ProviderLogo provider={resolvedProvider} decorative />
-          </div>
-
-          <MobileBackLinkButton
-            href="/login"
-            replace
-            aria-label="로그인으로 돌아가기"
-            className="relative z-10 mb-[14px] h-8 w-8 rounded-[9px] border-0 bg-white/60 text-[#0f172a] shadow-none hover:bg-white/80 [&_svg]:h-[15px] [&_svg]:w-[15px]"
-          />
-
-          <div className="relative z-10 flex items-center gap-[14px]">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-              <ProviderLogo provider={resolvedProvider} />
+      <div className="owner-font flex min-h-[100dvh] w-full items-center justify-center bg-[#fbfaf8] text-[#0f172a] sm:px-6 sm:py-6">
+        <main className="min-h-[100dvh] w-full max-w-[390px] overflow-x-hidden bg-white sm:max-h-[calc(100dvh-48px)] sm:min-h-0 sm:overflow-y-auto sm:rounded-[28px] sm:shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+          <header
+            className="relative overflow-hidden px-6 pb-5 pt-[18px]"
+            style={{ background: providerVisual?.gradient ?? "linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%)" }}
+          >
+            <div className="pointer-events-none absolute -right-[18px] -top-[18px] z-0 opacity-[0.14]">
+              <ProviderLogo provider={resolvedProvider} decorative />
             </div>
-            <div>
-              <h1 className="mb-1 text-[17px] font-extrabold leading-tight text-[#0f172a]">
-                {ownerName.trim() ? `${ownerName.trim()}님, 반가워요!` : "반가워요!"}
-              </h1>
-              <p className="text-[12px] leading-[1.45] text-[#475569]">
-                {providerLabel} 계정 정보로 빠르게 가입할게요.
-                <br />
-                매장 정보만 입력하면 끝나요.
-              </p>
-            </div>
-          </div>
-        </header>
 
-        <div className="px-7 pb-9 pt-1">
+            <MobileBackLinkButton
+              href="/login"
+              replace
+              aria-label="로그인으로 돌아가기"
+              className="relative z-10 mb-[14px] h-8 w-8 rounded-[9px] border-0 bg-white/60 text-[#0f172a] shadow-none hover:bg-white/80 [&_svg]:h-[15px] [&_svg]:w-[15px]"
+            />
+
+            <div className="relative z-10 flex items-center gap-[14px]">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                <ProviderLogo provider={resolvedProvider} />
+              </div>
+              <div>
+                <h1 className="mb-1 text-[17px] font-extrabold leading-tight text-[#0f172a]">
+                  {ownerName.trim() ? `${ownerName.trim()}님, 반가워요!` : "반가워요!"}
+                </h1>
+                <p className="text-[12px] leading-[1.45] text-[#475569]">
+                  {providerLabel} 계정 정보로 빠르게 가입할게요.
+                  <br />
+                  매장 정보만 입력하면 끝나요.
+                </p>
+              </div>
+            </div>
+          </header>
+
+          <div className="px-7 pb-9 pt-1">
           {!isKakaoSignup ? (
             <>
               <div className="mb-2.5 flex h-[50px] items-center justify-between rounded-[12px] border border-[#eef1f5] bg-[#f8fafc] px-[14px]">
@@ -478,8 +524,9 @@ export default function SocialSignupCompleteForm({
             <span>{loading ? "저장 중..." : "무료체험 시작하기"}</span>
             {!loading ? <ChevronRight className="h-[15px] w-[15px]" /> : null}
           </button>
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
 
       {addressSheetOpen ? (
         <KakaoPostcodeSheet

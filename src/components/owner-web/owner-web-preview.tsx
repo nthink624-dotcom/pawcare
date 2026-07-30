@@ -20,9 +20,7 @@ import SettingsManagementScreen from "@/components/owner-web/settings-management
 import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
-import { fetchOwnerSubscriptionSummary } from "@/lib/billing/owner-billing-client";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
-import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-options";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -213,7 +211,6 @@ export default function OwnerWebPreview({
   const [alimtalkCreditMenuOpen, setAlimtalkCreditMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [ownerData, setOwnerData] = useState(initialData);
-  const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [scheduleCreateRequest, setScheduleCreateRequest] = useState<OwnerScheduleCreateRequest | null>(null);
   const storeMenuRef = useRef<HTMLDivElement | null>(null);
   const alimtalkCreditMenuRef = useRef<HTMLDivElement | null>(null);
@@ -228,42 +225,18 @@ export default function OwnerWebPreview({
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
   const shopDisplayName = ownerData.shop.name.trim() || PETMANAGER_SERVICE_NAME;
   const shopInitials = buildShopInitials(shopDisplayName);
-  const currentPlanLabel = subscriptionSummary
-    ? getOwnerPlanDisplayName(subscriptionSummary.currentPlanCode)
-    : currentPlanCode
-      ? getOwnerPlanDisplayName(currentPlanCode)
-      : "플랜 확인";
+  const currentPlanLabel = currentPlanCode
+    ? getOwnerPlanDisplayName(currentPlanCode)
+    : "플랜 확인";
   const automaticVisitReminderAvailable = true;
   const priceGuideOnboarding = shouldStartWithPriceGuideSetup(ownerData);
 
   useEffect(() => {
     setOwnerData(initialData);
-    setSubscriptionSummary(null);
     if (!isDemoOwnerWebData(initialData)) {
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
   }, [initialData]);
-
-  useEffect(() => {
-    if (demoMode) {
-      setSubscriptionSummary(null);
-      return;
-    }
-
-    let cancelled = false;
-    void fetchOwnerSubscriptionSummary()
-      .then((summary) => {
-        if (cancelled) return;
-        setSubscriptionSummary(summary);
-      })
-      .catch((error) => {
-        console.error("[OWNER WEB] failed to load subscription summary", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [demoMode, ownerData.shop.id]);
 
   useEffect(() => {
     const ownerWebStorageKeys =

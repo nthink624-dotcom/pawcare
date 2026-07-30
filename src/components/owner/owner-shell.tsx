@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { X } from "lucide-react";
@@ -197,6 +197,7 @@ export default function OwnerShell({
   const [loggingOut, setLoggingOut] = useState(false);
   const [summary, setSummary] = useState(subscriptionSummary);
   const [redirectingToBilling, setRedirectingToBilling] = useState(false);
+  const summaryRefreshReadyAtRef = useRef(Date.now() + 5000);
 
   useEffect(() => {
     setSummary(subscriptionSummary);
@@ -229,15 +230,18 @@ export default function OwnerShell({
     }
 
     const handleFocus = () => {
+      if (Date.now() < summaryRefreshReadyAtRef.current) return;
       void refreshSummary();
     };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() >= summaryRefreshReadyAtRef.current
+      ) {
         void refreshSummary();
       }
     };
 
-    void refreshSummary();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 

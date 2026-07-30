@@ -144,6 +144,41 @@ assertIncludes(
   "{!isKakaoSignup ? (",
   "Only non-Kakao signup completion may render owner name and phone fields.",
 );
+assertNotIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "auth.refreshSession()",
+  "Social signup completion must not delay navigation by rotating an already valid OAuth session.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  "const setupResults = await Promise.allSettled([",
+  "Independent social signup setup writes must run concurrently.",
+);
+assertIncludes(
+  "src/components/auth/social-signup-complete-form.tsx",
+  "writeCurrentOwnerShopId(result.shopId)",
+  "Social signup completion must preserve the new shop id for parallel owner bootstrap.",
+);
+assertIncludes(
+  "src/components/owner-web/service-management-screen.tsx",
+  "useRef(getServiceFormSignature(initialServiceForm))",
+  "The service editor must treat its initial server state as saved and avoid write-on-load.",
+);
+assertIncludes(
+  "src/app/api/auth/social-complete/route.ts",
+  '.from("owner_shop_memberships")',
+  "Failed social signup setup must clean up the parallel owner-shop membership write.",
+);
+assertNotIncludes(
+  "src/components/owner/owner-shell.tsx",
+  "void refreshSummary();\n    window.addEventListener",
+  "Owner shell must reuse the fresh subscription summary supplied by the owner page on first render.",
+);
+assertNotIncludes(
+  "src/components/owner-web/owner-web-preview.tsx",
+  "fetchOwnerSubscriptionSummary",
+  "Owner web preview must reuse the plan summary already loaded by the owner page.",
+);
 assertIncludes(
   "src/components/auth/login-form.tsx",
   'process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true"',
@@ -169,14 +204,29 @@ assertIncludes(
   'fetch("/api/auth/kakao-profile"',
   "Kakao OAuth callback must hydrate the verified Kakao owner profile before signup completion.",
 );
+assertIncludes(
+  "src/app/auth/client-callback/client-callback.tsx",
+  "writeCurrentOwnerShopId(payload.shopId)",
+  "Returning Kakao owners must hand the verified shop id directly to the owner home.",
+);
 assertFile(
   "src/app/api/auth/kakao-profile/route.ts",
   "Kakao profile hydration API must exist.",
 );
 assertIncludes(
   "src/app/api/auth/kakao-profile/route.ts",
+  "shopId: existingShopResult.data.id",
+  "Kakao profile hydration must skip provider refresh work for an existing owner shop.",
+);
+assertIncludes(
+  "src/app/api/auth/kakao-profile/route.ts",
   'JSON.stringify(["kakao_account.name", "kakao_account.phone_number"])',
   "Kakao profile hydration must request only the required owner name and phone number.",
+);
+assertIncludes(
+  "src/app/owner/page.tsx",
+  "void loadSubscription().catch",
+  "Owner home must not block its first render on the secondary subscription summary request.",
 );
 assertIncludes(
   "src/app/api/auth/social-complete/route.ts",

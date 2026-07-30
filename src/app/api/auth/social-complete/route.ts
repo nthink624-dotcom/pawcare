@@ -216,18 +216,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "매장 정보를 저장하지 못했어요." }, { status: 400 });
     }
 
-    try {
-      await insertOwnerDefaultSetup(admin, {
-        shopId,
-        ownerName,
-        ownerPhone: ownerPhoneNumber,
-        now,
-      });
-    } catch {
-      await admin.from("shops").delete().eq("id", shopId);
-      return NextResponse.json({ message: "기본 운영 정보를 저장하지 못했어요." }, { status: 400 });
-    }
-
     const agreementPayload = {
       agreed_at: now,
       terms_version: OWNER_SIGNUP_TERMS_VERSION,
@@ -237,35 +225,61 @@ export async function POST(request: NextRequest) {
       consent_user_agent: request.headers.get("user-agent")?.slice(0, 500) || null,
     };
 
-    const profileInsert = await admin.from("owner_profiles").upsert({
-      user_id: user.id,
-      shop_id: shopId,
-      login_id: loginId,
-      name: ownerName,
-      birth_date: null,
-      phone_number: ownerPhoneNumber,
-      identity_verified_at: null,
-      agreements: agreementPayload,
-      created_at: now,
-      updated_at: now,
-    });
+    const setupResults = await Promise.allSettled([
+      insertOwnerDefaultSetup(admin, {
+        shopId,
+        ownerName,
+        ownerPhone: ownerPhoneNumber,
+        now,
+      }).catch(() => {
+        throw new Error("기본 운영 정보를 저장하지 못했어요.");
+      }),
+      (async () => {
+        const profileInsert = await admin.from("owner_profiles").upsert({
+          user_id: user.id,
+          shop_id: shopId,
+          login_id: loginId,
+          name: ownerName,
+          birth_date: null,
+          phone_number: ownerPhoneNumber,
+          identity_verified_at: null,
+          agreements: agreementPayload,
+          created_at: now,
+          updated_at: now,
+        });
 
-    if (profileInsert.error) {
-      await admin.from("shops").delete().eq("id", shopId);
-      return NextResponse.json({ message: "사장님 정보를 저장하지 못했어요." }, { status: 400 });
-    }
-
-    try {
-      await upsertOwnerShopMembership(admin, {
+        if (profileInsert.error) {
+          throw new Error("사장님 정보를 저장하지 못했어요.");
+        }
+      })(),
+      upsertOwnerShopMembership(admin, {
         ownerUserId: user.id,
         shopId,
         isPrimary: true,
         now,
-      });
-    } catch {
-      await admin.from("owner_profiles").delete().eq("user_id", user.id);
-      await admin.from("shops").delete().eq("id", shopId);
-      return NextResponse.json({ message: "매장 소유권 정보를 저장하지 못했습니다." }, { status: 400 });
+      }).catch(() => {
+        throw new Error("매장 소유권 정보를 저장하지 못했습니다.");
+      }),
+    ]);
+
+    const failedSetup = setupResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failedSetup) {
+      await Promise.allSettled([
+        admin
+          .from("owner_shop_memberships")
+          .delete()
+          .eq("owner_user_id", user.id)
+          .eq("shop_id", shopId),
+        admin.from("owner_profiles").delete().eq("user_id", user.id),
+        admin.from("shops").delete().eq("id", shopId),
+      ]);
+      const message =
+        failedSetup.reason instanceof Error
+          ? failedSetup.reason.message
+          : "가입 기본 정보를 저장하지 못했어요.";
+      return NextResponse.json({ message }, { status: 400 });
     }
 
     return NextResponse.json({

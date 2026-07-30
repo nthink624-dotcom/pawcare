@@ -166,7 +166,6 @@ export function ServicePriceGuideSectionCard({
           breedLabels.map((breed, index) => (
             <span
               key={`${breed}-${index}`}
-              style={{ letterSpacing: "-0.7px" }}
               className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-[11px] py-[5px] text-[12px] font-semibold leading-[14px] text-[#334155]"
             >
               {breed}
@@ -348,7 +347,7 @@ export function ServicePriceGuideSectionCard({
                                 className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold leading-normal tabular-nums text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
                               />
                               <span className="inline-flex items-baseline whitespace-nowrap text-[12px] leading-[normal] text-[#64748b]">
-                                <span className="mr-1">/</span>
+                                <span>/&nbsp;</span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
@@ -366,7 +365,7 @@ export function ServicePriceGuideSectionCard({
                                     lineHeight: "15px",
                                     width: durationInputWidth,
                                   }}
-                                  className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-right text-[12px] leading-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
+                                  className="min-w-[1ch] shrink-0 border-0 bg-transparent p-0 text-left text-[12px] leading-normal tabular-nums text-[#64748b] outline-none placeholder:text-[#94a3b8]"
                                 />
                                 <span>분 예상</span>
                               </span>

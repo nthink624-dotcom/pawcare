@@ -21,6 +21,7 @@ import {
   type OwnerPlanCode,
 } from "@/lib/billing/owner-plans";
 import { addDaysIso, addMonthsIso, type OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { env } from "@/lib/env";
 import { PUBLIC_LEGAL_URLS } from "@/lib/legal/public-legal-links";
 import { won } from "@/lib/utils";
@@ -153,7 +154,7 @@ function statusCopy(summary: OwnerSubscriptionSummary) {
 
   if (summary.noticeLevel === "3days") {
     return {
-      title: `펫매니저 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
+      title: `${PETMANAGER_SERVICE_NAME} 이용 기간이 ${summary.daysUntilTrialEnds}일 남았어요`,
       body: "이용 기간이 끝나면 예약·고객관리 기능 이용이 제한될 수 있습니다.\n서비스를 계속 이용하시려면 플랜 연장이 필요합니다.",
     };
   }
@@ -231,15 +232,15 @@ export default function OwnerBillingScreen({
         "선택한 플랜은 결제 1회로 이용이 시작됩니다.",
         OWNER_PLAN_SINGLE_SHOP_NOTICE,
         OWNER_PLAN_SHARED_USE_NOTICE,
-        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+        `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
+        `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
       ]
     : [
         "선택한 플랜은 등록된 카드로 매 결제일 자동 결제됩니다.",
         OWNER_PLAN_SINGLE_SHOP_NOTICE,
         OWNER_PLAN_SHARED_USE_NOTICE,
-        "등록한 카드는 펫매니저 이용요금 결제수단으로 사용됩니다.",
-        "카드 등록은 PG사의 보안창을 통해 진행되며, 펫매니저는 카드번호 전체를 직접 저장하지 않습니다.",
+        `등록한 카드는 ${PETMANAGER_SERVICE_NAME} 이용요금 결제수단으로 사용됩니다.`,
+        `카드 등록은 PG사의 보안창을 통해 진행되며, ${PETMANAGER_SERVICE_NAME}는 카드번호 전체를 직접 저장하지 않습니다.`,
       ];
   const agreementContinueLabel = hasUsableRegisteredPaymentMethod
     ? "동의하고 결제수단 선택"
@@ -372,7 +373,7 @@ export default function OwnerBillingScreen({
 
       const registeredSummary = await issueOwnerBillingKey({
         customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "펫매니저 사장님",
+        customerName: summary.ownerName || `${PETMANAGER_SERVICE_NAME} 사장님`,
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         planCode: selectedPlanCode,
@@ -430,14 +431,14 @@ export default function OwnerBillingScreen({
     try {
       const nextSummary = await requestOwnerOneTimePayment({
         customerId: `owner_${summary.userId}`,
-        customerName: summary.ownerName || "펫매니저 사장님",
+        customerName: summary.ownerName || `${PETMANAGER_SERVICE_NAME} 사장님`,
         phoneNumber: summary.ownerPhoneNumber,
         email: summary.ownerEmail,
         userId: summary.userId,
         shopId: summary.shopId,
         planCode: selectedPlanCode,
         amount: selectedPlan.totalPrice,
-        orderName: `펫매니저 ${selectedPlan.title} 결제`,
+        orderName: `${PETMANAGER_SERVICE_NAME} ${selectedPlan.title} 결제`,
       });
 
       setSummary(nextSummary);
@@ -591,7 +592,7 @@ export default function OwnerBillingScreen({
   return (
     <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">펫매니저 플랜 및 결제</p>
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">{PETMANAGER_SERVICE_NAME} 플랜 및 결제</p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>
         <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
 

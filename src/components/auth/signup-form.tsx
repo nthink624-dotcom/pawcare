@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Eye, EyeOff, Smartphone } from "lucide-react";
 
 import SocialLoginButtons from "@/components/auth/social-login-buttons";
+import { ServiceBrand } from "@/components/brand/service-brand";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import {
@@ -889,8 +890,9 @@ export default function SignupForm({
           aria-label={step === "entry" ? "로그인으로 이동" : "회원가입 첫 단계로 이동"}
         />
 
-        <div className="space-y-3">
-          <p className={PAGE_EYEBROW}>회원가입</p>
+          <div className="space-y-3">
+            <ServiceBrand />
+            <p className={PAGE_EYEBROW}>회원가입</p>
           <div>
             <h1 className={PAGE_TITLE}>
               {step === "entry" ? "무료체험을 시작해볼까요?" : "계정과 매장 정보를 입력해 주세요"}

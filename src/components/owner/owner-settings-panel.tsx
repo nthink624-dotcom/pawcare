@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
@@ -9,8 +8,8 @@ import OwnerSupportPanel from "@/components/owner/owner-support-panel";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
 import { ApiRequestError } from "@/lib/api";
-import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -829,12 +828,6 @@ export default function OwnerSettingsPanel({
             ? "체험 플랜"
           : currentPlan.excessAlimtalkLabel;
         const endDateLabel = "서비스 종료일";
-        const isInService =
-          subscriptionSummary.status === "active" ||
-          subscriptionSummary.status === "trialing" ||
-          subscriptionSummary.status === "trial_will_end";
-        const planCtaLabel = isInService ? "플랜 보기" : "업그레이드 플랜";
-
         return (
       <div className="overflow-hidden rounded-[10px] border border-[#d9d4cb] bg-white shadow-[0_4px_12px_rgba(21,22,19,0.03)]">
         <div className="px-5 py-4">
@@ -860,15 +853,10 @@ export default function OwnerSettingsPanel({
                 <p className="text-[12px] font-medium tracking-[0.02em] text-[#8a8277]">{endDateLabel}</p>
                 <p className="mt-1 text-[17px] font-medium tracking-[-0.02em] text-[#171411]">{subscriptionEndDate}</p>
               </div>
-              <Link
-                href={`/owner/billing?compare=1&plan=${currentPlan.code}`}
-                prefetch
-                onClick={() => writeOwnerBillingSummaryCache(subscriptionSummary)}
-                className="inline-flex h-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] px-4 text-[14px] font-normal tracking-[-0.01em] text-white transition hover:bg-[#195748]"
-              >
-                {planCtaLabel}
-              </Link>
             </div>
+            <p className="mt-3 rounded-[8px] bg-[#f5f7fa] px-3 py-2 text-[12px] leading-5 text-[#607080]">
+              플랜 변경과 결제는 PC 웹에서만 가능해요.
+            </p>
           </div>
         </div>
       </div>
@@ -1101,6 +1089,27 @@ export default function OwnerSettingsPanel({
 
   const notificationsSection = (
     <SettingsCard contentClassName="space-y-4">
+      <div className="rounded-[10px] border border-[#dfe7f1] bg-[#f7f9fc] px-4 py-3.5">
+        {data.alimtalkCreditSummary ? (
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-medium text-[#526274]">남은 알림톡</p>
+              <p className="mt-1 text-[24px] font-semibold tracking-[-0.03em] text-[#172033]">
+                {data.alimtalkCreditSummary.remaining_total.toLocaleString("ko-KR")}건
+              </p>
+            </div>
+            <p className="text-right text-[12px] leading-5 text-[#607080]">
+              포함 {data.alimtalkCreditSummary.included_remaining.toLocaleString("ko-KR")}건<br />
+              추가 {data.alimtalkCreditSummary.purchased_remaining.toLocaleString("ko-KR")}건
+            </p>
+          </div>
+        ) : (
+          <p className="text-[13px] leading-5 text-[#607080]">알림톡 잔여 정보를 불러오지 못했어요.</p>
+        )}
+        <p className="mt-3 border-t border-[#dfe7f1] pt-2.5 text-[12px] leading-5 text-[#607080]">
+          알림톡 추가 구매는 PC 웹에서만 가능해요.
+        </p>
+      </div>
       <SettingsFieldCard
         label="알림톡 발송"
         className="border-[#dfe7f1] bg-white px-4 pb-3 pt-2.5"
@@ -1119,7 +1128,7 @@ export default function OwnerSettingsPanel({
           />
           <div className="rounded-[10px] border border-[#e1e8f0] bg-[#f7f9fc] px-3 py-2.5">
             <p className="text-[12px] leading-[18px] tracking-[-0.01em] text-[#607080]">
-              알림톡은 펫매니저 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
+              알림톡은 {PETMANAGER_SERVICE_NAME} 공통 발신 프로필로 발송됩니다. 메시지 본문에는 매장명이 표시됩니다.
             </p>
           </div>
           <div className="space-y-2">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { ServiceBrand } from "@/components/brand/service-brand";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
@@ -235,6 +236,7 @@ export default function SocialSignupCompleteForm({
           <MobileBackLinkButton href="/login" replace aria-label="로그인으로 돌아가기" />
 
           <div className="space-y-3">
+            <ServiceBrand />
             <p className={PAGE_EYEBROW}>{providerLabel} 회원가입</p>
             <div>
               <h1 className={PAGE_TITLE}>기본 정보를 입력해 주세요</h1>

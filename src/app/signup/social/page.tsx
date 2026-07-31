@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import SocialSignupCompleteForm from "@/components/auth/social-signup-complete-form";
 import type { SocialProvider } from "@/lib/auth/social-auth";
 import { getServerSessionUser, getServerUserShopId } from "@/lib/auth/server-session";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "프로필 등록하기 | 펫매니저",
+  title: `프로필 등록하기 | ${PETMANAGER_SERVICE_NAME}`,
 };
 
 function resolveProvider(provider: string | string[] | undefined): SocialProvider | undefined {

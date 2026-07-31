@@ -1,3 +1,5 @@
+import { PETMANAGER_LEGAL_OPERATOR_NAME } from "@/lib/brand";
+
 export const PUBLIC_LEGAL_URLS = {
   terms: "https://www.petmanager.co.kr/terms",
   privacy: "https://www.petmanager.co.kr/privacy",
@@ -13,7 +15,7 @@ export const PUBLIC_LEGAL_LINKS = [
 ] as const;
 
 export const PUBLIC_LEGAL_CONTACT = {
-  companyName: "넘친 Day",
+  companyName: PETMANAGER_LEGAL_OPERATOR_NAME,
   representativeName: "정우진",
   businessRegistrationNumber: "462-16-02885",
   phone: "041-557-5529",

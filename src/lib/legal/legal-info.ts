@@ -1,17 +1,22 @@
-export const LEGAL_SERVICE_NAME = "펫매니저";
-export const LEGAL_OPERATOR_NAME = "오도독상회";
+import { PETMANAGER_LEGAL_OPERATOR_NAME, PETMANAGER_SERVICE_NAME } from "@/lib/brand";
+
+export const LEGAL_SERVICE_NAME = PETMANAGER_SERVICE_NAME;
+export const LEGAL_OPERATOR_NAME = PETMANAGER_LEGAL_OPERATOR_NAME;
 
 export const LEGAL_BUSINESS_INFO = {
   serviceName: LEGAL_SERVICE_NAME,
   operatorName: LEGAL_OPERATOR_NAME,
   representativeName: "정우진",
-  businessRegistrationNumber: "689-01-03675",
-  address: "충청남도 천안시 동남구 미라9길 14 지하 1층",
-  customerServicePhone: "010-8357-2070",
+  businessRegistrationNumber: "462-16-02885",
+  address: "충청남도 천안시 서북구 미라9길 14 지하 1층",
+  customerServicePhone: "041-557-5529",
   customerServiceEmail: "nthink624@gmail.com",
   hostingProvider: "Vercel Inc.",
-  privacyTrusteeName: "정우진",
-  privacyTrusteeTask: "개인정보 처리 및 보호",
+  telecomSalesRegistration: "2026-충남천안-1640",
+  paymentProvider: "NHN KCP",
+  privacyTrusteeName: "코리아포트원 주식회사",
+  privacyTrusteeTask: "전자결제 및 휴대폰 본인인증 연동",
+  paymentStatementName: LEGAL_OPERATOR_NAME,
 } as const;
 
 export const LEGAL_LINKS = [

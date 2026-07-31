@@ -1,4 +1,5 @@
 import LegalPageLayout from "@/components/legal/legal-page-layout";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 
 const rows = [
@@ -14,10 +15,7 @@ const rows = [
 
 export default function BusinessPage() {
   return (
-    <LegalPageLayout
-      title="사업자 정보"
-      subtitle="펫매니저 서비스의 공개 사업자 정보와 고객센터 안내입니다."
-    >
+    <LegalPageLayout title="사업자 정보" subtitle={`${PETMANAGER_SERVICE_NAME} 서비스의 공개 사업자 정보와 고객센터 안내입니다.`}>
       <section className="rounded-[22px] border border-[#eee6db] bg-[#fcfaf6] px-4 py-4">
         <div className="space-y-3">
           {rows.map(([label, value]) => (

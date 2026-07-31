@@ -185,7 +185,7 @@ export default function LoginForm({
       />
 
       {showDevOwnerHelper ? (
-        <div className="mx-auto -mt-6 w-full max-w-[430px] px-6 pb-12">
+        <div className="mx-auto -mt-6 hidden w-full max-w-[430px] px-6 pb-12 sm:block">
           <div className="rounded-[22px] border border-[#dfe7e2] bg-[#f6fbf9] p-4">
             <p className="text-[13px] font-semibold text-[#1f6b5b]">개발용 테스트 계정</p>
             <p className="mt-2 text-[13px] leading-6 text-[#5f6c66]">

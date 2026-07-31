@@ -9,6 +9,7 @@ import CustomerManagementScreen from "@/components/owner-web/customer-management
 import ReservationManagementScreen from "@/components/owner-web/reservation-management-screen";
 import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
 import StatsManagementScreen from "@/components/owner-web/stats-management-screen";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const screenIcons: Record<OwnerWebScreenKey, typeof LayoutGrid> = {
@@ -45,7 +46,7 @@ export default function OwnerWebPreview() {
         <aside className="hidden w-[280px] shrink-0 xl:flex">
           <div className="sticky top-6 flex w-full flex-col rounded-[28px] border border-[#e7ddd4] bg-[#1f6b5b] p-5 text-white shadow-[0_18px_40px_rgba(31,107,91,0.18)]">
             <div className="rounded-[22px] bg-white/10 p-4">
-              <p className="text-[12px] font-semibold tracking-[0.14em] text-white/70">PETMANAGER WEB</p>
+              <p className="text-[12px] font-semibold tracking-[0.05em] text-white/70">{PETMANAGER_SERVICE_NAME}</p>
               <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">우유 미용실</h1>
               <p className="mt-3 text-[14px] leading-6 text-white/78">모바일 오너 페이지를 기반으로, 예약·고객·캘린더·통계·설정을 웹 운영 화면으로 확장한 프리뷰입니다.</p>
             </div>
@@ -90,7 +91,7 @@ export default function OwnerWebPreview() {
                 <PawPrint className="h-5 w-5 text-[#1f6b5b]" />
               </span>
               <div>
-                <p className="text-[12px] font-medium text-[#8a8178]">PETMANAGER WEB</p>
+                <p className="text-[12px] font-medium text-[#8a8178]">{PETMANAGER_SERVICE_NAME}</p>
                 <p className="text-[20px] font-semibold tracking-[-0.04em] text-[#17211f]">우유 미용실</p>
               </div>
             </div>

@@ -20,6 +20,7 @@ export function ServiceBrand({ className = "", compact = false }: ServiceBrandPr
         width={1240}
         height={360}
         priority
+        unoptimized
         className={`${compact ? "h-[18px]" : "h-5"} w-auto shrink-0 object-contain`}
       />
       <span aria-hidden="true" className={`${compact ? "h-4" : "h-[18px]"} w-px shrink-0 bg-[#cbd5e1]`} />

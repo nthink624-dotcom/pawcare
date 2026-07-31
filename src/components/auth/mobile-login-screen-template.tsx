@@ -210,11 +210,11 @@ export default function MobileLoginScreenTemplate({
           {loading ? loginButtonLoadingLabel : loginButtonLabel}
         </button>
 
-        <div className="mt-4 flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] leading-normal text-[#94a3b8] max-[359px]:gap-1 max-[359px]:text-[10px]">
+        <div className="mt-4 flex items-center justify-center gap-2.5 whitespace-nowrap text-[13px] font-medium leading-normal text-[#64748b] max-[359px]:gap-1.5 max-[359px]:text-[12px]">
           {resolvedHelperLinks.map((link, index) => (
             <span key={`${link.href}-${link.label}`} className="contents">
-              {index > 0 ? <span className="text-[#e2e8f0]">|</span> : null}
-              <Link href={link.href as never} replace className="text-[#94a3b8] hover:text-[#64748b]">
+              {index > 0 ? <span className="text-[#d5dce5]">|</span> : null}
+              <Link href={link.href as never} replace className="text-[#64748b] hover:text-[#0f172a]">
                 {link.label}
               </Link>
             </span>

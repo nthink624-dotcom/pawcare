@@ -1301,6 +1301,45 @@ export async function getOwnerSubscriptionSummary(identity: BillingIdentity, sho
   return summary;
 }
 
+export async function getOwnerSubscriptionAccessStatus(identity: BillingIdentity, shopId: string) {
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    throw new OwnerBillingError("Supabase 관리자 설정을 확인해 주세요.", 503);
+  }
+
+  const subscriptionResult = await admin.from(BILLING_TABLE).select("*").eq("user_id", identity.id).maybeSingle();
+  if (subscriptionResult.error) {
+    if (isMissingRelationError(subscriptionResult.error)) {
+      return normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
+        userId: identity.id,
+        shopId,
+        ownerEmail: identity.email ?? null,
+      }).status;
+    }
+    throw new OwnerBillingError(subscriptionResult.error.message, 500);
+  }
+
+  const record = subscriptionResult.data as OwnerSubscriptionRecord | null;
+  if (!record) {
+    return normalizeOwnerSubscriptionMetadata(identity.user_metadata, identity.created_at ?? nowIso(), {
+      userId: identity.id,
+      shopId,
+      ownerEmail: identity.email ?? null,
+    }).status;
+  }
+
+  const reconciled = await reconcileOwnerSubscriptionRecordIfNeeded(identity, shopId, record);
+  if (reconciled) {
+    return reconciled.status;
+  }
+
+  return normalizeOwnerSubscriptionMetadata(buildSubscriptionMetadata(record), record.created_at, {
+    userId: identity.id,
+    shopId,
+    ownerEmail: identity.email ?? null,
+  }).status;
+}
+
 export async function updateOwnerSubscriptionPreferences(
   identity: BillingIdentity,
   shopId: string,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
@@ -10,7 +10,11 @@ import {
 } from "@/lib/auth/owner-credentials";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { attachOwnerLoginSessionCookie, recordOwnerLoginSession } from "@/server/owner-login-sessions";
+import {
+  attachOwnerLoginSessionCookie,
+  recordOwnerLoginSession,
+  resolveOwnerLoginSessionTrackingId,
+} from "@/server/owner-login-sessions";
 
 const schema = z.object({
   loginId: z.string().trim().min(1),
@@ -48,7 +52,7 @@ function getLoginErrorMessage(message?: string) {
   return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-async function createLoginResponse({
+function createLoginResponse({
   request,
   profile,
   loginId,
@@ -66,13 +70,19 @@ async function createLoginResponse({
       refreshToken: session.refresh_token,
     },
   });
-  const recordedSession = await recordOwnerLoginSession({
-    request,
-    ownerUserId: profile.user_id,
-    shopId: profile.shop_id,
-    loginId,
-  });
-  attachOwnerLoginSessionCookie(response, request, recordedSession.sessionTrackingId);
+  const sessionTrackingId = resolveOwnerLoginSessionTrackingId(request);
+  attachOwnerLoginSessionCookie(response, request, sessionTrackingId);
+  after(() =>
+    recordOwnerLoginSession(
+      {
+        request,
+        ownerUserId: profile.user_id,
+        shopId: profile.shop_id,
+        loginId,
+      },
+      sessionTrackingId,
+    ),
+  );
   return response;
 }
 
@@ -114,11 +124,30 @@ export async function POST(request: NextRequest) {
     }
 
     const canonicalEmail = buildOwnerAuthEmail(loginId);
+    let lastErrorMessage = "invalid login credentials";
+    const canonicalSignInResult = await authClient.auth.signInWithPassword({
+      email: canonicalEmail,
+      password: body.password,
+    });
+
+    lastErrorMessage = canonicalSignInResult.error?.message ?? lastErrorMessage;
+    if (
+      !canonicalSignInResult.error &&
+      canonicalSignInResult.data.user?.id === profileResult.data.user_id &&
+      canonicalSignInResult.data.session
+    ) {
+      return createLoginResponse({
+        request,
+        profile: profileResult.data,
+        loginId,
+        session: canonicalSignInResult.data.session,
+      });
+    }
+
     const userResult = await admin.auth.admin.getUserById(profileResult.data.user_id);
     const existingEmail = userResult.data.user?.email?.trim().toLowerCase() ?? null;
-    let lastErrorMessage = "invalid login credentials";
 
-    for (const email of buildOwnerAuthEmailCandidates(loginId, existingEmail)) {
+    for (const email of buildOwnerAuthEmailCandidates(loginId, existingEmail).filter((candidate) => candidate !== canonicalEmail)) {
       const signInResult = await authClient.auth.signInWithPassword({
         email,
         password: body.password,

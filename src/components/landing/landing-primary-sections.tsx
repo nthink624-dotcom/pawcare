@@ -239,14 +239,16 @@ export function PainSection() {
           <div className="mt-8 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
             <figure className="min-w-0">
               <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#707a77]">고객 예약 화면</figcaption>
-              <div className="relative aspect-[340/430] overflow-hidden rounded-[14px] border border-[#dce3e0] bg-[#f6f8f7]">
-                <Image
-                  src="/images/landing/actual-customer-entry.png"
-                  alt="고객이 간편 예약을 시작하는 실제 화면"
-                  fill
-                  className="object-cover object-top"
-                  sizes="(min-width: 768px) 440px, 100vw"
-                />
+              <div className="flex aspect-[340/430] items-center justify-center overflow-hidden rounded-[14px] border border-[#dce3e0] bg-[#f6f8f7] p-3 sm:p-4">
+                <div className="relative h-full aspect-[648/1400] overflow-hidden rounded-[18px] border-[5px] border-[#292a2b] bg-black">
+                  <Image
+                    src="/images/landing/actual-customer-entry-v2.jpg"
+                    alt="고객이 간편 예약을 시작하는 실제 화면"
+                    fill
+                    className="object-cover object-top"
+                    sizes="(min-width: 768px) 260px, 60vw"
+                  />
+                </div>
               </div>
             </figure>
             <figure className="min-w-0">
@@ -380,7 +382,7 @@ export function CustomerDataSection() {
 
         <div className="mt-12 grid items-center gap-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div className="grid grid-cols-2 gap-4">
-            <PhoneScreenshot src="/images/landing/actual-customer-entry.png" alt="고객 예약 첫 화면" label="예약 시작" />
+            <PhoneScreenshot src="/images/landing/actual-customer-entry-v2.jpg" alt="고객 예약 첫 화면" label="예약 시작" />
             <PhoneScreenshot src="/images/landing/actual-customer-booking.png" alt="보호자와 반려동물 정보 입력 화면" label="예약정보 입력" />
           </div>
           <div>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 
 import { getSupabaseRuntimeStage } from "@/lib/env";
 import {
@@ -238,6 +240,7 @@ export default function LoginForm({
   initialMessage?: string | null;
   nextPath?: string;
 }) {
+  const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
@@ -249,6 +252,12 @@ export default function LoginForm({
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [socialCooldownUntil, setSocialCooldownUntil] = useState<number | null>(null);
   const [rememberLoginId, setRememberLoginId] = useState(false);
+
+  useEffect(() => {
+    if (nextPath.startsWith("/")) {
+      router.prefetch(nextPath as Route);
+    }
+  }, [nextPath, router]);
 
   const startSocialCooldown = () => {
     const nextCooldownUntil = Date.now() + SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS;
@@ -377,21 +386,27 @@ export default function LoginForm({
 
       clearFailedLoginState(currentLoginId);
 
-      if (result.session?.accessToken && result.session.refreshToken) {
-        await makeRoomForAuthStorage(currentLoginId);
+      const authenticatedSession = result.session;
+      if (authenticatedSession?.accessToken && authenticatedSession.refreshToken) {
         clearOwnerAuthTokenCache();
-        writeOwnerAuthHandoff(result.session);
-        writeOwnerAuthSessionCache(result.session);
+        writeOwnerAuthHandoff(authenticatedSession);
+        writeOwnerAuthSessionCache(authenticatedSession);
+        void makeRoomForAuthStorage(currentLoginId);
 
         if (supabase) {
-          const { error } = await supabase.auth.setSession({
-            access_token: result.session.accessToken,
-            refresh_token: result.session.refreshToken,
-          });
-
-          if (error) {
-            console.warn("[auth/login] browser Supabase session persistence failed", error.message);
-          }
+          void (async () => {
+            try {
+              const { error } = await supabase.auth.setSession({
+                access_token: authenticatedSession.accessToken,
+                refresh_token: authenticatedSession.refreshToken,
+              });
+              if (error) {
+                console.warn("[auth/login] browser Supabase session persistence failed", error.message);
+              }
+            } catch (error) {
+              console.warn("[auth/login] browser Supabase session persistence failed", error);
+            }
+          })();
         }
       }
 
@@ -405,7 +420,11 @@ export default function LoginForm({
         // Remembering the login id is optional and must not block login.
       }
 
-      window.location.assign(nextPath);
+      if (nextPath.startsWith("/")) {
+        router.replace(nextPath as Route);
+      } else {
+        window.location.assign(nextPath);
+      }
     } catch {
       setMessage("로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
     } finally {

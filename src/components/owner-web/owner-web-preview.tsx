@@ -1,23 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 
 import CalendarManagementScreen, { type OwnerScheduleCreateRequest } from "@/components/owner-web/calendar-management-screen";
-import BookingLinkManagementScreen from "@/components/owner-web/booking-link-management-screen";
-import CustomerBookingPageManagementScreen from "@/components/owner-web/customer-booking-page-management-screen";
-import CustomerManagementScreen from "@/components/owner-web/customer-management-screen";
-import CalendarRecordsScreen from "@/components/owner-web/calendar-records-screen";
 import { type OwnerWebScreenKey, type SettingsTabKey } from "@/components/owner-web/owner-web-data";
 import OwnerWebAppShell from "@/components/owner-web/owner-web-app-shell";
-import OwnerHelpScreen from "@/components/owner-web/owner-help-screen";
 import {
   demoOwnerWebStaffStorageKey,
   parseStoredOwnerWebStaff,
   type OwnerWebStaffMember,
 } from "@/components/owner-web/owner-web-staff-data";
-import ServiceManagementScreen from "@/components/owner-web/service-management-screen";
-import SettingsManagementScreen from "@/components/owner-web/settings-management-screen";
-import StaffManagementScreen from "@/components/owner-web/staff-management-screen";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
@@ -26,6 +19,47 @@ import { buildCustomerServiceSourceOptions } from "@/lib/customer-service-option
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload, OwnerProfile } from "@/types/domain";
+
+function OwnerScreenLoading() {
+  return (
+    <div className="flex min-h-[420px] items-center justify-center bg-white text-sm font-medium text-[#64748b]">
+      화면을 불러오고 있어요.
+    </div>
+  );
+}
+
+const BookingLinkManagementScreen = dynamic(
+  () => import("@/components/owner-web/booking-link-management-screen"),
+  { loading: OwnerScreenLoading },
+);
+const CustomerBookingPageManagementScreen = dynamic(
+  () => import("@/components/owner-web/customer-booking-page-management-screen"),
+  { loading: OwnerScreenLoading },
+);
+const CustomerManagementScreen = dynamic(
+  () => import("@/components/owner-web/customer-management-screen"),
+  { loading: OwnerScreenLoading },
+);
+const CalendarRecordsScreen = dynamic(
+  () => import("@/components/owner-web/calendar-records-screen"),
+  { loading: OwnerScreenLoading },
+);
+const OwnerHelpScreen = dynamic(
+  () => import("@/components/owner-web/owner-help-screen"),
+  { loading: OwnerScreenLoading },
+);
+const ServiceManagementScreen = dynamic(
+  () => import("@/components/owner-web/service-management-screen"),
+  { loading: OwnerScreenLoading },
+);
+const SettingsManagementScreen = dynamic(
+  () => import("@/components/owner-web/settings-management-screen"),
+  { loading: OwnerScreenLoading },
+);
+const StaffManagementScreen = dynamic(
+  () => import("@/components/owner-web/staff-management-screen"),
+  { loading: OwnerScreenLoading },
+);
 
 function isDemoOwnerWebData(data: BootstrapPayload) {
   return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";

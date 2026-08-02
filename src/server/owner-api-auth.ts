@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { isOwnerSubscriptionBlocked } from "@/lib/billing/owner-subscription";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
-import { getOwnerSubscriptionSummary, OwnerBillingError } from "@/server/owner-billing";
+import { getOwnerSubscriptionAccessStatus, OwnerBillingError } from "@/server/owner-billing";
 
 export class OwnerApiError extends Error {
   constructor(
@@ -161,27 +161,28 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
     throw new OwnerApiError("이 계정은 운영자에 의해 일시 중지되었습니다.", 403);
   }
 
-  const shopsResult = await admin
-    .from("shops")
-    .select("id,owner_user_id")
-    .eq("owner_user_id", user.id)
-    .order("created_at");
+  const [shopsResult, membershipResult] = await Promise.all([
+    admin
+      .from("shops")
+      .select("id,owner_user_id")
+      .eq("owner_user_id", user.id)
+      .order("created_at"),
+    admin
+      .from("owner_shop_memberships")
+      .select("owner_user_id,shop_id,role,is_primary")
+      .eq("owner_user_id", user.id)
+      .order("is_primary", { ascending: false }),
+  ]);
 
   if (shopsResult.error) {
     throw new OwnerApiError(shopsResult.error.message, 500);
   }
 
-  const ownedShops = (shopsResult.data ?? []) as ShopAccessRow[];
-  const membershipResult = await admin
-    .from("owner_shop_memberships")
-    .select("owner_user_id,shop_id,role,is_primary")
-    .eq("owner_user_id", user.id)
-    .order("is_primary", { ascending: false });
-
   if (membershipResult.error && !isMissingMembershipsError(membershipResult.error)) {
     throw new OwnerApiError(membershipResult.error.message, 500);
   }
 
+  const ownedShops = (shopsResult.data ?? []) as ShopAccessRow[];
   const memberships = membershipResult.error ? [] : ((membershipResult.data ?? []) as MembershipRow[]);
   const accessibleShops = [
     ...ownedShops.map((shop) => ({
@@ -235,7 +236,7 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
   }
 
   try {
-    const subscription = await getOwnerSubscriptionSummary(
+    const subscriptionStatus = await getOwnerSubscriptionAccessStatus(
       {
         id: billingOwnerUserId,
         email: resolvedAccess.role === "owner" ? user.email ?? null : null,
@@ -245,7 +246,7 @@ export async function requireOwnerShop(request: NextRequest, requestedShopId?: s
       resolvedShopId,
     );
 
-    if (isOwnerSubscriptionBlocked(subscription.status)) {
+    if (isOwnerSubscriptionBlocked(subscriptionStatus)) {
       throw new OwnerApiError("서비스 이용 기간이 만료되었습니다. 결제 정보를 확인해 주세요.", 402);
     }
   } catch (error) {

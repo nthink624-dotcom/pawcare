@@ -91,10 +91,12 @@ export function getOwnerLoginSessionCookieOptions(request?: NextRequest) {
   };
 }
 
-export async function recordOwnerLoginSession(input: LoginSessionInput) {
-  const cookieValue = input.request.cookies.get(OWNER_LOGIN_SESSION_COOKIE)?.value;
-  const sessionTrackingId = isUuid(cookieValue) ? cookieValue! : randomUUID();
+export function resolveOwnerLoginSessionTrackingId(request: NextRequest) {
+  const cookieValue = request.cookies.get(OWNER_LOGIN_SESSION_COOKIE)?.value;
+  return isUuid(cookieValue) ? cookieValue! : randomUUID();
+}
 
+export async function recordOwnerLoginSession(input: LoginSessionInput, sessionTrackingId = resolveOwnerLoginSessionTrackingId(input.request)) {
   try {
     const userAgent = input.request.headers.get("user-agent") ?? "";
     const now = new Date().toISOString();

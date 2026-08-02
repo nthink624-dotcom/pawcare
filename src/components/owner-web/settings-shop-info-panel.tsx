@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Camera, Info, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
+import { Camera, Info, LoaderCircle, Save, Scissors, Settings2, Store, Trash2, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 
 import { CustomerPagePhonePreview } from "@/components/owner-web/customer-page-phone-preview";
@@ -23,6 +23,7 @@ type ShopInfoSettingsPanelProps = {
   shopProfileImages: string[];
   shopProfileImageAssetCount?: number;
   profileImagesLoading?: boolean;
+  profileImagesBusy?: boolean;
   children?: ReactNode;
   serviceMenuContent?: ReactNode;
   shop?: Shop;
@@ -314,6 +315,7 @@ export default function ShopInfoSettingsPanel({
   shopProfileImages,
   shopProfileImageAssetCount = 0,
   profileImagesLoading = false,
+  profileImagesBusy = false,
   children,
   serviceMenuContent,
   shop,
@@ -362,7 +364,7 @@ export default function ShopInfoSettingsPanel({
   const allProfileImagesSelected = hasProfileImages && selectedProfileImageIndexes.length === carouselProfileImages.length;
   const galleryRestoreSlotCount = isProfileImageRestorePending ? 1 : 0;
   const galleryAddSlotCount =
-    editable && !isProfileImageRestorePending && carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES
+    editable && !profileImagesBusy && !isProfileImageRestorePending && carouselProfileImages.length < MAX_SHOP_PROFILE_IMAGES
       ? 1
       : 0;
   const [profileImageSelectionMode, setProfileImageSelectionMode] = useState(false);
@@ -437,7 +439,7 @@ export default function ShopInfoSettingsPanel({
   }
 
   function toggleProfileImageSelection(index: number) {
-    if (!editable) return;
+    if (!editable || profileImagesBusy) return;
     setProfileImageSelectionMode(true);
     setSelectedProfileImageIndexes((current) =>
       current.includes(index) ? current.filter((item) => item !== index) : [...current, index].sort((a, b) => a - b),
@@ -445,13 +447,13 @@ export default function ShopInfoSettingsPanel({
   }
 
   function toggleAllProfileImages() {
-    if (!editable || !hasProfileImages) return;
+    if (!editable || profileImagesBusy || !hasProfileImages) return;
     setProfileImageSelectionMode(true);
     setSelectedProfileImageIndexes(allProfileImagesSelected ? [] : carouselProfileImages.map((_, index) => index));
   }
 
   function removeSelectedProfileImages() {
-    if (!selectedProfileImageIndexes.length) return;
+    if (profileImagesBusy || !selectedProfileImageIndexes.length) return;
     onProfileImagesRemove(selectedProfileImageIndexes);
     setSelectedProfileImageIndexes([]);
     setProfileImageSelectionMode(false);
@@ -661,7 +663,7 @@ export default function ShopInfoSettingsPanel({
                         }}
                         onTouchStart={handleProfileTouchStart}
                         onTouchEnd={handleProfileTouchEnd}
-                        disabled={!editable}
+                        disabled={!editable || profileImagesBusy}
                         className={cn(
                           "group relative h-[276px] max-h-[276px] min-h-[276px] w-full overflow-hidden rounded-[13px] border bg-[#f6f8fb] text-[#2f6bd4] transition disabled:cursor-not-allowed disabled:opacity-70",
                           activeProfileImage ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]" : "border-dashed border-[#cfd7e3] hover:border-[#2f6bd4]",
@@ -692,6 +694,12 @@ export default function ShopInfoSettingsPanel({
                                 선택
                               </span>
                             ) : null}
+                            {profileImagesBusy ? (
+                              <span className="absolute inset-x-2 bottom-2 z-10 inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-white/92 text-[12px] font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                사진 업로드 중
+                              </span>
+                            ) : null}
                           </>
                         ) : isProfileImageRestorePending ? (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
@@ -700,8 +708,14 @@ export default function ShopInfoSettingsPanel({
                           </span>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
-                            <Camera className="h-8 w-8" />
-                            <span className="text-[15px] font-semibold text-[#64748b]">사진 추가</span>
+                            {profileImagesBusy ? (
+                              <LoaderCircle className="h-8 w-8 animate-spin text-[#64748b]" />
+                            ) : (
+                              <Camera className="h-8 w-8" />
+                            )}
+                            <span className="text-[15px] font-semibold text-[#64748b]">
+                              {profileImagesBusy ? "사진 업로드 중" : "사진 추가"}
+                            </span>
                           </span>
                         )}
                       </button>
@@ -711,7 +725,7 @@ export default function ShopInfoSettingsPanel({
                         accept="image/*"
                         multiple
                         className="hidden"
-                        disabled={!editable}
+                        disabled={!editable || profileImagesBusy}
                         onChange={(event) => {
                           if (event.target.files?.length) {
                             onProfileImagesAdd(event.target.files);
@@ -782,7 +796,7 @@ export default function ShopInfoSettingsPanel({
                               key={`add-slot-${slotIndex}`}
                               type="button"
                               onClick={() => document.getElementById("shop-profile-images-input")?.click()}
-                              disabled={!editable}
+                              disabled={!editable || profileImagesBusy}
                               className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-[#d8dce3] bg-[#f6f8fb] text-[#969ba4] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label="매장 사진 추가"
                             >
@@ -803,7 +817,7 @@ export default function ShopInfoSettingsPanel({
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          disabled={!editable}
+                          disabled={!editable || profileImagesBusy}
                           onClick={() => {
                             setProfileImageSelectionMode((current) => {
                               if (current) setSelectedProfileImageIndexes([]);
@@ -816,7 +830,7 @@ export default function ShopInfoSettingsPanel({
                         </button>
                         <button
                           type="button"
-                          disabled={!editable}
+                          disabled={!editable || profileImagesBusy}
                           onClick={toggleAllProfileImages}
                           className="inline-flex h-8 items-center rounded-[9px] border border-[#d8dce3] bg-white px-3 text-[13px] font-semibold text-[#3a3f48] transition hover:border-[#2f6bd4] hover:text-[#2f6bd4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -824,7 +838,7 @@ export default function ShopInfoSettingsPanel({
                         </button>
                         <button
                           type="button"
-                          disabled={!editable || selectedProfileImageIndexes.length === 0}
+                          disabled={!editable || profileImagesBusy || selectedProfileImageIndexes.length === 0}
                           onClick={removeSelectedProfileImages}
                           className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[#e2b6be] bg-white px-3 text-[13px] font-semibold text-[#a04455] transition hover:border-[#a04455] disabled:cursor-not-allowed disabled:border-[#e5e7eb] disabled:text-[#b9c3cf]"
                         >

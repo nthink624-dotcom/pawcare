@@ -1047,6 +1047,7 @@ export default function SettingsManagementScreen({
   const [shopProfileImageAssetIds, setShopProfileImageAssetIds] = useState<string[]>([]);
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
+  const [uploadingShopProfileImages, setUploadingShopProfileImages] = useState(false);
   const [shopInfoFeedback, setShopInfoFeedback] = useState("");
   const [previewServices, setPreviewServices] = useState<Service[]>(services);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
@@ -1995,6 +1996,7 @@ export default function SettingsManagementScreen({
     }
 
     profileImageUploadInFlightRef.current = true;
+    setUploadingShopProfileImages(true);
     setSavingShopInfo(true);
     try {
       const uploadedImages = await Promise.all(
@@ -2031,6 +2033,7 @@ export default function SettingsManagementScreen({
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
       profileImageUploadInFlightRef.current = false;
+      setUploadingShopProfileImages(false);
       setSavingShopInfo(false);
     }
   }
@@ -2216,12 +2219,13 @@ export default function SettingsManagementScreen({
             <>
               <ShopInfoSettingsPanel
                 rows={current.rows}
-                  shopProfileImages={shopProfileImages}
-                  shopProfileImageAssetCount={configuredShopProfileImageAssetCount}
-                  profileImagesLoading={profileImagesLoading}
-                  shop={customerPagePreviewShop ?? shop}
-                  previewServices={previewServices}
-                  staffMembers={staffMembers}
+                shopProfileImages={shopProfileImages}
+                shopProfileImageAssetCount={configuredShopProfileImageAssetCount}
+                profileImagesLoading={profileImagesLoading}
+                profileImagesBusy={uploadingShopProfileImages}
+                shop={customerPagePreviewShop ?? shop}
+                previewServices={previewServices}
+                staffMembers={staffMembers}
                 ownerProfile={ownerProfile}
                 businessHoursSummary={String(businessHoursRow?.value ?? "")}
                 closedDaysSummary={String(closedDayRow?.value ?? "")}

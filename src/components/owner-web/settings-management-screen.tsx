@@ -28,6 +28,8 @@ import {
 import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import {
+  canPromoteProfileImageWithoutLegacyMigration,
+  mapProfileImagesWithConcurrency,
   mergeProfileMediaAssetIds,
   mergeRecoveredProfileMediaAssetIds,
   mergeResolvedProfileImageUrls,
@@ -1047,7 +1049,7 @@ export default function SettingsManagementScreen({
   const [shopProfileImageAssetIds, setShopProfileImageAssetIds] = useState<string[]>([]);
   const [isShopInfoDirty, setIsShopInfoDirty] = useState(false);
   const [savingShopInfo, setSavingShopInfo] = useState(false);
-  const [uploadingShopProfileImages, setUploadingShopProfileImages] = useState(false);
+  const [shopProfileImageMutationBusy, setShopProfileImageMutationBusy] = useState(false);
   const [shopInfoFeedback, setShopInfoFeedback] = useState("");
   const [previewServices, setPreviewServices] = useState<Service[]>(services);
   const [alertSettings, setAlertSettings] = useState<AlertSettingsDraft>(() => buildAlertSettingsDraft(shop?.notification_settings));
@@ -1078,7 +1080,8 @@ export default function SettingsManagementScreen({
   const profileImageAssetUrlSyncKeyRef = useRef("");
   const profileImageMissingAssetRecoveryKeyRef = useRef("");
   const profileImageManualRemovalKeyRef = useRef("");
-  const profileImageUploadInFlightRef = useRef(false);
+  const profileImageMutationInFlightRef = useRef(false);
+  const shopInfoSaveInFlightRef = useRef(false);
   const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
@@ -1268,18 +1271,6 @@ export default function SettingsManagementScreen({
     const postalCode = "postalCode" in profilePatch && typeof profilePatch.postalCode === "string" ? profilePatch.postalCode : "";
     const addressDetail =
       "addressDetail" in profilePatch && typeof profilePatch.addressDetail === "string" ? profilePatch.addressDetail : "";
-    const heroImageUrls = normalizeShopProfileImages(shopProfileImages);
-    const existingHeroMediaAssetIds = normalizeShopProfileImageAssetIds(shop.customer_page_settings);
-    const heroMediaAssetIds = alignShopProfileImageAssetIds(Math.max(heroImageUrls.length, shopProfileImageAssetIds.length), shopProfileImageAssetIds)
-      .filter(Boolean)
-      .slice(0, ownerWebShopProfileImagesMaxCount);
-    const stableHeroMediaAssetIds =
-      heroMediaAssetIds.length >= existingHeroMediaAssetIds.length
-        ? heroMediaAssetIds
-        : existingHeroMediaAssetIds;
-    const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
-    const heroImageUrl = heroImageUrls[0] ?? "";
-    const persistentHeroImageUrl = persistentHeroImageUrls[0] ?? "";
     const tagline = "description" in profilePatch && typeof profilePatch.description === "string" ? profilePatch.description : "";
     const optimisticShop: Shop = {
       ...shop,
@@ -1300,19 +1291,14 @@ export default function SettingsManagementScreen({
         showcase_title: showcaseTitle,
         showcase_body: showcaseBody,
         social_links: socialLinks,
-        hero_image_url: heroImageUrl,
-        hero_image_urls: heroImageUrls,
-        hero_media_asset_id: stableHeroMediaAssetIds[0] ?? "",
-        hero_media_asset_ids: stableHeroMediaAssetIds,
         business_category: businessCategory || shop.customer_page_settings.business_category,
         additional_contact: additionalContact,
         postal_code: postalCode,
         address_detail: addressDetail,
       },
     };
-    onShopChange?.(optimisticShop);
-
     if (!persistShopProfile) {
+      onShopChange?.(optimisticShop);
       return;
     }
 
@@ -1338,9 +1324,6 @@ export default function SettingsManagementScreen({
           showcaseTitle,
           showcaseBody,
           socialLinks,
-          heroImageUrl: persistentHeroImageUrl,
-          heroImageUrls: persistentHeroImageUrls,
-          heroMediaAssetIds: stableHeroMediaAssetIds,
           ...(policyPatch ?? {}),
         }),
       },
@@ -1348,17 +1331,10 @@ export default function SettingsManagementScreen({
     onShopChange?.({
       ...optimisticShop,
       ...result.shop,
-      customer_page_settings: mergeCustomerPageSettings(optimisticShop.customer_page_settings, {
-        ...result.shop.customer_page_settings,
-        ...(stableHeroMediaAssetIds.length > 0
-          ? {
-              hero_image_url: heroImageUrl,
-              hero_image_urls: heroImageUrls,
-              hero_media_asset_id: stableHeroMediaAssetIds[0] ?? "",
-              hero_media_asset_ids: stableHeroMediaAssetIds,
-            }
-          : {}),
-      }),
+      customer_page_settings: mergeCustomerPageSettings(
+        optimisticShop.customer_page_settings,
+        result.shop.customer_page_settings,
+      ),
     });
   }
 
@@ -1369,7 +1345,7 @@ export default function SettingsManagementScreen({
     const alignedMediaAssetIds = alignShopProfileImageAssetIds(Math.max(heroImageUrls.length, nextMediaAssetIds.length), nextMediaAssetIds);
     const heroMediaAssetIds = alignedMediaAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
     const persistentHeroImageUrls = heroImageUrls.filter(isRemotePersistableImageUrl);
-    const result = await fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
+    const persistRequest = () => fetchApiJsonWithAuth<{ shop: Pick<Shop, "id" | "customer_page_settings"> }>("/api/owner/shops", {
       method: "PATCH",
       body: JSON.stringify({
         shopId: shop.id,
@@ -1378,6 +1354,13 @@ export default function SettingsManagementScreen({
         heroMediaAssetIds,
       }),
     });
+    let result: Awaited<ReturnType<typeof persistRequest>>;
+    try {
+      result = await persistRequest();
+    } catch {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      result = await persistRequest();
+    }
 
     onShopChange?.({
       ...shop,
@@ -1434,11 +1417,16 @@ export default function SettingsManagementScreen({
       void resolveShopProfileImageUrlsFromAssetIds(shop.id, mediaAssetIds)
         .then((resolvedItems) => {
           if (cancelled) return;
+          const canPairCurrentImages = currentImages.length >= mediaAssetIds.length;
+          const currentImageUrlsForMerge = canPairCurrentImages
+            ? currentImages
+            : currentImages.filter(isRemotePersistableImageUrl);
           const resolved = mergeResolvedProfileImageUrls({
-            currentImageUrls: currentImages,
+            currentImageUrls: currentImageUrlsForMerge,
             currentMediaAssetIds: mediaAssetIds,
             resolvedItems,
             maxCount: ownerWebShopProfileImagesMaxCount,
+            preserveCurrentUrlsAsLegacy: !canPairCurrentImages && currentImageUrlsForMerge.length > 0,
           });
           const nextImages = normalizeShopProfileImages(resolved.imageUrls);
           const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, resolved.mediaAssetIds);
@@ -1900,8 +1888,14 @@ export default function SettingsManagementScreen({
       clearTimeout(shopInfoAutoSaveTimerRef.current);
     }
 
-    shopInfoAutoSaveTimerRef.current = setTimeout(() => {
+    const runAutoSave = () => {
+      if (profileImageMutationInFlightRef.current || shopInfoSaveInFlightRef.current) {
+        shopInfoAutoSaveTimerRef.current = setTimeout(runAutoSave, 250);
+        return;
+      }
+
       shopInfoAutoSaveTimerRef.current = null;
+      shopInfoSaveInFlightRef.current = true;
       setSavingShopInfo(true);
       setShopInfoFeedback("");
       setIsShopInfoDirty(false);
@@ -1915,9 +1909,12 @@ export default function SettingsManagementScreen({
           setIsShopInfoDirty(true);
         })
         .finally(() => {
+          shopInfoSaveInFlightRef.current = false;
           setSavingShopInfo(false);
         });
-    }, 500);
+    };
+
+    shopInfoAutoSaveTimerRef.current = setTimeout(runAutoSave, 500);
   }
 
   function handleRowClick(row: SettingRow) {
@@ -1974,8 +1971,29 @@ export default function SettingsManagementScreen({
   );
   const profileImagesLoading = shopProfileImages.length === 0 && configuredShopProfileImageAssetCount > 0;
 
+  function beginShopProfileImageMutation() {
+    if (
+      profileImagesLoading ||
+      savingShopInfo ||
+      shopInfoSaveInFlightRef.current ||
+      profileImageMutationInFlightRef.current
+    ) {
+      return false;
+    }
+    profileImageMutationInFlightRef.current = true;
+    setShopProfileImageMutationBusy(true);
+    setSavingShopInfo(true);
+    return true;
+  }
+
+  function endShopProfileImageMutation() {
+    profileImageMutationInFlightRef.current = false;
+    setShopProfileImageMutationBusy(false);
+    setSavingShopInfo(false);
+  }
+
   async function addShopProfileImages(files: FileList | File[]) {
-    if (!shop || savingShopInfo || profileImageUploadInFlightRef.current) return;
+    if (!shop || profileImagesLoading) return;
     const currentMediaAssetIds = mergeProfileMediaAssetIds(
       normalizeShopProfileImageAssetIds(shop.customer_page_settings),
       shopProfileImageAssetIds,
@@ -1995,16 +2013,29 @@ export default function SettingsManagementScreen({
       return;
     }
 
-    profileImageUploadInFlightRef.current = true;
-    setUploadingShopProfileImages(true);
-    setSavingShopInfo(true);
+    if (!beginShopProfileImageMutation()) return;
+    const previousImages = shopProfileImages.slice();
+    const previousMediaAssetIds = shopProfileImageAssetIds.slice();
+    let uploadedImageCount = 0;
+    let optimisticStateApplied = false;
     try {
-      const uploadedImages = await Promise.all(
-        selectedFiles.map((file) => createOwnerShopProfileImageFromFile({ shopId: shop.id }, file)),
+      const uploadResults = await mapProfileImagesWithConcurrency(
+        selectedFiles,
+        3,
+        (file) => createOwnerShopProfileImageFromFile({ shopId: shop.id }, file),
       );
+      const uploadedImages = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" && result.value.signedUrl && result.value.mediaAsset.id
+          ? [result.value]
+          : [],
+      );
+      uploadedImageCount = uploadedImages.length;
+      if (uploadedImages.length === 0) {
+        const firstFailure = uploadResults.find((result) => result.status === "rejected");
+        throw firstFailure?.reason ?? new Error("매장 사진을 업로드하지 못했습니다.");
+      }
       const imageUrls = uploadedImages.map((item) => item.signedUrl).filter(Boolean);
       const mediaAssetIds = uploadedImages.map((item) => item.mediaAsset.id).filter(Boolean);
-      if (imageUrls.length === 0) return;
 
       const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
       const mergedMediaAssetIds = mergeProfileMediaAssetIds(
@@ -2016,11 +2047,15 @@ export default function SettingsManagementScreen({
       setShopProfileImages(nextImages);
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
+      optimisticStateApplied = true;
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(false);
+      const failedImageCount = selectedFiles.length - uploadedImages.length;
+      if (failedImageCount > 0) {
+        setShopInfoFeedback(`${uploadedImages.length}장은 추가했고 ${failedImageCount}장은 업로드하지 못했습니다.`);
+      }
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to upload shop profile images", error);
-      if (shouldFallbackToLocalProfileImage(error)) {
+      if (uploadedImageCount === 0 && shouldFallbackToLocalProfileImage(error)) {
         const localImageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
         const nextImages = normalizeShopProfileImages([...shopProfileImages, ...localImageUrls]);
         setShopProfileImages(nextImages);
@@ -2030,17 +2065,23 @@ export default function SettingsManagementScreen({
         setShopInfoFeedback("");
         return;
       }
+      if (optimisticStateApplied) {
+        setShopProfileImages(previousImages);
+        setShopProfileImageAssetIds(previousMediaAssetIds);
+        persistSettings(draftSettings, previousImages);
+      }
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
-      profileImageUploadInFlightRef.current = false;
-      setUploadingShopProfileImages(false);
-      setSavingShopInfo(false);
+      endShopProfileImageMutation();
     }
   }
 
   async function removeShopProfileImages(indexes: number[]) {
     const removeIndexes = new Set(indexes);
     if (removeIndexes.size === 0) return;
+    if (!beginShopProfileImageMutation()) return;
+    const previousImages = shopProfileImages.slice();
+    const previousMediaAssetIds = shopProfileImageAssetIds.slice();
     const nextImages = shopProfileImages.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
     const alignedMediaAssetIds = alignShopProfileImageAssetIds(shopProfileImages.length, shopProfileImageAssetIds);
     const nextMediaAssetIds = alignedMediaAssetIds.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
@@ -2048,16 +2089,18 @@ export default function SettingsManagementScreen({
     setShopProfileImages(nextImages);
     setShopProfileImageAssetIds(nextMediaAssetIds);
     persistSettings(draftSettings, nextImages);
-    setSavingShopInfo(true);
     try {
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(false);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to persist shop profile image removal", error);
+      profileImageManualRemovalKeyRef.current = "";
+      setShopProfileImages(previousImages);
+      setShopProfileImageAssetIds(previousMediaAssetIds);
+      persistSettings(draftSettings, previousImages);
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진 변경사항을 저장하지 못했습니다.");
       setIsShopInfoDirty(true);
     } finally {
-      setSavingShopInfo(false);
+      endShopProfileImageMutation();
     }
   }
 
@@ -2066,35 +2109,43 @@ export default function SettingsManagementScreen({
 
     const currentImages = normalizeShopProfileImages(shopProfileImages);
     if (index >= currentImages.length) return;
-
     const currentMediaAssetIds = alignShopProfileImageAssetIds(currentImages.length, shopProfileImageAssetIds);
-    const nextImages = currentImages.slice();
-    const [selectedImage] = nextImages.splice(index, 1);
-    nextImages.unshift(selectedImage);
-
-    const nextMediaAssetIds = currentMediaAssetIds.slice();
-    const [selectedMediaAssetId = ""] = nextMediaAssetIds.splice(index, 1);
-    nextMediaAssetIds.unshift(selectedMediaAssetId);
-
-    setShopProfileImages(nextImages);
-    setShopProfileImageAssetIds(nextMediaAssetIds);
-    persistSettings(draftSettings, nextImages);
-
-    if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
-      setIsShopInfoDirty(true);
+    if (!canPromoteProfileImageWithoutLegacyMigration(currentMediaAssetIds, index)) {
+      setShopInfoFeedback("기존 방식으로 저장된 사진이 포함되어 있어 해당 사진은 대표로 이동할 수 없습니다.");
       return;
     }
+    if (!beginShopProfileImageMutation()) return;
+    const previousImages = shopProfileImages.slice();
+    const previousMediaAssetIds = shopProfileImageAssetIds.slice();
 
-    setSavingShopInfo(true);
     try {
+      const nextImages = currentImages.slice();
+      const [selectedImage] = nextImages.splice(index, 1);
+      nextImages.unshift(selectedImage);
+
+      const nextMediaAssetIds = currentMediaAssetIds.slice();
+      const [selectedMediaAssetId = ""] = nextMediaAssetIds.splice(index, 1);
+      nextMediaAssetIds.unshift(selectedMediaAssetId);
+
+      setShopProfileImages(nextImages);
+      setShopProfileImageAssetIds(nextMediaAssetIds);
+      persistSettings(draftSettings, nextImages);
+
+      if (!persistShopProfile || shop.id === "demo-shop" || shop.id === "owner-demo") {
+        setIsShopInfoDirty(true);
+        return;
+      }
+
       await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
-      setIsShopInfoDirty(false);
     } catch (error) {
       console.error("[OWNER SETTINGS] failed to persist primary shop profile image", error);
+      setShopProfileImages(previousImages);
+      setShopProfileImageAssetIds(previousMediaAssetIds);
+      persistSettings(draftSettings, previousImages);
       setShopInfoFeedback(error instanceof Error ? error.message : "대표 매장 사진을 저장하지 못했습니다.");
       setIsShopInfoDirty(true);
     } finally {
-      setSavingShopInfo(false);
+      endShopProfileImageMutation();
     }
   }
 
@@ -2222,7 +2273,8 @@ export default function SettingsManagementScreen({
                 shopProfileImages={shopProfileImages}
                 shopProfileImageAssetCount={configuredShopProfileImageAssetCount}
                 profileImagesLoading={profileImagesLoading}
-                profileImagesBusy={uploadingShopProfileImages}
+                profileImagesBusy={shopProfileImageMutationBusy || profileImagesLoading || savingShopInfo}
+                profileImagesProcessing={shopProfileImageMutationBusy}
                 shop={customerPagePreviewShop ?? shop}
                 previewServices={previewServices}
                 staffMembers={staffMembers}

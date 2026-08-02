@@ -19,6 +19,41 @@ export function mergeProfileMediaAssetIds(currentIds: string[], addedIds: string
   return uniqueNonEmptyStrings([...currentIds, ...addedIds], maxCount);
 }
 
+export function canPromoteProfileImageWithoutLegacyMigration(
+  alignedMediaAssetIds: string[],
+  selectedIndex: number,
+) {
+  const hasLegacyImage = alignedMediaAssetIds.some((mediaAssetId) => !mediaAssetId);
+  const selectedImageUsesMediaAsset = Boolean(alignedMediaAssetIds[selectedIndex]);
+  return !hasLegacyImage || !selectedImageUsesMediaAsset;
+}
+
+export async function mapProfileImagesWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  mapper: (item: TInput, index: number) => Promise<TOutput>,
+) {
+  const results = new Array<PromiseSettledResult<TOutput>>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(Math.floor(concurrency), 1), items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        try {
+          results[index] = { status: "fulfilled", value: await mapper(items[index], index) };
+        } catch (reason) {
+          results[index] = { status: "rejected", reason };
+        }
+      }
+    }),
+  );
+
+  return results;
+}
+
 function recoveryFingerprint(asset: RecoverableProfileMediaAsset) {
   const fileName = asset.original_file_name?.trim().toLocaleLowerCase() ?? "";
   const sourceByteSize = Number(asset.source_byte_size ?? 0);
@@ -78,9 +113,11 @@ export function mergeResolvedProfileImageUrls(params: {
     !params.preserveCurrentUrlsAsLegacy &&
     currentMediaAssetIds.length > 0 &&
     currentImageUrls.length >= currentMediaAssetIds.length;
-  const legacyImageCount = canPairCurrentUrls
-    ? currentImageUrls.length - currentMediaAssetIds.length
-    : currentImageUrls.length;
+  const legacyImageCount = params.preserveCurrentUrlsAsLegacy
+    ? currentImageUrls.length
+    : canPairCurrentUrls
+      ? currentImageUrls.length - currentMediaAssetIds.length
+      : 0;
   const legacyImageUrls = currentImageUrls.slice(0, legacyImageCount);
   const currentUrlByAssetId = new Map<string, string>();
 

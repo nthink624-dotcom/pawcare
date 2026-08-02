@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canPromoteProfileImageWithoutLegacyMigration,
+  mapProfileImagesWithConcurrency,
   mergeProfileMediaAssetIds,
   mergeRecoveredProfileMediaAssetIds,
   mergeResolvedProfileImageUrls,
@@ -18,6 +20,35 @@ test("profile media collections are not silently truncated at twenty items", () 
   const existingIds = Array.from({ length: 25 }, (_, index) => `asset-${index + 1}`);
 
   assert.equal(mergeProfileMediaAssetIds(existingIds, ["asset-26"], 200).length, 26);
+});
+
+test("an asset-backed image cannot move ahead of legacy URLs without migration", () => {
+  assert.equal(
+    canPromoteProfileImageWithoutLegacyMigration(["", "asset-a", "asset-b"], 2),
+    false,
+  );
+  assert.equal(
+    canPromoteProfileImageWithoutLegacyMigration(["asset-a", "asset-b"], 1),
+    true,
+  );
+});
+
+test("profile image work preserves order and limits concurrent uploads", async () => {
+  let active = 0;
+  let peakActive = 0;
+  const results = await mapProfileImagesWithConcurrency([1, 2, 3, 4, 5], 2, async (value) => {
+    active += 1;
+    peakActive = Math.max(peakActive, active);
+    await new Promise((resolve) => setTimeout(resolve, value % 2 === 0 ? 2 : 5));
+    active -= 1;
+    return value * 10;
+  });
+
+  assert.equal(peakActive, 2);
+  assert.deepEqual(
+    results.map((result) => result.status === "fulfilled" ? result.value : null),
+    [10, 20, 30, 40, 50],
+  );
 });
 
 test("resolved asset URLs are appended without removing persistent legacy URLs", () => {
@@ -60,6 +91,26 @@ test("a partial signed URL response keeps the current URL for unresolved assets"
     "https://signed.example.com/asset-b-old",
   ]);
   assert.deepEqual(result.mediaAssetIds, ["asset-a", "asset-b"]);
+});
+
+test("an unpaired newly uploaded URL is not duplicated when the full asset list resolves", () => {
+  const result = mergeResolvedProfileImageUrls({
+    currentImageUrls: ["https://signed.example.com/asset-c-old"],
+    currentMediaAssetIds: ["asset-a", "asset-b", "asset-c"],
+    resolvedItems: [
+      { mediaAssetId: "asset-a", signedUrl: "https://signed.example.com/asset-a" },
+      { mediaAssetId: "asset-b", signedUrl: "https://signed.example.com/asset-b" },
+      { mediaAssetId: "asset-c", signedUrl: "https://signed.example.com/asset-c-new" },
+    ],
+    maxCount: 200,
+  });
+
+  assert.deepEqual(result.imageUrls, [
+    "https://signed.example.com/asset-a",
+    "https://signed.example.com/asset-b",
+    "https://signed.example.com/asset-c-new",
+  ]);
+  assert.deepEqual(result.mediaAssetIds, ["asset-a", "asset-b", "asset-c"]);
 });
 
 test("recovery skips older duplicate uploads while reconnecting unique ready assets", () => {

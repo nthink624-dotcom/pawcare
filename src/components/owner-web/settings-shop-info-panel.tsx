@@ -24,6 +24,7 @@ type ShopInfoSettingsPanelProps = {
   shopProfileImageAssetCount?: number;
   profileImagesLoading?: boolean;
   profileImagesBusy?: boolean;
+  profileImagesProcessing?: boolean;
   children?: ReactNode;
   serviceMenuContent?: ReactNode;
   shop?: Shop;
@@ -316,6 +317,7 @@ export default function ShopInfoSettingsPanel({
   shopProfileImageAssetCount = 0,
   profileImagesLoading = false,
   profileImagesBusy = false,
+  profileImagesProcessing = false,
   children,
   serviceMenuContent,
   shop,
@@ -694,10 +696,10 @@ export default function ShopInfoSettingsPanel({
                                 선택
                               </span>
                             ) : null}
-                            {profileImagesBusy ? (
+                            {profileImagesProcessing ? (
                               <span className="absolute inset-x-2 bottom-2 z-10 inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-white/92 text-[12px] font-semibold text-[#475569] shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm">
                                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                                사진 업로드 중
+                                사진 처리 중
                               </span>
                             ) : null}
                           </>
@@ -708,13 +710,13 @@ export default function ShopInfoSettingsPanel({
                           </span>
                         ) : (
                           <span className="flex h-full flex-col items-center justify-center gap-2">
-                            {profileImagesBusy ? (
+                            {profileImagesProcessing ? (
                               <LoaderCircle className="h-8 w-8 animate-spin text-[#64748b]" />
                             ) : (
                               <Camera className="h-8 w-8" />
                             )}
                             <span className="text-[15px] font-semibold text-[#64748b]">
-                              {profileImagesBusy ? "사진 업로드 중" : "사진 추가"}
+                              {profileImagesProcessing ? "사진 처리 중" : "사진 추가"}
                             </span>
                           </span>
                         )}
@@ -744,6 +746,7 @@ export default function ShopInfoSettingsPanel({
                                 key={`${imageUrl}-${imageIndex}`}
                                 type="button"
                                 onClick={() => {
+                                  if (profileImagesBusy) return;
                                   if (isProfileImageSelectionActive) {
                                     toggleProfileImageSelection(imageIndex);
                                     return;
@@ -751,8 +754,9 @@ export default function ShopInfoSettingsPanel({
                                   setActiveProfileImageIndex(0);
                                   void onProfileImageSelect?.(imageIndex);
                                 }}
+                                disabled={!editable || profileImagesBusy}
                                 className={cn(
-                                  "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition",
+                                  "relative aspect-square w-full overflow-hidden rounded-[10px] border bg-white transition disabled:cursor-wait disabled:opacity-70",
                                   imageIndex === 0
                                     ? "border-[#2f6bd4] shadow-[0_0_0_2px_rgba(47,107,212,0.12)]"
                                     : "border-[#e1e5ec] hover:border-[#9bb8f4]",

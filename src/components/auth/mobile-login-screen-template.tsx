@@ -172,8 +172,8 @@ export default function MobileLoginScreenTemplate({
   }, [syncBrowserFilledCredentials]);
 
   return (
-    <main className="flex min-h-screen w-screen items-center justify-center bg-[#eef0f3] py-10 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#0f172a] antialiased">
-      <section className="w-full max-w-[390px] overflow-hidden rounded-[28px] bg-white px-7 pb-10 pt-[52px] shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
+    <main className="flex min-h-screen w-screen items-center justify-center bg-[#eef0f3] px-4 py-4 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#0f172a] antialiased sm:py-6">
+      <section className="w-full max-w-[390px] overflow-hidden rounded-[28px] bg-white px-7 pb-8 pt-10 shadow-[0_20px_60px_rgba(15,23,42,0.14)]">
         <h1 className="mb-[10px] text-center text-xl font-extrabold leading-[normal] tracking-[-0.3px] text-[#0f172a]">{heading}</h1>
         <p className="mb-7 text-center text-[13px] leading-[1.55] text-[#94a3b8]">
           {descriptionLines.map((line, index) => (
@@ -194,9 +194,7 @@ export default function MobileLoginScreenTemplate({
           />
         ) : null}
 
-        <Divider>또는 아이디로 로그인</Divider>
-
-        <div className="mb-[10px]">
+        <div className="mb-[10px] mt-4">
           <input
             data-testid="owner-login-id"
             ref={loginIdInputRef}
@@ -267,9 +265,7 @@ export default function MobileLoginScreenTemplate({
           ))}
         </div>
 
-        <Divider>또는</Divider>
-
-        <div className="flex flex-col gap-2.5">
+        <div className="mt-4 flex flex-col gap-2.5">
           {socialProviders.includes("naver") ? (
             <SocialButton
               provider="naver"
@@ -292,14 +288,6 @@ export default function MobileLoginScreenTemplate({
         </div>
       </section>
     </main>
-  );
-}
-
-function Divider({ children }: { children: ReactNode }) {
-  return (
-    <div className="my-6 flex items-center gap-3 text-xs leading-[normal] text-[#94a3b8] before:h-px before:flex-1 before:bg-[#e5e9f0] after:h-px after:flex-1 after:bg-[#e5e9f0]">
-      {children}
-    </div>
   );
 }
 

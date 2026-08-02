@@ -76,6 +76,10 @@ export type OwnerMediaUploadResult = {
   variant: MediaVariant | null;
 };
 
+type OwnerMediaUploadOptions = {
+  createProviderReadyVariant?: boolean;
+};
+
 async function uploadCompressedFile(params: {
   bucket: string;
   path: string;
@@ -206,6 +210,7 @@ export async function createOwnerMediaAssetFromFile(
   context: OwnerMediaContext,
   mediaKind: MediaKind,
   file: File,
+  options: OwnerMediaUploadOptions = {},
 ): Promise<OwnerMediaUploadResult> {
   const compressed = await compressImageForPetmanager(file);
   const intent = await createUploadIntent(context, mediaKind, compressed);
@@ -221,7 +226,9 @@ export async function createOwnerMediaAssetFromFile(
   });
 
   const completed = await completeUpload(context, intent.mediaAsset.id, compressed);
-  const variant = await createProviderReadyVariant(context, intent.mediaAsset.id, file);
+  const variant = options.createProviderReadyVariant === false
+    ? null
+    : await createProviderReadyVariant(context, intent.mediaAsset.id, file);
 
   return {
     mediaAsset: completed.mediaAsset,
@@ -244,7 +251,9 @@ export async function createOwnerShopProfileImageFromFile(
   context: OwnerMediaContext,
   file: File,
 ) {
-  const uploaded = await createOwnerMediaAssetFromFile(context, "shop_profile", file);
+  const uploaded = await createOwnerMediaAssetFromFile(context, "shop_profile", file, {
+    createProviderReadyVariant: false,
+  });
   const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
 
   return {
@@ -257,7 +266,9 @@ export async function createOwnerStaffProfileImageFromFile(
   context: OwnerMediaContext,
   file: File,
 ) {
-  const uploaded = await createOwnerMediaAssetFromFile(context, "staff_profile", file);
+  const uploaded = await createOwnerMediaAssetFromFile(context, "staff_profile", file, {
+    createProviderReadyVariant: false,
+  });
   const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
 
   return {

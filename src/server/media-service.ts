@@ -779,7 +779,7 @@ export async function getOwnerMediaSignedUrl(owner: OwnerContext, input: {
 
 export async function getOwnerMediaSignedUrls(owner: OwnerContext, input: OwnerMediaSignedUrlsInput) {
   const admin = getAdmin();
-  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 20);
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 200);
   const variantKey = input.variantKey && variantKeys.has(input.variantKey as MediaVariantKey)
     ? (input.variantKey as MediaVariantKey)
     : null;
@@ -845,7 +845,7 @@ export async function getOwnerMediaSignedUrls(owner: OwnerContext, input: OwnerM
 export async function getPublicShopMediaSignedUrls(input: PublicMediaSignedUrlsInput) {
   const admin = getAdmin();
   const shopId = requiredShopId(input.shopId);
-  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 20);
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 200);
   const variantKey = input.variantKey && variantKeys.has(input.variantKey as MediaVariantKey)
     ? (input.variantKey as MediaVariantKey)
     : null;

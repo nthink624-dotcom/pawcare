@@ -1,21 +1,16 @@
 import {
   ArrowDown,
   ArrowRight,
-  BatteryFull,
   BellRing,
-  Camera,
   CalendarCheck2,
   Check,
   Clock3,
   Database,
-  Flashlight,
   Link2,
-  PhoneMissed,
+  Phone,
   Scissors,
-  Signal,
   UserRoundPen,
   UsersRound,
-  Wifi,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -283,49 +278,20 @@ function MissedCallPhoneMockup() {
   return (
     <div
       role="img"
-      aria-label="부재중 전화 알림이 표시된 아이폰 잠금 화면"
-      className="absolute left-[5%] top-1/2 z-10 w-[118px] -translate-y-1/2 sm:left-[14%] sm:w-[168px]"
+      aria-label="실제 부재중 전화 알림이 표시된 아이폰 잠금 화면"
+      className="absolute left-[5%] top-1/2 z-10 w-[120px] -translate-y-1/2 drop-shadow-[0_18px_24px_rgba(27,24,21,0.22)] sm:left-[14%] sm:w-[176px]"
     >
-      <div
-        aria-hidden="true"
-        className="relative aspect-[9/19.5] overflow-hidden rounded-[24px] border-[3px] border-[#292a2b] bg-[var(--landing-accent)] p-2 text-white shadow-[0_16px_32px_rgba(27,24,21,0.18)] sm:rounded-[32px] sm:border-[5px] sm:p-3"
-      >
-        <span className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-black sm:top-2 sm:h-4 sm:w-16" />
-
-        <div className="flex items-center justify-between pt-1 text-[15px] font-semibold sm:pt-1.5">
-          <span>9:27</span>
-          <span className="flex items-center gap-1">
-            <Signal className="h-3 w-3" />
-            <Wifi className="hidden h-3 w-3 sm:block" />
-            <BatteryFull className="h-3.5 w-3.5" />
-          </span>
-        </div>
-
-        <div className="mt-4 text-center sm:mt-8">
-          <p className="hidden text-[15px] font-medium text-white/90 sm:block">2월 4일 토요일</p>
-          <p className="text-[28px] font-light leading-none tracking-[0] sm:mt-1 sm:text-[42px]">9:27</p>
-        </div>
-
-        <div className="absolute inset-x-2 bottom-8 rounded-[13px] bg-[var(--landing-accent-soft)] p-2 text-[var(--landing-accent-hover)] sm:inset-x-3 sm:bottom-12 sm:rounded-[16px] sm:p-2.5">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#a04455] text-white motion-safe:animate-[landing-missed-call-focus_1.8s_ease-in-out_infinite] motion-reduce:animate-none sm:h-9 sm:w-9">
-              <PhoneMissed className="h-4 w-4 sm:h-5 sm:w-5" />
-            </span>
-            <span className="min-w-0 text-left text-[15px] font-semibold leading-[1.15]">
-              <span className="hidden sm:block">고객 전화</span>
-              <span className="block text-[#8e3e4f] sm:mt-0.5">부재중</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="absolute inset-x-3 bottom-2 hidden items-center justify-between text-white/85 sm:flex">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/30">
-            <Flashlight className="h-3.5 w-3.5" />
-          </span>
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/30">
-            <Camera className="h-3.5 w-3.5" />
-          </span>
-        </div>
+      <div aria-hidden="true" className="relative aspect-[375/754] overflow-hidden rounded-[26px] sm:rounded-[36px]">
+        <Image
+          src="/images/landing/actual-missed-call-lockscreen.png"
+          alt=""
+          fill
+          className="object-cover object-center"
+          sizes="(min-width: 640px) 176px, 120px"
+        />
+        <span className="absolute left-[18.6%] top-[78.4%] flex h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#22c55e] text-white shadow-[0_0_0_2px_rgba(255,255,255,0.9)] motion-safe:animate-[landing-missed-call-focus_1.8s_ease-in-out_infinite] motion-reduce:animate-none sm:h-[14px] sm:w-[14px]">
+          <Phone className="h-[7px] w-[7px] fill-current sm:h-[9px] sm:w-[9px]" strokeWidth={2.4} />
+        </span>
       </div>
     </div>
   );

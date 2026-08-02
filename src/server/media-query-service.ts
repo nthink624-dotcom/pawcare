@@ -131,9 +131,7 @@ export async function listOwnerMediaAssets(
       .order("id", { ascending: false })
       .limit(limit + 1);
 
-    if (mediaKind !== "shop_profile" && mediaKind !== "staff_profile") {
-      query = query.eq("status", "ready");
-    }
+    query = query.eq("status", "ready");
     if (includeDeletedAtFilter) query = query.is("deleted_at", null);
     if (beforeCreatedAt) query = query.lt("created_at", beforeCreatedAt);
     if (mediaKind) query = query.eq("media_kind", mediaKind);

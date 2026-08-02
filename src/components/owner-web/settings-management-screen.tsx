@@ -27,6 +27,11 @@ import {
 } from "@/lib/customer-service-options";
 import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
+import {
+  mergeProfileMediaAssetIds,
+  mergeRecoveredProfileMediaAssetIds,
+  mergeResolvedProfileImageUrls,
+} from "@/lib/media/profile-image-collection";
 import { normalizeShopNotificationSettings } from "@/lib/notification-settings";
 import { cn } from "@/lib/utils";
 import type { BootstrapStaffMember, CustomerDiscountCoupon, OwnerProfile, ReservationPolicySettings, Service, Shop, ShopNotificationSettings } from "@/types/domain";
@@ -479,14 +484,6 @@ function normalizeShopProfileImageAssetIds(settings: Shop["customer_page_setting
   return (mediaAssetIds.length > 0 ? mediaAssetIds : singleMediaAssetId ? [singleMediaAssetId] : []).slice(0, ownerWebShopProfileImagesMaxCount);
 }
 
-function uniqueShopProfileImageAssetIds(mediaAssetIds: string[]) {
-  return Array.from(new Set(mediaAssetIds.map((mediaAssetId) => mediaAssetId.trim()).filter(Boolean))).slice(0, ownerWebShopProfileImagesMaxCount);
-}
-
-function mergeShopProfileImageAssetIds(primaryAssetIds: string[], discoveredAssetIds: string[]) {
-  return uniqueShopProfileImageAssetIds([...primaryAssetIds, ...discoveredAssetIds]);
-}
-
 function areStringArraysEqual(left: string[], right: string[]) {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
@@ -547,7 +544,7 @@ function shouldFallbackToLocalProfileImage(error: unknown) {
 }
 
 async function resolveShopProfileImageUrlsFromAssetIds(shopId: string, mediaAssetIds: string[]) {
-  const ids = uniqueShopProfileImageAssetIds(mediaAssetIds);
+  const ids = mergeProfileMediaAssetIds([], mediaAssetIds, ownerWebShopProfileImagesMaxCount);
   if (ids.length === 0) return [];
 
   const result = await fetchApiJsonWithAuth<PublicMediaSignedUrlsResponse>("/api/owner/media/signed-urls", {
@@ -560,7 +557,10 @@ async function resolveShopProfileImageUrlsFromAssetIds(shopId: string, mediaAsse
     }),
   });
   const urlsByAssetId = new Map(result.items.map((item) => [item.mediaAssetId, item.signedUrl]));
-  return ids.map((mediaAssetId) => urlsByAssetId.get(mediaAssetId) ?? "").filter(Boolean);
+  return ids.flatMap((mediaAssetId) => {
+    const signedUrl = urlsByAssetId.get(mediaAssetId) ?? "";
+    return signedUrl ? [{ mediaAssetId, signedUrl }] : [];
+  });
 }
 
 function mergeSettingsWithDefaults(savedSettings: unknown, shop?: Shop) {
@@ -1077,6 +1077,7 @@ export default function SettingsManagementScreen({
   const profileImageAssetUrlSyncKeyRef = useRef("");
   const profileImageMissingAssetRecoveryKeyRef = useRef("");
   const profileImageManualRemovalKeyRef = useRef("");
+  const profileImageUploadInFlightRef = useRef(false);
   const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
@@ -1114,14 +1115,25 @@ export default function SettingsManagementScreen({
         } else {
           setShopProfileImages((currentImages) => (currentImages.length > 0 ? currentImages : []));
         }
-        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(Math.max(nextProfileImages.length, serverMediaAssetIds.length), serverMediaAssetIds));
+        setShopProfileImageAssetIds(serverMediaAssetIds);
 
-        if (shop && persistShopProfile && nextProfileImages.length === 0 && serverMediaAssetIds.length > 0) {
-          void resolveShopProfileImageUrlsFromAssetIds(shop.id, serverMediaAssetIds).then((signedUrls) => {
+        if (shop && persistShopProfile && serverMediaAssetIds.length > 0) {
+          const persistentLegacyImageUrls = nextProfileImages.filter(isRemotePersistableImageUrl);
+          void resolveShopProfileImageUrlsFromAssetIds(shop.id, serverMediaAssetIds).then((resolvedItems) => {
             if (cancelled) return;
-            const initializedImages = normalizeShopProfileImages(signedUrls);
+            const initialized = mergeResolvedProfileImageUrls({
+              currentImageUrls: persistentLegacyImageUrls,
+              currentMediaAssetIds: serverMediaAssetIds,
+              resolvedItems,
+              maxCount: ownerWebShopProfileImagesMaxCount,
+              preserveCurrentUrlsAsLegacy: true,
+            });
+            const initializedImages = normalizeShopProfileImages(initialized.imageUrls);
             if (initializedImages.length === 0) return;
             setShopProfileImages(initializedImages);
+            setShopProfileImageAssetIds(
+              alignShopProfileImageAssetIds(initializedImages.length, initialized.mediaAssetIds),
+            );
             setShopInfoFeedback("");
             persistSettings(draftSettings, initializedImages);
           }).catch((error) => {
@@ -1419,16 +1431,25 @@ export default function SettingsManagementScreen({
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void resolveShopProfileImageUrlsFromAssetIds(shop.id, mediaAssetIds)
-        .then((signedUrls) => {
-        if (cancelled) return;
-        const nextImages = normalizeShopProfileImages(signedUrls);
-        if (nextImages.length === 0 || JSON.stringify(nextImages) === JSON.stringify(currentImages)) return;
-        const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, mediaAssetIds);
-        setShopProfileImages(nextImages);
-        setShopProfileImageAssetIds(nextMediaAssetIds);
-        setShopInfoFeedback("");
-        persistSettings(draftSettings, nextImages);
-      })
+        .then((resolvedItems) => {
+          if (cancelled) return;
+          const resolved = mergeResolvedProfileImageUrls({
+            currentImageUrls: currentImages,
+            currentMediaAssetIds: mediaAssetIds,
+            resolvedItems,
+            maxCount: ownerWebShopProfileImagesMaxCount,
+          });
+          const nextImages = normalizeShopProfileImages(resolved.imageUrls);
+          const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, resolved.mediaAssetIds);
+          if (
+            nextImages.length === 0 ||
+            (areStringArraysEqual(nextImages, currentImages) && areStringArraysEqual(nextMediaAssetIds, shopProfileImageAssetIds))
+          ) return;
+          setShopProfileImages(nextImages);
+          setShopProfileImageAssetIds(nextMediaAssetIds);
+          setShopInfoFeedback("");
+          persistSettings(draftSettings, nextImages);
+        })
         .catch((error) => {
           console.error("[OWNER SETTINGS] failed to recover shop profile image URLs", error);
           setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
@@ -1465,26 +1486,38 @@ export default function SettingsManagementScreen({
       void fetchApiJsonWithAuth<MediaAssetListResponse>(`/api/owner/media/assets?${query.toString()}`)
         .then(async (result) => {
           if (cancelled) return;
-          const recoveredAssetIds = uniqueShopProfileImageAssetIds(result.items.map((item) => item.mediaAsset.id));
-          const nextAssetIds = mergeShopProfileImageAssetIds(
-            currentAssetIds.filter((mediaAssetId) => recoveredAssetIds.includes(mediaAssetId)),
-            recoveredAssetIds,
-          );
+          const recoveredAssets = result.items.map((item) => item.mediaAsset);
+          const nextAssetIds = mergeRecoveredProfileMediaAssetIds({
+            currentIds: currentAssetIds,
+            recoveredAssets,
+            maxCount: ownerWebShopProfileImagesMaxCount,
+          });
           if (nextAssetIds.length === 0 || areStringArraysEqual(nextAssetIds, currentAssetIds)) return;
 
-          const signedUrls = await resolveShopProfileImageUrlsFromAssetIds(shop.id, nextAssetIds);
+          const resolvedItems = await resolveShopProfileImageUrlsFromAssetIds(shop.id, nextAssetIds);
           if (cancelled) return;
 
-          const nextImages = normalizeShopProfileImages(signedUrls);
-          if (nextImages.length === 0 || (nextImages.length <= currentImages.length && areStringArraysEqual(nextAssetIds, currentAssetIds))) return;
+          const resolved = mergeResolvedProfileImageUrls({
+            currentImageUrls: currentImages.filter(isRemotePersistableImageUrl),
+            currentMediaAssetIds: nextAssetIds,
+            resolvedItems,
+            maxCount: ownerWebShopProfileImagesMaxCount,
+            preserveCurrentUrlsAsLegacy: true,
+          });
+          const nextImages = normalizeShopProfileImages(resolved.imageUrls);
+          const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, resolved.mediaAssetIds);
+          if (nextImages.length === 0) return;
           setShopProfileImages(nextImages);
-          setShopProfileImageAssetIds(nextAssetIds);
+          setShopProfileImageAssetIds(nextMediaAssetIds);
           persistSettings(draftSettings, nextImages);
-          await persistShopProfileImageSettings(nextImages, nextAssetIds);
+          await persistShopProfileImageSettings(nextImages, nextMediaAssetIds);
         })
         .catch((error) => {
           console.error("[OWNER SETTINGS] failed to recover missing shop profile images from R2", error);
           setShopInfoFeedback(error instanceof Error ? error.message : "R2에 저장된 매장 사진을 다시 연결하지 못했습니다.");
+          if (profileImageMissingAssetRecoveryKeyRef.current === syncKey) {
+            profileImageMissingAssetRecoveryKeyRef.current = "";
+          }
         });
     }, 0);
 
@@ -1941,8 +1974,14 @@ export default function SettingsManagementScreen({
   const profileImagesLoading = shopProfileImages.length === 0 && configuredShopProfileImageAssetCount > 0;
 
   async function addShopProfileImages(files: FileList | File[]) {
-    if (!shop) return;
-    const remainingCount = Math.max(ownerWebShopProfileImagesMaxCount - shopProfileImages.length, 0);
+    if (!shop || savingShopInfo || profileImageUploadInFlightRef.current) return;
+    const currentMediaAssetIds = mergeProfileMediaAssetIds(
+      normalizeShopProfileImageAssetIds(shop.customer_page_settings),
+      shopProfileImageAssetIds,
+      ownerWebShopProfileImagesMaxCount,
+    );
+    const occupiedCount = Math.max(shopProfileImages.length, currentMediaAssetIds.length);
+    const remainingCount = Math.max(ownerWebShopProfileImagesMaxCount - occupiedCount, 0);
     setShopInfoFeedback("");
     if (remainingCount === 0) {
       setShopInfoFeedback(`매장 사진은 최대 ${ownerWebShopProfileImagesMaxCount}장까지 등록할 수 있습니다.`);
@@ -1955,6 +1994,7 @@ export default function SettingsManagementScreen({
       return;
     }
 
+    profileImageUploadInFlightRef.current = true;
     setSavingShopInfo(true);
     try {
       const uploadedImages = await Promise.all(
@@ -1965,8 +2005,12 @@ export default function SettingsManagementScreen({
       if (imageUrls.length === 0) return;
 
       const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
-      const currentMediaAssetIds = alignShopProfileImageAssetIds(shopProfileImages.length, shopProfileImageAssetIds);
-      const nextMediaAssetIds = [...currentMediaAssetIds, ...mediaAssetIds].slice(0, nextImages.length);
+      const mergedMediaAssetIds = mergeProfileMediaAssetIds(
+        currentMediaAssetIds,
+        mediaAssetIds,
+        ownerWebShopProfileImagesMaxCount,
+      );
+      const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, mergedMediaAssetIds);
       setShopProfileImages(nextImages);
       setShopProfileImageAssetIds(nextMediaAssetIds);
       persistSettings(draftSettings, nextImages);
@@ -1978,7 +2022,7 @@ export default function SettingsManagementScreen({
         const localImageUrls = (await Promise.all(selectedFiles.map((file) => readImageFileAsDataUrl(file)))).filter(Boolean);
         const nextImages = normalizeShopProfileImages([...shopProfileImages, ...localImageUrls]);
         setShopProfileImages(nextImages);
-        setShopProfileImageAssetIds((currentIds) => alignShopProfileImageAssetIds(shopProfileImages.length, currentIds).slice(0, nextImages.length));
+        setShopProfileImageAssetIds(alignShopProfileImageAssetIds(nextImages.length, currentMediaAssetIds));
         persistSettings(draftSettings, nextImages);
         setIsShopInfoDirty(true);
         setShopInfoFeedback("");
@@ -1986,6 +2030,7 @@ export default function SettingsManagementScreen({
       }
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
+      profileImageUploadInFlightRef.current = false;
       setSavingShopInfo(false);
     }
   }
@@ -1994,7 +2039,8 @@ export default function SettingsManagementScreen({
     const removeIndexes = new Set(indexes);
     if (removeIndexes.size === 0) return;
     const nextImages = shopProfileImages.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
-    const nextMediaAssetIds = shopProfileImageAssetIds.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
+    const alignedMediaAssetIds = alignShopProfileImageAssetIds(shopProfileImages.length, shopProfileImageAssetIds);
+    const nextMediaAssetIds = alignedMediaAssetIds.filter((_, imageIndex) => !removeIndexes.has(imageIndex));
     profileImageManualRemovalKeyRef.current = `${shop?.id ?? ""}:${nextMediaAssetIds.join("|") || "no-configured-assets"}`;
     setShopProfileImages(nextImages);
     setShopProfileImageAssetIds(nextMediaAssetIds);

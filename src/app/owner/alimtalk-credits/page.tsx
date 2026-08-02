@@ -6,8 +6,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   CreditCard,
-  Info,
-  Loader2,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -15,8 +13,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import OwnerServiceExpiredScreen from "@/components/owner/owner-service-expired-screen";
+import SlideToPay from "@/components/owner/slide-to-pay";
 import { alimtalkCreditProducts, type AlimtalkCreditProduct, type AlimtalkCreditProductId } from "@/lib/alimtalk-credit-products";
-import { confirmAlimtalkCreditPurchase, requestAlimtalkCreditPurchase } from "@/lib/alimtalk-credit-purchase-client";
+import { confirmAlimtalkCreditPurchase, purchaseAlimtalkCreditsWithRegisteredCard } from "@/lib/alimtalk-credit-purchase-client";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import {
@@ -31,16 +30,27 @@ function count(value: number | null | undefined) {
   return value.toLocaleString("ko-KR");
 }
 
-function ProductOption({ product, selected, onSelect }: { product: AlimtalkCreditProduct; selected: boolean; onSelect: () => void }) {
+function ProductOption({
+  product,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  product: AlimtalkCreditProduct;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
   const vatAmount = product.price - product.supplyPrice;
 
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-[10px] border bg-white p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2",
+        "relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-[10px] border bg-white p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70",
         selected ? "border-[#2563eb] bg-[#fbfdff] shadow-[0_10px_24px_rgba(37,99,235,0.12)]" : "border-white/80 shadow-[0_5px_14px_rgba(37,99,235,0.06)] hover:border-[#bfdbfe]",
       )}
     >
@@ -143,28 +153,52 @@ export default function OwnerAlimtalkCreditsPage() {
   }, [router]);
 
   async function handlePurchase() {
-    if (!subscription || purchaseLoading) return;
+    if (
+      !subscription ||
+      purchaseLoading ||
+      !subscription.paymentMethodExists ||
+      subscription.paymentMethodResetRequired
+    ) {
+      return;
+    }
+
+    const product = selectedProduct;
+    const requestStorageKey = `pm-alimtalk-credit-payment:${subscription.shopId}:${product.id}`;
+    const requestId = window.sessionStorage.getItem(requestStorageKey) ?? window.crypto.randomUUID();
+    window.sessionStorage.setItem(requestStorageKey, requestId);
     setPurchaseLoading(true);
     setMessage(null);
 
     try {
-      const result = await requestAlimtalkCreditPurchase({
-        productId: selectedProduct.id,
-        userId: subscription.userId,
-        shopId: subscription.shopId,
-        customerName: subscription.ownerName || "매장 사장님",
-        phoneNumber: subscription.ownerPhoneNumber,
-        email: subscription.ownerEmail,
+      const result = await purchaseAlimtalkCreditsWithRegisteredCard({
+        productId: product.id,
+        requestId,
       });
+      window.sessionStorage.removeItem(requestStorageKey);
       setCreditSummary(result.summary);
       setMessage({
         type: "success",
         text: result.alreadyProcessed
           ? "이미 반영된 결제입니다. 현재 남은 발송 건수를 다시 확인해 주세요."
-          : `${selectedProduct.title} 구매가 완료되었습니다.`,
+          : `${product.title} 구매가 완료되었습니다.`,
       });
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "알림톡 추가 발송 이용권 구매에 실패했습니다." });
+      const errorMessage = error instanceof Error ? error.message : "알림톡 추가 발송 이용권 구매에 실패했습니다.";
+      const canStartFresh = [
+        "승인되지 않았습니다",
+        "결제 금액이",
+        "먼저 결제 카드를",
+        "새 카드를",
+        "운영 결제 설정",
+        "배포 서버에서만",
+        "결제 테이블",
+        "이용권을 찾지 못했습니다",
+        "요청 형식이",
+      ].some((reason) => errorMessage.includes(reason));
+      if (canStartFresh) {
+        window.sessionStorage.removeItem(requestStorageKey);
+      }
+      setMessage({ type: "error", text: errorMessage });
     } finally {
       setPurchaseLoading(false);
     }
@@ -183,6 +217,10 @@ export default function OwnerAlimtalkCreditsPage() {
       </div>
     );
   }
+
+  const hasUsableRegisteredPaymentMethod =
+    subscription.paymentMethodExists && !subscription.paymentMethodResetRequired;
+  const registeredPaymentLabel = subscription.paymentMethodLabel?.trim() || "등록 카드";
 
   return (
     <div className="owner-font min-h-screen bg-[#f8fafc] text-[#0f172a] lg:h-screen lg:overflow-hidden">
@@ -235,26 +273,58 @@ export default function OwnerAlimtalkCreditsPage() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {alimtalkCreditProducts.map((product) => (
-              <ProductOption key={product.id} product={product} selected={selectedProduct.id === product.id} onSelect={() => setSelectedProductId(product.id)} />
+              <ProductOption
+                key={product.id}
+                product={product}
+                selected={selectedProduct.id === product.id}
+                disabled={purchaseLoading}
+                onSelect={() => setSelectedProductId(product.id)}
+              />
             ))}
           </div>
 
-          <aside className="mt-4 flex shrink-0 flex-wrap items-center gap-3 rounded-[10px] border border-white bg-white p-3" aria-label="선택 상품 결제">
+          <aside className="mt-4 flex shrink-0 flex-col gap-4 rounded-[10px] border border-white bg-white p-4 lg:flex-row lg:items-center" aria-label="선택 상품 결제">
             <div className="mr-auto flex flex-wrap items-baseline gap-x-4 gap-y-1">
               <p className="text-[14px] font-bold text-[#0f172a]">{selectedProduct.title} 선택</p>
               <p className="text-[13px] font-medium text-[#64748b]">공급가 {won(selectedProduct.supplyPrice)}</p>
               <p className="text-[13px] font-medium text-[#64748b]">부가세 {won(selectedProduct.price - selectedProduct.supplyPrice)}</p>
               <p className="text-[18px] font-bold tabular-nums text-[#2563eb]">총 {won(selectedProduct.price)}</p>
             </div>
-            <button
-              type="button"
-              disabled={purchaseLoading}
-              onClick={() => void handlePurchase()}
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-bold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {purchaseLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />}
-              이용권 구매하기
-            </button>
+            <div className="w-full shrink-0 lg:w-[430px]">
+              {hasUsableRegisteredPaymentMethod ? (
+                <>
+                  <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[12px] font-semibold text-[#64748b]">
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <CreditCard className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span className="truncate">등록 카드 · {registeredPaymentLabel}</span>
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[#475569]">
+                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                      안전결제
+                    </span>
+                  </div>
+                  <SlideToPay
+                    amountLabel={won(selectedProduct.price)}
+                    disabled={purchaseLoading}
+                    loading={purchaseLoading}
+                    onComplete={handlePurchase}
+                  />
+                  <p className="mt-2 px-1 text-[11px] font-medium text-[#64748b]">밀기를 완료하면 등록 카드로 즉시 승인 요청됩니다.</p>
+                </>
+              ) : (
+                <div className="rounded-[10px] border border-[#dbe6f2] bg-[#f8fafc] p-3">
+                  <p className="text-[13px] font-bold text-[#0f172a]">즉시결제에 사용할 카드를 먼저 등록해 주세요.</p>
+                  <p className="mt-1 text-[12px] font-medium text-[#64748b]">한 번 등록하면 다음부터 이 화면에서 바로 밀어서 결제할 수 있어요.</p>
+                  <Link
+                    href="/owner/billing"
+                    className="mt-3 inline-flex h-10 items-center justify-center rounded-[8px] bg-[#0f172a] px-4 text-[13px] font-bold text-white transition hover:bg-[#1e293b]"
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
+                    결제 카드 등록하기
+                  </Link>
+                </div>
+              )}
+            </div>
           </aside>
         </section>
       </main>

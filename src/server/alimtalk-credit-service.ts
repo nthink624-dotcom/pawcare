@@ -131,15 +131,25 @@ export async function grantShopAlimtalkCredits(input: {
   creditBucket: "included" | "purchased";
   reason?: string | null;
   metadata?: CreditMetadata | null;
+  idempotencyKey?: string | null;
 }) {
   const admin = getAdmin();
-  const result = await admin.rpc("grant_shop_alimtalk_credits", {
-    p_shop_id: input.shopId,
-    p_amount: input.amount,
-    p_credit_bucket: input.creditBucket,
-    p_reason: input.reason ?? "manual_grant",
-    p_metadata: input.metadata ?? {},
-  });
+  const result = input.idempotencyKey
+    ? await admin.rpc("grant_shop_alimtalk_credits_once", {
+        p_shop_id: input.shopId,
+        p_amount: input.amount,
+        p_credit_bucket: input.creditBucket,
+        p_reason: input.reason ?? "manual_grant",
+        p_metadata: input.metadata ?? {},
+        p_idempotency_key: input.idempotencyKey,
+      })
+    : await admin.rpc("grant_shop_alimtalk_credits", {
+        p_shop_id: input.shopId,
+        p_amount: input.amount,
+        p_credit_bucket: input.creditBucket,
+        p_reason: input.reason ?? "manual_grant",
+        p_metadata: input.metadata ?? {},
+      });
 
   if (result.error) {
     throw new Error(result.error.message);
@@ -149,6 +159,7 @@ export async function grantShopAlimtalkCredits(input: {
   return {
     remainingCount: toNumber(row?.remaining_count),
     eventId: typeof row?.event_id === "string" ? row.event_id : null,
+    alreadyProcessed: row?.already_processed === true,
   };
 }
 

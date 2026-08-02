@@ -16,6 +16,7 @@ export type ApprovedSsodaaTemplateButton = {
 
 type ConnectedTemplateDetail = {
   templateCode: string;
+  templateName: string | null;
   templateContent: string | null;
   inspectionStatus: string | null;
   serviceStatus: string | null;
@@ -99,9 +100,48 @@ function isApprovedAndUsableTemplate(detail: ConnectedTemplateDetail) {
 async function getApprovedSsodaaTemplate(
   alias: AlimtalkTemplateAlias,
 ): Promise<ConnectedTemplateDetail | null> {
+  const body = await getRelayTemplateCatalog();
+  if (!body) return null;
+
+  return getApprovedSsodaaTemplateFromCatalog(alias, body);
+}
+
+function getApprovedSsodaaTemplateFromCatalog(
+  alias: AlimtalkTemplateAlias,
+  body: RelayTemplateCatalogBody,
+): ConnectedTemplateDetail | null {
   const templateCode = getConfiguredAlimtalkTemplateKey(alias)?.trim();
   if (!templateCode) return null;
 
+  const detail =
+    body.items?.find(
+      (item) => item.alias === alias && item.configuredCode === templateCode,
+    )?.detail ??
+    body.allTemplates?.find((item) => item.templateCode === templateCode) ??
+    null;
+
+  if (!detail || !isApprovedAndUsableTemplate(detail)) return null;
+
+  return normalizeConnectedTemplateDetail(templateCode, detail);
+}
+
+function normalizeConnectedTemplateDetail(
+  templateCode: string,
+  detail: ConnectedTemplateDetail,
+): ConnectedTemplateDetail {
+  return {
+    templateCode,
+    templateName: detail.templateName ?? null,
+    templateContent: detail.templateContent ?? null,
+    inspectionStatus: detail.inspectionStatus ?? null,
+    serviceStatus: detail.serviceStatus ?? null,
+    buttons: (detail.buttons ?? [])
+      .map(normalizeConnectedButton)
+      .filter((item): item is ApprovedSsodaaTemplateButton => Boolean(item)),
+  };
+}
+
+async function getRelayTemplateCatalog(): Promise<RelayTemplateCatalogBody | null> {
   const urls = getRelayAdminUrlCandidates("/admin/templates");
   if (!urls.length) return null;
 
@@ -117,24 +157,7 @@ async function getApprovedSsodaaTemplate(
       if (!response.ok) continue;
 
       const body = (await parseJsonResponse(response)) as RelayTemplateCatalogBody | null;
-      const detail =
-        body?.items?.find(
-          (item) => item.alias === alias && item.configuredCode === templateCode,
-        )?.detail ??
-        body?.allTemplates?.find((item) => item.templateCode === templateCode) ??
-        null;
-
-      if (!detail || !isApprovedAndUsableTemplate(detail)) continue;
-
-      return {
-        templateCode,
-        templateContent: detail.templateContent ?? null,
-        inspectionStatus: detail.inspectionStatus ?? null,
-        serviceStatus: detail.serviceStatus ?? null,
-        buttons: (detail.buttons ?? [])
-          .map(normalizeConnectedButton)
-          .filter((item): item is ApprovedSsodaaTemplateButton => Boolean(item)),
-      };
+      if (body) return body;
     } catch {
       // 다음 릴레이 주소 후보를 확인합니다.
     }
@@ -193,48 +216,44 @@ export async function getApprovedSsodaaTemplateButtons(
   type: NotificationType,
   values: NotificationTemplateVariables,
 ): Promise<ApprovedSsodaaTemplateButton[] | null> {
-  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
-  if (!spec) return null;
+  const template = await getApprovedSsodaaNotificationTemplate(type, values);
+  return template?.buttons ?? null;
+}
 
-  const detail = await getApprovedSsodaaTemplate(spec.templateAlias);
-  if (!detail) {
-    if (requiresApprovedSsodaaTemplate()) {
-      throw new Error(
-        `${spec.title} 쏘다 템플릿이 승인·사용 가능 상태인지 확인할 수 없어 발송을 중단했습니다.`,
-      );
-    }
-    return null;
-  }
-
+function renderApprovedTemplateButtons(params: {
+  spec: (typeof ALIMTALK_NOTIFICATION_REGISTRY)[number];
+  detail: ConnectedTemplateDetail;
+  values: NotificationTemplateVariables;
+}) {
   if (
-    aliasesThatMustHaveSsodaaButtons.has(spec.templateAlias) &&
-    detail.buttons.length === 0
+    aliasesThatMustHaveSsodaaButtons.has(params.spec.templateAlias) &&
+    params.detail.buttons.length === 0
   ) {
     throw new Error(
-      `${spec.title} 쏘다 템플릿 버튼 정보를 확인하지 못했습니다. 쏘다에 승인된 버튼과 실제 발송 버튼이 일치해야 하므로 발송을 중단했습니다.`,
+      `${params.spec.title} 쏘다 템플릿 버튼 정보를 확인하지 못했습니다. 쏘다에 승인된 버튼과 실제 발송 버튼이 일치해야 하므로 발송을 중단했습니다.`,
     );
   }
 
-  return detail.buttons.map((button) => {
-    const linkMobile = fillTemplateValue(button.linkMobile, values);
+  return params.detail.buttons.map((button) => {
+    const linkMobile = fillTemplateValue(button.linkMobile, params.values);
     const linkPc = button.linkPc
-      ? fillTemplateValue(button.linkPc, values)
+      ? fillTemplateValue(button.linkPc, params.values)
       : linkMobile;
     assertRenderedButtonValue({
-      templateTitle: spec.title,
+      templateTitle: params.spec.title,
       buttonName: button.name,
       fieldLabel: "모바일 링크",
       sourceValue: button.linkMobile,
       renderedValue: linkMobile,
-      variables: values,
+      variables: params.values,
     });
     assertRenderedButtonValue({
-      templateTitle: spec.title,
+      templateTitle: params.spec.title,
       buttonName: button.name,
       fieldLabel: "PC 링크",
       sourceValue: button.linkPc ?? button.linkMobile,
       renderedValue: linkPc,
-      variables: values,
+      variables: params.values,
     });
     return {
       ...button,
@@ -244,22 +263,81 @@ export async function getApprovedSsodaaTemplateButtons(
   });
 }
 
-export async function renderApprovedSsodaaTemplateBody(
+export type ApprovedSsodaaNotificationTemplate = {
+  type: NotificationType;
+  templateAlias: AlimtalkTemplateAlias;
+  templateCode: string | null;
+  templateName: string | null;
+  body: string;
+  buttons: ApprovedSsodaaTemplateButton[] | null;
+  inspectionStatus: string | null;
+  serviceStatus: string | null;
+  source: "ssodaa_approved" | "draft";
+};
+
+function renderApprovedSsodaaNotificationTemplate(params: {
+  type: NotificationType;
+  values: NotificationTemplateVariables;
+  detail: ConnectedTemplateDetail | null;
+}): ApprovedSsodaaNotificationTemplate | null {
+  const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === params.type);
+  if (!spec) return null;
+
+  if (requiresApprovedSsodaaTemplate() && !params.detail?.templateContent) {
+    throw new Error(
+      `${spec.title} 쏘다 템플릿의 승인 상태와 본문을 확인하지 못해 발송을 중단했습니다.`,
+    );
+  }
+
+  const template = params.detail?.templateContent || spec.draftBody;
+  return {
+    type: params.type,
+    templateAlias: spec.templateAlias,
+    templateCode:
+      params.detail?.templateCode ??
+      getConfiguredAlimtalkTemplateKey(spec.templateAlias)?.trim() ??
+      null,
+    templateName: params.detail?.templateName ?? null,
+    body: fillNotificationTemplate(template, params.values),
+    buttons: params.detail
+      ? renderApprovedTemplateButtons({ spec, detail: params.detail, values: params.values })
+      : null,
+    inspectionStatus: params.detail?.inspectionStatus ?? null,
+    serviceStatus: params.detail?.serviceStatus ?? null,
+    source: params.detail ? "ssodaa_approved" : "draft",
+  };
+}
+
+export async function getApprovedSsodaaNotificationTemplate(
   type: NotificationType,
   values: NotificationTemplateVariables,
 ) {
   const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
   if (!spec) return null;
 
-  const connectedTemplate = await getApprovedSsodaaTemplate(
-    spec.templateAlias,
-  );
-  if (requiresApprovedSsodaaTemplate() && !connectedTemplate?.templateContent) {
-    throw new Error(
-      `${spec.title} 쏘다 템플릿의 승인 상태와 본문을 확인하지 못해 발송을 중단했습니다.`,
-    );
-  }
+  const detail = await getApprovedSsodaaTemplate(spec.templateAlias);
+  return renderApprovedSsodaaNotificationTemplate({ type, values, detail });
+}
 
-  const template = connectedTemplate?.templateContent || spec.draftBody;
-  return fillNotificationTemplate(template, values);
+export async function getApprovedSsodaaNotificationTemplates(
+  types: NotificationType[],
+  values: NotificationTemplateVariables,
+) {
+  const catalog = await getRelayTemplateCatalog();
+
+  return types.map((type) => {
+    const spec = ALIMTALK_NOTIFICATION_REGISTRY.find((item) => item.type === type);
+    const detail = spec && catalog
+      ? getApprovedSsodaaTemplateFromCatalog(spec.templateAlias, catalog)
+      : null;
+    return renderApprovedSsodaaNotificationTemplate({ type, values, detail });
+  });
+}
+
+export async function renderApprovedSsodaaTemplateBody(
+  type: NotificationType,
+  values: NotificationTemplateVariables,
+) {
+  const template = await getApprovedSsodaaNotificationTemplate(type, values);
+  return template?.body ?? null;
 }

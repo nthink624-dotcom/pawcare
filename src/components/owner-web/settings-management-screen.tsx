@@ -2145,6 +2145,8 @@ export default function SettingsManagementScreen({
             <SettingsAlertsPanel
               value={alertSettings}
               onChange={updateAlertSettings}
+              shopId={shop?.id ?? "owner-demo"}
+              shopName={shop?.name ?? "내 매장"}
               automaticVisitReminderAvailable={automaticVisitReminderAvailable}
             />
           ) : activeTab === "profile" ? (

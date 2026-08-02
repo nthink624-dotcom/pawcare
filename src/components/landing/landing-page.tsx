@@ -93,7 +93,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
               key={item.id}
               type="button"
               onClick={() => onNavigate(item.id)}
-              className="h-10 text-[14px] font-medium text-[#64748b] transition hover:text-[#111827]"
+              className="h-10 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827]"
             >
               {item.label}
             </button>
@@ -103,13 +103,13 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
         <div className="flex items-center gap-2">
           <Link
             href="/login?next=%2Fowner"
-            className="hidden h-10 items-center px-3 text-[14px] font-medium text-[#64748b] transition hover:text-[#111827] sm:inline-flex"
+            className="hidden h-10 items-center px-3 text-[15px] font-medium text-[#64748b] transition hover:text-[#111827] sm:inline-flex"
           >
             로그인
           </Link>
           <Link
             href="/signup"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[#2563eb] px-4 text-[14px] font-semibold text-white transition hover:bg-[#1d4ed8]"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[#2563eb] px-4 text-[15px] font-semibold text-white transition hover:bg-[#1d4ed8]"
           >
             14일 무료 시작
             <ArrowRight className="h-4 w-4" aria-hidden="true" />

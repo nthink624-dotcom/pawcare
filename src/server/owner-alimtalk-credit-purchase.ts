@@ -1,8 +1,9 @@
 import { getAlimtalkCreditProduct } from "@/lib/alimtalk-credit-products";
+import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { serverEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { grantShopAlimtalkCredits } from "@/server/alimtalk-credit-service";
-import { OwnerBillingError, type BillingIdentity } from "@/server/owner-billing";
+import { chargeOwnerRegisteredCard, OwnerBillingError, type BillingIdentity } from "@/server/owner-billing";
 import type { AlimtalkCreditSummary } from "@/types/domain";
 
 type PortonePaymentResponse = {
@@ -145,7 +146,7 @@ export async function confirmOwnerAlimtalkCreditPurchase(
   const admin = getAdmin();
   const existingLedger = await admin
     .from("owner_payment_ledger")
-    .select("payment_id, status, payload")
+    .select("payment_id, user_id, shop_id, status, payload")
     .eq("payment_id", paymentId)
     .maybeSingle();
 
@@ -154,6 +155,13 @@ export async function confirmOwnerAlimtalkCreditPurchase(
   }
 
   const existingPayload = (existingLedger.data?.payload ?? null) as CreditLedgerPayload | null;
+  if (
+    existingLedger.data &&
+    (existingLedger.data.user_id !== expected.identity.id || existingLedger.data.shop_id !== expected.shopId)
+  ) {
+    throw new OwnerBillingError("현재 매장의 결제가 아닙니다.", 403);
+  }
+
   if (existingLedger.data && isAlreadyGranted(existingPayload)) {
     return {
       ok: true as const,
@@ -162,8 +170,9 @@ export async function confirmOwnerAlimtalkCreditPurchase(
     };
   }
 
-  if (existingLedger.data?.status === "REQUESTED") {
-    throw new OwnerBillingError("이미 처리 중인 결제입니다. 잠시 후 다시 확인해 주세요.", 409);
+  const hasExistingHold = existingLedger.data?.status === "REQUESTED";
+  if (existingLedger.data && !hasExistingHold) {
+    throw new OwnerBillingError("같은 결제 요청을 다시 사용할 수 없습니다. 새로 결제해 주세요.", 409);
   }
 
   const paymentResponse = await portoneFetch<PortonePaymentResponse>(`/payments/${encodeURIComponent(paymentId)}`);
@@ -199,23 +208,25 @@ export async function confirmOwnerAlimtalkCreditPurchase(
     paidAt: payment.paidAt,
   };
 
-  const holdResult = await admin.from("owner_payment_ledger").insert({
-    payment_id: paymentId,
-    user_id: expected.identity.id,
-    shop_id: expected.shopId,
-    plan_code: null,
-    amount: product.price,
-    status: "REQUESTED",
-    paid_at: payment.paidAt,
-    last_event_type: "alimtalk_credit_purchase_requested",
-    payload: ledgerPayload,
-  });
+  if (!hasExistingHold) {
+    const holdResult = await admin.from("owner_payment_ledger").insert({
+      payment_id: paymentId,
+      user_id: expected.identity.id,
+      shop_id: expected.shopId,
+      plan_code: null,
+      amount: product.price,
+      status: "REQUESTED",
+      paid_at: payment.paidAt,
+      last_event_type: "alimtalk_credit_purchase_requested",
+      payload: ledgerPayload,
+    });
 
-  if (holdResult.error) {
-    if (holdResult.error.code === "23505") {
-      throw new OwnerBillingError("이미 처리 중인 결제입니다. 잠시 후 다시 확인해 주세요.", 409);
+    if (holdResult.error) {
+      if (holdResult.error.code === "23505") {
+        throw new OwnerBillingError("이미 처리 중인 결제입니다. 잠시 후 다시 확인해 주세요.", 409);
+      }
+      throw new OwnerBillingError(holdResult.error.message, 500);
     }
-    throw new OwnerBillingError(holdResult.error.message, 500);
   }
 
   const grantResult = await grantShopAlimtalkCredits({
@@ -228,10 +239,12 @@ export async function confirmOwnerAlimtalkCreditPurchase(
       productId: product.id,
       amount: product.price,
     },
+    idempotencyKey: paymentId,
   });
 
   const finalPayload = {
     ...ledgerPayload,
+    creditGrantAlreadyProcessed: grantResult.alreadyProcessed,
     creditGrantedEventId: grantResult.eventId,
     remainingCount: grantResult.remainingCount,
   };
@@ -264,6 +277,47 @@ export async function confirmOwnerAlimtalkCreditPurchase(
     alreadyProcessed: false,
     summary: await readCreditSummary(expected.shopId),
   };
+}
+
+export async function purchaseOwnerAlimtalkCreditsWithRegisteredCard(
+  identity: BillingIdentity,
+  shopId: string,
+  productId: string,
+  requestId: string,
+) {
+  const product = getAlimtalkCreditProduct(productId);
+  if (!product) {
+    throw new OwnerBillingError("알림톡 추가 발송 이용권을 찾지 못했습니다.", 400);
+  }
+
+  const paymentId = `talk-${requestId.replace(/-/g, "")}`;
+  const customData = {
+    kind: "alimtalk-credit-purchase",
+    paymentFlow: "registered-card",
+    requestId,
+    userId: identity.id,
+    shopId,
+    productId: product.id,
+    creditCount: product.creditCount,
+    amount: product.price,
+  };
+
+  try {
+    await chargeOwnerRegisteredCard(identity, shopId, {
+      paymentId,
+      orderName: `${PETMANAGER_SERVICE_NAME} 알림톡 추가 발송 이용권 ${product.creditCount.toLocaleString("ko-KR")}건`,
+      amount: product.price,
+      customData,
+    });
+  } catch (chargeError) {
+    try {
+      return await confirmOwnerAlimtalkCreditPurchase(paymentId, { identity, shopId });
+    } catch {
+      throw chargeError;
+    }
+  }
+
+  return confirmOwnerAlimtalkCreditPurchase(paymentId, { identity, shopId });
 }
 
 export async function syncOwnerAlimtalkCreditPurchaseFromPayment(paymentId: string) {

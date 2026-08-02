@@ -18,7 +18,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={align === "center" ? "mx-auto max-w-[840px] text-center" : "max-w-[840px]"}>
-      <p className={`text-[14px] font-semibold ${inverse ? "text-[#86efac]" : "text-[#1f6b5b]"}`}>{eyebrow}</p>
+      <p className={`text-[15px] font-semibold ${inverse ? "text-[#86efac]" : "text-[#1f6b5b]"}`}>{eyebrow}</p>
       <h2 className={`mt-3 break-keep text-[34px] font-semibold leading-[1.2] [text-wrap:balance] md:text-[46px] ${inverse ? "text-white" : "text-[#111827]"}`}>
         {title}
       </h2>
@@ -44,7 +44,7 @@ export function ScreenshotFrame({
 }) {
   return (
     <figure className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_48px_rgba(15,23,42,0.09)]">
-      <figcaption className="flex h-10 items-center justify-between border-b border-[#e7edf3] bg-[#fbfdff] px-3.5 text-[12px] font-medium text-[#64748b]">
+      <figcaption className="flex h-10 items-center justify-between border-b border-[#e7edf3] bg-[#fbfdff] px-3.5 text-[15px] font-medium text-[#64748b]">
         <span className="flex items-center gap-2.5">
           <span className="flex gap-1" aria-hidden="true">
             <span className="h-2 w-2 rounded-full bg-[#d6dde6]" />
@@ -77,7 +77,7 @@ export function PhoneScreenshot({ src, alt, label }: { src: string; alt: string;
           <Image src={src} alt={alt} fill className="object-cover object-top" sizes="260px" />
         </div>
       </div>
-      <figcaption className="mt-3 text-center text-[13px] font-medium text-[#64748b]">{label}</figcaption>
+      <figcaption className="mt-3 text-center text-[15px] font-medium text-[#64748b]">{label}</figcaption>
     </figure>
   );
 }
@@ -99,7 +99,7 @@ export function ValueItem({
         {icon}
       </div>
       <h3 className={`mt-4 text-[18px] font-semibold ${inverse ? "text-white" : "text-[#111827]"}`}>{title}</h3>
-      <p className={`mt-2 text-[14px] leading-6 ${inverse ? "text-white/65" : "text-[#64748b]"}`}>{body}</p>
+      <p className={`mt-2 text-[15px] leading-6 ${inverse ? "text-white/65" : "text-[#64748b]"}`}>{body}</p>
     </div>
   );
 }

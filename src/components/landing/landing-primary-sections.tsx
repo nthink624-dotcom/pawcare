@@ -1,52 +1,42 @@
 import {
   ArrowDown,
   ArrowRight,
+  BatteryFull,
   BellRing,
+  Camera,
   CalendarCheck2,
   Check,
-  ChevronDown,
   Clock3,
   Database,
+  Flashlight,
   Link2,
-  MessageSquareText,
   PhoneMissed,
   Scissors,
+  Signal,
   UserRoundPen,
   UsersRound,
+  Wifi,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { PhoneScreenshot, ScreenshotFrame, SectionHeading, ValueItem } from "@/components/landing/landing-ui";
-import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 const bookingDelaySteps = [
-  {
-    icon: PhoneMissed,
-    title: "연락 확인",
-    body: "미용하던 손을 멈추고 연락을 확인합니다.",
-  },
-  {
-    icon: MessageSquareText,
-    title: "서비스·시간 조율",
-    body: "가능한 시간과 서비스를 여러 번 주고받습니다.",
-  },
-  {
-    icon: Scissors,
-    title: "현재 미용 지연",
-    body: "응대가 길어질수록 미용 시간이 밀립니다.",
-  },
-  {
-    icon: Clock3,
-    title: "다음 고객 대기",
-    body: "늦어진 일정이 다음 예약까지 이어집니다.",
-  },
+  "고객 연락 수신",
+  "작업 중이던 미용 중단",
+  "미용 가능 시간 파악",
+  "고객에게 가능 시간 안내",
 ] as const;
 
-const customerBookingSteps = [
-  { icon: Scissors, title: "서비스 선택" },
-  { icon: CalendarCheck2, title: "가능한 시간 선택" },
-  { icon: Check, title: "예약 신청 완료" },
+const bookingDelayConsequences = [
+  "미용 중인 아이도 함께 대기",
+  "밀린 시간만큼 다음 예약도 지연",
+] as const;
+
+const directBookingSteps = [
+  "고객이 링크를 통해 직접 예약",
+  "오너는 해당 예약을 확인만 하면 끝",
 ] as const;
 
 const automationSteps = [
@@ -65,7 +55,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           alt=""
           fill
           aria-hidden="true"
-          className="hidden scale-[1.03] object-cover object-center brightness-[0.96] blur-[12px] md:block"
+          className="hidden scale-[1.015] object-cover object-center brightness-[0.98] blur-[6px] md:block"
           sizes="100vw"
         />
         <Image
@@ -84,15 +74,17 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           className="hidden object-contain object-[right_top] md:block"
           sizes="100vw"
           style={{
-            WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 7%, black 100%)",
-            maskImage: "linear-gradient(to right, transparent 0%, black 7%, black 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0%, transparent 18%, rgba(0,0,0,0.08) 28%, rgba(0,0,0,0.34) 38%, rgba(0,0,0,0.72) 48%, black 58%, black 100%)",
+            maskImage:
+              "linear-gradient(to right, transparent 0%, transparent 18%, rgba(0,0,0,0.08) 28%, rgba(0,0,0,0.34) 38%, rgba(0,0,0,0.72) 48%, black 58%, black 100%)",
           }}
         />
       </div>
 
       <div className="relative mx-auto flex min-h-[760px] w-full max-w-[1180px] items-start px-5 pb-[250px] pt-10 md:h-full md:min-h-0 md:items-center md:pb-16 md:pt-16">
         <div className="max-w-[650px] md:w-[57%] md:pr-10">
-          <p className="text-[14px] font-semibold text-[#1f6b5b]">반려동물 미용샵 예약·고객관리</p>
+          <p className="text-[15px] font-semibold text-[#1f6b5b]">반려동물 미용샵 예약·고객관리</p>
           <h1 id="landing-hero-title" className="mt-4 break-keep text-[34px] font-semibold leading-[1.22] text-[#111827] md:text-[46px]">
             미용하다 놓친 연락,
             <br />고객까지 놓치고 있진 않나요?
@@ -122,7 +114,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
             </button>
           </div>
 
-          <div className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-[13px] font-medium text-[#64748b] md:flex">
+          <div className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-[15px] font-medium text-[#64748b] md:flex">
             {["카드 등록 없이 시작", "설치 없이 예약 링크 사용", "PC와 모바일에서 확인"].map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
                 <Check className="h-4 w-4 text-[#1f9d55]" aria-hidden="true" />
@@ -138,181 +130,222 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
 
 export function PainSection() {
   return (
-    <section id="pain-points" className="scroll-mt-20 bg-[#f5f7f9] py-18 md:py-24">
-      <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="예약 응대의 연쇄 지연"
-          title="예약 하나 받느라, 다음 고객까지 기다리게 하고 있진 않나요?"
-          description="고객을 놓치지 않으려고 미용 중 예약을 처리하면, 지금 하는 미용부터 다음 고객의 일정까지 함께 밀립니다."
-        />
+    <section id="pain-points" className="scroll-mt-20 bg-[#eef0f3] py-20 md:py-24">
+      <div className="mx-auto w-full max-w-[1040px] px-5 md:px-6">
+        <p className="text-[15px] font-bold text-[#c96a3f]">예약 응대의 연쇄 지연</p>
+        <h2 className="mt-4 break-keep text-[34px] font-extrabold leading-[1.28] text-[#1b1815] [text-wrap:pretty] md:text-[40px]">
+          미용 중 받은 예약 문의,
+          <br />다음 고객의 시간까지 밀고 있진 않나요?
+        </h2>
+        <p className="mt-5 break-keep text-[16px] leading-7 text-[#4a423b] md:text-[17px] md:leading-7">
+          고객을 놓치지 않으려고 미용 중 예약을 처리하면, 지금 하는 미용부터 다음 고객의 일정까지 함께 밀립니다.
+        </p>
 
-        <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-[minmax(0,0.86fr)_52px_minmax(0,1.14fr)] lg:gap-0">
-          <article className="min-w-0 rounded-[8px] border border-[#eadbd6] bg-[#faf6f4] px-5 py-6 md:px-7 md:py-7 lg:flex lg:flex-col">
-            <p className="text-[12px] font-semibold text-[#9b5a63]">기존 방식</p>
-            <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">지금의 예약 방식</h3>
+        <figure className="mt-12">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-[#f7f3ee] sm:aspect-[1040/460]">
+            <Image
+              src="/images/landing/section-booking-interruption-v2.png"
+              alt="미용 가위를 든 채 걸려 온 전화를 확인하는 반려동물 미용사"
+              fill
+              className="object-cover object-[68%_center] sm:object-center"
+              sizes="(min-width: 1040px) 1040px, 100vw"
+            />
+            <MissedCallPhoneMockup />
+          </div>
+          <figcaption className="mt-4 text-center text-[15px] text-[#8a7f74] md:text-[15px]">
+            가위를 내려놓을 수 없는 순간에도, 전화는 울립니다.
+          </figcaption>
+        </figure>
 
-            <ol className="mt-6 lg:flex lg:flex-1 lg:flex-col lg:justify-around" aria-label="기존 예약 방식의 연쇄 지연 과정">
-              {bookingDelaySteps.map(({ icon: Icon, title, body }, index) => (
-                <li key={title} className="grid grid-cols-[42px_minmax(0,1fr)] gap-x-3">
-                  <span className="flex h-[42px] w-[42px] items-center justify-center rounded-[8px] border border-[#ead5d0] bg-white text-[#a04455]">
-                    <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 pt-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-[#a98288]">0{index + 1}</span>
-                      <h4 className="text-[16px] font-semibold text-[#1f2937]">{title}</h4>
+        <div className="my-12 text-center">
+          <p className="text-[18px] font-bold text-[#a89d92] line-through decoration-[#e5ddd3] md:text-[20px]">
+            이 흐름, 매일 반복되고 있진 않나요
+          </p>
+          <p className="mt-2 break-keep text-[22px] font-extrabold text-[#1b1815] md:text-[26px]">
+            가위를 내려놓지 않고도, <span className="text-[#c96a3f]">예약은 이어져야 합니다</span>
+          </p>
+        </div>
+
+        <div className="overflow-hidden rounded-[18px] border border-[#e5ddd3] bg-white">
+          <h3 className="border-b border-[#e5ddd3] bg-[#f7f3ee] px-4 py-4 text-center text-[15px] font-extrabold text-[#1b1815]">
+            예약 응대 흐름 비교
+          </h3>
+          <div className="grid items-stretch gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_36px_minmax(0,1fr)] lg:gap-[18px]">
+            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#e5ddd3] bg-[#f7f3ee] p-5 sm:p-[22px]">
+              <p className="mb-4 text-center text-[15px] font-bold text-[#a89d92]">지금까지</p>
+              <div className="flex flex-1 flex-col">
+                <BookingMiniSteps steps={bookingDelaySteps} />
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <div className="space-y-1.5">
+                  {bookingDelayConsequences.map((item) => (
+                    <div key={item} className="flex items-center gap-2 rounded-[9px] border border-[#f0d9d0] bg-[#fdf1ee] px-3 py-2 text-[15px] font-semibold text-[#4a423b]">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#c9573f]" aria-hidden="true" />
+                      {item}
                     </div>
-                    <p className="mt-1 break-keep text-[13px] leading-5 text-[#705f62] md:text-[14px] md:leading-6">{body}</p>
-                  </div>
-                  {index < bookingDelaySteps.length - 1 ? (
-                    <span className="col-start-1 flex h-8 items-center justify-center text-[#ba9297]" aria-hidden="true">
-                      <ArrowDown className="h-4 w-4" />
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          </article>
+                  ))}
+                </div>
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <div className="mt-auto pt-1">
+                  <p className="rounded-[9px] bg-[#b85635] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
+                    고객 불만으로 이어짐
+                  </p>
+                  <p className="mt-3 text-center text-[15px] leading-5 text-[#8a7f74]">
+                    미용과 응대를 오가며, 손과 신경이 계속 나뉩니다.
+                  </p>
+                </div>
+              </div>
+            </article>
 
-          <div className="flex h-10 items-center justify-center lg:h-auto" aria-hidden="true">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d4dde5] bg-white text-[#708090] shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-              <ArrowDown className="h-5 w-5 lg:hidden" />
-              <ArrowRight className="hidden h-5 w-5 lg:block" />
-            </span>
+            <div className="flex items-center justify-center" aria-hidden="true">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#e5ddd3] bg-white text-[#a89d92]">
+                <ArrowDown className="h-4 w-4 lg:hidden" />
+                <ArrowRight className="hidden h-4 w-4 lg:block" />
+              </span>
+            </div>
+
+            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#f0d9c8] bg-[#fbeee5] p-5 sm:p-[22px]">
+              <p className="mb-4 text-center text-[15px] font-bold text-[#c96a3f]">넘친 Day 사용 시</p>
+              <div className="flex flex-1 flex-col">
+                <BookingMiniSteps steps={directBookingSteps} accent />
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <div className="flex min-h-[170px] flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border border-[#f0d9c8] bg-white px-5 py-7 text-center">
+                  <span className="flex h-[52px] w-[52px] items-center justify-center rounded-[14px] bg-[#fbeee5] text-[#c96a3f]">
+                    <Scissors className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <p className="text-[16px] font-extrabold text-[#1b1815]">오너는 미용에만 집중합니다</p>
+                </div>
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <div className="mt-auto pt-1">
+                  <p className="rounded-[9px] bg-[#c96a3f] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
+                    빠른 예약으로 고객 만족도 상승
+                  </p>
+                  <p className="mt-3 text-center text-[15px] leading-5 text-[#8a7f74]">
+                    고객이 예약하고, 오너는 확인만 하면 끝납니다.
+                  </p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <article className="mt-14 rounded-[22px] border border-[#e5ddd3] bg-white p-5 shadow-[0_1px_3px_rgba(27,24,21,0.04)] sm:p-8 md:p-10">
+          <h3 className="text-[22px] font-extrabold text-[#1b1815]">
+            <span className="text-[15px] font-bold text-[#c96a3f]">넘친 Day</span>가 대신 대응합니다
+          </h3>
+          <p className="mt-2 break-keep text-[15px] leading-6 text-[#4a423b]">
+            고객이 직접 예약하는 동안, 오너는 지금 하던 미용에만 집중하면 됩니다.
+          </p>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+            <figure className="min-w-0">
+              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#8a7f74]">고객 예약 화면</figcaption>
+              <div className="relative aspect-[340/430] overflow-hidden rounded-[14px] border border-[#e5ddd3] bg-[#f7f3ee]">
+                <Image
+                  src="/images/landing/actual-customer-entry.png"
+                  alt="고객이 간편 예약을 시작하는 실제 화면"
+                  fill
+                  className="object-cover object-top"
+                  sizes="(min-width: 768px) 440px, 100vw"
+                />
+              </div>
+            </figure>
+            <figure className="min-w-0">
+              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#8a7f74]">오너 확인 화면</figcaption>
+              <div className="relative aspect-[390/430] overflow-hidden rounded-[14px] border border-[#e5ddd3] bg-[#f7f3ee]">
+                <Image
+                  src="/images/landing/actual-owner-web.png"
+                  alt="오너가 예약 현황을 확인하는 실제 화면"
+                  fill
+                  className="object-cover object-top"
+                  sizes="(min-width: 768px) 500px, 100vw"
+                />
+              </div>
+            </figure>
           </div>
 
-          <article className="min-w-0 rounded-[8px] border border-[#cfe0d7] bg-white px-5 py-6 md:px-7 md:py-7">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-[12px] font-semibold text-[#1f6b5b]">{PETMANAGER_SERVICE_NAME}</p>
-                <h3 className="mt-2 text-[22px] font-semibold text-[#111827]">
-                  {PETMANAGER_SERVICE_NAME}를 사용하면
-                </h3>
-              </div>
-              <span className="text-[12px] font-medium text-[#5d756d]">고객 직접 예약</span>
-            </div>
-
-            <p className="mt-5 border-l-2 border-[#1f9d55] pl-4 break-keep text-[20px] font-semibold leading-[1.45] text-[#174f42] md:text-[22px]">
-              고객이 직접 예약하는 동안,
-              <br className="hidden sm:block" /> 오너의 미용은 멈추지 않습니다.
-            </p>
-
-            <ol className="mt-6 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center" aria-label="고객 예약 흐름">
-              {customerBookingSteps.map(({ icon: Icon, title }, index) => (
-                <li key={title} className="contents">
-                  <div className="flex min-h-11 items-center gap-2 border-t border-[#d7e7df] bg-[#f7fbf9] px-3 py-2.5 sm:flex-col sm:justify-center sm:text-center">
-                    <Icon className="h-4 w-4 shrink-0 text-[#1f6b5b]" aria-hidden="true" />
-                    <span className="break-keep text-[12px] font-semibold text-[#334155]">{title}</span>
-                  </div>
-                  {index < customerBookingSteps.length - 1 ? (
-                    <span className="flex h-4 items-center justify-center text-[#8aa99d]" aria-hidden="true">
-                      <ArrowDown className="h-4 w-4 sm:hidden" />
-                      <ArrowRight className="hidden h-4 w-4 sm:block" />
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-
-            <div className="mt-6 grid items-center gap-5 md:grid-cols-[0.88fr_1.12fr]">
-              <CustomerBookingMockup />
-              <OwnerBookingMockup />
-            </div>
-
-            <div className="mt-6 flex items-start gap-3 border-t border-[#dce8e2] pt-5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#edf7f1] text-[#1f6b5b]">
-                <Scissors className="h-[18px] w-[18px]" aria-hidden="true" />
-              </span>
-              <p className="break-keep text-[15px] font-medium leading-6 text-[#365d52]">
-                오너는 미용하던 손을 멈추지 않고, 현재 고객에게 계속 집중합니다.
-              </p>
-            </div>
-          </article>
-        </div>
-
-        <div className="mt-9 grid border-y border-[#d8e0e7] bg-white md:grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] md:items-center">
-          <p className="px-5 py-5 text-center text-[18px] font-medium text-[#475569] md:text-[20px]">고객은 기다리지 않고 예약하고,</p>
-          <span className="flex h-8 items-center justify-center text-[#8aa99d] md:h-auto" aria-hidden="true">
-            <ArrowDown className="h-5 w-5 md:hidden" />
-            <ArrowRight className="hidden h-5 w-5 md:block" />
-          </span>
-          <p className="px-5 py-5 text-center text-[18px] font-semibold text-[#1f6b5b] md:text-[20px]">오너는 미용의 흐름을 지킵니다.</p>
-        </div>
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 border-t border-[#efe9e3] pt-6 text-center md:flex-row md:gap-5">
+            <p className="text-[17px] font-semibold text-[#a89d92] md:text-[19px]">고객은 기다리지 않고 예약하고,</p>
+            <span className="text-[#c96a3f]" aria-hidden="true">
+              <ArrowDown className="h-[18px] w-[18px] md:hidden" />
+              <ArrowRight className="hidden h-[18px] w-[18px] md:block" />
+            </span>
+            <p className="text-[17px] font-extrabold text-[#1b1815] md:text-[19px]">오너는 미용의 흐름을 지킵니다.</p>
+          </div>
+        </article>
       </div>
     </section>
   );
 }
 
-function CustomerBookingMockup() {
+function MissedCallPhoneMockup() {
   return (
-    <div className="mx-auto w-full max-w-[230px]" role="img" aria-label="고객이 서비스와 날짜, 시간을 선택해 예약을 신청하는 모바일 화면 목업">
-      <p className="mb-2 text-center text-[12px] font-semibold text-[#64748b]">고객 예약 화면</p>
-      <div className="overflow-hidden rounded-[22px] border-[5px] border-[#26343c] bg-white shadow-[0_14px_30px_rgba(15,23,42,0.10)]">
-        <div className="flex h-6 items-center justify-center bg-[#26343c]" aria-hidden="true">
-          <span className="h-1.5 w-12 rounded-full bg-white/30" />
+    <div
+      role="img"
+      aria-label="부재중 전화 알림이 표시된 아이폰 잠금 화면"
+      className="absolute left-[5%] top-1/2 z-10 w-[118px] -translate-y-1/2 sm:left-[14%] sm:w-[168px]"
+    >
+      <div
+        aria-hidden="true"
+        className="relative aspect-[9/19.5] overflow-hidden rounded-[24px] border-[3px] border-[#292a2b] bg-[#082f43] p-2 text-white shadow-[0_16px_32px_rgba(27,24,21,0.18)] sm:rounded-[32px] sm:border-[5px] sm:p-3"
+      >
+        <span className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-black sm:top-2 sm:h-4 sm:w-16" />
+
+        <div className="flex items-center justify-between pt-1 text-[15px] font-semibold sm:pt-1.5">
+          <span>9:27</span>
+          <span className="flex items-center gap-1">
+            <Signal className="h-3 w-3" />
+            <Wifi className="hidden h-3 w-3 sm:block" />
+            <BatteryFull className="h-3.5 w-3.5" />
+          </span>
         </div>
-        <div className="px-3 pb-3 pt-3">
-          <p className="text-[13px] font-semibold text-[#111827]">간편 예약</p>
-          <div className="mt-3">
-            <p className="text-[10px] font-medium text-[#64748b]">서비스 선택</p>
-            <div className="mt-1 flex h-8 items-center justify-between rounded-[6px] border border-[#dbe4e0] px-2.5 text-[11px] font-medium text-[#334155]">
-              전체 미용
-              <ChevronDown className="h-3.5 w-3.5 text-[#64748b]" aria-hidden="true" />
-            </div>
+
+        <div className="mt-4 text-center sm:mt-8">
+          <p className="hidden text-[15px] font-medium text-white/90 sm:block">2월 4일 토요일</p>
+          <p className="text-[28px] font-light leading-none tracking-[0] sm:mt-1 sm:text-[42px]">9:27</p>
+        </div>
+
+        <div className="absolute inset-x-2 bottom-8 rounded-[13px] bg-[#d8e7ee]/95 p-2 text-[#163447] sm:inset-x-3 sm:bottom-12 sm:rounded-[16px] sm:p-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#c96a3f] text-white motion-safe:animate-[landing-missed-call-focus_1.8s_ease-in-out_infinite] motion-reduce:animate-none sm:h-9 sm:w-9">
+              <PhoneMissed className="h-4 w-4 sm:h-5 sm:w-5" />
+            </span>
+            <span className="min-w-0 text-left text-[15px] font-semibold leading-[1.15]">
+              <span className="hidden sm:block">고객 전화</span>
+              <span className="block text-[#365c70] sm:mt-0.5">부재중</span>
+            </span>
           </div>
-          <div className="mt-3">
-            <p className="text-[10px] font-medium text-[#64748b]">날짜 및 시간 선택</p>
-            <div className="mt-1 grid grid-cols-2 gap-1.5 text-center text-[10px]">
-              <span className="rounded-[5px] border border-[#b9d8ca] bg-[#edf7f1] px-1 py-1.5 font-semibold text-[#1f6b5b]">7월 25일</span>
-              <span className="rounded-[5px] border border-[#dbe4e0] px-1 py-1.5 text-[#64748b]">7월 26일</span>
-              <span className="rounded-[5px] border border-[#b9d8ca] bg-[#edf7f1] px-1 py-1.5 font-semibold text-[#1f6b5b]">13:30</span>
-              <span className="rounded-[5px] border border-[#dbe4e0] px-1 py-1.5 text-[#64748b]">15:00</span>
-            </div>
-          </div>
-          <div className="mt-3 flex h-9 items-center justify-center rounded-[7px] bg-[#1f6b5b] text-[11px] font-semibold text-white">예약 신청</div>
+        </div>
+
+        <div className="absolute inset-x-3 bottom-2 hidden items-center justify-between text-white/85 sm:flex">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/30">
+            <Flashlight className="h-3.5 w-3.5" />
+          </span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/30">
+            <Camera className="h-3.5 w-3.5" />
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-function OwnerBookingMockup() {
+function BookingMiniSteps({ steps, accent = false }: { steps: readonly string[]; accent?: boolean }) {
   return (
-    <div className="min-w-0" role="img" aria-label="오너가 새 예약 신청의 고객명과 날짜, 시간을 확인하는 화면 목업">
-      <p className="mb-2 text-center text-[12px] font-semibold text-[#64748b]">오너 확인 화면</p>
-      <div className="overflow-hidden rounded-[8px] border border-[#d8e3dd] bg-[#fbfdfc] shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-        <div className="flex h-8 items-center justify-between border-b border-[#e0e9e4] bg-white px-3">
-          <span className="flex gap-1" aria-hidden="true">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#d1d9df]" />
-            <span className="h-1.5 w-1.5 rounded-full bg-[#d1d9df]" />
-            <span className="h-1.5 w-1.5 rounded-full bg-[#d1d9df]" />
-          </span>
-          <span className="text-[9px] font-medium text-[#64748b]">예약 관리</span>
-        </div>
-        <div className="p-3.5">
-          <div className="flex items-start gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#e9f5ef] text-[#1f6b5b]">
-              <BellRing className="h-4 w-4" aria-hidden="true" />
+    <ol className="flex flex-col items-center gap-0.5">
+      {steps.map((step, index) => (
+        <li key={step} className="w-full">
+          <div className={`flex items-center gap-2 rounded-[9px] border bg-white px-3 py-2 text-[15px] font-semibold text-[#4a423b] ${accent ? "border-[#f0d9c8]" : "border-[#e5ddd3]"}`}>
+            <span className={`shrink-0 text-[15px] font-bold ${accent ? "text-[#c96a3f]" : "text-[#a89d92]"}`}>
+              {String(index + 1).padStart(2, "0")}
             </span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold text-[#1f6b5b]">새 예약 신청</p>
-              <p className="mt-1 text-[14px] font-semibold text-[#111827]">몽이 · 김지은</p>
-            </div>
+            {step}
           </div>
-          <dl className="mt-4 space-y-2 border-y border-[#e2ebe6] py-3 text-[11px]">
-            <div className="flex justify-between gap-3">
-              <dt className="text-[#64748b]">날짜와 시간</dt>
-              <dd className="text-right font-semibold text-[#334155]">7월 25일 13:30</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-[#64748b]">서비스</dt>
-              <dd className="text-right font-semibold text-[#334155]">전체 미용</dd>
-            </div>
-          </dl>
-          <div className="mt-3 flex h-9 items-center justify-center rounded-[7px] border border-[#9fc8b6] bg-white text-[11px] font-semibold text-[#1f6b5b]">예약 확인</div>
-        </div>
-      </div>
-    </div>
+          {index < steps.length - 1 ? (
+            <ArrowDown className="mx-auto my-0.5 h-3.5 w-3.5 text-[#a89d92]" aria-hidden="true" />
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -337,10 +370,10 @@ export function CustomerDataSection() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#edf7f1] text-[#1f6b5b]">
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 </span>
-                <span className="text-[12px] font-semibold text-[#94a3b8]">{number}</span>
+                <span className="text-[15px] font-semibold text-[#94a3b8]">{number}</span>
               </div>
               <h3 className="mt-4 text-[18px] font-semibold text-[#111827]">{title}</h3>
-              <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{body}</p>
+              <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
             </div>
           ))}
         </div>

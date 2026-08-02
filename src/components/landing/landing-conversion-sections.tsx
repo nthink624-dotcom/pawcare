@@ -66,19 +66,19 @@ export function SavingsSection() {
         <div className="border-y border-[#dbe2ea] py-7">
           <div className="grid grid-cols-3 divide-x divide-[#dbe2ea]">
             <div className="px-3 first:pl-0 md:px-6">
-              <p className="text-[12px] font-medium text-[#64748b] md:text-[13px]">하루</p>
+              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">하루</p>
               <p className="mt-2 text-[27px] font-semibold text-[#334155] md:text-[38px]">30분</p>
             </div>
             <div className="px-3 md:px-6">
-              <p className="text-[12px] font-medium text-[#64748b] md:text-[13px]">한 달</p>
+              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">한 달</p>
               <p className="mt-2 text-[27px] font-semibold text-[#1f6b5b] md:text-[38px]">15시간</p>
             </div>
             <div className="px-3 pr-0 md:px-6 md:pr-0">
-              <p className="text-[12px] font-medium text-[#64748b] md:text-[13px]">시간 가치</p>
+              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">시간 가치</p>
               <p className="mt-2 text-[27px] font-semibold text-[#a06a21] md:text-[38px]">{won(MONTHLY_SAVED_WON)}</p>
             </div>
           </div>
-          <p className="mt-6 text-[13px] leading-6 text-[#64748b]">
+          <p className="mt-6 text-[15px] leading-6 text-[#64748b]">
             0.5시간 × 30일 × 2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준의 업무시간 가치 환산 예시입니다. 실제 절감액을 보장하는 수치는 아닙니다.
           </p>
         </div>
@@ -102,7 +102,7 @@ export function TrustSection() {
             <div key={title} className="border-t border-[#bfcfc6] pt-4">
               <Icon className="h-5 w-5 text-[#1f6b5b]" aria-hidden="true" />
               <h3 className="mt-4 text-[17px] font-semibold text-[#111827]">{title}</h3>
-              <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{body}</p>
+              <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
             </div>
           ))}
         </div>
@@ -121,7 +121,7 @@ export function PricingSection() {
           description="예약, 고객관리, 예약 스케줄과 기본 운영 기능은 공통으로 사용하고, 운영 인원과 포함 알림톡에 맞춰 선택합니다."
         />
 
-        <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-y border-[#dbe2ea] py-3 text-[13px] font-medium text-[#526071]">
+        <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-y border-[#dbe2ea] py-3 text-[15px] font-medium text-[#526071]">
           {["간편 예약", "고객 DB", "예약 스케줄", "알림 설정", "직원 관리"].map((item) => (
             <span key={item} className="inline-flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[#1f9d55]" aria-hidden="true" />
@@ -140,7 +140,7 @@ export function PricingSection() {
             >
               <meta itemProp="category" content="반려동물 미용샵 운영 SaaS" />
               <h3 itemProp="name" className="text-[23px] font-semibold text-[#111827]">{plan.title}</h3>
-              <p itemProp="description" className="mt-2 min-h-12 text-[13px] leading-6 text-[#64748b]">{plan.targetLabel}</p>
+              <p itemProp="description" className="mt-2 min-h-12 text-[15px] leading-6 text-[#64748b]">{plan.targetLabel}</p>
 
               <div className="mt-5 border-y border-[#e7edf3] py-5" itemProp="offers" itemScope itemType="https://schema.org/Offer">
                 <meta itemProp="priceCurrency" content="KRW" />
@@ -148,11 +148,11 @@ export function PricingSection() {
                 <meta itemProp="availability" content="https://schema.org/InStock" />
                 <p className="text-[34px] font-semibold text-[#111827]">
                   {won(plan.monthlyPrice)}
-                  <span className="ml-1 text-[13px] font-medium text-[#64748b]">/ 월 정기결제</span>
+                  <span className="ml-1 text-[15px] font-medium text-[#64748b]">/ 월 정기결제</span>
                 </p>
               </div>
 
-              <dl className="mt-4 space-y-3 text-[14px]">
+              <dl className="mt-4 space-y-3 text-[15px]">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-[#64748b]">운영 기준</dt>
                   <dd className="text-right font-medium text-[#334155]">{plan.staffLimitLabel}</dd>
@@ -162,7 +162,7 @@ export function PricingSection() {
                   <dd className="text-right font-medium text-[#334155]">{plan.alimtalkIncludedLabel}</dd>
                 </div>
               </dl>
-              <p className="mt-4 text-[12px] leading-5 text-[#7c8796]">{plan.excessAlimtalkLabel}</p>
+              <p className="mt-4 text-[15px] leading-5 text-[#7c8796]">{plan.excessAlimtalkLabel}</p>
 
               <Link
                 href="/signup"
@@ -176,12 +176,12 @@ export function PricingSection() {
 
         <div className="mt-6 flex items-start gap-3 border-l-[3px] border-[#64748b] bg-white px-4 py-3.5">
           <Building2 className="mt-0.5 h-5 w-5 shrink-0 text-[#64748b]" aria-hidden="true" />
-          <p className="text-[13px] leading-6 text-[#526071]">
+          <p className="text-[15px] leading-6 text-[#526071]">
             여러 매장을 함께 운영하는 경우 매장별 이용 기준으로 안내하며, 등록된 매장 수와 운영 조건에 따라 다점포 할인이 적용될 수 있습니다.
           </p>
         </div>
 
-        <div className="mt-4 grid gap-3 border-y border-[#dbe2ea] py-4 text-[13px] leading-6 text-[#526071] md:grid-cols-2">
+        <div className="mt-4 grid gap-3 border-y border-[#dbe2ea] py-4 text-[15px] leading-6 text-[#526071] md:grid-cols-2">
           <p>
             가입과 로그인 후 매장에 맞는 플랜을 선택하고 결제를 진행합니다. 체험 시작에는 카드 등록이나 결제가 필요하지 않습니다.
           </p>
@@ -212,7 +212,7 @@ export function FaqAndFinalCtaSection() {
                   {item.question}
                   <ChevronDown className="h-5 w-5 shrink-0 text-[#64748b] transition group-open:rotate-180" aria-hidden="true" />
                 </summary>
-                <p className="max-w-[720px] pb-5 pr-9 text-[14px] leading-7 text-[#64748b]">{item.answer}</p>
+                <p className="max-w-[720px] pb-5 pr-9 text-[15px] leading-7 text-[#64748b]">{item.answer}</p>
               </details>
             ))}
           </div>
@@ -222,7 +222,7 @@ export function FaqAndFinalCtaSection() {
       <section className="bg-[#111827] py-16 text-white md:py-20">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col justify-between gap-8 px-5 lg:flex-row lg:items-end">
           <div>
-            <p className="text-[14px] font-semibold text-[#86efac]">다음 예약부터 바로 달라집니다</p>
+            <p className="text-[15px] font-semibold text-[#86efac]">다음 예약부터 바로 달라집니다</p>
             <h2 className="mt-3 max-w-[760px] text-[34px] font-semibold leading-[1.2] md:text-[48px]">
               예약받는 일이 고객관리까지 이어지도록
             </h2>

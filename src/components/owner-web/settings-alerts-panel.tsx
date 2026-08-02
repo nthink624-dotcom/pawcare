@@ -3,7 +3,7 @@
 import { CircleHelp, MessageCircle } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
 import {
@@ -11,10 +11,7 @@ import {
   PETMANAGER_MASTER_BRAND_NAME,
   PETMANAGER_SERVICE_NAME,
 } from "@/lib/brand";
-import {
-  renderNotificationTemplateBody,
-  type NotificationTemplateVariables,
-} from "@/lib/notification-registry";
+import { fetchApiJsonWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type {
   AlimtalkSenderMode,
@@ -77,6 +74,24 @@ type AlertItem = {
   role: string;
 };
 
+type AlimtalkTemplatePreview = {
+  type: NotificationType;
+  title: string;
+  templateCode: string | null;
+  templateName: string | null;
+  body: string;
+  buttons: Array<{ name: string }>;
+  inspectionStatus: string | null;
+  serviceStatus: string | null;
+  source: "ssodaa_approved" | "draft";
+};
+
+type AlimtalkTemplatePreviewResponse = {
+  shopId: string;
+  shopName: string;
+  templates: AlimtalkTemplatePreview[];
+};
+
 function AlertHelp({
   label,
   children,
@@ -121,6 +136,12 @@ const alertItems: AlertItem[] = [
     title: "예약 취소",
     type: "booking_cancelled",
     role: "예약을 취소했을 때 고객에게 취소 사실과 다른 시간 조율 안내를 함께 보냅니다.",
+  },
+  {
+    key: "bookingRescheduledEnabled",
+    title: "예약 일정 변경 안내",
+    type: "booking_time_proposed",
+    role: "오너가 예약 상세에서 다른 가능한 시간을 안내할 때 고객에게 일정 변경 링크를 보냅니다.",
   },
   {
     key: "bookingRescheduledEnabled",
@@ -176,6 +197,7 @@ const alertGroups: Array<{ key: AlertGroupKey; title: string; help?: string; ite
       [
         "booking_confirmed",
         "booking_cancelled",
+        "booking_time_proposed",
         "booking_rescheduled_confirmed",
       ].includes(item.type),
     ),
@@ -210,37 +232,6 @@ const reservationNoticeTypes: NotificationType[] = [
 
 function isReservationNoticeType(type: NotificationType) {
   return reservationNoticeTypes.includes(type);
-}
-
-function buildPreviewValues(value: AlertSettingsDraft): NotificationTemplateVariables {
-  const pickupGuide = "잠시 후 미용이 완료될 예정입니다. 준비되시는 대로 편하게 방문해 주세요.";
-
-  return {
-    매장명: "우유 미용실",
-    반려동물명: "우유",
-    보호자명: "보호자님",
-    예약일시: "2026년 6월 7일 14:00",
-    서비스명: "전체 미용",
-    매장주소: "서울시 성북구 삼선교로 24길 3",
-    "예약 링크": "https://www.petmanager.co.kr/s/shop-demo",
-    "예약 확인 링크": "https://www.petmanager.co.kr/book/shop-demo/manage?t=demo",
-    예약관리링크: "https://www.petmanager.co.kr/book/shop-demo/manage?t=demo",
-    예약시간변경링크: "https://www.petmanager.co.kr/book/shop-demo/manage?t=demo",
-    예약시간변경토큰: "demo-token",
-    bookingRescheduleToken: "demo-token",
-    bookingRescheduleUrl: "https://www.petmanager.co.kr/book/shop-demo/manage?t=demo",
-    길찾기링크: "https://map.naver.com",
-    방문전알림분: String(value.visitReminderOffsetMinutes),
-    방문전알림안내: `예약 시간 ${value.visitReminderOffsetMinutes}분 전 안내드립니다.`,
-    픽업예상분: "잠시 후",
-    픽업안내: pickupGuide,
-    pickupReadyEtaMinutes: "잠시 후",
-    pickupGuide,
-  };
-}
-
-function getAlimtalkPreviewMessage(item: AlertItem, value: AlertSettingsDraft) {
-  return renderNotificationTemplateBody(item.type, buildPreviewValues(value)) ?? "";
 }
 
 function TimingOptionButton({
@@ -328,18 +319,38 @@ function MinuteTimingControl({
   );
 }
 
-function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSettingsDraft }) {
-  const message = getAlimtalkPreviewMessage(item, value);
+function KakaoAlimtalkPreview({
+  item,
+  preview,
+  loading,
+  error,
+  shopName,
+}: {
+  item: AlertItem;
+  preview: AlimtalkTemplatePreview | null;
+  loading: boolean;
+  error: string;
+  shopName: string;
+}) {
+  const message = preview?.body ?? "";
 
   return (
     <div className="rounded-[12px] border border-[#dbe2ea] bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-[16px] font-semibold text-[#111827]">쏘다 템플릿 미리보기</p>
+          <p className="text-[16px] font-semibold text-[#111827]">실제 발송 미리보기</p>
           <p className="mt-1 text-[16px] text-[#64748b]">{item.title}</p>
         </div>
         <MessageCircle className="h-5 w-5 text-[#64748b]" />
       </div>
+
+      <p className="rounded-[8px] bg-[#f6f8fa] px-3 py-2 text-[13px] leading-5 text-[#64748b]">
+        {loading
+          ? "쏘다 승인 본문과 버튼을 확인하고 있습니다."
+          : error
+            ? error
+            : `쏘다 승인 본문·버튼을 그대로 가져와 ${shopName} 정보로 표시합니다.`}
+      </p>
 
       <div className="mt-4 flex justify-center">
         <div className="w-full max-w-[300px] overflow-hidden rounded-[2px] border border-[#a9bdcc] bg-[#bdd2e2] px-3.5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
@@ -362,20 +373,27 @@ function KakaoAlimtalkPreview({ item, value }: { item: AlertItem; value: AlertSe
               kakao
             </span>
             <div className="px-2.5 py-3 text-[13px] leading-[1.55]">
-              {message.split("\n").map((line, index) => {
-                if (!line) {
-                  return <div key={`${line}-${index}`} className="h-2.5" />;
-                }
-                if (line.startsWith("https://")) {
-                  return (
-                    <p key={line} className="break-all text-[#0066cc] underline underline-offset-2">
-                      {line}
-                    </p>
-                  );
-                }
-                return <p key={`${line}-${index}`}>{line}</p>;
-              })}
+              {message ? (
+                message.split("\n").map((line, index) => {
+                  if (!line) {
+                    return <div key={`${line}-${index}`} className="h-2.5" />;
+                  }
+                  return <p key={`${line}-${index}`}>{line}</p>;
+                })
+              ) : (
+                <p className="text-[#64748b]">
+                  {loading ? "불러오는 중…" : "승인된 내용을 표시할 수 없습니다."}
+                </p>
+              )}
             </div>
+            {preview?.buttons.map((button) => (
+              <div
+                key={button.name}
+                className="border-t border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-center text-[13px] text-[#334155]"
+              >
+                {button.name}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -409,16 +427,63 @@ function getNextShopChannelSettings(value: AlertSettingsDraft): AlertSettingsDra
 export default function SettingsAlertsPanel({
   value,
   onChange,
+  shopId,
+  shopName,
   automaticVisitReminderAvailable = true,
 }: {
   value: AlertSettingsDraft;
   onChange: (value: AlertSettingsDraft) => void | Promise<void>;
+  shopId: string;
+  shopName: string;
   automaticVisitReminderAvailable?: boolean;
 }) {
   const [selectedAlertType, setSelectedAlertType] = useState<NotificationType>("appointment_reminder_10m");
+  const [templatePreviewState, setTemplatePreviewState] = useState<{
+    shopId: string;
+    previews: Partial<Record<NotificationType, AlimtalkTemplatePreview>>;
+    error: string;
+  }>({ shopId: "", previews: {}, error: "" });
+  const templatePreviews =
+    templatePreviewState.shopId === shopId ? templatePreviewState.previews : {};
+  const templatePreviewsLoading = templatePreviewState.shopId !== shopId;
+  const templatePreviewsError =
+    templatePreviewState.shopId === shopId ? templatePreviewState.error : "";
   const previewItem = alertItems.find((item) => item.type === selectedAlertType) ?? alertItems[0];
   const visitReminderEnabled =
     automaticVisitReminderAvailable && value.appointmentReminder10mEnabled && value.appointmentReminder10mMode === "auto";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchApiJsonWithAuth<AlimtalkTemplatePreviewResponse>(
+      `/api/owner/alimtalk-template-previews?shopId=${encodeURIComponent(shopId)}`,
+      { cache: "no-store" },
+    )
+      .then((result) => {
+        if (cancelled) return;
+        setTemplatePreviewState({
+          shopId,
+          previews: Object.fromEntries(
+            result.templates.map((template) => [template.type, template]),
+          ) as Partial<Record<NotificationType, AlimtalkTemplatePreview>>,
+          error: "",
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setTemplatePreviewState({
+          shopId,
+          previews: {},
+          error: error instanceof Error
+            ? error.message
+            : "쏘다 승인 템플릿을 불러오지 못했습니다.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId]);
 
   function update(key: AlertToggleKey, checked: boolean) {
     if (key === "appointmentReminder10mEnabled") {
@@ -697,7 +762,13 @@ export default function SettingsAlertsPanel({
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <KakaoAlimtalkPreview item={previewItem} value={value} />
+          <KakaoAlimtalkPreview
+            item={previewItem}
+            preview={templatePreviews[previewItem.type] ?? null}
+            loading={templatePreviewsLoading}
+            error={templatePreviewsError}
+            shopName={shopName}
+          />
         </div>
       </div>
     </section>

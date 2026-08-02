@@ -15,9 +15,8 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { formatClockTime, nowIso, phoneNormalize, shortDate } from "@/lib/utils";
 import {
-  getApprovedSsodaaTemplateButtons,
+  getApprovedSsodaaNotificationTemplate,
   requiresApprovedSsodaaTemplate,
-  renderApprovedSsodaaTemplateBody,
 } from "@/server/alimtalk-approved-template";
 import {
   buildBookingEntryUrl,
@@ -582,7 +581,7 @@ function buildOwnerBookingRequestedMessage(params: {
   return ["새 예약이 접수되었어요.", params.petName, dateLabel].filter(Boolean).join("\n");
 }
 
-function buildNotificationTemplateValues(params: {
+export function buildNotificationTemplateValues(params: {
   appointment: Appointment | null;
   bookingAccessToken: string | null;
   bookingEntryUrl: string | null;
@@ -626,7 +625,7 @@ function buildNotificationTemplateValues(params: {
   };
 }
 
-async function buildNotificationMessage(params: {
+function buildNotificationMessage(params: {
   type: NotificationType;
   shopName: string;
   appointment: Appointment | null;
@@ -639,23 +638,10 @@ async function buildNotificationMessage(params: {
   bookingEntryUrl: string | null;
   bookingManageUrl: string | null;
   directionsUrl: string | null;
+  approvedTemplateBody: string | null;
 }) {
-  const templateValues = buildNotificationTemplateValues({
-    appointment: params.appointment,
-    bookingAccessToken: params.bookingAccessToken,
-    bookingEntryUrl: params.bookingEntryUrl,
-    bookingManageUrl: params.bookingManageUrl,
-    directionsUrl: params.directionsUrl,
-    petName: params.petName,
-    recipientName: params.recipientName,
-    serviceName: params.serviceName,
-    shopAddress: params.shopAddress,
-    shopName: params.shopName,
-  });
-  const rendered = await renderApprovedSsodaaTemplateBody(params.type, templateValues);
-
-  if (rendered) {
-    return rendered;
+  if (params.approvedTemplateBody) {
+    return params.approvedTemplateBody;
   }
 
   if (params.type === "owner_booking_requested") {
@@ -880,10 +866,26 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);
   const mediaAssetIds = normalizeMediaAssetIds(input.mediaAssetIds);
+  const notificationTemplateValues = buildNotificationTemplateValues({
+    appointment,
+    bookingAccessToken,
+    bookingEntryUrl,
+    bookingManageUrl,
+    directionsUrl,
+    petName: pet?.name ?? "pet",
+    recipientName,
+    serviceName: service?.name ?? null,
+    shopAddress: bootstrap.shop.address ?? null,
+    shopName: bootstrap.shop.name,
+  });
+  const connectedTemplate = await getApprovedSsodaaNotificationTemplate(
+    input.type,
+    notificationTemplateValues,
+  );
   const message =
     (input.channel ?? "alimtalk") === "in_app" && input.message?.trim()
       ? input.message.trim()
-      : await buildNotificationMessage({
+      : buildNotificationMessage({
           type: input.type,
           shopName: bootstrap.shop.name,
           shopAddress: bootstrap.shop.address ?? null,
@@ -896,6 +898,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           bookingEntryUrl,
           bookingManageUrl,
           directionsUrl,
+          approvedTemplateBody: connectedTemplate?.body ?? null,
         });
   const abusePolicy = evaluateNotificationAbusePolicy({
     notifications: bootstrap.notifications,
@@ -929,19 +932,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           mediaAssetIds,
         })
       : [];
-  const notificationTemplateValues = buildNotificationTemplateValues({
-    appointment,
-    bookingAccessToken,
-    bookingEntryUrl,
-    bookingManageUrl,
-    directionsUrl,
-    petName: pet?.name ?? "pet",
-    recipientName,
-    serviceName: service?.name ?? null,
-    shopAddress: bootstrap.shop.address ?? null,
-    shopName: bootstrap.shop.name,
-  });
-  const connectedTemplateButtons = await getApprovedSsodaaTemplateButtons(input.type, notificationTemplateValues);
+  const connectedTemplateButtons = connectedTemplate?.buttons ?? null;
   const alimtalkButtons =
     connectedTemplateButtons ??
     (requiresApprovedSsodaaTemplate()

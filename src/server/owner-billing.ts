@@ -676,7 +676,8 @@ async function recordBillingKeyReadFailure(params: {
     | "retry_charge"
     | "schedule_charge"
     | "payment_method_refresh"
-    | "admin_reset_check";
+    | "admin_reset_check"
+    | "alimtalk_credit_purchase";
   problemCode: BillingKeyReadState["problemCode"];
 }) {
   await recordBillingEvent({
@@ -1492,6 +1493,79 @@ export async function registerOwnerBillingMethod(
   });
 
   return await buildOwnerSubscriptionSummary(identity, shopId, saved, profile);
+}
+
+export async function chargeOwnerRegisteredCard(
+  identity: BillingIdentity,
+  shopId: string,
+  payload: {
+    paymentId: string;
+    orderName: string;
+    amount: number;
+    customData: Record<string, unknown>;
+  },
+) {
+  if (!canWriteProtectedBillingData()) {
+    throw new OwnerBillingError("등록 카드 결제는 배포 서버에서만 진행할 수 있습니다.", 400);
+  }
+
+  if (!env.portoneStoreId) {
+    throw new OwnerBillingError("PortOne 운영 결제 설정을 확인해 주세요.", 503);
+  }
+
+  const { record, profile, tableReady } = await readOrCreateSubscription(identity, shopId);
+  if (!tableReady || !record) {
+    throw new OwnerBillingError("구독 결제 테이블이 아직 준비되지 않았습니다.", 503);
+  }
+
+  if (!record.payment_method_exists) {
+    throw new OwnerBillingError("먼저 결제 카드를 등록해 주세요.", 400);
+  }
+
+  const billingKeyState = readStoredBillingKeyState(record);
+  const billingKey = billingKeyState.billingKey;
+  if (!billingKey) {
+    await recordBillingKeyReadFailure({
+      identity,
+      shopId,
+      record,
+      source: "alimtalk_credit_purchase",
+      problemCode: billingKeyState.problemCode,
+    });
+    throw new OwnerBillingError("등록된 카드를 다시 확인할 수 없어 새 카드를 한 번만 다시 등록해 주세요.", 400);
+  }
+
+  const paymentResponse = await portoneFetch<PortonePaymentResponse>(
+    `/payments/${encodeURIComponent(payload.paymentId)}/billing-key`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        storeId: env.portoneStoreId,
+        billingKey,
+        orderName: payload.orderName,
+        customer: buildPortoneCustomer(identity, profile),
+        amount: { total: payload.amount },
+        currency: "KRW",
+        customData: JSON.stringify(payload.customData),
+        noticeUrls: [buildOwnerBillingNoticeUrl()],
+      }),
+    },
+  );
+
+  const payment = extractPaymentShape(paymentResponse);
+  if (payment.status !== "PAID") {
+    throw new OwnerBillingError("등록 카드 결제가 승인되지 않았습니다. 카드 상태를 확인해 주세요.", 402);
+  }
+  if (payment.amount !== payload.amount) {
+    throw new OwnerBillingError("결제 금액이 선택한 이용권 금액과 일치하지 않습니다.", 409);
+  }
+
+  return {
+    paymentId: payload.paymentId,
+    status: payment.status,
+    amount: payment.amount,
+    paidAt: payment.paidAt,
+  };
 }
 
 export async function retryOwnerSubscriptionCharge(identity: BillingIdentity, shopId: string) {

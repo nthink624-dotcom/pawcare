@@ -41,6 +41,16 @@ export async function confirmAlimtalkCreditPurchase(paymentId: string) {
   });
 }
 
+export async function purchaseAlimtalkCreditsWithRegisteredCard(params: {
+  productId: AlimtalkCreditProductId;
+  requestId: string;
+}) {
+  return fetchApiJsonWithAuth<PurchaseConfirmResponse>("/api/alimtalk-credits/purchase/registered-card", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function requestAlimtalkCreditPurchase(params: {
   productId: AlimtalkCreditProductId;
   userId: string;

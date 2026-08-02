@@ -84,7 +84,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
 
       <div className="relative mx-auto flex min-h-[760px] w-full max-w-[1180px] items-start px-5 pb-[250px] pt-10 md:h-full md:min-h-0 md:items-center md:pb-16 md:pt-16">
         <div className="max-w-[650px] md:w-[57%] md:pr-10">
-          <p className="text-[15px] font-semibold text-[#1f6b5b]">반려동물 미용샵 예약·고객관리</p>
+          <p className="text-[15px] font-semibold text-[var(--landing-accent)]">반려동물 미용샵 예약·고객관리</p>
           <h1 id="landing-hero-title" className="mt-4 break-keep text-[34px] font-semibold leading-[1.22] text-[#111827] md:text-[46px]">
             미용하다 놓친 연락,
             <br />고객까지 놓치고 있진 않나요?
@@ -93,14 +93,14 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
             고객은 답을 기다릴 필요 없고,
             <br />오너는 미용하던 손을 멈출 필요 없습니다.
           </p>
-          <p className="mt-5 text-[21px] font-semibold text-[#1f6b5b] md:text-[24px]">
+          <p className="mt-5 text-[21px] font-semibold text-[var(--landing-accent)] md:text-[24px]">
             예약이 넘쳐도, 놓치지 않게.
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="inline-flex h-13 items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] px-6 text-[16px] font-semibold text-white transition hover:bg-[#1d4ed8]"
+              className="inline-flex h-13 items-center justify-center gap-2 rounded-[8px] bg-[var(--landing-accent)] px-6 text-[16px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)]"
             >
               14일 무료로 시작하기
               <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -117,7 +117,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           <div className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-[15px] font-medium text-[#64748b] md:flex">
             {["카드 등록 없이 시작", "설치 없이 예약 링크 사용", "PC와 모바일에서 확인"].map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
-                <Check className="h-4 w-4 text-[#1f9d55]" aria-hidden="true" />
+                <Check className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />
                 {item}
               </span>
             ))}
@@ -132,17 +132,17 @@ export function PainSection() {
   return (
     <section id="pain-points" className="scroll-mt-20 bg-[#eef0f3] py-20 md:py-24">
       <div className="mx-auto w-full max-w-[1040px] px-5 md:px-6">
-        <p className="text-[15px] font-bold text-[#c96a3f]">예약 응대의 연쇄 지연</p>
-        <h2 className="mt-4 break-keep text-[34px] font-extrabold leading-[1.28] text-[#1b1815] [text-wrap:pretty] md:text-[40px]">
+        <p className="text-[15px] font-bold text-[var(--landing-accent)]">예약 응대의 연쇄 지연</p>
+        <h2 className="mt-4 break-keep text-[34px] font-extrabold leading-[1.28] text-[#18211f] [text-wrap:pretty] md:text-[40px]">
           미용 중 받은 예약 문의,
           <br />다음 고객의 시간까지 밀고 있진 않나요?
         </h2>
-        <p className="mt-5 break-keep text-[16px] leading-7 text-[#4a423b] md:text-[17px] md:leading-7">
+        <p className="mt-5 break-keep text-[16px] leading-7 text-[#45504d] md:text-[17px] md:leading-7">
           고객을 놓치지 않으려고 미용 중 예약을 처리하면, 지금 하는 미용부터 다음 고객의 일정까지 함께 밀립니다.
         </p>
 
         <figure className="mt-12">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-[#f7f3ee] sm:aspect-[1040/460]">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-[#f6f8f7] sm:aspect-[1040/460]">
             <Image
               src="/images/landing/section-booking-interruption-v2.png"
               alt="미용 가위를 든 채 걸려 온 전화를 확인하는 반려동물 미용사"
@@ -152,44 +152,44 @@ export function PainSection() {
             />
             <MissedCallPhoneMockup />
           </div>
-          <figcaption className="mt-4 text-center text-[15px] text-[#8a7f74] md:text-[15px]">
+          <figcaption className="mt-4 text-center text-[15px] text-[#707a77] md:text-[15px]">
             가위를 내려놓을 수 없는 순간에도, 전화는 울립니다.
           </figcaption>
         </figure>
 
         <div className="my-12 text-center">
-          <p className="text-[18px] font-bold text-[#a89d92] line-through decoration-[#e5ddd3] md:text-[20px]">
+          <p className="text-[18px] font-bold text-[#8a9491] line-through decoration-[#dce3e0] md:text-[20px]">
             이 흐름, 매일 반복되고 있진 않나요
           </p>
-          <p className="mt-2 break-keep text-[22px] font-extrabold text-[#1b1815] md:text-[26px]">
-            가위를 내려놓지 않고도, <span className="text-[#c96a3f]">예약은 이어져야 합니다</span>
+          <p className="mt-2 break-keep text-[22px] font-extrabold text-[#18211f] md:text-[26px]">
+            가위를 내려놓지 않고도, <span className="text-[var(--landing-accent)]">예약은 이어져야 합니다</span>
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-[18px] border border-[#e5ddd3] bg-white">
-          <h3 className="border-b border-[#e5ddd3] bg-[#f7f3ee] px-4 py-4 text-center text-[15px] font-extrabold text-[#1b1815]">
+        <div className="overflow-hidden rounded-[18px] border border-[#dce3e0] bg-white">
+          <h3 className="border-b border-[#dce3e0] bg-[#f6f8f7] px-4 py-4 text-center text-[15px] font-extrabold text-[#18211f]">
             예약 응대 흐름 비교
           </h3>
           <div className="grid items-stretch gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_36px_minmax(0,1fr)] lg:gap-[18px]">
-            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#e5ddd3] bg-[#f7f3ee] p-5 sm:p-[22px]">
-              <p className="mb-4 text-center text-[15px] font-bold text-[#a89d92]">지금까지</p>
+            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#dce3e0] bg-[#f6f8f7] p-5 sm:p-[22px]">
+              <p className="mb-4 text-center text-[15px] font-bold text-[#8a9491]">지금까지</p>
               <div className="flex flex-1 flex-col">
                 <BookingMiniSteps steps={bookingDelaySteps} />
-                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#8a9491]" aria-hidden="true" />
                 <div className="space-y-1.5">
                   {bookingDelayConsequences.map((item) => (
-                    <div key={item} className="flex items-center gap-2 rounded-[9px] border border-[#f0d9d0] bg-[#fdf1ee] px-3 py-2 text-[15px] font-semibold text-[#4a423b]">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#c9573f]" aria-hidden="true" />
+                    <div key={item} className="flex items-center gap-2 rounded-[9px] border border-[#ead5da] bg-[#fbf4f6] px-3 py-2 text-[15px] font-semibold text-[#45504d]">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#a04455]" aria-hidden="true" />
                       {item}
                     </div>
                   ))}
                 </div>
-                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#8a9491]" aria-hidden="true" />
                 <div className="mt-auto pt-1">
-                  <p className="rounded-[9px] bg-[#b85635] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
+                  <p className="rounded-[9px] bg-[#8e3e4f] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
                     고객 불만으로 이어짐
                   </p>
-                  <p className="mt-3 text-center text-[15px] leading-5 text-[#8a7f74]">
+                  <p className="mt-3 text-center text-[15px] leading-5 text-[#707a77]">
                     미용과 응대를 오가며, 손과 신경이 계속 나뉩니다.
                   </p>
                 </div>
@@ -197,29 +197,29 @@ export function PainSection() {
             </article>
 
             <div className="flex items-center justify-center" aria-hidden="true">
-              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#e5ddd3] bg-white text-[#a89d92]">
+              <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#dce3e0] bg-white text-[#8a9491]">
                 <ArrowDown className="h-4 w-4 lg:hidden" />
                 <ArrowRight className="hidden h-4 w-4 lg:block" />
               </span>
             </div>
 
-            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[#f0d9c8] bg-[#fbeee5] p-5 sm:p-[22px]">
-              <p className="mb-4 text-center text-[15px] font-bold text-[#c96a3f]">넘친 Day 사용 시</p>
+            <article className="flex h-full min-w-0 flex-col rounded-[16px] border border-[var(--landing-accent-border)] bg-[var(--landing-accent-soft)] p-5 sm:p-[22px]">
+              <p className="mb-4 text-center text-[15px] font-bold text-[var(--landing-accent)]">넘친 Day 사용 시</p>
               <div className="flex flex-1 flex-col">
                 <BookingMiniSteps steps={directBookingSteps} accent />
-                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
-                <div className="flex min-h-[170px] flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border border-[#f0d9c8] bg-white px-5 py-7 text-center">
-                  <span className="flex h-[52px] w-[52px] items-center justify-center rounded-[14px] bg-[#fbeee5] text-[#c96a3f]">
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#8a9491]" aria-hidden="true" />
+                <div className="flex min-h-[170px] flex-1 flex-col items-center justify-center gap-3 rounded-[14px] border border-[var(--landing-accent-border)] bg-white px-5 py-7 text-center">
+                  <span className="flex h-[52px] w-[52px] items-center justify-center rounded-[14px] bg-[var(--landing-accent-soft)] text-[var(--landing-accent)]">
                     <Scissors className="h-6 w-6" aria-hidden="true" />
                   </span>
-                  <p className="text-[16px] font-extrabold text-[#1b1815]">오너는 미용에만 집중합니다</p>
+                  <p className="text-[16px] font-extrabold text-[#18211f]">오너는 미용에만 집중합니다</p>
                 </div>
-                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#a89d92]" aria-hidden="true" />
+                <ArrowDown className="mx-auto my-1 h-4 w-4 text-[#8a9491]" aria-hidden="true" />
                 <div className="mt-auto pt-1">
-                  <p className="rounded-[9px] bg-[#c96a3f] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
+                  <p className="rounded-[9px] bg-[var(--landing-accent)] px-3 py-2.5 text-center text-[15px] font-extrabold text-white">
                     빠른 예약으로 고객 만족도 상승
                   </p>
-                  <p className="mt-3 text-center text-[15px] leading-5 text-[#8a7f74]">
+                  <p className="mt-3 text-center text-[15px] leading-5 text-[#707a77]">
                     고객이 예약하고, 오너는 확인만 하면 끝납니다.
                   </p>
                 </div>
@@ -228,18 +228,18 @@ export function PainSection() {
           </div>
         </div>
 
-        <article className="mt-14 rounded-[22px] border border-[#e5ddd3] bg-white p-5 shadow-[0_1px_3px_rgba(27,24,21,0.04)] sm:p-8 md:p-10">
-          <h3 className="text-[22px] font-extrabold text-[#1b1815]">
-            <span className="text-[15px] font-bold text-[#c96a3f]">넘친 Day</span>가 대신 대응합니다
+        <article className="mt-14 rounded-[22px] border border-[#dce3e0] bg-white p-5 shadow-[0_1px_3px_rgba(27,24,21,0.04)] sm:p-8 md:p-10">
+          <h3 className="text-[22px] font-extrabold text-[#18211f]">
+            <span className="text-[15px] font-bold text-[var(--landing-accent)]">넘친 Day</span>가 대신 대응합니다
           </h3>
-          <p className="mt-2 break-keep text-[15px] leading-6 text-[#4a423b]">
+          <p className="mt-2 break-keep text-[15px] leading-6 text-[#45504d]">
             고객이 직접 예약하는 동안, 오너는 지금 하던 미용에만 집중하면 됩니다.
           </p>
 
           <div className="mt-8 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
             <figure className="min-w-0">
-              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#8a7f74]">고객 예약 화면</figcaption>
-              <div className="relative aspect-[340/430] overflow-hidden rounded-[14px] border border-[#e5ddd3] bg-[#f7f3ee]">
+              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#707a77]">고객 예약 화면</figcaption>
+              <div className="relative aspect-[340/430] overflow-hidden rounded-[14px] border border-[#dce3e0] bg-[#f6f8f7]">
                 <Image
                   src="/images/landing/actual-customer-entry.png"
                   alt="고객이 간편 예약을 시작하는 실제 화면"
@@ -250,8 +250,8 @@ export function PainSection() {
               </div>
             </figure>
             <figure className="min-w-0">
-              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#8a7f74]">오너 확인 화면</figcaption>
-              <div className="relative aspect-[390/430] overflow-hidden rounded-[14px] border border-[#e5ddd3] bg-[#f7f3ee]">
+              <figcaption className="mb-2.5 text-center text-[15px] font-semibold text-[#707a77]">오너 확인 화면</figcaption>
+              <div className="relative aspect-[390/430] overflow-hidden rounded-[14px] border border-[#dce3e0] bg-[#f6f8f7]">
                 <Image
                   src="/images/landing/actual-owner-web.png"
                   alt="오너가 예약 현황을 확인하는 실제 화면"
@@ -263,13 +263,13 @@ export function PainSection() {
             </figure>
           </div>
 
-          <div className="mt-7 flex flex-col items-center justify-center gap-3 border-t border-[#efe9e3] pt-6 text-center md:flex-row md:gap-5">
-            <p className="text-[17px] font-semibold text-[#a89d92] md:text-[19px]">고객은 기다리지 않고 예약하고,</p>
-            <span className="text-[#c96a3f]" aria-hidden="true">
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 border-t border-[#e6ebe9] pt-6 text-center md:flex-row md:gap-5">
+            <p className="text-[17px] font-semibold text-[#8a9491] md:text-[19px]">고객은 기다리지 않고 예약하고,</p>
+            <span className="text-[var(--landing-accent)]" aria-hidden="true">
               <ArrowDown className="h-[18px] w-[18px] md:hidden" />
               <ArrowRight className="hidden h-[18px] w-[18px] md:block" />
             </span>
-            <p className="text-[17px] font-extrabold text-[#1b1815] md:text-[19px]">오너는 미용의 흐름을 지킵니다.</p>
+            <p className="text-[17px] font-extrabold text-[#18211f] md:text-[19px]">오너는 미용의 흐름을 지킵니다.</p>
           </div>
         </article>
       </div>
@@ -286,7 +286,7 @@ function MissedCallPhoneMockup() {
     >
       <div
         aria-hidden="true"
-        className="relative aspect-[9/19.5] overflow-hidden rounded-[24px] border-[3px] border-[#292a2b] bg-[#082f43] p-2 text-white shadow-[0_16px_32px_rgba(27,24,21,0.18)] sm:rounded-[32px] sm:border-[5px] sm:p-3"
+        className="relative aspect-[9/19.5] overflow-hidden rounded-[24px] border-[3px] border-[#292a2b] bg-[var(--landing-accent)] p-2 text-white shadow-[0_16px_32px_rgba(27,24,21,0.18)] sm:rounded-[32px] sm:border-[5px] sm:p-3"
       >
         <span className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-black sm:top-2 sm:h-4 sm:w-16" />
 
@@ -304,14 +304,14 @@ function MissedCallPhoneMockup() {
           <p className="text-[28px] font-light leading-none tracking-[0] sm:mt-1 sm:text-[42px]">9:27</p>
         </div>
 
-        <div className="absolute inset-x-2 bottom-8 rounded-[13px] bg-[#d8e7ee]/95 p-2 text-[#163447] sm:inset-x-3 sm:bottom-12 sm:rounded-[16px] sm:p-2.5">
+        <div className="absolute inset-x-2 bottom-8 rounded-[13px] bg-[var(--landing-accent-soft)] p-2 text-[var(--landing-accent-hover)] sm:inset-x-3 sm:bottom-12 sm:rounded-[16px] sm:p-2.5">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#c96a3f] text-white motion-safe:animate-[landing-missed-call-focus_1.8s_ease-in-out_infinite] motion-reduce:animate-none sm:h-9 sm:w-9">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#a04455] text-white motion-safe:animate-[landing-missed-call-focus_1.8s_ease-in-out_infinite] motion-reduce:animate-none sm:h-9 sm:w-9">
               <PhoneMissed className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
             <span className="min-w-0 text-left text-[15px] font-semibold leading-[1.15]">
               <span className="hidden sm:block">고객 전화</span>
-              <span className="block text-[#365c70] sm:mt-0.5">부재중</span>
+              <span className="block text-[#8e3e4f] sm:mt-0.5">부재중</span>
             </span>
           </div>
         </div>
@@ -334,14 +334,14 @@ function BookingMiniSteps({ steps, accent = false }: { steps: readonly string[];
     <ol className="flex flex-col items-center gap-0.5">
       {steps.map((step, index) => (
         <li key={step} className="w-full">
-          <div className={`flex items-center gap-2 rounded-[9px] border bg-white px-3 py-2 text-[15px] font-semibold text-[#4a423b] ${accent ? "border-[#f0d9c8]" : "border-[#e5ddd3]"}`}>
-            <span className={`shrink-0 text-[15px] font-bold ${accent ? "text-[#c96a3f]" : "text-[#a89d92]"}`}>
+          <div className={`flex items-center gap-2 rounded-[9px] border bg-white px-3 py-2 text-[15px] font-semibold text-[#45504d] ${accent ? "border-[var(--landing-accent-border)]" : "border-[#dce3e0]"}`}>
+            <span className={`shrink-0 text-[15px] font-bold ${accent ? "text-[var(--landing-accent)]" : "text-[#8a9491]"}`}>
               {String(index + 1).padStart(2, "0")}
             </span>
             {step}
           </div>
           {index < steps.length - 1 ? (
-            <ArrowDown className="mx-auto my-0.5 h-3.5 w-3.5 text-[#a89d92]" aria-hidden="true" />
+            <ArrowDown className="mx-auto my-0.5 h-3.5 w-3.5 text-[#8a9491]" aria-hidden="true" />
           ) : null}
         </li>
       ))}
@@ -365,9 +365,9 @@ export function CustomerDataSection() {
             { icon: CalendarCheck2, number: "02", title: "예약 일정 자동 반영", body: "입력한 예약이 오너 일정과 예약 현황에 바로 이어집니다." },
             { icon: Database, number: "03", title: "고객 DB 자동 연결", body: "보호자와 반려동물 정보가 고객관리 화면에 함께 쌓입니다." },
           ].map(({ icon: Icon, number, title, body }) => (
-            <div key={number} className="border-t-2 border-[#cdd8d2] pt-4">
+            <div key={number} className="border-t-2 border-[var(--landing-accent-border)] pt-4">
               <div className="flex items-center justify-between">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#edf7f1] text-[#1f6b5b]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[var(--landing-accent-soft)] text-[var(--landing-accent)]">
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 </span>
                 <span className="text-[15px] font-semibold text-[#94a3b8]">{number}</span>

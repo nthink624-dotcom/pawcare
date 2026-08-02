@@ -33,6 +33,15 @@
   --pm-scrollbar-track: transparent;
 }
 
+.landing-theme {
+  --landing-accent: #2f665a;
+  --landing-accent-hover: #28554d;
+  --landing-accent-soft: #edf4f2;
+  --landing-accent-wash: #f5f8f7;
+  --landing-accent-border: #cadbd6;
+  --landing-accent-on-dark: #b7d9d0;
+}
+
 html {
   background: var(--background);
   min-height: 100%;

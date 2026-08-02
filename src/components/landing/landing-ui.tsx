@@ -18,7 +18,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={align === "center" ? "mx-auto max-w-[840px] text-center" : "max-w-[840px]"}>
-      <p className={`text-[15px] font-semibold ${inverse ? "text-[#86efac]" : "text-[#1f6b5b]"}`}>{eyebrow}</p>
+      <p className={`text-[15px] font-semibold ${inverse ? "text-[var(--landing-accent-on-dark)]" : "text-[var(--landing-accent)]"}`}>{eyebrow}</p>
       <h2 className={`mt-3 break-keep text-[34px] font-semibold leading-[1.2] [text-wrap:balance] md:text-[46px] ${inverse ? "text-white" : "text-[#111827]"}`}>
         {title}
       </h2>
@@ -95,7 +95,7 @@ export function ValueItem({
 }) {
   return (
     <div className="min-w-0 border-t border-current/15 pt-4">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-[8px] ${inverse ? "bg-white/10 text-[#86efac]" : "bg-[#edf7f1] text-[#1f6b5b]"}`}>
+      <div className={`flex h-9 w-9 items-center justify-center rounded-[8px] ${inverse ? "bg-white/10 text-[var(--landing-accent-on-dark)]" : "bg-[var(--landing-accent-soft)] text-[var(--landing-accent)]"}`}>
         {icon}
       </div>
       <h3 className={`mt-4 text-[18px] font-semibold ${inverse ? "text-white" : "text-[#111827]"}`}>{title}</h3>

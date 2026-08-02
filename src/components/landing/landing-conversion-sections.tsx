@@ -71,11 +71,11 @@ export function SavingsSection() {
             </div>
             <div className="px-3 md:px-6">
               <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">한 달</p>
-              <p className="mt-2 text-[27px] font-semibold text-[#1f6b5b] md:text-[38px]">15시간</p>
+              <p className="mt-2 text-[27px] font-semibold text-[var(--landing-accent)] md:text-[38px]">15시간</p>
             </div>
             <div className="px-3 pr-0 md:px-6 md:pr-0">
               <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">시간 가치</p>
-              <p className="mt-2 text-[27px] font-semibold text-[#a06a21] md:text-[38px]">{won(MONTHLY_SAVED_WON)}</p>
+              <p className="mt-2 text-[27px] font-semibold text-[var(--landing-accent)] md:text-[38px]">{won(MONTHLY_SAVED_WON)}</p>
             </div>
           </div>
           <p className="mt-6 text-[15px] leading-6 text-[#64748b]">
@@ -89,7 +89,7 @@ export function SavingsSection() {
 
 export function TrustSection() {
   return (
-    <section className="border-y border-[#dce6e0] bg-[#f4f8f6] py-16 md:py-20">
+    <section className="border-y border-[var(--landing-accent-border)] bg-[var(--landing-accent-wash)] py-16 md:py-20">
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="부담 없이 확인"
@@ -99,8 +99,8 @@ export function TrustSection() {
 
         <div className="mt-10 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
           {trustItems.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="border-t border-[#bfcfc6] pt-4">
-              <Icon className="h-5 w-5 text-[#1f6b5b]" aria-hidden="true" />
+            <div key={title} className="border-t border-[var(--landing-accent-border)] pt-4">
+              <Icon className="h-5 w-5 text-[var(--landing-accent)]" aria-hidden="true" />
               <h3 className="mt-4 text-[17px] font-semibold text-[#111827]">{title}</h3>
               <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
             </div>
@@ -124,7 +124,7 @@ export function PricingSection() {
         <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-y border-[#dbe2ea] py-3 text-[15px] font-medium text-[#526071]">
           {["간편 예약", "고객 DB", "예약 스케줄", "알림 설정", "직원 관리"].map((item) => (
             <span key={item} className="inline-flex items-center gap-1.5">
-              <Check className="h-4 w-4 text-[#1f9d55]" aria-hidden="true" />
+              <Check className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />
               {item}
             </span>
           ))}
@@ -166,7 +166,7 @@ export function PricingSection() {
 
               <Link
                 href="/signup"
-                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] border border-[#334155] bg-[#334155] text-[15px] font-semibold text-white transition hover:bg-[#1e293b]"
+                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] border border-[var(--landing-accent)] bg-[var(--landing-accent)] text-[15px] font-semibold text-white transition hover:border-[var(--landing-accent-hover)] hover:bg-[var(--landing-accent-hover)]"
               >
                 이 플랜으로 14일 시작
               </Link>
@@ -222,7 +222,7 @@ export function FaqAndFinalCtaSection() {
       <section className="bg-[#111827] py-16 text-white md:py-20">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col justify-between gap-8 px-5 lg:flex-row lg:items-end">
           <div>
-            <p className="text-[15px] font-semibold text-[#86efac]">다음 예약부터 바로 달라집니다</p>
+            <p className="text-[15px] font-semibold text-[var(--landing-accent-on-dark)]">다음 예약부터 바로 달라집니다</p>
             <h2 className="mt-3 max-w-[760px] text-[34px] font-semibold leading-[1.2] md:text-[48px]">
               예약받는 일이 고객관리까지 이어지도록
             </h2>

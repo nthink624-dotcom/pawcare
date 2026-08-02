@@ -56,7 +56,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="owner-font min-h-screen overflow-x-hidden bg-white text-[#111827]">
+    <main className="landing-theme owner-font min-h-screen overflow-x-hidden bg-white text-[#111827]">
       <LandingHeader onNavigate={scrollToSection} />
       <HeroSection onViewProduct={() => scrollToSection("customer-data")} />
       <PainSection />
@@ -109,7 +109,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
           </Link>
           <Link
             href="/signup"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[#2563eb] px-4 text-[15px] font-semibold text-white transition hover:bg-[#1d4ed8]"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--landing-accent)] px-4 text-[15px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)]"
           >
             14일 무료 시작
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -131,7 +131,7 @@ function MobileTrialCta({ visible }: { visible: boolean }) {
       <Link
         href="/signup"
         tabIndex={visible ? 0 : -1}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[#2563eb] text-[15px] font-semibold text-white"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-[var(--landing-accent)] text-[15px] font-semibold text-white"
       >
         14일 무료로 시작하기
         <ArrowRight className="h-4 w-4" aria-hidden="true" />

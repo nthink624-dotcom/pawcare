@@ -60,7 +60,9 @@ production Supabase에 쓰기 작업을 하기 전 반드시 아래를 먼저 �
 
 - local/development: 개발, 테스트, seed, 스크린샷, 파괴적 실험
 - production: 실제 원장, 고객, 예약, 결제, 알림 데이터
-- 별도 Supabase Dev 프로젝트는 owner가 명시적으로 재도입하지 않는 한 사용하지 않음
+- development 프로젝트: `petmanager-dev` (`qefxdtmdtvnzgupmjlom`)
+- production 프로젝트: `petmanager` (`ysxykikqnneuhypybjry`)
+- 로컬 `.env.local`과 Supabase CLI 링크는 서로 다른 대상 정보이므로, 원격 명령 전 두 값을 혼동하지 않고 명시적으로 확인
 
 자세한 규칙은 `docs/supabase-environment-separation.md`를 따릅니다.
 

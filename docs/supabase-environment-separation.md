@@ -7,15 +7,17 @@ PetManager uses two database environments by default:
 1. Development Supabase DB
    - Used for development, test accounts, seed data, screenshots, and destructive experiments.
    - Local UI work must point here by default.
-   - This may be a local Supabase instance or an explicitly allowlisted remote development Supabase project.
-   - The current remote development project ref is `qefxdtmdtvnzgupmjlom`.
+   - The active project is `petmanager-dev` (`qefxdtmdtvnzgupmjlom`).
+   - The canonical URL is `https://qefxdtmdtvnzgupmjlom.supabase.co`.
 
 2. Production Supabase DB
    - Used by the real deployed service.
    - Contains real owner, customer, booking, billing, and notification data.
+   - The active project is `petmanager` (`ysxykikqnneuhypybjry`).
+   - The canonical URL is `https://ysxykikqnneuhypybjry.supabase.co`.
    - Never use production service-role credentials from the local development app by default.
 
-Do not operate a separate Supabase Dev project in the normal workflow. If a Supabase Dev project already exists, treat it as unused unless the owner explicitly reintroduces it.
+Both hosted projects are active parts of the normal workflow. A Docker-based local Supabase stack is optional tooling and must not replace or create a third canonical environment.
 
 ## Source Of Truth
 
@@ -26,9 +28,9 @@ Do not apply schema changes by manually pasting SQL into multiple Supabase dashb
 ## Normal Workflow
 
 1. Create or edit a migration under `supabase/migrations`.
-2. Apply it to the local Supabase DB.
-3. Test app behavior locally.
-4. Apply the same migration once to the production Supabase DB.
+2. Apply it to the Development project (`qefxdtmdtvnzgupmjlom`).
+3. Test app behavior against the Development project.
+4. Apply the same migration once to the Production project (`ysxykikqnneuhypybjry`).
 
 This keeps the workflow to two environments: development first, production second.
 
@@ -72,7 +74,7 @@ SUPABASE_ENV_NAME=production
 NEXT_PUBLIC_ALLOW_PROD_SUPABASE_IN_DEV=false
 ALLOW_PROD_SUPABASE_IN_DEV=false
 
-NEXT_PUBLIC_SUPABASE_URL=<production Supabase URL>
+NEXT_PUBLIC_SUPABASE_URL=https://ysxykikqnneuhypybjry.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production publishable key>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<production anon key>
 SUPABASE_SERVICE_ROLE_KEY=<production service role key>
@@ -80,6 +82,9 @@ SUPABASE_SERVICE_ROLE_KEY=<production service role key>
 
 ## Safety Rules
 
+- A local `.env.local` value identifies the local app runtime target; it does not identify the production runtime target.
+- A `supabase/.temp/project-ref` or `linked-project.json` value identifies the current CLI link only; it is not authoritative for Vercel or local app runtime environment variables.
+- Before `supabase db push`, explicitly confirm whether the intended target is Development (`qefxdtmdtvnzgupmjlom`) or Production (`ysxykikqnneuhypybjry`) and make the CLI link match that decision.
 - Local development must not point to production Supabase unless the owner explicitly asks for a one-off inspection or fix.
 - Local development may point to a remote development Supabase only when its project ref is in `NEXT_PUBLIC_ALLOWED_DEV_SUPABASE_REFS` and `ALLOWED_DEV_SUPABASE_REFS`.
 - One env file must never mix Supabase refs. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` must all belong to the same Supabase project for that environment.

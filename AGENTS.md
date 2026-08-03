@@ -161,8 +161,11 @@
 - For local Alimtalk verification, ensure both the Next.js server and `backend/alimtalk-relay` are running. If relay diagnostics fail, say that Ssodaa body/status verification is unavailable and do not state that the latest template is verified.
 
 ## Database Environment Rules
-- Operate only two database environments by default: local Supabase for development/testing and production Supabase for deployed service.
-- Do not use or maintain a separate Supabase Dev project unless the owner explicitly reintroduces it.
+- PetManager has exactly two active hosted Supabase projects:
+  - Development: `petmanager-dev` (`qefxdtmdtvnzgupmjlom`), used by local PC/app development, tests, seed data, and screenshots.
+  - Production: `petmanager` (`ysxykikqnneuhypybjry`), used by Vercel Production and the real deployed service.
+- Local `.env.local` files must point to the Development project by default. Vercel Production environment variables must point to the Production project.
+- Supabase CLI link files are mutable connection state, not the environment source of truth. Before any remote CLI command, verify the intended environment, the linked project ref, and the command target together. Never infer the production target from local `.env.local`, and never infer the app runtime target from a stale CLI link.
 - Treat `supabase/migrations` as the source of truth for schema changes.
 - Avoid manual SQL dashboard edits except for emergencies.
 - Backfill any emergency SQL into a migration immediately.

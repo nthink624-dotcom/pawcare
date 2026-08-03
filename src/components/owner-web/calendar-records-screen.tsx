@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, PawPrint, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { fetchOwnerScheduleRange, replaceScheduleRangeInBootstrap } from "@/components/owner-web/calendar-owner-api";
 import { OwnerMediaUploadPanel } from "@/components/owner-web/media-upload-panel";
 import { OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS } from "@/components/owner-web/owner-web-action-button-styles";
 import { AssetIcon, WebSurface } from "@/components/owner-web/owner-web-ui";
@@ -340,6 +341,17 @@ function getMonthDates(monthAnchor: string) {
   return dates;
 }
 
+function getMonthRange(monthAnchor: string) {
+  const parsed = new Date(`${monthAnchor}T00:00:00`);
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+
+  return {
+    from: new Date(year, month, 1).toLocaleDateString("en-CA"),
+    to: new Date(year, month + 1, 0).toLocaleDateString("en-CA"),
+  };
+}
+
 function moveMonth(date: string, offset: number) {
   const parsed = new Date(`${date}T00:00:00`);
   parsed.setMonth(parsed.getMonth() + offset);
@@ -601,9 +613,11 @@ function getOperationalPriority(item: Pick<DayItem, "type" | "status">) {
 
 function sortOperationalItems(items: DayItem[]) {
   return [...items].sort((first, second) => {
+    const timeDiff = (first.time ?? "99:99").localeCompare(second.time ?? "99:99");
+    if (timeDiff !== 0) return timeDiff;
     const priorityDiff = getOperationalPriority(first) - getOperationalPriority(second);
     if (priorityDiff !== 0) return priorityDiff;
-    return (first.time ?? "99:99").localeCompare(second.time ?? "99:99");
+    return first.id.localeCompare(second.id);
   });
 }
 
@@ -662,6 +676,48 @@ export default function CalendarRecordsScreen({
   const [staffFilter, setStaffFilter] = useState<CalendarStaffFilter>("all");
   const [statusFilter, setStatusFilter] = useState<CalendarStatusFilter>("all");
   const [selectedItem, setSelectedItem] = useState<DayItem | null>(null);
+  const latestDataRef = useRef(initialData);
+  const rangeSyncInFlightRef = useRef(false);
+
+  useEffect(() => {
+    latestDataRef.current = initialData;
+  }, [initialData]);
+
+  useEffect(() => {
+    if (initialData.mode !== "supabase") return;
+
+    let cancelled = false;
+    const { from, to } = getMonthRange(monthAnchor);
+    const syncMonthRange = async () => {
+      if (document.visibilityState !== "visible" || rangeSyncInFlightRef.current) return;
+
+      rangeSyncInFlightRef.current = true;
+      try {
+        const range = await fetchOwnerScheduleRange(initialData.shop.id, from, to);
+        if (cancelled) return;
+
+        const nextData = replaceScheduleRangeInBootstrap(latestDataRef.current, range);
+        latestDataRef.current = nextData;
+        onDataChange?.(nextData);
+      } catch (error) {
+        console.error("[owner-calendar] failed to synchronize the visible month", error);
+      } finally {
+        rangeSyncInFlightRef.current = false;
+      }
+    };
+
+    void syncMonthRange();
+    const intervalId = window.setInterval(syncMonthRange, 15_000);
+    window.addEventListener("focus", syncMonthRange);
+    document.addEventListener("visibilitychange", syncMonthRange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", syncMonthRange);
+      document.removeEventListener("visibilitychange", syncMonthRange);
+    };
+  }, [initialData.mode, initialData.shop.id, monthAnchor, onDataChange]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {

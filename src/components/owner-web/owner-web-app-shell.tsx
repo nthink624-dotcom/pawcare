@@ -87,7 +87,7 @@ const ownerWebNavigationItems = ownerWebSidebarGroups
   .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
 
 const ownerWebScreenGradients: Record<OwnerWebScreenKey, string> = {
-  schedule: "linear-gradient(135deg, #eaf2ff 0%, #dff8ff 36%, #f8fbff 58%, #e7efff 100%)",
+  schedule: "linear-gradient(135deg, #f5f6f7 0%, #f8f9fa 100%)",
   bookingPageManagement: "linear-gradient(135deg, #eef4ff 0%, #d9fbff 34%, #f9fcff 58%, #e8f0ff 100%)",
   bookingLink: "linear-gradient(135deg, #eaf4ff 0%, #ddf7ff 38%, #fbfdff 60%, #eaf1ff 100%)",
   calendarRecords: "linear-gradient(135deg, #eef6ff 0%, #dffaff 34%, #f8fbff 56%, #e6efff 100%)",
@@ -484,7 +484,14 @@ export default function OwnerWebAppShell({
         ) : null}
 
         <section className="min-h-0 flex-1 overflow-hidden bg-[image:var(--pm-owner-screen-gradient)] p-5" style={screenGradientStyle}>
-          <div className="h-full min-w-0 overflow-hidden rounded-[18px] border border-white/75 bg-white/90 shadow-[0_18px_44px_rgba(37,99,235,0.10)] backdrop-blur-sm">
+          <div
+            className={cn(
+              "h-full min-w-0 overflow-hidden rounded-[18px] border",
+              activeScreen === "schedule"
+                ? "border-[#e5e7eb] bg-white shadow-none"
+                : "border-white/75 bg-white/90 shadow-[0_18px_44px_rgba(37,99,235,0.10)] backdrop-blur-sm",
+            )}
+          >
             <div className="h-full min-h-0 overflow-hidden overscroll-contain p-5">
               {children}
             </div>

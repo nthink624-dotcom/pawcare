@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function OwnerWebPreviewPage() {
-  redirect("/owner");
+  redirect("/demo/owner-web");
 }

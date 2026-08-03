@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { computeAvailableSlots } from "@/lib/availability";
+import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
@@ -825,11 +826,11 @@ async function updateSupabaseAppointment(appointmentId: string, values: Partial<
         .select("*")
         .single();
 
-      if (fallback.error) throw new Error(fallback.error.message);
+      if (fallback.error) throw new Error(getAppointmentWriteErrorMessage(fallback.error));
       return { ...fallback.data, rejection_reason: rejection_reason ?? null } as Appointment;
     }
 
-    throw new Error(error.message);
+    throw new Error(getAppointmentWriteErrorMessage(error));
   }
 
   return data as Appointment;

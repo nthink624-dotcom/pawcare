@@ -109,6 +109,19 @@
 - Active work statuses include `진행 중` and `픽업 준비`.
 - Expired active-status bookings must not become anchors.
 
+## Core Reliability Invariants
+- Calendar, reservation-management, and schedule-board screens are projections of the same canonical `appointments` rows. Do not create screen-specific reservation copies, fallback rows, or independent demo state in production flows.
+- Every visible appointment range must refresh from the server on initial entry and range/date change, then periodically while visible and again on window focus or visibility restoration.
+- Range refresh merging must reconcile appointments and grooming records by durable row `id` as well as by date range. Moving one row across a range boundary must never leave the same `id` twice or preserve a stale copy.
+- Same-staff active appointment overlap prevention must remain concurrency-safe in PostgreSQL. Client availability checks and a non-locking trigger are not sufficient. Do not remove or weaken the per-shop/per-staff transaction serialization in `prevent_overlapping_staff_appointments()` without an equivalent concurrent-write database test and explicit owner approval.
+- Appointment overlap database errors must be translated into an actionable Korean product message; raw PostgreSQL errors must not reach owners or customers.
+- Adding shop or staff profile photos must append durable `media_asset_id` values to the current canonical collection. Existing IDs or unresolved legacy URLs may be removed only by an explicit user deletion action.
+- Partial upload, partial signed-URL resolution, retry, refresh, or multiple-file upload must preserve every previously saved photo. Never replace the full collection with only the latest upload response.
+- Owner photo lists must resolve signed URLs in batches and reuse still-valid URLs. Do not reintroduce one signed-URL API request per photo (`N+1`).
+- The owner web app must retain a route-level error recovery boundary so an unexpected client error cannot degrade into an unrecoverable blank production page.
+- `npm run build` must execute the reliability regression suite before compiling. Do not bypass or remove this build gate to make a deployment pass.
+- Detailed failure scenarios and required validation live in `docs/engineering/core-reliability-invariants.md` in `D:\petmanager`.
+
 ## Staff And Schedule Data Rules
 - Owner schedule staff columns and staff filter options must come only from saved staff members.
 - Do not add synthetic columns/options such as `미배정` unless explicitly requested for that specific surface.

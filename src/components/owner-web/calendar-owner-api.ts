@@ -338,18 +338,20 @@ export function replaceScheduleRangeInBootstrap(data: BootstrapPayload, range: O
     const recordDate = record.groomed_at.slice(0, 10);
     return recordDate >= range.from && recordDate <= range.to;
   };
+  const appointmentIds = new Set(range.appointments.map((item) => item.id));
+  const groomingRecordIds = new Set(range.groomingRecords.map((item) => item.id));
   const notificationIds = new Set(range.notifications.map((item) => item.id));
 
   return {
     ...data,
     appointments: [
-      ...data.appointments.filter((item) => !isAppointmentInRange(item)),
+      ...data.appointments.filter((item) => !isAppointmentInRange(item) && !appointmentIds.has(item.id)),
       ...range.appointments,
-    ],
+    ].sort((first, second) => first.start_at.localeCompare(second.start_at) || first.id.localeCompare(second.id)),
     groomingRecords: [
-      ...data.groomingRecords.filter((item) => !isGroomingRecordInRange(item)),
+      ...data.groomingRecords.filter((item) => !isGroomingRecordInRange(item) && !groomingRecordIds.has(item.id)),
       ...range.groomingRecords,
-    ],
+    ].sort((first, second) => first.groomed_at.localeCompare(second.groomed_at) || first.id.localeCompare(second.id)),
     notifications: [
       ...range.notifications,
       ...data.notifications.filter((item) => !notificationIds.has(item.id)),

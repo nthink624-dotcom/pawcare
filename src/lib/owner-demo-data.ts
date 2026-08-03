@@ -3,7 +3,71 @@ import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { buildDemoBootstrap } from "@/lib/mock-data";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeBootstrapNotifications } from "@/lib/notification-settings";
-import type { Appointment, BootstrapPayload, GroomingRecord } from "@/types/domain";
+import type { Appointment, BootstrapPayload, BootstrapStaffMember, GroomingRecord } from "@/types/domain";
+
+const demoStaffMembers: BootstrapStaffMember[] = [
+  {
+    id: "staff-1",
+    name: "정우진",
+    displayName: "정우진",
+    phone: "010-8498-2077",
+    role: "대표 디자이너 / 전체 미용",
+    titlePrefix: "대표",
+    position: "디자이너",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    startTime: "09:00",
+    endTime: "19:00",
+    regularOff: "탄력 휴무",
+    annualRemain: 8,
+    todayBookings: 2,
+    weekBookings: 28,
+  },
+  {
+    id: "staff-2",
+    name: "서하늘",
+    displayName: "서현",
+    phone: "010-1234-5678",
+    role: "디자이너 / 전체 미용",
+    position: "디자이너",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    startTime: "09:00",
+    endTime: "19:00",
+    regularOff: "탄력 휴무",
+    annualRemain: 5,
+    todayBookings: 2,
+    weekBookings: 25,
+  },
+  {
+    id: "staff-3",
+    name: "민서윤",
+    displayName: "서윤",
+    phone: "010-3333-4411",
+    role: "디자이너 / 스포팅",
+    position: "디자이너",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    startTime: "09:00",
+    endTime: "19:00",
+    regularOff: "탄력 휴무",
+    annualRemain: 6,
+    todayBookings: 2,
+    weekBookings: 24,
+  },
+  {
+    id: "staff-4",
+    name: "강리오",
+    displayName: "리오",
+    phone: "010-5555-9081",
+    role: "디자이너 / 목욕·부분 미용",
+    position: "디자이너",
+    defaultDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    startTime: "09:00",
+    endTime: "19:00",
+    regularOff: "탄력 휴무",
+    annualRemain: 4,
+    todayBookings: 1,
+    weekBookings: 23,
+  },
+];
 
 function at(date: string, time: string) {
   return `${date}T${time}:00.000Z`;
@@ -91,22 +155,22 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
 
   const [g1, g2, g3] = base.guardians;
   const [p1, p2, p3, p4] = base.pets;
-  const ownerStaffId = "staff-1";
+  const [ownerStaffId, secondStaffId, thirdStaffId, fourthStaffId] = demoStaffMembers.map((staff) => staff.id);
 
   const appointments: Appointment[] = [
     makeAppointment("demo-a-1", dates[0], "09:30", "confirmed", g1.id, p1.id, "svc-care", "첫 방문 상담 포함", ownerStaffId),
     makeAppointment("demo-a-2", dates[0], "10:15", "confirmed", g2.id, p3.id, "svc-care", "피부가 예민해요", ownerStaffId),
-    makeAppointment("demo-a-3", dates[0], "11:00", "confirmed", g1.id, p2.id, "svc-bath-only", "짧게 정리"),
-    makeAppointment("demo-a-4", dates[0], "13:00", "in_progress", g3.id, p4.id, "svc-full", "얼굴 라인 정리"),
-    makeAppointment("demo-a-5", dates[0], "15:00", "almost_done", g2.id, p3.id, "svc-care", "발 관리 추가"),
-    makeAppointment("demo-a-6", dates[0], "16:30", "completed", g1.id, p1.id, "svc-bath", "기본 목욕 완료"),
-    makeAppointment("demo-a-7", dates[0], "17:30", "cancelled", g3.id, p4.id, "svc-bath-only", "보호자 일정 변경"),
+    makeAppointment("demo-a-3", dates[0], "11:00", "confirmed", g1.id, p2.id, "svc-bath-only", "짧게 정리", secondStaffId),
+    makeAppointment("demo-a-4", dates[0], "13:00", "in_progress", g3.id, p4.id, "svc-full", "얼굴 라인 정리", thirdStaffId),
+    makeAppointment("demo-a-5", dates[0], "15:00", "almost_done", g2.id, p3.id, "svc-care", "발 관리 추가", fourthStaffId),
+    makeAppointment("demo-a-6", dates[0], "16:30", "completed", g1.id, p1.id, "svc-bath", "기본 목욕 완료", secondStaffId),
+    makeAppointment("demo-a-7", dates[0], "17:30", "cancelled", g3.id, p4.id, "svc-bath-only", "보호자 일정 변경", thirdStaffId),
 
-    makeAppointment("demo-a-8", dates[1], "09:30", "confirmed", g1.id, p2.id, "svc-full", "스포팅 5mm"),
-    makeAppointment("demo-a-9", dates[1], "11:00", "confirmed", g2.id, p3.id, "svc-bath", "강아지 긴장 많음"),
-    makeAppointment("demo-a-10", dates[1], "13:00", "confirmed", g3.id, p4.id, "svc-bath-only"),
-    makeAppointment("demo-a-11", dates[1], "15:00", "confirmed", g1.id, p1.id, "svc-care"),
-    makeAppointment("demo-a-12", dates[1], "17:00", "cancelled", g2.id, p3.id, "svc-full", "시간 변경 요청"),
+    makeAppointment("demo-a-8", dates[1], "09:30", "confirmed", g1.id, p2.id, "svc-full", "스포팅 5mm", ownerStaffId),
+    makeAppointment("demo-a-9", dates[1], "11:00", "confirmed", g2.id, p3.id, "svc-bath", "강아지 긴장 많음", secondStaffId),
+    makeAppointment("demo-a-10", dates[1], "13:00", "confirmed", g3.id, p4.id, "svc-bath-only", "", thirdStaffId),
+    makeAppointment("demo-a-11", dates[1], "15:00", "confirmed", g1.id, p1.id, "svc-care", "", fourthStaffId),
+    makeAppointment("demo-a-12", dates[1], "17:00", "cancelled", g2.id, p3.id, "svc-full", "시간 변경 요청", ownerStaffId),
 
     makeAppointment("demo-a-13", dates[2], "09:00", "confirmed", g1.id, p1.id, "svc-bath"),
     makeAppointment("demo-a-14", dates[2], "10:30", "confirmed", g2.id, p3.id, "svc-full"),
@@ -161,6 +225,19 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
       id: "owner-demo",
       name: `${PETMANAGER_SERVICE_NAME} 데모 매장`,
       description: "오너 설득 페이지에서 보여주는 체험용 데모 매장입니다.",
+      business_hours: {
+        0: { open: "09:00", close: "19:00", enabled: true },
+        1: { open: "09:00", close: "19:00", enabled: true },
+        2: { open: "09:00", close: "19:00", enabled: true },
+        3: { open: "09:00", close: "19:00", enabled: true },
+        4: { open: "09:00", close: "19:00", enabled: true },
+        5: { open: "09:00", close: "19:00", enabled: true },
+        6: { open: "09:00", close: "19:00", enabled: true },
+      },
+      regular_closed_days: [],
+      temporary_closed_dates: [],
+      booking_available_start_time: "09:00",
+      booking_available_end_time: "18:00",
       customer_page_settings: normalizeCustomerPageSettings(
         {
           ...base.shop.customer_page_settings,
@@ -212,6 +289,7 @@ export function buildOwnerDemoBootstrap(): BootstrapPayload {
       pricing_group: index === 2 ? "플러스" : "베이직",
     })),
     services: base.services.map((service) => ({ ...service, shop_id: "owner-demo" })),
+    staffMembers: demoStaffMembers,
     appointments,
     groomingRecords: records,
   });

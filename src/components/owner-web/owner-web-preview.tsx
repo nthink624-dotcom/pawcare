@@ -252,8 +252,9 @@ export default function OwnerWebPreview({
   const [liveStaffMembers, setLiveStaffMembers] = useState<OwnerWebStaffMember[]>(() => initialData.staffMembers ?? []);
   const [demoStaffMembers, setDemoStaffMembers] = useState<OwnerWebStaffMember[]>(() => {
     if (!demoMode) return [];
-    if (typeof window === "undefined") return demoStaffFallback;
-    return parseStoredOwnerWebStaff(window.localStorage.getItem(demoOwnerWebStaffStorageKey)) ?? demoStaffFallback;
+    const bootstrapStaff = demoStaffFallback.length > 0 ? demoStaffFallback : initialData.staffMembers ?? [];
+    if (typeof window === "undefined") return bootstrapStaff;
+    return parseStoredOwnerWebStaff(window.localStorage.getItem(demoOwnerWebStaffStorageKey)) ?? bootstrapStaff;
   });
   const staffMembers = demoMode ? demoStaffMembers : liveStaffMembers;
   const staffSource = demoMode ? "demo-local-storage-or-default" : "live-bootstrap";
@@ -271,6 +272,15 @@ export default function OwnerWebPreview({
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
   }, [initialData]);
+
+  useEffect(() => {
+    if (!demoMode) return;
+    setOwnerData((current) =>
+      current.staffMembers === demoStaffMembers
+        ? current
+        : { ...current, staffMembers: demoStaffMembers },
+    );
+  }, [demoMode, demoStaffMembers]);
 
   useEffect(() => {
     const ownerWebStorageKeys =
@@ -332,7 +342,10 @@ export default function OwnerWebPreview({
 
   async function handleStaffMembersChange(nextStaff: OwnerWebStaffMember[]) {
     if (demoMode) {
+      const nextOwnerData = { ...ownerData, staffMembers: nextStaff };
       setDemoStaffMembers(nextStaff);
+      setOwnerData(nextOwnerData);
+      onDataChange?.(nextOwnerData);
       try {
         window.localStorage.setItem(demoOwnerWebStaffStorageKey, JSON.stringify(nextStaff));
       } catch {

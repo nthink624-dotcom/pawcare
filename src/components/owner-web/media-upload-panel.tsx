@@ -10,6 +10,7 @@ import {
   compressImageVariantsForPetmanager,
   type PetmanagerCompressedImage,
 } from "@/lib/media/client-image-compression";
+import { getOwnerMediaSignedUrls } from "@/lib/media/owner-media-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { MediaAsset, MediaKind, MediaVariant, Notification, NotificationStatus } from "@/types/domain";
@@ -61,13 +62,6 @@ type VariantUploadIntentResponse = {
 
 type VariantCompleteResponse = {
   variant: MediaVariant;
-};
-
-type SignedUrlResponse = {
-  mediaAsset: MediaAsset;
-  variant: MediaVariant | null;
-  signedUrl: string;
-  expiresInSeconds: number;
 };
 
 type PhotoSendRequestItem = {
@@ -297,19 +291,16 @@ export function OwnerMediaUploadPanel({ context }: { context: MediaContext }) {
       const visibleItems = list.items.filter((item) =>
         uploadSlots.some((slot) => slot.mediaKind === item.mediaAsset.media_kind),
       );
-      const previews = await Promise.all(
-        visibleItems.map(async (item) => {
-          const signed = await fetchApiJsonWithAuth<SignedUrlResponse>(
-            `/api/owner/media/signed-url?shopId=${encodeURIComponent(context.shopId)}&mediaAssetId=${encodeURIComponent(
-              item.mediaAsset.id,
-            )}&variant=provider_ready`,
-          );
-          return {
-            mediaAsset: item.mediaAsset,
-            signedUrl: signed.signedUrl,
-          };
-        }),
+      const signedItems = await getOwnerMediaSignedUrls(
+        context.shopId,
+        visibleItems.map((item) => item.mediaAsset.id),
+        "provider_ready",
       );
+      const signedUrlsById = new Map(signedItems.map((item) => [item.mediaAssetId, item.signedUrl]));
+      const previews = visibleItems.flatMap((item) => {
+        const signedUrl = signedUrlsById.get(item.mediaAsset.id);
+        return signedUrl ? [{ mediaAsset: item.mediaAsset, signedUrl }] : [];
+      });
       setItems(previews);
     } catch (error) {
       setMessageTone("error");

@@ -1,6 +1,7 @@
 ﻿import { randomUUID } from "node:crypto";
 
 import { computeAvailableSlots, isRegularClosedOnDate, isSlotAvailable } from "@/lib/availability";
+import { getAppointmentWriteErrorMessage } from "@/lib/appointment-write-errors";
 import { getAppointmentEffectiveWindow } from "@/lib/appointment-time";
 import { getBusinessHoursForWeekday } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
@@ -1770,7 +1771,7 @@ export async function createAppointment(input: unknown) {
 
       const { error: fallbackError } = await supabase.from("appointments").insert(fallbackPayload);
 
-      if (fallbackError) throw new Error(fallbackError.message);
+      if (fallbackError) throw new Error(getAppointmentWriteErrorMessage(fallbackError));
       if (appointment.status === "confirmed" && appointment.source === "owner") {
         await dispatchAppointmentNotificationWithLogs({
           shopId: appointment.shop_id,
@@ -1781,7 +1782,7 @@ export async function createAppointment(input: unknown) {
       return appointment;
     }
 
-    throw new Error(error.message);
+    throw new Error(getAppointmentWriteErrorMessage(error));
   }
   if (appointment.status === "confirmed" && appointment.source === "owner") {
     await dispatchAppointmentNotificationWithLogs({
@@ -2021,7 +2022,7 @@ export async function updateAppointmentStatus(input: unknown) {
         .select("*")
         .single();
 
-      if (fallback.error) throw new Error(fallback.error.message);
+      if (fallback.error) throw new Error(getAppointmentWriteErrorMessage(fallback.error));
       resolvedAppointment = {
         ...fallback.data,
         rejection_reason: rejectionReason,
@@ -2032,7 +2033,7 @@ export async function updateAppointmentStatus(input: unknown) {
       if (error.code === "PGRST116" || error.message.includes("JSON object requested")) {
         throw new Error(`이미 '${getAppointmentStatusLabel(payload.status)}' 상태로 처리되었습니다. 같은 상태 알림은 반복 발송할 수 없어요.`);
       }
-      throw new Error(error.message);
+      throw new Error(getAppointmentWriteErrorMessage(error));
     }
   }
 
@@ -2305,7 +2306,7 @@ export async function updateAppointmentDetails(input: unknown) {
         .select("*")
         .single();
 
-      if (fallback.error) throw new Error(fallback.error.message);
+      if (fallback.error) throw new Error(getAppointmentWriteErrorMessage(fallback.error));
       resolvedAppointment = {
         ...fallback.data,
         rejection_reason: null,
@@ -2313,7 +2314,7 @@ export async function updateAppointmentDetails(input: unknown) {
         pickup_ready_eta_minutes: nextValues.pickup_ready_eta_minutes,
       };
     } else {
-      throw new Error(error.message);
+      throw new Error(getAppointmentWriteErrorMessage(error));
     }
   }
 

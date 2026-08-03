@@ -2161,7 +2161,7 @@ function BookingSidePanel({
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
           <div className="bg-white px-4 pb-4 pt-5">
             <header className="flex min-w-0 items-start gap-3">
-              <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-[#f8f8f6]">
+              <div className="h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[14px] border border-[#dbe2ea] bg-white">
                 <img src="/images/default-pet-profile.png" alt="" className="h-full w-full object-contain" />
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
@@ -2177,7 +2177,7 @@ function BookingSidePanel({
               </div>
             </header>
 
-            <section className="mt-4 border-b border-[#e6edf2] pb-4">
+            <section className="mt-4 border-b border-[#eef0f2] pb-4">
               <div className="grid grid-cols-2 gap-2">
                 <label className="block min-w-0">
                   <span className="mb-1 block text-[12px] font-normal leading-4 text-[#64748b]">몸무게</span>
@@ -2188,7 +2188,7 @@ function BookingSidePanel({
                       onBlur={() => void savePetProfile()}
                       inputMode="decimal"
                       placeholder="kg"
-                      className="h-9 w-full rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#94a3b8] focus:bg-white"
+                      className="h-9 w-full rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-9 text-[15px] font-normal leading-5 text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#aab2bc]"
                     />
                     {petProfileDraft.weight.trim() ? (
                       <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[14px] text-[#64748b]">kg</span>
@@ -2202,7 +2202,7 @@ function BookingSidePanel({
                     value={petProfileDraft.birthday}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, birthday: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#94a3b8] focus:bg-white [color-scheme:light]"
+                    className="h-9 w-full min-w-0 rounded-[7px] border border-[#e7e9ec] bg-white px-2.5 pr-2 text-[15px] font-normal leading-5 text-[#0f172a] outline-none focus:border-[#aab2bc] [color-scheme:light]"
                   />
                 </label>
                 <label className="block min-w-0">
@@ -2211,7 +2211,7 @@ function BookingSidePanel({
                     value={petProfileDraft.pricingGroup}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, pricingGroup: event.target.value }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#94a3b8] focus:bg-white"
+                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {petGroupOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -2226,7 +2226,7 @@ function BookingSidePanel({
                     value={petProfileDraft.biteLevel}
                     onChange={(event) => setPetProfileDraft((current) => ({ ...current, biteLevel: normalizePetBiteLevel(event.target.value) }))}
                     onBlur={() => void savePetProfile()}
-                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e2e8f0] bg-[#f8fafc] bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#94a3b8] focus:bg-white"
+                    className="h-9 w-full min-w-0 appearance-none rounded-[7px] border border-[#e7e9ec] bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2216%22%20height=%2216%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%2364748b%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:15px_15px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-[15px] font-normal leading-5 text-[#0f172a] outline-none transition focus:border-[#aab2bc]"
                   >
                     {(["none", "mild", "watch", "bite", "strong"] as PetBiteLevel[]).map((level) => (
                       <option key={level} value={level}>
@@ -2244,24 +2244,30 @@ function BookingSidePanel({
             </section>
 
             {benefitSummary ? (
-              <section className="pt-3">
-                <div className="border-b border-[#e6edf2] py-2.5">
-                  <div className="grid gap-1.5">
+              <section className="pt-4">
+                <div className="border-b border-[#f0f2f4] pb-4">
+                  <div className="grid gap-2">
                     {benefitSummary.coupons.map((coupon) => (
                       <div
                         key={coupon.id}
-                        className="flex min-w-0 items-center justify-between gap-3 text-[14px] font-medium leading-5 text-[#334155]"
+                        className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4"
                       >
-                        <span className="min-w-0 truncate text-[#334155]">{coupon.name}</span>
-                        <span className="shrink-0 font-medium text-[#2f7866]">
+                        <span className="min-w-0 truncate text-[14px] font-medium leading-5 tracking-[-0.01em] text-[#334155]">
+                          {coupon.name}
+                        </span>
+                        <span className="shrink-0 text-right text-[15px] font-semibold leading-5 tracking-[-0.015em] text-[#1d4ed8] tabular-nums">
                           {coupon.amount ? `-${formatBenefitWon(coupon.amount)}` : coupon.valueLabel ?? "혜택"}
                         </span>
                       </div>
                     ))}
                   </div>
                   {benefitSummary.originalAmount > 0 ? (
-                    <p className="mt-1.5 text-[13px] font-normal leading-5 text-[#64748b]">
-                      {formatBenefitWon(benefitSummary.originalAmount)} → {formatBenefitWon(benefitSummary.finalAmount)}
+                    <p className="mt-2 flex items-center gap-1.5 text-[13px] font-normal leading-5 tracking-[-0.01em] tabular-nums">
+                      <span className="text-[#94a3b8] line-through decoration-[#cbd5e1] decoration-1">
+                        {formatBenefitWon(benefitSummary.originalAmount)}
+                      </span>
+                      <span className="text-[#cbd5e1]" aria-hidden="true">→</span>
+                      <span className="font-medium text-[#64748b]">{formatBenefitWon(benefitSummary.finalAmount)}</span>
                     </p>
                   ) : null}
                 </div>
@@ -2275,13 +2281,13 @@ function BookingSidePanel({
                   {selectedGuardianAlimtalkBlockedReason} 예약 확정 알림톡은 발송되지 않습니다.
                 </div>
               ) : null}
-              <div className="mt-2 overflow-hidden rounded-[10px] border border-[#dbe2ea] bg-white">
-                <div className="flex min-w-0 items-center gap-3 border-b border-[#edf2f7] bg-[#fafbfc] px-3.5 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
+              <div className="mt-2 overflow-hidden rounded-[10px] border border-[#e5e8ec] bg-white">
+                <div className="flex min-w-0 items-center gap-3 border-b border-[#f0f2f4] bg-white px-3.5 py-2.5 text-[14px] font-normal leading-5 text-[#334155]">
                   <span className="inline-flex min-w-0 items-center gap-1.5 tabular-nums">
                     <Clock className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                     {timeRange}
                   </span>
-                  <span className="h-4 w-px shrink-0 bg-[#e2e8f0]" aria-hidden="true" />
+                    <span className="h-4 w-px shrink-0 bg-[#eef0f2]" aria-hidden="true" />
                   <span className="inline-flex min-w-0 items-center gap-1.5">
                     <User className="h-4 w-4 shrink-0 text-[#94a3b8]" />
                     <span className="truncate">{staffLabel} 담당자</span>
@@ -2325,7 +2331,7 @@ function BookingSidePanel({
 
             <section className="pt-4">
               <h3 className="text-[14px] font-medium leading-5 text-[#334155]">요청사항</h3>
-              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
+              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
                 {hasRequestText ? (
                   requestText.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
@@ -2339,7 +2345,7 @@ function BookingSidePanel({
 
             <section className="pt-4">
               <h3 className="text-[14px] font-medium leading-5 text-[#334155]">코멘트</h3>
-              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
+              <div className="mt-2 min-h-[58px] rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-3 text-[14px] font-normal leading-5 text-[#334155]">
                 {hasStaffComment ? (
                   staffComment.split("\n").map((line, index) => <p key={`${line}-${index}`}>{line}</p>)
                 ) : (
@@ -2356,10 +2362,10 @@ function BookingSidePanel({
                 <h3 className="text-[14px] font-medium leading-5 text-[#334155]">최근 방문이력</h3>
                 <span className="text-[13px] font-normal leading-5 text-[#64748b]">총 {recentVisitHistory.totalCount}회</span>
               </div>
-              <div className="mt-2 rounded-[10px] border border-[#dbe2ea] bg-white px-3.5 py-1">
+              <div className="mt-2 rounded-[10px] border border-[#e5e8ec] bg-white px-3.5 py-1">
                 {recentVisitHistory.items.length > 0 ? (
                   recentVisitHistory.items.map((visit) => (
-                    <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#edf2f7] py-3 last:border-b-0">
+                    <div key={visit.id} className="grid grid-cols-[86px_minmax(0,1fr)] gap-4 border-b border-[#f0f2f4] py-3 last:border-b-0">
                       <span className="text-[14px] font-normal leading-5 tabular-nums text-[#64748b]">{visit.date}</span>
                       <p className="min-w-0 truncate text-[15px] font-normal leading-5 text-[#0f172a]">{visit.service}</p>
                     </div>
@@ -2373,8 +2379,7 @@ function BookingSidePanel({
         </div>
 
           {showWorkflowFooter ? (
-          <section className="shrink-0 bg-white px-4 pb-4 pt-3 shadow-[0_-10px_24px_rgba(15,23,42,0.04)]">
-            <div className="mx-3 mb-3 h-px bg-[#e6edf2]" />
+          <section className="shrink-0 border-t border-[#f0f2f4] bg-white px-4 pb-4 pt-3">
             <div className="grid gap-2">
               {sourceStatus === "확정" ? (
                 <>
@@ -3708,6 +3713,7 @@ export default function CalendarManagementScreen({
   onCreateRequestHandled?: (requestId: number) => void;
 }) {
   const [bootstrapData, setBootstrapData] = useState(() => initialData);
+  const bootstrapDataRef = useRef(bootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
   const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
   const visibleStaff = useMemo(() => {
@@ -3844,6 +3850,10 @@ export default function CalendarManagementScreen({
   }, [initialData]);
 
   useEffect(() => {
+    bootstrapDataRef.current = bootstrapData;
+  }, [bootstrapData]);
+
+  useEffect(() => {
     if (scheduleDialogOpen) return;
     setScheduleForm(buildDefaultScheduleForm(bootstrapData, visibleStaff, selectedDate, staff));
   }, [bootstrapData, scheduleDialogOpen, staff, selectedDate, visibleStaff]);
@@ -3870,16 +3880,19 @@ export default function CalendarManagementScreen({
       if (!canSync) return;
 
       try {
-        const range = await fetchOwnerScheduleRange(bootstrapData.shop.id, selectedDate, selectedDate);
+        const currentData = bootstrapDataRef.current;
+        const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
         if (cancelled || statusChangeInFlightRef.current) return;
-        const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(bootstrapData, range));
+        const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
+        bootstrapDataRef.current = nextBootstrapData;
         setBootstrapData(nextBootstrapData);
         onDataChange?.(nextBootstrapData);
-      } catch {
-        // External sync should never interrupt the board while the owner is working.
+      } catch (error) {
+        console.error("[owner-schedule] failed to synchronize the selected date", error);
       }
     };
 
+    void syncScheduleRange();
     const intervalId = window.setInterval(syncScheduleRange, 15_000);
     window.addEventListener("focus", syncScheduleRange);
     document.addEventListener("visibilitychange", syncScheduleRange);
@@ -3891,7 +3904,8 @@ export default function CalendarManagementScreen({
       document.removeEventListener("visibilitychange", syncScheduleRange);
     };
   }, [
-    bootstrapData,
+    bootstrapData.mode,
+    bootstrapData.shop.id,
     earlyStartBooking,
     onDataChange,
     photoStatusAction,

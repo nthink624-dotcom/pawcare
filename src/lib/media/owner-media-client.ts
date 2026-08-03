@@ -67,8 +67,13 @@ type VariantCompleteResponse = {
   variant: MediaVariant;
 };
 
-type SignedUrlResponse = {
+export type OwnerMediaSignedUrlItem = {
+  mediaAssetId: string;
   signedUrl: string;
+};
+
+type SignedUrlsResponse = {
+  items: OwnerMediaSignedUrlItem[];
 };
 
 export type OwnerMediaUploadResult = {
@@ -79,6 +84,73 @@ export type OwnerMediaUploadResult = {
 type OwnerMediaUploadOptions = {
   createProviderReadyVariant?: boolean;
 };
+
+const SIGNED_URL_CACHE_TTL_MS = 8 * 60 * 1000;
+const signedUrlCache = new Map<string, { signedUrl: string; expiresAt: number }>();
+const signedUrlRequests = new Map<string, Promise<SignedUrlsResponse>>();
+
+function signedUrlCacheKey(shopId: string, mediaAssetId: string, variant: string) {
+  return `${shopId}:${variant}:${mediaAssetId}`;
+}
+
+async function requestOwnerMediaSignedUrls(
+  shopId: string,
+  mediaAssetIds: string[],
+  variant: "original" | "thumbnail" | "preview" | "optimized" | "provider_ready",
+) {
+  const requestKey = `${shopId}:${variant}:${[...mediaAssetIds].sort().join(",")}`;
+  const existingRequest = signedUrlRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const runRequest = () => fetchApiJsonWithAuth<SignedUrlsResponse>("/api/owner/media/signed-urls", {
+    method: "POST",
+    body: JSON.stringify({ shopId, mediaAssetIds, variant }),
+  });
+  const request = (async () => {
+    try {
+      return await runRequest();
+    } catch {
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      return runRequest();
+    }
+  })().finally(() => {
+    signedUrlRequests.delete(requestKey);
+  });
+
+  signedUrlRequests.set(requestKey, request);
+  return request;
+}
+
+export async function getOwnerMediaSignedUrls(
+  shopId: string,
+  mediaAssetIds: string[],
+  variant: "original" | "thumbnail" | "preview" | "optimized" | "provider_ready" = "original",
+) {
+  const ids = [...new Set(mediaAssetIds.map((item) => item.trim()).filter(Boolean))];
+  const now = Date.now();
+  const missingIds = ids.filter((mediaAssetId) => {
+    const cached = signedUrlCache.get(signedUrlCacheKey(shopId, mediaAssetId, variant));
+    return !cached || cached.expiresAt <= now;
+  });
+
+  if (missingIds.length > 0) {
+    const result = await requestOwnerMediaSignedUrls(shopId, missingIds, variant);
+    const expiresAt = Date.now() + SIGNED_URL_CACHE_TTL_MS;
+    for (const item of result.items) {
+      signedUrlCache.set(signedUrlCacheKey(shopId, item.mediaAssetId, variant), {
+        signedUrl: item.signedUrl,
+        expiresAt,
+      });
+    }
+  }
+
+  return ids.flatMap((mediaAssetId) => {
+    const cached = signedUrlCache.get(signedUrlCacheKey(shopId, mediaAssetId, variant));
+    return cached && cached.expiresAt > Date.now()
+      ? [{ mediaAssetId, signedUrl: cached.signedUrl }]
+      : [];
+  });
+}
 
 async function uploadCompressedFile(params: {
   bucket: string;
@@ -241,19 +313,27 @@ export async function getOwnerMediaSignedUrl(
   mediaAssetId: string,
   variant: "original" | "thumbnail" | "preview" | "optimized" | "provider_ready" = "original",
 ) {
-  const query = new URLSearchParams({ shopId, mediaAssetId });
-  if (variant !== "original") query.set("variant", variant);
-  const result = await fetchApiJsonWithAuth<SignedUrlResponse>(`/api/owner/media/signed-url?${query.toString()}`);
+  const [result] = await getOwnerMediaSignedUrls(shopId, [mediaAssetId], variant);
+  if (!result) {
+    throw new Error("사진을 불러오지 못했습니다.");
+  }
   return result.signedUrl;
+}
+
+export async function createOwnerShopProfileMediaAssetFromFile(
+  context: OwnerMediaContext,
+  file: File,
+) {
+  return createOwnerMediaAssetFromFile(context, "shop_profile", file, {
+    createProviderReadyVariant: false,
+  });
 }
 
 export async function createOwnerShopProfileImageFromFile(
   context: OwnerMediaContext,
   file: File,
 ) {
-  const uploaded = await createOwnerMediaAssetFromFile(context, "shop_profile", file, {
-    createProviderReadyVariant: false,
-  });
+  const uploaded = await createOwnerShopProfileMediaAssetFromFile(context, file);
   const signedUrl = await getOwnerMediaSignedUrl(context.shopId, uploaded.mediaAsset.id, uploaded.variant ? "provider_ready" : "original");
 
   return {

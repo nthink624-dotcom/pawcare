@@ -34,12 +34,12 @@
 }
 
 .landing-theme {
-  --landing-accent: #2f665a;
-  --landing-accent-hover: #28554d;
-  --landing-accent-soft: #edf4f2;
-  --landing-accent-wash: #f5f8f7;
-  --landing-accent-border: #cadbd6;
-  --landing-accent-on-dark: #b7d9d0;
+  --landing-accent: #0f172a;
+  --landing-accent-hover: #020617;
+  --landing-accent-soft: #f1f5f9;
+  --landing-accent-wash: #f8fafc;
+  --landing-accent-border: #cbd5e1;
+  --landing-accent-on-dark: #cbd5e1;
 }
 
 html {
@@ -86,17 +86,6 @@ body {
 
   100% {
     transform: translate3d(-22%, -12%, 0) scale(1.12) rotate(0deg);
-  }
-}
-
-@keyframes landing-missed-call-focus {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.12);
   }
 }
 

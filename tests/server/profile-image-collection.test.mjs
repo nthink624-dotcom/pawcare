@@ -33,6 +33,31 @@ test("an asset-backed image cannot move ahead of legacy URLs without migration",
   );
 });
 
+test("a partially resolved collection still blocks asset promotion when a legacy URL is present", () => {
+  const partiallyResolved = mergeResolvedProfileImageUrls({
+    currentImageUrls: ["https://images.example.com/legacy-1.jpg"],
+    currentMediaAssetIds: ["asset-a", "asset-b"],
+    resolvedItems: [
+      { mediaAssetId: "asset-a", signedUrl: "https://signed.example.com/asset-a" },
+    ],
+    maxCount: 200,
+    preserveCurrentUrlsAsLegacy: true,
+  });
+
+  assert.deepEqual(partiallyResolved.imageUrls, [
+    "https://images.example.com/legacy-1.jpg",
+    "https://signed.example.com/asset-a",
+  ]);
+  assert.equal(
+    canPromoteProfileImageWithoutLegacyMigration(
+      partiallyResolved.mediaAssetIds,
+      1,
+      true,
+    ),
+    false,
+  );
+});
+
 test("profile image work preserves order and limits concurrent uploads", async () => {
   let active = 0;
   let peakActive = 0;

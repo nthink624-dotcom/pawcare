@@ -83,7 +83,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (sectionId: string) => void
           <PetManagerBrand
             priority
             imageClassName="h-[22px] w-auto"
-            nameClassName="text-[16px] text-[#173b33] sm:text-[18px]"
+            nameClassName="text-[16px] text-[var(--landing-accent)] sm:text-[18px]"
           />
         </Link>
 

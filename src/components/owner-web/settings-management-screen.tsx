@@ -25,7 +25,7 @@ import {
   type CustomerServiceDisplayOverrides,
   type CustomerServiceSourceOption,
 } from "@/lib/customer-service-options";
-import { createOwnerShopProfileImageFromFile } from "@/lib/media/owner-media-client";
+import { createOwnerShopProfileMediaAssetFromFile, getOwnerMediaSignedUrls } from "@/lib/media/owner-media-client";
 import type { MediaAssetListResponse } from "@/lib/media/owner-media-client";
 import {
   canPromoteProfileImageWithoutLegacyMigration,
@@ -69,13 +69,6 @@ type ShopProfilePatch = Pick<Shop, "name" | "phone" | "address" | "description">
 };
 type ShopPolicyPatch = {
   cancelWindow: ReservationPolicySettings["cancel_window"];
-};
-
-type PublicMediaSignedUrlsResponse = {
-  items: Array<{
-    mediaAssetId: string;
-    signedUrl: string;
-  }>;
 };
 
 function cancelWindowLabel(value: ReservationPolicySettings["cancel_window"] | string | null | undefined) {
@@ -549,16 +542,8 @@ async function resolveShopProfileImageUrlsFromAssetIds(shopId: string, mediaAsse
   const ids = mergeProfileMediaAssetIds([], mediaAssetIds, ownerWebShopProfileImagesMaxCount);
   if (ids.length === 0) return [];
 
-  const result = await fetchApiJsonWithAuth<PublicMediaSignedUrlsResponse>("/api/owner/media/signed-urls", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      shopId,
-      mediaAssetIds: ids,
-      variant: "provider_ready",
-    }),
-  });
-  const urlsByAssetId = new Map(result.items.map((item) => [item.mediaAssetId, item.signedUrl]));
+  const result = await getOwnerMediaSignedUrls(shopId, ids, "provider_ready");
+  const urlsByAssetId = new Map(result.map((item) => [item.mediaAssetId, item.signedUrl]));
   return ids.flatMap((mediaAssetId) => {
     const signedUrl = urlsByAssetId.get(mediaAssetId) ?? "";
     return signedUrl ? [{ mediaAssetId, signedUrl }] : [];
@@ -2022,13 +2007,22 @@ export default function SettingsManagementScreen({
       const uploadResults = await mapProfileImagesWithConcurrency(
         selectedFiles,
         3,
-        (file) => createOwnerShopProfileImageFromFile({ shopId: shop.id }, file),
+        (file) => createOwnerShopProfileMediaAssetFromFile({ shopId: shop.id }, file),
       );
-      const uploadedImages = uploadResults.flatMap((result) =>
-        result.status === "fulfilled" && result.value.signedUrl && result.value.mediaAsset.id
+      const uploadedMedia = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" && result.value.mediaAsset.id
           ? [result.value]
           : [],
       );
+      const resolvedUploads = await resolveShopProfileImageUrlsFromAssetIds(
+        shop.id,
+        uploadedMedia.map((item) => item.mediaAsset.id),
+      );
+      const signedUrlsById = new Map(resolvedUploads.map((item) => [item.mediaAssetId, item.signedUrl]));
+      const uploadedImages = uploadedMedia.flatMap((item) => {
+        const signedUrl = signedUrlsById.get(item.mediaAsset.id);
+        return signedUrl ? [{ ...item, signedUrl }] : [];
+      });
       uploadedImageCount = uploadedImages.length;
       if (uploadedImages.length === 0) {
         const firstFailure = uploadResults.find((result) => result.status === "rejected");
@@ -2110,7 +2104,12 @@ export default function SettingsManagementScreen({
     const currentImages = normalizeShopProfileImages(shopProfileImages);
     if (index >= currentImages.length) return;
     const currentMediaAssetIds = alignShopProfileImageAssetIds(currentImages.length, shopProfileImageAssetIds);
-    if (!canPromoteProfileImageWithoutLegacyMigration(currentMediaAssetIds, index)) {
+    const hasKnownLegacyImage = currentImages.some((imageUrl) => !isExpiringMediaSignedUrl(imageUrl));
+    if (!canPromoteProfileImageWithoutLegacyMigration(
+      currentMediaAssetIds,
+      index,
+      hasKnownLegacyImage,
+    )) {
       setShopInfoFeedback("기존 방식으로 저장된 사진이 포함되어 있어 해당 사진은 대표로 이동할 수 없습니다.");
       return;
     }

@@ -17,12 +17,12 @@ export function SectionHeading({
   inverse?: boolean;
 }) {
   return (
-    <div className={align === "center" ? "mx-auto max-w-[840px] text-center" : "max-w-[840px]"}>
+    <div className={align === "center" ? "mx-auto max-w-[820px] text-center" : "max-w-[760px]"}>
       <p className={`text-[15px] font-semibold ${inverse ? "text-[var(--landing-accent-on-dark)]" : "text-[var(--landing-accent)]"}`}>{eyebrow}</p>
-      <h2 className={`mt-3 break-keep text-[34px] font-semibold leading-[1.2] [text-wrap:balance] md:text-[46px] ${inverse ? "text-white" : "text-[#111827]"}`}>
+      <h2 className={`mt-3 break-keep text-[34px] font-semibold leading-[1.2] [text-wrap:balance] md:text-[44px] ${inverse ? "text-white" : "text-[#111827]"}`}>
         {title}
       </h2>
-      <p className={`mt-4 text-[16px] leading-7 md:text-[17px] md:leading-8 ${inverse ? "text-white/68" : "text-[#526071]"}`}>
+      <p className={`mt-5 max-w-[720px] break-keep text-[16px] leading-7 md:text-[17px] md:leading-8 ${inverse ? "text-white/68" : "text-[#526071]"}`}>
         {description}
       </p>
     </div>
@@ -43,13 +43,13 @@ export function ScreenshotFrame({
   compact?: boolean;
 }) {
   return (
-    <figure className="overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_48px_rgba(15,23,42,0.09)]">
-      <figcaption className="flex h-10 items-center justify-between border-b border-[#e7edf3] bg-[#fbfdff] px-3.5 text-[15px] font-medium text-[#64748b]">
+    <figure className="overflow-hidden rounded-[8px] border border-[#d8e0e9] bg-white shadow-[0_14px_38px_rgba(15,23,42,0.08)]">
+      <figcaption className="flex h-11 items-center justify-between border-b border-[#e7edf3] bg-[#fbfcfe] px-4 text-[15px] font-medium text-[#64748b]">
         <span className="flex items-center gap-2.5">
           <span className="flex gap-1" aria-hidden="true">
-            <span className="h-2 w-2 rounded-full bg-[#d6dde6]" />
-            <span className="h-2 w-2 rounded-full bg-[#d6dde6]" />
-            <span className="h-2 w-2 rounded-full bg-[#d6dde6]" />
+            <span className="h-2 w-2 rounded-full bg-[#cfd8e3]" />
+            <span className="h-2 w-2 rounded-full bg-[#cfd8e3]" />
+            <span className="h-2 w-2 rounded-full bg-[#cfd8e3]" />
           </span>
           {label}
         </span>
@@ -69,14 +69,66 @@ export function ScreenshotFrame({
   );
 }
 
+export function IPhoneMockup({
+  src,
+  alt,
+  className = "",
+  screenClassName = "object-contain object-center",
+  sizes = "260px",
+  priority = false,
+  overlay,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  screenClassName?: string;
+  sizes?: string;
+  priority?: boolean;
+  overlay?: ReactNode;
+}) {
+  return (
+    <div className={`relative aspect-[823/1677] ${className}`}>
+      <div
+        className="absolute bottom-[1.61%] left-[4.62%] right-[4.74%] top-[1.91%] overflow-hidden bg-black"
+        style={{ borderRadius: "11.5% / 5.3%" }}
+      >
+        <div
+          className="absolute inset-[1.75%] overflow-hidden bg-black"
+          style={{ borderRadius: "10.5% / 4.9%" }}
+        >
+          <Image
+            src={src}
+            alt={alt}
+            fill
+            priority={priority}
+            className={screenClassName}
+            sizes={sizes}
+          />
+        </div>
+      </div>
+      {overlay}
+      <Image
+        src="/images/iphone-14-pro-phone-template.svg"
+        alt=""
+        fill
+        unoptimized
+        aria-hidden="true"
+        className="pointer-events-none z-20 object-contain"
+        sizes={sizes}
+      />
+    </div>
+  );
+}
+
 export function PhoneScreenshot({ src, alt, label }: { src: string; alt: string; label: string }) {
   return (
     <figure className="min-w-0">
-      <div className="mx-auto w-full max-w-[260px] overflow-hidden rounded-[28px] border-[7px] border-[#1e293b] bg-white shadow-[0_18px_44px_rgba(15,23,42,0.13)]">
-        <div className="relative aspect-[430/860] w-full">
-          <Image src={src} alt={alt} fill className="object-cover object-top" sizes="260px" />
-        </div>
-      </div>
+      <IPhoneMockup
+        src={src}
+        alt={alt}
+        className="mx-auto w-full max-w-[260px] drop-shadow-[0_18px_28px_rgba(15,23,42,0.14)]"
+        sizes="260px"
+      />
       <figcaption className="mt-3 text-center text-[15px] font-medium text-[#64748b]">{label}</figcaption>
     </figure>
   );

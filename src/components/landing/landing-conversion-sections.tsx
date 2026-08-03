@@ -1,4 +1,5 @@
 import {
+  ArrowDown,
   ArrowRight,
   BadgeCheck,
   Building2,
@@ -55,30 +56,38 @@ const faqItems = [
 
 export function SavingsSection() {
   return (
-    <section id="savings" className="scroll-mt-20 bg-white py-18 md:py-24">
-      <div className="mx-auto grid w-full max-w-[1180px] gap-12 px-5 lg:grid-cols-[0.88fr_1.12fr] lg:items-end">
+    <section id="savings" className="scroll-mt-20 bg-white py-20 md:py-24">
+      <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="시간의 가치"
           title="하루 30분을 되찾으면, 한 달에 15시간입니다"
           description="전화 확인, 반복 입력, 안내 메시지에 쓰던 시간을 줄여 미용과 고객 응대에 다시 사용할 수 있습니다."
         />
 
-        <div className="border-y border-[#dbe2ea] py-7">
-          <div className="grid grid-cols-3 divide-x divide-[#dbe2ea]">
-            <div className="px-3 first:pl-0 md:px-6">
-              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">하루</p>
-              <p className="mt-2 text-[27px] font-semibold text-[#334155] md:text-[38px]">30분</p>
+        <div className="mt-12 rounded-[8px] bg-[#f4f6f9] px-6 py-8 md:px-10 md:py-10">
+          <div className="grid items-center gap-5 text-center md:grid-cols-[1fr_36px_1fr_36px_1.2fr] md:text-left">
+            <div>
+              <p className="text-[15px] font-medium text-[#64748b]">하루 절감 시간</p>
+              <p className="mt-2 text-[34px] font-semibold text-[#111827] md:text-[42px]">30분</p>
             </div>
-            <div className="px-3 md:px-6">
-              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">한 달</p>
-              <p className="mt-2 text-[27px] font-semibold text-[var(--landing-accent)] md:text-[38px]">15시간</p>
+            <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
+              <ArrowDown className="h-5 w-5 md:hidden" />
+              <ArrowRight className="hidden h-5 w-5 md:block" />
+            </span>
+            <div>
+              <p className="text-[15px] font-medium text-[#64748b]">30일 누적</p>
+              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">15시간</p>
             </div>
-            <div className="px-3 pr-0 md:px-6 md:pr-0">
-              <p className="text-[15px] font-medium text-[#64748b] md:text-[15px]">시간 가치</p>
-              <p className="mt-2 text-[27px] font-semibold text-[var(--landing-accent)] md:text-[38px]">{won(MONTHLY_SAVED_WON)}</p>
+            <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
+              <ArrowDown className="h-5 w-5 md:hidden" />
+              <ArrowRight className="hidden h-5 w-5 md:block" />
+            </span>
+            <div className="border-t border-[#d5dde6] pt-5 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+              <p className="text-[15px] font-medium text-[#64748b]">한 달 업무시간 가치</p>
+              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">{won(MONTHLY_SAVED_WON)}</p>
             </div>
           </div>
-          <p className="mt-6 text-[15px] leading-6 text-[#64748b]">
+          <p className="mt-8 border-t border-[#d5dde6] pt-5 text-[15px] leading-6 text-[#64748b]">
             0.5시간 × 30일 × 2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준의 업무시간 가치 환산 예시입니다. 실제 절감액을 보장하는 수치는 아닙니다.
           </p>
         </div>
@@ -89,7 +98,7 @@ export function SavingsSection() {
 
 export function TrustSection() {
   return (
-    <section className="border-y border-[var(--landing-accent-border)] bg-[var(--landing-accent-wash)] py-16 md:py-20">
+    <section className="border-y border-[#e2e8f0] bg-[#f4f6f9] py-20 md:py-24">
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="부담 없이 확인"
@@ -97,10 +106,12 @@ export function TrustSection() {
           description="과장된 사용 수치나 만들어 낸 후기를 앞세우지 않습니다. 실제 제품과 시작·결제 조건을 투명하게 보여드립니다."
         />
 
-        <div className="mt-10 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {trustItems.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="border-t border-[var(--landing-accent-border)] pt-4">
-              <Icon className="h-5 w-5 text-[var(--landing-accent)]" aria-hidden="true" />
+            <div key={title} className="border-t-2 border-[#cbd5e1] pt-5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-[var(--landing-accent)] shadow-[0_5px_14px_rgba(15,23,42,0.06)]">
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
               <h3 className="mt-4 text-[17px] font-semibold text-[#111827]">{title}</h3>
               <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
             </div>
@@ -113,7 +124,7 @@ export function TrustSection() {
 
 export function PricingSection() {
   return (
-    <section id="pricing" className="scroll-mt-20 bg-[#f5f7f9] py-18 md:py-24">
+    <section id="pricing" className="scroll-mt-20 bg-white py-20 md:py-24">
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="요금제"
@@ -130,13 +141,13 @@ export function PricingSection() {
           ))}
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
           {billableOwnerPlans.map((plan) => (
             <article
               key={plan.code}
               itemScope
               itemType="https://schema.org/Product"
-              className="flex min-w-0 flex-col rounded-[8px] border border-[#d5dde6] bg-white p-6"
+              className="flex min-w-0 flex-col rounded-[8px] border border-[#d5dde6] bg-[#fbfcfe] p-6 transition hover:border-[#aeb9c7]"
             >
               <meta itemProp="category" content="반려동물 미용샵 운영 SaaS" />
               <h3 itemProp="name" className="text-[23px] font-semibold text-[#111827]">{plan.title}</h3>
@@ -197,7 +208,7 @@ export function PricingSection() {
 export function FaqAndFinalCtaSection() {
   return (
     <>
-      <section id="faq" className="bg-white py-18 md:py-24">
+      <section id="faq" className="border-t border-[#e2e8f0] bg-[#f7f8fa] py-20 md:py-24">
         <div className="mx-auto grid w-full max-w-[1180px] gap-10 px-5 lg:grid-cols-[0.68fr_1.32fr]">
           <SectionHeading
             eyebrow="자주 묻는 질문"
@@ -205,9 +216,9 @@ export function FaqAndFinalCtaSection() {
             description="실제 제품 정책과 이용 흐름을 기준으로 답변합니다."
           />
 
-          <div className="border-t border-[#cfd8e3]">
+          <div className="rounded-[8px] border border-[#d8e0e9] bg-white px-5 sm:px-7">
             {faqItems.map((item) => (
-              <details key={item.question} className="group border-b border-[#cfd8e3] py-1">
+              <details key={item.question} className="group border-b border-[#d8e0e9] py-1 last:border-b-0">
                 <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 py-3 text-[16px] font-medium text-[#111827] marker:content-none">
                   {item.question}
                   <ChevronDown className="h-5 w-5 shrink-0 text-[#64748b] transition group-open:rotate-180" aria-hidden="true" />
@@ -219,20 +230,20 @@ export function FaqAndFinalCtaSection() {
         </div>
       </section>
 
-      <section className="bg-[#111827] py-16 text-white md:py-20">
+      <section className="border-t border-[#d8e0e9] bg-[#eef1f5] py-16 text-[#111827] md:py-20">
         <div className="mx-auto flex w-full max-w-[1180px] flex-col justify-between gap-8 px-5 lg:flex-row lg:items-end">
           <div>
-            <p className="text-[15px] font-semibold text-[var(--landing-accent-on-dark)]">다음 예약부터 바로 달라집니다</p>
-            <h2 className="mt-3 max-w-[760px] text-[34px] font-semibold leading-[1.2] md:text-[48px]">
+            <p className="text-[15px] font-semibold text-[var(--landing-accent)]">다음 예약부터 바로 달라집니다</p>
+            <h2 className="mt-3 max-w-[760px] text-[32px] font-semibold leading-[1.2] md:text-[42px]">
               예약받는 일이 고객관리까지 이어지도록
             </h2>
-            <p className="mt-4 max-w-[660px] text-[16px] leading-7 text-white/68">
+            <p className="mt-4 max-w-[660px] text-[16px] leading-7 text-[#526071]">
               카드 등록 없이 14일 동안 실제 매장 흐름에 맞는지 확인하세요.
             </p>
           </div>
           <Link
             href="/signup"
-            className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-white px-6 text-[16px] font-semibold text-[#111827] transition hover:bg-[#f1f5f9]"
+            className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-[var(--landing-accent)] px-6 text-[16px] font-semibold text-white transition hover:bg-[var(--landing-accent-hover)]"
           >
             14일 무료로 시작하기
             <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />

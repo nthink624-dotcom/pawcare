@@ -22,8 +22,10 @@ export function mergeProfileMediaAssetIds(currentIds: string[], addedIds: string
 export function canPromoteProfileImageWithoutLegacyMigration(
   alignedMediaAssetIds: string[],
   selectedIndex: number,
+  hasKnownLegacyImage = false,
 ) {
-  const hasLegacyImage = alignedMediaAssetIds.some((mediaAssetId) => !mediaAssetId);
+  const hasLegacyImage =
+    hasKnownLegacyImage || alignedMediaAssetIds.some((mediaAssetId) => !mediaAssetId);
   const selectedImageUsesMediaAsset = Boolean(alignedMediaAssetIds[selectedIndex]);
   return !hasLegacyImage || !selectedImageUsesMediaAsset;
 }

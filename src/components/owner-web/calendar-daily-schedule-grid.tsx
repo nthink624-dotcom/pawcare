@@ -9,7 +9,6 @@ import {
   type ScheduleStaffLaneColumn,
 } from "@/components/owner-web/calendar-staff-lane-columns";
 import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
-import { getWrapIndicatorClass, type StatusIndicatorTone } from "@/components/owner-web/status-indicators";
 import { cn } from "@/lib/utils";
 import type { StaffScheduleOverride } from "@/types/domain";
 
@@ -75,6 +74,12 @@ const scheduleSnapSegmentsPerHour = 4;
 const expandableBookingDurationMax = 0.25;
 const bookingCardWidth = "95%";
 const bookingCardHorizontalInset = "2.5%";
+const staffNameToneClasses = [
+  "text-[#526b8f]",
+  "text-[#4f7468]",
+  "text-[#705f85]",
+  "text-[#7b694f]",
+];
 
 function formatHourLabel(hour: number) {
   const fullHour = Math.floor(hour);
@@ -134,13 +139,9 @@ function getBookingCardTone(status: string): BookingCardTone {
 }
 
 function getBookingCardToneClass(tone: BookingCardTone, selected: boolean) {
-  const base = "border-[#dbe2ea] bg-white hover:border-[#c5d0dc]";
+  const base = "border-[#e5e8ec] bg-white hover:border-[#d5dae0]";
   const selectedClass = selected ? "ring-1 ring-[#94a3b8]/35" : "";
   return cn(base, tone === "cancelled" && "opacity-85", selectedClass);
-}
-
-function getBookingIndicatorTone(tone: BookingCardTone): StatusIndicatorTone {
-  return tone;
 }
 
 function getReservationStatusLabel(booking: DailyBooking, selectedDate: string, currentHour: number) {
@@ -176,18 +177,6 @@ function getBookingResizeHandleClass(tone: BookingCardTone) {
   if (tone === "rejected") return "bg-[#a04455]/68";
   if (tone === "noshow") return "bg-[#a04455]/68";
   return "bg-[#a04455]/68";
-}
-
-function getBookingTimeTextClass(tone: BookingCardTone) {
-  if (tone === "confirmed") return "text-[#607080]";
-  if (tone === "active") return "text-[#607080]";
-  if (tone === "pickupReady") return "text-[#607080]";
-  if (tone === "completed") return "text-[#64748b]";
-  if (tone === "changed") return "text-[#8a5b11]";
-  if (tone === "cancelled") return "text-[#a04455]";
-  if (tone === "rejected") return "text-[#a04455]";
-  if (tone === "noshow") return "text-[#a04455]";
-  return "text-[#a04455]";
 }
 
 function getScheduleDisplayLayout(operatingWindow: { enabled: boolean; openHour: number; closeHour: number }): ScheduleDisplayLayout {
@@ -402,7 +391,7 @@ export function DailyScheduleGrid({
           key={`${prefix}-line-${segment.key}-${index}`}
           className={cn(
             "absolute left-0 right-0 border-t",
-            index % 4 === 0 ? "border-[#edf2f7]" : "border-[#f6f8fa]",
+            index % 4 === 0 ? "border-[#f0f2f4]" : "border-[#f8f9fa]",
           )}
           style={{ top: segment.top + index * quarterSlotHeight }}
         />
@@ -648,7 +637,7 @@ export function DailyScheduleGrid({
         }
       `}</style>
       <div className="flex shrink-0 bg-white">
-        <div className="flex h-[54px] w-[72px] shrink-0 items-center justify-center border-b border-r border-[#dbe2ea] bg-white text-[12px] text-[#64748b]">
+        <div className="flex h-[54px] w-[72px] shrink-0 items-center justify-center border-b border-r border-[#eef0f2] bg-white text-[12px] text-[#64748b]">
           시간
         </div>
         <div
@@ -657,10 +646,11 @@ export function DailyScheduleGrid({
           className="no-scrollbar min-w-0 flex-1 overflow-x-auto"
         >
           <div className="flex min-w-full gap-0 px-0 pb-0 pt-0 pr-0" style={scheduleTrackStyle}>
-            {scheduleLaneColumns.map((laneColumn) => {
+            {scheduleLaneColumns.map((laneColumn, laneIndex) => {
               const primaryStaff = laneColumn.segments[0];
               const laneBookings = displayedVisibleBookings.filter((booking) => laneColumn.staffKeys.includes(booking.staffKey));
               const selectedStaff = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
+              const staffNameToneClass = staffNameToneClasses[laneIndex % staffNameToneClasses.length];
 
               return (
                 <section
@@ -669,16 +659,15 @@ export function DailyScheduleGrid({
                     if (primaryStaff) onSelectStaff(primaryStaff.key);
                   }}
                   className={cn(
-                    "min-w-[136px] cursor-pointer border border-t-0 border-l-0 border-[#dbe2ea] bg-[#fbfcfd] px-3 py-2 transition hover:bg-[#f8fafc]",
-                    selectedStaff && "border-b-[#d5dde7] bg-[#f5f7fa]",
+                    "h-[54px] min-w-[136px] cursor-pointer border border-t-0 border-l-0 border-[#eef0f2] bg-white px-3 py-2 transition hover:bg-[#fcfcfb]",
+                    selectedStaff && "border-b-[#cbd1d8]",
                   )}
                   style={{ flex: columnFlexBasis }}
                 >
-                  <div className={cn("flex min-h-[38px] items-center", selectedStaff ? "border-l-2 border-[#607080] pl-2" : "pl-1")}>
+                  <div className="flex h-full items-center pl-1">
                     <div className="min-w-0">
                       <p
-                        className="min-w-0 truncate text-[14px] font-semibold leading-[18px]"
-                        style={{ color: "#111827" }}
+                        className={cn("min-w-0 truncate text-[14px] font-semibold leading-[18px]", staffNameToneClass)}
                       >
                         {laneColumn.name}
                       </p>
@@ -710,7 +699,7 @@ export function DailyScheduleGrid({
         )}
       >
         <div className="flex">
-          <div className="w-[72px] shrink-0 border border-l-0 border-t-0 border-[#dbe2ea] bg-white">
+          <div className="w-[72px] shrink-0 border border-l-0 border-t-0 border-[#eef0f2] bg-white">
             <div className="relative" style={{ height: scheduleBodyHeight }}>
               {renderScheduleLines("time-rail")}
               {expandedTimeHours.map((hour) => (
@@ -719,9 +708,9 @@ export function DailyScheduleGrid({
                   className="absolute inset-x-0 flex items-center gap-1 text-[12px] leading-none text-[#64748b]"
                   style={{ top: getHourTop(hour, scheduleDisplayLayout), transform: "translateY(-50%)" }}
                 >
-                  <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
+                  <span className="h-px flex-1 bg-[#f0f2f4]" aria-hidden="true" />
                   <span className="shrink-0 bg-white px-1">{formatHourLabel(hour)}</span>
-                  <span className="h-px flex-1 bg-[#edf2f7]" aria-hidden="true" />
+                  <span className="h-px flex-1 bg-[#f0f2f4]" aria-hidden="true" />
                 </div>
               ))}
             </div>
@@ -748,7 +737,6 @@ export function DailyScheduleGrid({
                   .filter((booking) => laneColumn.staffKeys.includes(booking.staffKey))
                   .sort((a, b) => a.start - b.start);
                 const bookingLayouts = getStaffBookingLayouts(laneBookings);
-                const selectedStaff = Boolean(selectedStaffKey && laneColumn.staffKeys.includes(selectedStaffKey));
                 const firstStaffKey = laneColumn.segments[0]?.key ?? laneColumn.staffKeys[0] ?? laneColumn.key;
                 return (
                   <section
@@ -762,9 +750,8 @@ export function DailyScheduleGrid({
                     onDragOver={handleColumnDragOver}
                     onDrop={(event) => handleColumnDrop(event, laneColumn)}
                     className={cn(
-                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#dbe2ea] bg-white p-0 transition",
-                      selectedStaff && "bg-[#fbfcfe]",
-                      draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
+                      "min-w-0 cursor-pointer border border-l-0 border-t-0 border-[#eef0f2] bg-white p-0 transition",
+                       draggingBookingId && "ring-1 ring-inset ring-[#cfd8e3]",
                     )}
                     style={{ flex: columnFlexBasis }}
                   >
@@ -773,7 +760,7 @@ export function DailyScheduleGrid({
                       {laneColumn.segments.map((segment) => (
                         <div
                           key={`${laneColumn.key}-${segment.key}-work-segment`}
-                          className="pointer-events-none absolute left-0 right-0 z-[6] border-y border-[#e5eaf0] bg-[#f8fafc]/45"
+                          className="pointer-events-none absolute left-0 right-0 z-[6] border-y border-[#f5f6f8] bg-transparent"
                           style={{
                             top: getBookingTop(segment.start, scheduleDisplayLayout),
                             height: Math.max(18, getBookingTop(segment.end, scheduleDisplayLayout) - getBookingTop(segment.start, scheduleDisplayLayout)),
@@ -819,7 +806,7 @@ export function DailyScheduleGrid({
                                   if (booking.sourceAppointmentId) onSelectBooking(booking.sourceAppointmentId);
                                   onSelectStaff(booking.staffKey || firstStaffKey);
                                 }}
-                                className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#dbe2ea] bg-white px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.05)]"
+                                className="absolute z-10 box-border flex h-[24px] items-center justify-center overflow-hidden rounded-full border border-[#e5e8ec] bg-white px-2 text-[11px] leading-none text-[#607080] shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
                                 style={{
                                   ...bookingLayoutStyle,
                                   top: getBookingTop(booking.start, scheduleDisplayLayout),
@@ -858,7 +845,6 @@ export function DailyScheduleGrid({
                                     ? "z-50 shadow-none ring-1 ring-[#8ab9ab]/22"
                                     : "z-50 shadow-[0_16px_28px_rgba(15,23,42,0.12)] ring-1 ring-[#8ab9ab]/22"),
                                 getBookingCardToneClass(cardTone, selected),
-                                getWrapIndicatorClass(getBookingIndicatorTone(cardTone)),
                               )}
                               style={{
                                 ...bookingLayoutStyle,
@@ -887,7 +873,7 @@ export function DailyScheduleGrid({
                                       "shrink-0 justify-self-end text-[13px] leading-[17px]",
                                       microCard
                                         ? "max-w-[92px] truncate whitespace-nowrap text-[#64748b]"
-                                        : `relative -top-px whitespace-nowrap font-medium tabular-nums ${getBookingTimeTextClass(cardTone)}`,
+                                        : "relative -top-px whitespace-nowrap font-medium tabular-nums text-[#111827]",
                                     )}
                                   >
                                     {microCard ? booking.service : displayTimeLabel}

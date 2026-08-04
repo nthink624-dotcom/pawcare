@@ -115,8 +115,7 @@ export default function OwnerAdminDetailPanel({
                         ))}
                       </div>
                       <span className="truncate text-right text-[11px] text-[#0f172a]">
-                        {selectedOwner.loginId ??
-                          (selectedOwner.ownerEmail?.endsWith("@owner.petmanager.local") ? "-" : selectedOwner.ownerEmail ?? "-")}
+                        {selectedOwner.ownerEmail ?? selectedOwner.loginId ?? "-"}
                       </span>
                       <span className="inline-flex items-center gap-0.5 text-[10px]">
                         상세
@@ -124,7 +123,7 @@ export default function OwnerAdminDetailPanel({
                       </span>
                     </summary>
                     <div className="space-y-1 border-t border-[#edf2f7] px-2 py-1.5">
-                      <DetailRow label="연동 이메일" value={selectedOwner.ownerEmail ?? "-"} />
+                      <DetailRow label="로그인 이메일" value={selectedOwner.ownerEmail ?? selectedOwner.loginId ?? "-"} />
                       <DetailRow label="전화번호" value={selectedOwner.ownerPhoneNumber ?? "-"} />
                       <DetailRow label="매장 ID" value={selectedOwner.shopId} mono />
                     </div>
@@ -161,7 +160,7 @@ export default function OwnerAdminDetailPanel({
 
                   <OwnerAdminPasswordPanel
                     ownerName={selectedOwner.ownerName}
-                    loginId={selectedOwner.loginId}
+                    email={selectedOwner.ownerEmail ?? selectedOwner.loginId}
                     issuing={issuingTemporaryPasswordUserId === selectedOwner.userId}
                     result={temporaryPasswords[selectedOwner.userId] ?? null}
                     onIssue={() => void issueOwnerTemporaryPassword(selectedOwner)}

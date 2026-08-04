@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isValidBirthDate8, normalizeOwnerLoginId, normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
+import { isValidBirthDate8, normalizeOwnerEmail, normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import { identityVerificationPurposeSchema } from "@/lib/auth/owner-identity";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -10,7 +10,7 @@ import { completeLocalIdentityVerification } from "@/server/owner-identity-verif
 const schema = z.object({
   purpose: identityVerificationPurposeSchema,
   verificationRequestId: z.string().uuid(),
-  loginId: z.string().trim().optional().default(""),
+  email: z.string().trim().optional().default(""),
   name: z.string().trim().optional().default(""),
   birthDate: z.string().optional().default(""),
   phoneNumber: z.string().optional().default(""),
@@ -30,8 +30,8 @@ async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>
     return input;
   }
 
-  const loginId = normalizeOwnerLoginId(input.loginId);
-  if (!loginId) return input;
+  const email = normalizeOwnerEmail(input.email);
+  if (!email) return input;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return input;
@@ -39,7 +39,7 @@ async function fillDevelopmentProfileForLocalReset(input: z.infer<typeof schema>
   const { data } = await supabase
     .from("owner_profiles")
     .select("name, birth_date, phone_number")
-    .eq("login_id", loginId)
+    .eq("login_id", email)
     .maybeSingle<{ name: string | null; birth_date: string | null; phone_number: string | null }>();
 
   if (!data?.name || !data.birth_date || !data.phone_number) return input;
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsedPayload = schema.parse({
       ...body,
-      loginId: normalizeOwnerLoginId(body?.loginId ?? ""),
+      email: normalizeOwnerEmail(body?.email ?? ""),
       phoneNumber: normalizeOwnerPhoneNumber(body?.phoneNumber ?? ""),
       code: String(body?.code ?? "").replace(/\D/g, "").slice(0, 6),
     });

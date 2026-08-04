@@ -15,7 +15,7 @@ type LoginSessionInput = {
   request: NextRequest;
   ownerUserId: string;
   shopId: string | null;
-  loginId: string;
+  email: string;
 };
 
 function isUuid(value: string | undefined) {
@@ -111,7 +111,9 @@ export async function recordOwnerLoginSession(input: LoginSessionInput, sessionT
       {
         owner_user_id: input.ownerUserId,
         shop_id: input.shopId,
-        login_id: input.loginId,
+        // `owner_login_sessions.login_id` is a legacy column name. Its value
+        // is the normalized owner login email.
+        login_id: input.email,
         session_tracking_id: sessionTrackingId,
         device_type: device.deviceType,
         browser_name: device.browserName,

@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
       throw new AdminApiError("선택한 매장이 해당 오너 소유가 아닙니다.", 409);
     }
 
-    // Auth 사용자를 먼저 완전 삭제해야 아이디·이메일·소셜 identity가 즉시 해제되어
-    // 동일한 로그인 수단으로 다시 가입할 수 있다.
+    // Auth 사용자를 먼저 완전 삭제해야 로그인 이메일 identity가 즉시 해제되어
+    // 동일한 이메일로 바로 다시 가입할 수 있다.
     const authDeleteResult = await admin.auth.admin.deleteUser(body.userId, false);
     if (authDeleteResult.error) {
       throw new AdminApiError(authDeleteResult.error.message || "로그인 계정을 삭제하지 못했습니다.", 400);

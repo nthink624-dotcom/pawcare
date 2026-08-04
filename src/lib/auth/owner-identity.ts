@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { requireServerSecret, serverEnv } from "@/lib/server-env";
 
-export const identityVerificationPurposeSchema = z.enum(["signup", "reset-password", "find-login-id"]);
+export const identityVerificationPurposeSchema = z.enum(["signup", "reset-password", "find-email"]);
 
 export type IdentityVerificationPurpose = z.infer<typeof identityVerificationPurposeSchema>;
 

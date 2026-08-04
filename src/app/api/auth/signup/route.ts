@@ -5,11 +5,10 @@ import { z } from "zod";
 
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import {
-  buildOwnerAuthEmail,
   isValidBirthDate8,
-  isValidOwnerLoginId,
+  isValidOwnerEmail,
   isValidOwnerPassword,
-  normalizeOwnerLoginId,
+  normalizeOwnerEmail,
   normalizeOwnerPhoneNumber,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
@@ -26,7 +25,7 @@ import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/o
 import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
 const schema = z.object({
-  loginId: z.string().min(1),
+  email: z.string().min(1),
   password: z.string().min(6),
   passwordConfirm: z.string().min(6),
   name: z.string().min(1),
@@ -53,7 +52,7 @@ function isValidShopPhone(value: string) {
   return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizeOwnerPhoneNumber(value));
 }
 
-const duplicateAccountMessage = "이미 가입된 계정이 있어요. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요.";
+const duplicateAccountMessage = "이미 가입된 계정이 있어요. 이메일 찾기 또는 비밀번호 찾기를 이용해 주세요.";
 
 function isMissingSchemaFieldError(error: { code?: string; message?: string } | null | undefined, fields: string[]) {
   const message = error?.message ?? "";
@@ -133,11 +132,11 @@ export async function POST(request: NextRequest) {
       shopPhone: normalizeOwnerPhoneNumber(body?.shopPhone ?? ""),
     });
 
-    const loginId = normalizeOwnerLoginId(payload.loginId);
+    const email = normalizeOwnerEmail(payload.email);
 
-    if (!isValidOwnerLoginId(loginId)) {
+    if (!isValidOwnerEmail(email)) {
       return NextResponse.json(
-        { message: "아이디는 영문 소문자, 숫자, 마침표(.), 하이픈(-), 밑줄(_) 조합으로 4자 이상 입력해 주세요." },
+        { message: "올바른 이메일 주소를 입력해 주세요." },
         { status: 400 },
       );
     }
@@ -182,9 +181,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
     }
 
-    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", loginId).maybeSingle();
+    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", email).maybeSingle();
     if (duplicate.data?.login_id) {
-      return NextResponse.json({ message: "이미 사용 중인 아이디입니다." }, { status: 409 });
+      return NextResponse.json({ message: "이미 사용 중인 이메일입니다." }, { status: 409 });
     }
 
     const ciHash = verifiedIdentity.ci ? hashIdentityStableValue(verifiedIdentity.ci) : null;
@@ -202,16 +201,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: duplicateAccountMessage }, { status: 409 });
     }
 
-    const authEmail = buildOwnerAuthEmail(loginId);
     const trialStartedAt = nowIso();
     const trialEndsAt = new Date(Date.now() + OWNER_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     const createdUser = await supabase.auth.admin.createUser({
-      email: authEmail,
+      email,
       password: payload.password,
       email_confirm: true,
       user_metadata: {
-        login_id: loginId,
+        login_id: email,
         name: payload.name.trim(),
         subscription_status: "trialing",
         trial_started_at: trialStartedAt,
@@ -228,7 +226,7 @@ export async function POST(request: NextRequest) {
     if (createdUser.error || !createdUser.data.user) {
       const message = createdUser.error?.message || "회원가입 처리 중 문제가 발생했습니다.";
       return NextResponse.json(
-        { message: message.includes("already") ? "이미 사용 중인 아이디입니다." : message },
+        { message: message.includes("already") ? "이미 사용 중인 이메일입니다." : message },
         { status: message.includes("already") ? 409 : 400 },
       );
     }
@@ -313,7 +311,7 @@ export async function POST(request: NextRequest) {
     const profilePayload = {
       user_id: user.id,
       shop_id: shopId,
-      login_id: loginId,
+      login_id: email,
       name: payload.name.trim(),
       birth_date: payload.birthDate,
       phone_number: payload.phoneNumber,
@@ -341,7 +339,7 @@ export async function POST(request: NextRequest) {
         {
           message:
             profileInsert.error.code === "23505"
-              ? "이미 사용 중인 아이디이거나 이미 가입된 계정입니다. 아이디 찾기 또는 비밀번호 찾기를 이용해 주세요."
+              ? "이미 사용 중인 이메일이거나 이미 가입된 계정입니다. 이메일 찾기 또는 비밀번호 찾기를 이용해 주세요."
               : "회원 정보를 저장하지 못했습니다.",
         },
         { status: profileInsert.error.code === "23505" ? 409 : 400 },

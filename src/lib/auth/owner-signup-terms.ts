@@ -1,4 +1,4 @@
-﻿export const OWNER_SIGNUP_TERMS_VERSION = "2026-07-28";
+export const OWNER_SIGNUP_TERMS_VERSION = "2026-08-05";
 
 import { LEGAL_OPERATOR_NAME, LEGAL_SERVICE_NAME } from "@/lib/legal/legal-info";
 
@@ -86,11 +86,12 @@ export const ownerSignupTerms: OwnerSignupTerm[] = [
     title: "개인정보 수집 및 이용 동의",
     required: true,
     content: `개인정보 수집 및 이용 동의서
+시행일자: 2026년 8월 5일
 ${LEGAL_OPERATOR_NAME}(이하 "회사")는 "${LEGAL_SERVICE_NAME}" 서비스 운영과 관련하여 「개인정보 보호법」 제15조에 따라 다음과 같이 개인정보를 수집·이용합니다.
 
 1. 수집하는 개인정보 항목
-[일반 회원가입 필수] 이름, 아이디, 비밀번호(암호화 저장), 생년월일, 매장명, 매장 주소, 휴대폰 번호
-[회원가입 완료 필수] 아이디, 본인인증된 이름·휴대폰 번호, 매장명, 매장 주소
+[일반 회원가입 필수] 이름, 이메일, 비밀번호(암호화 저장), 생년월일, 매장명, 매장 주소, 휴대폰 번호
+[회원가입 완료 필수] 이메일, 본인인증된 이름·휴대폰 번호, 매장명, 매장 주소
 [자동수집] 접속 IP 주소, 접속 로그, 쿠키, 서비스 이용 기록, 기기 정보(OS, 브라우저 종류)
 
 2. 개인정보의 수집 및 이용 목적

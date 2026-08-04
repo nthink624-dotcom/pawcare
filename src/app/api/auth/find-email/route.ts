@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 
 import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
-import { ownerFindLoginIdSchema } from "@/lib/auth/owner-find-login-id";
+import { ownerFindEmailSchema } from "@/lib/auth/owner-find-email";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { consumeVerifiedIdentity, getVerifiedIdentityForToken } from "@/server/owner-identity-verification";
@@ -89,10 +89,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Supabase 환경 변수가 설정되지 않았습니다." }, { status: 503 });
     }
 
-    const body = ownerFindLoginIdSchema.parse(await request.json());
+    const body = ownerFindEmailSchema.parse(await request.json());
     const verifiedIdentity = await getVerifiedIdentityForToken({
       verificationToken: body.identityVerificationToken,
-      purpose: "find-login-id",
+      purpose: "find-email",
       expectedName: body.name,
       expectedBirthDate: body.birthDate,
       expectedPhoneNumber: body.phoneNumber,
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     const consumed = await consumeVerifiedIdentity({
       verificationId: verifiedIdentity.id,
       tokenId: verifiedIdentity.tokenId,
-      action: "find-login-id",
+      action: "find-email",
     });
 
     if (!consumed) {
@@ -173,15 +173,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      loginId: picked.profile.login_id,
-      message: `가입한 아이디는 ${picked.profile.login_id} 입니다.`,
+      email: picked.profile.login_id,
+      message: `가입한 이메일은 ${picked.profile.login_id} 입니다.`,
     });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ message: error.issues[0]?.message || "입력값을 다시 확인해 주세요." }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "아이디 찾기 중 문제가 발생했습니다.";
+    const message = error instanceof Error ? error.message : "이메일 찾기 중 문제가 발생했습니다.";
     return NextResponse.json({ message }, { status: 400 });
   }
 }

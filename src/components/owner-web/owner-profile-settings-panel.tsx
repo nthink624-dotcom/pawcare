@@ -67,7 +67,7 @@ export default function OwnerProfileSettingsPanel({
   const initialName = useMemo(() => ownerProfile?.name?.trim() || "오너", [ownerProfile?.name]);
   const initialPhone = useMemo(() => ownerProfile?.phone_number?.trim() || shop?.phone?.trim() || "", [ownerProfile?.phone_number, shop?.phone]);
   const initialProfileImageUrl = useMemo(() => getProfileImageUrl(ownerProfile), [ownerProfile]);
-  const loginId = ownerProfile?.login_id?.trim() || "-";
+  const email = ownerProfile?.login_id?.trim() || "-";
   const [name, setName] = useState(initialName);
   const [phoneNumber, setPhoneNumber] = useState(initialPhone);
   const [profileImageUrl, setProfileImageUrl] = useState(initialProfileImageUrl);
@@ -175,9 +175,9 @@ export default function OwnerProfileSettingsPanel({
 
         <div className="grid min-w-[280px] flex-1 gap-5">
           <label className="grid gap-2 text-[16px] text-[#0f172a]">
-            <span className="font-medium">아이디</span>
+            <span className="font-medium">로그인 이메일</span>
             <input
-              value={loginId}
+              value={email}
               readOnly
               className="h-12 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 text-[16px] font-normal text-[#64748b] outline-none"
             />

@@ -4,8 +4,6 @@ const { createClient } = require("@supabase/supabase-js");
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:3000";
 const baseUrl = (process.env.OWNER_AUTH_SMOKE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
-const canonicalDomain = "owner.petmanager.co.kr";
-const previousDomain = "owner.petmanager.local";
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -86,11 +84,11 @@ function expectFail(label, response) {
   }
 }
 
-async function issueLocalVerificationToken({ purpose, identity, loginId }) {
+async function issueLocalVerificationToken({ purpose, identity, email }) {
   const requestPayload = {
     purpose,
     method: "local",
-    loginId,
+    email,
     name: identity?.name,
     birthDate: identity?.birthDate,
     phoneNumber: identity?.phoneNumber,
@@ -105,7 +103,7 @@ async function issueLocalVerificationToken({ purpose, identity, loginId }) {
   const verified = await postJson("/api/auth/verify-identity", {
     purpose,
     verificationRequestId: requested.result.verificationRequestId,
-    loginId,
+    email,
     name: identity?.name,
     birthDate: identity?.birthDate,
     phoneNumber: identity?.phoneNumber,
@@ -120,22 +118,22 @@ async function issueLocalVerificationToken({ purpose, identity, loginId }) {
   return verified.result.verificationToken;
 }
 
-async function apiLogin(loginId, password) {
-  return postJson("/api/auth/login", { loginId, password });
+async function apiLogin(email, password) {
+  return postJson("/api/auth/login", { email, password });
 }
 
-async function cleanup(admin, loginId, name) {
+async function cleanup(admin, email, name) {
   const profile = await admin
     .from("owner_profiles")
     .select("user_id, shop_id")
-    .eq("login_id", loginId)
+    .eq("login_id", email)
     .maybeSingle();
 
   const userId = profile.data?.user_id;
   const shopId = profile.data?.shop_id;
 
   if (shopId) await admin.from("shops").delete().eq("id", shopId);
-  await admin.from("owner_profiles").delete().eq("login_id", loginId);
+  await admin.from("owner_profiles").delete().eq("login_id", email);
   await admin.from("owner_identity_verifications").delete().eq("name", name);
   if (userId) await admin.auth.admin.deleteUser(userId);
 }
@@ -162,7 +160,7 @@ async function main() {
   });
 
   const suffix = uniqueDigits(8);
-  const loginId = `smoke${suffix}`;
+  const email = `smoke${suffix}@petmanager.test`;
   const initialPassword = "Aa1234!";
   const newPassword = "Bb5678!";
   const identity = {
@@ -174,7 +172,7 @@ async function main() {
   const shopName = `Auth Smoke Shop ${suffix}`;
 
   try {
-    await cleanup(admin, loginId, identity.name);
+    await cleanup(admin, email, identity.name);
 
     const signupToken = await issueLocalVerificationToken({
       purpose: "signup",
@@ -182,7 +180,7 @@ async function main() {
     });
 
     const signup = await postJson("/api/auth/signup", {
-      loginId,
+      email,
       password: initialPassword,
       passwordConfirm: initialPassword,
       name: identity.name,
@@ -199,7 +197,7 @@ async function main() {
     const profile = await admin
       .from("owner_profiles")
       .select("user_id, login_id, phone_number")
-      .eq("login_id", loginId)
+      .eq("login_id", email)
       .maybeSingle();
     if (profile.error || !profile.data?.user_id) {
       throw new Error(`profile lookup failed: ${profile.error?.message || "missing profile"}`);
@@ -209,46 +207,32 @@ async function main() {
     }
 
     const createdUser = await admin.auth.admin.getUserById(profile.data.user_id);
-    if (createdUser.error || createdUser.data.user?.email !== `${loginId}@${canonicalDomain}`) {
-      throw new Error(`canonical signup email failed: ${createdUser.data.user?.email || createdUser.error?.message}`);
+    if (createdUser.error || createdUser.data.user?.email !== email) {
+      throw new Error(`email signup failed: ${createdUser.data.user?.email || createdUser.error?.message}`);
     }
 
-    const initialLogin = await apiLogin(loginId, initialPassword);
+    const initialLogin = await apiLogin(email, initialPassword);
     expectOk("initial login", initialLogin.response, initialLogin.result);
 
-    const legacyEmailUpdate = await admin.auth.admin.updateUserById(profile.data.user_id, {
-      email: `${loginId}@${previousDomain}`,
-      email_confirm: true,
-    });
-    if (!legacyEmailUpdate.error) {
-      const legacyLogin = await apiLogin(loginId, initialPassword);
-      expectOk("legacy email login migration", legacyLogin.response, legacyLogin.result);
-
-      const migratedUser = await admin.auth.admin.getUserById(profile.data.user_id);
-      if (migratedUser.data.user?.email !== `${loginId}@${canonicalDomain}`) {
-        throw new Error(`legacy email was not canonicalized: ${migratedUser.data.user?.email}`);
-      }
-    }
-
-    const findIdToken = await issueLocalVerificationToken({
-      purpose: "find-login-id",
+    const findEmailToken = await issueLocalVerificationToken({
+      purpose: "find-email",
       identity,
     });
-    const findId = await postJson("/api/auth/find-login-id", {
+    const findEmail = await postJson("/api/auth/find-email", {
       ...identity,
-      identityVerificationToken: findIdToken,
+      identityVerificationToken: findEmailToken,
     });
-    expectOk("find login id", findId.response, findId.result);
-    if (findId.result.loginId !== loginId) {
-      throw new Error(`find login id mismatch: ${findId.result.loginId} !== ${loginId}`);
+    expectOk("find email", findEmail.response, findEmail.result);
+    if (findEmail.result.email !== email) {
+      throw new Error(`find email mismatch: ${findEmail.result.email} !== ${email}`);
     }
 
     const samePasswordToken = await issueLocalVerificationToken({
       purpose: "reset-password",
-      loginId,
+      email,
     });
     const samePasswordReset = await postJson("/api/auth/reset-password", {
-      loginId,
+      email,
       identityVerificationToken: samePasswordToken,
       password: initialPassword,
       passwordConfirm: initialPassword,
@@ -257,24 +241,24 @@ async function main() {
 
     const resetToken = await issueLocalVerificationToken({
       purpose: "reset-password",
-      loginId,
+      email,
     });
     const reset = await postJson("/api/auth/reset-password", {
-      loginId,
+      email,
       identityVerificationToken: resetToken,
       password: newPassword,
       passwordConfirm: newPassword,
     });
     expectOk("password reset", reset.response, reset.result);
 
-    const oldLogin = await apiLogin(loginId, initialPassword);
+    const oldLogin = await apiLogin(email, initialPassword);
     expectFail("old password login after reset", oldLogin.response);
 
-    const newLogin = await apiLogin(loginId, newPassword);
+    const newLogin = await apiLogin(email, newPassword);
     expectOk("new password login after reset", newLogin.response, newLogin.result);
 
     const directNewLogin = await authClient.auth.signInWithPassword({
-      email: `${loginId}@${canonicalDomain}`,
+      email,
       password: newPassword,
     });
     if (directNewLogin.error || directNewLogin.data.user?.id !== profile.data.user_id) {
@@ -282,16 +266,16 @@ async function main() {
     }
 
     const directOldLogin = await authClient.auth.signInWithPassword({
-      email: `${loginId}@${canonicalDomain}`,
+      email,
       password: initialPassword,
     });
     if (!directOldLogin.error) {
       throw new Error("direct Supabase login with old password unexpectedly succeeded");
     }
 
-    console.log(`OK owner auth recovery smoke passed for ${loginId} at ${baseUrl}`);
+    console.log(`OK owner auth recovery smoke passed for ${email} at ${baseUrl}`);
   } finally {
-    await cleanup(admin, loginId, identity.name);
+    await cleanup(admin, email, identity.name);
   }
 }
 

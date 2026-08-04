@@ -274,8 +274,9 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
   }
 
   async function issueOwnerTemporaryPassword(item: AdminOwnerItem) {
-    if (!item.loginId) {
-      setError("로그인 아이디가 없는 오너 계정에는 임시비밀번호를 발급할 수 없습니다.");
+    const email = item.ownerEmail ?? item.loginId;
+    if (!email) {
+      setError("로그인 이메일이 없는 오너 계정에는 임시비밀번호를 발급할 수 없습니다.");
       return;
     }
 
@@ -306,7 +307,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
       setTemporaryPasswords((prev) => ({
         ...prev,
         [item.userId]: {
-          loginId: response.loginId,
+          email: response.email,
           temporaryPassword: response.temporaryPassword,
           issuedAt: response.issuedAt,
         },
@@ -331,7 +332,7 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
     if (!firstConfirmed) return;
 
     const typedShopName = window.prompt(
-      `최종 확인입니다.\n탈퇴 후 같은 아이디·이메일·소셜 계정으로 다시 가입할 수 있습니다.\n\n계속하려면 매장명 "${item.shopName}"을 입력해 주세요.`,
+`최종 확인입니다.\n탈퇴 후 같은 이메일로 다시 가입할 수 있습니다.\n\n계속하려면 매장명 "${item.shopName}"을 입력해 주세요.`,
     );
     if (typedShopName !== item.shopName) {
       if (typedShopName !== null) {
@@ -482,8 +483,12 @@ export default function OwnerAdminScreen({ adminId }: { adminId: string }) {
 
                       <div className="flex flex-wrap gap-1">
                         {item.loginMethods.map((method) => (
-                          <span key={`${item.userId}-${method}`} className={`rounded-full border px-2 py-0.5 text-[12px] font-semibold ${loginMethodToneMap[method]}`}>
-                            {loginMethodLabels[method]}
+                          <span
+                            key={`${item.userId}-${method}`}
+                            title={method === "email" ? item.ownerEmail ?? item.loginId ?? loginMethodLabels[method] : loginMethodLabels[method]}
+                            className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[12px] font-semibold ${loginMethodToneMap[method]}`}
+                          >
+                            {method === "email" && (item.ownerEmail ?? item.loginId) ? item.ownerEmail ?? item.loginId : loginMethodLabels[method]}
                           </span>
                         ))}
                       </div>

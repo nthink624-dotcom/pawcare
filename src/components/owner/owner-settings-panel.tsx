@@ -183,18 +183,6 @@ function parseShopAddressParts(rawAddress: string) {
   };
 }
 
-function resolveLoginIdFromOwnerAuthEmail(email?: string | null) {
-  const trimmed = email?.trim();
-  if (!trimmed) return null;
-
-  const lowerEmail = trimmed.toLowerCase();
-  const ownerAuthEmailSuffixes = ["@owner.petmanager.local", "@owner.pawcare.local"];
-  const matchedSuffix = ownerAuthEmailSuffixes.find((suffix) => lowerEmail.endsWith(suffix));
-
-  if (!matchedSuffix) return null;
-  return trimmed.slice(0, -matchedSuffix.length);
-}
-
 export default function OwnerSettingsPanel({
   data,
   onSave,
@@ -272,7 +260,7 @@ export default function OwnerSettingsPanel({
   const [isNotificationSettingsDirty, setIsNotificationSettingsDirty] = useState(false);
 
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
-  const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
+  const accountEmail = userEmail?.trim() || null;
 
   useEffect(() => {
     setIsNotificationSettingsDirty(false);
@@ -1252,7 +1240,7 @@ export default function OwnerSettingsPanel({
   const accountSection = onLogout ? (
     <SettingsCard>
       <div className="divide-y divide-[var(--border)]">
-        {accountLoginId ? <AccountRow icon={UserRound} label="로그인 아이디" value={accountLoginId} /> : null}
+          {accountEmail ? <AccountRow icon={UserRound} label="로그인 이메일" value={accountEmail} /> : null}
         <AccountRow href="/login/reset" icon={KeyRound} label="비밀번호 재설정" />
         <AccountActionRow icon={LogOut} label={loggingOut ? "로그아웃 중..." : "로그아웃"} onClick={onLogout} disabled={loggingOut} />
       </div>

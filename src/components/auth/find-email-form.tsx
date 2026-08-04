@@ -8,7 +8,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
-import { ownerFindLoginIdSchema, type OwnerFindLoginIdInput } from "@/lib/auth/owner-find-login-id";
+import { ownerFindEmailSchema, type OwnerFindEmailInput } from "@/lib/auth/owner-find-email";
 import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 
@@ -17,10 +17,10 @@ type ApiMessage = {
   verificationRequestId?: string | null;
   devVerificationCode?: string | null;
   verificationToken?: string | null;
-  loginId?: string | null;
+  email?: string | null;
 };
 
-type FindIdStep = "info" | "method" | "code" | "result";
+type FindEmailStep = "info" | "method" | "code" | "result";
 
 function FieldShell({
   label,
@@ -53,16 +53,16 @@ function normalizePhoneNumber(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
 
-export default function FindLoginIdForm() {
+export default function FindEmailForm() {
   const router = useRouter();
   const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
   const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
   const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
   const useLocalVerificationFlow = isDevelopmentFlow && !portoneReady;
 
-  const [step, setStep] = useState<FindIdStep>("info");
+  const [step, setStep] = useState<FindEmailStep>("info");
   const [message, setMessage] = useState<string | null>(null);
-  const [foundLoginId, setFoundLoginId] = useState<string | null>(null);
+  const [foundEmail, setFoundEmail] = useState<string | null>(null);
   const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
@@ -74,8 +74,8 @@ export default function FindLoginIdForm() {
     setValue,
     trigger,
     formState: { errors },
-  } = useForm<OwnerFindLoginIdInput>({
-    resolver: zodResolver(ownerFindLoginIdSchema),
+  } = useForm<OwnerFindEmailInput>({
+    resolver: zodResolver(ownerFindEmailSchema),
     defaultValues: {
       name: "",
       birthDate: "",
@@ -85,7 +85,7 @@ export default function FindLoginIdForm() {
   });
 
   const pageTitle =
-    step === "method" ? "본인 확인" : step === "code" ? "인증번호 입력" : step === "result" ? "아이디 확인" : "아이디 찾기";
+    step === "method" ? "본인 확인" : step === "code" ? "인증번호 입력" : step === "result" ? "이메일 확인" : "이메일 찾기";
 
   const firstError = errors.name?.message || errors.birthDate?.message || errors.phoneNumber?.message;
   const notice = firstError ?? message;
@@ -114,11 +114,11 @@ export default function FindLoginIdForm() {
     setStep("method");
   };
 
-  const lookupLoginId = async (verificationToken: string) => {
+  const lookupEmail = async (verificationToken: string) => {
     const values = getValues();
     setValue("identityVerificationToken", verificationToken, { shouldValidate: true });
 
-    const response = await fetch("/api/auth/find-login-id", {
+    const response = await fetch("/api/auth/find-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -128,12 +128,12 @@ export default function FindLoginIdForm() {
     });
 
     const result = (await response.json()) as ApiMessage;
-    if (!response.ok || !result.loginId) {
-      setMessage(result.message ?? "입력한 정보와 일치하는 아이디를 찾지 못했어요.");
+    if (!response.ok || !result.email) {
+      setMessage(result.message ?? "입력한 정보와 일치하는 이메일을 찾지 못했어요.");
       return;
     }
 
-    setFoundLoginId(result.loginId);
+    setFoundEmail(result.email);
     setMessage(null);
     setStep("result");
   };
@@ -154,7 +154,7 @@ export default function FindLoginIdForm() {
           name: values.name,
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
-          purpose: "find-login-id",
+          purpose: "find-email",
           method: "local",
         }),
       });
@@ -168,7 +168,7 @@ export default function FindLoginIdForm() {
       setVerificationRequestId(result.verificationRequestId);
       setDevCode(result.devVerificationCode ?? null);
       setVerificationCode("");
-      setFoundLoginId(null);
+      setFoundEmail(null);
       setStep("code");
     } finally {
       setLoading(false);
@@ -194,7 +194,7 @@ export default function FindLoginIdForm() {
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
           code: verificationCode,
-          purpose: "find-login-id",
+        purpose: "find-email",
           verificationRequestId,
         }),
       });
@@ -205,7 +205,7 @@ export default function FindLoginIdForm() {
         return;
       }
 
-      await lookupLoginId(result.verificationToken);
+      await lookupEmail(result.verificationToken);
     } finally {
       setLoading(false);
     }
@@ -232,7 +232,7 @@ export default function FindLoginIdForm() {
           name: values.name,
           birthDate: values.birthDate,
           phoneNumber: values.phoneNumber,
-          purpose: "find-login-id",
+        purpose: "find-email",
           method: "portone",
         }),
       });
@@ -243,7 +243,7 @@ export default function FindLoginIdForm() {
         return;
       }
 
-      const identityVerificationId = `findid${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+      const identityVerificationId = `findemail${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
       const result = await requestPortoneIdentityVerification({
         storeId: env.portoneStoreId,
@@ -268,7 +268,7 @@ export default function FindLoginIdForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          purpose: "find-login-id",
+          purpose: "find-email",
           verificationRequestId: requestResult.verificationRequestId,
           identityVerificationId: result.identityVerificationId,
         }),
@@ -280,7 +280,7 @@ export default function FindLoginIdForm() {
         return;
       }
 
-      await lookupLoginId(verifyResult.verificationToken);
+      await lookupEmail(verifyResult.verificationToken);
     } finally {
       setLoading(false);
     }
@@ -341,7 +341,7 @@ export default function FindLoginIdForm() {
                 인증 방법을 선택해주세요
               </h1>
               <p className="mt-4 w-full max-w-none break-keep text-[14px] leading-6 text-[#667589]">
-                가입 정보와 인증 결과가 일치하면 아이디를 확인할 수 있어요.
+                가입 정보와 인증 결과가 일치하면 이메일을 확인할 수 있어요.
               </p>
 
               <div className="mt-7 space-y-3">
@@ -426,18 +426,18 @@ export default function FindLoginIdForm() {
           {step === "result" ? (
             <section>
               <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                아이디를 확인했어요
+                이메일을 확인했어요
               </h1>
-              <p className="mt-4 text-[14px] leading-6 text-[#667589]">가입된 아이디는 아래와 같습니다.</p>
+              <p className="mt-4 text-[14px] leading-6 text-[#667589]">가입된 이메일은 아래와 같습니다.</p>
 
               <div className="mt-7 rounded-[12px] border border-[#d7e0e9] bg-white px-4 py-4">
-                <p className="text-[13px] font-semibold text-[#4d6077]">아이디</p>
-                <p className="mt-2 text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{foundLoginId}</p>
+                <p className="text-[13px] font-semibold text-[#4d6077]">이메일</p>
+                <p className="mt-2 break-all text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{foundEmail}</p>
               </div>
 
-              {foundLoginId ? (
+              {foundEmail ? (
                 <Link
-                  href={`/login/reset?loginId=${encodeURIComponent(foundLoginId)}`}
+                  href={`/login/reset?email=${encodeURIComponent(foundEmail)}`}
                   replace
                   className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[10px] border border-[#d7e0e9] bg-white text-[15px] font-semibold text-[#111827]"
                 >

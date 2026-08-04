@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       throw new AdminApiError("임시비밀번호를 발급할 오너 계정을 찾지 못했습니다.", 404);
     }
     if (!profileResult.data.login_id) {
-      throw new AdminApiError("로그인 아이디가 없는 계정에는 임시비밀번호를 발급할 수 없습니다.", 400);
+      throw new AdminApiError("로그인 이메일이 없는 계정에는 임시비밀번호를 발급할 수 없습니다.", 400);
     }
 
     const issuedAt = nowIso();
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       event_type: "temporary_password_issued",
       previous_payload: {},
       next_payload: {
-        loginId: profileResult.data.login_id,
+        email: profileResult.data.login_id,
         issuedAt,
         passwordResetRequired: true,
       },
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      loginId: profileResult.data.login_id,
+      email: profileResult.data.login_id,
       temporaryPassword,
       issuedAt,
       message: "임시비밀번호가 발급되었습니다. 기존 비밀번호는 더 이상 사용할 수 없습니다.",

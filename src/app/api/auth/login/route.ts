@@ -1,13 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import {
-  buildOwnerAuthEmail,
-  buildOwnerAuthEmailCandidates,
-  isLegacyOwnerAuthEmail,
-  isValidOwnerLoginId,
-  normalizeOwnerLoginId,
-} from "@/lib/auth/owner-credentials";
+import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import {
@@ -17,7 +11,7 @@ import {
 } from "@/server/owner-login-sessions";
 
 const schema = z.object({
-  loginId: z.string().trim().min(1),
+  email: z.string().trim().min(1),
   password: z.string().min(1),
 });
 
@@ -40,10 +34,10 @@ function getLoginErrorMessage(message?: string) {
     normalized.includes("email not confirmed") ||
     normalized.includes("user not found")
   ) {
-    return "아이디 또는 비밀번호를 다시 확인해 주세요.";
+    return "이메일 또는 비밀번호를 다시 확인해 주세요.";
   }
   if (normalized.includes("rate limit")) {
-    return "로그인 요청이 잠시 제한되었어요. 10분 후 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
+    return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 비밀번호 찾기로 재설정해 주세요.";
   }
   if (normalized.includes("network") || normalized.includes("fetch")) {
     return "로그인 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -55,12 +49,12 @@ function getLoginErrorMessage(message?: string) {
 function createLoginResponse({
   request,
   profile,
-  loginId,
+  email,
   session,
 }: {
   request: NextRequest;
   profile: OwnerLoginProfile;
-  loginId: string;
+  email: string;
   session: OwnerSignInSession;
 }) {
   const response = NextResponse.json({
@@ -78,7 +72,7 @@ function createLoginResponse({
         request,
         ownerUserId: profile.user_id,
         shopId: profile.shop_id,
-        loginId,
+        email,
       },
       sessionTrackingId,
     ),
@@ -93,97 +87,45 @@ export async function POST(request: NextRequest) {
     }
 
     const body = schema.parse(await request.json());
-    const loginId = normalizeOwnerLoginId(body.loginId);
-
-    if (!isValidOwnerLoginId(loginId)) {
-      return NextResponse.json({ message: "아이디 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
-    }
-
-    const admin = getSupabaseAdmin();
-    if (!admin) {
-      return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
+    const email = normalizeOwnerEmail(body.email);
+    if (!isValidOwnerEmail(email)) {
+      return NextResponse.json({ message: "이메일 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
     }
 
     const authClient = getSupabaseAuthClient();
-    if (!authClient) {
+    const admin = getSupabaseAdmin();
+    if (!authClient || !admin) {
       return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
+    }
+
+    const signInResult = await authClient.auth.signInWithPassword({ email, password: body.password });
+    if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
+      return NextResponse.json({ message: getLoginErrorMessage(signInResult.error?.message) }, { status: 401 });
     }
 
     const profileResult = await admin
       .from("owner_profiles")
       .select("user_id, shop_id, login_id")
-      .eq("login_id", loginId)
+      .eq("user_id", signInResult.data.user.id)
       .maybeSingle<OwnerLoginProfile>();
 
     if (profileResult.error) {
       return NextResponse.json({ message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 400 });
     }
 
-    if (!profileResult.data?.user_id) {
-      return NextResponse.json({ message: "아이디 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
+    if (!profileResult.data?.user_id || normalizeOwnerEmail(profileResult.data.login_id ?? "") !== email) {
+      return NextResponse.json({ message: "이메일 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
     }
 
-    const canonicalEmail = buildOwnerAuthEmail(loginId);
-    let lastErrorMessage = "invalid login credentials";
-    const canonicalSignInResult = await authClient.auth.signInWithPassword({
-      email: canonicalEmail,
-      password: body.password,
+    return createLoginResponse({
+      request,
+      profile: profileResult.data,
+      email,
+      session: signInResult.data.session,
     });
-
-    lastErrorMessage = canonicalSignInResult.error?.message ?? lastErrorMessage;
-    if (
-      !canonicalSignInResult.error &&
-      canonicalSignInResult.data.user?.id === profileResult.data.user_id &&
-      canonicalSignInResult.data.session
-    ) {
-      return createLoginResponse({
-        request,
-        profile: profileResult.data,
-        loginId,
-        session: canonicalSignInResult.data.session,
-      });
-    }
-
-    const userResult = await admin.auth.admin.getUserById(profileResult.data.user_id);
-    const existingEmail = userResult.data.user?.email?.trim().toLowerCase() ?? null;
-
-    for (const email of buildOwnerAuthEmailCandidates(loginId, existingEmail).filter((candidate) => candidate !== canonicalEmail)) {
-      const signInResult = await authClient.auth.signInWithPassword({
-        email,
-        password: body.password,
-      });
-
-      lastErrorMessage = signInResult.error?.message ?? lastErrorMessage;
-
-      if (!signInResult.error && signInResult.data.user?.id === profileResult.data.user_id && signInResult.data.session) {
-        if (email !== canonicalEmail && isLegacyOwnerAuthEmail(email)) {
-          const updatedUser = await admin.auth.admin.updateUserById(profileResult.data.user_id, {
-            email: canonicalEmail,
-            email_confirm: true,
-            user_metadata: {
-              ...(userResult.data.user?.user_metadata ?? {}),
-              login_id: loginId,
-            },
-          });
-
-          if (updatedUser.error) {
-            console.error("[auth/login] failed to canonicalize owner auth email", updatedUser.error.message);
-          }
-        }
-
-        return createLoginResponse({
-          request,
-          profile: profileResult.data,
-          loginId,
-          session: signInResult.data.session,
-        });
-      }
-    }
-
-    return NextResponse.json({ message: getLoginErrorMessage(lastErrorMessage) }, { status: 401 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "아이디와 비밀번호를 입력해 주세요." }, { status: 400 });
+      return NextResponse.json({ message: "이메일과 비밀번호를 입력해 주세요." }, { status: 400 });
     }
 
     const message = error instanceof Error ? error.message : undefined;

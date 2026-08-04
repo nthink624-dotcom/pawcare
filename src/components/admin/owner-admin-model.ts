@@ -11,7 +11,7 @@ export type AdminOwnerEventType =
   | "suspended"
   | "restored"
   | "temporary_password_issued";
-export type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
+export type AdminLoginMethod = "email";
 
 export type AdminOwnerHistoryItem = {
   id: string;
@@ -43,7 +43,7 @@ export type AdminOwnerUsageWarning = {
 };
 
 export type TemporaryPasswordResult = {
-  loginId: string;
+  email: string;
   temporaryPassword: string;
   issuedAt: string;
 };
@@ -151,17 +151,11 @@ export const recentPaymentStatusMeta: Record<
 };
 
 export const loginMethodLabels: Record<AdminLoginMethod, string> = {
-  id: "아이디",
-  google: "구글",
-  kakao: "카카오",
-  naver: "네이버",
+  email: "이메일",
 };
 
 export const loginMethodToneMap: Record<AdminLoginMethod, string> = {
-  id: "border-[#ddd4c8] bg-[#fcfbf8] text-[#5e564f]",
-  google: "border-[#d7e3f5] bg-[#f6f9ff] text-[#3f63a2]",
-  kakao: "border-[#f3e08e] bg-[#fff9db] text-[#7f6200]",
-  naver: "border-[#cde9d8] bg-[#f2fbf5] text-[#1f6b5b]",
+  email: "border-[#d8e1ed] bg-[#f6f8fc] text-[#475569]",
 };
 
 export const statusToneMap: Record<OwnerSubscriptionStatus, string> = {
@@ -319,7 +313,7 @@ export function summarizeEvent(event: AdminOwnerHistoryItem) {
       return "정지 상태가 해제되어 다시 접속할 수 있습니다.";
     case "temporary_password_issued":
       return typeof event.nextPayload.loginId === "string"
-        ? `${event.nextPayload.loginId} 계정에 임시비밀번호를 발급했습니다.`
+    ? `${event.nextPayload.loginId} 이메일 계정에 임시비밀번호를 발급했습니다.`
         : "오너 계정에 임시비밀번호를 발급했습니다.";
     default:
       return event.note ?? "-";

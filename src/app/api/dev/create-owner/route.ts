@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
 import { getOwnerPlanIncludedAlimtalkCredits } from "@/lib/billing/owner-plans";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
@@ -15,7 +14,7 @@ import { seedDemoDataForShop } from "@/server/demo-seed";
 import { upsertOwnerShopMembership } from "@/server/owner-shop-memberships";
 
 const DEV_OWNER = {
-  loginId: "devowner",
+  email: "devowner@petmanager.test",
   password: "test1234",
   name: "테스트 오너",
   birthDate: "19900101",
@@ -74,13 +73,12 @@ export async function POST() {
 
   const now = nowIso();
   const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const authEmail = buildOwnerAuthEmail(DEV_OWNER.loginId);
   const subscriptionMetadata = buildDevSubscriptionMetadata(now, trialEndsAt);
 
   const profilesResult = await supabase
     .from("owner_profiles")
     .select("user_id, shop_id")
-    .eq("login_id", DEV_OWNER.loginId)
+    .eq("login_id", DEV_OWNER.email)
     .maybeSingle();
 
   if (profilesResult.error) {
@@ -103,15 +101,15 @@ export async function POST() {
     authUser = existingProfileUser.data.user ?? null;
   }
 
-  authUser = authUser ?? listedUsers.data.users.find((user) => user.email === authEmail) ?? null;
+  authUser = authUser ?? listedUsers.data.users.find((user) => user.email === DEV_OWNER.email) ?? null;
 
   if (!authUser) {
     const createdUser = await supabase.auth.admin.createUser({
-      email: authEmail,
+      email: DEV_OWNER.email,
       password: DEV_OWNER.password,
       email_confirm: true,
       user_metadata: {
-        login_id: DEV_OWNER.loginId,
+        login_id: DEV_OWNER.email,
         name: DEV_OWNER.name,
         ...subscriptionMetadata,
       },
@@ -126,12 +124,12 @@ export async function POST() {
   } else {
     const nextMetadata = {
       ...(authUser.user_metadata ?? {}),
-      login_id: DEV_OWNER.loginId,
+      login_id: DEV_OWNER.email,
       name: DEV_OWNER.name,
       ...subscriptionMetadata,
     };
     const updatedUser = await supabase.auth.admin.updateUserById(authUser.id, {
-      email: authEmail,
+      email: DEV_OWNER.email,
       password: DEV_OWNER.password,
       email_confirm: true,
       user_metadata: nextMetadata,
@@ -209,7 +207,7 @@ export async function POST() {
   const profileUpsert = await supabase.from("owner_profiles").upsert({
     user_id: authUser.id,
     shop_id: shopId,
-    login_id: DEV_OWNER.loginId,
+    login_id: DEV_OWNER.email,
     name: DEV_OWNER.name,
     birth_date: DEV_OWNER.birthDate,
     phone_number: DEV_OWNER.phoneNumber,
@@ -286,7 +284,7 @@ export async function POST() {
 
   return NextResponse.json({
     success: true,
-    loginId: DEV_OWNER.loginId,
+    email: DEV_OWNER.email,
     password: createdNewAuthUser ? DEV_OWNER.password : null,
     shopId,
     message: createdNewAuthUser

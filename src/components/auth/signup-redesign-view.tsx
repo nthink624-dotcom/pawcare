@@ -9,7 +9,7 @@ export type SignupProfileStage = "account" | "verification" | "verified" | "shop
 type SignupFields = {
   name: string;
   phoneNumber: string;
-  loginId: string;
+  email: string;
   password: string;
   passwordConfirm: string;
   shopName: string;
@@ -29,7 +29,7 @@ type SignupRedesignViewProps = {
   shopPhoneSameAsOwner: boolean;
   loading: boolean;
   message: string | null;
-  loginIdStatus?: FieldStatus;
+  emailStatus?: FieldStatus;
   passwordStatus?: FieldStatus;
   passwordConfirmStatus?: FieldStatus;
   onBack: () => void;
@@ -228,7 +228,7 @@ export default function SignupRedesignView({
   shopPhoneSameAsOwner,
   loading,
   message,
-  loginIdStatus,
+  emailStatus,
   passwordStatus,
   passwordConfirmStatus,
   onBack,
@@ -245,15 +245,16 @@ export default function SignupRedesignView({
     return (
       <SignupShell title="회원가입" onBack={onBack}>
         <p className="mb-[26px] text-[13px] leading-[1.55] text-[#64748b]">
-          로그인에 사용할 아이디와 비밀번호를 입력해 주세요.
+          로그인에 사용할 이메일과 비밀번호를 입력해 주세요.
         </p>
         <h2 className="mb-[14px] text-[15px] font-extrabold text-[#0f172a]">계정 정보</h2>
 
-        <Field label="아이디" status={loginIdStatus}>
+        <Field label="이메일" status={emailStatus}>
           <TextInput
-            value={fields.loginId}
-            onChange={(value) => onChangeField("loginId", value)}
-            placeholder="아이디를 입력해 주세요"
+            type="email"
+            value={fields.email}
+            onChange={(value) => onChangeField("email", value)}
+            placeholder="이메일을 입력해 주세요"
           />
         </Field>
         <Field label="비밀번호" status={passwordStatus}>

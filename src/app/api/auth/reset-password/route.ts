@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import {
-  buildOwnerAuthEmail,
-  buildOwnerAuthEmailCandidates,
-  isLegacyOwnerAuthEmail,
-  normalizeOwnerPhoneNumber,
-} from "@/lib/auth/owner-credentials";
+import { normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import { ownerPasswordResetSchema } from "@/lib/auth/owner-password-reset";
 import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
@@ -59,7 +54,7 @@ export async function POST(request: NextRequest) {
     const profile = await supabase
       .from("owner_profiles")
       .select("user_id, name, birth_date, phone_number, ci_hash, di_hash")
-      .eq("login_id", body.loginId)
+      .eq("login_id", body.email)
       .maybeSingle<OwnerPasswordResetProfile>();
 
     if (profile.error && isMissingIdentityHashColumnError(profile.error)) {
@@ -67,7 +62,7 @@ export async function POST(request: NextRequest) {
       const fallbackProfile = await supabase
         .from("owner_profiles")
         .select("user_id, name, birth_date, phone_number")
-        .eq("login_id", body.loginId)
+        .eq("login_id", body.email)
         .maybeSingle<Omit<OwnerPasswordResetProfile, "ci_hash" | "di_hash">>();
 
       if (fallbackProfile.error) {
@@ -125,42 +120,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Supabase 인증 클라이언트를 만들 수 없습니다." }, { status: 503 });
     }
 
-    const existingAuthUser = await supabase.auth.admin.getUserById(profileData.user_id);
-    let existingAuthEmail = existingAuthUser.data.user?.email ?? null;
-
-    if (isLegacyOwnerAuthEmail(existingAuthEmail)) {
-      const canonicalEmail = buildOwnerAuthEmail(body.loginId);
-      const updatedAuthUser = await supabase.auth.admin.updateUserById(profileData.user_id, {
-        email: canonicalEmail,
-        email_confirm: true,
-        user_metadata: {
-          ...(existingAuthUser.data.user?.user_metadata ?? {}),
-          login_id: body.loginId,
-        },
-      });
-
-      if (updatedAuthUser.error) {
-        return NextResponse.json(
-          { message: updatedAuthUser.error.message || "로그인 계정 정보를 갱신하지 못했어요." },
-          { status: 400 },
-        );
-      }
-
-      existingAuthEmail = updatedAuthUser.data.user?.email ?? canonicalEmail;
-    }
-
-    for (const email of buildOwnerAuthEmailCandidates(body.loginId, existingAuthEmail)) {
-      const currentPasswordCheck = await authClient.auth.signInWithPassword({
-        email,
-        password: body.password,
-      });
-
-      if (!currentPasswordCheck.error && currentPasswordCheck.data.user?.id === profileData.user_id) {
-        return NextResponse.json(
-          { message: "직전에 사용한 비밀번호는 다시 사용할 수 없습니다. 다른 비밀번호를 입력해 주세요." },
-          { status: 400 },
-        );
-      }
+    const currentPasswordCheck = await authClient.auth.signInWithPassword({
+      email: body.email,
+      password: body.password,
+    });
+    if (!currentPasswordCheck.error && currentPasswordCheck.data.user?.id === profileData.user_id) {
+      return NextResponse.json(
+        { message: "직전에 사용한 비밀번호는 다시 사용할 수 없습니다. 다른 비밀번호를 입력해 주세요." },
+        { status: 400 },
+      );
     }
 
     const consumed = await consumeVerifiedIdentity({

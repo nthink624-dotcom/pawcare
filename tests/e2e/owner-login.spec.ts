@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const loginId = process.env.OWNER_LOGIN_E2E_ID ?? process.env.OWNER_LOGIN_SMOKE_ID ?? "devowner";
+const email = process.env.OWNER_LOGIN_E2E_EMAIL ?? process.env.OWNER_LOGIN_SMOKE_EMAIL ?? "devowner@petmanager.test";
 const password = process.env.OWNER_LOGIN_E2E_PASSWORD ?? process.env.OWNER_LOGIN_SMOKE_PASSWORD ?? "test1234";
 const devShopName = "테스트 미용실";
 
@@ -20,9 +20,9 @@ test("owner can log in, land on /owner, and keep the session after reload", asyn
         lockedUntil: Date.now() + 10 * 60 * 1000,
       }),
     );
-  }, loginId);
+  }, email);
 
-  await page.getByTestId("owner-login-id").fill(loginId);
+  await page.getByTestId("owner-login-email").fill(email);
   await page.getByTestId("owner-login-password").fill(password);
   await page.getByTestId("owner-login-submit").click();
 

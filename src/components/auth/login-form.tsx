@@ -19,7 +19,7 @@ type OwnerLoginApiResponse = {
   };
 };
 
-const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
+const SAVED_EMAIL_KEY = "petmanager.savedEmail";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
@@ -30,18 +30,18 @@ type FailedLoginState = {
   count: number;
 };
 
-function getFailedLoginStateKey(loginId: string) {
-  return `${FAILED_LOGIN_STATE_PREFIX}:${loginId.trim().toLowerCase() || "unknown"}`;
+function getFailedLoginStateKey(email: string) {
+  return `${FAILED_LOGIN_STATE_PREFIX}:${email.trim().toLowerCase() || "unknown"}`;
 }
 
-async function reportStoragePressure(loginId: string, payload: { reason: string; usage?: number | null; quota?: number | null; usageRatio?: number | null }) {
+async function reportStoragePressure(email: string, payload: { reason: string; usage?: number | null; quota?: number | null; usageRatio?: number | null }) {
   try {
     await fetch("/api/auth/storage-health", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
       body: JSON.stringify({
-        loginId,
+        email,
         reason: payload.reason,
         usage: payload.usage ?? null,
         quota: payload.quota ?? null,
@@ -53,7 +53,7 @@ async function reportStoragePressure(loginId: string, payload: { reason: string;
   }
 }
 
-async function makeRoomForAuthStorage(loginId: string) {
+async function makeRoomForAuthStorage(email: string) {
   if (typeof window === "undefined") return;
 
   let reported = false;
@@ -67,7 +67,7 @@ async function makeRoomForAuthStorage(loginId: string) {
 
       if (usageRatio != null && usageRatio >= STORAGE_WARNING_USAGE_RATIO) {
         reported = true;
-        await reportStoragePressure(loginId, {
+        await reportStoragePressure(email, {
           reason: "storage_usage_over_80_percent",
           usage,
           quota,
@@ -85,7 +85,7 @@ async function makeRoomForAuthStorage(loginId: string) {
     return;
   } catch {
     if (!reported) {
-      await reportStoragePressure(loginId, {
+      await reportStoragePressure(email, {
         reason: "local_storage_write_failed",
         usage: null,
         quota: null,
@@ -103,18 +103,18 @@ async function makeRoomForAuthStorage(loginId: string) {
   }
 }
 
-function readFailedLoginState(loginId: string): FailedLoginState {
+function readFailedLoginState(email: string): FailedLoginState {
   if (typeof window === "undefined") {
     return { count: 0 };
   }
 
   try {
-    const raw = window.localStorage.getItem(getFailedLoginStateKey(loginId));
+    const raw = window.localStorage.getItem(getFailedLoginStateKey(email));
     if (!raw) return { count: 0 };
 
     const parsed = JSON.parse(raw) as Partial<FailedLoginState> & { lockedUntil?: unknown };
     if (parsed.lockedUntil) {
-      window.localStorage.removeItem(getFailedLoginStateKey(loginId));
+      window.localStorage.removeItem(getFailedLoginStateKey(email));
       return { count: 0 };
     }
 
@@ -125,14 +125,14 @@ function readFailedLoginState(loginId: string): FailedLoginState {
   }
 }
 
-function writeFailedLoginState(loginId: string, state: FailedLoginState) {
+function writeFailedLoginState(email: string, state: FailedLoginState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(getFailedLoginStateKey(loginId), JSON.stringify(state));
+  window.localStorage.setItem(getFailedLoginStateKey(email), JSON.stringify(state));
 }
 
-function clearFailedLoginState(loginId: string) {
+function clearFailedLoginState(email: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(getFailedLoginStateKey(loginId));
+  window.localStorage.removeItem(getFailedLoginStateKey(email));
 }
 
 function isRateLimitMessage(message?: string) {
@@ -151,7 +151,7 @@ function isInvalidCredentialMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
   return (
     normalized.includes("invalid login credentials") ||
-    normalized.includes("아이디") ||
+    normalized.includes("이메일") ||
     normalized.includes("비밀번호")
   );
 }
@@ -160,10 +160,10 @@ function getRateLimitMessage() {
   return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.";
 }
 
-function recordFailedLoginAttempt(loginId: string) {
-  const current = readFailedLoginState(loginId);
+function recordFailedLoginAttempt(email: string) {
+  const current = readFailedLoginState(email);
   const nextState = { count: Math.min(current.count + 1, FAILED_LOGIN_LIMIT) };
-  writeFailedLoginState(loginId, nextState);
+  writeFailedLoginState(email, nextState);
   return nextState;
 }
 
@@ -179,12 +179,12 @@ export default function LoginForm({
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
-  const [loginId, setLoginId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
-  const [rememberLoginId, setRememberLoginId] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
 
   useEffect(() => {
     if (nextPath.startsWith("/")) {
@@ -195,26 +195,26 @@ export default function LoginForm({
   useEffect(() => {
     setShowDevOwnerHelper(getSupabaseRuntimeStage() !== "production");
 
-    const savedLoginId = window.localStorage.getItem(SAVED_LOGIN_ID_KEY);
-    if (savedLoginId) {
-      setLoginId(savedLoginId);
-      setRememberLoginId(true);
+    const savedEmail = window.localStorage.getItem(SAVED_EMAIL_KEY);
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberEmail(true);
     }
   }, []);
 
-  const handleLogin = async (credentials?: { loginId: string; password: string }) => {
-    const currentLoginId = (credentials?.loginId ?? loginId).trim();
+  const handleLogin = async (credentials?: { email: string; password: string }) => {
+    const currentEmail = (credentials?.email ?? email).trim().toLowerCase();
     const currentPassword = credentials?.password ?? password;
 
-    if (currentLoginId !== loginId) {
-      setLoginId(currentLoginId);
+    if (currentEmail !== email) {
+      setEmail(currentEmail);
     }
     if (currentPassword !== password) {
       setPassword(currentPassword);
     }
 
-    if (!currentLoginId || !currentPassword) {
-      setMessage("아이디와 비밀번호를 입력해 주세요.");
+    if (!currentEmail || !currentPassword) {
+      setMessage("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
     if (!supabaseReady) {
@@ -229,14 +229,14 @@ export default function LoginForm({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loginId: currentLoginId, password: currentPassword }),
+        body: JSON.stringify({ email: currentEmail, password: currentPassword }),
       });
       const result = (await response.json().catch(() => ({
         message: "로그인 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       }))) as OwnerLoginApiResponse;
 
       if (!response.ok || !result.success) {
-        const nextMessage = result.message ?? "아이디 또는 비밀번호를 다시 확인해 주세요.";
+        const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
 
         if (isRateLimitMessage(nextMessage)) {
           setMessage(getRateLimitMessage());
@@ -244,12 +244,12 @@ export default function LoginForm({
         }
 
         if (isInvalidCredentialMessage(nextMessage)) {
-          const failedState = recordFailedLoginAttempt(currentLoginId);
+          const failedState = recordFailedLoginAttempt(currentEmail);
           const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
           setMessage(
             failedState.count >= FAILED_LOGIN_LIMIT
-              ? "아이디 또는 비밀번호를 다시 확인해 주세요. 계속 안 되면 비밀번호 찾기로 재설정해 주세요."
-              : `아이디 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 비밀번호 찾기를 권장해 드릴게요.`,
+              ? "이메일 또는 비밀번호를 다시 확인해 주세요. 계속 안 되면 비밀번호 찾기로 재설정해 주세요."
+              : `이메일 또는 비밀번호를 다시 확인해 주세요. ${remainingAttempts}회 더 틀리면 비밀번호 찾기를 권장해 드릴게요.`,
           );
           return;
         }
@@ -258,14 +258,14 @@ export default function LoginForm({
         return;
       }
 
-      clearFailedLoginState(currentLoginId);
+      clearFailedLoginState(currentEmail);
 
       const authenticatedSession = result.session;
       if (authenticatedSession?.accessToken && authenticatedSession.refreshToken) {
         clearOwnerAuthTokenCache();
         writeOwnerAuthHandoff(authenticatedSession);
         writeOwnerAuthSessionCache(authenticatedSession);
-        void makeRoomForAuthStorage(currentLoginId);
+        void makeRoomForAuthStorage(currentEmail);
 
         if (supabase) {
           void (async () => {
@@ -285,10 +285,10 @@ export default function LoginForm({
       }
 
       try {
-        if (rememberLoginId && currentLoginId) {
-          window.localStorage.setItem(SAVED_LOGIN_ID_KEY, currentLoginId);
+        if (rememberEmail && currentEmail) {
+          window.localStorage.setItem(SAVED_EMAIL_KEY, currentEmail);
         } else {
-          window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
+          window.localStorage.removeItem(SAVED_EMAIL_KEY);
         }
       } catch {
         // Remembering the login id is optional and must not block login.
@@ -315,19 +315,19 @@ export default function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      const result = (await response.json()) as { loginId?: string; password?: string | null; message?: string };
+      const result = (await response.json()) as { email?: string; password?: string | null; message?: string };
 
-      if (!response.ok || !result.loginId) {
+      if (!response.ok || !result.email) {
         setMessage(result.message ?? "개발용 테스트 계정을 만들지 못했어요.");
         return;
       }
 
-      setLoginId(result.loginId);
+      setEmail(result.email);
       if (result.password) {
         setPassword(result.password);
       }
-      setRememberLoginId(true);
-      window.localStorage.setItem(SAVED_LOGIN_ID_KEY, result.loginId);
+      setRememberEmail(true);
+      window.localStorage.setItem(SAVED_EMAIL_KEY, result.email);
       setMessage(result.message ?? "개발용 테스트 계정을 준비했어요. 바로 로그인해 보세요.");
     } finally {
       setCreatingDevOwner(false);
@@ -337,15 +337,15 @@ export default function LoginForm({
   return (
     <div>
       <MobileLoginScreenTemplate
-        loginId={loginId}
+        email={email}
         password={password}
-        rememberLoginId={rememberLoginId}
+        rememberEmail={rememberEmail}
         loading={loading}
         message={message}
         nextPath={nextPath}
-        onLoginIdChange={setLoginId}
+        onEmailChange={setEmail}
         onPasswordChange={setPassword}
-        onRememberLoginIdChange={setRememberLoginId}
+        onRememberEmailChange={setRememberEmail}
         onLogin={handleLogin}
       />
 

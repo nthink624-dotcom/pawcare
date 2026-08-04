@@ -4,26 +4,26 @@ import { Check, Copy, KeyRound, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 type TemporaryPasswordResult = {
-  loginId: string;
+  email: string;
   temporaryPassword: string;
   issuedAt: string;
 };
 
 export default function OwnerAdminPasswordPanel({
   ownerName,
-  loginId,
+  email,
   issuing,
   result,
   onIssue,
 }: {
   ownerName: string;
-  loginId: string | null;
+  email: string | null;
   issuing: boolean;
   result: TemporaryPasswordResult | null;
   onIssue: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const canIssue = Boolean(loginId);
+  const canIssue = Boolean(email);
 
   async function copyPassword() {
     if (!result?.temporaryPassword) return;
@@ -49,8 +49,8 @@ export default function OwnerAdminPasswordPanel({
       <div className="mt-2 rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[13px] text-[#64748b]">로그인 아이디</p>
-            <p className="mt-1 truncate text-[13px] text-[#0f172a]">{loginId ?? "-"}</p>
+            <p className="text-[13px] text-[#64748b]">로그인 이메일</p>
+            <p className="mt-1 truncate text-[13px] text-[#0f172a]">{email ?? "-"}</p>
           </div>
           <button
             type="button"
@@ -70,7 +70,7 @@ export default function OwnerAdminPasswordPanel({
         </div>
         {!canIssue ? (
           <p className="mt-2 rounded-[8px] bg-[#fff7ed] px-2.5 py-2 text-[12px] leading-4 text-[#9a5b24]">
-            {ownerName} 오너 계정에 로그인 아이디가 없어 임시비밀번호를 발급할 수 없습니다.
+            {ownerName} 오너 계정에 로그인 이메일이 없어 임시비밀번호를 발급할 수 없습니다.
           </p>
         ) : null}
       </div>

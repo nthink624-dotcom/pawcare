@@ -162,7 +162,7 @@ type AdminOwnerUsageWarning = {
   evidence: string[];
 };
 
-type AdminLoginMethod = "id" | "google" | "kakao" | "naver";
+type AdminLoginMethod = "email";
 
 type AdminOwnerItem = {
   userId: string;
@@ -191,61 +191,8 @@ type AdminOwnerItem = {
   recentPayments: AdminOwnerPaymentItem[];
 };
 
-function normalizeLoginProvider(value: string | null | undefined): AdminLoginMethod | null {
-  if (!value) return null;
-
-  const normalized = value.toLowerCase();
-  if (normalized === "google" || normalized === "kakao" || normalized === "naver") {
-    return normalized;
-  }
-
-  if (normalized === "custom:naver" || normalized.endsWith(":naver")) {
-    return "naver";
-  }
-
-  return null;
-}
-
-function extractLoginMethods(user: {
-  email?: string | null;
-  app_metadata?: Record<string, unknown> | null;
-  identities?: Array<{ provider?: string | null } | null> | null;
-}, loginId: string | null): AdminLoginMethod[] {
-  const methods = new Set<AdminLoginMethod>();
-
-  if (loginId || user.email?.endsWith("@owner.petmanager.local")) {
-    methods.add("id");
-  }
-
-  const directProvider =
-    typeof user.app_metadata?.provider === "string" ? normalizeLoginProvider(user.app_metadata.provider) : null;
-  if (directProvider) {
-    methods.add(directProvider);
-  }
-
-  const providers = Array.isArray(user.app_metadata?.providers) ? user.app_metadata.providers : [];
-  for (const provider of providers) {
-    if (typeof provider === "string") {
-      const normalized = normalizeLoginProvider(provider);
-      if (normalized) {
-        methods.add(normalized);
-      }
-    }
-  }
-
-  const identities = Array.isArray(user.identities) ? user.identities : [];
-  for (const identity of identities) {
-    const normalized = normalizeLoginProvider(identity?.provider);
-    if (normalized) {
-      methods.add(normalized);
-    }
-  }
-
-  if (methods.size === 0) {
-    methods.add("id");
-  }
-
-  return Array.from(methods);
+function extractLoginMethods(): AdminLoginMethod[] {
+  return ["email"];
 }
 
 const patchSchema = z.object({
@@ -804,7 +751,7 @@ async function readAdminOwners() {
         loginId: profile?.login_id ?? null,
         ownerPhoneNumber: profile?.phone_number ?? null,
         ownerEmail: authUser.email ?? null,
-        loginMethods: extractLoginMethods(authUser, profile?.login_id ?? null),
+        loginMethods: extractLoginMethods(),
         shopId: shop.id,
         shopName: shop.name,
         shopAddress: shop.address,

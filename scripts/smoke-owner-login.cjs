@@ -1,9 +1,9 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:3000";
-const DEFAULT_LOGIN_ID = "devowner";
+const DEFAULT_EMAIL = "devowner@petmanager.test";
 const DEFAULT_PASSWORD = "test1234";
 
 const baseUrl = (process.env.OWNER_LOGIN_SMOKE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
-const loginId = process.env.OWNER_LOGIN_SMOKE_ID || DEFAULT_LOGIN_ID;
+const email = process.env.OWNER_LOGIN_SMOKE_EMAIL || DEFAULT_EMAIL;
 const password = process.env.OWNER_LOGIN_SMOKE_PASSWORD || DEFAULT_PASSWORD;
 
 async function readJson(response) {
@@ -25,7 +25,7 @@ async function main() {
   const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ loginId, password }),
+    body: JSON.stringify({ email, password }),
   });
   const loginResult = await readJson(loginResponse);
 
@@ -37,7 +37,7 @@ async function main() {
     throw new Error("로그인은 성공했지만 세션 토큰이 응답에 없습니다.");
   }
 
-  console.log(`OK owner login smoke passed for ${loginId} at ${baseUrl}`);
+  console.log(`OK owner login smoke passed for ${email} at ${baseUrl}`);
 }
 
 main().catch((error) => {

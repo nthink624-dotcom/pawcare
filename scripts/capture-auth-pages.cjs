@@ -19,7 +19,7 @@ async function captureOwner(browser, owner) {
 
   console.log("owner: goto login");
   await page.goto(`${baseUrl}/login`, { waitUntil: "networkidle", timeout: 30000 });
-  await page.locator('input[placeholder="아이디"]').fill(owner.loginId);
+  await page.locator('input[placeholder="이메일"]').fill(owner.email);
   await page.locator('input[placeholder="비밀번호"]').fill(owner.password);
   console.log("owner: submit login");
   await page.getByRole("button", { name: "로그인" }).click();

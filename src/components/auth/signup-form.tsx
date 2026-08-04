@@ -16,11 +16,10 @@ import {
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
 import {
-  buildOwnerAuthEmail,
   isValidBirthDate8,
-  isValidOwnerLoginId,
+  isValidOwnerEmail,
   isValidOwnerPassword,
-  normalizeOwnerLoginId,
+  normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
@@ -49,9 +48,9 @@ type VerificationApiResponse = {
     phoneNumber?: string | null;
   } | null;
 };
-type LoginIdCheckState = {
+type EmailCheckState = {
   status: "idle" | "checking" | "available" | "unavailable" | "error";
-  loginId: string;
+  email: string;
   message: string | null;
 };
 
@@ -317,9 +316,9 @@ export default function SignupForm({
   const [profileStage, setProfileStage] = useState<SignupProfileStage>("account");
   const [pendingProfileStage, setPendingProfileStage] = useState<SignupProfileStage | null>(null);
   const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
-  const [loginIdCheck, setLoginIdCheck] = useState<LoginIdCheckState>({
+  const [emailCheck, setEmailCheck] = useState<EmailCheckState>({
     status: "idle",
-    loginId: "",
+    email: "",
     message: null,
   });
   const [shopDetailAddress, setShopDetailAddress] = useState("");
@@ -330,7 +329,7 @@ export default function SignupForm({
     birthDate: "",
     phoneNumber: "",
     verificationCode: "",
-    loginId: "",
+    email: "",
     password: "",
     passwordConfirm: "",
     shopName: "",
@@ -347,24 +346,24 @@ export default function SignupForm({
         ? { tone: "success" as const, helper: "비밀번호가 일치합니다" }
         : { error: "비밀번호가 일치하지 않습니다" };
   const passwordRuleError = fields.password.length > 0 && !isValidOwnerPassword(fields.password) ? ownerPasswordRuleMessage : undefined;
-  const normalizedLoginId = normalizeOwnerLoginId(fields.loginId);
-  const loginIdFieldError =
-    fields.loginId.length > 0 && !isValidOwnerLoginId(normalizedLoginId)
-      ? "아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요."
-      : loginIdCheck.status === "unavailable" && loginIdCheck.loginId === normalizedLoginId
-        ? loginIdCheck.message ?? "이미 사용 중인 아이디입니다."
-        : loginIdCheck.status === "error" && loginIdCheck.loginId === normalizedLoginId
-          ? loginIdCheck.message ?? "아이디 중복 확인 중 문제가 발생했습니다."
+  const normalizedEmail = normalizeOwnerEmail(fields.email);
+  const emailFieldError =
+    fields.email.length > 0 && !isValidOwnerEmail(normalizedEmail)
+      ? "올바른 이메일 주소를 입력해 주세요."
+      : emailCheck.status === "unavailable" && emailCheck.email === normalizedEmail
+        ? emailCheck.message ?? "이미 사용 중인 이메일입니다."
+        : emailCheck.status === "error" && emailCheck.email === normalizedEmail
+          ? emailCheck.message ?? "이메일 중복 확인 중 문제가 발생했습니다."
           : undefined;
-  const loginIdFieldHelper =
-    !loginIdFieldError && loginIdCheck.loginId === normalizedLoginId
-      ? loginIdCheck.status === "checking"
-        ? "아이디 중복을 확인하고 있어요."
-        : loginIdCheck.status === "available"
-          ? loginIdCheck.message ?? "사용 가능한 아이디입니다."
+  const emailFieldHelper =
+    !emailFieldError && emailCheck.email === normalizedEmail
+      ? emailCheck.status === "checking"
+        ? "이메일 중복을 확인하고 있어요."
+        : emailCheck.status === "available"
+          ? emailCheck.message ?? "사용 가능한 이메일입니다."
           : undefined
       : undefined;
-  const loginIdFieldTone = loginIdCheck.status === "available" && loginIdCheck.loginId === normalizedLoginId ? "success" : "default";
+  const emailFieldTone = emailCheck.status === "available" && emailCheck.email === normalizedEmail ? "success" : "default";
   const passwordFieldHelper = fields.password.length > 0 && !passwordRuleError ? "사용 가능합니다." : undefined;
   const passwordFieldTone = passwordFieldHelper ? "success" : "default";
 
@@ -372,39 +371,39 @@ export default function SignupForm({
   const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
 
   useEffect(() => {
-    const loginId = normalizeOwnerLoginId(fields.loginId);
-    if (!fields.loginId.trim()) {
-      setLoginIdCheck({ status: "idle", loginId: "", message: null });
+    const email = normalizeOwnerEmail(fields.email);
+    if (!fields.email.trim()) {
+      setEmailCheck({ status: "idle", email: "", message: null });
       return;
     }
 
-    if (!isValidOwnerLoginId(loginId)) {
-      setLoginIdCheck({ status: "idle", loginId, message: null });
+    if (!isValidOwnerEmail(email)) {
+      setEmailCheck({ status: "idle", email, message: null });
       return;
     }
 
     let active = true;
     const timer = window.setTimeout(async () => {
-      setLoginIdCheck({ status: "checking", loginId, message: null });
+      setEmailCheck({ status: "checking", email, message: null });
 
       try {
-        const response = await fetch(`/api/auth/check-login-id?loginId=${encodeURIComponent(loginId)}`, {
+        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, {
           cache: "no-store",
         });
         const result = (await response.json()) as { available?: boolean; message?: string };
         if (!active) return;
 
-        setLoginIdCheck({
+        setEmailCheck({
           status: response.ok && result.available ? "available" : "unavailable",
-          loginId,
+          email,
           message: result.message ?? null,
         });
       } catch {
         if (!active) return;
-        setLoginIdCheck({
+        setEmailCheck({
           status: "error",
-          loginId,
-          message: "아이디 중복 확인 중 문제가 발생했습니다.",
+          email,
+          message: "이메일 중복 확인 중 문제가 발생했습니다.",
         });
       }
     }, 350);
@@ -413,7 +412,7 @@ export default function SignupForm({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [fields.loginId]);
+  }, [fields.email]);
 
   useEffect(() => {
     let active = true;
@@ -482,18 +481,18 @@ export default function SignupForm({
   };
 
   const moveToVerificationStep = () => {
-    const loginId = normalizeOwnerLoginId(fields.loginId);
+    const email = normalizeOwnerEmail(fields.email);
 
-    if (!isValidOwnerLoginId(loginId)) {
-      setMessage("아이디는 영문 소문자, 숫자, 마침표(.), 하이픈(-), 밑줄(_) 조합으로 4자 이상 입력해 주세요.");
+    if (!isValidOwnerEmail(email)) {
+      setMessage("올바른 이메일 주소를 입력해 주세요.");
       return;
     }
-    if (loginIdCheck.loginId !== loginId || loginIdCheck.status === "checking") {
-      setMessage("아이디 중복 확인이 끝난 뒤 다시 진행해 주세요.");
+    if (emailCheck.email !== email || emailCheck.status === "checking") {
+      setMessage("이메일 중복 확인이 끝난 뒤 다시 진행해 주세요.");
       return;
     }
-    if (loginIdCheck.status !== "available") {
-      setMessage(loginIdCheck.message ?? "이미 사용 중인 아이디입니다.");
+    if (emailCheck.status !== "available") {
+      setMessage(emailCheck.message ?? "이미 사용 중인 이메일입니다.");
       return;
     }
     if (!isValidOwnerPassword(fields.password)) {
@@ -728,9 +727,9 @@ export default function SignupForm({
       return;
     }
 
-    const loginId = normalizeOwnerLoginId(fields.loginId);
-    if (!isValidOwnerLoginId(loginId)) {
-      setMessage("아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요.");
+    const email = normalizeOwnerEmail(fields.email);
+    if (!isValidOwnerEmail(email)) {
+      setMessage("올바른 이메일 주소를 입력해 주세요.");
       return;
     }
     if (!isValidOwnerPassword(fields.password)) {
@@ -762,7 +761,7 @@ export default function SignupForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId,
+          email,
           password: fields.password,
           passwordConfirm: fields.passwordConfirm,
           name: fields.name.trim(),
@@ -809,9 +808,9 @@ export default function SignupForm({
         shopPhoneSameAsOwner={shopPhoneSameAsOwner}
         loading={loading}
         message={profileStage === "verified" ? null : message}
-        loginIdStatus={{
-          text: loginIdFieldError ?? loginIdFieldHelper,
-          tone: loginIdFieldError ? "error" : loginIdFieldTone === "success" ? "success" : "default",
+        emailStatus={{
+          text: emailFieldError ?? emailFieldHelper,
+          tone: emailFieldError ? "error" : emailFieldTone === "success" ? "success" : "default",
         }}
         passwordStatus={{
           text: passwordRuleError ?? passwordFieldHelper,
@@ -979,7 +978,7 @@ export default function SignupForm({
                       안전한 매장 관리를 위해 가입자 본인 여부를 확인합니다.
                     </p>
                     <p className="mt-1 text-[12px] leading-5 text-[#94a3b8]">
-                      확인된 정보는 아이디 찾기와 비밀번호 재설정에도 사용됩니다.
+                확인된 정보는 이메일 찾기와 비밀번호 재설정에도 사용됩니다.
                     </p>
                   </div>
 

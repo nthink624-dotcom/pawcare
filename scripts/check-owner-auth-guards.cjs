@@ -34,8 +34,8 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/api/auth/login/route.ts",
-  "buildOwnerAuthEmailCandidates",
-  "Owner password login must try current and legacy auth email candidates.",
+  "signInWithPassword({ email, password: body.password })",
+  "Owner password login must verify the email and password directly with Supabase Auth.",
 );
 assertIncludes(
   "src/app/api/auth/login/route.ts",

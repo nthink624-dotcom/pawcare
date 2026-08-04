@@ -1,8 +1,18 @@
 export const ownerPasswordRuleMessage =
   "비밀번호 규칙에 맞지 않습니다. 6자 이상, 영문 대문자·소문자·숫자·특수문자 중 3종류 이상을 포함해 주세요.";
 
-export function normalizeOwnerLoginId(value: string) {
+/**
+ * Owner accounts now use a real email address as their sign-in identifier.
+ * `login_id` remains the legacy database column name until the wider data
+ * model is migrated, but it stores this normalized email for every new owner.
+ */
+export function normalizeOwnerEmail(value: string) {
   return value.trim().toLowerCase();
+}
+
+export function isValidOwnerEmail(value: string) {
+  const email = normalizeOwnerEmail(value);
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export function normalizeOwnerPhoneNumber(value: string | null | undefined) {
@@ -13,49 +23,6 @@ export function normalizeOwnerPhoneNumber(value: string | null | undefined) {
   }
 
   return digits.slice(0, 11);
-}
-
-export function isValidOwnerLoginId(value: string) {
-  return /^[a-z0-9](?:[a-z0-9._-]{3,29})$/.test(normalizeOwnerLoginId(value));
-}
-
-const OWNER_AUTH_EMAIL_DOMAIN = "owner.petmanager.co.kr";
-const PREVIOUS_OWNER_AUTH_EMAIL_DOMAIN = "owner.petmanager.local";
-const LEGACY_OWNER_AUTH_EMAIL_DOMAIN = "owner.pawcare.local";
-
-export function buildOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@${OWNER_AUTH_EMAIL_DOMAIN}`;
-}
-
-export function buildPreviousOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@${PREVIOUS_OWNER_AUTH_EMAIL_DOMAIN}`;
-}
-
-export function buildLegacyOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@${LEGACY_OWNER_AUTH_EMAIL_DOMAIN}`;
-}
-
-export function isLegacyOwnerAuthEmail(value: string | null | undefined) {
-  const normalized = value?.trim().toLowerCase() ?? "";
-  return (
-    normalized.endsWith(`@${PREVIOUS_OWNER_AUTH_EMAIL_DOMAIN}`) ||
-    normalized.endsWith(`@${LEGACY_OWNER_AUTH_EMAIL_DOMAIN}`)
-  );
-}
-
-export function buildOwnerAuthEmailCandidates(loginId: string, existingEmail?: string | null) {
-  return Array.from(
-    new Set(
-      [
-        existingEmail,
-        buildOwnerAuthEmail(loginId),
-        buildPreviousOwnerAuthEmail(loginId),
-        buildLegacyOwnerAuthEmail(loginId),
-      ].filter(
-        (value): value is string => Boolean(value),
-      ),
-    ),
-  );
 }
 
 export function isValidBirthDate8(value: string) {

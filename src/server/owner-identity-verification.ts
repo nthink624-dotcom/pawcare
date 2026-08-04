@@ -752,7 +752,7 @@ export async function getVerifiedIdentityForToken(input: {
 export async function consumeVerifiedIdentity(input: {
   verificationId: string;
   tokenId: string;
-  action: "signup" | "reset-password" | "find-login-id";
+  action: "signup" | "reset-password" | "find-email";
 }) {
   const supabase = getSupabaseOrThrow();
   const consumedAt = nowIso();

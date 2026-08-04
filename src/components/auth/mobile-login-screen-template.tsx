@@ -5,70 +5,70 @@ import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Props = {
-  loginId: string;
+  email: string;
   password: string;
-  rememberLoginId: boolean;
+  rememberEmail: boolean;
   loading: boolean;
   message: string | null;
   nextPath: string;
   heading?: string;
   descriptionLines?: string[];
-  loginIdPlaceholder?: string;
+  emailPlaceholder?: string;
   passwordPlaceholder?: string;
-  rememberLoginIdLabel?: string;
+  rememberEmailLabel?: string;
   loginButtonLabel?: string;
   loginButtonLoadingLabel?: string;
   helperLinks?: Array<{ href: string; label: string }>;
-  onLoginIdChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
-  onRememberLoginIdChange: (checked: boolean) => void;
-  onLogin: (credentials?: { loginId: string; password: string }) => void;
+  onRememberEmailChange: (checked: boolean) => void;
+  onLogin: (credentials?: { email: string; password: string }) => void;
 };
 
 export default function MobileLoginScreenTemplate({
-  loginId,
+  email,
   password,
-  rememberLoginId,
+  rememberEmail,
   loading,
   message,
   nextPath,
   heading = "로그인",
-  descriptionLines = ["아이디와 비밀번호를 입력해 로그인하세요.", "로그인 상태는 안전하게 유지됩니다."],
-  loginIdPlaceholder = "아이디",
+  descriptionLines = ["이메일과 비밀번호를 입력해 로그인하세요.", "로그인 상태는 안전하게 유지됩니다."],
+  emailPlaceholder = "이메일",
   passwordPlaceholder = "비밀번호",
-  rememberLoginIdLabel = "아이디 저장",
+  rememberEmailLabel = "이메일 저장",
   loginButtonLabel = "로그인",
   loginButtonLoadingLabel = "로그인 중...",
   helperLinks,
-  onLoginIdChange,
+  onEmailChange,
   onPasswordChange,
-  onRememberLoginIdChange,
+  onRememberEmailChange,
   onLogin,
 }: Props) {
   const [showPassword, setShowPassword] = useState(false);
-  const loginIdInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const resolvedHelperLinks = helperLinks ?? [
-    { href: "/login/find-id", label: "아이디 찾기" },
+    { href: "/login/find-email", label: "이메일 찾기" },
     { href: "/login/reset", label: "비밀번호 찾기" },
     { href: `/signup?next=${encodeURIComponent(nextPath)}`, label: "회원가입" },
   ];
 
   const readCurrentCredentials = useCallback(() => ({
-    loginId: loginIdInputRef.current?.value ?? loginId,
+    email: emailInputRef.current?.value ?? email,
     password: passwordInputRef.current?.value ?? password,
-  }), [loginId, password]);
+  }), [email, password]);
 
   const syncBrowserFilledCredentials = useCallback(() => {
     const current = readCurrentCredentials();
-    if (current.loginId !== loginId) {
-      onLoginIdChange(current.loginId);
+    if (current.email !== email) {
+      onEmailChange(current.email);
     }
     if (current.password !== password) {
       onPasswordChange(current.password);
     }
     return current;
-  }, [loginId, onLoginIdChange, onPasswordChange, password, readCurrentCredentials]);
+  }, [email, onEmailChange, onPasswordChange, password, readCurrentCredentials]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(syncBrowserFilledCredentials);
@@ -103,14 +103,14 @@ export default function MobileLoginScreenTemplate({
 
         <div className="mb-[10px]">
           <input
-            data-testid="owner-login-id"
-            ref={loginIdInputRef}
-            type="text"
-            value={loginId}
-            onChange={(event) => onLoginIdChange(event.target.value)}
+            data-testid="owner-login-email"
+            ref={emailInputRef}
+            type="email"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
             onBlur={syncBrowserFilledCredentials}
-            placeholder={loginIdPlaceholder}
-            autoComplete="username"
+            placeholder={emailPlaceholder}
+            autoComplete="email"
             className="h-[50px] w-full rounded-[11px] border border-[#e5e9f0] bg-[#f8fafc] px-4 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#0f172a] focus:bg-white"
           />
         </div>
@@ -143,11 +143,11 @@ export default function MobileLoginScreenTemplate({
           <label className="flex items-center gap-[7px] text-[13px] text-[#64748b]">
             <input
               type="checkbox"
-              checked={rememberLoginId}
-              onChange={(event) => onRememberLoginIdChange(event.target.checked)}
+              checked={rememberEmail}
+              onChange={(event) => onRememberEmailChange(event.target.checked)}
               className="h-4 w-4 accent-[#0f172a]"
             />
-            <span>{rememberLoginIdLabel}</span>
+            <span>{rememberEmailLabel}</span>
           </label>
         </div>
 

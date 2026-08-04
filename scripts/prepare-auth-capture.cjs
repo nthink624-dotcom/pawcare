@@ -27,10 +27,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function buildOwnerAuthEmail(loginId) {
-  return `${loginId.trim().toLowerCase()}@owner.petmanager.local`;
-}
-
 async function main() {
   const env = readEnvFile(path.join(process.cwd(), ".env.local"));
   const supabaseUrl = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,9 +40,8 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const ownerLoginId = "captureowner";
+  const ownerEmail = "captureowner@petmanager.test";
   const ownerPassword = "CaptureOwner!2026";
-  const ownerEmail = buildOwnerAuthEmail(ownerLoginId);
   const ownerName = "캡처용 오너";
   const ownerPhone = "01077778888";
   const shopId = "shop-capture01";
@@ -68,7 +63,7 @@ async function main() {
       password: ownerPassword,
       email_confirm: true,
       user_metadata: {
-        login_id: ownerLoginId,
+        login_id: ownerEmail,
         name: ownerName,
         subscription_status: "active",
         current_plan_code: "monthly",
@@ -86,7 +81,7 @@ async function main() {
       email_confirm: true,
       user_metadata: {
         ...(ownerUser.user_metadata || {}),
-        login_id: ownerLoginId,
+        login_id: ownerEmail,
         name: ownerName,
         subscription_status: "active",
         current_plan_code: "monthly",
@@ -135,7 +130,7 @@ async function main() {
     {
       user_id: ownerUser.id,
       shop_id: shopId,
-      login_id: ownerLoginId,
+      login_id: ownerEmail,
       name: ownerName,
       birth_date: "19900101",
       phone_number: ownerPhone,
@@ -233,7 +228,7 @@ async function main() {
     outputPath,
     JSON.stringify(
       {
-        owner: { loginId: ownerLoginId, password: ownerPassword, email: ownerEmail },
+        owner: { email: ownerEmail, password: ownerPassword },
         admin: { loginId: adminLoginId, password: adminPassword },
       },
       null,

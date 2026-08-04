@@ -52,10 +52,10 @@ type ResetStep = "account" | "method" | "code" | "password";
 const successMessagePatterns = ["완료", "변경", "보냈어요", "준비했어요", "확인했어요"];
 
 export default function ResetPasswordForm({
-  initialLoginId,
+  initialEmail,
   ready,
 }: {
-  initialLoginId?: string;
+  initialEmail?: string;
   ready: boolean;
 }) {
   const router = useRouter();
@@ -86,7 +86,7 @@ export default function ResetPasswordForm({
   } = useForm<OwnerPasswordResetInput>({
     resolver: zodResolver(ownerPasswordResetSchema),
     defaultValues: {
-      loginId: initialLoginId ?? "",
+      email: initialEmail ?? "",
       name: "",
       birthDate: "",
       phoneNumber: "",
@@ -125,7 +125,7 @@ export default function ResetPasswordForm({
   };
 
   const goToMethodStep = async () => {
-    const isValid = await trigger("loginId");
+    const isValid = await trigger("email");
     if (!isValid) return;
     setMessage(null);
     setStep("method");
@@ -133,8 +133,8 @@ export default function ResetPasswordForm({
 
   const requestCode = async () => {
     const values = getValues();
-    if (!values.loginId?.trim()) {
-      setMessage("아이디를 먼저 입력해 주세요.");
+    if (!values.email?.trim()) {
+      setMessage("이메일을 먼저 입력해 주세요.");
       return;
     }
 
@@ -146,7 +146,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId: values.loginId,
+          email: values.email,
           purpose: "reset-password",
           method: "local",
         }),
@@ -171,8 +171,8 @@ export default function ResetPasswordForm({
 
   const verifyCode = async () => {
     const values = getValues();
-    if (!values.loginId?.trim()) {
-      setMessage("아이디를 먼저 입력해 주세요.");
+    if (!values.email?.trim()) {
+      setMessage("이메일을 먼저 입력해 주세요.");
       return;
     }
 
@@ -189,7 +189,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId: values.loginId,
+          email: values.email,
           code: verificationCode,
           purpose: "reset-password",
           verificationRequestId,
@@ -211,8 +211,8 @@ export default function ResetPasswordForm({
 
   const verifyPass = async () => {
     const values = getValues();
-    if (!values.loginId?.trim()) {
-      setMessage("아이디를 먼저 입력해 주세요.");
+    if (!values.email?.trim()) {
+      setMessage("이메일을 먼저 입력해 주세요.");
       return;
     }
 
@@ -229,7 +229,7 @@ export default function ResetPasswordForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          loginId: values.loginId,
+          email: values.email,
           purpose: "reset-password",
           method: "portone",
         }),
@@ -310,7 +310,7 @@ export default function ResetPasswordForm({
   });
 
   const firstError =
-    errors.loginId?.message ||
+    errors.email?.message ||
     errors.password?.message ||
     errors.passwordConfirm?.message;
 
@@ -341,16 +341,16 @@ export default function ResetPasswordForm({
           {step === "account" ? (
             <section>
               <p className="mt-4 block w-full min-w-0 whitespace-nowrap text-[17px] font-semibold leading-7 text-[#111827]">
-                가입할 때 사용한 아이디를 입력해 주세요.
+                가입할 때 사용한 이메일을 입력해 주세요.
               </p>
 
               <label className="mt-7 block">
-                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">아이디</span>
+                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">이메일</span>
                 <input
-                  type="text"
-                  {...register("loginId")}
-                  autoComplete="username"
-                  placeholder="가입한 아이디"
+                  type="email"
+                  {...register("email")}
+                  autoComplete="email"
+                  placeholder="가입한 이메일"
                   className="h-[54px] w-full rounded-[8px] border border-[#d7e0e9] bg-white px-4 text-[16px] font-medium text-[#111827] outline-none transition placeholder:text-[#aab5c4] focus:border-[#247761] focus:ring-2 focus:ring-[#247761]/10"
                 />
               </label>

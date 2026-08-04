@@ -9,7 +9,7 @@ const routes = [
   { name: "home", url: "/" },
   { name: "login", url: "/login" },
   { name: "signup", url: "/signup" },
-  { name: "find-id", url: "/login/find-id" },
+  { name: "find-email", url: "/login/find-email" },
   { name: "reset-password", url: "/login/reset" },
   { name: "landing-business", url: "/business" },
   { name: "landing-privacy", url: "/privacy" },

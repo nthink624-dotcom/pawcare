@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { normalizeOwnerLoginId } from "@/lib/auth/owner-credentials";
+import { normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const storageHealthSchema = z.object({
-  loginId: z.string().trim().min(1),
+  email: z.string().trim().min(1),
   reason: z.string().trim().min(1).max(80),
   usage: z.number().finite().nonnegative().nullable().optional(),
   quota: z.number().finite().positive().nullable().optional(),
@@ -27,17 +27,17 @@ function isIgnorableAdminEventError(error: { code?: string | null } | null | und
 export async function POST(request: NextRequest) {
   try {
     const body = storageHealthSchema.parse(await request.json());
-    const loginId = normalizeOwnerLoginId(body.loginId);
+    const email = normalizeOwnerEmail(body.email);
     const admin = getSupabaseAdmin();
 
-    if (!admin || !loginId) {
+    if (!admin || !email) {
       return NextResponse.json({ success: true });
     }
 
     const profileResult = await admin
       .from("owner_profiles")
       .select("user_id, shop_id, login_id")
-      .eq("login_id", loginId)
+      .eq("login_id", email)
       .maybeSingle<OwnerProfileForStorageHealth>();
 
     if (profileResult.error || !profileResult.data?.user_id) {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       previous_payload: {},
       next_payload: {
         systemAlertType: "browser_storage_pressure",
-        loginId,
+        email,
         reason: body.reason,
         usage: body.usage ?? null,
         quota: body.quota ?? null,

@@ -7,7 +7,7 @@ export default async function ResetPasswordPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
-  const loginId = typeof params.loginId === "string" ? params.loginId : undefined;
+  const email = typeof params.email === "string" ? params.email : undefined;
 
-  return <ResetPasswordForm initialLoginId={loginId} ready={hasSupabaseBrowserEnv()} />;
+  return <ResetPasswordForm initialEmail={email} ready={hasSupabaseBrowserEnv()} />;
 }

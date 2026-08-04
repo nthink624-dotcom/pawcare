@@ -1,10 +1,12 @@
 ﻿"use client";
 
+import { Capacitor } from "@capacitor/core";
 import { CreditCard } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { OwnerBillingPlanPicker } from "@/components/owner/owner-billing-plan-picker";
+import { OwnerNativeBillingNotice } from "@/components/owner/owner-native-billing-notice";
 import { BillingConsent, PaymentMethodSheet, type PaymentMethodOption } from "@/features/billing";
 import {
   issueOwnerBillingKey,
@@ -76,6 +78,24 @@ function getCardNumberHint(label: string | null | undefined) {
   const match = label?.match(/(\d{3,4})/);
   if (!match) return null;
   return `앞자리 ${match[1]}`;
+}
+
+function getSafeBillingErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message.trim() : "";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("record_not_found") ||
+    normalized.includes("channel is not correct") ||
+    normalized.includes("channel key")
+  ) {
+    return "결제 설정을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (!message || message.includes("{") || message.includes("}")) {
+    return fallback;
+  }
+
+  return message;
 }
 
 const OWNER_BILLING_PENDING_KEY = "owner-billing:pending-register-and-pay";
@@ -204,6 +224,7 @@ export default function OwnerBillingScreen({
     initialSummary.paymentMethodExists && !initialSummary.paymentMethodResetRequired ? "saved" : "new",
   );
   const [resumingRegisteredCardPayment, setResumingRegisteredCardPayment] = useState(false);
+  const [runtimeMode, setRuntimeMode] = useState<"detecting" | "web" | "native">("detecting");
   const copy = statusCopy(summary);
   const [message, setMessage] = useState<string | null>(null);
   const agreementContinueRef = useRef<HTMLButtonElement | null>(null);
@@ -276,6 +297,10 @@ export default function OwnerBillingScreen({
     : `월 ${won(selectedPlan.monthlyPrice)}`;
 
   useEffect(() => {
+    setRuntimeMode(Capacitor.isNativePlatform() ? "native" : "web");
+  }, []);
+
+  useEffect(() => {
     setSummary(initialSummary);
   }, [initialSummary]);
 
@@ -291,11 +316,16 @@ export default function OwnerBillingScreen({
   }, [summary.paymentMethodExists, summary.paymentMethodResetRequired]);
 
   useEffect(() => {
+    if (runtimeMode !== "web") return;
     if (!openPaymentSheet || isFreePlan || !hasUsableRegisteredPaymentMethod) return;
     setPaymentSheetOpen(true);
-  }, [hasUsableRegisteredPaymentMethod, isFreePlan, openPaymentSheet]);
+  }, [hasUsableRegisteredPaymentMethod, isFreePlan, openPaymentSheet, runtimeMode]);
 
   useEffect(() => {
+    if (runtimeMode !== "web") {
+      clearPendingBillingRegistration();
+      return;
+    }
     const pending = readPendingBillingRegistration();
     if (!pending) return;
     if (Date.now() - pending.requestedAt > 1000 * 60 * 20) {
@@ -341,7 +371,7 @@ export default function OwnerBillingScreen({
       } catch (error) {
         if (cancelled) return;
         clearPendingBillingRegistration();
-        setMessage(error instanceof Error ? error.message : "카드 등록 후 결제를 이어서 진행하지 못했습니다.");
+        setMessage(getSafeBillingErrorMessage(error, "카드 등록 후 결제를 이어서 진행하지 못했습니다."));
       } finally {
         if (!cancelled) {
           setResumingRegisteredCardPayment(false);
@@ -354,9 +384,10 @@ export default function OwnerBillingScreen({
     return () => {
       cancelled = true;
     };
-  }, [resumingRegisteredCardPayment, retryingPayment, summary, usesOneTimePayment]);
+  }, [resumingRegisteredCardPayment, retryingPayment, runtimeMode, summary, usesOneTimePayment]);
 
   async function handleRegisterCard() {
+    if (Capacitor.isNativePlatform()) return;
     if (registeringCard || retryingPayment) return;
     if (!env.portoneBillingChannelKey) {
       setMessage("PortOne 정기결제 채널 설정을 먼저 확인해 주세요.");
@@ -394,7 +425,7 @@ export default function OwnerBillingScreen({
       }
     } catch (error) {
       clearPendingBillingRegistration();
-      setMessage(error instanceof Error ? error.message : "카드 등록 또는 결제를 완료하지 못했습니다.");
+      setMessage(getSafeBillingErrorMessage(error, "카드 등록 또는 결제를 완료하지 못했습니다."));
     } finally {
       setRegisteringCard(false);
       setRetryingPayment(false);
@@ -402,6 +433,7 @@ export default function OwnerBillingScreen({
   }
 
   async function handlePayNow() {
+    if (Capacitor.isNativePlatform()) return;
     if (retryingPayment) return;
     setRetryingPayment(true);
     setMessage(null);
@@ -416,13 +448,14 @@ export default function OwnerBillingScreen({
         setMessage("결제를 완료하지 못했습니다. 카드 정보를 다시 확인해 주세요.");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제를 처리하지 못했습니다.");
+      setMessage(getSafeBillingErrorMessage(error, "결제를 처리하지 못했습니다."));
     } finally {
       setRetryingPayment(false);
     }
   }
 
   async function handleOneTimePayment() {
+    if (Capacitor.isNativePlatform()) return;
     if (retryingPayment) return;
 
     setRetryingPayment(true);
@@ -450,7 +483,7 @@ export default function OwnerBillingScreen({
         setMessage("결제를 완료하지 못했습니다.");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제를 완료하지 못했습니다.");
+      setMessage(getSafeBillingErrorMessage(error, "결제를 완료하지 못했습니다."));
     } finally {
       setRetryingPayment(false);
     }
@@ -491,6 +524,7 @@ export default function OwnerBillingScreen({
   }
 
   async function handlePaymentSheetSubmit() {
+    if (Capacitor.isNativePlatform()) return;
     if (registeringCard || retryingPayment) return;
 
     try {
@@ -506,6 +540,22 @@ export default function OwnerBillingScreen({
     } catch {
       // Error messages are already handled in each payment action.
     }
+  }
+
+  if (runtimeMode === "detecting") {
+    return <div className="min-h-screen w-full bg-white" aria-label="앱 화면 준비 중" />;
+  }
+
+  if (runtimeMode === "native") {
+    const canReturnToApp = summary.status === "active" || summary.status === "trialing" || summary.status === "trial_will_end";
+
+    return (
+      <OwnerNativeBillingNotice
+        summary={summary}
+        onRefresh={() => window.location.reload()}
+        onBack={canReturnToApp ? () => router.push("/owner/mobile" as never) : undefined}
+      />
+    );
   }
 
   if (isSelectingPlan) {
@@ -590,7 +640,7 @@ export default function OwnerBillingScreen({
   }
 
   return (
-    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] break-keep bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
       <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
         <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">{PETMANAGER_SERVICE_NAME} 플랜 및 결제</p>
         <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">다시 이용할 플랜을 확인해 주세요</h1>

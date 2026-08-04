@@ -9,4 +9,8 @@ dist
 *.log
 *.tsbuildinfo
 .local-secrets/
+android/keystore.properties
+android/app/google-services.json
+*.jks
+*.keystore
 supabase/.temp/

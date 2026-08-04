@@ -1,9 +1,10 @@
 ﻿"use client";
 
-import { Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, ExternalLink, FileText, KeyRound, LogOut, Mail, MapPin, MessageCircle, Phone, Plus, Store, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { InfoTip } from "@/components/owner/owner-app-ui";
+import OwnerAppNotificationSettings from "@/components/owner/owner-app-notification-settings";
 import OwnerSupportPanel from "@/components/owner/owner-support-panel";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import { Switch } from "@/components/ui/switch";
@@ -45,7 +46,7 @@ type SaveFeedback = {
   description?: string;
 };
 
-type SettingsScreen = "shop" | "closures" | "notifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsScreen = "shop" | "closures" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
 type StaffProfileDraft = {
   name: string;
   displayName: string;
@@ -273,11 +274,16 @@ export default function OwnerSettingsPanel({
   const [notificationSettingsFeedback, setNotificationSettingsFeedback] = useState<SaveFeedback>({ type: "idle", message: "" });
   const notificationSaveQueueRef = useRef(Promise.resolve());
   const notificationSaveCountRef = useRef(0);
-  const [staffPushEnabled, setStaffPushEnabled] = useState(true);
-
   const activeScreen = onActiveScreenChange ? (initialScreen ?? null) : localActiveScreen;
   const isStaffApp = appRole === "staff";
-  const effectiveActiveScreen = isStaffApp && activeScreen && activeScreen !== "support" && activeScreen !== "legal" && activeScreen !== "account" ? null : activeScreen;
+  const effectiveActiveScreen =
+    isStaffApp &&
+    activeScreen &&
+    activeScreen !== "support" &&
+    activeScreen !== "legal" &&
+    activeScreen !== "account"
+      ? null
+      : activeScreen;
   const accountLoginId = resolveLoginIdFromOwnerAuthEmail(userEmail);
   const currentStaff = useMemo(
     () => data.staffMembers.find((staffMember) => staffMember.id === currentStaffId) ?? data.staffMembers[0] ?? null,
@@ -1364,10 +1370,19 @@ export default function OwnerSettingsPanel({
     </SettingsCard>
   );
 
+  const appNotificationsSection = (
+    <OwnerAppNotificationSettings
+      shopId={data.shop.id}
+      staffMemberId={appRole === "staff" ? currentStaff?.id ?? currentStaffId : null}
+      appRole={appRole}
+    />
+  );
+
   const screenMap: Record<Exclude<SettingsScreen, null>, { title: string; content: ReactNode }> = {
     shop: { title: "매장 기본 정보", content: shopSection },
     closures: { title: "영업 시간 설정", content: closuresSection },
     notifications: { title: "알림톡 설정", content: notificationsSection },
+    appNotifications: { title: "앱 알림", content: appNotificationsSection },
     staff: { title: "직원관리", content: staffSection },
     support: { title: "1:1 문의", content: supportSection },
     legal: { title: "약관 및 정책", content: legalSection },
@@ -1476,8 +1491,6 @@ export default function OwnerSettingsPanel({
         staffMember={currentStaff}
         shopName={decodeUnicodeEscapes(data.shop.name)}
         accountLoginId={accountLoginId}
-        pushEnabled={staffPushEnabled}
-        onPushEnabledChange={setStaffPushEnabled}
         onSupportClick={() => updateActiveScreen("support")}
         onLegalClick={() => updateActiveScreen("legal")}
         onAccountClick={onLogout ? () => updateActiveScreen("account") : undefined}
@@ -1504,6 +1517,11 @@ export default function OwnerSettingsPanel({
           icon={Bell}
           title="알림톡 설정"
           onClick={() => updateActiveScreen("notifications")}
+        />
+        <SettingsNavRow
+          icon={BellRing}
+          title="앱 알림"
+          onClick={() => updateActiveScreen("appNotifications")}
         />
         <SettingsNavRow
           icon={UserRound}
@@ -1799,8 +1817,6 @@ function StaffSettingsHome({
   staffMember,
   shopName,
   accountLoginId,
-  pushEnabled,
-  onPushEnabledChange,
   onSupportClick,
   onLegalClick,
   onAccountClick,
@@ -1808,8 +1824,6 @@ function StaffSettingsHome({
   staffMember: BootstrapStaffMember | null;
   shopName: string;
   accountLoginId: string | null;
-  pushEnabled: boolean;
-  onPushEnabledChange: (checked: boolean) => void;
   onSupportClick: () => void;
   onLegalClick: () => void;
   onAccountClick?: () => void;
@@ -1840,20 +1854,6 @@ function StaffSettingsHome({
             <p className="text-[15px] leading-6 text-[#475467]">
               프로필 사진, 표시 이름, 담당 서비스는 오너가 관리해요. 변경이 필요하면 매장 관리자에게 요청해 주세요.
             </p>
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-[#dfe7f0] bg-white p-4">
-          <p className="mb-3 text-[16px] font-medium tracking-[-0.02em] text-[#101828]">업무 알림</p>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <Bell className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={1.9} />
-              <div className="min-w-0">
-                <p className="text-[17px] font-medium tracking-[-0.02em] text-[#101828]">앱 알림 수신</p>
-                <p className="mt-1 text-[15px] leading-5 text-[#667085]">내 예약과 일정 변경 알림을 앱에서 받아요.</p>
-              </div>
-            </div>
-            <Switch checked={pushEnabled} aria-label="앱 알림 수신" onCheckedChange={onPushEnabledChange} />
           </div>
         </div>
 

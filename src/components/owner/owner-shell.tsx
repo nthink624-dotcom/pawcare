@@ -10,6 +10,11 @@ import { fetchApiJsonWithAuth } from "@/lib/api";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
+import {
+  deactivateOwnerPushNotifications,
+  getOwnerPushPreferences,
+  syncOwnerPushNotifications,
+} from "@/lib/push/owner-push-notifications";
 import type { OwnerSubscriptionSummary } from "@/lib/billing/owner-subscription";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
@@ -212,6 +217,17 @@ export default function OwnerShell({
   }, [subscriptionSummary]);
 
   useEffect(() => {
+    if (appRole !== "owner") return;
+    void syncOwnerPushNotifications({
+      shopId: initialData.shop.id,
+      staffMemberId: null,
+      appRole,
+    }).catch(() => {
+      // The settings screen presents a safe retry message when registration is unavailable.
+    });
+  }, [appRole, currentStaffId, initialData.shop.id]);
+
+  useEffect(() => {
     if (!summary || summary.status !== "past_due") {
       setRedirectingToBilling(false);
       return;
@@ -262,6 +278,13 @@ export default function OwnerShell({
     setLoggingOut(true);
 
     try {
+      if (appRole === "owner" && getOwnerPushPreferences().enabled) {
+        await deactivateOwnerPushNotifications({
+          shopId: initialData.shop.id,
+          staffMemberId: null,
+          appRole,
+        }).catch(() => undefined);
+      }
       if (supabase) {
         await supabase.auth.signOut();
       }

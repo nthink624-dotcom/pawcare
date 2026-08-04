@@ -3,15 +3,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { buildOwnerAuthEmail } from "@/lib/auth/owner-credentials";
-import { getSupabaseRuntimeStage } from "@/lib/env";
+import {
+  clearOwnerAuthTokenCache,
+  writeOwnerAuthHandoff,
+  writeOwnerAuthSessionCache,
+} from "@/lib/auth/owner-auth-handoff";
+import { buildOwnerAuthEmailCandidates } from "@/lib/auth/owner-credentials";
+import {
+  addNativeOwnerOAuthListener,
+  exchangeNativeOwnerOAuthUrl,
+  isNativeOwnerApp,
+  openNativeOwnerOAuth,
+  OWNER_NATIVE_AUTH_CALLBACK_URL,
+} from "@/lib/auth/native-social-auth";
 import {
   getSocialOAuthProvider,
   PENDING_SOCIAL_PROVIDER_COOKIE,
   PENDING_SOCIAL_PROVIDER_STORAGE,
   type SocialProvider,
 } from "@/lib/auth/social-auth";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseRuntimeStage } from "@/lib/env";
+import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
@@ -28,10 +40,13 @@ function toKoreanAuthError(message: string) {
     return "이미 가입된 계정이에요.";
   }
   if (normalized.includes("password should be at least")) {
-    return "비밀번호는 6자 이상 입력해 주세요.";
+    return "비밀번호를 6자 이상 입력해 주세요.";
   }
   if (normalized.includes("unable to validate email address")) {
     return "이메일 형식을 다시 확인해 주세요.";
+  }
+  if (/[가-힣]/.test(message)) {
+    return message;
   }
   if (normalized.includes("oauth")) {
     return "소셜 로그인 처리 중 문제가 발생했어요. 다시 시도해 주세요.";
@@ -40,7 +55,7 @@ function toKoreanAuthError(message: string) {
   return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-const SAVED_LOGIN_ID_KEY = "pawcare.savedLoginId";
+const SAVED_LOGIN_ID_KEY = "petmanager.savedLoginId";
 
 export default function LoginForm({
   supabaseReady,
@@ -53,6 +68,7 @@ export default function LoginForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const showDevOwnerHelper = useMemo(
     () => getSupabaseRuntimeStage() !== "production" && nextPath !== "/owner/mobile",
     [nextPath],
@@ -73,7 +89,58 @@ export default function LoginForm({
     }
   }, []);
 
+  useEffect(() => {
+    if (!isNativeOwnerApp() || !oauthSupabase) return;
+
+    const nativeOAuthSupabase = oauthSupabase;
+    let active = true;
+    let removeListener: (() => Promise<void>) | null = null;
+
+    async function completeNativeOAuth(callbackUrl: string) {
+      try {
+        const session = await exchangeNativeOwnerOAuthUrl(nativeOAuthSupabase, callbackUrl);
+        if (!active || !session?.access_token || !session.refresh_token) return;
+
+        const handoff = {
+          accessToken: session.access_token,
+          refreshToken: session.refresh_token,
+        };
+        clearOwnerAuthTokenCache();
+        writeOwnerAuthHandoff(handoff);
+        writeOwnerAuthSessionCache(handoff);
+        setMessage(null);
+        router.replace(nextPath as never);
+        router.refresh();
+      } catch (error) {
+        if (!active) return;
+        const nextMessage = error instanceof Error ? error.message : "소셜 로그인 처리 중 문제가 발생했어요.";
+        setMessage(toKoreanAuthError(nextMessage));
+      } finally {
+        if (active) setSocialLoading(null);
+      }
+    }
+
+    void addNativeOwnerOAuthListener(completeNativeOAuth).then((handle) => {
+      if (!active) {
+        void handle.remove();
+        return;
+      }
+      removeListener = () => handle.remove();
+    });
+
+    return () => {
+      active = false;
+      if (removeListener) void removeListener();
+    };
+  }, [nextPath, oauthSupabase, router]);
+
   const handleLogin = async () => {
+    const currentLoginId = loginId.trim();
+    if (!currentLoginId || !password) {
+      setMessage("아이디와 비밀번호를 입력해 주세요.");
+      return;
+    }
+
     if (!supabaseReady || !supabase) {
       setMessage("로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -83,18 +150,34 @@ export default function LoginForm({
     setMessage(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: buildOwnerAuthEmail(loginId),
-        password,
-      });
+      let lastError: Error | null = null;
+      let signedIn = false;
 
-      if (error) {
-        setMessage(toKoreanAuthError(error.message));
+      for (const email of buildOwnerAuthEmailCandidates(currentLoginId)) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!error && data.session?.access_token && data.session.refresh_token) {
+          const handoff = {
+            accessToken: data.session.access_token,
+            refreshToken: data.session.refresh_token,
+          };
+          clearOwnerAuthTokenCache();
+          writeOwnerAuthHandoff(handoff);
+          writeOwnerAuthSessionCache(handoff);
+          signedIn = true;
+          break;
+        }
+
+        lastError = error;
+        if (error && !error.message.toLowerCase().includes("invalid login credentials")) break;
+      }
+
+      if (!signedIn) {
+        setMessage(toKoreanAuthError(lastError?.message ?? "invalid login credentials"));
         return;
       }
 
-      if (rememberLoginId && loginId.trim()) {
-        window.localStorage.setItem(SAVED_LOGIN_ID_KEY, loginId.trim());
+      if (rememberLoginId) {
+        window.localStorage.setItem(SAVED_LOGIN_ID_KEY, currentLoginId);
       } else {
         window.localStorage.removeItem(SAVED_LOGIN_ID_KEY);
       }
@@ -107,7 +190,7 @@ export default function LoginForm({
   };
 
   const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !supabase) {
+    if (!supabaseReady || !oauthSupabase) {
       setMessage("소셜 로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
@@ -119,11 +202,15 @@ export default function LoginForm({
       document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
       window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
 
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const nativeApp = isNativeOwnerApp();
+      const redirectTo = nativeApp
+        ? OWNER_NATIVE_AUTH_CALLBACK_URL
+        : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
+      const { data, error } = await oauthSupabase.auth.signInWithOAuth({
         provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
         options: {
           redirectTo,
+          skipBrowserRedirect: nativeApp,
           queryParams:
             provider === "google"
               ? { prompt: "select_account" }
@@ -135,7 +222,19 @@ export default function LoginForm({
 
       if (error) {
         setMessage(toKoreanAuthError(error.message));
+        return;
       }
+
+      if (nativeApp) {
+        if (!data.url) {
+          setMessage("소셜 로그인 페이지를 열지 못했어요. 다시 시도해 주세요.");
+          return;
+        }
+        await openNativeOwnerOAuth(data.url);
+      }
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "소셜 로그인 처리 중 문제가 발생했어요.";
+      setMessage(toKoreanAuthError(nextMessage));
     } finally {
       setSocialLoading(null);
     }
@@ -189,7 +288,7 @@ export default function LoginForm({
           <div className="rounded-[22px] border border-[#dfe7e2] bg-[#f6fbf9] p-4">
             <p className="text-[13px] font-semibold text-[#1f6b5b]">개발용 테스트 계정</p>
             <p className="mt-2 text-[13px] leading-6 text-[#5f6c66]">
-              새 개발용 DB에서는 운영 계정이 자동으로 복사되지 않아요. 버튼 한 번으로 테스트 오너 계정을 만들고 바로 로그인할 수 있어요.
+              개발 DB에서는 운영 계정을 자동으로 복사하지 않아요. 버튼 한 번으로 테스트 오너 계정을 만들고 바로 로그인할 수 있어요.
             </p>
             <button
               type="button"

@@ -39,12 +39,16 @@ import { concurrentCapacityForApprovalMode } from "@/lib/booking-slot-settings";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { createOwnerMediaAssetFromFile, type MediaAssetListItem } from "@/lib/media/owner-media-client";
 import { ownerHomeCopy } from "@/lib/owner-home-copy";
+import {
+  OWNER_PUSH_RECEIVED_EVENT,
+  type OwnerPushReceivedEventDetail,
+} from "@/lib/push/owner-push-notifications";
 import { addDate, cn, currentDateInTimeZone, currentMinutesInTimeZone, formatClockTime, minutesFromTime, phoneNormalize, shortDate, won } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, GroomingRecord, MediaKind, Pet, Service } from "@/types/domain";
 
 type TabKey = "home" | "book" | "customers" | "settings";
 type CustomerDetailTab = "pets" | "records" | "notifications";
-type SettingsEntryScreen = "shop" | "closures" | "notifications" | "staff" | "support" | "legal" | "account" | null;
+type SettingsEntryScreen = "shop" | "closures" | "notifications" | "appNotifications" | "staff" | "support" | "legal" | "account" | null;
 type OwnerGuideScreen = "getting-started" | null;
 type MobileAppRole = "owner" | "staff";
 type HomeStaffFilterKey = "all" | "unassigned" | string;
@@ -147,6 +151,7 @@ const settingsEntryScreenTitles: Record<Exclude<SettingsEntryScreen, null>, stri
   shop: "매장 기본 정보",
   closures: "영업 시간 설정",
   notifications: "알림톡 설정",
+  appNotifications: "앱 알림",
   staff: "직원관리",
   support: "1:1 문의",
   legal: "약관 및 정책",
@@ -339,6 +344,7 @@ export default function OwnerApp({
   const [error, setError] = useState<string | null>(null);
   const [ownerPageOrigin, setOwnerPageOrigin] = useState("");
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
+  const [pushNotice, setPushNotice] = useState<OwnerPushReceivedEventDetail | null>(null);
   const [isGuardianEditing, setIsGuardianEditing] = useState(false);
   const [isGuardianMemoEditing, setIsGuardianMemoEditing] = useState(false);
   const [editingCustomerFields, setEditingCustomerFields] = useState<Record<CustomerEditableField, boolean>>({
@@ -358,6 +364,7 @@ export default function OwnerApp({
   const bookingLinkCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardianMemoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const launchedPhotoStatusActionRef = useRef<string | null>(null);
+  const pushNoticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resizeGuardianMemoTextarea = () => {
     const textarea = guardianMemoTextareaRef.current;
@@ -370,6 +377,9 @@ export default function OwnerApp({
     return () => {
       if (bookingLinkCopyTimeoutRef.current) {
         clearTimeout(bookingLinkCopyTimeoutRef.current);
+      }
+      if (pushNoticeTimeoutRef.current) {
+        clearTimeout(pushNoticeTimeoutRef.current);
       }
     };
   }, []);
@@ -457,6 +467,66 @@ export default function OwnerApp({
   useEffect(() => {
     setOwnedShopItems(ownedShops);
   }, [ownedShops]);
+
+  useEffect(() => {
+    let active = true;
+
+    const handlePushReceived = (event: Event) => {
+      const detail = (event as CustomEvent<OwnerPushReceivedEventDetail>).detail;
+      if (detail.shopId && detail.shopId !== data.shop.id) return;
+
+      void (async () => {
+        try {
+          const next = isOwnerDemo
+            ? data
+            : await fetchJson<BootstrapPayload>(`/api/bootstrap?shopId=${data.shop.id}`, { cache: "no-store" });
+          if (!active) return;
+
+          if (!isOwnerDemo) {
+            setData(next);
+            setOwnedShopItems((previous) =>
+              previous.map((item) =>
+                item.id === next.shop.id
+                  ? {
+                      ...item,
+                      name: next.shop.name,
+                      address: next.shop.address,
+                      heroImageUrl: next.shop.customer_page_settings?.hero_image_url || "",
+                    }
+                  : item,
+              ),
+            );
+          }
+
+          const appointment = detail.appointmentId
+            ? next.appointments.find((item) => item.id === detail.appointmentId)
+            : null;
+
+          if (detail.opened) {
+            setActiveTab("book");
+            setSettingsEntryScreen(null);
+            if (appointment) {
+              setSelectedDate(appointment.appointment_date);
+              setModal({ type: "appointment", appointment });
+            }
+            return;
+          }
+
+          setPushNotice(detail);
+          if (pushNoticeTimeoutRef.current) clearTimeout(pushNoticeTimeoutRef.current);
+          pushNoticeTimeoutRef.current = setTimeout(() => setPushNotice(null), 5000);
+        } catch {
+          if (active) setPushNotice(detail);
+        }
+      })();
+    };
+
+    window.addEventListener(OWNER_PUSH_RECEIVED_EVENT, handlePushReceived);
+    return () => {
+      active = false;
+      window.removeEventListener(OWNER_PUSH_RECEIVED_EVENT, handlePushReceived);
+    };
+  }, [data, isOwnerDemo]);
 
   useEffect(() => {
     if (!launchPhotoStatusAction) return;
@@ -1815,6 +1885,30 @@ export default function OwnerApp({
         isHomeTab && !isCustomerDetailView ? "h-dvh overflow-hidden" : "min-h-screen",
       )}
     >
+      {pushNotice ? (
+        <button
+          type="button"
+          onClick={() => {
+            const appointment = pushNotice.appointmentId
+              ? data.appointments.find((item) => item.id === pushNotice.appointmentId)
+              : null;
+            setPushNotice(null);
+            setActiveTab("book");
+            setSettingsEntryScreen(null);
+            if (appointment) {
+              setSelectedDate(appointment.appointment_date);
+              setModal({ type: "appointment", appointment });
+            }
+          }}
+          className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+12px)] z-[70] flex w-[calc(100%-32px)] max-w-[398px] -translate-x-1/2 items-center justify-between gap-3 rounded-[8px] border border-[#cfe0d9] bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(15,23,42,0.14)]"
+        >
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold text-[var(--text)]">새 예약이 접수되었습니다.</span>
+            <span className="mt-0.5 block text-[13px] text-[var(--muted)]">눌러서 예약을 확인해 주세요.</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={2} />
+        </button>
+      ) : null}
       {!isCustomerDetailView ? (
       <header className={cn("sticky top-0 z-20 border-b border-[#edf1f5] bg-white px-4", isHomeTab ? "pb-0 pt-3" : "py-3")}>
         <div className="flex items-center justify-between gap-2">

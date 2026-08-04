@@ -39,7 +39,7 @@ export function BillingConsent({
   continueButtonRef,
 }: BillingConsentProps) {
   return (
-    <div className="owner-font mx-auto w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-8 pt-6 text-[#171411]">
+    <div className="owner-font mx-auto w-full max-w-[430px] break-keep bg-[#f8f6f2] px-5 pb-8 pt-6 text-[#171411]">
       <section className="rounded-[22px] border border-[#e1dacd] bg-[#fffdf8] px-4.5 pb-5 pt-4.5 shadow-[0_10px_30px_rgba(41,41,38,0.04)]">
         <p className="text-[12px] font-medium tracking-[-0.02em] text-[#1f6b5b]">{eyebrow}</p>
         <h1 className="mt-1.5 text-[28px] font-semibold leading-[1.12] tracking-[-0.05em] text-[#171411]">{title}</h1>

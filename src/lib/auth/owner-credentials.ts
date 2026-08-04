@@ -8,8 +8,22 @@ export function isValidOwnerLoginId(value: string) {
   return /^[a-z0-9](?:[a-z0-9._-]{3,29})$/.test(normalizeOwnerLoginId(value));
 }
 
+const OWNER_AUTH_EMAIL_DOMAIN = "owner.petmanager.co.kr";
+const PREVIOUS_OWNER_AUTH_EMAIL_DOMAIN = "owner.petmanager.local";
+const LEGACY_OWNER_AUTH_EMAIL_DOMAIN = "owner.pawcare.local";
+
 export function buildOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@owner.pawcare.local`;
+  return `${normalizeOwnerLoginId(loginId)}@${OWNER_AUTH_EMAIL_DOMAIN}`;
+}
+
+export function buildOwnerAuthEmailCandidates(loginId: string) {
+  const normalizedLoginId = normalizeOwnerLoginId(loginId);
+
+  return [
+    `${normalizedLoginId}@${OWNER_AUTH_EMAIL_DOMAIN}`,
+    `${normalizedLoginId}@${PREVIOUS_OWNER_AUTH_EMAIL_DOMAIN}`,
+    `${normalizedLoginId}@${LEGACY_OWNER_AUTH_EMAIL_DOMAIN}`,
+  ];
 }
 
 export function isValidBirthDate8(value: string) {

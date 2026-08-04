@@ -179,7 +179,7 @@ export default function MobileLoginScreenTemplate({
           <button
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
-            className="absolute right-3.5 top-1/2 flex -translate-y-1/2 items-center text-[#94a3b8]"
+            className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[#94a3b8]"
             aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
           >
             {showPassword ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />}
@@ -204,7 +204,7 @@ export default function MobileLoginScreenTemplate({
           data-testid="owner-login-submit"
           type="button"
           onClick={onLogin}
-          disabled={loading || !loginId || !password}
+          disabled={loading || socialLoading !== null}
           className="h-[54px] w-full rounded-[13px] border-0 bg-[#0f172a] text-[15px] font-bold text-white transition-[filter] duration-150 hover:brightness-[1.12] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? loginButtonLoadingLabel : loginButtonLabel}

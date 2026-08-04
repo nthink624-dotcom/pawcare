@@ -45,7 +45,7 @@ export function buildOwnerBookingRequestedPushPayload(
     petId: input.petId ?? null,
     serviceId: input.serviceId ?? null,
     staffId: input.staffId ?? null,
-    title: "새 예약이 확정되었어요",
+    title: "새 예약이 접수되었습니다.",
     body: `${input.petName} · ${input.guardianName} 보호자 / ${input.appointmentDateLabel} ${input.appointmentTime} · ${input.serviceName}`,
     route: {
       tab: "Reservations",

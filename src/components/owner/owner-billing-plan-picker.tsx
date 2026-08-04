@@ -35,11 +35,12 @@ export function OwnerBillingPlanPicker({
   const selectedPlan = plans.find((plan) => plan.code === selectedPlanCode) ?? plans[0];
 
   return (
-    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-7 text-[#171411]">
+    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] break-keep bg-[#f8f6f2] px-5 pb-10 pt-7 text-[#171411]">
       <section className="rounded-[24px] border border-[#e1dacd] bg-[#fffdf8] px-5 pb-6 pt-5 shadow-[0_10px_30px_rgba(41,41,38,0.04)]">
         <p className="text-[13px] font-medium tracking-[-0.02em] text-[#1f5b51]">플랜 선택</p>
-        <h1 className="mt-2 text-[28px] font-semibold leading-[1.12] tracking-[-0.04em] text-[#171411]">
-          매장 운영 인원에 맞는 플랜을 선택해 주세요
+        <h1 className="mt-2 text-[24px] font-semibold leading-[1.3] tracking-[0] text-[#171411] max-[359px]:text-[21px]">
+          <span className="block whitespace-nowrap">매장 운영 인원에 맞는</span>
+          <span className="block whitespace-nowrap">플랜을 선택해 주세요</span>
         </h1>
 
         <div className="mt-5 rounded-[18px] bg-[#f1ede6] p-1.5">

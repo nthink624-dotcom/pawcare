@@ -15,10 +15,6 @@ import {
   writeOwnerAuthSessionCache,
   writeOwnerAuthTokenCache,
 } from "@/lib/auth/owner-auth-handoff";
-import {
-  PENDING_SOCIAL_PROVIDER_STORAGE,
-  resolveSocialProviderFromAuthUser,
-} from "@/lib/auth/social-auth";
 import { writeOwnerBillingSummaryCache } from "@/lib/billing/owner-billing-navigation";
 import {
   isOwnerSubscriptionBlocked,
@@ -27,7 +23,7 @@ import {
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { readCurrentOwnerShopId, writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
 import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
-import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
 type OwnedShopSummary = {
@@ -127,7 +123,6 @@ function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
 export default function OwnerPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [data, setData] = useState<BootstrapPayload | null>(null);
   const [subscriptionSummary, setSubscriptionSummary] = useState<OwnerSubscriptionSummary | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
@@ -180,20 +175,6 @@ export default function OwnerPage() {
       };
     }
 
-    if (oauthSupabase) {
-      const oauthSession = await withOwnerSessionTimeout(
-        oauthSupabase.auth.getSession() as Promise<SupabaseSessionResult>,
-      );
-      if (oauthSession.data.session?.access_token) {
-        writeOwnerAuthTokenCache(oauthSession.data.session.access_token, oauthSession.data.session.refresh_token);
-        setCurrentOwnerAccessToken(oauthSession.data.session.access_token);
-        return {
-          accessToken: oauthSession.data.session.access_token,
-          session: oauthSession.data.session,
-        };
-      }
-    }
-
     const initialSession = await withOwnerSessionTimeout(
       supabase.auth.getSession() as Promise<SupabaseSessionResult>,
     );
@@ -221,12 +202,6 @@ export default function OwnerPage() {
 
   useEffect(() => {
     let active = true;
-    const pendingProvider =
-      typeof window !== "undefined" ? window.localStorage.getItem(PENDING_SOCIAL_PROVIDER_STORAGE) : null;
-    let provider: "google" | "kakao" | "naver" | null =
-      pendingProvider === "google" || pendingProvider === "kakao" || pendingProvider === "naver"
-        ? pendingProvider
-        : null;
 
     async function load() {
       if (shouldOpenMobileOwnerScreen()) {
@@ -273,7 +248,6 @@ export default function OwnerPage() {
           return;
         }
 
-        provider = ownerAccess.session ? provider ?? resolveSocialProviderFromAuthUser(ownerAccess.session.user) : provider;
         setCurrentOwnerAccessToken(ownerAccess.accessToken);
         setAccessToken(ownerAccess.accessToken);
 
@@ -361,10 +335,7 @@ export default function OwnerPage() {
           nextMessage.includes("소유한 매장이 없습니다.") ||
           nextMessage.includes("연결된 매장 정보를 찾을 수 없습니다.")
         ) {
-          router.replace(
-            `/signup/social?next=${encodeURIComponent("/owner")}&provider=${encodeURIComponent(provider ?? "kakao")}` as never,
-          );
-          router.refresh();
+          setMessage("연결된 매장 정보를 찾을 수 없습니다. 고객센터로 문의해 주세요.");
           return;
         }
 

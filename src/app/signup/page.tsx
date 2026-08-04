@@ -22,7 +22,6 @@ export default async function SignupPage({
       supabaseReady={hasSupabaseBrowserEnv()}
       portoneReady={hasPortoneBrowserEnv()}
       nextPath={nextPath}
-      initialStart="email"
     />
   );
 }

@@ -119,65 +119,10 @@ assertIncludes(
   "identity_verified_at: now",
   "General owner signup must record successful identity verification.",
 );
-assertNotIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "if (!email.trim())",
-  "Social signup completion must not require an email for Naver or Kakao owners.",
-);
-assertNotIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "const AGREEMENTS =",
-  "Social signup completion must not hard-code owner agreement consent.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "SocialSignupRequiredTerms",
-  "Google social signup completion must collect required PetManager terms.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  'const isKakaoSignup = resolvedProvider === "kakao";',
-  "Kakao Simple Signup must keep owner name and phone out of the manual completion form.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "{!isKakaoSignup ? (",
-  "Only non-Kakao signup completion may render owner name and phone fields.",
-);
-assertNotIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "auth.refreshSession()",
-  "Social signup completion must not delay navigation by rotating an already valid OAuth session.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  "const setupResults = await Promise.allSettled([",
-  "Independent social signup setup writes must run concurrently.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "writeCurrentOwnerShopId(result.shopId)",
-  "Social signup completion must preserve the new shop id for parallel owner bootstrap.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "const pendingProvider = readPendingSocialProvider();",
-  "Social signup completion must tolerate unavailable browser storage.",
-);
-assertIncludes(
-  "src/components/auth/social-signup-complete-form.tsx",
-  "void syncUser().catch",
-  "Social signup session restoration must handle rejected auth promises.",
-);
 assertIncludes(
   "src/components/owner-web/service-management-screen.tsx",
   "useRef(getServiceFormSignature(initialServiceForm))",
   "The service editor must treat its initial server state as saved and avoid write-on-load.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  '.from("owner_shop_memberships")',
-  "Failed social signup setup must clean up the parallel owner-shop membership write.",
 );
 assertNotIncludes(
   "src/components/owner/owner-shell.tsx",
@@ -190,88 +135,9 @@ assertNotIncludes(
   "Owner web preview must reuse the plan summary already loaded by the owner page.",
 );
 assertIncludes(
-  "src/components/auth/login-form.tsx",
-  'process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true"',
-  "Kakao OAuth must stay gated until Kakao approves the required personal-information scopes.",
-);
-assertIncludes(
-  "src/components/auth/login-form.tsx",
-  'provider === "kakao" && !KAKAO_SIMPLE_SIGNUP_ENABLED',
-  "Kakao OAuth must stop before redirecting while the required scopes are under review.",
-);
-assertIncludes(
-  "src/components/auth/login-form.tsx",
-  "카카오 간편가입 권한 심사 중입니다. 승인 후 이용할 수 있어요.",
-  "Kakao OAuth must explain why signup is temporarily unavailable.",
-);
-assertIncludes(
-  "src/components/auth/login-form.tsx",
-  'provider === "kakao" && KAKAO_SIMPLE_SIGNUP_ENABLED',
-  "Kakao OAuth must request the approved owner name and phone number scopes.",
-);
-assertIncludes(
-  "src/app/auth/client-callback/client-callback.tsx",
-  'fetch("/api/auth/kakao-profile"',
-  "Kakao OAuth callback must hydrate the verified Kakao owner profile before signup completion.",
-);
-assertIncludes(
-  "src/app/auth/client-callback/client-callback.tsx",
-  "writeCurrentOwnerShopId(payload.shopId)",
-  "Returning Kakao owners must hand the verified shop id directly to the owner home.",
-);
-assertFile(
-  "src/app/api/auth/kakao-profile/route.ts",
-  "Kakao profile hydration API must exist.",
-);
-assertIncludes(
-  "src/app/api/auth/kakao-profile/route.ts",
-  "shopId: existingShopResult.data.id",
-  "Kakao profile hydration must skip provider refresh work for an existing owner shop.",
-);
-assertIncludes(
-  "src/app/api/auth/kakao-profile/route.ts",
-  'JSON.stringify(["kakao_account.name", "kakao_account.phone_number"])',
-  "Kakao profile hydration must request only the required owner name and phone number.",
-);
-assertIncludes(
   "src/app/owner/page.tsx",
   "void loadSubscription().catch",
   "Owner home must not block its first render on the secondary subscription summary request.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  'provider === "kakao" ? providerOwnerName',
-  "Kakao owner names must come from verified Kakao auth metadata.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  'provider === "kakao" ? providerPhoneNumber || null',
-  "Kakao owner phone numbers must come from verified Kakao auth metadata.",
-);
-assertIncludes(
-  "src/lib/auth/social-signup-consent.ts",
-  'process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true"',
-  "Kakao Simple Signup must stay feature-gated until the production Kakao app cutover is complete.",
-);
-assertIncludes(
-  "src/lib/auth/social-signup-consent.ts",
-  'if (provider === "kakao") return !kakaoSimpleSignupEnabled;',
-  "Kakao owners must keep the in-app PetManager terms until Kakao Simple Signup is enabled.",
-);
-assertIncludes(
-  "src/lib/auth/social-signup-consent.ts",
-  '"kakao_simple_signup"',
-  "Kakao social signup must retain Kakao Simple Signup as its consent source.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  "resolveSocialSignupAgreements(provider, payload.agreements)",
-  "The social signup API must derive effective agreements from the verified auth provider.",
-);
-assertIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  "resolveSocialConsentSource(provider)",
-  "The social signup API must retain the consent source for audit records.",
 );
 assertNotIncludes(
   "src/app/api/auth/verify-pass/route.ts",
@@ -283,20 +149,4 @@ assertIncludes(
   'normalized.includes("unauthorized")',
   "PortOne server API authorization failures must be translated into a useful configuration error.",
 );
-assertNotIncludes(
-  "src/app/api/auth/social-complete/route.ts",
-  "payload.termsVersion",
-  "The social signup API must use the server-owned current terms version.",
-);
-assertNotIncludes(
-  "src/app/api/auth/naver-profile/route.ts",
-  "email_confirm: true",
-  "Naver profile hydration must not persist a contact email.",
-);
-assertIncludes(
-  "src/app/api/auth/naver-profile/route.ts",
-  "Boolean(name && /^01\\d{8,9}$/.test(phone))",
-  "Naver profile hydration must require only the owner name and mobile phone number.",
-);
-
 console.log("OK owner auth guard checks passed");

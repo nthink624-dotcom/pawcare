@@ -6,12 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Smartphone } from "lucide-react";
 
-import SocialLoginButtons from "@/components/auth/social-login-buttons";
 import SignupRedesignView, {
   type SignupProfileStage,
 } from "@/components/auth/signup-redesign-view";
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
-import { MobileBackLinkButton } from "@/components/ui/mobile-back-button";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
   ownerSignupTerms,
@@ -28,26 +26,15 @@ import {
 import { env, getSupabaseRuntimeStage } from "@/lib/env";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 import {
-  getOAuthRedirectOrigin,
-  getSocialOAuthProvider,
-  PENDING_SOCIAL_PROVIDER_COOKIE,
-  PENDING_SOCIAL_PROVIDER_STORAGE,
-  type SocialProvider,
-} from "@/lib/auth/social-auth";
-import {
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   INLINE_ERROR,
   INLINE_HELP,
   INPUT_BASE,
-  PAGE_FRAME,
-  PAGE_TITLE,
   cn,
 } from "@/lib/ui-system";
-import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type Step = "entry" | "profile";
-type StartTarget = { kind: "email" } | { kind: "social"; provider: SocialProvider } | null;
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 type VerificationMethod = "phone" | "kakao-certificate" | "naver-certificate" | "toss" | "pass";
 type VerificationPurpose = "signup";
@@ -210,26 +197,6 @@ function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
   );
 }
 
-function toKoreanAuthError(message: string) {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("error getting user email from external provider") ||
-    (normalized.includes("external provider") && normalized.includes("email"))
-  ) {
-    return "인증 서버가 소셜 계정 이메일을 요구하고 있어 간편가입이 막혔어요. 이메일 없는 가입 허용 설정을 확인해 주세요.";
-  }
-
-  if (normalized.includes("invalid login credentials")) return "아이디 또는 비밀번호를 다시 확인해 주세요.";
-  if (normalized.includes("email not confirmed")) return "이메일 인증이 아직 완료되지 않았습니다.";
-  if (normalized.includes("user already registered")) return "이미 가입된 계정입니다.";
-  if (normalized.includes("password should be at least")) return ownerPasswordRuleMessage;
-  if (normalized.includes("unable to validate email address")) return "이메일 형식을 다시 확인해 주세요.";
-  if (normalized.includes("oauth")) return "소셜 로그인 처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
-
-  return "처리 중 문제가 발생했습니다. 다시 시도해 주세요.";
-}
-
 function toKoreanIdentityVerificationError(message?: string) {
   const normalized = (message ?? "").toLowerCase();
 
@@ -321,67 +288,19 @@ function AuthInput({
   );
 }
 
-function EntryStep({
-  loading,
-  socialLoading,
-  onStartEmail,
-  onStartSocial,
-  nextPath,
-}: {
-  loading: boolean;
-  socialLoading: SocialProvider | null;
-  onStartEmail: () => void;
-  onStartSocial: (provider: SocialProvider) => void;
-  nextPath: string;
-}) {
-  return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <button type="button" onClick={onStartEmail} className={BUTTON_PRIMARY}>
-          일반 회원가입 시작하기
-        </button>
-        <p className="text-center text-[13px] leading-6 text-[#7f786f]">
-          기본 정보 입력과 본인 인증을 마치면 2주 무료체험을 바로 시작할 수 있어요.
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#e7e1d8]" />
-          <span className="text-[14px] font-medium text-[#8b847b]">빠른 로그인 / 회원가입</span>
-          <div className="h-px flex-1 bg-[#e7e1d8]" />
-        </div>
-        <SocialLoginButtons onLogin={onStartSocial} loadingProvider={socialLoading} disabled={loading} />
-      </div>
-
-      <div className="text-center text-[14px] text-[#8b847b]">
-        이미 계정이 있나요?{" "}
-        <Link href={`/login?next=${encodeURIComponent(nextPath)}` as never} replace className="font-semibold text-[#111111]">
-          로그인
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 export default function SignupForm({
   supabaseReady,
   portoneReady,
   nextPath = "/owner",
-  initialStart = null,
 }: {
   supabaseReady: boolean;
   portoneReady: boolean;
   nextPath?: string;
-  initialStart?: "email" | null;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
-  const [step, setStep] = useState<Step>(initialStart === "email" ? "profile" : "entry");
-  const [startTarget, setStartTarget] = useState<StartTarget>(null);
+  const [termsSheetOpen, setTermsSheetOpen] = useState(false);
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
-  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [devCode, setDevCode] = useState<string | null>(null);
@@ -504,11 +423,6 @@ export default function SignupForm({
       const { data } = await supabase.auth.getSession();
       if (!active || !data.session?.access_token) return;
 
-      if (initialStart === "email") {
-        await supabase.auth.signOut();
-        return;
-      }
-
       router.replace(nextPath as never);
       router.refresh();
     }
@@ -518,13 +432,7 @@ export default function SignupForm({
     return () => {
       active = false;
     };
-  }, [initialStart, nextPath, router, supabase, supabaseReady]);
-
-  useEffect(() => {
-    if (initialStart !== "email") return;
-    setStep("profile");
-    setProfileStage("account");
-  }, [initialStart]);
+  }, [nextPath, router, supabase, supabaseReady]);
 
   useEffect(() => {
     if (!verificationToken || profileStage !== "verification") return;
@@ -560,66 +468,17 @@ export default function SignupForm({
     }
   };
 
-  const handleSocialLogin = async (provider: SocialProvider) => {
-    if (!supabaseReady || !oauthSupabase) {
-      setMessage("소셜 로그인 환경이 아직 준비되지 않았어요.");
-      return;
-    }
-
-    setSocialLoading(provider);
-    setMessage(null);
-
-    try {
-      document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
-      window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
-      const redirectTo = `${getOAuthRedirectOrigin()}/auth/client-callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
-
-      const { error } = await oauthSupabase.auth.signInWithOAuth({
-        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
-        options: {
-          redirectTo,
-          queryParams:
-            provider === "google"
-              ? { prompt: "select_account" }
-              : provider === "naver"
-                ? { auth_type: "reauthenticate" }
-                : undefined,
-        },
-      });
-
-      if (error) {
-        setMessage(toKoreanAuthError(error.message));
-      }
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
-  const openStart = (target: StartTarget) => {
-    setMessage(null);
-    setPendingProfileStage(null);
-    setStartTarget(target);
-  };
-
-  const continueStart = async () => {
-    if (!requiredAgreed || !startTarget) {
+  const continueTerms = () => {
+    if (!requiredAgreed) {
       setMessage("필수 약관에 동의해 주세요.");
       return;
     }
 
-    const target = startTarget;
-    setStartTarget(null);
-
-    if (target.kind === "email") {
-      setStep("profile");
-      if (pendingProfileStage) {
-        setProfileStage(pendingProfileStage);
-        setPendingProfileStage(null);
-      }
-      return;
+    setTermsSheetOpen(false);
+    if (pendingProfileStage) {
+      setProfileStage(pendingProfileStage);
+      setPendingProfileStage(null);
     }
-
-    await handleSocialLogin(target.provider);
   };
 
   const moveToVerificationStep = () => {
@@ -648,7 +507,7 @@ export default function SignupForm({
     setMessage(null);
     if (!requiredAgreed) {
       setPendingProfileStage("verification");
-      setStartTarget({ kind: "email" });
+      setTermsSheetOpen(true);
       return;
     }
     setProfileStage("verification");
@@ -943,97 +802,68 @@ export default function SignupForm({
 
   return (
     <>
-      {step === "entry" ? (
-        <div className={cn(PAGE_FRAME, "bg-white text-[#111111]")}>
-          <div className="relative flex min-h-9 items-center justify-center">
-            <MobileBackLinkButton
-              href={`/login?next=${encodeURIComponent(nextPath)}`}
-              replace
-              aria-label="로그인으로 이동"
-              className="absolute left-0 top-0 h-9 w-9 rounded-[8px] border-[#dbe2ea] bg-white text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:bg-[#f8fafc]"
-            />
-            <h1 className={cn(PAGE_TITLE, "text-center text-[27px] leading-9")}>회원가입</h1>
-          </div>
-          <div className="mt-7">
-            <EntryStep
-              loading={loading}
-              socialLoading={socialLoading}
-              onStartEmail={() => openStart({ kind: "email" })}
-              onStartSocial={(provider) => void handleSocialLogin(provider)}
-              nextPath={nextPath}
-            />
-          </div>
-        </div>
-      ) : null}
+      <SignupRedesignView
+        stage={profileStage}
+        fields={fields}
+        shopDetailAddress={shopDetailAddress}
+        shopPhoneSameAsOwner={shopPhoneSameAsOwner}
+        loading={loading}
+        message={profileStage === "verified" ? null : message}
+        loginIdStatus={{
+          text: loginIdFieldError ?? loginIdFieldHelper,
+          tone: loginIdFieldError ? "error" : loginIdFieldTone === "success" ? "success" : "default",
+        }}
+        passwordStatus={{
+          text: passwordRuleError ?? passwordFieldHelper,
+          tone: passwordRuleError ? "error" : passwordFieldTone === "success" ? "success" : "default",
+        }}
+        passwordConfirmStatus={{
+          text:
+            passwordConfirmState && "error" in passwordConfirmState
+              ? passwordConfirmState.error
+              : passwordConfirmState && "helper" in passwordConfirmState
+                ? passwordConfirmState.helper
+                : undefined,
+          tone:
+            passwordConfirmState && "error" in passwordConfirmState
+              ? "error"
+              : passwordConfirmState?.tone === "success"
+                ? "success"
+                : "default",
+        }}
+        onBack={() => {
+          setMessage(null);
+          if (profileStage === "shop") {
+            setProfileStage("verified");
+            return;
+          }
+          if (profileStage === "verification" || profileStage === "verified") {
+            setProfileStage("account");
+            return;
+          }
+          router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
+        }}
+        onChangeField={updateField}
+        onChangeShopDetailAddress={setShopDetailAddress}
+        onChangeShopPhoneSameAsOwner={(checked) => {
+          setShopPhoneSameAsOwner(checked);
+          if (checked) updateField("shopPhone", fields.phoneNumber);
+        }}
+        onNextAccount={moveToVerificationStep}
+        onStartVerification={startPhoneIdentity}
+        onContinueToShop={() => {
+          setMessage(null);
+          setProfileStage("shop");
+        }}
+        onOpenAddress={() => setAddressSheetOpen(true)}
+        onSubmit={submitSignup}
+      />
 
-      {step === "profile" ? (
-        <SignupRedesignView
-          stage={profileStage}
-          fields={fields}
-          shopDetailAddress={shopDetailAddress}
-          shopPhoneSameAsOwner={shopPhoneSameAsOwner}
-          loading={loading}
-          message={profileStage === "verified" ? null : message}
-          loginIdStatus={{
-            text: loginIdFieldError ?? loginIdFieldHelper,
-            tone: loginIdFieldError ? "error" : loginIdFieldTone === "success" ? "success" : "default",
-          }}
-          passwordStatus={{
-            text: passwordRuleError ?? passwordFieldHelper,
-            tone: passwordRuleError ? "error" : passwordFieldTone === "success" ? "success" : "default",
-          }}
-          passwordConfirmStatus={{
-            text:
-              passwordConfirmState && "error" in passwordConfirmState
-                ? passwordConfirmState.error
-                : passwordConfirmState && "helper" in passwordConfirmState
-                  ? passwordConfirmState.helper
-                  : undefined,
-            tone:
-              passwordConfirmState && "error" in passwordConfirmState
-                ? "error"
-                : passwordConfirmState?.tone === "success"
-                  ? "success"
-                  : "default",
-          }}
-          onBack={() => {
-            setMessage(null);
-            if (profileStage === "shop") {
-              setProfileStage("verified");
-              return;
-            }
-            if (profileStage === "verification" || profileStage === "verified") {
-              setProfileStage("account");
-              return;
-            }
-            if (initialStart === "email") {
-              router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
-              return;
-            }
-            setStep("entry");
-          }}
-          onChangeField={updateField}
-          onChangeShopDetailAddress={setShopDetailAddress}
-          onChangeShopPhoneSameAsOwner={(checked) => {
-            setShopPhoneSameAsOwner(checked);
-            if (checked) updateField("shopPhone", fields.phoneNumber);
-          }}
-          onNextAccount={moveToVerificationStep}
-          onStartVerification={startPhoneIdentity}
-          onContinueToShop={() => {
-            setMessage(null);
-            setProfileStage("shop");
-          }}
-          onOpenAddress={() => setAddressSheetOpen(true)}
-          onSubmit={submitSignup}
-        />
-      ) : null}
-
-      {startTarget ? (
+      {termsSheetOpen ? (
         <div
           className="fixed inset-0 z-50 bg-black/35"
           onClick={(event) => {
-            if (event.target === event.currentTarget) setStartTarget(null);
+            if (event.target === event.currentTarget) setTermsSheetOpen(false);
           }}
         >
           <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
@@ -1113,14 +943,14 @@ export default function SignupForm({
               <div className="mt-5 grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setStartTarget(null)}
+                  onClick={() => setTermsSheetOpen(false)}
                   className="h-[50px] rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
                 >
                   닫기
                 </button>
                 <button
                   type="button"
-                  onClick={continueStart}
+                  onClick={continueTerms}
                   disabled={!requiredAgreed}
                   className="h-[50px] rounded-[8px] bg-[#1f6b5b] text-[15px] font-semibold text-white transition hover:bg-[#185848] disabled:bg-[#cbd5e1]"
                 >

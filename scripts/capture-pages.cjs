@@ -9,7 +9,6 @@ const routes = [
   { name: "home", url: "/" },
   { name: "login", url: "/login" },
   { name: "signup", url: "/signup" },
-  { name: "signup-social", url: "/signup/social?provider=naver" },
   { name: "find-id", url: "/login/find-id" },
   { name: "reset-password", url: "/login/reset" },
   { name: "landing-business", url: "/business" },

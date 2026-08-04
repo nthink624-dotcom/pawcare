@@ -1,11 +1,9 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 
 import { env, isUnsafeProdSupabaseBrowserEnv } from "@/lib/env";
 import { getSupabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
-let oauthBrowserClient: ReturnType<typeof createClient> | null = null;
 const authLockQueues = new Map<string, Promise<void>>();
 
 async function localAuthLock<R>(name: string, _acquireTimeout: number, fn: () => Promise<R>) {
@@ -53,26 +51,4 @@ export function getSupabaseBrowserClient() {
   });
 
   return browserClient;
-}
-
-export function getSupabaseOAuthBrowserClient() {
-  assertSafeBrowserSupabaseEnv();
-
-  if (!env.supabaseUrl || !env.supabasePublishableKey || typeof window === "undefined") {
-    return null;
-  }
-
-  oauthBrowserClient ??= createClient(env.supabaseUrl, env.supabasePublishableKey, {
-    auth: {
-      autoRefreshToken: true,
-      detectSessionInUrl: false,
-      flowType: "pkce",
-      lock: localAuthLock,
-      persistSession: true,
-      storage: window.localStorage,
-      storageKey: `petmanager.oauth.${new URL(env.supabaseUrl).hostname}.auth`,
-    },
-  });
-
-  return oauthBrowserClient;
 }

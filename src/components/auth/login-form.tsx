@@ -5,57 +5,10 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
 import { getSupabaseRuntimeStage } from "@/lib/env";
-import {
-  getOAuthRedirectOrigin,
-  getSocialOAuthProvider,
-  PENDING_SOCIAL_PROVIDER_COOKIE,
-  PENDING_SOCIAL_PROVIDER_STORAGE,
-  type SocialProvider,
-} from "@/lib/auth/social-auth";
 import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
-import { getSupabaseBrowserClient, getSupabaseOAuthBrowserClient } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
-
-function toKoreanAuthError(message: string) {
-  const normalized = message.toLowerCase();
-
-  if (isRateLimitMessage(normalized)) {
-    return "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요.";
-  }
-
-  if (isOAuthExpiredMessage(normalized)) {
-    return "소셜 로그인 시간이 만료됐어요. 아래 소셜 로그인 버튼을 다시 눌러 주세요.";
-  }
-
-  if (
-    normalized.includes("error getting user email from external provider") ||
-    (normalized.includes("external provider") && normalized.includes("email"))
-  ) {
-    return "인증 서버가 소셜 계정 이메일을 요구하고 있어 연결이 막혔어요. 이메일 없는 가입 허용 설정을 확인해 주세요.";
-  }
-
-  if (normalized.includes("invalid login credentials")) {
-    return "아이디 또는 비밀번호를 다시 확인해 주세요.";
-  }
-  if (normalized.includes("email not confirmed")) {
-    return "이메일 인증이 아직 완료되지 않았어요.";
-  }
-  if (normalized.includes("user already registered")) {
-    return "이미 가입된 계정이에요.";
-  }
-  if (normalized.includes("password should be at least")) {
-    return "비밀번호는 6자 이상 입력해 주세요.";
-  }
-  if (normalized.includes("unable to validate email address")) {
-    return "이메일 형식을 다시 확인해 주세요.";
-  }
-  if (normalized.includes("oauth")) {
-    return "소셜 로그인 처리 중 문제가 발생했어요. 다시 시도해 주세요.";
-  }
-
-  return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
-}
 
 type OwnerLoginApiResponse = {
   success?: boolean;
@@ -72,10 +25,6 @@ const FAILED_LOGIN_LIMIT = 5;
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
 const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
-const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY = "petmanager.socialOAuthRateLimitCooldownUntil";
-const SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS = 5 * 60 * 1000;
-const KAKAO_SIMPLE_SIGNUP_ENABLED =
-  process.env.NEXT_PUBLIC_KAKAO_SIMPLE_SIGNUP_ENABLED === "true";
 
 type FailedLoginState = {
   count: number;
@@ -198,15 +147,6 @@ function isRateLimitMessage(message?: string) {
   );
 }
 
-function isOAuthExpiredMessage(message?: string) {
-  const normalized = (message ?? "").toLowerCase();
-  return (
-    normalized.includes("oauth state has expired") ||
-    normalized.includes("state has expired") ||
-    normalized.includes("expired")
-  );
-}
-
 function isInvalidCredentialMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
   return (
@@ -218,10 +158,6 @@ function isInvalidCredentialMessage(message?: string) {
 
 function getRateLimitMessage() {
   return "로그인 요청이 잠시 제한되었어요. 10분 뒤 다시 시도하거나 아래의 비밀번호 찾기로 재설정해 주세요.";
-}
-
-function getSocialRateLimitMessage() {
-  return "소셜 로그인 요청이 잠시 제한됐어요. 5~10분 뒤 다시 시도해 주세요.";
 }
 
 function recordFailedLoginAttempt(loginId: string) {
@@ -242,15 +178,12 @@ export default function LoginForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const oauthSupabase = useMemo(() => getSupabaseOAuthBrowserClient(), []);
   const [showDevOwnerHelper, setShowDevOwnerHelper] = useState(false);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
-  const [socialCooldownUntil, setSocialCooldownUntil] = useState<number | null>(null);
   const [rememberLoginId, setRememberLoginId] = useState(false);
 
   useEffect(() => {
@@ -259,38 +192,8 @@ export default function LoginForm({
     }
   }, [nextPath, router]);
 
-  const startSocialCooldown = () => {
-    const nextCooldownUntil = Date.now() + SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_MS;
-    setSocialCooldownUntil(nextCooldownUntil);
-    try {
-      window.localStorage.setItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY, String(nextCooldownUntil));
-    } catch {
-      // Cooldown persistence is only a guard against repeated clicks.
-    }
-  };
-
-  const clearExpiredSocialCooldown = () => {
-    try {
-      const raw = window.localStorage.getItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY);
-      const storedUntil = raw ? Number(raw) : null;
-      if (storedUntil && Number.isFinite(storedUntil) && storedUntil > Date.now()) {
-        setSocialCooldownUntil(storedUntil);
-        return storedUntil;
-      }
-      window.localStorage.removeItem(SOCIAL_OAUTH_RATE_LIMIT_COOLDOWN_KEY);
-    } catch {
-      // Ignore unavailable browser storage.
-    }
-    setSocialCooldownUntil(null);
-    return null;
-  };
-
   useEffect(() => {
     setShowDevOwnerHelper(getSupabaseRuntimeStage() !== "production");
-    const activeCooldownUntil = clearExpiredSocialCooldown();
-    if (activeCooldownUntil && activeCooldownUntil > Date.now()) {
-      setMessage(getSocialRateLimitMessage());
-    }
 
     const savedLoginId = window.localStorage.getItem(SAVED_LOGIN_ID_KEY);
     if (savedLoginId) {
@@ -298,35 +201,6 @@ export default function LoginForm({
       setRememberLoginId(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (!initialMessage) return;
-
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("error") && !url.searchParams.has("detail")) return;
-
-    if (isRateLimitMessage(initialMessage)) {
-      startSocialCooldown();
-      setMessage(getSocialRateLimitMessage());
-    }
-
-    url.searchParams.delete("error");
-    url.searchParams.delete("detail");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [initialMessage]);
-
-  useEffect(() => {
-    if (!socialCooldownUntil) return;
-
-    const delay = Math.max(0, socialCooldownUntil - Date.now());
-    if (delay === 0) {
-      clearExpiredSocialCooldown();
-      return;
-    }
-
-    const timer = window.setTimeout(clearExpiredSocialCooldown, delay);
-    return () => window.clearTimeout(timer);
-  }, [socialCooldownUntil]);
 
   const handleLogin = async (credentials?: { loginId: string; password: string }) => {
     const currentLoginId = (credentials?.loginId ?? loginId).trim();
@@ -432,62 +306,6 @@ export default function LoginForm({
     }
   };
 
-  const handleSocialLogin = async (provider: SocialProvider) => {
-    if (provider === "kakao" && !KAKAO_SIMPLE_SIGNUP_ENABLED) {
-      setMessage("카카오 간편가입 권한 심사 중입니다. 승인 후 이용할 수 있어요.");
-      return;
-    }
-
-    const activeCooldownUntil = clearExpiredSocialCooldown();
-    if (activeCooldownUntil && activeCooldownUntil > Date.now()) {
-      setMessage(getSocialRateLimitMessage());
-      return;
-    }
-
-    if (!supabaseReady || !oauthSupabase) {
-      setMessage("소셜 로그인 환경을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-
-    setSocialLoading(provider);
-    setMessage(null);
-
-    try {
-      document.cookie = `${PENDING_SOCIAL_PROVIDER_COOKIE}=${provider}; Path=/; Max-Age=600; SameSite=Lax`;
-      window.localStorage.setItem(PENDING_SOCIAL_PROVIDER_STORAGE, provider);
-
-      const redirectTo = `${getOAuthRedirectOrigin()}/auth/client-callback?next=${encodeURIComponent(nextPath)}&provider=${encodeURIComponent(provider)}`;
-      const { error } = await oauthSupabase.auth.signInWithOAuth({
-        provider: getSocialOAuthProvider(provider) as "google" | "kakao" | "custom:naver",
-        options: {
-          redirectTo,
-          scopes:
-            provider === "kakao" && KAKAO_SIMPLE_SIGNUP_ENABLED
-              ? "name,phone_number"
-              : undefined,
-          queryParams:
-            provider === "google"
-              ? { prompt: "select_account" }
-              : provider === "naver"
-                ? { auth_type: "reauthenticate" }
-                : undefined,
-        },
-      });
-
-      if (error) {
-        if (isRateLimitMessage(error.message)) {
-          startSocialCooldown();
-          setMessage(getSocialRateLimitMessage());
-          return;
-        }
-
-        setMessage(toKoreanAuthError(error.message));
-      }
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
   const createDevOwner = async () => {
     setCreatingDevOwner(true);
     setMessage(null);
@@ -516,8 +334,6 @@ export default function LoginForm({
     }
   };
 
-  const isSocialCooldownActive = Boolean(socialCooldownUntil && socialCooldownUntil > Date.now());
-
   return (
     <div>
       <MobileLoginScreenTemplate
@@ -525,15 +341,12 @@ export default function LoginForm({
         password={password}
         rememberLoginId={rememberLoginId}
         loading={loading}
-        socialLoading={socialLoading}
-        socialDisabled={isSocialCooldownActive}
         message={message}
         nextPath={nextPath}
         onLoginIdChange={setLoginId}
         onPasswordChange={setPassword}
         onRememberLoginIdChange={setRememberLoginId}
         onLogin={handleLogin}
-        onSocialLogin={(provider) => void handleSocialLogin(provider)}
       />
 
       {showDevOwnerHelper ? (
@@ -546,7 +359,7 @@ export default function LoginForm({
             <button
               type="button"
               onClick={() => void createDevOwner()}
-              disabled={creatingDevOwner || loading || socialLoading !== null}
+              disabled={creatingDevOwner || loading}
               className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#cfe3dc] bg-white text-[15px] font-semibold text-[#1f6b5b] disabled:opacity-60"
             >
               {creatingDevOwner ? "테스트 계정 준비 중..." : "개발용 테스트 오너 만들기"}

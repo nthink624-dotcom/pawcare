@@ -43,6 +43,19 @@ export const appointmentStatusSchema = z.object({
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   mediaAssetIds: z.array(z.string()).max(10).optional(),
+  groomingRecord: z
+    .object({
+      treatmentNotes: z.string().trim().max(2000).optional().default(""),
+      specialNotes: z.string().trim().max(2000).optional().default(""),
+      internalNotes: z.string().trim().max(4000).optional().default(""),
+      nextRecommendedVisitDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .optional()
+        .default(null),
+    })
+    .optional(),
   notifyCustomer: z.boolean().optional().default(true),
 });
 

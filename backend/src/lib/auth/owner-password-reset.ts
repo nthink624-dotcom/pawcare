@@ -1,16 +1,16 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
-import { isValidBirthDate8, isValidOwnerLoginId, normalizeOwnerLoginId } from "@/lib/auth/owner-credentials";
+import { isValidBirthDate8, isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 
 export const ownerPasswordResetSchema = z
   .object({
-    loginId: z
+    email: z
       .string()
       .trim()
-      .min(1, "아이디를 입력해 주세요.")
-      .transform((value) => normalizeOwnerLoginId(value))
-      .refine((value) => isValidOwnerLoginId(value), {
-        message: "아이디는 영문 소문자, 숫자, ., -, _ 조합으로 4자 이상 입력해 주세요.",
+      .min(1, "이메일을 입력해 주세요.")
+      .transform((value) => normalizeOwnerEmail(value))
+      .refine((value) => isValidOwnerEmail(value), {
+        message: "올바른 이메일 주소를 입력해 주세요.",
       }),
     name: z.string().trim().min(1, "이름을 입력해 주세요."),
     birthDate: z.string().trim().refine((value) => isValidBirthDate8(value), {

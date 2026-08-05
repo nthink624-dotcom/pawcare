@@ -5,7 +5,12 @@ import { ko } from "date-fns/locale";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, Clock3, MessageCircle, X } from "lucide-react";
 
+import {
+  CustomerGroomingResultCard,
+  type CustomerResultMediaAsset,
+} from "@/components/customer/customer-grooming-result-card";
 import { fetchApiJson } from "@/lib/api";
+import { invalidateCustomerAvailability } from "@/lib/customer-availability";
 import { isShopClosedOnDate } from "@/lib/availability";
 import { fetchCustomerAvailability } from "@/lib/customer-availability";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
@@ -16,10 +21,11 @@ type LookupPayload = {
   guardians: Array<{ id: string; name: string; phone: string }>;
   appointments: Appointment[];
   groomingRecords: GroomingRecord[];
+  resultMediaAssets?: CustomerResultMediaAsset[];
   pets: Array<{ id: string; name: string; guardian_id: string; breed?: string }>;
   access?: {
     appointmentId?: string | null;
-    action?: "reschedule" | null;
+    action?: "reschedule" | "result" | null;
   };
 };
 
@@ -226,7 +232,16 @@ export default function CustomerBookingManagePanel({
     () => [...(lookupResult?.appointments || [])].sort((a, b) => `${b.appointment_date} ${b.appointment_time}`.localeCompare(`${a.appointment_date} ${a.appointment_time}`)),
     [lookupResult?.appointments],
   );
-  const visibleAppointments = useMemo(() => sortedAppointments.filter(canManageAppointment), [sortedAppointments]);
+  const visibleAppointments = useMemo(() => {
+    if (lookupResult?.access?.action === "result" && lookupResult.access.appointmentId) {
+      const directResult = sortedAppointments.find(
+        (appointment) =>
+          appointment.id === lookupResult.access?.appointmentId && appointment.status === "completed",
+      );
+      return directResult ? [directResult] : [];
+    }
+    return sortedAppointments.filter(canManageAppointment);
+  }, [lookupResult?.access?.action, lookupResult?.access?.appointmentId, sortedAppointments]);
   const latestAppointments = useMemo(() => visibleAppointments.slice(0, 1), [visibleAppointments]);
   const selectedService = services.find((service) => service.id === manageForm?.serviceId);
   const selectedServiceOption = customerServiceOptions.find((option) => option.serviceId === manageForm?.serviceId || option.id === manageForm?.serviceId);
@@ -306,7 +321,7 @@ export default function CustomerBookingManagePanel({
         setOpenAppointmentId(null);
         setManageForm(null);
 
-        if (!result.appointments.some(canManageAppointment)) {
+        if (result.access?.action !== "result" && !result.appointments.some(canManageAppointment)) {
           setLookupError("확인 가능한 예약이 없어요. 진행 전 예약만 조회할 수 있어요.");
         }
 
@@ -385,6 +400,7 @@ export default function CustomerBookingManagePanel({
           petName: lookupPetName,
         }),
       });
+      invalidateCustomerAvailability();
       await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
       closeRescheduleForm();
       setFeedback({
@@ -424,6 +440,7 @@ export default function CustomerBookingManagePanel({
           memo: manageForm.note,
         }),
       });
+      invalidateCustomerAvailability();
       await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
       closeRescheduleForm();
       setFeedback({
@@ -518,6 +535,14 @@ export default function CustomerBookingManagePanel({
             const statusLabel = statusLabelMap[appointment.status] || appointment.status;
             const serviceLabel = service?.name || serviceOption?.name || formatServiceFallback();
             const inquiryLabel = getCustomerActionLabel(appointment.status);
+            const groomingRecord = lookupResult.groomingRecords.find(
+              (record) => record.appointment_id === appointment.id,
+            );
+            const isResultView =
+              lookupResult.access?.action === "result" &&
+              lookupResult.access.appointmentId === appointment.id &&
+              Boolean(groomingRecord) &&
+              Boolean(initialAccessToken);
 
             return (
               <article key={appointment.id} className="overflow-hidden rounded-[24px] border border-[#f3e5df] bg-white shadow-[0_18px_42px_rgba(60,40,30,0.07)]">
@@ -557,6 +582,20 @@ export default function CustomerBookingManagePanel({
                       {appointment.memo?.trim() || "등록된 요청사항이 없습니다."}
                     </p>
                   </div>
+
+                  {isResultView && groomingRecord && initialAccessToken ? (
+                    <CustomerGroomingResultCard
+                      shopId={shopId}
+                      accessToken={initialAccessToken}
+                      appointment={appointment}
+                      record={groomingRecord}
+                      petName={pet?.name || "반려동물"}
+                      serviceName={serviceLabel}
+                      mediaAssets={(lookupResult.resultMediaAssets ?? []).filter(
+                        (asset) => asset.appointmentId === appointment.id,
+                      )}
+                    />
+                  ) : null}
 
                   {manageable ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">

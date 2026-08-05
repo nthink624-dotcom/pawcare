@@ -1,24 +1,23 @@
 ﻿@import "tailwindcss";
 
 :root {
-  --background: #f8f6f2;
+  --background: #f1f3f7;
   --surface: #ffffff;
   --muted: #7c7a73;
   --border: #e8e2d8;
-  --pm-brand-blue: #2563eb;
-  --pm-brand-blue-hover: #1d4ed8;
-  --pm-brand-blue-soft: #eff6ff;
-  --pm-brand-blue-wash: #f3f7ff;
-  --pm-brand-blue-border: #bfdbfe;
+  --pm-brand-blue: #111a30;
+  --pm-brand-blue-hover: #17233d;
+  --pm-brand-blue-soft: #eaf1ff;
+  --pm-brand-blue-wash: #f1f5fb;
+  --pm-brand-blue-border: #dbe5f6;
   --pm-brand-blue-sky: #0ea5e9;
-  --pm-brand-blue-shadow: rgba(37, 99, 235, 0.13);
-  --pm-brand-blue-page-gradient: linear-gradient(135deg, #eaf2ff 0%, #dff8ff 36%, #f8fbff 58%, #e7efff 100%);
-  --pm-brand-blue-soft-gradient: linear-gradient(135deg, #eaf2ff 0%, #eff8ff 48%, #f8fbff 100%);
-  --pm-brand-blue-button-gradient:
-    linear-gradient(112deg, #102fc8 0%, #2563eb 34%, #0891b2 58%, #7dd3fc 78%, #1d4ed8 100%);
+  --pm-brand-blue-shadow: rgba(17, 26, 48, 0.13);
+  --pm-brand-blue-page-gradient: linear-gradient(135deg, #eef2f8 0%, #f7f9fc 58%, #edf1f7 100%);
+  --pm-brand-blue-soft-gradient: linear-gradient(135deg, #eaf1ff 0%, #f4f7fc 58%, #ffffff 100%);
+  --pm-brand-blue-button-gradient: #111a30;
   --accent: var(--pm-brand-blue);
   --accent-soft: var(--pm-brand-blue-soft);
-  --text: #23231f;
+  --text: #101a31;
   --success: #1f6b5b;
   --warning: #8c6e53;
   --danger: #9a5e4e;
@@ -50,9 +49,28 @@ html {
 }
 
 body {
-  background: linear-gradient(180deg, #fbfaf7 0%, #f8f6f2 100%);
+  background: #f1f3f7;
   color: var(--text);
   min-height: 100%;
+}
+
+/* 제품 전반의 기본 실행 버튼은 인증 화면의 네이비를 공통으로 사용한다. */
+button[class*="bg-[#1f6b5b]"],
+button[class*="bg-[#247761]"],
+button[class*="bg-[#2f7866]"],
+button[class*="bg-[#2563eb]"],
+button[class*="bg-[#334155]"],
+button[class*="bg-[#111827]"],
+button[class*="bg-[var(--accent)]"] {
+  background-color: var(--pm-brand-blue) !important;
+}
+
+button[class*="hover:bg-[#185848]"]:hover,
+button[class*="hover:bg-[#195748]"]:hover,
+button[class*="hover:bg-[#1d4ed8]"]:hover,
+button[class*="hover:bg-[#1f2937]"]:hover,
+button[class*="hover:bg-[#293548]"]:hover {
+  background-color: var(--pm-brand-blue-hover) !important;
 }
 
 @keyframes pmButtonFluid {
@@ -593,7 +611,7 @@ textarea {
 
 .field:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(31, 107, 91, 0.12);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
 }
 
 .app-shell {
@@ -721,8 +739,8 @@ textarea {
 }
 
 .field-input:focus {
-  border-color: #2f786b;
-  box-shadow: 0 0 0 3px rgba(47, 120, 107, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
 }
 
 .field-textarea {
@@ -749,8 +767,8 @@ textarea {
 }
 
 .field-textarea:focus {
-  border-color: #2f786b;
-  box-shadow: 0 0 0 3px rgba(47, 120, 107, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 26, 48, 0.1);
 }
 
 .btn-primary {

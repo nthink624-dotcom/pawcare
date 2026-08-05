@@ -27,6 +27,11 @@ import type { ChangeEvent, PointerEvent as ReactPointerEvent, ReactNode } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScheduleCreateDialog } from "@/components/owner-web/calendar-create-dialog";
+import {
+  CalendarGroomingCompletionFields,
+  type GroomingCompletionDetails,
+} from "@/components/owner-web/calendar-grooming-completion-fields";
+import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
 import {
   buildLocalGuardian,
@@ -80,7 +85,10 @@ import {
   formatDiscountCouponValue,
   type CustomerDiscountQuoteCoupon,
 } from "@/lib/discount-coupons";
-import { createOwnerMediaAssetFromFile } from "@/lib/media/owner-media-client";
+import {
+  createOwnerMediaAssetFromFile,
+  type OwnerMediaUploadMetrics,
+} from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { buildPetGroupOptions } from "@/lib/pet-group-options";
 import { cn, currentDateInTimeZone } from "@/lib/utils";
@@ -122,9 +130,10 @@ type RecentStatusOverride = {
 };
 type PhotoStatusAction = {
   bookingId: string;
-  nextStatus: "진행 중" | "완료";
+  nextStatus: "진행 중" | "픽업 준비" | "완료";
   mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
   mode?: "single" | "completion";
+  requiresPhoto?: boolean;
   title: string;
   description: string;
   buttonLabel: string;
@@ -2497,7 +2506,7 @@ function OwnerNoticeDialog({ title, message, onClose }: { title: string; message
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/35 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[420px] overflow-y-auto rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
         <h3 className="text-[20px] font-semibold text-[#111827]">{title}</h3>
@@ -3487,61 +3496,76 @@ function CancelReservationDialog({
 }
 
 function PhotoStatusDialog({
+  shopId,
   action,
   onClose,
   onSubmit,
   onComplete,
 }: {
+  shopId: string;
   action: PhotoStatusAction;
   onClose: () => void;
-  onSubmit: (file: File, mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">) => Promise<string>;
-  onComplete: (mediaAssetIds: string[]) => Promise<void>;
+  onSubmit: (
+    file: File,
+    mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">,
+  ) => Promise<{ mediaAssetId: string; metrics: OwnerMediaUploadMetrics }>;
+  onComplete: (mediaAssetIds: string[], groomingRecord?: GroomingCompletionDetails) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState("");
+  const [uploadMetrics, setUploadMetrics] = useState<OwnerMediaUploadMetrics | null>(null);
   const [activeMediaKind, setActiveMediaKind] = useState<Extract<MediaKind, "grooming_before" | "grooming_after">>(action.mediaKind);
-  const [uploadedSlots, setUploadedSlots] = useState<Partial<Record<"before" | "after", string>>>({});
   const isCompletionMode = action.mode === "completion";
-  const uploadedAssetIds = [uploadedSlots.before, uploadedSlots.after].filter((item): item is string => Boolean(item));
+  const draft = useGroomingRecordDraft({
+    shopId,
+    appointmentId: action.bookingId,
+    enabled: isCompletionMode,
+  });
+  const uploadedAssetIds = draft.afterMediaAssetId ? [draft.afterMediaAssetId] : [];
+  const busy = uploading || completing;
   const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
   const mobileOwnerUrl = typeof window === "undefined" ? mobileOwnerPath : `${window.location.origin}${mobileOwnerPath}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=176x176&margin=12&data=${encodeURIComponent(mobileOwnerUrl)}`;
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
-    if (!file || saving) return;
+    if (!file || busy) return;
 
-    setSaving(true);
+    setUploading(true);
     setError("");
     try {
-      const mediaAssetId = await onSubmit(file, activeMediaKind);
+      const uploaded = await onSubmit(file, activeMediaKind);
+      setUploadMetrics(uploaded.metrics);
       if (isCompletionMode) {
-        setUploadedSlots((current) => ({
-          ...current,
-          [activeMediaKind === "grooming_before" ? "before" : "after"]: mediaAssetId,
-        }));
+        draft.setAfterMediaAssetId(uploaded.mediaAssetId);
       } else {
-        await onComplete([mediaAssetId]);
+        await onComplete([uploaded.mediaAssetId]);
+        onClose();
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "사진 저장 중 문제가 발생했습니다.");
     } finally {
-      setSaving(false);
+      setUploading(false);
       event.target.value = "";
     }
   }
 
   async function handleComplete(mediaAssetIds: string[]) {
-    if (saving) return;
+    if (busy) return;
 
-    setSaving(true);
+    setCompleting(true);
     setError("");
     try {
-      await onComplete(mediaAssetIds);
+      if (isCompletionMode) await draft.flushDraft();
+      await onComplete(mediaAssetIds, isCompletionMode ? draft.value : undefined);
+      if (isCompletionMode) await draft.clearDraft();
+      onClose();
     } catch (skipError) {
       setError(skipError instanceof Error ? skipError.message : "상태 변경 중 문제가 발생했습니다.");
-      setSaving(false);
+    } finally {
+      setCompleting(false);
     }
   }
 
@@ -3551,7 +3575,7 @@ function PhotoStatusDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy ? undefined : onClose}>
       <div
         className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         onClick={(event) => event.stopPropagation()}
@@ -3575,14 +3599,13 @@ function PhotoStatusDialog({
         {isCompletionMode ? (
           <div className="grid gap-2">
             {[
-              { key: "before" as const, label: "미용 전 사진", mediaKind: "grooming_before" as const, uploaded: Boolean(uploadedSlots.before) },
-              { key: "after" as const, label: "미용 후 사진", mediaKind: "grooming_after" as const, uploaded: Boolean(uploadedSlots.after) },
+              { key: "after" as const, label: "미용 완료 사진", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId) },
             ].map((slot) => (
               <button
                 key={slot.key}
                 type="button"
                 onClick={() => selectPhoto(slot.mediaKind)}
-                disabled={saving}
+                disabled={busy}
                 className="flex min-h-[54px] items-center justify-between rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] px-4 text-left transition hover:bg-[#f8fafc] disabled:opacity-60"
               >
                 <span className="inline-flex items-center gap-2 text-[14px] font-medium text-[#334155]">
@@ -3608,6 +3631,26 @@ function PhotoStatusDialog({
           </div>
         )}
 
+        {isCompletionMode ? (
+          <CalendarGroomingCompletionFields
+            value={draft.value}
+            onChange={draft.setValue}
+            disabled={completing}
+            draftStatus={draft.status}
+            lastSavedAt={draft.lastSavedAt}
+            saveError={draft.saveError}
+            onRetrySave={() => void draft.flushDraft()}
+          />
+        ) : null}
+
+        {uploading ? (
+          <p className="mt-3 text-[12px] text-[#526173]">사진을 최적화해 업로드하고 있습니다. 메모는 계속 입력할 수 있어요.</p>
+        ) : uploadMetrics ? (
+          <p className="mt-3 text-[12px] text-[#526173]">
+            사진 업로드 완료 · {(uploadMetrics.totalMs / 1000).toFixed(1)}초 · {Math.max(1, Math.round(uploadMetrics.sourceByteSize / 1024))}KB → {Math.max(1, Math.round(uploadMetrics.uploadedByteSize / 1024))}KB
+          </p>
+        ) : null}
+
         {error ? (
           <p className="mt-3 rounded-[8px] border border-[#f3c7c7] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-[#b42318]">
             {error}
@@ -3616,64 +3659,44 @@ function PhotoStatusDialog({
 
         {isCompletionMode ? (
           <div className="mt-4 space-y-2">
-            {uploadedAssetIds.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => void handleComplete(uploadedAssetIds)}
-                disabled={saving}
-                className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
-              >
-                {saving ? "처리 중" : "선택한 사진으로 미용 완료"}
-              </button>
+            <button
+              type="button"
+              onClick={() => void handleComplete(uploadedAssetIds)}
+              disabled={busy || (action.requiresPhoto === true && !draft.afterMediaAssetId)}
+              className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-50"
+            >
+              {completing ? "완료 처리 중" : uploading ? "사진 업로드 중" : "미용 기록 저장하고 완료"}
+            </button>
+            {action.requiresPhoto === true && !draft.afterMediaAssetId ? (
+              <p className="text-center text-[12px] text-[#a04455]">미용 완료 사진을 먼저 선택해 주세요.</p>
             ) : null}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => void handleComplete([])}
-                disabled={saving}
-                className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                {saving ? "처리 중" : action.skipLabel}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-                className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                취소
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+            >
+              취소
+            </button>
           </div>
         ) : (
           <div className="mt-4 space-y-2">
             <button
               type="button"
-              onClick={() => void handleComplete([])}
-              disabled={saving}
+              onClick={() => selectPhoto(action.mediaKind)}
+              disabled={busy}
               className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-60"
             >
-              {saving ? "처리 중" : action.skipLabel}
+              {busy ? "처리 중" : action.buttonLabel}
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => selectPhoto(action.mediaKind)}
-                disabled={saving}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                {action.buttonLabel}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-                className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                취소
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="h-10 w-full rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60"
+            >
+              취소
+            </button>
           </div>
         )}
       </div>
@@ -4068,7 +4091,7 @@ export default function CalendarManagementScreen({
     bookingId: string,
     nextStatus: string,
     mediaAssetIds: string[] = [],
-    options: { notifyCustomer?: boolean } = {},
+    options: { notifyCustomer?: boolean; groomingRecord?: GroomingCompletionDetails } = {},
   ) {
     const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
     if (!appointmentStatus) return null;
@@ -4077,6 +4100,7 @@ export default function CalendarManagementScreen({
       appointmentId: bookingId,
       status: appointmentStatus,
       mediaAssetIds,
+      ...(options.groomingRecord ? { groomingRecord: options.groomingRecord } : {}),
       notifyCustomer: options.notifyCustomer ?? true,
     });
     const nextBootstrapData = applyRecentStatusOverrides(replaceAppointmentInBootstrap(bootstrapData, updatedAppointment));
@@ -4375,18 +4399,11 @@ export default function CalendarManagementScreen({
     return selectedDay > todayDay || (selectedDay === todayDay && getCurrentDayHour() < booking.start);
   }
 
-  function shouldSkipPhotoStatusChange(nextStatus: string) {
-    const appointmentStatus = getAppointmentStatusFromBookingStatus(nextStatus);
-    if (appointmentStatus === "almost_done") return true;
-    if (appointmentStatus === "completed") return true;
-    return false;
-  }
-
   async function applyBookingStatusChange(
     bookingId: string,
     nextStatus: string,
     mediaAssetIds: string[] = [],
-    options: { notifyCustomer?: boolean } = {},
+    options: { notifyCustomer?: boolean; groomingRecord?: GroomingCompletionDetails } = {},
   ) {
     const previousBookings = bookings;
     const previousBootstrapData = bootstrapData;
@@ -4433,45 +4450,53 @@ export default function CalendarManagementScreen({
     setScheduleStatusHour(getCurrentDayHour());
 
     try {
-      const shouldSendPickupReadyNotification = nextStatus === "픽업 준비" && options.notifyCustomer !== false;
       await persistBookingStatusChange(
         bookingId,
         nextStatus,
         mediaAssetIds,
-        shouldSendPickupReadyNotification ? { ...options, notifyCustomer: false } : options,
+        options,
       );
-      if (shouldSendPickupReadyNotification) {
-        await postOwnerNotification({
-          shopId: bootstrapData.shop.id,
-          appointmentId: bookingId,
-          type: "grooming_almost_done",
-          channel: "alimtalk",
-          force: true,
-          metadata: { source: "owner_schedule_pickup_ready_action" },
-        });
-      }
     } catch (error) {
       delete recentStatusOverridesRef.current[bookingId];
       setBookings(previousBookings);
       setBootstrapData(previousBootstrapData);
       onDataChange?.(previousBootstrapData);
       setBoardError(getApiErrorMessage(error, nextStatus === "픽업 준비" ? "픽업 준비 알림을 발송하지 못했습니다." : "예약 상태 저장 중 문제가 발생했습니다."));
+      return false;
     } finally {
       statusChangeInFlightRef.current = false;
     }
+    return true;
   }
 
   function requestPhotoStatusChange(booking: DailyBooking, nextStatus: "완료") {
+    const sourceStatus = booking.sourceStatus ?? booking.status;
     setPhotoStatusAction({
       bookingId: booking.id,
       nextStatus,
       mediaKind: "grooming_after",
       mode: "completion",
+      requiresPhoto: sourceStatus === "진행 중",
       title: "미용 완료 사진",
-      description: "미용 전/후 사진을 선택하면 완료 알림에 함께 전송됩니다. 사진 없이 바로 완료할 수도 있어요.",
+      description: "미용 완료 사진과 작업 기록을 저장하면 고객 결과 링크, 고객 이력, 매출 분석에 함께 반영됩니다.",
       buttonLabel: "사진 선택",
-      skipLabel: "사진 없이 미용 완료",
+      skipLabel: "미용 기록 저장하고 완료",
       mobileDescription: "휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.",
+    });
+  }
+
+  function requestAfterPhotoStatusChange(booking: DailyBooking) {
+    setPhotoStatusAction({
+      bookingId: booking.id,
+      nextStatus: "픽업 준비",
+      mediaKind: "grooming_after",
+      mode: "single",
+      requiresPhoto: true,
+      title: "미용 완료 사진",
+      description: "완료된 모습을 한 장 촬영하면 사진이 저장되고 픽업 준비로 처리됩니다.",
+      buttonLabel: "미용 완료 사진 촬영",
+      skipLabel: "",
+      mobileDescription: "휴대폰으로 QR을 스캔해 미용 완료 사진을 촬영하고 픽업 준비로 변경하세요.",
     });
   }
 
@@ -4480,10 +4505,12 @@ export default function CalendarManagementScreen({
       bookingId: booking.id,
       nextStatus: "진행 중",
       mediaKind: "grooming_before",
+      mode: "single",
+      requiresPhoto: true,
       title: "미용 전 사진",
       description: "미용 전 모습을 한 장 촬영하면 사진이 저장되고 바로 미용 시작으로 처리됩니다.",
-      buttonLabel: "사진 선택",
-      skipLabel: "사진 없이 미용 시작",
+      buttonLabel: "미용 시작 사진 촬영",
+      skipLabel: "",
       mobileDescription: "휴대폰으로 QR을 스캔해 미용 전 상태를 촬영하고 미용을 시작하세요.",
     });
   }
@@ -4507,9 +4534,13 @@ export default function CalendarManagementScreen({
       },
       mediaKind,
       file,
+      { providerReadyMode: "background" },
     );
 
-    return uploaded.mediaAsset.id;
+    return {
+      mediaAssetId: uploaded.mediaAsset.id,
+      metrics: uploaded.metrics,
+    };
   }
 
   function handleChangeBookingStatus(bookingId: string, nextStatus: string) {
@@ -4530,12 +4561,12 @@ export default function CalendarManagementScreen({
     }
 
     if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus)) {
-      void applyBookingStatusChange(bookingId, nextStatus);
+      requestBeforePhotoStatusChange(targetBooking);
       return;
     }
 
-    if (targetBooking && shouldSkipPhotoStatusChange(nextStatus)) {
-      void applyBookingStatusChange(bookingId, nextStatus);
+    if (targetBooking && nextStatus === "픽업 준비") {
+      requestAfterPhotoStatusChange(targetBooking);
       return;
     }
 
@@ -4962,14 +4993,19 @@ export default function CalendarManagementScreen({
       </div>
       {photoStatusAction ? (
         <PhotoStatusDialog
+          shopId={bootstrapData.shop.id}
           action={photoStatusAction}
           onClose={() => setPhotoStatusAction(null)}
           onSubmit={handlePhotoStatusFile}
-          onComplete={async (mediaAssetIds) => {
+          onComplete={async (mediaAssetIds, groomingRecord) => {
             const action = photoStatusAction;
             if (!action) return;
-            setPhotoStatusAction(null);
-            await applyBookingStatusChange(action.bookingId, action.nextStatus, mediaAssetIds);
+            const succeeded = await applyBookingStatusChange(action.bookingId, action.nextStatus, mediaAssetIds, {
+              ...(groomingRecord ? { groomingRecord } : {}),
+            });
+            if (succeeded !== true) {
+              throw new Error("상태 변경을 저장하지 못했습니다. 입력한 메모는 임시저장되어 있습니다.");
+            }
           }}
         />
       ) : null}
@@ -4990,12 +5026,12 @@ export default function CalendarManagementScreen({
               <button
                 type="button"
                 onClick={() => {
-                  void applyBookingStatusChange(earlyStartBooking.id, "진행 중");
+                  requestBeforePhotoStatusChange(earlyStartBooking);
                   setEarlyStartBooking(null);
                 }}
                 className="h-10 rounded-[8px] bg-[#334155] text-[14px] font-medium text-white hover:bg-[#1f2937]"
               >
-                시작할게요
+                사진 촬영하기
               </button>
             </div>
           </div>

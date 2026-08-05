@@ -11,9 +11,9 @@ This checklist tracks the operational links that must stay connected across cust
 | Owner confirms booking | `appointments.status`, `notifications` | Schedule, calendar, customer timeline, notification history | Connected |
 | Owner rejects/cancels booking | `appointments.status`, rejection reason, `notifications` | Schedule change/cancel area, calendar, customer timeline | Connected, rejection copy should be reviewed |
 | Customer reschedules/cancels | `appointments.status/date/time`, `notifications` | Owner schedule, calendar, customer detail | Connected |
-| Grooming starts | `appointments.status = in_progress`, `notifications` | Schedule board active work, customer timeline | Connected |
-| Pickup-ready/almost done | `appointments.status = almost_done`, `notifications` | Schedule board, customer timeline | Connected |
-| Grooming completed | `appointments.status = completed`, `grooming_records`, `notifications` | Calendar, records, customer detail | Connected |
+| Grooming starts | `appointments.status = in_progress`, `actual_started_at`, start photo, `notifications` | Schedule board active work, customer timeline | Connected and photo enforced by API |
+| Pickup-ready/almost done | `appointments.status = almost_done`, finish photo, `notifications` | Schedule board, customer timeline | Connected and photo enforced by API |
+| Grooming completed | `appointments.status = completed`, `actual_completed_at`, one `grooming_records`, one linked revenue entry, result notification | Calendar, records, customer detail, customer result link, revenue analysis | Connected |
 | Alimtalk send succeeds/fails | `notifications.status`, provider fields, failure reason | Notification history and audit views | Stored, owner-facing history UI needs polish |
 | Photos/media sent | `media_assets`, variants, notification attachments | Grooming record, customer-shared message, media usage | Partially connected, needs E2E audit |
 
@@ -63,6 +63,8 @@ This checklist tracks the operational links that must stay connected across cust
 - `grooming_records` is the source of truth for completed service history.
 - `notifications` is the source of truth for all customer/owner message attempts.
 - `media_assets` and `notification_media_attachments` are the source of truth for sent/shared media.
+- `shop_revenue_entries` plus linked `grooming_records` timing snapshots are the source of truth for time profitability.
+- `shop_data_import_batches` and `shop_data_import_rows` are audit/idempotency metadata only; imported customers and visits live in the standard owner tables.
 
 ## Work Structure
 
@@ -105,3 +107,19 @@ Use this order when tightening the product. It keeps data integrity work ahead o
    - Current baseline lists grooming photos by both appointment and grooming-record context when both IDs are known, so photos captured during a reservation remain visible after the reservation becomes a completed record.
    - Completion backfills `media_assets.grooming_record_id` for photos already linked to the completed appointment. This backfill should never block appointment completion; failures are logged for follow-up.
    - Owner schedule work flow should capture one start photo before `in_progress` and one finish photo before `almost_done`; those images are passed as `mediaAssetIds` to the matching grooming notification so the customer receives the operational photo at the right moment.
+   - Completion stores treatment notes, special notes, actual duration, next recommended visit date, before/after media IDs, customer notification ID, and customer-share timestamp on the same grooming record.
+   - Completion notifications use an appointment-scoped `result` token. The customer can open the web result without installing an app or creating an account, while customer-shared media signed URLs remain token-scoped.
+   - `grooming_records` insert/update synchronizes the one matching `shop_revenue_entries` row, so work time and outcome metadata stay attributable to the same completed service revenue.
+
+7. Time profitability flow
+   - Completed records snapshot expected duration, actual duration, breed, weight, service name, original price, discount, and final paid price.
+   - `/api/owner/profitability` calculates service, breed/weight segment, and staff metrics from those records and the linked revenue ledger.
+   - Price recommendations require at least three comparable timed records and show the sample count, delay, current hourly revenue, benchmark gap, and rounded target price.
+   - Missing actual time remains visible as a data-quality gap and is not estimated.
+
+8. External migration flow
+   - `/api/owner/data-import` accepts `.xlsx` and `.csv`, enforces file/row limits, and provides a write-free preview before commit.
+   - Guardians merge by normalized phone; pets merge by guardian plus normalized name; imported visits carry a stable external row key.
+   - Re-uploading a completed file returns the previous batch result instead of duplicating visits.
+   - Imported visit rows become standard grooming records, while an imported price table becomes an inactive detailed-price-guide draft for owner review.
+   - Import audit rows store identifiers, fingerprints, status, and error codes only—not raw workbook rows.

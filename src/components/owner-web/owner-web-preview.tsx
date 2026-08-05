@@ -44,6 +44,10 @@ const CalendarRecordsScreen = dynamic(
   () => import("@/components/owner-web/calendar-records-screen"),
   { loading: OwnerScreenLoading },
 );
+const ProfitabilityAnalyticsScreen = dynamic(
+  () => import("@/components/owner-web/profitability-analytics-screen"),
+  { loading: OwnerScreenLoading },
+);
 const OwnerHelpScreen = dynamic(
   () => import("@/components/owner-web/owner-help-screen"),
   { loading: OwnerScreenLoading },
@@ -97,7 +101,7 @@ function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
 function getInitialOwnerWebScreen(data: BootstrapPayload): OwnerWebScreenKey {
   if (typeof window === "undefined") return "schedule";
   const screen = new URLSearchParams(window.location.search).get("screen") as OwnerWebScreenKey | null;
-  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "services", "staff", "ownerProfile", "shopInfo", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
+  if (screen && ["schedule", "bookingPageManagement", "bookingLink", "customers", "calendarRecords", "profitability", "services", "staff", "ownerProfile", "shopInfo", "operatingHours", "benefits", "alerts", "help"].includes(screen)) {
     return screen;
   }
   return shouldStartWithPriceGuideSetup(data) ? "services" : "schedule";
@@ -174,6 +178,8 @@ function renderScreen(
       return <CustomerManagementScreen initialData={initialData} onCreateReservationForCustomer={onCreateReservationForCustomer} onDataChange={onDataChange} />;
     case "calendarRecords":
       return <CalendarRecordsScreen initialData={initialData} onDataChange={onDataChange} onCreateReservationForDate={onCreateReservationForDate} />;
+    case "profitability":
+      return <ProfitabilityAnalyticsScreen shopId={initialData.shop.id} />;
     case "services":
       return (
         <ServiceManagementScreen

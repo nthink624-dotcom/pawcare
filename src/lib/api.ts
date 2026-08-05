@@ -154,7 +154,8 @@ async function getAccessTokenWithRecovery() {
 
 export async function fetchApiJsonWithBearer<T>(input: string, accessToken: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) {
+  const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !hasFormDataBody) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Authorization", `Bearer ${accessToken}`);

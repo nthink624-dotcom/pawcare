@@ -22,6 +22,7 @@ import {
   removeMediaStorageObjects,
 } from "@/server/media-storage";
 import { buildMediaStorageDirectory } from "@/server/media-storage-paths";
+import { verifyBookingAccessToken } from "@/server/booking-access-token";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type {
   ChannelType,
@@ -150,6 +151,10 @@ type PublicMediaSignedUrlsInput = {
   shopId: string;
   mediaAssetIds: string[];
   variantKey?: MediaVariantKey | "original" | null;
+};
+
+type CustomerResultMediaSignedUrlsInput = PublicMediaSignedUrlsInput & {
+  token: string;
 };
 
 type OwnerMediaSignedUrlsInput = {
@@ -863,7 +868,7 @@ export async function getPublicShopMediaSignedUrls(input: PublicMediaSignedUrlsI
     .in("id", mediaAssetIds)
     .eq("status", "ready")
     .is("deleted_at", null)
-    .in("visibility", ["public", "customer_shared"]);
+    .eq("visibility", "public");
 
   if (assetsResult.error) {
     throw new OwnerApiError(assetsResult.error.message, 500);
@@ -884,6 +889,75 @@ export async function getPublicShopMediaSignedUrls(input: PublicMediaSignedUrlsI
       throw new OwnerApiError(variantsResult.error.message, 500);
     }
 
+    for (const variant of (variantsResult.data ?? []) as MediaVariant[]) {
+      variantsByAssetId.set(variant.media_asset_id, variant);
+    }
+  }
+
+  const items = await Promise.all(
+    mediaAssetIds.map(async (mediaAssetId) => {
+      const asset = assetsById.get(mediaAssetId);
+      if (!asset) return null;
+      const variant = variantsByAssetId.get(mediaAssetId);
+      return {
+        mediaAssetId,
+        signedUrl: await createMediaSignedReadUrl({
+          bucket: variant?.bucket ?? asset.bucket,
+          path: variant?.storage_path ?? asset.storage_path,
+          expiresInSeconds: OWNER_MEDIA_SIGNED_READ_SECONDS,
+        }),
+      };
+    }),
+  );
+
+  return {
+    items: items.filter((item): item is { mediaAssetId: string; signedUrl: string } => Boolean(item)),
+  };
+}
+
+export async function getCustomerResultMediaSignedUrls(input: CustomerResultMediaSignedUrlsInput) {
+  const admin = getAdmin();
+  const shopId = requiredShopId(input.shopId);
+  const payload = verifyBookingAccessToken(input.token);
+  if (
+    payload.shopId !== shopId ||
+    payload.action !== "result" ||
+    !payload.appointmentId
+  ) {
+    throw new OwnerApiError("유효하지 않은 미용 결과 링크입니다.", 403);
+  }
+
+  const mediaAssetIds = normalizeUuidList(input.mediaAssetIds, "mediaAssetId", 20);
+  const variantKey = input.variantKey && variantKeys.has(input.variantKey as MediaVariantKey)
+    ? (input.variantKey as MediaVariantKey)
+    : null;
+  if (!mediaAssetIds.length) {
+    return { items: [] as Array<{ mediaAssetId: string; signedUrl: string }> };
+  }
+
+  const assetsResult = await admin
+    .from("media_assets")
+    .select("*")
+    .eq("shop_id", shopId)
+    .eq("appointment_id", payload.appointmentId)
+    .eq("pet_id", payload.petId)
+    .in("id", mediaAssetIds)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .in("visibility", ["customer_shared", "public"])
+    .in("media_kind", ["grooming_before", "grooming_after"]);
+  if (assetsResult.error) throw new OwnerApiError(assetsResult.error.message, 500);
+
+  const assets = (assetsResult.data ?? []) as MediaAsset[];
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const variantsByAssetId = new Map<string, MediaVariant>();
+  if (variantKey && assets.length > 0) {
+    const variantsResult = await admin
+      .from("media_variants")
+      .select("*")
+      .in("media_asset_id", assets.map((asset) => asset.id))
+      .eq("variant_key", variantKey);
+    if (variantsResult.error) throw new OwnerApiError(variantsResult.error.message, 500);
     for (const variant of (variantsResult.data ?? []) as MediaVariant[]) {
       variantsByAssetId.set(variant.media_asset_id, variant);
     }

@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 
 import { getSupabaseRuntimeStage } from "@/lib/env";
 import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
+import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
 type OwnerLoginApiResponse = {
   success?: boolean;
+  code?: "email-confirmation-required";
   message?: string;
   session?: {
     accessToken: string;
@@ -185,6 +187,8 @@ export default function LoginForm({
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberEmail, setRememberEmail] = useState(false);
+  const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
+  const [resendingEmailConfirmation, setResendingEmailConfirmation] = useState(false);
 
   useEffect(() => {
     if (nextPath.startsWith("/")) {
@@ -224,6 +228,7 @@ export default function LoginForm({
 
     setLoading(true);
     setMessage(null);
+    setEmailConfirmationRequired(false);
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -237,6 +242,12 @@ export default function LoginForm({
 
       if (!response.ok || !result.success) {
         const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
+
+        if (result.code === "email-confirmation-required") {
+          setEmailConfirmationRequired(true);
+          setMessage(nextMessage);
+          return;
+        }
 
         if (isRateLimitMessage(nextMessage)) {
           setMessage(getRateLimitMessage());
@@ -334,6 +345,37 @@ export default function LoginForm({
     }
   };
 
+  const resendEmailConfirmation = async () => {
+    const currentEmail = normalizeOwnerEmail(email);
+    if (!isValidOwnerEmail(currentEmail)) {
+      setMessage("인증 메일을 다시 받으려면 올바른 이메일 주소를 입력해 주세요.");
+      return;
+    }
+
+    setResendingEmailConfirmation(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/auth/resend-email-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: currentEmail }),
+      });
+      const result = (await response.json().catch(() => ({
+        message: "인증 메일 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      }))) as { success?: boolean; message?: string };
+
+      setMessage(result.message ?? "인증 메일을 다시 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+      if (response.ok && result.success) {
+        setEmailConfirmationRequired(false);
+      }
+    } catch {
+      setMessage("인증 메일을 다시 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setResendingEmailConfirmation(false);
+    }
+  };
+
   return (
     <div>
       <MobileLoginScreenTemplate
@@ -343,7 +385,20 @@ export default function LoginForm({
         loading={loading}
         message={message}
         nextPath={nextPath}
-        onEmailChange={setEmail}
+        emailConfirmationAction={
+          emailConfirmationRequired
+            ? {
+                label: "인증 메일 다시 받기",
+                loadingLabel: "인증 메일 보내는 중...",
+                loading: resendingEmailConfirmation,
+                onClick: () => void resendEmailConfirmation(),
+              }
+            : null
+        }
+        onEmailChange={(value) => {
+          setEmail(value);
+          setEmailConfirmationRequired(false);
+        }}
         onPasswordChange={setPassword}
         onRememberEmailChange={setRememberEmail}
         onLogin={handleLogin}

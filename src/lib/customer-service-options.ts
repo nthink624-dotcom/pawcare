@@ -20,9 +20,17 @@ export type CustomerServiceSourceOption = {
   durationMinutes: number;
   price: number;
   priceType: "fixed" | "starting";
+  weightBand?: string;
   order: number;
   linkedOptionId?: string;
   aliasIds?: string[];
+};
+
+type PriceGuideWeightRange = {
+  minimum: number | null;
+  maximum: number | null;
+  minimumInclusive: boolean;
+  maximumInclusive: boolean;
 };
 
 function getPriceGuideSections(guide: unknown, options: { includeDisabled?: boolean } = {}) {
@@ -36,6 +44,73 @@ function numberFromText(value: unknown) {
   const numberText = String(value ?? "").replace(/[^0-9]/g, "");
   const numberValue = Number(numberText);
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function parseWeightBandRange(label: string): PriceGuideWeightRange | null {
+  const normalized = label.replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
+  const values = Array.from(normalized.matchAll(/\d+(?:\.\d+)?/g), (match) => Number(match[0])).filter(Number.isFinite);
+  if (values.length === 0) return null;
+
+  if (values.length >= 2 && /(?:~|〜|～|–|—|-)/.test(normalized)) {
+    const [first, second] = values;
+    return {
+      minimum: Math.min(first, second),
+      maximum: Math.max(first, second),
+      minimumInclusive: true,
+      maximumInclusive: true,
+    };
+  }
+
+  const threshold = values[0];
+  if (normalized.includes("미만")) {
+    return { minimum: null, maximum: threshold, minimumInclusive: true, maximumInclusive: false };
+  }
+  if (normalized.includes("이하")) {
+    return { minimum: null, maximum: threshold, minimumInclusive: true, maximumInclusive: true };
+  }
+  if (normalized.includes("초과")) {
+    return { minimum: threshold, maximum: null, minimumInclusive: false, maximumInclusive: true };
+  }
+  if (normalized.includes("이상")) {
+    return { minimum: threshold, maximum: null, minimumInclusive: true, maximumInclusive: true };
+  }
+
+  return { minimum: threshold, maximum: threshold, minimumInclusive: true, maximumInclusive: true };
+}
+
+function weightMatchesRange(weightKg: number, range: PriceGuideWeightRange) {
+  const aboveMinimum =
+    range.minimum === null ||
+    (range.minimumInclusive ? weightKg >= range.minimum : weightKg > range.minimum);
+  const belowMaximum =
+    range.maximum === null ||
+    (range.maximumInclusive ? weightKg <= range.maximum : weightKg < range.maximum);
+  return aboveMinimum && belowMaximum;
+}
+
+export function resolveCustomerPriceGuideWeightBand(weightBands: string[], weightKg: number | null | undefined) {
+  if (typeof weightKg !== "number" || !Number.isFinite(weightKg) || weightKg <= 0) return null;
+
+  const parsedBands = weightBands
+    .map((band, index) => ({ band, index, range: parseWeightBandRange(band) }))
+    .filter((entry): entry is { band: string; index: number; range: PriceGuideWeightRange } => Boolean(entry.range));
+
+  const explicitRange = parsedBands.find(
+    ({ range }) => range.minimum !== null && range.maximum !== null && range.minimum !== range.maximum && weightMatchesRange(weightKg, range),
+  );
+  if (explicitRange) return explicitRange.band;
+
+  const upperBound = parsedBands
+    .filter(({ range }) => range.minimum === null && range.maximum !== null && weightMatchesRange(weightKg, range))
+    .sort((left, right) => (left.range.maximum ?? Number.POSITIVE_INFINITY) - (right.range.maximum ?? Number.POSITIVE_INFINITY))[0];
+  if (upperBound) return upperBound.band;
+
+  const lowerBound = parsedBands
+    .filter(({ range }) => range.minimum !== null && range.maximum === null && weightMatchesRange(weightKg, range))
+    .sort((left, right) => (right.range.minimum ?? Number.NEGATIVE_INFINITY) - (left.range.minimum ?? Number.NEGATIVE_INFINITY))[0];
+  if (lowerBound) return lowerBound.band;
+
+  return parsedBands.find(({ range }) => weightMatchesRange(weightKg, range))?.band ?? null;
 }
 
 function limitText(value: unknown, maxLength: number) {
@@ -132,7 +207,7 @@ export function normalizeCustomerServiceOverrides(value: unknown): CustomerServi
 
 export function buildCustomerServiceSourceOptions(
   services: Service[],
-  options: { includeInactive?: boolean; priceGuideOnly?: boolean; priceGuideGroupKey?: string } = {},
+  options: { includeInactive?: boolean; priceGuideOnly?: boolean; priceGuideGroupKey?: string; weightKg?: number | null } = {},
 ): CustomerServiceSourceOption[] {
   const result: CustomerServiceSourceOption[] = [];
 
@@ -154,6 +229,9 @@ export function buildCustomerServiceSourceOptions(
       const weightBands = Array.isArray(source.weightBands)
         ? source.weightBands.filter((band): band is string => typeof band === "string")
         : [];
+      const hasSelectedWeight = typeof options.weightKg === "number" && Number.isFinite(options.weightKg) && options.weightKg > 0;
+      const selectedWeightBand = resolveCustomerPriceGuideWeightBand(weightBands, options.weightKg);
+      if (hasSelectedWeight && !selectedWeightBand) continue;
       const items = Array.isArray(source.items) ? source.items : [];
 
       for (const item of items) {
@@ -166,9 +244,10 @@ export function buildCustomerServiceSourceOptions(
           sourceItem.cells && typeof sourceItem.cells === "object"
             ? (sourceItem.cells as Record<string, { price?: unknown; durationMinutes?: unknown }>)
             : {};
-        const firstCell =
-          weightBands.map((band) => cells[band]).find((cell) => numberFromText(cell?.price)) ??
-          Object.values(cells).find((cell) => numberFromText(cell?.price));
+        const firstCell = selectedWeightBand
+          ? cells[selectedWeightBand]
+          : weightBands.map((band) => cells[band]).find((cell) => numberFromText(cell?.price)) ??
+            Object.values(cells).find((cell) => numberFromText(cell?.price));
         const price = numberFromText(firstCell?.price);
         if (!price) continue;
 
@@ -194,6 +273,7 @@ export function buildCustomerServiceSourceOptions(
           durationMinutes,
           price,
           priceType: service.price_type ?? "starting",
+          weightBand: selectedWeightBand ?? undefined,
           order: result.length + 1,
           aliasIds,
         });

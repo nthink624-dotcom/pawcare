@@ -1,4 +1,5 @@
-﻿create extension if not exists pgcrypto;
+-- PetManager base schema.
+create extension if not exists pgcrypto;
 
 create table if not exists shops (
   id text primary key,

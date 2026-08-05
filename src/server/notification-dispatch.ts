@@ -747,14 +747,14 @@ function buildNotificationButtons(params: {
     return buttons;
   }
 
-  if (params.type !== "grooming_completed" || !params.hasMediaAttachments || !params.bookingManageUrl) {
+  if (params.type !== "grooming_completed" || !params.bookingManageUrl) {
     return [];
   }
 
   return [
     {
       type: "WL",
-      name: "사진 확인",
+      name: "미용 결과 확인",
       linkMobile: params.bookingManageUrl,
       linkPc: params.bookingManageUrl,
     },
@@ -850,15 +850,19 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const templateKey = usesAlimtalkRelay ? configuredTemplateKey : resolveAlimtalkTemplateKey(templateAlias);
   const templateType = input.templateType ?? "alimtalk";
   const isBookingTimeProposal = input.type === "booking_time_proposed";
+  const isGroomingResult = input.type === "grooming_completed";
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
           shopId: input.shopId,
           guardianId: guardian.id,
           petId: pet.id,
-          appointmentId: isBookingTimeProposal ? appointment?.id ?? input.appointmentId ?? undefined : undefined,
-          action: isBookingTimeProposal ? "reschedule" : undefined,
-          expiresInHours: isBookingTimeProposal ? 24 * 14 : undefined,
+          appointmentId:
+            isBookingTimeProposal || isGroomingResult
+              ? appointment?.id ?? input.appointmentId ?? undefined
+              : undefined,
+          action: isBookingTimeProposal ? "reschedule" : isGroomingResult ? "result" : undefined,
+          expiresInHours: isBookingTimeProposal ? 24 * 14 : isGroomingResult ? 24 * 365 : undefined,
         })
       : null;
   const bookingEntryUrl = buildBookingEntryUrl(input.shopId);

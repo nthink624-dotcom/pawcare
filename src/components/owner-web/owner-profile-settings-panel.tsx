@@ -44,7 +44,7 @@ function buildLocalProfile(
   return {
     user_id: userId,
     shop_id: ownerProfile?.shop_id ?? shop?.id ?? "demo-shop",
-    login_id: ownerProfile?.login_id ?? `owner_${userId.replace(/-/g, "")}`,
+    login_id: ownerProfile?.login_id ?? "demo-owner@example.test",
     name,
     birth_date: ownerProfile?.birth_date ?? null,
     phone_number: phoneNumber,

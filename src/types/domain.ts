@@ -214,6 +214,7 @@ export type Shop = {
 export type OwnerProfile = {
   user_id: string;
   shop_id: string;
+  /** Legacy database field name; it always carries the normalized owner email. */
   login_id: string;
   name: string;
   birth_date: string | null;
@@ -323,9 +324,32 @@ export type GroomingRecord = {
   pet_id: string;
   service_id: string;
   appointment_id: string | null;
+  staff_id?: string | null;
+  started_status_event_id?: string | null;
+  pickup_ready_status_event_id?: string | null;
+  completed_status_event_id?: string | null;
+  before_media_asset_id?: string | null;
+  after_media_asset_id?: string | null;
+  customer_notification_id?: string | null;
+  shared_with_customer_at?: string | null;
+  completed_by_user_id?: string | null;
   style_notes: string;
   memo: string;
+  internal_memo?: string;
   price_paid: number;
+  actual_duration_minutes?: number | null;
+  expected_duration_minutes?: number | null;
+  original_price?: number | null;
+  discount_amount?: number;
+  pet_breed_snapshot?: string | null;
+  pet_weight_snapshot?: number | null;
+  pricing_group_snapshot?: string | null;
+  service_name_snapshot?: string | null;
+  record_source?: "owner" | "external_import";
+  external_source?: string | null;
+  external_record_key?: string | null;
+  import_batch_id?: string | null;
+  next_recommended_visit_date?: string | null;
   groomed_at: string;
   created_at: string;
   updated_at: string;

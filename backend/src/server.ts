@@ -5,11 +5,10 @@ import express, { type Request, type Response } from "express";
 import { z } from "zod";
 
 import {
-  buildOwnerAuthEmail,
   isValidBirthDate8,
-  isValidOwnerLoginId,
+  isValidOwnerEmail,
   isValidOwnerPassword,
-  normalizeOwnerLoginId,
+  normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
 import { ownerPasswordResetSchema } from "@/lib/auth/owner-password-reset";
@@ -53,7 +52,7 @@ const verifyIdentitySchema = z.object({
 });
 
 const signupSchema = z.object({
-  loginId: z.string().min(1),
+  email: z.string().min(1),
   password: z.string().min(6),
   passwordConfirm: z.string().min(6),
   name: z.string().min(1),
@@ -423,46 +422,43 @@ app.post("/api/notifications", async (request, response) => {
   }
 });
 
-app.get("/api/auth/check-login-id", async (request, response) => {
+app.get("/api/auth/check-email", async (request, response) => {
   try {
     if (!hasSupabaseAdminEnv()) {
       return response.status(503).json({
         available: false,
-        message:
-          "Supabase ?? ??? ???? ?????. SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY? ??? ???.",
+        message: "Supabase 인증 환경이 준비되지 않았습니다.",
       });
     }
 
-    const loginId = normalizeOwnerLoginId(typeof request.query.loginId === "string" ? request.query.loginId : "");
-    if (!loginId) {
-      return response.status(400).json({ available: false, message: "???? ??? ???." });
+    const email = normalizeOwnerEmail(typeof request.query.email === "string" ? request.query.email : "");
+    if (!email) {
+      return response.status(400).json({ available: false, message: "이메일을 입력해 주세요." });
     }
 
-    if (!isValidOwnerLoginId(loginId)) {
-      return response
-        .status(400)
-        .json({ available: false, message: "???? ?? ???, ??, ., -, _ ???? 4? ?? ??? ???." });
+    if (!isValidOwnerEmail(email)) {
+      return response.status(400).json({ available: false, message: "올바른 이메일 주소를 입력해 주세요." });
     }
 
     const supabase = getSupabaseAdmin();
     if (!supabase) {
-      return sendError(response, 503, "Supabase ??? ??? ? ????.");
+      return sendError(response, 503, "Supabase 관리자 연결을 확인해 주세요.");
     }
 
-    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", loginId).maybeSingle();
+    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", email).maybeSingle();
     if (duplicate.error) {
-      return response.status(400).json({ available: false, message: "??? ?? ? ??? ??????." });
+      return response.status(400).json({ available: false, message: "이메일 중복 여부를 확인하지 못했습니다." });
     }
 
     if (duplicate.data?.login_id) {
-      return response.json({ available: false, message: "?? ?? ?? ??????." });
+      return response.json({ available: false, message: "이미 사용 중인 이메일입니다." });
     }
 
-    return response.json({ available: true, message: "?? ??? ??????." });
+    return response.json({ available: true, message: "사용 가능한 이메일입니다." });
   } catch (error) {
     return response
       .status(400)
-      .json({ available: false, message: error instanceof Error ? error.message : "??? ?? ? ??? ??????." });
+      .json({ available: false, message: error instanceof Error ? error.message : "이메일 중복 여부를 확인하지 못했습니다." });
   }
 });
 
@@ -575,10 +571,10 @@ app.post("/api/auth/signup", async (request, response) => {
       ...request.body,
       phoneNumber: normalizeOwnerPhoneNumber(request.body?.phoneNumber ?? ""),
     });
-    const loginId = normalizeOwnerLoginId(payload.loginId);
+    const email = normalizeOwnerEmail(payload.email);
 
-    if (!isValidOwnerLoginId(loginId)) {
-      return sendError(response, 400, "???? ?? ???, ??, ., -, _ ???? 4? ?? ??? ???.");
+    if (!isValidOwnerEmail(email)) {
+      return sendError(response, 400, "올바른 이메일 주소를 입력해 주세요.");
     }
 
     if (!isValidOwnerPassword(payload.password)) {
@@ -620,18 +616,17 @@ app.post("/api/auth/signup", async (request, response) => {
       return sendError(response, 503, "Supabase ??? ??? ? ????.");
     }
 
-    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", loginId).maybeSingle();
+    const duplicate = await supabase.from("owner_profiles").select("login_id").eq("login_id", email).maybeSingle();
     if (duplicate.data?.login_id) {
-      return sendError(response, 409, "?? ?? ?? ??????.");
+      return sendError(response, 409, "이미 사용 중인 이메일입니다.");
     }
 
-    const authEmail = buildOwnerAuthEmail(loginId);
     const createdUser = await supabase.auth.admin.createUser({
-      email: authEmail,
+      email,
       password: payload.password,
       email_confirm: true,
       user_metadata: {
-        login_id: loginId,
+        login_id: email,
         name: payload.name,
       },
     });
@@ -676,7 +671,7 @@ app.post("/api/auth/signup", async (request, response) => {
       {
         user_id: user.id,
         shop_id: shopId,
-        login_id: loginId,
+        login_id: email,
         name: payload.name,
         birth_date: payload.birthDate,
         phone_number: payload.phoneNumber,
@@ -726,7 +721,7 @@ app.post("/api/auth/reset-password", async (request, response) => {
     const profileResult = await supabase
       .from("owner_profiles")
       .select("user_id, name, birth_date")
-      .eq("login_id", payload.loginId)
+      .eq("login_id", payload.email)
       .maybeSingle();
 
     if (profileResult.error) {

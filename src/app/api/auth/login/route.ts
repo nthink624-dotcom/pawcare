@@ -29,6 +29,10 @@ type OwnerSignInSession = {
 function getLoginErrorMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
 
+  if (normalized.includes("email not confirmed")) {
+    return "이메일 인증이 아직 완료되지 않았어요. 받은 메일의 인증 링크를 연 뒤 로그인해 주세요.";
+  }
+
   if (
     normalized.includes("invalid login credentials") ||
     normalized.includes("email not confirmed") ||
@@ -100,7 +104,24 @@ export async function POST(request: NextRequest) {
 
     const signInResult = await authClient.auth.signInWithPassword({ email, password: body.password });
     if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
-      return NextResponse.json({ message: getLoginErrorMessage(signInResult.error?.message) }, { status: 401 });
+      const isEmailConfirmationRequired = (signInResult.error?.message ?? "").toLowerCase().includes("email not confirmed");
+      return NextResponse.json(
+        {
+          message: getLoginErrorMessage(signInResult.error?.message),
+          ...(isEmailConfirmationRequired ? { code: "email-confirmation-required" } : {}),
+        },
+        { status: isEmailConfirmationRequired ? 403 : 401 },
+      );
+    }
+
+    if (!signInResult.data.user.email_confirmed_at) {
+      return NextResponse.json(
+        {
+          code: "email-confirmation-required",
+          message: "이메일 인증이 아직 완료되지 않았어요. 받은 메일의 인증 링크를 연 뒤 로그인해 주세요.",
+        },
+        { status: 403 },
+      );
     }
 
     const profileResult = await admin

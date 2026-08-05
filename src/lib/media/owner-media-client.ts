@@ -2,9 +2,11 @@
 
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
+  compressImageBundleForPetmanager,
   compressImageForPetmanager,
   compressImageVariantsForPetmanager,
   type PetmanagerCompressedImage,
+  type PetmanagerCompressedImageVariant,
 } from "@/lib/media/client-image-compression";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { MediaAsset, MediaKind, MediaVariant } from "@/types/domain";
@@ -79,10 +81,20 @@ type SignedUrlsResponse = {
 export type OwnerMediaUploadResult = {
   mediaAsset: MediaAsset;
   variant: MediaVariant | null;
+  metrics: OwnerMediaUploadMetrics;
+};
+
+export type OwnerMediaUploadMetrics = {
+  sourceByteSize: number;
+  uploadedByteSize: number;
+  compressionMs: number;
+  transferMs: number;
+  totalMs: number;
 };
 
 type OwnerMediaUploadOptions = {
   createProviderReadyVariant?: boolean;
+  providerReadyMode?: "wait" | "background" | "skip";
 };
 
 const SIGNED_URL_CACHE_TTL_MS = 8 * 60 * 1000;
@@ -235,10 +247,11 @@ async function completeUpload(context: OwnerMediaContext, mediaAssetId: string, 
   });
 }
 
-async function createProviderReadyVariant(context: OwnerMediaContext, mediaAssetId: string, sourceFile: File) {
-  const [variant] = await compressImageVariantsForPetmanager(sourceFile, ["provider_ready"]);
-  if (!variant) return null;
-
+async function createProviderReadyVariant(
+  context: OwnerMediaContext,
+  mediaAssetId: string,
+  variant: PetmanagerCompressedImageVariant,
+) {
   const intent = await fetchApiJsonWithAuth<VariantUploadIntentResponse>("/api/owner/media/variants/upload-intents", {
     method: "POST",
     body: JSON.stringify({
@@ -284,27 +297,66 @@ export async function createOwnerMediaAssetFromFile(
   file: File,
   options: OwnerMediaUploadOptions = {},
 ): Promise<OwnerMediaUploadResult> {
-  const compressed = await compressImageForPetmanager(file);
+  const startedAt = performance.now();
+  const providerReadyMode = options.createProviderReadyVariant === false
+    ? "skip"
+    : options.providerReadyMode ?? "wait";
+  const bundle = providerReadyMode === "wait"
+    ? await compressImageBundleForPetmanager(file, ["provider_ready"])
+    : { original: await compressImageForPetmanager(file), variants: [] };
+  const compressed = bundle.original;
+  const providerReadyVariant = bundle.variants[0] ?? null;
+  const compressionCompletedAt = performance.now();
   const intent = await createUploadIntent(context, mediaKind, compressed);
 
-  await uploadCompressedFile({
-    bucket: intent.upload.bucket,
-    path: intent.upload.path,
-    signedUrl: intent.upload.signedUrl,
-    token: intent.upload.token,
-    method: intent.upload.method,
-    headers: intent.upload.headers,
-    file: compressed.file,
-  });
+  const originalUpload = (async () => {
+    await uploadCompressedFile({
+      bucket: intent.upload.bucket,
+      path: intent.upload.path,
+      signedUrl: intent.upload.signedUrl,
+      token: intent.upload.token,
+      method: intent.upload.method,
+      headers: intent.upload.headers,
+      file: compressed.file,
+    });
+    return completeUpload(context, intent.mediaAsset.id, compressed);
+  })();
+  const providerReadyUpload = providerReadyVariant
+    ? createProviderReadyVariant(context, intent.mediaAsset.id, providerReadyVariant)
+    : providerReadyMode === "background"
+      ? compressImageVariantsForPetmanager(compressed.file, ["provider_ready"])
+          .then(([backgroundVariant]) => (
+            backgroundVariant
+              ? createProviderReadyVariant(context, intent.mediaAsset.id, backgroundVariant)
+              : null
+          ))
+      : Promise.resolve(null);
 
-  const completed = await completeUpload(context, intent.mediaAsset.id, compressed);
-  const variant = options.createProviderReadyVariant === false
-    ? null
-    : await createProviderReadyVariant(context, intent.mediaAsset.id, file);
+  let completed: CompleteUploadResponse;
+  let variant: MediaVariant | null = null;
+  if (providerReadyMode === "wait") {
+    [completed, variant] = await Promise.all([originalUpload, providerReadyUpload]);
+  } else {
+    completed = await originalUpload;
+    if (providerReadyMode === "background") {
+      void providerReadyUpload.catch(() => {
+        // Delivery falls back to the optimized original when a background variant fails.
+      });
+    }
+  }
+
+  const completedAt = performance.now();
 
   return {
     mediaAsset: completed.mediaAsset,
     variant,
+    metrics: {
+      sourceByteSize: file.size,
+      uploadedByteSize: compressed.file.size,
+      compressionMs: Math.round(compressionCompletedAt - startedAt),
+      transferMs: Math.round(completedAt - compressionCompletedAt),
+      totalMs: Math.round(completedAt - startedAt),
+    },
   };
 }
 

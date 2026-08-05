@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
+import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
 import { getSupabaseServerRuntimeStage, hasSupabaseServerEnv } from "@/lib/server-env";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { OwnerApiError, requireOwnerShop } from "@/server/owner-api-auth";
@@ -32,7 +33,7 @@ export async function PATCH(request: NextRequest) {
         profile: {
           user_id: "demo-owner",
           shop_id: body.shopId,
-          login_id: "demo-owner",
+          login_id: "demo-owner@example.test",
           name: body.name,
           birth_date: null,
           phone_number: normalizePhoneNumber(body.phoneNumber),
@@ -73,10 +74,16 @@ export async function PATCH(request: NextRequest) {
       throw new OwnerApiError(currentResult.error.message, 500);
     }
 
+    const authUserResult = await admin.auth.admin.getUserById(owner.userId);
+    const email = normalizeOwnerEmail(authUserResult.data.user?.email ?? "");
+    if (authUserResult.error || !isValidOwnerEmail(email)) {
+      throw new OwnerApiError("오너 계정의 이메일을 확인하지 못했습니다. 다시 로그인해 주세요.", 400);
+    }
+
     const profilePayload = {
       user_id: owner.userId,
       shop_id: owner.shopId,
-      login_id: currentResult.data?.login_id ?? `owner_${owner.userId.replace(/-/g, "")}`,
+      login_id: email,
       name: body.name,
       birth_date: currentResult.data?.birth_date ?? null,
       phone_number: normalizePhoneNumber(body.phoneNumber),

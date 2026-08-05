@@ -1,63 +1,42 @@
-# PetManager 프론트/백엔드 분리 메모
+# PC/Legacy Backend Boundary
 
-## 실행 명령
-- 프론트: 루트에서 `npm run dev:frontend`
-- 백엔드: 루트에서 `npm run dev:backend`
-- 프론트 기본 주소: `http://localhost:3000`
-- 백엔드 기본 주소: `http://localhost:4000`
+## Current authority
 
-## 환경 변수 파일
-- 프론트: `D:\petmanager\.env.local`
-- 백엔드: `D:\petmanager\backend\.env`
+- The deployed product is the Next.js application in `D:\petmanager`; Vercel deploys it as a Next.js project.
+- Its route handlers under `src/app/api` are the primary PC, mobile, and production API implementation.
+- `backend/` is a retained Express server for legacy local development only. It is not the production authentication authority. If it is started, its owner-auth endpoints must follow the same contract as the Next.js API.
+- Do not configure a PC or mobile client to use a different authentication contract from the primary Next.js API.
 
-## 프론트 env
-- `NEXT_PUBLIC_APP_NAME`
-- `NEXT_PUBLIC_SITE_URL`
-- `NEXT_PUBLIC_API_BASE_URL`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## Owner email authentication contract
 
-## 백엔드 env
-- `APP_NAME`
-- `SITE_URL`
-- `FRONTEND_URL`
-- `PORT`
-- `CORS_ORIGINS`
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DEMO_SHOP_ID`
-- `SOLAPI_API_KEY`
-- `SOLAPI_API_SECRET`
-- `SOLAPI_SENDER_KEY`
-- `SOLAPI_SENDER_PHONE`
+Owner accounts sign up, sign in, recover an account, and reset a password with a real email address.
 
-## 현재 인증/권한 흐름
-1. 회원가입 화면은 백엔드 `POST /api/auth/signup`으로 아이디 중복 확인과 owner 계정 생성을 요청합니다.
-2. 백엔드는 `owner_profiles`와 `shops`를 생성하고, virtual email(`{loginId}@owner.petmanager.local`) 기반 Supabase Auth 유저를 service role로 만듭니다.
-3. 로그인 화면은 브라우저 Supabase client로 `signInWithPassword`를 수행하고 세션을 브라우저에 유지합니다.
-4. owner 화면과 owner CRUD는 브라우저 세션의 access token을 `Authorization: Bearer`로 백엔드에 전달합니다.
-5. 백엔드는 토큰으로 사용자를 검증한 뒤 `owner_profiles.shop_id`, `shops.owner_user_id`를 기준으로 owner scope를 판별하고 service role로 DB 작업을 수행합니다.
+- Canonical identifier: `auth.users.email`.
+- Compatibility field: `owner_profiles.login_id` remains only as a database column name and stores the same trimmed, lowercase email.
+- Never generate or accept an owner username, `loginId`, `check-login-id`, or an internal address such as `@owner.petmanager.local` / `@owner.pawcare.local`.
+- Owner-facing forms label the field `이메일`, use `type="email"` and `autocomplete="email"`.
 
-## 현재 API 분리 범위
-- owner bootstrap: `GET /api/bootstrap`
-- 회원가입 중복 확인: `GET /api/auth/check-login-id`
-- 회원가입: `POST /api/auth/signup`
-- 비밀번호 재설정: `POST /api/auth/reset-password`
-- owner CRUD: `appointments`, `guardians`, `pets`, `records`, `notifications`, `services`, `settings`, `customer-page-settings`
-- public/customer API: `availability`, `customer-lookup`, `customer-appointments`
-- landing API: `landing/interest`, `landing/feedback`
+Shared owner-auth API payloads:
 
-## 수동 체크리스트
-- `backend/` 의존성 설치
-- `backend/.env`에 실제 `SUPABASE_SERVICE_ROLE_KEY` 입력
-- 루트 `.env.local`에 `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000` 설정
-- Supabase 스키마에 `owner_profiles`, `shops.owner_user_id` 구조가 준비되어 있는지 확인
-- 백엔드 실행 환경에서 Supabase 호스트 DNS 해석/HTTPS 접근이 되는지 확인
-- 백엔드 실행 후 프론트 로그인, 회원가입, owner CRUD 흐름 점검
+```text
+POST /api/auth/login       { email, password }
+POST /api/auth/signup      { email, password, ...verified identity fields }
+GET  /api/auth/check-email?email=
+POST /api/auth/find-email
+POST /api/auth/reset-password { email, ... }
+```
 
-## 보류/주의
-- 기존 Next `app/api`와 `src/server`는 백엔드 분리 후 제거 대상입니다.
-- OAuth callback은 브라우저 세션 교환을 위해 Next 라우트에 최소한으로 남아 있습니다.
+`find-email` and `reset-password` are the only account-recovery purposes. The user proves their phone identity for recovery; this is not an email-inbox verification flow.
+
+## Local development
+
+- Primary local server: `npm run dev` (`http://localhost:3000`).
+- The legacy Express server is optional: `npm run dev:backend` (`http://localhost:4000`). It must never be used to revive the old username or virtual-email flow.
+- Local env files point to the Development Supabase project. Do not commit secrets or copy production credentials to local development.
+
+## Change checklist
+
+1. Change schema only through `supabase/migrations` when a schema change is actually needed.
+2. Keep `auth.users.email` and `owner_profiles.login_id` equal after normalization.
+3. Update `D:\petmanager-shared\docs\data-contracts.md` and coordinate the same API fields with `D:\petmanager-app`.
+4. Run `npm run check:owner-auth-guards`, `npm run typecheck`, and `npm run typecheck:backend` for owner-auth changes.

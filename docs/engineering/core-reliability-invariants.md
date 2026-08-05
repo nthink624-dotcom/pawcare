@@ -87,6 +87,74 @@ The root application error boundary must remain present. It must offer retry and
 
 Canonical boundary: `src/app/error.tsx`.
 
+## 7. A completed grooming service has one connected outcome
+
+The operational status, photos, record, customer result, and revenue row are projections of one completed appointment. They must not become separate local-only records.
+
+Required behavior:
+
+- `in_progress` requires one `grooming_before` media asset.
+- `almost_done` requires one `grooming_after` media asset. A direct `in_progress -> completed` transition also requires the finish photo.
+- Completion upserts one `grooming_records` row keyed by `appointment_id` and derives actual duration from the appointment's actual timestamps.
+- Treatment notes, special notes, next recommended visit date, before/after media IDs, and final appointment price remain on that record.
+- A database trigger synchronizes exactly one `shop_revenue_entries` row through `grooming_record_id`.
+- Customer result links use an appointment-scoped `action: "result"` token; customer-shared photo URLs require that same token.
+- The result page works without an app install, account, or login.
+
+Forbidden regression:
+
+- Empty photo validation functions or UI-only photo enforcement.
+- Creating a second customer-facing grooming record, photo album, or revenue amount for the same appointment.
+- Using the base service price when the appointment has a `final_service_price` snapshot.
+- Returning `customer_shared` signed media URLs without a valid result token.
+
+Canonical migration: `supabase/migrations/20260803162637_grooming_record_outcomes.sql`.
+
+Regression coverage: `tests/server/reliability-guardrails.test.mjs`.
+
+## 8. Profitability is derived from completed work, not a second ledger
+
+Time profitability joins the existing completed grooming record, appointment timing snapshot, pet snapshot, assigned staff, and linked revenue row. It must not create a second editable revenue source.
+
+Required behavior:
+
+- Expected time comes from the completion snapshot, then the appointment window, then the detailed service duration.
+- Actual time comes from `grooming_records.actual_duration_minutes`.
+- Gross, discount, and net revenue remain attributable to the one `shop_revenue_entries` row linked by `grooming_record_id`.
+- Breed, weight, service name, original price, and expected duration are snapshotted on completion so later profile or price-guide edits do not rewrite history.
+- Price recommendations require at least three timed records for the same breed, rounded weight, and service segment.
+- Missing actual time is reported as a data-quality gap, never replaced with an invented duration.
+
+Forbidden regression:
+
+- Calculating hourly revenue from scheduled time while labeling it actual.
+- Using the current pet/service profile as the only historical value after a snapshot exists.
+- Presenting a price increase from fewer than three comparable completed records.
+
+Canonical API: `GET /api/owner/profitability`.
+
+## 9. External data imports are previewed and idempotent
+
+Required behavior:
+
+- Preview parses the file without writing customer data.
+- Guardians merge by normalized phone number; pets merge within that guardian by normalized pet name.
+- The same source file cannot create the same imported visit twice.
+- Imported visits become standard `grooming_records` rows with `record_source = 'external_import'`, so customer history, revenue, and profitability use one shared source.
+- Imported price guides are saved as an inactive detailed-price-guide draft and never overwrite the active guide automatically.
+- Raw workbook files and raw PII rows are not retained in import audit tables.
+- Import audit tables have RLS enabled and no `anon` or `authenticated` table privileges.
+
+Forbidden regression:
+
+- One API write per browser-parsed row with no preview or retry identity.
+- Creating a separate customer-history store only for migrated records.
+- Activating an imported price guide or exposing it to customer booking before owner review.
+
+Canonical migration: `supabase/migrations/20260803172356_profitability_and_external_data_imports.sql`.
+
+Regression coverage: `tests/server/profitability-and-import.test.mjs` and `tests/server/reliability-guardrails.test.mjs`.
+
 ## Required verification
 
 Run all of the following before deployment:

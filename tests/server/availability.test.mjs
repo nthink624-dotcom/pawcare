@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const { computeAvailableSlots } = await import("../../src/lib/availability.ts");
+const { buildRuleBasedSlotRecommendations } = await import("../../src/lib/booking-slot-recommendations.ts");
 const { findCustomerBreedPricingGroup } = await import("../../src/lib/customer-breed-pricing-group.ts");
 const { buildCustomerServiceSourceOptions } = await import("../../src/lib/customer-service-options.ts");
 const { getStaffBookingLoads } = await import("../../src/lib/staff-booking-load.ts");
@@ -268,5 +269,108 @@ describe("customer breed pricing group", () => {
     assert.equal(options[0].name.includes("플러스"), true);
     assert.equal(options[0].displayName, "목욕");
     assert.equal(options[0].price, 50000);
+  });
+
+  it("resolves price and duration from the matching detailed weight cell", () => {
+    const groupedService = {
+      ...service,
+      price_guide: {
+        enabled: true,
+        sections: [
+          {
+            id: "basic",
+            species: "dog",
+            title: "베이직",
+            note: "말티즈",
+            weightBands: ["4kg 이하", "6kg 이하", "8kg 이하"],
+            items: [
+              {
+                id: "basic-bath",
+                label: "목욕",
+                cells: {
+                  "4kg 이하": { price: "30000", durationMinutes: "60" },
+                  "6kg 이하": { price: "35000", durationMinutes: "75" },
+                  "8kg 이하": { price: "40000", durationMinutes: "90" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const options = buildCustomerServiceSourceOptions([groupedService], {
+      priceGuideOnly: true,
+      priceGuideGroupKey: "dog:베이직",
+      weightKg: 5.2,
+    });
+
+    assert.equal(options.length, 1);
+    assert.equal(options[0].weightBand, "6kg 이하");
+    assert.equal(options[0].price, 35000);
+    assert.equal(options[0].durationMinutes, 75);
+  });
+
+  it("does not invent a price when weight is outside every registered band", () => {
+    const options = buildCustomerServiceSourceOptions([
+      {
+        ...service,
+        price_guide: {
+          enabled: true,
+          sections: [
+            {
+              id: "basic",
+              species: "dog",
+              title: "베이직",
+              note: "말티즈",
+              weightBands: ["4kg 이하"],
+              items: [{ id: "bath", label: "목욕", cells: { "4kg 이하": { price: "30000", durationMinutes: "60" } } }],
+            },
+          ],
+        },
+      },
+    ], { priceGuideOnly: true, priceGuideGroupKey: "dog:베이직", weightKg: 7 });
+
+    assert.deepEqual(options, []);
+  });
+});
+
+describe("AI booking slot recommendation fallback", () => {
+  it("always returns valid recommended slots even when there is no adjacent booking", () => {
+    const availableSlots = ["09:00", "11:00", "14:30", "18:00"];
+    const recommended = buildRuleBasedSlotRecommendations({
+      availableSlots,
+      recommendationMode: "continuity",
+    });
+
+    assert.equal(recommended.length, 2);
+    assert.equal(recommended.every((slot) => availableSlots.includes(slot)), true);
+  });
+
+  it("keeps a gap-minimizing baseline first in continuity mode", () => {
+    const recommended = buildRuleBasedSlotRecommendations({
+      availableSlots: ["10:00", "11:30", "14:30"],
+      baselineRecommendedSlots: ["11:30"],
+      recommendationMode: "continuity",
+    });
+
+    assert.equal(recommended[0], "11:30");
+  });
+
+  it("prefers a slot handled by the less-loaded eligible staff member", () => {
+    const recommended = buildRuleBasedSlotRecommendations({
+      availableSlots: ["11:00", "14:30"],
+      recommendationMode: "staff_balance",
+      staffLoads: [
+        { staffId: "busy", bookingCount: 4, bookedMinutes: 360 },
+        { staffId: "open", bookingCount: 0, bookedMinutes: 0 },
+      ],
+      eligibleStaffBySlot: [
+        { slot: "11:00", staffIds: ["busy"] },
+        { slot: "14:30", staffIds: ["open"] },
+      ],
+    });
+
+    assert.equal(recommended[0], "14:30");
   });
 });

@@ -33,8 +33,8 @@ function FieldShell({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">{label}</span>
-      {hint ? <span className="-mt-1 mb-2 block text-[12px] font-medium text-[#8090a4]">{hint}</span> : null}
+      <span className="mb-2 block text-[14px] font-semibold text-[#7184a6]">{label}</span>
+      {hint ? <span className="-mt-1 mb-2 block text-[12px] font-medium text-[#9aadd0]">{hint}</span> : null}
       {children}
     </label>
   );
@@ -44,7 +44,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-[54px] w-full rounded-[8px] border border-[#d7e0e9] bg-white px-4 text-[16px] font-medium text-[#111827] outline-none transition placeholder:text-[#aab5c4] focus:border-[#247761] focus:ring-2 focus:ring-[#247761]/10 ${props.className ?? ""}`}
+      className={`h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[16px] font-medium text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)] ${props.className ?? ""}`}
     />
   );
 }
@@ -287,14 +287,15 @@ export default function FindEmailForm() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-white px-5 pb-8 pt-5 text-[#111827]">
+    <main className="flex min-h-screen w-full items-center justify-center bg-[#f1f3f7] px-5 py-8 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#111827] antialiased sm:px-6 sm:py-12">
+      <div className="w-full max-w-[448px] rounded-[32px] bg-white px-8 pb-11 pt-9 shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
       <div className="relative flex h-10 items-center justify-center">
         <MobileBackButton
           onClick={goBack}
           label={step === "info" ? "로그인으로 이동" : "이전 단계"}
           className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
         />
-        <h1 className="text-[18px] font-semibold leading-6 tracking-[-0.02em] text-[#111827]">{pageTitle}</h1>
+        <h1 className="text-[24px] font-extrabold leading-6 tracking-[-0.04em] text-[#101a31]">{pageTitle}</h1>
       </div>
 
       <div className="flex flex-1 flex-col">
@@ -402,7 +403,7 @@ export default function FindEmailForm() {
                   value={verificationCode}
                   onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                   placeholder="6자리 숫자"
-                  className="h-[54px] w-full rounded-[8px] border border-[#d7e0e9] bg-white px-4 text-[18px] font-semibold tracking-[0.08em] text-[#111827] outline-none transition placeholder:text-[16px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[#aab5c4] focus:border-[#247761] focus:ring-2 focus:ring-[#247761]/10"
+                  className="h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[18px] font-semibold tracking-[0.08em] text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[16px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)]"
                 />
               </label>
 
@@ -439,7 +440,7 @@ export default function FindEmailForm() {
                 <Link
                   href={`/login/reset?email=${encodeURIComponent(foundEmail)}`}
                   replace
-                  className="mt-4 flex h-[48px] w-full items-center justify-center rounded-[10px] border border-[#d7e0e9] bg-white text-[15px] font-semibold text-[#111827]"
+                  className="mt-4 flex h-[58px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f6] bg-white text-[15px] font-bold text-[#111a30] transition hover:bg-[#f1f5fb]"
                 >
                   비밀번호 찾기로 이동
                 </Link>
@@ -455,7 +456,7 @@ export default function FindEmailForm() {
             type="button"
             onClick={goToMethodStep}
             disabled={loading}
-            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
+            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
           >
             다음
           </button>
@@ -466,7 +467,7 @@ export default function FindEmailForm() {
             type="button"
             onClick={verifyCode}
             disabled={loading || verificationCode.length !== 6}
-            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99] disabled:bg-[#cbd5e1]"
+            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
           >
             인증 확인
           </button>
@@ -476,7 +477,7 @@ export default function FindEmailForm() {
           <Link
             href="/login"
             replace
-            className="flex h-[56px] w-full items-center justify-center rounded-[10px] bg-[#247761] text-[17px] font-semibold text-white transition active:scale-[0.99]"
+            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px"
           >
             로그인으로 이동
           </Link>
@@ -489,6 +490,7 @@ export default function FindEmailForm() {
           여기로 이동해 주세요
         </Link>
       </div>
-    </div>
+      </div>
+    </main>
   );
 }

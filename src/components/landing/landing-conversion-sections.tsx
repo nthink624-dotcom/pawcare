@@ -5,8 +5,10 @@ import {
   Building2,
   Check,
   ChevronDown,
-  CreditCard,
+  DatabaseBackup,
+  MegaphoneOff,
   MonitorSmartphone,
+  ReceiptText,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,14 +19,19 @@ import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import { won } from "@/lib/utils";
 
 const MINIMUM_WAGE_2026 = 10_320;
+const DAILY_REDUCED_INQUIRIES = 3;
+const MINUTES_PER_INQUIRY = 10;
+const DAILY_SAVED_MINUTES = DAILY_REDUCED_INQUIRIES * MINUTES_PER_INQUIRY;
 const MONTHLY_SAVED_HOURS = 15;
 const MONTHLY_SAVED_WON = MINIMUM_WAGE_2026 * MONTHLY_SAVED_HOURS;
 
 const trustItems = [
-  { icon: MonitorSmartphone, title: "실제 제품 화면", body: "랜딩의 제품 이미지는 운영 중인 PC와 고객 예약 화면으로 구성합니다." },
-  { icon: BadgeCheck, title: "14일 무료체험", body: "결제 전에 실제 매장 흐름에 맞는지 충분히 확인할 수 있습니다." },
-  { icon: CreditCard, title: "카드 등록 없이 시작", body: "체험 시작 단계에서는 결제 카드를 먼저 등록하지 않습니다." },
-  { icon: ShieldCheck, title: "직접 취소 가능", body: "유료 이용 중에는 플랜 화면에서 다음 정기결제를 취소할 수 있습니다." },
+  { icon: ReceiptText, title: "홈페이지에 요금 공개", body: "운영 인원별 월 요금과 포함 알림톡을 가입 전에 확인할 수 있습니다." },
+  { icon: BadgeCheck, title: "카드 없는 14일 체험", body: "카드 등록과 자동결제 없이 실제 매장 흐름을 먼저 확인합니다." },
+  { icon: MonitorSmartphone, title: "설치비 0원", body: "별도 설치비 없이 PC와 모바일에서 바로 시작할 수 있습니다." },
+  { icon: ShieldCheck, title: "해지 방법 공개", body: "플랜 화면에서 직접 해지하고 현재 이용기간까지 계속 사용할 수 있습니다." },
+  { icon: DatabaseBackup, title: "기존 데이터 이전 지원", body: "티피·기존 엑셀의 고객, 반려동물, 방문기록과 요금표 이전을 지원합니다." },
+  { icon: MegaphoneOff, title: "보호자에게 광고 없음", body: "매장이 공유한 예약·미용결과 화면에 제3자 광고를 넣지 않습니다." },
 ] as const;
 
 const faqItems = [
@@ -52,6 +59,14 @@ const faqItems = [
     question: "여러 매장을 운영하면 어떻게 하나요?",
     answer: "매장별 이용을 기준으로 등록하며, 복수 매장은 현재 정책에 따라 다점포 할인이 적용될 수 있습니다. 업장 추가는 별도 문의로 안내합니다.",
   },
+  {
+    question: "티피나 기존 엑셀의 고객 데이터도 옮길 수 있나요?",
+    answer: "네. 고객·반려동물·전화번호·메모·방문기록·요금표를 미리 확인한 뒤 이전할 수 있습니다. 전화번호와 반려동물명을 기준으로 중복을 정리하며, 필요하면 이전 대행도 요청할 수 있습니다.",
+  },
+  {
+    question: "보호자 예약 화면에 광고가 나오나요?",
+    answer: "아니요. 보호자가 보는 예약과 미용결과 화면에는 제3자 광고를 넣지 않습니다.",
+  },
 ] as const;
 
 export function SavingsSection() {
@@ -60,15 +75,15 @@ export function SavingsSection() {
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="시간의 가치"
-          title="하루 30분을 되찾으면, 한 달에 15시간입니다"
-          description="전화 확인, 반복 입력, 안내 메시지에 쓰던 시간을 줄여 미용과 고객 응대에 다시 사용할 수 있습니다."
+          title="하루 예약 문의 3건만 줄여도, 한 달에 15시간입니다"
+          description="문의 한 건을 확인하고 일정을 맞추고 다시 안내하는 데 10분이 든다고 가정한 예시입니다. 줄어든 반복 응대 시간은 미용과 고객 관리에 다시 쓸 수 있습니다."
         />
 
         <div className="mt-12 rounded-[8px] bg-[#f4f6f9] px-6 py-8 md:px-10 md:py-10">
           <div className="grid items-center gap-5 text-center md:grid-cols-[1fr_36px_1fr_36px_1.2fr] md:text-left">
             <div>
-              <p className="text-[15px] font-medium text-[#64748b]">하루 절감 시간</p>
-              <p className="mt-2 text-[34px] font-semibold text-[#111827] md:text-[42px]">30분</p>
+              <p className="text-[15px] font-medium text-[#64748b]">예약 문의 3건 × 건당 10분</p>
+              <p className="mt-2 text-[34px] font-semibold text-[#111827] md:text-[42px]">{DAILY_SAVED_MINUTES}분</p>
             </div>
             <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
               <ArrowDown className="h-5 w-5 md:hidden" />
@@ -88,7 +103,7 @@ export function SavingsSection() {
             </div>
           </div>
           <p className="mt-8 border-t border-[#d5dde6] pt-5 text-[15px] leading-6 text-[#64748b]">
-            0.5시간 × 30일 × 2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준의 업무시간 가치 환산 예시입니다. 실제 절감액을 보장하는 수치는 아닙니다.
+            하루 {DAILY_REDUCED_INQUIRIES}건 × 건당 {MINUTES_PER_INQUIRY}분 × 30일, 2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준의 업무시간 가치 환산 예시입니다. 실제 문의 처리시간이나 절감액을 보장하는 수치는 아닙니다.
           </p>
         </div>
       </div>
@@ -106,7 +121,7 @@ export function TrustSection() {
           description="과장된 사용 수치나 만들어 낸 후기를 앞세우지 않습니다. 실제 제품과 시작·결제 조건을 투명하게 보여드립니다."
         />
 
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {trustItems.map(({ icon: Icon, title, body }) => (
             <div key={title} className="border-t-2 border-[#cbd5e1] pt-5">
               <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-[var(--landing-accent)] shadow-[0_5px_14px_rgba(15,23,42,0.06)]">
@@ -128,12 +143,12 @@ export function PricingSection() {
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="요금제"
-          title="운영 인원에 맞는 플랜만 고르세요"
-          description="예약, 고객관리, 예약 스케줄과 기본 운영 기능은 공통으로 사용하고, 운영 인원과 포함 알림톡에 맞춰 선택합니다."
+          title="숨기지 않은 가격, 운영 인원대로 고르세요"
+          description="기능을 잘게 나누어 추가 결제를 유도하지 않습니다. 설치비 없이 운영 인원과 포함 알림톡에 맞는 플랜만 선택합니다."
         />
 
         <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 border-y border-[#dbe2ea] py-3 text-[15px] font-medium text-[#526071]">
-          {["간편 예약", "고객 DB", "예약 스케줄", "알림 설정", "직원 관리"].map((item) => (
+          {["간편 예약", "고객 DB", "예약 스케줄", "직원 관리", "데이터 이전 지원", "보호자 화면 광고 없음"].map((item) => (
             <span key={item} className="inline-flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />
               {item}
@@ -179,7 +194,7 @@ export function PricingSection() {
                 href="/signup"
                 className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-[8px] border border-[var(--landing-accent)] bg-[var(--landing-accent)] text-[15px] font-semibold text-white transition hover:border-[var(--landing-accent-hover)] hover:bg-[var(--landing-accent-hover)]"
               >
-                이 플랜으로 14일 시작
+                카드 없이 14일 체험
               </Link>
             </article>
           ))}
@@ -194,7 +209,7 @@ export function PricingSection() {
 
         <div className="mt-4 grid gap-3 border-y border-[#dbe2ea] py-4 text-[15px] leading-6 text-[#526071] md:grid-cols-2">
           <p>
-            가입과 로그인 후 매장에 맞는 플랜을 선택하고 결제를 진행합니다. 체험 시작에는 카드 등록이나 결제가 필요하지 않습니다.
+            설치비는 없습니다. 카드 등록과 결제 없이 14일 체험을 시작하고, 계속 사용할 때만 매장에 맞는 플랜을 직접 선택합니다.
           </p>
           <p className="md:border-l md:border-[#dbe2ea] md:pl-5">
             월 정기결제, 해지 및 환불 기준은 <Link href="/refund" className="font-semibold text-[#334155] underline underline-offset-4">환불 및 이용 안내</Link>에서 확인할 수 있습니다. 결제대행사는 {LEGAL_BUSINESS_INFO.paymentProvider}입니다.
@@ -238,7 +253,7 @@ export function FaqAndFinalCtaSection() {
               예약받는 일이 고객관리까지 이어지도록
             </h2>
             <p className="mt-4 max-w-[660px] text-[16px] leading-7 text-[#526071]">
-              카드 등록 없이 14일 동안 실제 매장 흐름에 맞는지 확인하세요.
+              카드 등록과 설치비 없이 14일 동안 실제 매장 흐름에 맞는지 확인하세요.
             </p>
           </div>
           <Link

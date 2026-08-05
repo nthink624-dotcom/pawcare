@@ -21,6 +21,7 @@ type FirstVisitForm = {
   phone: string;
   petName: string;
   breed: string;
+  weightKg: string;
   date: string;
   timeSlot: string;
   staffId: string;
@@ -45,6 +46,7 @@ type SavedBookingPet = {
   id: string;
   name: string;
   breed: string;
+  weight: number | null;
 };
 
 const CUSTOM_SERVICE_ID = "__custom__";
@@ -239,6 +241,7 @@ export default function CustomerFirstVisitClaudeFlow({
   selectedServiceOption,
   availableSlots,
   recommendedSlots: recommendedSlotCandidates = [],
+  recommendationSource = "rule",
   loadingSlots,
   submitting,
   completedBooking,
@@ -254,6 +257,7 @@ export default function CustomerFirstVisitClaudeFlow({
   onPhoneChange,
   onPetNameChange,
   onBreedChange,
+  onWeightChange,
   onNoteChange,
   onGoManage,
   onAddBooking,
@@ -269,6 +273,7 @@ export default function CustomerFirstVisitClaudeFlow({
   selectedServiceOption?: CustomerServiceSourceOption;
   availableSlots: string[];
   recommendedSlots?: string[];
+  recommendationSource?: "ai" | "rule";
   loadingSlots: boolean;
   submitting: boolean;
   completedBooking: BookingCompletion | null;
@@ -285,6 +290,7 @@ export default function CustomerFirstVisitClaudeFlow({
   onPhoneChange: (value: string) => void;
   onPetNameChange: (value: string) => void;
   onBreedChange: (value: string) => void;
+  onWeightChange: (value: string) => void;
   onNoteChange: (value: string) => void;
   onGoManage: () => void;
   onAddBooking: () => void;
@@ -366,13 +372,14 @@ export default function CustomerFirstVisitClaudeFlow({
                         onClick={() => {
                           onPetNameChange(pet.name);
                           onBreedChange(pet.breed);
+                          onWeightChange(pet.weight ? String(pet.weight) : "");
                           onNoteChange("");
                         }}
                       >
                         <span className="avatar">{pet.name.trim().slice(0, 1) || "아"}</span>
                         <span className="meta">
                           <span className="name">{pet.name}</span>
-                          <span className="breed">{pet.breed || "품종 미입력"}</span>
+                          <span className="breed">{pet.breed || "품종 미입력"}{pet.weight ? ` · ${pet.weight}kg` : ""}</span>
                         </span>
                       </button>
                     );
@@ -384,6 +391,7 @@ export default function CustomerFirstVisitClaudeFlow({
                       setNewPetPickerKey(savedPetPickerKey);
                       onPetNameChange("");
                       onBreedChange("");
+                      onWeightChange("");
                       onNoteChange("");
                       window.setTimeout(() => breedInputRef.current?.focus(), 0);
                     }}
@@ -417,6 +425,19 @@ export default function CustomerFirstVisitClaudeFlow({
                   <div className="field">
                     <label>품종</label>
                     <input ref={breedInputRef} value={firstVisit.breed} onChange={(event) => onBreedChange(event.target.value)} placeholder="직접 입력" />
+                  </div>
+                  <div className="field">
+                    <label>몸무게</label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        value={firstVisit.weightKg}
+                        inputMode="decimal"
+                        onChange={(event) => onWeightChange(event.target.value.replace(/[^0-9.]/g, "").slice(0, 6))}
+                        placeholder="예: 4.5"
+                        style={{ paddingRight: 48 }}
+                      />
+                      <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: "var(--textMuted)", fontSize: 15 }}>kg</span>
+                    </div>
                   </div>
                   <div style={{ marginTop: 13 }}>
                     <div className="chips">
@@ -452,7 +473,7 @@ export default function CustomerFirstVisitClaudeFlow({
             )}
           </div>
           <div className="dock">
-            <button className="cta" type="button" disabled={!firstVisit.petName.trim() || !firstVisit.breed.trim()} onClick={onNext}>다음</button>
+            <button className="cta" type="button" disabled={!firstVisit.petName.trim() || !firstVisit.breed.trim() || !(Number(firstVisit.weightKg) > 0)} onClick={onNext}>다음</button>
           </div>
         </>
       ) : null}
@@ -534,7 +555,7 @@ export default function CustomerFirstVisitClaudeFlow({
             </div>
 
             <div className="sec">
-              <h3>추천 시간</h3>
+              <h3>{recommendationSource === "ai" ? "AI 추천 시간" : "스마트 추천 시간"}</h3>
               {loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
               ) : availableSlots.length === 0 ? (
@@ -543,7 +564,7 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="tgrid">
                   {recommendedSlots.map((slot) => (
                     <button key={`recommended-${slot}`} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
-                      {slot}<span className="rec">추천</span>
+                      {slot}<span className="rec">{recommendationSource === "ai" ? "AI 추천" : "추천"}</span>
                     </button>
                   ))}
                 </div>
@@ -596,7 +617,7 @@ export default function CustomerFirstVisitClaudeFlow({
             <div className="sec">
               <h3>예약 내용</h3>
               <div className="confirm-card">
-                <div className="confirm-row"><span className="k">아기</span><span className="v">{firstVisit.petName || "-"} · {firstVisit.breed || "-"}</span></div>
+                <div className="confirm-row"><span className="k">아기</span><span className="v">{firstVisit.petName || "-"} · {firstVisit.breed || "-"} · {firstVisit.weightKg ? `${firstVisit.weightKg}kg` : "-"}</span></div>
                 <div className="confirm-row"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
                 <div className="confirm-row"><span className="k">일시</span><span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${formatTimeForSummary(firstVisit.timeSlot)}` : "-"}</span></div>
                 <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 선택"}</span></div>

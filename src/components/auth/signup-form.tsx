@@ -1,10 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, Smartphone } from "lucide-react";
 
 import SignupRedesignView, {
   type SignupProfileStage,
@@ -12,46 +9,47 @@ import SignupRedesignView, {
 import KakaoPostcodeSheet from "@/components/ui/kakao-postcode-sheet";
 import {
   OWNER_SIGNUP_TERMS_VERSION,
-  ownerSignupTerms,
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
 import {
-  isValidBirthDate8,
   isValidOwnerEmail,
   isValidOwnerPassword,
   normalizeOwnerEmail,
   ownerPasswordRuleMessage,
 } from "@/lib/auth/owner-credentials";
-import { env, getSupabaseRuntimeStage } from "@/lib/env";
+import { env } from "@/lib/env";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
-import {
-  BUTTON_PRIMARY,
-  BUTTON_SECONDARY,
-  INLINE_ERROR,
-  INLINE_HELP,
-  INPUT_BASE,
-  cn,
-} from "@/lib/ui-system";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AgreementState = Record<OwnerSignupTermId, boolean>;
-type VerificationMethod = "phone" | "kakao-certificate" | "naver-certificate" | "toss" | "pass";
-type VerificationPurpose = "signup";
+
+type SignupFields = {
+  name: string;
+  birthDate: string;
+  phoneNumber: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  shopName: string;
+  shopPhone: string;
+  shopAddress: string;
+};
+
+type EmailCheckState = {
+  status: "idle" | "checking" | "available" | "unavailable" | "error";
+  email: string;
+  message: string | null;
+};
+
 type VerificationApiResponse = {
   message?: string;
   verificationRequestId?: string | null;
-  devVerificationCode?: string | null;
   verificationToken?: string | null;
   identity?: {
     name?: string | null;
     birthDate?: string | null;
     phoneNumber?: string | null;
   } | null;
-};
-type EmailCheckState = {
-  status: "idle" | "checking" | "available" | "unavailable" | "error";
-  email: string;
-  message: string | null;
 };
 
 const initialAgreements: AgreementState = {
@@ -61,230 +59,24 @@ const initialAgreements: AgreementState = {
   marketing: false,
 };
 
-const termLinkById: Record<OwnerSignupTermId, string> = {
-  service: "/terms",
-  privacy: "/privacy-consent",
-  location: "/terms",
-  marketing: "/privacy",
+const initialFields: SignupFields = {
+  name: "",
+  birthDate: "",
+  phoneNumber: "",
+  email: "",
+  password: "",
+  passwordConfirm: "",
+  shopName: "",
+  shopPhone: "",
+  shopAddress: "",
 };
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
 
-function normalizeShopPhone(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
-
 function isValidShopPhone(value: string) {
-  return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizeShopPhone(value));
-}
-
-function formatPhone(value: string) {
-  const digits = normalizePhone(value);
-  if (digits.length < 4) return digits;
-  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
-}
-
-function formatShopPhone(value: string) {
-  const digits = normalizeShopPhone(value);
-  if (digits.startsWith("02")) {
-    if (digits.length < 3) return digits;
-    if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
-    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
-  }
-  if (digits.length < 4) return digits;
-  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
-}
-
-function formatBirthDate(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  if (digits.length < 5) return digits;
-  if (digits.length < 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
-}
-
-function maskName(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (trimmed.length === 1) return trimmed;
-  if (trimmed.length === 2) return `${trimmed[0]}*`;
-  return `${trimmed[0]}*${trimmed.slice(-1)}`;
-}
-
-function maskPhoneNumber(value: string) {
-  const digits = normalizePhone(value);
-  if (digits.length < 10) return value;
-  if (digits.length === 10) return `${digits.slice(0, 3)}-***-${digits.slice(6, 10)}`;
-  return `${digits.slice(0, 3)}-****-${digits.slice(7, 11)}`;
-}
-
-const verificationMethods: Array<{
-  id: VerificationMethod;
-  title: string;
-  description: string;
-  kind: "active" | "placeholder";
-}> = [
-  { id: "phone", title: "휴대폰 본인인증", description: "가입자 본인 여부를 확인해요.", kind: "active" },
-];
-
-const phoneCarrierOptions = [
-  { value: "SKT", label: "SKT" },
-  { value: "KTF", label: "KT" },
-  { value: "LGT", label: "LG U+" },
-  { value: "MVNO", label: "알뜰폰" },
-] as const;
-
-function VerificationMethodLogo({ method }: { method: VerificationMethod }) {
-  if (method === "kakao-certificate") {
-    return (
-      <Image
-        src="/images/auth/kakaotalk_sharing_btn_medium.png"
-        alt="카카오 인증서"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
-  }
-
-  if (method === "naver-certificate") {
-    return (
-      <Image
-        src="/images/auth/naver-login-light-kr-green-wide-h48.png"
-        alt="네이버 인증서"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
-  }
-
-  if (method === "phone") {
-    return <Smartphone className="h-[26px] w-[26px] text-[#64748b]" />;
-  }
-
-  if (method === "pass") {
-    return (
-      <Image
-        src="/images/auth/pass-logo-4.png"
-        alt="PASS"
-        width={43}
-        height={43}
-        sizes="43px"
-        className="h-[43px] w-[43px] object-contain"
-      />
-    );
-  }
-
-  return (
-    <Image
-      src="/images/auth/Toss_Symbol_Primary.png"
-      alt="토스 인증"
-      width={35}
-      height={35}
-      sizes="35px"
-      className="h-[35px] w-[35px] object-contain"
-    />
-  );
-}
-
-function toKoreanIdentityVerificationError(message?: string) {
-  const normalized = (message ?? "").toLowerCase();
-
-  if (normalized.includes("already verified")) {
-    return "이미 완료된 본인인증 요청이에요. 창을 닫고 다시 진행해 주세요.";
-  }
-  if (normalized.includes("cancel") || normalized.includes("close")) {
-    return "본인인증이 완료되지 않았어요. 다시 인증해 주세요.";
-  }
-  if (normalized.includes("timeout") || normalized.includes("expired")) {
-    return "본인인증 시간이 만료됐어요. 다시 인증해 주세요.";
-  }
-
-  return message || "본인인증 처리 중 문제가 발생했어요. 다시 시도해 주세요.";
-}
-
-function AuthField({
-  label,
-  hint,
-  helper,
-  error,
-  tone = "default",
-  children,
-}: {
-  label: string;
-  hint?: string;
-  helper?: string;
-  error?: string;
-  tone?: "default" | "success";
-  children: React.ReactNode;
-}) {
-  const message = error || helper || hint;
-
-  return (
-    <label className="block space-y-1">
-      <span className="block px-0.5 text-[13px] font-medium leading-[18px] text-[#475569]">
-        {label}
-      </span>
-      <div className={cn(error && "[&_input]:border-[#d99a90]", tone === "success" && "[&_input]:border-[#9ec6bb]")}>
-        {children}
-      </div>
-      {message ? (
-        <p
-          className={cn(
-            "px-0.5 text-[12px] leading-[1.45]",
-            error ? "text-[#c65c50]" : tone === "success" ? "text-[#1f6b5b]" : "text-[#64748b]",
-          )}
-        >
-          {message}
-        </p>
-      ) : null}
-    </label>
-  );
-}
-
-function AuthInput({
-  value,
-  onChange,
-  placeholder,
-  inputMode,
-  type = "text",
-  rightSlot,
-  className,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  type?: string;
-  rightSlot?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className="relative">
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        inputMode={inputMode}
-        className={cn(
-          "h-[48px] w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3.5 text-[15px] font-medium text-[#111827] outline-none transition placeholder:text-[#a8b0bd] focus:border-[#1f6b5b] focus:ring-[3px] focus:ring-[#1f6b5b]/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white] [&:-webkit-autofill]:[-webkit-text-fill-color:#111827]",
-          rightSlot ? "pr-12" : "",
-          className,
-        )}
-      />
-      {rightSlot ? <div className="absolute inset-y-0 right-4 flex items-center">{rightSlot}</div> : null}
-    </div>
-  );
+  return /^(?:02\d{7,8}|0[3-6]\d{7,8}|070\d{7,8}|050\d{8}|01\d{8,9})$/.test(normalizePhone(value));
 }
 
 export default function SignupForm({
@@ -298,54 +90,22 @@ export default function SignupForm({
 }) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [termsSheetOpen, setTermsSheetOpen] = useState(false);
+  const [stage, setStage] = useState<SignupProfileStage>("terms");
   const [agreements, setAgreements] = useState<AgreementState>(initialAgreements);
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const [verificationSheetOpen, setVerificationSheetOpen] = useState(false);
-  const [verificationDetailSheetOpen, setVerificationDetailSheetOpen] = useState(false);
-  const [selectedVerificationMethod, setSelectedVerificationMethod] = useState<VerificationMethod | null>(null);
-  const [phoneCarrier, setPhoneCarrier] = useState<(typeof phoneCarrierOptions)[number]["value"]>("SKT");
-  const selectedVerificationMeta = useMemo(
-    () => verificationMethods.find((method) => method.id === selectedVerificationMethod) ?? null,
-    [selectedVerificationMethod],
-  );
-  const [profileStage, setProfileStage] = useState<SignupProfileStage>("account");
-  const [pendingProfileStage, setPendingProfileStage] = useState<SignupProfileStage | null>(null);
+  const [fields, setFields] = useState<SignupFields>(initialFields);
+  const [shopDetailAddress, setShopDetailAddress] = useState("");
   const [shopPhoneSameAsOwner, setShopPhoneSameAsOwner] = useState(false);
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [emailCheck, setEmailCheck] = useState<EmailCheckState>({
     status: "idle",
     email: "",
     message: null,
   });
-  const [shopDetailAddress, setShopDetailAddress] = useState("");
-  const [shopPostalCode, setShopPostalCode] = useState("");
-  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
-  const [fields, setFields] = useState({
-    name: "",
-    birthDate: "",
-    phoneNumber: "",
-    verificationCode: "",
-    email: "",
-    password: "",
-    passwordConfirm: "",
-    shopName: "",
-    shopPhone: "",
-    shopAddress: "",
-  });
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const requiredAgreed = agreements.service && agreements.privacy;
-  const allAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
-  const passwordConfirmState =
-    fields.passwordConfirm.length === 0
-      ? null
-      : fields.password === fields.passwordConfirm
-        ? { tone: "success" as const, helper: "비밀번호가 일치합니다" }
-        : { error: "비밀번호가 일치하지 않습니다" };
-  const passwordRuleError = fields.password.length > 0 && !isValidOwnerPassword(fields.password) ? ownerPasswordRuleMessage : undefined;
+  const requiredTermsAgreed = agreements.service && agreements.privacy;
   const normalizedEmail = normalizeOwnerEmail(fields.email);
   const emailFieldError =
     fields.email.length > 0 && !isValidOwnerEmail(normalizedEmail)
@@ -363,21 +123,19 @@ export default function SignupForm({
           ? emailCheck.message ?? "사용 가능한 이메일입니다."
           : undefined
       : undefined;
-  const emailFieldTone = emailCheck.status === "available" && emailCheck.email === normalizedEmail ? "success" : "default";
-  const passwordFieldHelper = fields.password.length > 0 && !passwordRuleError ? "사용 가능합니다." : undefined;
-  const passwordFieldTone = passwordFieldHelper ? "success" : "default";
-
-  const verificationPurpose: VerificationPurpose = "signup";
-  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
+  const passwordFieldError =
+    fields.password.length > 0 && !isValidOwnerPassword(fields.password) ? ownerPasswordRuleMessage : undefined;
+  const passwordFieldHelper = fields.password.length > 0 && !passwordFieldError ? "사용 가능한 비밀번호입니다." : undefined;
+  const passwordConfirmError =
+    fields.passwordConfirm.length > 0 && fields.password !== fields.passwordConfirm
+      ? "비밀번호 확인이 일치하지 않습니다."
+      : undefined;
+  const passwordConfirmHelper =
+    fields.passwordConfirm.length > 0 && !passwordConfirmError ? "비밀번호가 일치합니다." : undefined;
 
   useEffect(() => {
     const email = normalizeOwnerEmail(fields.email);
-    if (!fields.email.trim()) {
-      setEmailCheck({ status: "idle", email: "", message: null });
-      return;
-    }
-
-    if (!isValidOwnerEmail(email)) {
+    if (!fields.email.trim() || !isValidOwnerEmail(email)) {
       setEmailCheck({ status: "idle", email, message: null });
       return;
     }
@@ -385,26 +143,19 @@ export default function SignupForm({
     let active = true;
     const timer = window.setTimeout(async () => {
       setEmailCheck({ status: "checking", email, message: null });
-
       try {
-        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(`/api/auth/check-email?email=${encodeURIComponent(email)}`, { cache: "no-store" });
         const result = (await response.json()) as { available?: boolean; message?: string };
         if (!active) return;
-
         setEmailCheck({
           status: response.ok && result.available ? "available" : "unavailable",
           email,
           message: result.message ?? null,
         });
       } catch {
-        if (!active) return;
-        setEmailCheck({
-          status: "error",
-          email,
-          message: "이메일 중복 확인 중 문제가 발생했습니다.",
-        });
+        if (active) {
+          setEmailCheck({ status: "error", email, message: "이메일 중복 확인 중 문제가 발생했습니다." });
+        }
       }
     }, 350);
 
@@ -415,18 +166,16 @@ export default function SignupForm({
   }, [fields.email]);
 
   useEffect(() => {
+    if (!supabaseReady || !supabase) return;
+
     let active = true;
-
-    async function run() {
-      if (!supabaseReady || !supabase) return;
-      const { data } = await supabase.auth.getSession();
-      if (!active || !data.session?.access_token) return;
-
-      router.replace(nextPath as never);
-      router.refresh();
-    }
-
-    void run();
+    void supabase.auth.getSession().then((result: { data: { session: { access_token: string } | null } }) => {
+      const { data } = result;
+      if (active && data.session?.access_token) {
+        router.replace(nextPath as never);
+        router.refresh();
+      }
+    });
 
     return () => {
       active = false;
@@ -434,55 +183,25 @@ export default function SignupForm({
   }, [nextPath, router, supabase, supabaseReady]);
 
   useEffect(() => {
-    if (!verificationToken || profileStage !== "verification") return;
-    setVerificationSheetOpen(false);
-    setVerificationDetailSheetOpen(false);
-    setProfileStage("verified");
-  }, [profileStage, verificationToken]);
-
-  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
-  }, [profileStage]);
+  }, [stage]);
 
-  const updateField = (key: keyof typeof fields, value: string) => {
-    const normalizedValue =
-      key === "birthDate"
-        ? value.replace(/\D/g, "").slice(0, 8)
-        : key === "phoneNumber"
-          ? normalizePhone(value)
-          : key === "shopPhone"
-            ? normalizeShopPhone(value)
-          : value;
-
-    setFields((prev) => ({
-      ...prev,
-      [key]: normalizedValue,
-      ...(key === "name" || key === "birthDate" || key === "phoneNumber" ? { verificationCode: "" } : {}),
-    }));
-
-    if (key === "name" || key === "birthDate" || key === "phoneNumber") {
-      setVerificationRequestId(null);
-      setVerificationToken(null);
-      setDevCode(null);
-    }
+  const updateField = (key: keyof SignupFields, value: string) => {
+    const normalizedValue = key === "phoneNumber" || key === "shopPhone" ? normalizePhone(value) : value;
+    setFields((previous) => ({ ...previous, [key]: normalizedValue }));
   };
 
   const continueTerms = () => {
-    if (!requiredAgreed) {
+    if (!requiredTermsAgreed) {
       setMessage("필수 약관에 동의해 주세요.");
       return;
     }
-
-    setTermsSheetOpen(false);
-    if (pendingProfileStage) {
-      setProfileStage(pendingProfileStage);
-      setPendingProfileStage(null);
-    }
+    setMessage(null);
+    setStage("account");
   };
 
-  const moveToVerificationStep = () => {
+  const continueAccount = () => {
     const email = normalizeOwnerEmail(fields.email);
-
     if (!isValidOwnerEmail(email)) {
       setMessage("올바른 이메일 주소를 입력해 주세요.");
       return;
@@ -504,240 +223,87 @@ export default function SignupForm({
       return;
     }
     setMessage(null);
-    if (!requiredAgreed) {
-      setPendingProfileStage("verification");
-      setTermsSheetOpen(true);
-      return;
-    }
-    setProfileStage("verification");
+    setStage("verification");
   };
 
-  const requestCode = async () => {
-    if (!fields.name.trim()) return setMessage("이름을 입력해 주세요.");
-    if (!isValidBirthDate8(fields.birthDate)) return setMessage("생년월일 8자리를 입력해 주세요.");
-    if (!/^01\d{8,9}$/.test(fields.phoneNumber)) return setMessage("휴대폰번호를 다시 확인해 주세요.");
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-          purpose: verificationPurpose,
-          method: "local",
-        }),
-      });
-
-      const result = (await response.json()) as VerificationApiResponse;
-
-      if (!response.ok) {
-        setMessage(result.message ?? "인증번호 요청에 실패했어요.");
-        return;
-      }
-
-      setVerificationRequestId(result.verificationRequestId ?? null);
-      setDevCode(result.devVerificationCode ?? null);
-      setMessage("인증번호를 보냈어요.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyCode = async () => {
-    if (!verificationRequestId) {
-      setMessage("먼저 인증번호를 받아 주세요.");
+  const startKcpVerification = async () => {
+    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
+      setMessage("KCP 본인인증 채널이 아직 연결되지 않았습니다.");
       return;
     }
 
     setLoading(true);
     setMessage(null);
-
-    try {
-      const response = await fetch("/api/auth/verify-identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-          code: fields.verificationCode,
-          purpose: verificationPurpose,
-          verificationRequestId,
-        }),
-      });
-      const result = (await response.json()) as VerificationApiResponse;
-
-      if (!response.ok || !result.verificationToken) {
-        setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
-        return;
-      }
-
-      setVerificationToken(result.verificationToken);
-      setMessage("본인 인증이 완료됐어요.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyPortoneIdentity = async ({
-    channelKey,
-    successMessage,
-    missingEnvMessage,
-    bypass,
-  }: {
-    channelKey?: string;
-    successMessage: string;
-    missingEnvMessage: string;
-    bypass?: Record<string, unknown>;
-  }) => {
-    if (!portoneReady || !env.portoneStoreId || !channelKey) {
-      setMessage(missingEnvMessage);
-      return;
-    }
-
-    if (bypass && !fields.name.trim()) {
-      setMessage("이름을 입력해 주세요.");
-      return;
-    }
-
-    if (bypass && !isValidBirthDate8(fields.birthDate)) {
-      setMessage("생년월일 8자리를 입력해 주세요.");
-      return;
-    }
-
-    if (bypass && !/^01\d{8,9}$/.test(fields.phoneNumber)) {
-      setMessage("휴대폰번호를 올바르게 입력해 주세요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
     try {
       const requestResponse = await fetch("/api/auth/request-verification-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          purpose: verificationPurpose,
-          method: "portone",
-          name: fields.name,
-          birthDate: fields.birthDate,
-          phoneNumber: fields.phoneNumber,
-        }),
+        body: JSON.stringify({ purpose: "signup", method: "portone" }),
       });
       const requestResult = (await requestResponse.json()) as VerificationApiResponse;
-
       if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "ë³¸ì¸ ?¸ì¦ ?”ì²­???€?¥í•˜ì§€ ëª»í–ˆ?´ìš”.");
+        setMessage(requestResult.message ?? "본인인증 요청을 준비하지 못했습니다.");
         return;
       }
 
-      const identityVerificationId = `pm${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-      const hasPrefilledIdentity =
-        fields.name.trim() && isValidBirthDate8(fields.birthDate) && /^01\d{8,9}$/.test(fields.phoneNumber);
-
-      const result = await requestPortoneIdentityVerification({
+      const identityVerificationId = `signup${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+      const identityResult = await requestPortoneIdentityVerification({
         storeId: env.portoneStoreId,
-        channelKey,
+        channelKey: env.portoneIdentityKcpChannelKey,
         identityVerificationId,
         windowType: { pc: "POPUP", mobile: "POPUP" },
-        ...(hasPrefilledIdentity
-          ? {
-              customer: {
-                fullName: fields.name.trim(),
-                phoneNumber: fields.phoneNumber,
-                birthYear: fields.birthDate.slice(0, 4),
-                birthMonth: fields.birthDate.slice(4, 6),
-                birthDay: fields.birthDate.slice(6, 8),
-              },
-            }
-          : {}),
-        ...(bypass ? { bypass } : {}),
       });
-
-      if (!result?.identityVerificationId) {
-        setMessage("본인 인증을 완료하지 못했어요.");
+      if (!identityResult?.identityVerificationId) {
+        setMessage("본인인증이 완료되지 않았습니다.");
         return;
       }
 
-      const response = await fetch("/api/auth/verify-pass", {
+      const verifyResponse = await fetch("/api/auth/verify-pass", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          purpose: verificationPurpose,
+          purpose: "signup",
           verificationRequestId: requestResult.verificationRequestId,
-          identityVerificationId: result!.identityVerificationId,
+          identityVerificationId: identityResult.identityVerificationId,
         }),
       });
-      const verifyResult = (await response.json()) as VerificationApiResponse;
-
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(toKoreanIdentityVerificationError(verifyResult.message ?? "본인 인증 확인에 실패했어요."));
+      const verifyResult = (await verifyResponse.json()) as VerificationApiResponse;
+      if (!verifyResponse.ok || !verifyResult.verificationToken || !verifyResult.identity?.name || !verifyResult.identity.phoneNumber) {
+        setMessage(verifyResult.message ?? "본인인증 결과를 확인하지 못했습니다. 다시 인증해 주세요.");
         return;
       }
 
       setVerificationToken(verifyResult.verificationToken);
-      if (verifyResult.identity) {
-        setFields((prev) => ({
-          ...prev,
-          name: verifyResult.identity?.name ?? prev.name,
-          birthDate: verifyResult.identity?.birthDate ?? prev.birthDate,
-          phoneNumber: verifyResult.identity?.phoneNumber ?? prev.phoneNumber,
-          verificationCode: "",
-        }));
-      }
-      setMessage(successMessage);
+      setFields((previous) => ({
+        ...previous,
+        name: verifyResult.identity?.name ?? previous.name,
+        birthDate: verifyResult.identity?.birthDate ?? previous.birthDate,
+        phoneNumber: verifyResult.identity?.phoneNumber ?? previous.phoneNumber,
+        shopPhone:
+          shopPhoneSameAsOwner && verifyResult.identity?.phoneNumber
+            ? verifyResult.identity.phoneNumber
+            : previous.shopPhone,
+      }));
+      setStage("verified");
     } catch (error) {
-      setMessage(toKoreanIdentityVerificationError(error instanceof Error ? error.message : String(error ?? "")));
+      setMessage(error instanceof Error ? error.message : "본인인증 연결 중 문제가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
-  const verifyPass = async () => {
-    await verifyPortoneIdentity({
-      channelKey: env.portoneIdentityKcpChannelKey,
-      successMessage: "휴대폰 본인인증이 완료되었어요.",
-      missingEnvMessage: "KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.",
-    });
-  };
-
-  const startPhoneIdentity = async () => {
-    const phoneIdentityChannelKey = env.portoneIdentityKcpChannelKey;
-
-    await verifyPortoneIdentity({
-      channelKey: phoneIdentityChannelKey,
-      successMessage: "휴대폰 본인 인증이 완료되었어요.",
-      missingEnvMessage: "휴대폰 본인 인증 채널이 아직 연결되지 않았어요.",
-    });
-  };
-
-  const startUnifiedIdentity = async (..._args: unknown[]) => {
-    setMessage("현재는 KCP 휴대폰 본인인증만 사용할 수 있습니다.");
-  };
-
   const submitSignup = async () => {
-    if (!verificationToken) {
-      setMessage("본인 인증을 먼저 완료해 주세요.");
-      return;
-    }
-
     const email = normalizeOwnerEmail(fields.email);
-    if (!isValidOwnerEmail(email)) {
-      setMessage("올바른 이메일 주소를 입력해 주세요.");
+    if (!verificationToken || !fields.name || !fields.birthDate || !fields.phoneNumber) {
+      setMessage("본인인증을 먼저 완료해 주세요.");
       return;
     }
-    if (!isValidOwnerPassword(fields.password)) {
-      setMessage(ownerPasswordRuleMessage);
+    if (!requiredTermsAgreed || !isValidOwnerEmail(email) || !isValidOwnerPassword(fields.password)) {
+      setMessage("가입 정보를 다시 확인해 주세요.");
       return;
     }
     if (fields.password !== fields.passwordConfirm) {
-      setMessage("비밀번호 확인이 일치하지 않아요.");
+      setMessage("비밀번호 확인이 일치하지 않습니다.");
       return;
     }
     if (!fields.shopName.trim()) {
@@ -755,7 +321,6 @@ export default function SignupForm({
 
     setLoading(true);
     setMessage(null);
-
     try {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
@@ -764,7 +329,7 @@ export default function SignupForm({
           email,
           password: fields.password,
           passwordConfirm: fields.passwordConfirm,
-          name: fields.name.trim(),
+          name: fields.name,
           birthDate: fields.birthDate,
           phoneNumber: fields.phoneNumber,
           identityVerificationToken: verificationToken,
@@ -775,25 +340,21 @@ export default function SignupForm({
           termsVersion: OWNER_SIGNUP_TERMS_VERSION,
         }),
       });
-      const result = await response.json().catch(() => ({
-        success: false,
-        message: "회원가입 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-      }));
-
+      const result = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        requiresEmailConfirmation?: boolean;
+        message?: string;
+      };
       if (!response.ok || !result.success) {
-        setMessage(result.message ?? "회원가입 중 문제가 발생했어요.");
+        setMessage(result.message ?? "회원가입 처리 중 문제가 발생했습니다.");
         return;
       }
 
-      router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=signup-success` as never);
+      const messageKey = result.requiresEmailConfirmation ? "email-confirmation-sent" : "signup-success";
+      router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=${messageKey}` as never);
       router.refresh();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      setMessage(
-        message.toLowerCase().includes("not sent")
-          ? "회원가입 요청을 서버로 보내지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요."
-          : "회원가입 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
-      );
+    } catch {
+      setMessage("회원가입 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -802,565 +363,64 @@ export default function SignupForm({
   return (
     <>
       <SignupRedesignView
-        stage={profileStage}
+        stage={stage}
         fields={fields}
+        agreements={agreements}
         shopDetailAddress={shopDetailAddress}
         shopPhoneSameAsOwner={shopPhoneSameAsOwner}
         loading={loading}
-        message={profileStage === "verified" ? null : message}
+        message={message}
         emailStatus={{
           text: emailFieldError ?? emailFieldHelper,
-          tone: emailFieldError ? "error" : emailFieldTone === "success" ? "success" : "default",
+          tone: emailFieldError ? "error" : emailCheck.status === "available" ? "success" : "default",
         }}
         passwordStatus={{
-          text: passwordRuleError ?? passwordFieldHelper,
-          tone: passwordRuleError ? "error" : passwordFieldTone === "success" ? "success" : "default",
+          text: passwordFieldError ?? passwordFieldHelper,
+          tone: passwordFieldError ? "error" : passwordFieldHelper ? "success" : "default",
         }}
         passwordConfirmStatus={{
-          text:
-            passwordConfirmState && "error" in passwordConfirmState
-              ? passwordConfirmState.error
-              : passwordConfirmState && "helper" in passwordConfirmState
-                ? passwordConfirmState.helper
-                : undefined,
-          tone:
-            passwordConfirmState && "error" in passwordConfirmState
-              ? "error"
-              : passwordConfirmState?.tone === "success"
-                ? "success"
-                : "default",
+          text: passwordConfirmError ?? passwordConfirmHelper,
+          tone: passwordConfirmError ? "error" : passwordConfirmHelper ? "success" : "default",
         }}
         onBack={() => {
           setMessage(null);
-          if (profileStage === "shop") {
-            setProfileStage("verified");
-            return;
+          if (stage === "terms") {
+            router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
+          } else if (stage === "account") {
+            setStage("terms");
+          } else if (stage === "verification") {
+            setStage("account");
+          } else if (stage === "verified") {
+            setStage("verification");
+          } else {
+            setStage("verified");
           }
-          if (profileStage === "verification" || profileStage === "verified") {
-            setProfileStage("account");
-            return;
-          }
-          router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
         }}
         onChangeField={updateField}
+        onChangeAgreement={(id, checked) => setAgreements((previous) => ({ ...previous, [id]: checked }))}
         onChangeShopDetailAddress={setShopDetailAddress}
         onChangeShopPhoneSameAsOwner={(checked) => {
           setShopPhoneSameAsOwner(checked);
           if (checked) updateField("shopPhone", fields.phoneNumber);
         }}
-        onNextAccount={moveToVerificationStep}
-        onStartVerification={startPhoneIdentity}
+        onContinueTerms={continueTerms}
+        onNextAccount={continueAccount}
+        onStartVerification={() => void startKcpVerification()}
         onContinueToShop={() => {
           setMessage(null);
-          setProfileStage("shop");
+          setStage("shop");
         }}
         onOpenAddress={() => setAddressSheetOpen(true)}
-        onSubmit={submitSignup}
+        onSubmit={() => void submitSignup()}
       />
-
-      {termsSheetOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/35"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setTermsSheetOpen(false);
-          }}
-        >
-          <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-end">
-            <div className="w-full rounded-t-[14px] bg-[#fffefc] px-5 pb-5 pt-4 shadow-[0_-18px_44px_rgba(15,23,42,0.10)]">
-              <div className="mx-auto h-1 w-10 rounded-full bg-[#d1d5db]" />
-
-              <div className="mt-5 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[13px] font-semibold text-[#64748b]">약관 동의</p>
-                  <h2 className="mt-2 text-[24px] font-extrabold tracking-[-0.04em] text-[#111827]">
-                    약관에 동의해 주세요
-                  </h2>
-                  <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-                    필수 약관 동의 후 가입을 계속할 수 있어요.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-3.5 py-3">
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={allAgreed}
-                    onChange={(event) =>
-                      setAgreements({
-                        service: event.target.checked,
-                        privacy: event.target.checked,
-                        location: event.target.checked,
-                        marketing: event.target.checked,
-                      })
-                    }
-                    className="h-[18px] w-[18px] rounded-[4px] border border-[#cbd5e1] accent-[#1f6b5b]"
-                  />
-                  <p className="text-[15px] font-semibold text-[#111827]">전체 동의</p>
-                </label>
-              </div>
-
-              <div className="mt-3 overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white">
-                {ownerSignupTerms.map((term) => (
-                  <div key={term.id} className="border-b border-[#eef2f6] px-3.5 py-3 last:border-b-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="flex min-w-0 items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={agreements[term.id]}
-                          onChange={(event) =>
-                            setAgreements((prev) => ({
-                              ...prev,
-                              [term.id]: event.target.checked,
-                            }))
-                          }
-                          className="h-[18px] w-[18px] rounded-[4px] border border-[#cbd5e1] accent-[#1f6b5b]"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-[14px] font-semibold text-[#111827]">
-                            <span className="text-[#64748b]">
-                              {term.required ? "필수" : "선택"}
-                            </span>{" "}
-                            {term.title.replace(" 동의", "")}
-                          </p>
-                        </div>
-                      </label>
-
-                      <Link
-                        href={termLinkById[term.id] as never}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="shrink-0 text-[13px] font-medium text-[#64748b] hover:text-[#111827]"
-                      >
-                        약관 보기
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setTermsSheetOpen(false)}
-                  className="h-[50px] rounded-[8px] border border-[#dbe2ea] bg-white text-[15px] font-semibold text-[#334155] transition hover:bg-[#f8fafc]"
-                >
-                  닫기
-                </button>
-                <button
-                  type="button"
-                  onClick={continueTerms}
-                  disabled={!requiredAgreed}
-                  className="h-[50px] rounded-[8px] bg-[#1f6b5b] text-[15px] font-semibold text-white transition hover:bg-[#185848] disabled:bg-[#cbd5e1]"
-                >
-                  계속하기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {verificationSheetOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setVerificationSheetOpen(false);
-          }}
-        >
-          <div className="w-full max-w-[430px]">
-            <div className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-[16px] border border-[#e5e7eb] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-              <div className="shrink-0 px-5 pb-3 pt-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-[23px] font-semibold text-[#111827]">본인 인증</h2>
-                    <p className="mt-2 text-[13px] leading-5 text-[#64748b]">
-                      안전한 매장 관리를 위해 가입자 본인 여부를 확인합니다.
-                    </p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#94a3b8]">
-                확인된 정보는 이메일 찾기와 비밀번호 재설정에도 사용됩니다.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setVerificationSheetOpen(false)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-[#d1d5db] bg-white text-[22px] leading-none text-[#64748b]"
-                    aria-label="본인 인증 닫기"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#edf2f7] px-5 pb-5 pt-4">
-                <div>
-                  <p className="text-[14px] font-semibold text-[#111827]">인증 방법</p>
-                  <div className="mt-2.5 space-y-2">
-                    {verificationMethods.map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={async () => {
-                          setMessage(null);
-
-                          if (method.id === "phone") {
-                            await startPhoneIdentity();
-                            return;
-                          }
-
-                          setSelectedVerificationMethod(method.id);
-                          setVerificationSheetOpen(false);
-                          setVerificationDetailSheetOpen(true);
-                        }}
-                        className={cn(
-                          "flex min-h-[68px] w-full items-center gap-3 rounded-[10px] border bg-white px-3.5 py-2.5 text-left transition",
-                          selectedVerificationMethod === method.id
-                            ? "border-[#2f7866]"
-                            : "border-[#d1d5db] hover:border-[#94a3b8]",
-                        )}
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
-                          <VerificationMethodLogo method={method.id} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[14px] font-semibold text-[#111827]">{method.title}</p>
-                          <p className="mt-0.5 text-[12px] leading-4 text-[#64748b]">{method.description}</p>
-                        </div>
-                        <span
-                          className={cn(
-                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition",
-                            selectedVerificationMethod === method.id
-                              ? "border-[#1f6b5b] bg-[#1f6b5b] text-white"
-                              : "border-[#d1d5db] bg-white text-transparent",
-                          )}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedVerificationMeta ? (
-                  <div className="mt-5 rounded-[10px] border border-[#d1d5db] bg-white px-4 py-3.5">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#e5e7eb] bg-white">
-                        <VerificationMethodLogo method={selectedVerificationMeta.id} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-semibold text-[#111827]">{selectedVerificationMeta.title}</p>
-                        <p className="mt-0.5 text-[12px] leading-5 text-[#64748b]">{selectedVerificationMeta.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod === "phone" ? (
-                  <div className="mt-5 space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
-                    <p className="text-[13px] font-semibold text-[#475569]">휴대폰 본인인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#64748b]">통신사 선택</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {phoneCarrierOptions.map((carrier) => (
-                          <button
-                            key={carrier.value}
-                            type="button"
-                            onClick={() => setPhoneCarrier(carrier.value)}
-                            className={cn(
-                              "h-[40px] rounded-[8px] border bg-white text-[13px] font-semibold transition",
-                              phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] text-[#1f6b5b]"
-                                : "border-[#d1d5db] text-[#475569] hover:border-[#94a3b8]",
-                            )}
-                          >
-                            {carrier.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={startPhoneIdentity} disabled={loading} className={cn(BUTTON_SECONDARY, "h-[48px]")}>
-                      {verificationRequestId ? "인증번호 다시 받기" : "휴대폰 본인인증"}
-                    </button>
-
-                    {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-3">
-                        <AuthField label="인증번호">
-                          <AuthInput
-                            value={fields.verificationCode}
-                            onChange={(value) => updateField("verificationCode", value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="문자로 받은 6자리 숫자"
-                            inputMode="numeric"
-                          />
-                        </AuthField>
-
-                        {canShowDevVerificationCode && devCode ? (
-                          <p className={INLINE_HELP}>로컬 테스트용 인증번호: {devCode}</p>
-                        ) : null}
-
-                        <button type="button" onClick={verifyCode} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                          인증 확인
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod === "pass" ? (
-                  <div className="mt-5 space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
-                    <p className="text-[13px] font-semibold text-[#475569]">PASS 인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => startUnifiedIdentity("PASS", "PASS 본인 인증이 완료되었어요.")}
-                      disabled={loading}
-                      className={cn(BUTTON_SECONDARY, "h-[48px] border-[#cfe2dc] bg-[#eff8f6] text-[#1f6b5b] hover:bg-[#e9f4f0]")}
-                    >
-                      PASS로 인증하기
-                    </button>
-                  </div>
-                ) : null}
-
-                {selectedVerificationMethod && selectedVerificationMethod !== "phone" && selectedVerificationMethod !== "pass" ? (
-                  <div className="mt-5 rounded-[10px] border border-dashed border-[#d1d5db] bg-white px-4 py-5 text-center">
-                    <p className="text-[14px] font-semibold text-[#111827]">준비 중인 인증 수단입니다</p>
-                    <p className="mt-2 text-[12px] leading-5 text-[#64748b]">
-                      실제 인증 연동 전까지는 사용할 수 없어요.
-                      <br />
-                      서버에서 인증사 결과를 조회해 확인하도록 연결이 필요합니다.
-                    </p>
-                  </div>
-                ) : null}
-
-                {verificationToken ? (
-                  <div className="mt-5 rounded-[14px] border border-[#cfe2dc] bg-[#eff8f6] px-4 py-3">
-                    <p className="text-[14px] font-semibold text-[#1f6b5b]">인증이 완료되었습니다</p>
-                    <p className="mt-1 text-[13px] text-[#43685f]">
-                      {maskName(fields.name)} · {maskPhoneNumber(fields.phoneNumber)}
-                    </p>
-                  </div>
-                ) : null}
-
-                {message ? <p className={cn(INLINE_ERROR, "mt-4")}>{message}</p> : null}
-              </div>
-
-              {verificationToken ? (
-                <div className="shrink-0 border-t border-[#e5e7eb] bg-white px-5 pb-5 pt-4">
-                  <button
-                    type="button"
-                    onClick={submitSignup}
-                    disabled={loading || !verificationToken}
-                    className={cn(BUTTON_PRIMARY, "h-[48px]")}
-                  >
-                    {loading ? "가입 처리 중..." : "가입 완료"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {verificationDetailSheetOpen && selectedVerificationMeta ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setVerificationDetailSheetOpen(false);
-          }}
-        >
-          <div className="w-full max-w-[430px]">
-            <div className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-[16px] border border-[#e5e7eb] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-              <div className="shrink-0 border-b border-[#e5e7eb] px-5 pb-4 pt-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerificationDetailSheetOpen(false);
-                        setSelectedVerificationMethod(null);
-                        setVerificationSheetOpen(true);
-                        setMessage(null);
-                      }}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[#64748b]"
-                      aria-label="인증 수단 다시 선택하기"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-[#64748b]">본인 인증</p>
-                      <h2 className="mt-1 truncate text-[20px] font-semibold text-[#111827]">
-                        {selectedVerificationMeta.title}
-                      </h2>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setVerificationDetailSheetOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#d1d5db] bg-white text-[24px] leading-none text-[#64748b]"
-                    aria-label="본인 인증 닫기"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5">
-                {selectedVerificationMethod === "phone" ? (
-                  <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-4">
-                    <p className="text-[13px] font-semibold text-[#475569]">휴대폰 본인인증 정보 입력</p>
-                    <div className="space-y-3">
-                      <AuthField label="이름">
-                        <AuthInput value={fields.name} onChange={(value) => updateField("name", value)} placeholder="대표자 이름" />
-                      </AuthField>
-                      <AuthField label="생년월일">
-                        <AuthInput
-                          value={formatBirthDate(fields.birthDate)}
-                          onChange={(value) => updateField("birthDate", value)}
-                          placeholder="예: 1999-03-21"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                      <AuthField label="휴대폰번호">
-                        <AuthInput
-                          value={formatPhone(fields.phoneNumber)}
-                          onChange={(value) => updateField("phoneNumber", value)}
-                          placeholder="010-0000-0000"
-                          inputMode="numeric"
-                        />
-                      </AuthField>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[12px] font-medium text-[#64748b]">통신사 선택</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {phoneCarrierOptions.map((carrier) => (
-                          <button
-                            key={carrier.value}
-                            type="button"
-                            onClick={() => setPhoneCarrier(carrier.value)}
-                            className={cn(
-                              "h-[40px] rounded-[8px] border bg-white text-[13px] font-semibold transition",
-                              phoneCarrier === carrier.value
-                                ? "border-[#1f6b5b] text-[#1f6b5b]"
-                                : "border-[#d1d5db] text-[#475569] hover:border-[#94a3b8]",
-                            )}
-                          >
-                            {carrier.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={startPhoneIdentity} disabled={loading} className={cn(BUTTON_SECONDARY, "h-[48px]")}>
-                      {verificationRequestId ? "인증번호 다시 받기" : "휴대폰 본인인증"}
-                    </button>
-
-                    {verificationRequestId ? (
-                      <div className="space-y-3 rounded-[10px] border border-[#d1d5db] bg-white p-3">
-                        <AuthField label="인증번호">
-                          <AuthInput
-                            value={fields.verificationCode}
-                            onChange={(value) => updateField("verificationCode", value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="문자로 받은 6자리 숫자"
-                            inputMode="numeric"
-                          />
-                        </AuthField>
-
-                        {canShowDevVerificationCode && devCode ? (
-                          <p className={INLINE_HELP}>로컬 테스트용 인증번호: {devCode}</p>
-                        ) : null}
-
-                        <button type="button" onClick={verifyCode} disabled={loading} className={cn(BUTTON_PRIMARY, "h-[48px]")}>
-                          인증 확인
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {verificationToken ? (
-                  <div className="mt-5 rounded-[14px] border border-[#cfe2dc] bg-[#eff8f6] px-4 py-3">
-                    <p className="text-[14px] font-semibold text-[#1f6b5b]">인증이 완료되었습니다</p>
-                    <p className="mt-1 text-[13px] text-[#43685f]">
-                      {maskName(fields.name)} · {maskPhoneNumber(fields.phoneNumber)}
-                    </p>
-                  </div>
-                ) : null}
-
-                {message ? <p className={cn(INLINE_ERROR, "mt-4")}>{message}</p> : null}
-              </div>
-
-              {verificationToken ? (
-                <div className="shrink-0 border-t border-[#e5e7eb] bg-white px-5 pb-5 pt-4">
-                  <button
-                    type="button"
-                    onClick={submitSignup}
-                    disabled={loading || !verificationToken}
-                    className={cn(BUTTON_PRIMARY, "h-[48px]")}
-                  >
-                    {loading ? "가입 처리 중..." : "가입 완료"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {addressSheetOpen ? (
         <KakaoPostcodeSheet
           title="매장 주소 검색"
-          description="도로명, 건물명, 지번으로 검색한 뒤 매장 주소를 선택해 주세요."
+          description="도로명, 건물명 또는 지번으로 검색한 뒤 매장 주소를 선택해 주세요."
           initialQuery={fields.shopAddress}
           onClose={() => setAddressSheetOpen(false)}
           onSelect={(selection) => {
             updateField("shopAddress", selection.address);
-            setShopPostalCode(selection.zonecode);
             setAddressSheetOpen(false);
           }}
         />

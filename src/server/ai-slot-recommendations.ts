@@ -1,3 +1,4 @@
+import { buildRuleBasedSlotRecommendations } from "@/lib/booking-slot-recommendations";
 import { serverEnv } from "@/lib/server-env";
 import type { AiBookingRecommendationMode } from "@/types/domain";
 
@@ -62,7 +63,14 @@ export function recommendAvailableSlotsWithAi(params: SlotRecommendationParams) 
 async function computeAvailableSlotRecommendations(
   params: SlotRecommendationParams,
 ): Promise<SlotRecommendationResult> {
-  const fallback = normalizeRecommendedSlots(params.baselineRecommendedSlots, params.availableSlots);
+  const fallback = buildRuleBasedSlotRecommendations({
+    availableSlots: params.availableSlots,
+    baselineRecommendedSlots: params.baselineRecommendedSlots,
+    recommendationMode: params.recommendationMode,
+    customInstruction: params.customInstruction,
+    staffLoads: params.staffLoads,
+    eligibleStaffBySlot: params.eligibleStaffBySlot,
+  });
 
   if (
     params.availableSlots.length < 2 ||

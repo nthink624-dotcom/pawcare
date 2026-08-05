@@ -19,6 +19,7 @@ export const customerDiscountQuoteInputSchema = z.object({
   serviceId: z.string().min(1),
   customerServiceOptionId: z.string().trim().optional().default(""),
   breed: z.string().trim().optional().default(""),
+  weightKg: z.coerce.number().positive().max(200),
   appointmentDate: z.string().trim().optional().default(""),
 });
 
@@ -59,6 +60,7 @@ export async function quoteCustomerDiscount(input: unknown): Promise<CustomerDis
     buildCustomerServiceSourceOptions(bootstrap.services, {
       priceGuideOnly: true,
       priceGuideGroupKey: pricingGroup?.key,
+      weightKg: payload.weightKg,
     }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );

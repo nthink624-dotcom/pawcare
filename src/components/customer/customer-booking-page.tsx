@@ -14,7 +14,7 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
-import { fetchCustomerAvailability, type CustomerAvailabilityPayload } from "@/lib/customer-availability";
+import { fetchCustomerAvailability, invalidateCustomerAvailability, type CustomerAvailabilityPayload, type RecommendationSource } from "@/lib/customer-availability";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
@@ -34,13 +34,16 @@ type AdditionalPetDraft = {
   breed: string;
 };
 
-type BookingProfilePet = Pick<AdditionalPetDraft, "id" | "name" | "breed">;
+type BookingProfilePet = Pick<AdditionalPetDraft, "id" | "name" | "breed"> & {
+  weight: number | null;
+};
 
 type FirstVisitState = {
   ownerName: string;
   phone: string;
   petName: string;
   breed: string;
+  weightKg: string;
   extraPets: AdditionalPetDraft[];
   date: string;
   timeSlot: string;
@@ -75,6 +78,7 @@ const initialFirstVisitState: FirstVisitState = {
   phone: "",
   petName: "",
   breed: "",
+  weightKg: "",
   extraPets: [],
   date: "",
   timeSlot: "",
@@ -102,6 +106,7 @@ type BookingProfilePayload = {
   phone: string;
   petName?: string;
   breed?: string;
+  weightKg?: string;
   extraPets?: Array<Partial<AdditionalPetDraft>>;
   pets?: BookingProfilePet[];
   savedAt: string;
@@ -213,6 +218,7 @@ function buildReusableFirstVisitDraft(source: FirstVisitState, defaultServiceId:
     phone: source.phone.trim(),
     petName: source.petName.trim(),
     breed: source.breed.trim(),
+    weightKg: source.weightKg.trim(),
     extraPets: [],
     serviceId: defaultServiceId,
     customerServiceOptionId: defaultServiceOptionId,
@@ -226,6 +232,7 @@ function mergeBookingProfilePets(pets: BookingProfilePet[]) {
       id: pet.id || `profile-pet-${index + 1}`,
       name: pet.name.trim(),
       breed: pet.breed.trim(),
+      weight: typeof pet.weight === "number" && Number.isFinite(pet.weight) && pet.weight > 0 ? pet.weight : null,
     }))
     .filter((pet) => {
       const key = pet.name.replace(/\s+/g, "").toLowerCase();
@@ -237,8 +244,8 @@ function mergeBookingProfilePets(pets: BookingProfilePet[]) {
 
 function getProfilePetsFromFirstVisit(source: FirstVisitState) {
   return mergeBookingProfilePets([
-    { id: "primary", name: source.petName, breed: source.breed },
-    ...source.extraPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed })),
+    { id: "primary", name: source.petName, breed: source.breed, weight: Number(source.weightKg) || null },
+    ...source.extraPets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, weight: null })),
   ]);
 }
 
@@ -249,17 +256,19 @@ function getBookingProfilePets(profile: Partial<BookingProfilePayload>) {
         id: pet?.id || `profile-${index + 1}`,
         name: pet?.name ?? "",
         breed: pet?.breed ?? "",
+        weight: pet?.weight ?? null,
       })),
     );
   }
 
   return mergeBookingProfilePets([
-    { id: "primary", name: profile.petName ?? "", breed: profile.breed ?? "" },
+    { id: "primary", name: profile.petName ?? "", breed: profile.breed ?? "", weight: Number(profile.weightKg) || null },
     ...(Array.isArray(profile.extraPets)
       ? profile.extraPets.map((pet, index) => ({
           id: pet?.id || `profile-${index + 1}`,
           name: pet?.name ?? "",
           breed: pet?.breed ?? "",
+          weight: null,
         }))
       : []),
   ]);
@@ -274,6 +283,7 @@ function buildBookingProfile(source: FirstVisitState, savedPets: BookingProfileP
     phone: formatBookingPhoneNumber(source.phone),
     petName: pets[0]?.name ?? "",
     breed: pets[0]?.breed ?? "",
+    weightKg: pets[0]?.weight ? String(pets[0].weight) : "",
     extraPets: pets.slice(1).map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed })),
     pets,
     savedAt: new Date().toISOString(),
@@ -286,6 +296,7 @@ function hasBookingProfileContent(source: FirstVisitState) {
       source.phone.trim() ||
       source.petName.trim() ||
       source.breed.trim() ||
+      source.weightKg.trim() ||
       source.extraPets.some((pet) => pet.name.trim()),
   );
 }
@@ -299,6 +310,7 @@ function restoreBookingProfile(profile: Partial<BookingProfilePayload>, defaultS
     phone: profile.phone ? formatBookingPhoneNumber(profile.phone) : "",
     petName: selectedPet?.name ?? "",
     breed: selectedPet?.breed ?? profile.breed ?? "",
+    weightKg: selectedPet?.weight ? String(selectedPet.weight) : profile.weightKg ?? "",
     extraPets: [],
     serviceId: defaultServiceId,
     customerServiceOptionId: defaultServiceOptionId,
@@ -318,6 +330,7 @@ function normalizeLookupPets(pets: BookingProfilePet[] | undefined) {
       id: pet?.id || `lookup-${index + 1}`,
       name: pet?.name ?? "",
       breed: pet?.breed ?? "",
+      weight: pet?.weight ?? null,
     })),
   );
 }
@@ -428,6 +441,7 @@ export default function CustomerBookingPage({
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
+  const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<RecommendationSource>("rule");
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -443,11 +457,11 @@ export default function CustomerBookingPage({
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
-          { priceGuideOnly: true, priceGuideGroupKey: detectedBreedPricingGroup?.key },
+          { priceGuideOnly: true, priceGuideGroupKey: detectedBreedPricingGroup?.key, weightKg: Number(firstVisit.weightKg) || null },
         ),
         initialShop.customer_page_settings.customer_service_overrides,
       ),
-    [detectedBreedPricingGroup?.key, initialShop.customer_page_settings.customer_service_overrides, services],
+    [detectedBreedPricingGroup?.key, firstVisit.weightKg, initialShop.customer_page_settings.customer_service_overrides, services],
   );
 
   const selectedFirstService = services.find((service) => service.id === firstVisit.serviceId);
@@ -557,12 +571,13 @@ export default function CustomerBookingPage({
           }
         })();
         const draftPets = mergeBookingProfilePets([
-          { id: "primary", name: draft.petName ?? "", breed: draft.breed ?? "" },
+          { id: "primary", name: draft.petName ?? "", breed: draft.breed ?? "", weight: Number(draft.weightKg) || null },
           ...(Array.isArray(draft.extraPets)
             ? draft.extraPets.map((pet, index) => ({
                 id: pet?.id || `draft-${index + 1}`,
                 name: pet?.name ?? "",
                 breed: pet?.breed ?? "",
+                weight: null,
               }))
             : []),
         ]);
@@ -600,7 +615,7 @@ export default function CustomerBookingPage({
   useEffect(() => {
     if (typeof window === "undefined" || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
     saveBookingProfile(firstVisit, savedPets);
-  }, [activeMode, firstVisit.ownerName, firstVisit.phone, firstVisit.petName, firstVisit.breed, firstVisit.extraPets, savedPets]);
+  }, [activeMode, firstVisit.ownerName, firstVisit.phone, firstVisit.petName, firstVisit.breed, firstVisit.weightKg, firstVisit.extraPets, savedPets]);
 
   useEffect(() => {
     let active = true;
@@ -643,6 +658,7 @@ export default function CustomerBookingPage({
       if (!firstVisit.date) {
         setFirstVisitSlots([]);
         setFirstVisitRecommendedSlots([]);
+        setFirstVisitRecommendationSource("rule");
         return;
       }
       setLoadingFirstVisitSlots(true);
@@ -659,6 +675,7 @@ export default function CustomerBookingPage({
         if (!active) return;
         setFirstVisitSlots(result.slots);
         setFirstVisitRecommendedSlots(result.recommendedSlots ?? []);
+        setFirstVisitRecommendationSource(result.recommendationSource ?? "rule");
         if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
@@ -713,6 +730,7 @@ export default function CustomerBookingPage({
       phone: prev.phone,
       petName: prev.petName,
       breed: prev.breed,
+      weightKg: prev.weightKg,
       serviceId: defaultServiceId,
       customerServiceOptionId: defaultServiceOptionId,
       staffId: fixedStaffId,
@@ -723,7 +741,8 @@ export default function CustomerBookingPage({
     setFirstVisit((prev) => ({
       ...prev,
       petName: pet.name,
-      breed: "",
+      breed: pet.breed,
+      weightKg: pet.weight ? String(pet.weight) : "",
       extraPets: [],
     }));
   }
@@ -733,6 +752,7 @@ export default function CustomerBookingPage({
       ...prev,
       petName: "",
       breed: "",
+      weightKg: "",
       extraPets: [],
     }));
   }
@@ -741,6 +761,7 @@ export default function CustomerBookingPage({
     const petInfoReady = Boolean(
       firstVisit.petName.trim() &&
         firstVisit.breed.trim() &&
+        Number(firstVisit.weightKg) > 0 &&
         firstVisit.extraPets.every((pet) => pet.name.trim()),
     );
     const contactInfoReady = Boolean(firstVisit.ownerName.trim() && isValidBookingPhoneNumber(firstVisit.phone));
@@ -771,7 +792,7 @@ export default function CustomerBookingPage({
                   : "연락 정보를 확인해 주세요",
         message:
           firstVisitStep === 1
-            ? "아기 이름과 품종을 입력하면 다음 단계로 넘어갈 수 있어요."
+            ? "아기 이름, 품종, 몸무게를 입력하면 다음 단계로 넘어갈 수 있어요."
             : "필수 정보를 선택한 뒤 다시 눌러 주세요.",
         action: "dismiss",
       });
@@ -811,6 +832,7 @@ export default function CustomerBookingPage({
         phone: phoneNormalize(firstVisit.phone),
         petName: firstVisit.petName,
         breed: firstVisit.breed,
+        weightKg: Number(firstVisit.weightKg),
         extraPets: firstVisit.extraPets
           .map((pet) => ({ name: pet.name.trim(), breed: pet.breed.trim() }))
           .filter((pet) => pet.name),
@@ -827,6 +849,7 @@ export default function CustomerBookingPage({
         method: "POST",
         body: JSON.stringify(bookingPayload),
       });
+      invalidateCustomerAvailability();
 
       if (typeof window !== "undefined") {
         const defaultServiceOption = customerServiceOptions[0];
@@ -891,6 +914,7 @@ export default function CustomerBookingPage({
               selectedServiceOption={selectedFirstServiceOption}
               availableSlots={firstVisitSlots}
               recommendedSlots={firstVisitRecommendedSlots}
+              recommendationSource={firstVisitRecommendationSource}
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
@@ -926,6 +950,7 @@ export default function CustomerBookingPage({
               onPhoneChange={(value) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(value) }))}
               onPetNameChange={(value) => setFirstVisit((prev) => ({ ...prev, petName: value }))}
               onBreedChange={(value) => setFirstVisit((prev) => ({ ...prev, breed: value }))}
+              onWeightChange={(value) => setFirstVisit((prev) => ({ ...prev, weightKg: value }))}
               onNoteChange={(value) => setFirstVisit((prev) => ({ ...prev, note: value }))}
               onGoManage={() => {
                 if (completedFirstVisitBooking?.bookingAccessToken) {

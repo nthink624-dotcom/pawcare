@@ -93,7 +93,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           </div>
 
           <div className="mt-7 hidden flex-wrap gap-x-5 gap-y-2 text-[15px] font-medium text-[#64748b] md:flex">
-            {["카드 등록 없이 시작", "설치 없이 예약 링크 사용", "PC와 모바일에서 확인"].map((item) => (
+            {["카드 등록 없이 시작", "설치비 없음", "보호자 화면 광고 없음", "기존 데이터 이전 지원"].map((item) => (
               <span key={item} className="inline-flex items-center gap-1.5">
                 <Check className="h-4 w-4 text-[var(--landing-accent)]" aria-hidden="true" />
                 {item}
@@ -109,28 +109,42 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
 export function PainSection() {
   return (
     <section id="pain-points" aria-label="고객의 예약 경험" className="scroll-mt-20 bg-white">
-      <div className="border-b border-[#e2e8f0] bg-white px-5 pb-28 pt-12 text-center md:pb-36 md:pt-14">
+      <div className="bg-white px-5 pb-14 pt-12 text-center md:pb-16 md:pt-14">
         <header className="mx-auto max-w-[1180px]">
           <div>
-            <blockquote className="relative mr-auto w-[94%] max-w-[530px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-left sm:px-8 sm:py-8 md:w-[48%]">
+            <blockquote className="relative mr-auto w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-5 py-7 text-left sm:px-5 sm:py-8 md:w-[42%]">
               <p className="text-[15px] font-semibold text-[#64748b]">예약하려는 고객</p>
-              <p className="mt-3 break-keep text-[25px] font-semibold leading-[1.35] text-[#111827] md:text-[30px]">
+              <p className="hidden" aria-hidden="true">
                 전화를 안 받는 매장에는
                 <br />다시 걸고 싶지 않아요.
+              </p>
+              <p className="mt-3 break-keep text-[25px] font-semibold leading-[1.35] text-[#111827] md:text-[30px]">
+                연락을 늦게 받거나 안 받는 매장은<br />다시 안 찾게 돼요.
               </p>
               <span className="absolute -bottom-[9px] left-9 h-4 w-4 rotate-45 border-b border-r border-[#d8e0e9] bg-[#f6f8fa]" aria-hidden="true" />
             </blockquote>
 
-            <blockquote className="relative ml-auto mt-10 w-[94%] max-w-[620px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-left sm:px-8 sm:py-8 md:mt-16 md:w-[54%]">
+            <blockquote className="relative ml-auto mt-10 w-[94%] max-w-[670px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-right sm:px-8 sm:py-8 md:mt-16 md:w-[57%]">
               <p className="text-[15px] font-semibold text-[#64748b]">미용을 맡긴 고객</p>
-              <p className="mt-3 break-keep text-[21px] font-semibold leading-[1.5] text-[#111827] md:text-[25px] md:leading-[1.45]">
+              <p className="hidden" aria-hidden="true">
                 다른 손님 전화 받느라
                 <br />우리 아이도, 저도 기다리게 하는 매장은 더 싫어요.
               </p>
+              <p className="mt-3 break-keep text-[25px] font-semibold leading-[1.35] text-[#111827] md:text-[30px]">
+                예약 시간 맞춰 갔는데,<br />다른 아이 미용이 안 끝나서 한참 기다렸어요.
+              </p>
               <span className="absolute -bottom-[9px] right-9 h-4 w-4 rotate-45 border-b border-r border-[#d8e0e9] bg-[#f6f8fa]" aria-hidden="true" />
             </blockquote>
+
+            <blockquote className="relative mr-auto mt-10 w-[94%] max-w-[500px] rounded-[16px] border border-[#d8e0e9] bg-[#f6f8fa] px-6 py-7 text-left sm:px-8 sm:py-8 md:mt-16 md:w-[43%]">
+              <p className="text-[15px] font-semibold text-[#64748b]">미용 중인 대표님</p>
+              <p className="mt-3 break-keep text-[25px] font-semibold leading-[1.35] text-[#111827] md:text-[30px]">
+                미용 중엔 손이 멈출 수 없는데,<br />전화는 계속 울려요.
+              </p>
+              <span className="absolute -bottom-[9px] left-9 h-4 w-4 rotate-45 border-b border-r border-[#d8e0e9] bg-[#f6f8fa]" aria-hidden="true" />
+            </blockquote>
           </div>
-          <blockquote className="mx-auto mt-24 max-w-[940px] py-4 text-center md:mt-32 md:py-5">
+          <blockquote className="hidden" aria-hidden="true">
             <span className="block text-[54px] font-semibold leading-[0.55] text-[var(--landing-accent)]" aria-hidden="true">“</span>
             <p className="mx-auto mt-5 max-w-[880px] break-keep text-[20px] font-medium leading-[1.65] text-[#334155] md:text-[25px] md:leading-[1.6]">
               전화를 못 받는 것도, 그 응대 때문에 다른 손님과 반려동물을 기다리게 하는 것도 고객 입장에선 똑같이 불편한 경험입니다.

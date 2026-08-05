@@ -1,15 +1,17 @@
-﻿export const ownerPasswordRuleMessage = "비밀번호는 영문 대문자, 영문 소문자, 숫자, 특수문자 중 3종류 이상을 포함해야 합니다.";
+export const ownerPasswordRuleMessage = "비밀번호는 영문 대문자, 영문 소문자, 숫자, 특수문자 중 3종류 이상을 포함해야 합니다.";
 
-export function normalizeOwnerLoginId(value: string) {
+/**
+ * Owner accounts use a real, normalized email address everywhere.
+ * The database keeps `login_id` only as a legacy field name; its value is
+ * always this email and must never be a username or an internal alias.
+ */
+export function normalizeOwnerEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function isValidOwnerLoginId(value: string) {
-  return /^[a-z0-9](?:[a-z0-9._-]{3,29})$/.test(normalizeOwnerLoginId(value));
-}
-
-export function buildOwnerAuthEmail(loginId: string) {
-  return `${normalizeOwnerLoginId(loginId)}@owner.petmanager.local`;
+export function isValidOwnerEmail(value: string) {
+  const email = normalizeOwnerEmail(value);
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export function isValidBirthDate8(value: string) {

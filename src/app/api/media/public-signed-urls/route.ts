@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getPublicShopMediaSignedUrls } from "@/server/media-service";
+import { getCustomerResultMediaSignedUrls, getPublicShopMediaSignedUrls } from "@/server/media-service";
 import { OwnerApiError } from "@/server/owner-api-auth";
 import type { MediaVariantKey } from "@/types/domain";
 
@@ -10,11 +10,15 @@ export async function POST(request: NextRequest) {
     const mediaAssetIds = Array.isArray(body.mediaAssetIds)
       ? body.mediaAssetIds.filter((item): item is string => typeof item === "string")
       : [];
-    const result = await getPublicShopMediaSignedUrls({
+    const input = {
       shopId: typeof body.shopId === "string" ? body.shopId : "",
       mediaAssetIds,
       variantKey: (typeof body.variant === "string" ? body.variant : null) as MediaVariantKey | "original" | null,
-    });
+    };
+    const token = typeof body.token === "string" ? body.token : "";
+    const result = token
+      ? await getCustomerResultMediaSignedUrls({ ...input, token })
+      : await getPublicShopMediaSignedUrls(input);
 
     return NextResponse.json(result);
   } catch (error) {

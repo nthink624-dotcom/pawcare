@@ -111,17 +111,11 @@ async function renderCompressedBlob(params: {
   };
 }
 
-export async function compressImageForPetmanager(
+async function compressLoadedImageForPetmanager(
   file: File,
+  image: HTMLImageElement,
   options: PetmanagerImageCompressionOptions = {},
 ): Promise<PetmanagerCompressedImage> {
-  assertBrowser();
-
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Only image files can be compressed.");
-  }
-
-  const image = await loadImage(file);
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const targetBytes = Math.min(options.targetBytes ?? DEFAULT_TARGET_BYTES, maxBytes);
   const outputType = options.outputType ?? "image/webp";
@@ -163,16 +157,36 @@ export async function compressImageForPetmanager(
   };
 }
 
+export async function compressImageForPetmanager(
+  file: File,
+  options: PetmanagerImageCompressionOptions = {},
+): Promise<PetmanagerCompressedImage> {
+  assertBrowser();
+
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be compressed.");
+  }
+
+  const image = await loadImage(file);
+  return compressLoadedImageForPetmanager(file, image, options);
+}
+
 export async function compressImageVariantsForPetmanager(
   file: File,
   variantKeys: MediaVariantKey[] = ["thumbnail", "preview", "provider_ready"],
 ): Promise<PetmanagerCompressedImageVariant[]> {
+  assertBrowser();
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be compressed.");
+  }
+
+  const image = await loadImage(file);
   const uniqueVariantKeys = [...new Set(variantKeys)];
   const variants: PetmanagerCompressedImageVariant[] = [];
 
   for (const variantKey of uniqueVariantKeys) {
     const profile = PETMANAGER_MEDIA_VARIANT_PROFILES[variantKey];
-    const compressed = await compressImageForPetmanager(file, {
+    const compressed = await compressLoadedImageForPetmanager(file, image, {
       maxLongEdge: profile.maxLongEdge,
       maxBytes: profile.maxBytes,
       targetBytes: profile.targetBytes,
@@ -186,4 +200,31 @@ export async function compressImageVariantsForPetmanager(
   }
 
   return variants;
+}
+
+export async function compressImageBundleForPetmanager(
+  file: File,
+  variantKeys: MediaVariantKey[] = ["provider_ready"],
+) {
+  assertBrowser();
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be compressed.");
+  }
+
+  const image = await loadImage(file);
+  const original = await compressLoadedImageForPetmanager(file, image);
+  const variants: PetmanagerCompressedImageVariant[] = [];
+
+  for (const variantKey of [...new Set(variantKeys)]) {
+    const profile = PETMANAGER_MEDIA_VARIANT_PROFILES[variantKey];
+    const compressed = await compressLoadedImageForPetmanager(file, image, {
+      maxLongEdge: profile.maxLongEdge,
+      maxBytes: profile.maxBytes,
+      targetBytes: profile.targetBytes,
+      outputType: profile.outputType,
+    });
+    variants.push({ ...compressed, variantKey });
+  }
+
+  return { original, variants };
 }

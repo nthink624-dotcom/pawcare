@@ -250,6 +250,9 @@ function getNotificationTimestamp(notification: Notification) {
 
 function buildNextVisitWindow(record: GroomingRecord | null, cycleWeeks: number | null | undefined) {
   if (!record) return "추천 기준 없음";
+  if (record.next_recommended_visit_date) {
+    return formatDate(`${record.next_recommended_visit_date}T00:00:00+09:00`);
+  }
   const weeks = typeof cycleWeeks === "number" && cycleWeeks > 0 ? cycleWeeks : 4;
   const start = new Date(record.groomed_at);
   if (Number.isNaN(start.getTime())) return "추천 기준 없음";

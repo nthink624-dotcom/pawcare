@@ -81,14 +81,42 @@ function getRejectionReason(payload: {
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
 }
 
+function getRequiredStatusMediaKind(params: {
+  status: AppointmentStatus;
+  previousStatus: AppointmentStatus;
+}) {
+  const requiresStartPhoto = params.status === "in_progress";
+  const requiresFinishPhoto =
+    params.status === "almost_done" ||
+    (params.status === "completed" && params.previousStatus === "in_progress");
+  if (requiresStartPhoto) return "grooming_before" as const;
+  if (requiresFinishPhoto) return "grooming_after" as const;
+  return null;
+}
+
 function assertPhotoRequirementForAppointmentStatus(params: {
   status: AppointmentStatus;
   previousStatus: AppointmentStatus;
   mediaAssetIds: string[];
   shop: Shop;
 }) {
+  const requiredMediaKind = getRequiredStatusMediaKind(params);
+  if (!requiredMediaKind) return;
   if (params.mediaAssetIds.length > 0) return;
 
+  throw new Error(
+    requiredMediaKind === "grooming_before"
+      ? "미용 시작 전 사진을 촬영해 주세요. 사진이 저장된 뒤 미용을 시작할 수 있어요."
+      : "미용 완료 사진을 촬영해 주세요. 사진이 저장된 뒤 픽업 준비 또는 완료 처리할 수 있어요.",
+  );
+}
+
+function getActualGroomingDurationMinutes(startedAt: string | null | undefined, completedAt: string | null | undefined) {
+  if (!startedAt || !completedAt) return null;
+  const started = new Date(startedAt).getTime();
+  const completed = new Date(completedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) return null;
+  return Math.min(Math.max(Math.round((completed - started) / 60_000), 0), 1440);
 }
 
 function getAppointmentStatusLabel(status: AppointmentStatus) {
@@ -1802,6 +1830,8 @@ export async function updateAppointmentStatus(input: unknown) {
   const shouldNotifyCustomer = payload.notifyCustomer !== false;
   const activatesSchedule = scheduleActiveStatuses.includes(payload.status as (typeof scheduleActiveStatuses)[number]);
   const statusChangedAt = nowIso();
+  const groomingDetails = payload.groomingRecord;
+  let completedGroomingRecordId: string | null = null;
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -1854,25 +1884,55 @@ export async function updateAppointmentStatus(input: unknown) {
     }
     appointment.updated_at = statusChangedAt;
 
-    if (payload.status === "completed" && !store.groomingRecords.some((record) => record.appointment_id === appointment.id)) {
+    if (payload.status === "completed") {
       const service = store.services.find((item) => item.id === appointment.service_id);
-      store.groomingRecords = [
-        {
-          id: randomUUID(),
-          shop_id: appointment.shop_id,
-          guardian_id: appointment.guardian_id,
-          pet_id: appointment.pet_id,
+      const pet = store.pets.find((item) => item.id === appointment.pet_id);
+      const existingRecord = store.groomingRecords.find((record) => record.appointment_id === appointment.id);
+      const pricePaid = appointment.final_service_price ?? service?.price ?? 0;
+      const discountAmount = appointment.discount_amount ?? 0;
+      const recordValues = {
+        staff_id: appointment.staff_id ?? null,
         service_id: appointment.service_id,
         appointment_id: appointment.id,
-        style_notes: appointment.memo,
-        memo: "",
-        price_paid: service?.price ?? 0,
+        style_notes: groomingDetails?.treatmentNotes ?? existingRecord?.style_notes ?? "",
+        memo: groomingDetails?.specialNotes ?? existingRecord?.memo ?? "",
+        internal_memo: groomingDetails?.internalNotes ?? existingRecord?.internal_memo ?? "",
+        price_paid: pricePaid,
+        actual_duration_minutes: getActualGroomingDurationMinutes(
+          appointment.actual_started_at,
+          appointment.actual_completed_at,
+        ),
+        expected_duration_minutes: getAppointmentDurationMinutes(appointment, store.services),
+        original_price: Math.max(appointment.original_service_price ?? 0, pricePaid + discountAmount),
+        discount_amount: discountAmount,
+        pet_breed_snapshot: pet?.breed ?? null,
+        pet_weight_snapshot: pet?.weight ?? null,
+        pricing_group_snapshot: pet?.pricing_group ?? null,
+        service_name_snapshot: service?.name ?? null,
+        record_source: "owner" as const,
+        next_recommended_visit_date:
+          groomingDetails?.nextRecommendedVisitDate ?? existingRecord?.next_recommended_visit_date ?? null,
         groomed_at: appointment.actual_completed_at ?? statusChangedAt,
-        created_at: statusChangedAt,
         updated_at: statusChangedAt,
-      },
-        ...store.groomingRecords,
-      ];
+      };
+
+      if (existingRecord) {
+        Object.assign(existingRecord, recordValues);
+        completedGroomingRecordId = existingRecord.id;
+      } else {
+        completedGroomingRecordId = randomUUID();
+        store.groomingRecords = [
+          {
+            id: completedGroomingRecordId,
+            shop_id: appointment.shop_id,
+            guardian_id: appointment.guardian_id,
+            pet_id: appointment.pet_id,
+            ...recordValues,
+            created_at: statusChangedAt,
+          },
+          ...store.groomingRecords,
+        ];
+      }
     }
 
     setMockStore(store);
@@ -1923,13 +1983,22 @@ export async function updateAppointmentStatus(input: unknown) {
       });
     }
     if (shouldNotifyCustomer && payload.status === "completed") {
-      await dispatchAppointmentNotificationWithLogs({
+      const completionNotification = await dispatchAppointmentNotificationWithLogs({
         shopId: appointment.shop_id,
         appointment,
         type: "grooming_completed",
         mediaAssetIds: statusMediaAssetIds,
         force: true,
       });
+      if (completedGroomingRecordId && completionNotification?.notification) {
+        const record = store.groomingRecords.find((item) => item.id === completedGroomingRecordId);
+        if (record) {
+          record.customer_notification_id = completionNotification.notification.id;
+          record.shared_with_customer_at = completionNotification.notification.sent_at ?? null;
+          record.updated_at = statusChangedAt;
+          setMockStore(store);
+        }
+      }
     }
     return appointment;
   }
@@ -1962,6 +2031,30 @@ export async function updateAppointmentStatus(input: unknown) {
     mediaAssetIds: statusMediaAssetIds,
     shop: bootstrap.shop,
   });
+  const requiredMediaKind = getRequiredStatusMediaKind({
+    status: payload.status,
+    previousStatus: currentAppointment.status,
+  });
+  if (requiredMediaKind) {
+    const matchingStatusMedia = await supabase
+      .from("media_assets")
+      .select("id")
+      .eq("shop_id", currentAppointment.shop_id)
+      .eq("appointment_id", currentAppointment.id)
+      .eq("media_kind", requiredMediaKind)
+      .eq("status", "ready")
+      .is("deleted_at", null)
+      .in("id", statusMediaAssetIds)
+      .limit(1);
+    if (matchingStatusMedia.error) throw new Error(matchingStatusMedia.error.message);
+    if (!matchingStatusMedia.data?.length) {
+      throw new Error(
+        requiredMediaKind === "grooming_before"
+          ? "이 예약에 연결된 미용 시작 사진을 확인할 수 없어요. 사진을 다시 촬영해 주세요."
+          : "이 예약에 연결된 미용 완료 사진을 확인할 수 없어요. 사진을 다시 촬영해 주세요.",
+      );
+    }
+  }
 
   if (payload.status === "confirmed") {
     ensureAppointmentCanBeConfirmed({
@@ -2038,38 +2131,84 @@ export async function updateAppointmentStatus(input: unknown) {
   }
 
   if (payload.status === "completed") {
-    const existingRecord = await supabase.from("grooming_records").select("id").eq("appointment_id", payload.appointmentId).maybeSingle();
+    const existingRecord = await supabase
+      .from("grooming_records")
+      .select("*")
+      .eq("appointment_id", payload.appointmentId)
+      .maybeSingle();
     if (existingRecord.error) throw new Error(existingRecord.error.message);
 
-    let groomingRecordId = existingRecord.data?.id ?? null;
+    const completionBootstrap = await getBootstrap(resolvedAppointment.shop_id);
+    const service = completionBootstrap.services.find((item) => item.id === resolvedAppointment.service_id);
+    const pet = completionBootstrap.pets.find((item) => item.id === resolvedAppointment.pet_id);
+    const appointmentMedia = await supabase
+      .from("media_assets")
+      .select("id, media_kind, created_at")
+      .eq("shop_id", resolvedAppointment.shop_id)
+      .eq("appointment_id", resolvedAppointment.id)
+      .eq("status", "ready")
+      .is("deleted_at", null)
+      .in("media_kind", ["grooming_before", "grooming_after"])
+      .order("created_at", { ascending: false });
+    if (appointmentMedia.error) throw new Error(appointmentMedia.error.message);
 
-    if (!existingRecord.data?.id) {
-      const bootstrap = await getBootstrap(resolvedAppointment.shop_id);
-      const service = bootstrap.services.find((item) => item.id === resolvedAppointment.service_id);
-      groomingRecordId = randomUUID();
+    const beforeMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_before")?.id ?? null;
+    const afterMediaAssetId = appointmentMedia.data?.find((item) => item.media_kind === "grooming_after")?.id ?? null;
+    const pricePaid = resolvedAppointment.final_service_price ?? service?.price ?? 0;
+    const discountAmount = resolvedAppointment.discount_amount ?? 0;
+    const recordValues = {
+      staff_id: resolvedAppointment.staff_id ?? null,
+      service_id: resolvedAppointment.service_id,
+      style_notes: groomingDetails?.treatmentNotes ?? existingRecord.data?.style_notes ?? "",
+      memo: groomingDetails?.specialNotes ?? existingRecord.data?.memo ?? "",
+      internal_memo: groomingDetails?.internalNotes ?? existingRecord.data?.internal_memo ?? "",
+      price_paid: pricePaid,
+      actual_duration_minutes: getActualGroomingDurationMinutes(
+        resolvedAppointment.actual_started_at,
+        resolvedAppointment.actual_completed_at,
+      ),
+      expected_duration_minutes: getAppointmentDurationMinutes(resolvedAppointment, completionBootstrap.services),
+      original_price: Math.max(resolvedAppointment.original_service_price ?? 0, pricePaid + discountAmount),
+      discount_amount: discountAmount,
+      pet_breed_snapshot: pet?.breed ?? null,
+      pet_weight_snapshot: pet?.weight ?? null,
+      pricing_group_snapshot: pet?.pricing_group ?? null,
+      service_name_snapshot: service?.name ?? null,
+      record_source: "owner",
+      next_recommended_visit_date:
+        groomingDetails?.nextRecommendedVisitDate ?? existingRecord.data?.next_recommended_visit_date ?? null,
+      before_media_asset_id: beforeMediaAssetId ?? existingRecord.data?.before_media_asset_id ?? null,
+      after_media_asset_id: afterMediaAssetId ?? existingRecord.data?.after_media_asset_id ?? null,
+      groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
+      updated_at: statusChangedAt,
+    };
 
+    if (existingRecord.data?.id) {
+      completedGroomingRecordId = existingRecord.data.id;
+      const recordUpdate = await supabase
+        .from("grooming_records")
+        .update(recordValues)
+        .eq("id", completedGroomingRecordId);
+      if (recordUpdate.error) throw new Error(recordUpdate.error.message);
+    } else {
+      completedGroomingRecordId = randomUUID();
       const { error: recordError } = await supabase.from("grooming_records").insert({
-        id: groomingRecordId,
+        id: completedGroomingRecordId,
         shop_id: resolvedAppointment.shop_id,
         guardian_id: resolvedAppointment.guardian_id,
         pet_id: resolvedAppointment.pet_id,
-        service_id: resolvedAppointment.service_id,
         appointment_id: resolvedAppointment.id,
-        style_notes: resolvedAppointment.memo,
-        memo: "",
-        price_paid: service?.price ?? 0,
-        groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
+        ...recordValues,
         created_at: statusChangedAt,
-        updated_at: statusChangedAt,
       });
 
       if (recordError) throw new Error(recordError.message);
     }
 
-    if (groomingRecordId) {
+    if (completedGroomingRecordId) {
       const mediaLinkResult = await supabase
         .from("media_assets")
-        .update({ grooming_record_id: groomingRecordId, updated_at: statusChangedAt })
+        .update({ grooming_record_id: completedGroomingRecordId, updated_at: statusChangedAt })
         .eq("shop_id", resolvedAppointment.shop_id)
         .eq("appointment_id", resolvedAppointment.id)
         .is("grooming_record_id", null);
@@ -2077,6 +2216,15 @@ export async function updateAppointmentStatus(input: unknown) {
       if (mediaLinkResult.error) {
         console.warn("[owner-mutations] media record link failed", mediaLinkResult.error.message);
       }
+    }
+
+    const draftCleanup = await supabase
+      .from("grooming_record_drafts")
+      .delete()
+      .eq("shop_id", resolvedAppointment.shop_id)
+      .eq("appointment_id", resolvedAppointment.id);
+    if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
+      console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
     }
   }
 
@@ -2128,13 +2276,26 @@ export async function updateAppointmentStatus(input: unknown) {
     });
   }
   if (shouldNotifyCustomer && payload.status === "completed") {
-    await dispatchAppointmentNotificationWithLogs({
+    const completionNotification = await dispatchAppointmentNotificationWithLogs({
       shopId: resolvedAppointment.shop_id,
       appointment: resolvedAppointment,
       type: "grooming_completed",
       mediaAssetIds: statusMediaAssetIds,
       force: true,
     });
+    if (completedGroomingRecordId && completionNotification?.notification) {
+      const notificationLink = await supabase
+        .from("grooming_records")
+        .update({
+          customer_notification_id: completionNotification.notification.id,
+          shared_with_customer_at: completionNotification.notification.sent_at ?? null,
+          updated_at: statusChangedAt,
+        })
+        .eq("id", completedGroomingRecordId);
+      if (notificationLink.error) {
+        console.warn("[owner-mutations] grooming record notification link failed", notificationLink.error.message);
+      }
+    }
   }
 
   return resolvedAppointment;

@@ -43,6 +43,7 @@ const customerBookingCreateSchema = z.object({
   phone: z.string().trim().min(10),
   petName: z.string().trim().min(1),
   breed: z.string().trim().optional().default(""),
+  weightKg: z.coerce.number().positive().max(200),
   extraPets: z
     .array(
       z.object({
@@ -120,7 +121,7 @@ function countsTowardVisitHistory(appointment: Appointment) {
 function getGuardianPetsForProfile(bootstrap: Awaited<ReturnType<typeof getBootstrap>>, guardianId: string) {
   return bootstrap.pets
     .filter((pet) => pet.guardian_id === guardianId)
-    .map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed }));
+    .map(({ id, name, guardian_id, breed, weight }) => ({ id, name, guardian_id, breed, weight }));
 }
 
 function cancelWindowMinutes(value: NonNullable<Shop["reservation_policy_settings"]>["cancel_window"] | string | null | undefined) {
@@ -227,7 +228,7 @@ function makePetBase(
     guardian_id: guardianId,
     name: petName,
     breed: profile.breed,
-    weight: profile.weight,
+    weight: petInput ? profile.weight : payload.weightKg,
     age: null,
     notes: profile.raw ? `고객 입력: ${profile.raw}` : "",
     grooming_cycle_weeks: 4,
@@ -573,6 +574,7 @@ export async function createCustomerBooking(
       serviceId: payload.serviceId,
       customerServiceOptionId: payload.customerServiceOptionId,
       breed: payload.breed,
+      weightKg: payload.weightKg,
       appointmentDate: payload.appointmentDate,
     }));
 
@@ -594,6 +596,7 @@ export async function createCustomerBooking(
     buildCustomerServiceSourceOptions(bootstrap.services, {
       priceGuideOnly: true,
       priceGuideGroupKey: pricingGroup?.key,
+      weightKg: payload.weightKg,
     }),
     bootstrap.shop.customer_page_settings.customer_service_overrides,
   );
@@ -727,7 +730,7 @@ export async function lookupCustomerBookings(shopId: string, phone: string, guar
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
-    pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
+    pets: scopedPets.map(({ id, name, guardian_id, breed, weight }) => ({ id, name, guardian_id, breed, weight })),
     appointments: scopedAppointments,
     groomingRecords,
     visitType: guardianAppointments.length > 0 ? "revisit" : "first_visit",
@@ -754,7 +757,7 @@ export async function lookupCustomerBookingProfile(shopId: string, phone: string
 
   return {
     guardians: scopedGuardians.map(({ id, name, phone: guardianPhone }) => ({ id, name, phone: guardianPhone })),
-    pets: scopedPets.map(({ id, name, guardian_id, breed }) => ({ id, name, guardian_id, breed })),
+    pets: scopedPets.map(({ id, name, guardian_id, breed, weight }) => ({ id, name, guardian_id, breed, weight })),
     appointments: [],
     groomingRecords: [],
     visitType: guardianAppointments.length > 0 ? "revisit" : "first_visit",
@@ -779,12 +782,55 @@ export async function lookupCustomerBookingsByToken(shopId: string, token: strin
   const scopedPetIds = new Set(scopedPets.map((item) => item.id));
   const scopedAppointments = bootstrap.appointments.filter((appointment) => scopedPetIds.has(appointment.pet_id));
   const groomingRecords = bootstrap.groomingRecords.filter((record) => scopedPetIds.has(record.pet_id));
+  let resultMediaAssets: Array<{
+    id: string;
+    appointmentId: string;
+    groomingRecordId: string | null;
+    mediaKind: "grooming_before" | "grooming_after";
+  }> = [];
+
+  if (payload.action === "result") {
+    const resultAppointment = scopedAppointments.find(
+      (appointment) =>
+        appointment.id === payload.appointmentId &&
+        appointment.guardian_id === payload.guardianId &&
+        appointment.pet_id === payload.petId &&
+        appointment.status === "completed",
+    );
+    if (!resultAppointment) {
+      throw new Error("완료된 미용 결과를 찾지 못했어요.");
+    }
+
+    if (bootstrap.mode === "supabase" && hasSupabaseServerEnv()) {
+      const admin = getSupabaseAdmin();
+      if (!admin) throw new Error("미용 결과 사진을 확인할 수 없습니다.");
+      const mediaResult = await admin
+        .from("media_assets")
+        .select("id, appointment_id, grooming_record_id, media_kind")
+        .eq("shop_id", shopId)
+        .eq("appointment_id", resultAppointment.id)
+        .eq("pet_id", payload.petId)
+        .eq("status", "ready")
+        .is("deleted_at", null)
+        .in("visibility", ["customer_shared", "public"])
+        .in("media_kind", ["grooming_before", "grooming_after"])
+        .order("created_at", { ascending: true });
+      if (mediaResult.error) throw new Error(mediaResult.error.message);
+      resultMediaAssets = (mediaResult.data ?? []).map((item) => ({
+        id: item.id,
+        appointmentId: item.appointment_id,
+        groomingRecordId: item.grooming_record_id,
+        mediaKind: item.media_kind as "grooming_before" | "grooming_after",
+      }));
+    }
+  }
 
   return {
     guardians: [{ id: guardian.id, name: guardian.name, phone: guardian.phone }],
     pets: scopedPets,
     appointments: scopedAppointments,
     groomingRecords,
+    resultMediaAssets,
     visitType: scopedAppointments.some(countsTowardVisitHistory) ? "revisit" : "first_visit",
     access: {
       appointmentId: payload.appointmentId ?? null,

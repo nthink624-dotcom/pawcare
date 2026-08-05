@@ -1091,7 +1091,10 @@ function GroomingRecordsCard({
                 <span className="truncate text-[#64748b]">{record.memo || "-"}</span>
                 <GroomingPhotoCell summary={photoSummary} />
                 <span className="tabular-nums text-[#334155]">{formatMoney(record.price_paid)}</span>
-                <ActualGroomingTimeCell appointment={linkedAppointment} fallbackDuration={formatDuration(getServiceDuration(detail.servicesById, record.service_id))} />
+                <ActualGroomingTimeCell
+                  appointment={linkedAppointment}
+                  fallbackDuration={formatDuration(record.actual_duration_minutes ?? getServiceDuration(detail.servicesById, record.service_id))}
+                />
               </button>
             );
           })}
@@ -1147,6 +1150,18 @@ function ActualGroomingTimeCell({
   );
 }
 
+function getRecordedGroomingDurationMinutes(
+  recordDuration: number | null | undefined,
+  appointment: CustomerDetailModel["appointments"][number] | null,
+) {
+  if (typeof recordDuration === "number") return recordDuration;
+  if (!appointment?.actual_started_at || !appointment.actual_completed_at) return null;
+  const startedAt = new Date(appointment.actual_started_at).getTime();
+  const completedAt = new Date(appointment.actual_completed_at).getTime();
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt) || completedAt < startedAt) return null;
+  return Math.round((completedAt - startedAt) / 60_000);
+}
+
 function GroomingPhotoCell({ summary }: { summary: GroomingPhotoSummary }) {
   return (
     <div className="flex min-w-0 items-center justify-center gap-2 text-center">
@@ -1187,9 +1202,15 @@ function GroomingRecordDetailPanel({
   const linkedAppointment = getLinkedAppointmentForGroomingRecord(detail, record);
   const petName = detail.pets.find((pet) => pet.id === record.pet_id)?.name ?? "-";
   const serviceName = getServiceName(detail.servicesById, record.service_id);
-  const duration = linkedAppointment
-    ? formatDuration(getServiceDuration(detail.servicesById, linkedAppointment.service_id))
-    : formatDuration(getServiceDuration(detail.servicesById, record.service_id));
+  const recordedDurationMinutes = getRecordedGroomingDurationMinutes(record.actual_duration_minutes, linkedAppointment);
+  const duration = recordedDurationMinutes !== null
+    ? formatDuration(recordedDurationMinutes)
+    : linkedAppointment
+      ? formatDuration(getServiceDuration(detail.servicesById, linkedAppointment.service_id))
+      : formatDuration(getServiceDuration(detail.servicesById, record.service_id));
+  const nextRecommendedVisit = record.next_recommended_visit_date
+    ? formatDate(`${record.next_recommended_visit_date}T00:00:00+09:00`)
+    : "기록 없음";
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/24 px-6 py-6" onClick={onClose}>
@@ -1218,14 +1239,16 @@ function GroomingRecordDetailPanel({
             </section>
 
             <section className="space-y-3">
-              <div className="grid grid-cols-3 gap-2 rounded-[8px] border border-[#dbe2ea] bg-white p-3">
+              <div className="grid grid-cols-2 gap-2 rounded-[8px] border border-[#dbe2ea] bg-white p-3 xl:grid-cols-4">
                 <DetailMetric label="서비스" value={serviceName} />
                 <DetailMetric label="금액" value={formatMoney(record.price_paid)} />
-                <DetailMetric label="소요시간" value={duration} />
+                <DetailMetric label="실제 소요시간" value={duration} />
+                <DetailMetric label="다음 권장 방문일" value={nextRecommendedVisit} />
               </div>
               <LongTextBlock title="고객 요청 메시지" value={linkedAppointment?.memo ?? ""} emptyText="예약에 남겨진 고객 요청 메시지가 없습니다." />
               <LongTextBlock title="스타일 메모" value={record.style_notes} emptyText="스타일 메모가 없습니다." />
-              <LongTextBlock title="작업 메모" value={record.memo} emptyText="작업 메모가 없습니다." />
+              <LongTextBlock title="고객 안내·특이사항" value={record.memo} emptyText="고객에게 안내한 특이사항이 없습니다." />
+              <LongTextBlock title="매장 내부 메모" value={record.internal_memo ?? ""} emptyText="매장 내부 메모가 없습니다." />
               {linkedAppointment ? <AppointmentActualTimes appointment={linkedAppointment} /> : null}
             </section>
           </div>

@@ -23,6 +23,10 @@ const availabilityRequests = new Map<
   { expiresAt: number; request: Promise<CustomerAvailabilityPayload> }
 >();
 
+export function invalidateCustomerAvailability() {
+  availabilityRequests.clear();
+}
+
 export function fetchCustomerAvailability(params: CustomerAvailabilityParams) {
   const query = new URLSearchParams({ shopId: params.shopId, date: params.date });
   if (params.serviceId) query.set("serviceId", params.serviceId);

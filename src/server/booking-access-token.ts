@@ -8,7 +8,7 @@ type BookingAccessPayload = {
   guardianId: string;
   petId: string;
   appointmentId?: string;
-  action?: "reschedule";
+  action?: "reschedule" | "result";
   issuedAt: number;
   expiresAt: number;
 };
@@ -58,7 +58,7 @@ function decodeCompactPayload(encodedPayload: string): BookingAccessPayload | nu
     issuedAt: issuedAtNumber,
     expiresAt: expiresAtNumber,
     ...(appointmentId ? { appointmentId } : {}),
-    ...(action === "reschedule" ? { action } : {}),
+    ...(action === "reschedule" || action === "result" ? { action } : {}),
   };
 }
 
@@ -86,7 +86,7 @@ export function createBookingAccessToken(input: {
   guardianId: string;
   petId: string;
   appointmentId?: string;
-  action?: "reschedule";
+  action?: "reschedule" | "result";
   expiresInHours?: number;
 }) {
   const issuedAt = Date.now();
@@ -138,11 +138,11 @@ export function verifyBookingAccessToken(token: string) {
     throw new Error("Invalid booking access link.");
   }
 
-  if (payload.action && payload.action !== "reschedule") {
+  if (payload.action && payload.action !== "reschedule" && payload.action !== "result") {
     throw new Error("Invalid booking access link.");
   }
 
-  if (payload.action === "reschedule" && !payload.appointmentId) {
+  if ((payload.action === "reschedule" || payload.action === "result") && !payload.appointmentId) {
     throw new Error("Invalid booking access link.");
   }
 

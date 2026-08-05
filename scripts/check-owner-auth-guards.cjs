@@ -37,6 +37,11 @@ assertIncludes(
   "signInWithPassword({ email, password: body.password })",
   "Owner password login must verify the email and password directly with Supabase Auth.",
 );
+assertNotIncludes(
+  "src/app/api/auth/login/route.ts",
+  "loginId",
+  "Owner password login must not accept a username-style loginId payload.",
+);
 assertIncludes(
   "src/app/api/auth/login/route.ts",
   "accessToken",
@@ -104,6 +109,11 @@ assertIncludes(
   "identityVerificationToken: verificationToken",
   "General owner signup must submit the completed identity verification token.",
 );
+assertNotIncludes(
+  "src/components/auth/signup-form.tsx",
+  "loginId",
+  "Owner signup must not expose or submit a username-style loginId.",
+);
 assertIncludes(
   "src/app/api/auth/signup/route.ts",
   "name: payload.name.trim()",
@@ -118,6 +128,60 @@ assertIncludes(
   "src/app/api/auth/signup/route.ts",
   "identity_verified_at: now",
   "General owner signup must record successful identity verification.",
+);
+assertIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "email_confirm: false",
+  "Owner signup must leave the Supabase Auth email unconfirmed until the owner opens the confirmation link.",
+);
+assertIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "sendOwnerEmailConfirmation(supabase, email)",
+  "Owner signup must send an email confirmation after creating the pending account.",
+);
+assertFile(
+  "src/app/api/auth/resend-email-confirmation/route.ts",
+  "Owner signup must provide a safe email confirmation resend endpoint.",
+);
+assertIncludes(
+  "src/app/api/auth/login/route.ts",
+  "email_confirmed_at",
+  "Owner login must reject accounts whose email confirmation is still incomplete.",
+);
+assertIncludes(
+  "backend/src/server.ts",
+  'app.get("/api/auth/check-email"',
+  "The legacy Express server must use the shared email availability endpoint.",
+);
+assertIncludes(
+  "backend/src/server.ts",
+  "const email = normalizeOwnerEmail(payload.email);",
+  "The legacy Express server must normalize the submitted owner email.",
+);
+assertNotIncludes(
+  "backend/src/server.ts",
+  "check-login-id",
+  "The legacy Express server must not retain the username availability endpoint.",
+);
+assertNotIncludes(
+  "backend/src/server.ts",
+  "buildOwnerAuthEmail",
+  "The legacy Express server must not generate virtual owner email aliases.",
+);
+assertNotIncludes(
+  "backend/src/server.ts",
+  "payload.loginId",
+  "The legacy Express server must not accept a username-style owner payload.",
+);
+assertNotIncludes(
+  "backend/src/lib/auth/owner-credentials.ts",
+  "owner.petmanager.local",
+  "Legacy owner credentials must not create internal email aliases.",
+);
+assertNotIncludes(
+  "backend/src/lib/auth/owner-credentials.ts",
+  "normalizeOwnerLoginId",
+  "Legacy owner credentials must not preserve username normalization.",
 );
 assertIncludes(
   "src/components/owner-web/service-management-screen.tsx",

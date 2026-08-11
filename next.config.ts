@@ -3,6 +3,9 @@
 const nextConfig: NextConfig = {
   typedRoutes: true,
   devIndicators: false,
+  images: {
+    qualities: [75, 90],
+  },
   env: {
     NEXT_PUBLIC_VERCEL_ENV:
       process.env.VERCEL_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || "",

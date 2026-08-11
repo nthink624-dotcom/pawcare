@@ -4,16 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
+import { MobileBackButton } from "@/components/ui/mobile-back-button";
+import { findEmailWithKcpIdentityVerification } from "@/lib/auth/find-email-identity";
 import { getSupabaseRuntimeStage } from "@/lib/env";
-import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
-import { isValidOwnerEmail, normalizeOwnerEmail } from "@/lib/auth/owner-credentials";
+import {
+  clearOwnerAuthHandoff,
+  clearOwnerAuthTokenCache,
+  writeOwnerAuthHandoff,
+  writeOwnerAuthSessionCache,
+} from "@/lib/auth/owner-auth-handoff";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import MobileLoginScreenTemplate from "./mobile-login-screen-template";
 
 type OwnerLoginApiResponse = {
   success?: boolean;
-  code?: "email-confirmation-required";
+  reason?: "email_not_registered" | "invalid_password";
   message?: string;
   session?: {
     accessToken: string;
@@ -24,6 +30,7 @@ type OwnerLoginApiResponse = {
 const SAVED_EMAIL_KEY = "petmanager.savedEmail";
 const FAILED_LOGIN_STATE_PREFIX = "petmanager.failedLogin";
 const FAILED_LOGIN_LIMIT = 5;
+const BROWSER_SESSION_PERSIST_TIMEOUT_MS = 3000;
 const STORAGE_HEALTH_CHECK_KEY = "petmanager.storageHealthCheck";
 const OVERSIZED_PREVIEW_STORAGE_KEYS = ["petmanager.ownerWeb.shopProfileImages", "petmanager.ownerWeb.shopProfileImage"];
 const STORAGE_WARNING_USAGE_RATIO = 0.8;
@@ -31,6 +38,11 @@ const STORAGE_WARNING_USAGE_RATIO = 0.8;
 type FailedLoginState = {
   count: number;
 };
+
+type FindEmailFlow =
+  | { status: "idle" }
+  | { status: "preparing" }
+  | { status: "result"; email: string };
 
 function getFailedLoginStateKey(email: string) {
   return `${FAILED_LOGIN_STATE_PREFIX}:${email.trim().toLowerCase() || "unknown"}`;
@@ -187,8 +199,7 @@ export default function LoginForm({
   const [creatingDevOwner, setCreatingDevOwner] = useState(false);
   const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [rememberEmail, setRememberEmail] = useState(false);
-  const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
-  const [resendingEmailConfirmation, setResendingEmailConfirmation] = useState(false);
+  const [findEmailFlow, setFindEmailFlow] = useState<FindEmailFlow>({ status: "idle" });
 
   useEffect(() => {
     if (nextPath.startsWith("/")) {
@@ -228,7 +239,14 @@ export default function LoginForm({
 
     setLoading(true);
     setMessage(null);
-    setEmailConfirmationRequired(false);
+
+    const clearPreviousLogin = async () => {
+      clearOwnerAuthHandoff();
+      clearOwnerAuthTokenCache();
+      if (supabase) {
+        await supabase.auth.signOut({ scope: "local" });
+      }
+    };
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -242,19 +260,19 @@ export default function LoginForm({
 
       if (!response.ok || !result.success) {
         const nextMessage = result.message ?? "이메일 또는 비밀번호를 다시 확인해 주세요.";
-
-        if (result.code === "email-confirmation-required") {
-          setEmailConfirmationRequired(true);
-          setMessage(nextMessage);
-          return;
-        }
+        await clearPreviousLogin();
 
         if (isRateLimitMessage(nextMessage)) {
           setMessage(getRateLimitMessage());
           return;
         }
 
-        if (isInvalidCredentialMessage(nextMessage)) {
+        if (result.reason === "email_not_registered") {
+          setMessage("등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요.");
+          return;
+        }
+
+        if (result.reason === "invalid_password" || isInvalidCredentialMessage(nextMessage)) {
           const failedState = recordFailedLoginAttempt(currentEmail);
           const remainingAttempts = Math.max(1, FAILED_LOGIN_LIMIT - failedState.count);
           setMessage(
@@ -272,26 +290,31 @@ export default function LoginForm({
       clearFailedLoginState(currentEmail);
 
       const authenticatedSession = result.session;
-      if (authenticatedSession?.accessToken && authenticatedSession.refreshToken) {
-        clearOwnerAuthTokenCache();
-        writeOwnerAuthHandoff(authenticatedSession);
-        writeOwnerAuthSessionCache(authenticatedSession);
-        void makeRoomForAuthStorage(currentEmail);
+      if (!authenticatedSession?.accessToken || !authenticatedSession.refreshToken) {
+        await clearPreviousLogin();
+        setMessage("로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
 
-        if (supabase) {
-          void (async () => {
-            try {
-              const { error } = await supabase.auth.setSession({
-                access_token: authenticatedSession.accessToken,
-                refresh_token: authenticatedSession.refreshToken,
-              });
-              if (error) {
-                console.warn("[auth/login] browser Supabase session persistence failed", error.message);
-              }
-            } catch (error) {
-              console.warn("[auth/login] browser Supabase session persistence failed", error);
-            }
-          })();
+      clearOwnerAuthTokenCache();
+      writeOwnerAuthHandoff(authenticatedSession);
+      writeOwnerAuthSessionCache(authenticatedSession);
+      await makeRoomForAuthStorage(currentEmail);
+
+      if (supabase) {
+        const sessionResult = await Promise.race([
+          supabase.auth.setSession({
+            access_token: authenticatedSession.accessToken,
+            refresh_token: authenticatedSession.refreshToken,
+          }),
+          new Promise<null>((resolve) => {
+            window.setTimeout(() => resolve(null), BROWSER_SESSION_PERSIST_TIMEOUT_MS);
+          }),
+        ]);
+        if (sessionResult?.error) {
+          await clearPreviousLogin();
+          setMessage("로그인 상태를 저장하지 못했습니다. 다시 시도해 주세요.");
+          return;
         }
       }
 
@@ -311,6 +334,7 @@ export default function LoginForm({
         window.location.assign(nextPath);
       }
     } catch {
+      await clearPreviousLogin().catch(() => undefined);
       setMessage("로그인 요청 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
@@ -345,36 +369,70 @@ export default function LoginForm({
     }
   };
 
-  const resendEmailConfirmation = async () => {
-    const currentEmail = normalizeOwnerEmail(email);
-    if (!isValidOwnerEmail(currentEmail)) {
-      setMessage("인증 메일을 다시 받으려면 올바른 이메일 주소를 입력해 주세요.");
-      return;
-    }
-
-    setResendingEmailConfirmation(true);
+  const startFindEmail = async () => {
+    setFindEmailFlow({ status: "preparing" });
     setMessage(null);
 
     try {
-      const response = await fetch("/api/auth/resend-email-confirmation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: currentEmail }),
-      });
-      const result = (await response.json().catch(() => ({
-        message: "인증 메일 응답을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-      }))) as { success?: boolean; message?: string };
-
-      setMessage(result.message ?? "인증 메일을 다시 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
-      if (response.ok && result.success) {
-        setEmailConfirmationRequired(false);
-      }
-    } catch {
-      setMessage("인증 메일을 다시 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setResendingEmailConfirmation(false);
+      const foundEmail = await findEmailWithKcpIdentityVerification();
+      setFindEmailFlow({ status: "result", email: foundEmail });
+    } catch (error) {
+      setFindEmailFlow({ status: "idle" });
+      setMessage(error instanceof Error ? error.message : "본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
     }
   };
+
+  if (findEmailFlow.status === "preparing") {
+    return (
+      <main className="flex min-h-screen w-full items-center justify-center bg-[#f1f3f7] px-5 py-8 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#111827] antialiased sm:px-6 sm:py-12">
+        <section className="w-full max-w-[448px] rounded-[32px] bg-white px-8 py-16 text-center shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
+          <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-[3px] border-[#dbe5f6] border-t-[#111a30]" aria-hidden="true" />
+          <h1 className="mt-7 text-[22px] font-extrabold tracking-[-0.04em] text-[#101a31]">본인인증을 준비 중입니다.</h1>
+          <p className="mt-3 break-keep text-[15px] leading-6 text-[#7184a6]">잠시만 기다리시면 KCP 본인인증 창이 열립니다.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (findEmailFlow.status === "result") {
+    return (
+      <main className="flex min-h-screen w-full items-center justify-center bg-[#f1f3f7] px-5 py-8 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#111827] antialiased sm:px-6 sm:py-12">
+        <section className="w-full max-w-[448px] rounded-[32px] bg-white px-8 pb-11 pt-9 shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
+          <div className="relative flex h-10 items-center justify-center">
+            <MobileBackButton
+              onClick={() => setFindEmailFlow({ status: "idle" })}
+              label="로그인으로 돌아가기"
+              className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
+            />
+            <h1 className="text-[24px] font-extrabold leading-6 tracking-[-0.04em] text-[#101a31]">이메일 확인</h1>
+          </div>
+
+          <section className="pt-12">
+            <h2 className="text-[21px] font-bold leading-8 tracking-[-0.03em] text-[#111827]">이메일을 확인했어요.</h2>
+            <p className="mt-3 text-[15px] leading-6 text-[#7184a6]">본인인증 정보와 연결된 로그인 이메일입니다.</p>
+            <div className="mt-8 rounded-[16px] border border-[#dbe5f6] bg-[#f7faff] px-5 py-5">
+              <p className="text-[13px] font-semibold text-[#7184a6]">로그인 이메일</p>
+              <p className="mt-2 break-all text-[21px] font-bold tracking-[-0.03em] text-[#111827]">{findEmailFlow.email}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/login/reset?email=${encodeURIComponent(findEmailFlow.email)}`)}
+              className="mt-4 flex h-[58px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f6] bg-white text-[15px] font-bold text-[#111a30] transition hover:bg-[#f1f5fb]"
+            >
+              비밀번호 찾기로 이동
+            </button>
+            <button
+              type="button"
+              onClick={() => setFindEmailFlow({ status: "idle" })}
+              className="mt-4 flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px"
+            >
+              로그인으로 이동
+            </button>
+          </section>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div>
@@ -385,23 +443,13 @@ export default function LoginForm({
         loading={loading}
         message={message}
         nextPath={nextPath}
-        emailConfirmationAction={
-          emailConfirmationRequired
-            ? {
-                label: "인증 메일 다시 받기",
-                loadingLabel: "인증 메일 보내는 중...",
-                loading: resendingEmailConfirmation,
-                onClick: () => void resendEmailConfirmation(),
-              }
-            : null
-        }
         onEmailChange={(value) => {
           setEmail(value);
-          setEmailConfirmationRequired(false);
         }}
         onPasswordChange={setPassword}
         onRememberEmailChange={setRememberEmail}
         onLogin={handleLogin}
+        onFindEmail={() => void startFindEmail()}
       />
 
       {showDevOwnerHelper ? (

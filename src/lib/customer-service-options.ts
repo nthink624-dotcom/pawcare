@@ -281,8 +281,9 @@ export function buildCustomerServiceSourceOptions(
 
     }
 
-    if (priceGuideSections.length > 0 && result.length > initialResultLength) continue;
-    if (options.priceGuideOnly && result.length > initialResultLength) continue;
+    // 상세 요금표가 있는 서비스는 그 행만 고객에게 노출합니다. 선택한 체중대에
+    // 맞는 행이 없을 때 기본 가격으로 되돌아가면 서로 다른 가격 원본이 생기기 때문입니다.
+    if (priceGuideSections.length > 0) continue;
     if (options.priceGuideOnly) continue;
 
     result.push({
@@ -304,10 +305,9 @@ export function buildCustomerServiceSourceOptions(
 }
 
 function buildDefaultCustomerServiceMenuOptions(options: CustomerServiceSourceOption[]) {
-  const firstCategory = options[0]?.category;
-  const defaultOptions = firstCategory ? options.filter((option) => option.category === firstCategory) : [];
-
-  return uniqueCustomerServiceOptions(defaultOptions).map((option, index) => ({
+  // 고객 메뉴를 별도로 숨기지 않았다면 PC에 저장된 모든 활성 서비스가 기본 노출입니다.
+  // 첫 카테고리만 노출하면 PC 서비스 원본과 고객 예약 페이지가 서로 달라집니다.
+  return uniqueCustomerServiceOptions(options).map((option, index) => ({
     ...option,
     id: createMenuOptionId(option.sourceName),
     name: option.sourceName,

@@ -22,7 +22,6 @@ import {
 } from "@/lib/billing/owner-subscription";
 import { hasSupabaseBrowserEnv } from "@/lib/env";
 import { readCurrentOwnerShopId, writeCurrentOwnerShopId } from "@/lib/owner-current-shop";
-import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { BootstrapPayload } from "@/types/domain";
 
@@ -95,13 +94,6 @@ function isOwnerAuthRecoveryError(message: string) {
   );
 }
 
-function shouldUseOwnerDemoFallback(message?: string) {
-  if (typeof window === "undefined") return false;
-  const hostname = window.location.hostname.toLowerCase();
-  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
-  return isLocalhost && (!message || message.includes("Supabase 설정을 확인"));
-}
-
 function withOwnerSessionTimeout<T>(promise: Promise<T>): Promise<T> {
   let timeoutId: number | null = null;
 
@@ -130,14 +122,6 @@ export default function OwnerPage() {
   const [message, setMessage] = useState("오너 화면을 불러오는 중입니다.");
   const [loggingOut, setLoggingOut] = useState(false);
   const backgroundRefreshReadyAtRef = useRef(Date.now() + 5000);
-
-  function loadOwnerDemoFallback() {
-    const demoBootstrap = buildOwnerDemoBootstrap();
-    setSelectedShopId(demoBootstrap.shop.id);
-    setSubscriptionSummary(null);
-    setAccessToken(null);
-    setData(demoBootstrap);
-  }
 
   async function getOwnerAccessContext(): Promise<OwnerAccessContext | null> {
     if (!supabase) return null;
@@ -210,10 +194,6 @@ export default function OwnerPage() {
       }
 
       if (!hasSupabaseBrowserEnv() || !supabase) {
-        if (active && shouldUseOwnerDemoFallback()) {
-          loadOwnerDemoFallback();
-          return;
-        }
         if (active) {
           setMessage("서비스 설정을 확인하지 못했습니다. 운영자에게 문의해 주세요.");
         }
@@ -231,11 +211,6 @@ export default function OwnerPage() {
         });
 
         if (!ownerAccess?.accessToken) {
-          if (shouldUseOwnerDemoFallback()) {
-            loadOwnerDemoFallback();
-            return;
-          }
-
           router.replace("/login" as never);
           router.refresh();
           return;
@@ -341,11 +316,6 @@ export default function OwnerPage() {
 
         if (nextMessage.includes("일시 중지")) {
           setMessage("이 계정은 운영자에 의해 일시 정지되었습니다. 운영자에게 문의해 주세요.");
-          return;
-        }
-
-        if (shouldUseOwnerDemoFallback(nextMessage)) {
-          loadOwnerDemoFallback();
           return;
         }
 

@@ -555,7 +555,7 @@ export default function CustomerFirstVisitClaudeFlow({
             </div>
 
             <div className="sec">
-              <h3>{recommendationSource === "ai" ? "AI 추천 시간" : "스마트 추천 시간"}</h3>
+              <h3>추천 시간</h3>
               {loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
               ) : availableSlots.length === 0 ? (
@@ -573,7 +573,7 @@ export default function CustomerFirstVisitClaudeFlow({
 
             {regularSlots.length > 0 ? (
               <div className="sec">
-                <h3>전체 시간</h3>
+                <h3>예약 가능한 시간</h3>
                 <div className="tgrid">
                   {regularSlots.map((slot) => (
                     <button key={`all-${slot}`} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>

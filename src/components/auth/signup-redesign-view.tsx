@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronLeft, ShieldCheck } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
+import PetManagerBrand from "@/components/brand/petmanager-brand";
 import {
   ownerSignupTerms,
   type OwnerSignupTermId,
 } from "@/lib/auth/owner-signup-terms";
 
-export type SignupProfileStage = "terms" | "account" | "verification" | "verified" | "shop";
+export type SignupProfileStage = "terms" | "account" | "shop";
 
 type SignupFields = {
   name: string;
@@ -46,8 +47,6 @@ type SignupRedesignViewProps = {
   onChangeShopPhoneSameAsOwner: (checked: boolean) => void;
   onContinueTerms: () => void;
   onNextAccount: () => void;
-  onStartVerification: () => void;
-  onContinueToShop: () => void;
   onOpenAddress: () => void;
   onSubmit: () => void;
 };
@@ -78,23 +77,31 @@ function SignupShell({
   onBack,
   children,
 }: {
-  title: string;
+  title?: string;
   onBack: () => void;
   children: React.ReactNode;
 }) {
   return (
     <main className="flex min-h-screen w-full items-center justify-center bg-[#f1f3f7] px-5 py-8 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#111827] antialiased sm:px-6 sm:py-12">
-      <section className="w-full max-w-[448px] rounded-[32px] bg-white px-8 pb-11 pt-9 shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
-        <div className="relative mb-8 flex min-h-9 items-center justify-center">
+      <section className="w-full max-w-[448px] rounded-[32px] bg-white px-8 pb-11 pt-7 shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
+        <div className="mb-4 flex justify-center">
+          <PetManagerBrand
+            className="gap-2.5"
+            imageClassName="h-8"
+            nameClassName="text-[20px] text-[#111827]"
+            priority
+          />
+        </div>
+        <div className={title ? "relative mb-8 flex min-h-9 items-center justify-center" : "relative -mt-2 mb-6 flex h-9 items-center"}>
           <button
             type="button"
             onClick={onBack}
-            className="absolute left-0 inline-flex h-9 w-9 items-center justify-center rounded-[10px] text-[#7184a6] transition hover:bg-[#f1f5fb] hover:text-[#111a30]"
+            className={title ? "absolute left-0 inline-flex h-9 w-9 items-center justify-center rounded-[10px] text-[#7184a6] transition hover:bg-[#f1f5fb] hover:text-[#111a30]" : "-ml-1 inline-flex h-9 w-9 items-center justify-center rounded-[10px] text-[#7184a6] transition hover:bg-[#f1f5fb] hover:text-[#111a30]"}
             aria-label="이전 단계"
           >
             <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
           </button>
-          <h1 className="text-center text-[24px] font-extrabold tracking-[-0.04em] text-[#101a31]">{title}</h1>
+          {title ? <h1 className="text-center text-[24px] font-extrabold tracking-[-0.04em] text-[#101a31]">{title}</h1> : null}
         </div>
         {children}
       </section>
@@ -154,18 +161,29 @@ export default function SignupRedesignView({
   onChangeShopPhoneSameAsOwner,
   onContinueTerms,
   onNextAccount,
-  onStartVerification,
-  onContinueToShop,
   onOpenAddress,
   onSubmit,
 }: SignupRedesignViewProps) {
   if (stage === "terms") {
+    const allTermsAgreed = ownerSignupTerms.every((term) => agreements[term.id]);
+
     return (
       <SignupShell title="약관 동의" onBack={onBack}>
-        <p className="mb-7 text-center text-[14px] leading-6 text-[#9aadd0]">
-          서비스 이용을 위해 필수 약관에 동의해 주세요.
-        </p>
         <div className="overflow-hidden rounded-[14px] border border-[#e2eaf6]">
+          <div className="flex items-center gap-3 border-b border-[#e2eaf6] bg-[#f7faff] px-4 py-4">
+            <input
+              id="all-terms"
+              type="checkbox"
+              checked={allTermsAgreed}
+              onChange={(event) => {
+                ownerSignupTerms.forEach((term) => onChangeAgreement(term.id, event.target.checked));
+              }}
+              className="h-4 w-4 shrink-0 rounded border-[#c7d3e7] accent-[#111a30]"
+            />
+            <label htmlFor="all-terms" className="cursor-pointer text-[15px] font-bold text-[#111a30]">
+              전체 동의
+            </label>
+          </div>
           {ownerSignupTerms.map((term) => (
             <div key={term.id} className="flex items-center gap-3 border-b border-[#edf2fa] px-4 py-4 last:border-b-0">
               <input
@@ -195,10 +213,7 @@ export default function SignupRedesignView({
 
   if (stage === "account") {
     return (
-      <SignupShell title="회원가입" onBack={onBack}>
-        <p className="mb-8 text-center text-[14px] leading-6 text-[#9aadd0]">
-          로그인에 사용할 이메일과 비밀번호를 입력해 주세요.
-        </p>
+      <SignupShell onBack={onBack}>
         <Field label="이메일" status={emailStatus}>
           <input
             type="email"
@@ -234,58 +249,7 @@ export default function SignupRedesignView({
         </Field>
         <Notice message={message} />
         <button type="button" onClick={onNextAccount} disabled={loading} className={PRIMARY_BUTTON_CLASS}>
-          다음
-        </button>
-      </SignupShell>
-    );
-  }
-
-  if (stage === "verification") {
-    return (
-      <SignupShell title="본인인증" onBack={onBack}>
-        <div className="rounded-[16px] border border-[#e2eaf6] bg-[#f7faff] px-5 py-7 text-center">
-          <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#eaf1ff] text-[#111a30]">
-            <ShieldCheck className="h-7 w-7" strokeWidth={1.8} />
-          </span>
-          <h2 className="text-[17px] font-extrabold tracking-[-0.03em] text-[#101a31]">KCP 본인인증</h2>
-          <p className="mt-2 text-[13px] leading-5 text-[#7184a6]">
-            KCP 인증 창에서 PASS 또는 휴대폰 인증을 완료해 주세요.
-            <br />
-            인증된 이름과 휴대폰번호는 자동으로 확인됩니다.
-          </p>
-        </div>
-        <Notice message={message} />
-        <button type="button" onClick={onStartVerification} disabled={loading} className={PRIMARY_BUTTON_CLASS}>
-          {loading ? "본인인증 연결 중..." : "본인인증 시작하기"}
-        </button>
-      </SignupShell>
-    );
-  }
-
-  if (stage === "verified") {
-    return (
-      <SignupShell title="본인인증 완료" onBack={onBack}>
-        <div className="rounded-[16px] border border-[#d7e9df] bg-[#f4fbf7] px-5 py-7 text-center">
-          <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#e6f7ed] text-[#1f9d55]">
-            <Check className="h-7 w-7" strokeWidth={2.4} />
-          </span>
-          <h2 className="text-[17px] font-extrabold tracking-[-0.03em] text-[#101a31]">인증이 완료됐어요</h2>
-          <p className="mt-2 text-[13px] leading-5 text-[#7184a6]">
-            인증된 정보는 가입 완료 시 자동으로 저장됩니다.
-          </p>
-        </div>
-        <dl className="mt-5 space-y-2.5">
-          <div className="flex items-center justify-between rounded-[12px] border border-[#e2eaf6] bg-[#f7faff] px-4 py-4">
-            <dt className="text-[13px] font-semibold text-[#7184a6]">성함</dt>
-            <dd className="text-[15px] font-bold text-[#101a31]">{fields.name}</dd>
-          </div>
-          <div className="flex items-center justify-between rounded-[12px] border border-[#e2eaf6] bg-[#f7faff] px-4 py-4">
-            <dt className="text-[13px] font-semibold text-[#7184a6]">휴대폰번호</dt>
-            <dd className="text-[15px] font-bold text-[#101a31]">{formatPhone(fields.phoneNumber)}</dd>
-          </div>
-        </dl>
-        <button type="button" onClick={onContinueToShop} className={PRIMARY_BUTTON_CLASS}>
-          매장 정보 입력하기
+          {loading ? "본인인증을 준비 중입니다." : "다음"}
         </button>
       </SignupShell>
     );
@@ -293,9 +257,6 @@ export default function SignupRedesignView({
 
   return (
     <SignupShell title="매장 정보" onBack={onBack}>
-      <p className="mb-8 text-center text-[14px] leading-6 text-[#9aadd0]">
-        운영할 매장의 기본 정보를 입력해 주세요.
-      </p>
       <Field label="매장명">
         <input
           value={fields.shopName}

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
+const { chromium } = require("@playwright/test");
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:3000";
 const baseUrl = (process.env.OWNER_AUTH_SMOKE_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
@@ -30,12 +31,12 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(process.cwd(), ".env.local"));
 
-function assertSafeDevEnvironment() {
+function assertSafeTestEnvironment() {
   const stage = process.env.SUPABASE_ENV_NAME || process.env.NEXT_PUBLIC_SUPABASE_ENV_NAME || "";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
 
-  if (stage === "production" || process.env.VERCEL_ENV === "production") {
-    throw new Error("Refusing to run auth recovery smoke against production.");
+  if (stage !== "test" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Destructive auth recovery smoke requires a dedicated SUPABASE_ENV_NAME=test project.");
   }
 
   if (siteUrl && !siteUrl.includes("127.0.0.1") && !siteUrl.includes("localhost")) {
@@ -66,6 +67,19 @@ async function postJson(pathname, body) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await readJson(response);
+  return { response, result };
+}
+
+async function patchJson(pathname, body, accessToken) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
     body: JSON.stringify(body),
   });
   const result = await readJson(response);
@@ -122,24 +136,84 @@ async function apiLogin(email, password) {
   return postJson("/api/auth/login", { email, password });
 }
 
-async function cleanup(admin, email, name) {
-  const profile = await admin
-    .from("owner_profiles")
-    .select("user_id, shop_id")
-    .eq("login_id", email)
-    .maybeSingle();
+async function verifyFailedBrowserLoginClearsSession(email, password) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
 
-  const userId = profile.data?.user_id;
-  const shopId = profile.data?.shop_id;
+  try {
+    await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded" });
+    const login = await apiLogin(email, password);
+    expectOk("browser session setup login", login.response, login.result);
+    const session = login.result.session;
+    if (!session?.accessToken || !session.refreshToken) {
+      throw new Error("browser session setup did not return a session");
+    }
+
+    await page.evaluate((sessionPayload) => {
+      const expiresAt = Date.now() + 30 * 60 * 1000;
+      const tokenCache = JSON.stringify({
+        accessToken: sessionPayload.accessToken,
+        refreshToken: sessionPayload.refreshToken,
+        expiresAt,
+      });
+      const handoff = JSON.stringify(sessionPayload);
+      window.localStorage.setItem("petmanager.ownerAuthTokenCache", tokenCache);
+      window.sessionStorage.setItem("petmanager.ownerAuthTokenCache", tokenCache);
+      window.localStorage.setItem("petmanager.ownerAuthHandoff", handoff);
+      window.sessionStorage.setItem("petmanager.ownerAuthHandoff", handoff);
+    }, session);
+
+    await page.getByTestId("owner-login-email").fill(email);
+    await page.getByTestId("owner-login-password").fill("wrong-password");
+    await page.getByTestId("owner-login-submit").click();
+
+    await page.waitForTimeout(300);
+    if (new URL(page.url()).pathname !== "/login") {
+      throw new Error(`failed browser login unexpectedly navigated to ${page.url()}`);
+    }
+
+    const pageText = await page.locator("body").innerText();
+    if (!pageText.includes("이메일") || !pageText.includes("비밀번호")) {
+      throw new Error("failed browser login did not show the credential error");
+    }
+
+    const cachedAuthState = await page.evaluate(() => ({
+      handoff: window.localStorage.getItem("petmanager.ownerAuthHandoff"),
+      tokenCache: window.localStorage.getItem("petmanager.ownerAuthTokenCache"),
+    }));
+    if (cachedAuthState.handoff || cachedAuthState.tokenCache) {
+      throw new Error(`failed browser login did not clear the previous auth state: ${JSON.stringify(cachedAuthState)}`);
+    }
+
+    await page.goto(`${baseUrl}/owner`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL("**/login", { timeout: 20_000 });
+  } finally {
+    await browser.close();
+  }
+}
+
+async function cleanup(admin, emails, name) {
+  let userId;
+  let shopId;
+  for (const email of emails) {
+    const profile = await admin
+      .from("owner_profiles")
+      .select("user_id, shop_id")
+      .eq("login_id", email)
+      .maybeSingle();
+
+    userId ||= profile.data?.user_id;
+    shopId ||= profile.data?.shop_id;
+    await admin.from("owner_profiles").delete().eq("login_id", email);
+  }
 
   if (shopId) await admin.from("shops").delete().eq("id", shopId);
-  await admin.from("owner_profiles").delete().eq("login_id", email);
   await admin.from("owner_identity_verifications").delete().eq("name", name);
   if (userId) await admin.auth.admin.deleteUser(userId);
 }
 
 async function main() {
-  assertSafeDevEnvironment();
+  assertSafeTestEnvironment();
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -161,6 +235,7 @@ async function main() {
 
   const suffix = uniqueDigits(8);
   const email = `smoke${suffix}@petmanager.test`;
+  const updatedEmail = `smoke${suffix}changed@petmanager.test`;
   const initialPassword = "Aa1234!";
   const newPassword = "Bb5678!";
   const identity = {
@@ -172,7 +247,7 @@ async function main() {
   const shopName = `Auth Smoke Shop ${suffix}`;
 
   try {
-    await cleanup(admin, email, identity.name);
+    await cleanup(admin, [email, updatedEmail], identity.name);
 
     const signupToken = await issueLocalVerificationToken({
       purpose: "signup",
@@ -193,10 +268,13 @@ async function main() {
       agreements: { service: true, privacy: true, location: false, marketing: false },
     });
     expectOk("signup", signup.response, signup.result);
+    if (!signup.result.session?.accessToken || !signup.result.session?.refreshToken) {
+      throw new Error("signup did not return an immediate login session");
+    }
 
     const profile = await admin
       .from("owner_profiles")
-      .select("user_id, login_id, phone_number")
+      .select("user_id, shop_id, login_id, phone_number")
       .eq("login_id", email)
       .maybeSingle();
     if (profile.error || !profile.data?.user_id) {
@@ -213,26 +291,50 @@ async function main() {
 
     const initialLogin = await apiLogin(email, initialPassword);
     expectOk("initial login", initialLogin.response, initialLogin.result);
+    if (!initialLogin.result.session?.accessToken || !profile.data.shop_id) {
+      throw new Error("initial login did not return an access token or profile shop id");
+    }
+
+    await verifyFailedBrowserLoginClearsSession(email, initialPassword);
+
+    const emailChange = await patchJson(
+      "/api/owner/account/email",
+      {
+        shopId: profile.data.shop_id,
+        email: updatedEmail,
+        currentPassword: initialPassword,
+      },
+      initialLogin.result.session.accessToken,
+    );
+    expectOk("login email change", emailChange.response, emailChange.result);
+    if (emailChange.result.profile?.login_id !== updatedEmail) {
+      throw new Error(`login email change mismatch: ${emailChange.result.profile?.login_id}`);
+    }
+
+    const oldEmailLogin = await apiLogin(email, initialPassword);
+    expectFail("old email login after email change", oldEmailLogin.response);
+
+    const changedEmailLogin = await apiLogin(updatedEmail, initialPassword);
+    expectOk("changed email login", changedEmailLogin.response, changedEmailLogin.result);
 
     const findEmailToken = await issueLocalVerificationToken({
       purpose: "find-email",
       identity,
     });
     const findEmail = await postJson("/api/auth/find-email", {
-      ...identity,
       identityVerificationToken: findEmailToken,
     });
     expectOk("find email", findEmail.response, findEmail.result);
-    if (findEmail.result.email !== email) {
-      throw new Error(`find email mismatch: ${findEmail.result.email} !== ${email}`);
+    if (findEmail.result.email !== updatedEmail) {
+      throw new Error(`find email mismatch: ${findEmail.result.email} !== ${updatedEmail}`);
     }
 
     const samePasswordToken = await issueLocalVerificationToken({
       purpose: "reset-password",
-      email,
+      email: updatedEmail,
     });
     const samePasswordReset = await postJson("/api/auth/reset-password", {
-      email,
+      email: updatedEmail,
       identityVerificationToken: samePasswordToken,
       password: initialPassword,
       passwordConfirm: initialPassword,
@@ -241,24 +343,24 @@ async function main() {
 
     const resetToken = await issueLocalVerificationToken({
       purpose: "reset-password",
-      email,
+      email: updatedEmail,
     });
     const reset = await postJson("/api/auth/reset-password", {
-      email,
+      email: updatedEmail,
       identityVerificationToken: resetToken,
       password: newPassword,
       passwordConfirm: newPassword,
     });
     expectOk("password reset", reset.response, reset.result);
 
-    const oldLogin = await apiLogin(email, initialPassword);
+    const oldLogin = await apiLogin(updatedEmail, initialPassword);
     expectFail("old password login after reset", oldLogin.response);
 
-    const newLogin = await apiLogin(email, newPassword);
+    const newLogin = await apiLogin(updatedEmail, newPassword);
     expectOk("new password login after reset", newLogin.response, newLogin.result);
 
     const directNewLogin = await authClient.auth.signInWithPassword({
-      email,
+      email: updatedEmail,
       password: newPassword,
     });
     if (directNewLogin.error || directNewLogin.data.user?.id !== profile.data.user_id) {
@@ -266,16 +368,16 @@ async function main() {
     }
 
     const directOldLogin = await authClient.auth.signInWithPassword({
-      email,
+      email: updatedEmail,
       password: initialPassword,
     });
     if (!directOldLogin.error) {
       throw new Error("direct Supabase login with old password unexpectedly succeeded");
     }
 
-    console.log(`OK owner auth recovery smoke passed for ${email} at ${baseUrl}`);
+    console.log(`OK owner auth recovery smoke passed for ${updatedEmail} at ${baseUrl}`);
   } finally {
-    await cleanup(admin, email, identity.name);
+    await cleanup(admin, [email, updatedEmail], identity.name);
   }
 }
 

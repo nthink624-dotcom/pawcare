@@ -130,28 +130,28 @@ button[class*="hover:bg-[#293548]"]:hover {
 }
 
 .pm-owner-web {
-  --pm-ui-border: #dbe2ea;
-  --acc: var(--pm-brand-blue);
-  --acc-dk: color-mix(in oklab, var(--acc), #000 16%);
-  --acc-tint: color-mix(in srgb, var(--acc) 10%, #fff);
-  --acc-soft: color-mix(in srgb, var(--acc) 18%, #fff);
-  --acc-on: color-mix(in srgb, var(--acc) 8%, #fff);
-  --bg: #f1f3f6;
+  --pm-ui-border: #e8edf3;
+  --acc: #1677ff;
+  --acc-dk: #0e65d8;
+  --acc-tint: #eff6ff;
+  --acc-soft: #dbeafe;
+  --acc-on: #f7fbff;
+  --bg: #f7f8fa;
   --card: #ffffff;
-  --ink: #181b21;
-  --ink2: #3a3f48;
-  --mid: #646a74;
-  --mut: #969ba4;
-  --faint: #bdc2cb;
+  --ink: #1f2937;
+  --ink2: #334155;
+  --mid: #64748b;
+  --mut: #94a3b8;
+  --faint: #cbd5e1;
   --line: var(--pm-ui-border);
   --line2: var(--pm-ui-border);
   --bd: var(--pm-ui-border);
-  --nav-bg: #fafbfc;
+  --nav-bg: #ffffff;
   --nav-bd: var(--pm-ui-border);
   --nav-ink: #3c4049;
   --nav-mut: #969ba4;
   --nav-sec: #abb0b9;
-  --nav-hover: #eef1f5;
+  --nav-hover: #f5f8fc;
   --background: var(--bg);
   --surface: var(--card);
   --muted: var(--mid);
@@ -159,7 +159,7 @@ button[class*="hover:bg-[#293548]"]:hover {
   --accent: var(--acc);
   --accent-soft: var(--acc-tint);
   --text: var(--ink);
-  --shadow-soft: 0 10px 28px rgba(24, 27, 33, 0.04);
+  --shadow-soft: none;
   --pm-scrollbar-thumb: rgba(117, 132, 153, 0.42);
   --pm-scrollbar-thumb-hover: rgba(76, 94, 116, 0.68);
   --pm-scrollbar-track: transparent;
@@ -491,6 +491,133 @@ button[class*="hover:bg-[#293548]"]:hover {
 .pm-owner-web .border-green-300,
 .pm-owner-web .border-teal-300 {
   border-color: var(--line2) !important;
+}
+
+/* PC 운영 워크스페이스: 참고 화면처럼 평면 블루 액션과 얇은 구분선을 유지한다. */
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+) {
+  background-color: var(--acc) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+)::before {
+  content: none !important;
+  animation: none !important;
+}
+
+.pm-owner-web :is(
+  button.bg-\[\#5570F1\],
+  button.bg-\[\#111827\],
+  button.bg-\[\#316fe8\],
+  button.bg-\[\#2f6bd4\],
+  button.bg-\[\#2563eb\],
+  button.bg-\[\#1f6b5b\],
+  button.bg-\[\#12b76a\],
+  button.bg-\[var\(--accent\)\],
+  a.bg-\[\#316fe8\],
+  a.bg-\[\#2f6bd4\],
+  a.bg-\[\#2563eb\],
+  a.bg-\[var\(--accent\)\]
+):hover {
+  background-color: var(--acc-dk) !important;
+  background-image: none !important;
+}
+
+/* 오래된 베이지 계열은 PC 운영 영역에서 중성 화이트 표면으로만 보정한다. */
+.pm-owner-web :is(
+  [class*="bg-[#f8f6f2]"],
+  [class*="bg-[#fffdf8]"],
+  [class*="bg-[#fffdfa]"],
+  [class*="bg-[#fffefb]"],
+  [class*="bg-[#fcfaf6]"],
+  [class*="bg-[#fbf8f3]"],
+  [class*="bg-[#f4f8f6]"],
+  [class*="bg-[#eef7f3]"],
+  [class*="bg-[#edf6f2]"],
+  [class*="bg-[#f8fbf9]"],
+  [class*="bg-[#fffaf0]"],
+  [class*="bg-[#fff8fa]"],
+  [class*="bg-[#fff9ef]"],
+  [class*="bg-[#fff7f7]"],
+  [class*="bg-[#fffaf7]"],
+  [class*="bg-[#fbefea]"],
+  [class*="bg-[#faf0f3]"],
+  [class*="bg-[#f0f0ef]"]
+) {
+  background-color: #ffffff !important;
+}
+
+.pm-owner-web :is(
+  [class*="border-[#dfd8cc]"],
+  [class*="border-[#d9d2c7]"],
+  [class*="border-[#d8d1c5]"],
+  [class*="border-[#e5ddd1]"],
+  [class*="border-[#e5ddd2]"],
+  [class*="border-[#e3dbcf]"],
+  [class*="border-[#e6ded2]"],
+  [class*="border-[#e4dccf]"],
+  [class*="border-[#ddd6ca]"],
+  [class*="border-[#ddd5c8]"],
+  [class*="border-[#e8e1d7]"],
+  [class*="border-[#e5d4d7]"],
+  [class*="border-[#dfe7e2]"],
+  [class*="border-[#cfd8d3]"],
+  [class*="border-[#ead9b8]"],
+  [class*="border-[#e5c7cf]"]
+) {
+  border-color: var(--pm-ui-border) !important;
+}
+
+.pm-owner-web :is(
+  [class*="text-[#173b33]"],
+  [class*="text-[#17211e]"],
+  [class*="text-[#1d2925]"],
+  [class*="text-[#2d3935]"],
+  [class*="text-[#171411]"],
+  [class*="text-[#1f5b51]"]
+) {
+  color: var(--ink) !important;
+}
+
+.pm-owner-web :is(
+  [class*="text-[#766f66]"],
+  [class*="text-[#736c63]"],
+  [class*="text-[#6b6a64]"],
+  [class*="text-[#615d56]"],
+  [class*="text-[#6e6a61]"],
+  [class*="text-[#51615b]"],
+  [class*="text-[#4e5f59]"],
+  [class*="text-[#396457]"],
+  [class*="text-[#335a50]"],
+  [class*="text-[#4a4640]"]
+) {
+  color: var(--mid) !important;
 }
 
 .pm-mobile-owner {
@@ -1140,4 +1267,10 @@ textarea {
 
 .pm-mobile-owner .focus\:shadow-\[0_0_0_3px_rgba\(31\,107\,91\,0\.12\)\]:focus {
   box-shadow: 0 0 0 3px rgba(47, 107, 212, 0.12) !important;
+}
+
+.landing-solution-scroller::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }

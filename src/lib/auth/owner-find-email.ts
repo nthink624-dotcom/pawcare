@@ -1,20 +1,5 @@
 import { z } from "zod";
 
-import { isValidBirthDate8, normalizeOwnerPhoneNumber } from "@/lib/auth/owner-credentials";
-
 export const ownerFindEmailSchema = z.object({
-  name: z.string().trim().min(1, "이름을 입력해 주세요."),
-  birthDate: z.string().trim().refine((value) => isValidBirthDate8(value), {
-    message: "생년월일은 8자리 숫자로 입력해 주세요.",
-  }),
-  phoneNumber: z
-    .string()
-    .trim()
-    .transform((value) => normalizeOwnerPhoneNumber(value))
-    .refine((value) => /^01\d{8,9}$/.test(value), {
-      message: "휴대폰번호를 올바르게 입력해 주세요.",
-    }),
   identityVerificationToken: z.string().trim().min(1, "본인인증을 먼저 완료해 주세요."),
 });
-
-export type OwnerFindEmailInput = z.input<typeof ownerFindEmailSchema>;

@@ -38,6 +38,7 @@ type ShopInfoSettingsPanelProps = {
   onProfileImagesAdd: (files: FileList | File[]) => void;
   onProfileImagesRemove: (indexes: number[]) => void;
   onProfileImageSelect?: (index: number) => void | Promise<void>;
+  onProfileImageLoadError?: () => void;
   onStaffMembersChange?: (staffMembers: BootstrapStaffMember[]) => void | Promise<void>;
   onRowChange: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
   onRowCommit: (rowId: string, value: ShopInfoSettingRow["value"]) => void;
@@ -331,6 +332,7 @@ export default function ShopInfoSettingsPanel({
   onProfileImagesAdd,
   onProfileImagesRemove,
   onProfileImageSelect,
+  onProfileImageLoadError,
   onStaffMembersChange,
   onRowChange,
   onRowCommit,
@@ -677,6 +679,7 @@ export default function ShopInfoSettingsPanel({
                             <img
                               src={activeProfileImage}
                               alt="매장 사진"
+                              onError={onProfileImageLoadError}
                               className="h-full w-full object-cover object-center"
                               style={{ objectPosition: "center center" }}
                             />
@@ -763,7 +766,12 @@ export default function ShopInfoSettingsPanel({
                                 )}
                                 aria-label={`${imageIndex + 1}번째 매장 사진 보기`}
                               >
-                                <img src={imageUrl} alt="" className="h-full w-full object-cover object-center" />
+                                <img
+                                  src={imageUrl}
+                                  alt=""
+                                  onError={onProfileImageLoadError}
+                                  className="h-full w-full object-cover object-center"
+                                />
                                 {imageIndex === 0 && !isProfileImageSelectionActive ? (
                                   <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-[#2f6bd4] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                                     대표

@@ -24,10 +24,10 @@ function PaymentOptionIcon({
   selected: boolean;
 }) {
   if (id === "saved") {
-    return <CreditCard className={`h-[18px] w-[18px] ${selected ? "text-[#1f6b5b]" : "text-[#736c63]"}`} strokeWidth={1.9} />;
+    return <CreditCard className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={1.9} />;
   }
 
-  return <Plus className={`h-[18px] w-[18px] ${selected ? "text-[#1f6b5b]" : "text-[#736c63]"}`} strokeWidth={2.1} />;
+  return <Plus className={`h-[18px] w-[18px] ${selected ? "text-[#1677ff]" : "text-[#64748b]"}`} strokeWidth={2.1} />;
 }
 
 function PaymentOptionCard({
@@ -46,9 +46,9 @@ function PaymentOptionCard({
       aria-checked={selected}
       disabled={option.disabled}
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-[14px] border px-[14px] py-[13px] text-left transition ${
-        selected ? "border-[#1f6b5b] bg-[#eef7f3]" : "border-[#e5ddd1] bg-white"
-      } ${option.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-[#fbf8f3]"}`}
+      className={`flex w-full items-center gap-3 rounded-[10px] border px-[14px] py-[13px] text-left transition ${
+        selected ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e8edf3] bg-white"
+      } ${option.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-[#f8fbff]"}`}
     >
       <span className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center">
         <PaymentOptionIcon id={option.id} selected={selected} />
@@ -61,10 +61,10 @@ function PaymentOptionCard({
 
       <span
         className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] ${
-          selected ? "border-[#1f6b5b]" : "border-[#c9c4bc]"
+          selected ? "border-[#1677ff]" : "border-[#cbd5e1]"
         }`}
       >
-        <span className={`h-[8px] w-[8px] rounded-full ${selected ? "bg-[#1f6b5b]" : "bg-transparent"}`} />
+        <span className={`h-[8px] w-[8px] rounded-full ${selected ? "bg-[#1677ff]" : "bg-transparent"}`} />
       </span>
     </button>
   );
@@ -185,7 +185,7 @@ export function PaymentMethodSheet({
   if (!mounted || typeof document === "undefined" || !selected) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-40">
+    <div className="pm-owner-web fixed inset-0 z-40">
       <div
         className={`absolute inset-0 bg-black transition-opacity duration-[250ms] ease-out ${active ? "opacity-40" : "opacity-0"}`}
         onClick={onClose}
@@ -198,13 +198,13 @@ export function PaymentMethodSheet({
           aria-modal="true"
           aria-labelledby={titleId}
           tabIndex={-1}
-          className={`pointer-events-auto w-full max-w-[430px] rounded-t-[26px] bg-white px-4 pb-4 pt-3 shadow-[0_-18px_40px_rgba(31,27,22,0.16)] transition-transform duration-[250ms] ease-out ${
+          className={`pointer-events-auto w-full max-w-[560px] rounded-t-[16px] border border-b-0 border-[#e8edf3] bg-white px-5 pb-5 pt-3 shadow-[0_-18px_40px_rgba(15,23,42,0.10)] transition-transform duration-[250ms] ease-out ${
             active ? "translate-y-0" : "translate-y-full"
           }`}
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="mx-auto mt-0.5 h-[4px] w-10 rounded-full bg-[#dfd7cc]" />
+          <div className="mx-auto mt-0.5 h-[4px] w-10 rounded-full bg-[#cbd5e1]" />
 
           <div className="mt-4 flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -220,13 +220,13 @@ export function PaymentMethodSheet({
               type="button"
               aria-label={closeLabel}
               onClick={onClose}
-              className="inline-flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[#e5ddd1] bg-white text-[#726b63]"
+              className="inline-flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[#e8edf3] bg-white text-[#64748b]"
             >
               <X className="h-4 w-4" strokeWidth={1.7} />
             </button>
           </div>
 
-          <div className="mt-4 rounded-[16px] border border-[#e5ddd1] bg-[#fcfaf6] px-[14px] py-[12px]">
+          <div className="mt-4 rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] px-[14px] py-[12px]">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[12px] text-[#9b9286]">선택 플랜</p>
@@ -260,7 +260,7 @@ export function PaymentMethodSheet({
             <AppButton
               fullWidth
               disabled={loading}
-              className="h-[54px] rounded-[14px] bg-[#1f6b5b] text-[15px] font-semibold tracking-[-0.02em] text-white"
+              className="h-[48px] rounded-[9px] bg-[#1677ff] text-[15px] font-semibold tracking-[-0.02em] text-white hover:bg-[#0e65d8]"
               onClick={onContinue}
             >
               {continueLabel}

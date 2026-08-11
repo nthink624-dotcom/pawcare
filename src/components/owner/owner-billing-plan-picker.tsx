@@ -119,10 +119,10 @@ function PlanCard({
         }
       }}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col rounded-[8px] border bg-white p-5 transition",
+        "flex min-w-0 cursor-pointer flex-col rounded-[10px] border bg-white p-5 transition",
         selected
-          ? "border-[#2563eb] shadow-[0_10px_26px_rgba(37,99,235,0.12)]"
-          : "border-[#dbe2ea] hover:border-[#94a3b8]",
+          ? "border-[#1677ff] bg-[#f8fbff] shadow-none"
+          : "border-[#e8edf3] hover:border-[#bfd3ea]",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -172,7 +172,7 @@ function PlanCard({
         disabled={loading || current}
         className={cn(
           "mt-5 flex h-10 w-full items-center justify-center rounded-[8px] border text-[14px] font-medium transition disabled:cursor-default disabled:opacity-60",
-          selected && !current ? "border-[#2563eb] bg-[#2563eb] text-white hover:bg-[#1d4ed8]" : "border-[#dbe2ea] bg-white text-[#334155] hover:bg-[#f8fafc]",
+          selected && !current ? "border-[#1677ff] bg-[#1677ff] text-white hover:bg-[#0e65d8]" : "border-[#e8edf3] bg-white text-[#334155] hover:bg-[#f8fbff]",
         )}
       >
         {loading && selected ? "처리 중..." : actionLabel}
@@ -202,14 +202,14 @@ export function OwnerBillingPlanPicker({
   if (!selectedPlan) return null;
 
   return (
-    <div className="owner-font min-h-screen bg-[#f6f8fb] px-4 py-6 text-[#0f172a] lg:px-8 lg:py-8">
+    <div className="owner-font pm-owner-web min-h-screen bg-[var(--bg)] px-4 py-6 text-[var(--ink)] lg:px-8 lg:py-8">
       <div className="mx-auto w-full max-w-[1180px]">
-        <section className="rounded-[8px] border border-[#dbe2ea] bg-white px-5 py-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)] lg:px-7 lg:py-6">
+        <section className="rounded-[14px] border border-[var(--bd)] bg-white px-5 py-5 shadow-none lg:px-7 lg:py-6">
           <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#e7edf3] pb-5">
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[13px] font-medium text-[#475569] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               이전
@@ -239,7 +239,7 @@ export function OwnerBillingPlanPicker({
             )}
           </header>
 
-          <section className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] px-4 py-3">
+          <section className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] px-4 py-3">
             <p className="text-[14px] font-medium text-[#334155]">모든 플랜에 기본 제공</p>
             <p className="text-[13px] text-[#64748b]">간편 예약 · 고객 관리 · 예약 스케줄 · 자동 알림톡 · 직원 관리</p>
           </section>

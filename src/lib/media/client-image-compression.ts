@@ -119,13 +119,17 @@ async function compressLoadedImageForPetmanager(
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const targetBytes = Math.min(options.targetBytes ?? DEFAULT_TARGET_BYTES, maxBytes);
   const outputType = options.outputType ?? "image/webp";
+  const requestedMaxLongEdge = options.maxLongEdge ?? DEFAULT_MAX_LONG_EDGE;
+  const requestedQuality = options.quality ?? DEFAULT_QUALITY;
   const attempts = [
-    { maxLongEdge: options.maxLongEdge ?? DEFAULT_MAX_LONG_EDGE, quality: options.quality ?? DEFAULT_QUALITY },
-    { maxLongEdge: 1440, quality: 0.66 },
-    { maxLongEdge: 1280, quality: 0.58 },
-    { maxLongEdge: 1080, quality: 0.52 },
-    { maxLongEdge: 960, quality: 0.48 },
-  ];
+    { maxLongEdge: requestedMaxLongEdge, quality: requestedQuality },
+    { maxLongEdge: Math.min(requestedMaxLongEdge, 1440), quality: Math.min(requestedQuality, 0.66) },
+    { maxLongEdge: Math.min(requestedMaxLongEdge, 1280), quality: Math.min(requestedQuality, 0.58) },
+    { maxLongEdge: Math.min(requestedMaxLongEdge, 1080), quality: Math.min(requestedQuality, 0.52) },
+    { maxLongEdge: Math.min(requestedMaxLongEdge, 960), quality: Math.min(requestedQuality, 0.48) },
+  ].filter((attempt, index, candidates) =>
+    candidates.findIndex((candidate) => candidate.maxLongEdge === attempt.maxLongEdge && candidate.quality === attempt.quality) === index,
+  );
 
   let best: { blob: Blob; width: number; height: number } | null = null;
 

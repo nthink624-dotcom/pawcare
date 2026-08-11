@@ -1,5 +1,4 @@
 import {
-  ArrowDown,
   ArrowRight,
   BellRing,
   CalendarCheck2,
@@ -8,20 +7,21 @@ import {
   Database,
   Link2,
   Scissors,
-  UserRoundPen,
+  Sparkles,
   UsersRound,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { BookingStructureComparison } from "@/components/landing/landing-booking-structure-comparison";
-import { IPhoneMockup, PhoneScreenshot, ScreenshotFrame, SectionHeading, ValueItem } from "@/components/landing/landing-ui";
+import { BookingSystemStory } from "@/components/landing/landing-booking-system-story";
+import { ScreenshotFrame, SectionHeading, ValueItem } from "@/components/landing/landing-ui";
 
 const automationSteps = [
   { icon: Link2, title: "예약 접수", body: "고객이 예약 링크에서 필요한 정보를 남깁니다." },
   { icon: CalendarCheck2, title: "방문 안내", body: "예약에 맞는 방문 안내 알림톡을 한 번 보냅니다." },
   { icon: Scissors, title: "미용 진행", body: "오너와 직원이 같은 예약 상태를 확인합니다." },
-  { icon: BellRing, title: "완료 안내", body: "픽업 준비와 미용 완료 안내를 이어서 관리합니다." },
+  { icon: BellRing, title: "AI 알림장 초안", body: "미용 기록을 바탕으로 보호자에게 보낼 문구를 먼저 작성합니다." },
 ] as const;
 
 export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
@@ -43,6 +43,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           priority
           className="object-cover object-center md:hidden"
           sizes="100vw"
+          quality={90}
         />
         <Image
           src="/images/landing/hero-groomer-missed-call-v3.png"
@@ -51,6 +52,7 @@ export function HeroSection({ onViewProduct }: { onViewProduct: () => void }) {
           priority
           className="hidden object-contain object-[right_top] md:block"
           sizes="100vw"
+          quality={90}
           style={{
             WebkitMaskImage:
               "linear-gradient(to right, transparent 0%, transparent 18%, rgba(0,0,0,0.08) 28%, rgba(0,0,0,0.34) 38%, rgba(0,0,0,0.72) 48%, black 58%, black 100%)",
@@ -158,133 +160,8 @@ export function PainSection() {
 
       <BookingStructureComparison />
 
-      <div className="mx-auto w-full max-w-[1180px] px-5 py-20 md:py-24">
-        <header className="grid items-end gap-6 md:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] md:gap-12">
-          <div>
-            <p className="text-[15px] font-semibold text-[var(--landing-accent)]">넘친 Day의 해결 방식</p>
-            <h3 className="mt-3 break-keep text-[31px] font-semibold leading-[1.25] text-[#111827] md:text-[42px]">
-              전화 대신 고객이 직접 예약하면,
-              <br />누구도 기다릴 필요가 없습니다.
-            </h3>
-          </div>
-          <p className="break-keep text-[15px] leading-7 text-[#526071] md:text-[17px]">
-            고객은 예약 링크에서 서비스와 시간을 직접 선택합니다. 오너는 지금 맡긴 아이에게 계속 집중하고, 들어온 예약만 확인하면 됩니다.
-          </p>
-        </header>
-
-        <div className="mt-12 rounded-[8px] bg-[#eef1f5] px-5 py-10 sm:px-8 md:px-10 md:py-12">
-          <div className="grid items-center gap-8 md:grid-cols-[minmax(230px,0.72fr)_72px_minmax(0,1.28fr)] md:gap-8">
-            <figure className="min-w-0">
-              <figcaption className="mb-5 flex items-center justify-center gap-2 text-[15px] font-semibold text-[#334155]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--landing-accent)] text-[15px] text-white">1</span>
-                고객이 직접 예약
-              </figcaption>
-              <div className="flex h-[460px] items-center justify-center md:h-[500px]">
-                <IPhoneMockup
-                  src="/images/landing/actual-customer-entry-v2.jpg"
-                  alt="고객이 간편 예약을 시작하는 실제 화면"
-                  className="h-full w-auto max-w-full drop-shadow-[0_20px_30px_rgba(15,23,42,0.16)]"
-                  sizes="(min-width: 768px) 245px, 68vw"
-                />
-              </div>
-            </figure>
-
-            <div className="flex flex-col items-center justify-center gap-2 text-[var(--landing-accent)]" aria-hidden="true">
-              <span className="text-[15px] font-semibold">자동 반영</span>
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-[0_6px_18px_rgba(15,23,42,0.08)]">
-                <ArrowDown className="h-5 w-5 md:hidden" />
-                <ArrowRight className="hidden h-5 w-5 md:block" />
-              </span>
-            </div>
-
-            <figure className="min-w-0">
-              <figcaption className="mb-5 flex items-center justify-center gap-2 text-[15px] font-semibold text-[#334155]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--landing-accent)] text-[15px] text-white">2</span>
-                오너는 들어온 예약 확인
-              </figcaption>
-              <ScreenshotFrame
-                src="/images/landing/actual-owner-web.png"
-                alt="오너가 예약 현황을 확인하는 실제 화면"
-                label="새 예약 확인"
-                compact
-              />
-              <div className="mt-5 grid gap-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
-                {["미용 흐름 유지", "일정 자동 정리", "새 예약은 확인만"].map((item) => (
-                  <span key={item} className="flex items-center gap-2 text-[15px] font-medium text-[#526071]">
-                    <Check className="h-4 w-4 shrink-0 text-[var(--landing-accent)]" aria-hidden="true" />
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </figure>
-          </div>
-        </div>
-
-        <div className="mt-10 flex flex-col items-center justify-center gap-3 border-y border-[#dbe2ea] py-7 text-center md:flex-row md:gap-5">
-          <p className="text-[18px] font-semibold text-[#64748b] md:text-[21px]">고객은 전화하지 않고 직접 예약하고,</p>
-          <span className="text-[var(--landing-accent)]" aria-hidden="true">
-            <ArrowDown className="h-[18px] w-[18px] md:hidden" />
-            <ArrowRight className="hidden h-[18px] w-[18px] md:block" />
-          </span>
-          <p className="text-[18px] font-semibold text-[#111827] md:text-[21px]">오너는 지금 맡긴 아이에게 집중합니다.</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function CustomerDataSection() {
-  return (
-    <section id="customer-data" className="scroll-mt-20 border-t border-[#e2e8f0] bg-[#f7f8fa] py-20 md:py-24">
-      <div className="mx-auto w-full max-w-[1180px] px-5">
-        <SectionHeading
-          eyebrow="예약 후 반복 정리"
-          title="예약은 들어왔는데, 정리는 또 오너의 몫인가요?"
-          description="예약을 잡은 뒤에도 문자와 DM을 다시 찾아 캘린더에 옮기고, 고객정보를 기록해야 한다는 문제입니다."
-        />
-
-        <div className="mt-12 grid items-center gap-8 lg:grid-cols-[0.76fr_1.24fr] lg:gap-12">
-          <div className="rounded-[8px] bg-[#e9edf3] px-4 pb-6 pt-5 sm:px-6">
-            <p className="mb-5 text-center text-[15px] font-semibold text-[#334155]">고객이 예약할 때 직접 입력</p>
-            <div className="grid grid-cols-2 gap-3 sm:gap-5">
-              <PhoneScreenshot src="/images/landing/actual-customer-entry-v2.jpg" alt="고객 예약 첫 화면" label="서비스 선택" />
-              <PhoneScreenshot src="/images/landing/actual-customer-booking.png" alt="보호자와 반려동물 정보 입력 화면" label="예약정보 입력" />
-            </div>
-          </div>
-          <div>
-            <p className="mb-4 inline-flex items-center gap-2 text-[15px] font-semibold text-[var(--landing-accent)]">
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              입력과 동시에 고객관리로 연결
-            </p>
-            <ScreenshotFrame
-              src="/images/landing/actual-customers.png"
-              alt="오너 고객관리 화면"
-              label="고객관리"
-            />
-            <p className="mt-6 border-l-[3px] border-[var(--landing-accent)] pl-4 text-[17px] font-medium leading-7 text-[#334155]">
-              다음 예약부터는 고객과 반려동물 정보를 다시 묻지 않고, 저장된 기록에서 바로 확인합니다.
-            </p>
-          </div>
-        </div>
-
-        <ol className="mt-12 grid border-y border-[#d5dde6] md:grid-cols-3 md:divide-x md:divide-[#d5dde6]">
-          {[
-            { icon: UserRoundPen, number: "01", title: "예약정보 한 번에 입력", body: "서비스, 시간, 보호자와 반려동물 정보를 고객이 직접 남깁니다." },
-            { icon: CalendarCheck2, number: "02", title: "예약 일정 자동 반영", body: "신청한 예약이 오너 일정과 예약 현황에 바로 이어집니다." },
-            { icon: Database, number: "03", title: "고객 DB 자동 연결", body: "보호자와 반려동물 정보가 고객관리 화면에 함께 쌓입니다." },
-          ].map(({ icon: Icon, number, title, body }) => (
-            <li key={number} className="flex gap-4 border-b border-[#d5dde6] py-6 last:border-b-0 md:border-b-0 md:px-6 md:first:pl-0 md:last:pr-0">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-white text-[var(--landing-accent)] shadow-[0_5px_14px_rgba(15,23,42,0.06)]">
-                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-              </span>
-              <div>
-                <span className="text-[15px] font-semibold text-[#94a3b8]">{number}</span>
-                <h3 className="mt-1 text-[17px] font-semibold text-[#111827]">{title}</h3>
-                <p className="mt-2 text-[15px] leading-6 text-[#64748b]">{body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+      <div id="booking-system" className="scroll-mt-16">
+        <BookingSystemStory />
       </div>
     </section>
   );
@@ -324,8 +201,8 @@ export function AutomationSection() {
         <div>
           <SectionHeading
             eyebrow="예약 이후까지 연결"
-            title="안내 메시지도 매번 기억해서 보내지 마세요"
-            description="예약을 받은 뒤 방문 안내와 미용 진행 상태까지 같은 예약을 기준으로 이어집니다. 발송 현황과 남은 알림톡도 오너 화면에서 확인합니다."
+            title="미용은 끝나고, 알림장은 AI가 먼저 씁니다."
+            description="예약 안내는 놓치지 않게 관리하고, 미용이 끝난 뒤에는 기록과 사진을 바탕으로 보호자에게 보낼 알림장 초안을 준비합니다. 오너가 확인하고 고쳐서 보냅니다."
           />
           <div className="mt-8 grid gap-5 sm:grid-cols-2">
             {automationSteps.map(({ icon: Icon, title, body }) => (
@@ -334,11 +211,41 @@ export function AutomationSection() {
           </div>
         </div>
 
-        <ScreenshotFrame
-          src="/images/landing/actual-notifications.png"
-          alt="오너 알림톡 설정과 발송 현황 화면"
-          label="알림 설정"
-        />
+        <div className="space-y-5">
+          <ScreenshotFrame
+            src="/images/landing/actual-notifications.png"
+            alt="오너 알림톡 설정과 발송 현황 화면"
+            label="알림 설정"
+          />
+
+          <aside className="rounded-[8px] border border-[#c9e2da] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] sm:p-6" aria-label="출시 예정 AI 알림장 초안 예시">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#e8f6ef] text-[var(--landing-accent)]">
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-[18px] font-semibold text-[#173f37]">AI 알림장 초안</h3>
+                  <span className="rounded-full border border-[#b7d8cb] bg-[#f0faf5] px-2 py-0.5 text-[12px] font-semibold text-[#247a53]">출시 예정</span>
+                </div>
+                <p className="mt-1 text-[14px] leading-6 text-[#58736c]">사진과 미용 기록을 바탕으로, 보호자에게 보낼 문구를 먼저 작성합니다.</p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[8px] border border-[#dce8e2] bg-[#f8fcfa] p-4 text-[14px] leading-6 text-[#355a4d]">
+              <p className="font-semibold text-[#173f37]">보리 보호자님, 오늘 미용이 완료되었어요.</p>
+              <p className="mt-2">목욕과 부분정리를 마쳤고, 발 주변과 귀 상태도 함께 살펴보았습니다. 사진으로 오늘 모습을 확인해 주세요.</p>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#e3eee8] pt-4">
+              <div className="flex flex-wrap gap-2 text-[12px] font-medium text-[#58736c]">
+                <span className="rounded-full bg-[#edf5f1] px-2.5 py-1">미용 기록 반영</span>
+                <span className="rounded-full bg-[#edf5f1] px-2.5 py-1">사진 3장 반영</span>
+              </div>
+              <span className="text-[13px] font-semibold text-[var(--landing-accent)]">오너 확인 후 발송</span>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
   );

@@ -509,7 +509,11 @@ async function readAdminOwners() {
       .from("owner_profiles")
       .select("user_id, shop_id, login_id, name, phone_number, created_at")
       .order("created_at", { ascending: false }),
-    admin.from("shops").select("id, owner_user_id, name, address, customer_page_settings, created_at").order("created_at", { ascending: false }),
+    admin
+      .from("shops")
+      .select("id, owner_user_id, name, address, customer_page_settings, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
     admin
       .from("owner_subscriptions")
       .select(

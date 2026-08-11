@@ -67,6 +67,12 @@ export function consumeOwnerAuthHandoff() {
   }
 }
 
+export function clearOwnerAuthHandoff() {
+  if (typeof window === "undefined") return;
+  safeRemoveItem(window.sessionStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+  safeRemoveItem(window.localStorage, OWNER_AUTH_HANDOFF_STORAGE_KEY);
+}
+
 function getJwtExpiresAt(accessToken: string) {
   try {
     const [, payload] = accessToken.split(".");

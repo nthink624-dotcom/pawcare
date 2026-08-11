@@ -813,21 +813,21 @@ export default function OwnerBillingScreen({
   }
 
   return (
-    <div className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
-      <section className="rounded-[28px] border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6 shadow-[0_10px_30px_rgba(41,41,38,0.05)]">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#335a50]">
+    <div className="owner-font pm-owner-web min-h-screen w-full bg-[var(--bg)] px-4 py-6 text-[var(--ink)] sm:px-6 lg:px-8 lg:py-8">
+      <section className="mx-auto w-full max-w-[1180px] rounded-[14px] border border-[var(--bd)] bg-white px-5 py-6 shadow-none sm:px-6 lg:px-8">
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[#1677ff]">
           {PETMANAGER_SERVICE_NAME} 플랜 및 결제
         </p>
-        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[#173b33]">{copy.title}</h1>
-        <p className="mt-3 text-[15px] leading-6 text-[#615d56]">{copy.body}</p>
+        <h1 className="mt-2 text-[28px] font-extrabold tracking-[-0.04em] text-[var(--ink)]">{copy.title}</h1>
+        <p className="mt-3 text-[15px] leading-6 text-[var(--mid)]">{copy.body}</p>
 
-        <div className="mt-5 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
+        <div className="mt-5 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">
           <p className="text-sm font-semibold text-[#111111]">현재 선택된 플랜</p>
-          <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[#173b33]">{selectedPlanLabel}</p>
-          <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[#18211f]">
+          <p className="mt-2 text-[22px] font-extrabold tracking-[-0.03em] text-[var(--ink)]">{selectedPlanLabel}</p>
+          <p className="mt-2 text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">
             월 {won(selectedBillingAmount.monthlyTotalAmount)}
           </p>
-          <p className="mt-1 text-sm leading-6 text-[#6e6a61]">다음 결제 기준일 {projectedServiceEndDate}</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--mid)]">다음 결제 기준일 {projectedServiceEndDate}</p>
           <div className="mt-3 rounded-[16px] border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
             <div className="flex items-center justify-between gap-3 text-[13px]">
               <span className="font-medium text-[#64748b]">총 매장 수</span>
@@ -853,7 +853,7 @@ export default function OwnerBillingScreen({
               {selectedMultiShopDiscount.appliedLabel} 매장 추가/삭제 변경분은 다음 결제일부터 반영됩니다.
             </p>
           </div>
-          <p className="mt-2 text-[13px] leading-5 text-[#6e6a61]">
+          <p className="mt-2 text-[13px] leading-5 text-[var(--mid)]">
             {isFreePlan
               ? "체험 플랜은 관리자 배정용 플랜입니다. 유료 결제로 전환하려면 플랜을 변경해 주세요."
               : usesOneTimePayment
@@ -862,14 +862,14 @@ export default function OwnerBillingScreen({
           </p>
         </div>
 
-        <div className="mt-4 rounded-[22px] border border-[#d9d2c7] bg-white px-4 py-4">
+        <div className="mt-4 rounded-[12px] border border-[#e8edf3] bg-white px-4 py-4">
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[#d8d1c5] bg-[#fffdf8] text-[#1f5b51]">
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#bfdbfe] bg-[#eff6ff] text-[#1677ff]">
               <CreditCard className="h-[18px] w-[18px]" />
             </div>
             <div className="min-w-0">
-              <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[#173b33]">신용/체크카드</p>
-              <p className="mt-1 text-[13px] leading-5 text-[#6e6a61]">
+              <p className="text-[18px] font-extrabold tracking-[-0.03em] text-[var(--ink)]">신용/체크카드</p>
+              <p className="mt-1 text-[13px] leading-5 text-[var(--mid)]">
                 {isFreePlan
                   ? "체험 플랜은 결제가 필요하지 않습니다."
                   : usesOneTimePayment
@@ -880,19 +880,19 @@ export default function OwnerBillingScreen({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2.5">
+        <div className="mt-5 grid gap-2.5 sm:max-w-[360px]">
           <button
             type="button"
             onClick={primaryAction.onClick}
             disabled={primaryAction.disabled}
-            className="flex h-[56px] w-full items-center justify-center rounded-[18px] bg-[#1f5b51] px-4 text-[16px] font-semibold text-white disabled:opacity-60"
+            className="flex h-[48px] w-full items-center justify-center rounded-[9px] bg-[#1677ff] px-4 text-[15px] font-semibold text-white transition hover:bg-[#0e65d8] disabled:opacity-60"
           >
             {primaryAction.label}
           </button>
           <button
             type="button"
             onClick={() => setIsSelectingPlan(true)}
-            className="flex h-[56px] w-full items-center justify-center rounded-[18px] border border-[#ddd6ca] bg-white px-4 text-[15px] font-semibold text-[#1f5b51]"
+            className="flex h-[48px] w-full items-center justify-center rounded-[9px] border border-[#e8edf3] bg-white px-4 text-[15px] font-semibold text-[#1677ff] transition hover:border-[#bfdbfe] hover:bg-[#f8fbff]"
           >
             플랜 다시 선택하기
           </button>
@@ -901,7 +901,7 @@ export default function OwnerBillingScreen({
               type="button"
               onClick={openCancelRenewalDialog}
               disabled={cancellingRenewal}
-              className="flex h-[52px] w-full items-center justify-center rounded-[18px] border border-[#e5d4d7] bg-white px-4 text-[15px] font-semibold text-[#a04455] disabled:opacity-60"
+              className="flex h-[48px] w-full items-center justify-center rounded-[9px] border border-[#f1d1d7] bg-white px-4 text-[15px] font-semibold text-[#a04455] disabled:opacity-60"
             >
               {cancellingRenewal ? "취소 처리 중..." : "다음 정기결제 취소"}
             </button>
@@ -909,7 +909,7 @@ export default function OwnerBillingScreen({
         </div>
       </section>
 
-      {message ? <p className="mt-4 rounded-[18px] border border-[#d8d1c5] bg-white px-4 py-3 text-sm text-[#4a4640]">{message}</p> : null}
+      {message ? <p className="mx-auto mt-4 w-full max-w-[1180px] rounded-[10px] border border-[#e8edf3] bg-white px-4 py-3 text-sm text-[#334155]">{message}</p> : null}
       {cancelRenewalDialog}
     </div>
   );

@@ -58,7 +58,7 @@ export default function ProfitabilityAnalyticsScreen({ shopId }: { shopId: strin
     let active = true;
     const requestProfitability = shopId === "demo-shop" || shopId === "owner-demo" ? fetchApiJson : fetchApiJsonWithAuth;
     void requestProfitability<ProfitabilityPayload>(
-      `/api/owner/profitability?shopId=${encodeURIComponent(shopId)}&range=${range}`,
+      `/api/owner/profitability?shopId=${encodeURIComponent(shopId)}&range=${range}${reloadKey > 0 ? "&refresh=1" : ""}`,
       { cache: "no-store" },
     )
       .then((result) => {

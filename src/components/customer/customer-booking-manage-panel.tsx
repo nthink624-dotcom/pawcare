@@ -675,18 +675,25 @@ export default function CustomerBookingManagePanel({
                                   </div>
                                 </div>
                               ) : null}
-                              <div className="grid grid-cols-3 gap-2">
-                                {manageSlots.map((slot) => (
-                                  <button
-                                    key={slot}
-                                    type="button"
-                                    onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
-                                    className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
-                                  >
-                                    {slot}
-                                  </button>
-                                ))}
-                              </div>
+                              {manageSlots.some((slot) => !manageRecommendedSlots.includes(slot)) ? (
+                                <div>
+                                  <p className="text-[13px] font-medium text-[#3a2e2a]">예약 가능한 시간</p>
+                                  <div className="mt-2 grid grid-cols-3 gap-2">
+                                    {manageSlots
+                                      .filter((slot) => !manageRecommendedSlots.includes(slot))
+                                      .map((slot) => (
+                                        <button
+                                          key={slot}
+                                          type="button"
+                                          onClick={() => setManageForm((prev) => (prev ? { ...prev, timeSlot: slot } : prev))}
+                                          className={`rounded-[12px] border px-2 py-3 text-sm font-bold ${manageForm?.timeSlot === slot ? "border-[#ec7f72] bg-[#ec7f72] text-white" : "border-[#f3e5df] bg-white text-[#3a2e2a]"}`}
+                                        >
+                                          {slot}
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           )}
                         </div>

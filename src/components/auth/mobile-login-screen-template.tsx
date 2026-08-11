@@ -19,6 +19,7 @@ type Props = {
   loginButtonLabel?: string;
   loginButtonLoadingLabel?: string;
   helperLinks?: Array<{ href: string; label: string }>;
+  onFindEmail?: () => void;
   emailConfirmationAction?: {
     label: string;
     loadingLabel: string;
@@ -46,6 +47,7 @@ export default function MobileLoginScreenTemplate({
   loginButtonLabel = "로그인",
   loginButtonLoadingLabel = "로그인 중...",
   helperLinks,
+  onFindEmail,
   emailConfirmationAction = null,
   onEmailChange,
   onPasswordChange,
@@ -56,7 +58,7 @@ export default function MobileLoginScreenTemplate({
   const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const resolvedHelperLinks = helperLinks ?? [
-    { href: "/login/find-email", label: "이메일 찾기" },
+    { href: "/login/find-email", label: "이메일 찾기", onClick: onFindEmail },
     { href: "/login/reset", label: "비밀번호 찾기" },
     { href: `/signup?next=${encodeURIComponent(nextPath)}`, label: "회원가입" },
   ];
@@ -182,9 +184,15 @@ export default function MobileLoginScreenTemplate({
           {resolvedHelperLinks.map((link, index) => (
             <span key={`${link.href}-${link.label}`} className="contents">
               {index > 0 ? <span className="text-[#d8e1ef]">|</span> : null}
-              <Link href={link.href as never} replace className="text-[#9aadd0] hover:text-[#617492]">
-                {link.label}
-              </Link>
+              {link.onClick ? (
+                <button type="button" onClick={link.onClick} className="text-[#9aadd0] hover:text-[#617492]">
+                  {link.label}
+                </button>
+              ) : (
+                <Link href={link.href as never} replace className="text-[#9aadd0] hover:text-[#617492]">
+                  {link.label}
+                </Link>
+              )}
             </span>
           ))}
         </div>

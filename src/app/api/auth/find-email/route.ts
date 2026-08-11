@@ -93,9 +93,6 @@ export async function POST(request: NextRequest) {
     const verifiedIdentity = await getVerifiedIdentityForToken({
       verificationToken: body.identityVerificationToken,
       purpose: "find-email",
-      expectedName: body.name,
-      expectedBirthDate: body.birthDate,
-      expectedPhoneNumber: body.phoneNumber,
     });
 
     if (!verifiedIdentity) {

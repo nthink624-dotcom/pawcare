@@ -3,7 +3,6 @@
 import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
-import { DenseBreedChipList } from "@/components/customer/dense-breed-chip-list";
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
 import {
   applyConfiguredCustomerServiceOverrides,
@@ -23,6 +22,7 @@ import type { BootstrapStaffMember, BusinessHours, OwnerProfile, Service, Shop }
 
 const visibleDateOptionCount = 4;
 const heroSidePaddingPx = 14;
+const HERO_SIGNED_URL_REFRESH_MS = 4 * 60 * 1000;
 
 const weekRows = [
   { key: 1, label: "월요일" },
@@ -278,27 +278,6 @@ function formatPriceGuideCell(cell: { price?: string; durationMinutes?: string }
   return { priceText, durationText };
 }
 
-function parseBreedGuideNote(note: string) {
-  const breeds = note
-    .split(/[,，、]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (breeds.length === 0) return null;
-
-  const preview = breeds.slice(0, 3).join(", ");
-  return {
-    breeds,
-    summary: breeds.length > 3 ? `${preview} 외` : preview,
-  };
-}
-
-function formatBreedGroupTitle(title: string, serviceName: string) {
-  const label = (title || serviceName).trim();
-  if (!label) return "그룹";
-  return label.includes("그룹") ? label : `${label} 그룹`;
-}
-
 function getTodayOperatingStatus(
   shop: Pick<
     Shop,
@@ -332,6 +311,7 @@ export default function CustomerBookingEntryPage({
   staffMembers = [],
   ownerProfile,
   infoHref,
+  bookingHref,
   previewMode = false,
   onPreviewBookingStart,
 }: {
@@ -340,6 +320,7 @@ export default function CustomerBookingEntryPage({
   staffMembers?: BootstrapStaffMember[];
   ownerProfile?: OwnerProfile | null;
   infoHref: string;
+  bookingHref?: string;
   previewMode?: boolean | "entry" | "staffSelection";
   onPreviewBookingStart?: () => void;
 }) {
@@ -356,7 +337,7 @@ export default function CustomerBookingEntryPage({
         services
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
-        { priceGuideOnly: true },
+        {},
       ),
     [services],
   );
@@ -440,7 +421,7 @@ export default function CustomerBookingEntryPage({
   const [profileViewer, setProfileViewer] = useState<StaffProfileCard | null>(null);
   const [profileViewerImageIndex, setProfileViewerImageIndex] = useState(0);
   const [heroTrackTranslatePx, setHeroTrackTranslatePx] = useState(0);
-  const [expandedBreedGuideKeys, setExpandedBreedGuideKeys] = useState<string[]>([]);
+  const [heroMediaRefreshNonce, setHeroMediaRefreshNonce] = useState(0);
   const heroGalleryRef = useRef<HTMLDivElement | null>(null);
   const heroMediaAssetRequestKeyRef = useRef("");
   const heroTouchStartXRef = useRef<number | null>(null);
@@ -510,7 +491,7 @@ export default function CustomerBookingEntryPage({
       return;
     }
 
-    const requestKey = `${shop.id}:${heroMediaAssetKey}`;
+    const requestKey = `${shop.id}:${heroMediaAssetKey}:${heroMediaRefreshNonce}`;
     if (heroMediaAssetRequestKeyRef.current === requestKey) {
       return;
     }
@@ -523,7 +504,9 @@ export default function CustomerBookingEntryPage({
       body: JSON.stringify({
         shopId: shop.id,
         mediaAssetIds,
-        variant: "provider_ready",
+        // 매장 소개 사진은 별도 알림톡 변환본이 없어도 원본을 바로 보여 줍니다.
+        // 이 요청은 서버에서 일괄 서명하므로 갤러리 수만큼 별도 요청하지 않습니다.
+        variant: "original",
       }),
     })
       .then((result) => {
@@ -550,7 +533,23 @@ export default function CustomerBookingEntryPage({
     return () => {
       cancelled = true;
     };
-  }, [heroMediaAssetKey, shop.id]);
+  }, [heroMediaAssetKey, heroMediaRefreshNonce, shop.id]);
+
+  useEffect(() => {
+    if (!heroMediaAssetKey) return;
+
+    const refreshSignedUrls = () => setHeroMediaRefreshNonce((current) => current + 1);
+    const timer = window.setInterval(refreshSignedUrls, HERO_SIGNED_URL_REFRESH_MS);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshSignedUrls();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [heroMediaAssetKey]);
 
   useEffect(() => {
     const gallery = heroGalleryRef.current;
@@ -610,10 +609,6 @@ export default function CustomerBookingEntryPage({
     }, 60_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  function toggleBreedGuide(key: string) {
-    setExpandedBreedGuideKeys((keys) => (keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key]));
-  }
 
   async function handleCopyAddress() {
     if (typeof window === "undefined") return;
@@ -982,7 +977,7 @@ export default function CustomerBookingEntryPage({
               간편예약 시작
             </button>
           ) : (
-            <a className="cta" href={`/book/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
+            <a className="cta" href={bookingHref ?? `/book/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
           )}
         </div>
       </div>
@@ -1071,36 +1066,11 @@ export default function CustomerBookingEntryPage({
             <div className="max-h-[calc(82vh-92px)] overflow-y-auto px-5 pb-5">
               {priceGuideSections.length > 0 ? (
                 <div className="space-y-3">
-                  {priceGuideSections.map(({ serviceId, serviceName, section }) => {
-                    const breedGuide = parseBreedGuideNote(section.note);
-                    const breedGuideKey = `${serviceId}-${section.id}`;
-                    const breedGuideOpen = expandedBreedGuideKeys.includes(breedGuideKey);
+                  {priceGuideSections.map(({ serviceId, section }) => {
+                    const priceGuideKey = `${serviceId}-${section.id}`;
 
                     return (
-                    <section key={breedGuideKey} className="overflow-hidden rounded-[16px] border border-[#f1d7d1] bg-white shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
-                      <div className="border-b border-[#f6e2dd] bg-white">
-                        {breedGuide ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleBreedGuide(breedGuideKey)}
-                            className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition hover:bg-[#fffaf8]"
-                            aria-expanded={breedGuideOpen}
-                          >
-                            <span className="min-w-0 truncate text-[15px] font-semibold leading-5 text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</span>
-                            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[7px] bg-[#fff1ed] px-2.5 text-[13px] font-medium text-[#9a5f54]">
-                              품종 확인
-                              <ChevronDown className={`h-3.5 w-3.5 transition ${breedGuideOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
-                            </span>
-                          </button>
-                        ) : (
-                          <div className="flex min-h-12 items-center px-4 py-2.5">
-                            <p className="truncate text-[15px] font-semibold leading-5 text-[#2b241f]">{formatBreedGroupTitle(section.title, serviceName)}</p>
-                          </div>
-                        )}
-                        {breedGuide && breedGuideOpen ? (
-                          <DenseBreedChipList breeds={breedGuide.breeds} groupKey={breedGuideKey} />
-                        ) : null}
-                      </div>
+                    <section key={priceGuideKey} className="overflow-hidden rounded-[16px] border border-[#f1d7d1] bg-white shadow-[0_8px_24px_rgba(42,25,17,0.04)]">
                       <div className="overflow-x-auto">
                         <table className="min-w-[430px] w-full border-collapse text-center">
                           <thead>

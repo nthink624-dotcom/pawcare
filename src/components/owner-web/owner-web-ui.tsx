@@ -17,7 +17,7 @@ export function WebSurface({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-[8px] border border-[#e1e1dd] bg-white shadow-[0_8px_20px_rgba(32,33,36,0.04)]", className)}>
+    <section className={cn("rounded-[10px] border border-[#e8edf3] bg-white shadow-none", className)}>
       {children}
     </section>
   );
@@ -35,8 +35,8 @@ export function WebSectionTitle({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-[24px] font-semibold text-[#202124]">{title}</h2>
-        {description ? <p className="mt-2 text-[14px] leading-6 text-[#6f747a]">{description}</p> : null}
+        <h2 className="text-[24px] font-semibold text-[#1f2937]">{title}</h2>
+        {description ? <p className="mt-2 text-[14px] leading-6 text-[#64748b]">{description}</p> : null}
       </div>
       {action}
     </div>
@@ -49,10 +49,10 @@ export function ToolbarRow({ children, className }: { children: React.ReactNode;
 
 export function SearchField({ placeholder }: { placeholder: string }) {
   return (
-    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[8px] border border-[#e1e1dd] bg-white px-3 text-[#6f747a]">
-      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#9a9a94]" />
+    <label className="flex h-11 min-w-[240px] flex-1 items-center gap-3 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-[#64748b] transition focus-within:border-[#93c5fd] focus-within:ring-[3px] focus-within:ring-[#dbeafe]/60">
+      <AssetIcon src="/icons/phosphor/MagnifyingGlass.svg" className="h-5 w-5 text-[#94a3b8]" />
       <input
-        className="w-full bg-transparent text-[16px] text-[#202124] outline-none placeholder:text-[#9a9a94]"
+        className="w-full bg-transparent text-[16px] text-[#1f2937] outline-none placeholder:text-[#94a3b8]"
         placeholder={placeholder}
       />
     </label>
@@ -64,10 +64,10 @@ export function SelectLike({ label, icon: Icon = ChevronDown, onClick }: { label
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[8px] border border-[#e1e1dd] bg-white px-4 text-[14px] font-medium text-[#30312f] hover:bg-[#f7f7f4]"
+      className="inline-flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[9px] border border-[#e8edf3] bg-white px-4 text-[14px] font-medium text-[#334155] transition hover:border-[#cbd5e1] hover:bg-[#f8fbff]"
     >
       <span>{label}</span>
-      <Icon className="h-4 w-4 text-[#6f747a]" />
+      <Icon className="h-4 w-4 text-[#64748b]" />
     </button>
   );
 }
@@ -131,21 +131,21 @@ export function SoftSelect<T extends string = string>({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] border border-[#e1e1dd] bg-white px-3 text-left transition",
-          "hover:border-[#c8c8c2] hover:bg-[#f7f7f4] focus:outline-none focus:ring-[3px] focus:ring-[#d7d7d2]/45 disabled:cursor-not-allowed disabled:opacity-60",
-          open && "border-[#c8c8c2] bg-white",
+          "grid h-10 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[9px] border border-[#e8edf3] bg-white px-3 text-left transition",
+          "hover:border-[#cbd5e1] hover:bg-[#f8fbff] focus:outline-none focus:ring-[3px] focus:ring-[#dbeafe]/60 disabled:cursor-not-allowed disabled:opacity-60",
+          open && "border-[#93c5fd] bg-white",
           buttonClassName,
         )}
       >
-        {label ? <span className={cn("text-[12px] text-[#6f747a]", labelClassName)}>{label}</span> : <span />}
-        <span className={cn("truncate text-right text-[14px] font-medium text-[#202124]", valueClassName)}>{selectedOption?.label ?? ""}</span>
-        <ChevronDown className={cn("h-4 w-4 text-[#6f747a] transition", open && "rotate-180")} />
+        {label ? <span className={cn("text-[12px] text-[#64748b]", labelClassName)}>{label}</span> : <span />}
+        <span className={cn("truncate text-right text-[14px] font-medium text-[#1f2937]", valueClassName)}>{selectedOption?.label ?? ""}</span>
+        <ChevronDown className={cn("h-4 w-4 text-[#64748b] transition", open && "rotate-180")} />
       </button>
       {open ? (
         <div
           role="listbox"
           className={cn(
-            "absolute z-50 mt-2 min-w-full overflow-hidden rounded-[10px] border border-[#e1e1dd] bg-white p-1 shadow-[0_18px_42px_rgba(32,33,36,0.12)]",
+            "absolute z-50 mt-2 min-w-full overflow-hidden rounded-[10px] border border-[#e8edf3] bg-white p-1 shadow-[0_14px_28px_rgba(15,23,42,0.10)]",
             align === "right" ? "right-0" : "left-0",
             direction === "up" && "bottom-full mb-2 mt-0",
             menuClassName,
@@ -166,7 +166,7 @@ export function SoftSelect<T extends string = string>({
                 }}
                 className={cn(
                   "flex h-9 w-full items-center justify-between gap-3 rounded-[8px] px-3 text-left text-[14px] transition",
-                  selected ? "bg-[#f1f0ec] font-semibold text-[#202124]" : "text-[#30312f] hover:bg-[#f7f7f4]",
+                  selected ? "bg-[#eff6ff] font-semibold text-[#1677ff]" : "text-[#334155] hover:bg-[#f8fbff]",
                   option.disabled && "cursor-not-allowed opacity-45",
                 )}
               >
@@ -245,10 +245,10 @@ export function Chip({
       onClick={onClick}
       className={cn(
         "inline-flex h-[34px] items-center justify-center rounded-[8px] border px-3.5 text-[13px] font-medium transition",
-        active && tone === "default" && "border-[#c8c8c2] bg-[#f1f0ec] text-[#30312f]",
+        active && tone === "default" && "border-[#bfdbfe] bg-[#eff6ff] text-[#1677ff]",
         active && tone === "soft" && "border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1]",
         active && tone === "danger" && "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]",
-        !active && "border-[#e1e1dd] bg-white text-[#6f747a]",
+        !active && "border-[#e8edf3] bg-white text-[#64748b] hover:bg-[#f8fbff]",
       )}
     >
       {label}

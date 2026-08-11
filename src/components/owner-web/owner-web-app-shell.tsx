@@ -89,27 +89,10 @@ const ownerWebNavigationItems = ownerWebSidebarGroups
   .flatMap((group) => group.items)
   .filter((item): item is Extract<OwnerWebNavigationItem, { key: OwnerWebScreenKey }> => !("href" in item));
 
-const ownerWebScreenGradients: Record<OwnerWebScreenKey, string> = {
-  schedule: "linear-gradient(135deg, #f5f6f7 0%, #f8f9fa 100%)",
-  bookingPageManagement: "linear-gradient(135deg, #eef4ff 0%, #d9fbff 34%, #f9fcff 58%, #e8f0ff 100%)",
-  bookingLink: "linear-gradient(135deg, #eaf4ff 0%, #ddf7ff 38%, #fbfdff 60%, #eaf1ff 100%)",
-  calendarRecords: "linear-gradient(135deg, #eef6ff 0%, #dffaff 34%, #f8fbff 56%, #e6efff 100%)",
-  customers: "linear-gradient(135deg, #eaf6ff 0%, #dcf8ff 36%, #fbfdff 60%, #edf1ff 100%)",
-  profitability: "linear-gradient(135deg, #f4f7f6 0%, #eef6f3 36%, #fbfdfc 60%, #f2f5f4 100%)",
-  services: "linear-gradient(135deg, #edf3ff 0%, #def7ff 35%, #f9fcff 58%, #e8f2ff 100%)",
-  staff: "linear-gradient(135deg, #eaf4ff 0%, #e2f9ff 34%, #fbfdff 58%, #e8efff 100%)",
-  ownerProfile: "linear-gradient(135deg, #eef5ff 0%, #dcf8ff 38%, #f8fbff 60%, #e7f0ff 100%)",
-  shopInfo: "linear-gradient(135deg, #eaf3ff 0%, #e0faff 34%, #fbfdff 58%, #e8f0ff 100%)",
-  operatingHours: "linear-gradient(135deg, #eaf2ff 0%, #dff7ff 36%, #f9fcff 60%, #edf1ff 100%)",
-  benefits: "linear-gradient(135deg, #eaf4ff 0%, #daf8ff 36%, #fbfdff 58%, #e6f0ff 100%)",
-  alerts: "linear-gradient(135deg, #edf4ff 0%, #e0f8ff 34%, #f8fbff 58%, #e9efff 100%)",
-  help: "linear-gradient(135deg, #eef6ff 0%, #def9ff 36%, #fbfdff 60%, #e8f1ff 100%)",
-};
-
 function PhosphorSidebarIcon({ screen, active }: { screen: OwnerWebNavigationKey; active: boolean }) {
   return (
     <span
-      className={cn("block h-[18px] w-[18px] shrink-0 transition-colors", active ? "bg-white" : "bg-[#9aa3af]")}
+      className={cn("block h-[18px] w-[18px] shrink-0 transition-colors", active ? "bg-[var(--acc)]" : "bg-[#9aa3af]")}
       style={
         {
           WebkitMaskImage: `url(${screenIconPaths[screen]})`,
@@ -295,9 +278,6 @@ export default function OwnerWebAppShell({
   loggingOut: boolean;
   children: ReactNode;
 }) {
-  const screenGradientStyle = {
-    "--pm-owner-screen-gradient": ownerWebScreenGradients[activeScreen],
-  } as CSSProperties;
   const alimtalkRemainingTotal =
     typeof alimtalkCreditSummary?.remaining_total === "number" ? alimtalkCreditSummary.remaining_total : null;
   const alimtalkCreditsExhausted = alimtalkRemainingTotal !== null && alimtalkRemainingTotal <= 0;
@@ -309,7 +289,7 @@ export default function OwnerWebAppShell({
         <div className="flex items-center pb-4 pl-[34px] pr-5 pt-[22px]">
           <PetManagerBrand
             imageClassName="h-5 w-auto"
-            nameClassName="text-[15px] text-[#173b33]"
+            nameClassName="text-[15px] text-[#1f2937]"
           />
         </div>
 
@@ -326,7 +306,7 @@ export default function OwnerWebAppShell({
                     const itemClassName = cn(
                       "relative flex h-[40px] w-full items-center gap-3 rounded-[10px] px-3.5 text-left text-[15px] font-medium text-[#273142] transition hover:bg-[#eef2f7] hover:text-[#111827]",
                       active &&
-                        "bg-[#316fe8] font-semibold text-white shadow-[0_10px_22px_rgba(49,111,232,0.20)] hover:bg-[#316fe8] hover:text-white",
+                        "bg-[#eff6ff] font-semibold text-[var(--acc)] shadow-none hover:bg-[#eff6ff] hover:text-[var(--acc)]",
                     );
                     if (screen.key === "billing") {
                       return (
@@ -444,7 +424,7 @@ export default function OwnerWebAppShell({
         <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--line2)] bg-[var(--card)] px-5 lg:hidden">
           <PetManagerBrand
             imageClassName="h-5 w-auto"
-            nameClassName="text-[15px] text-[#173b33]"
+            nameClassName="text-[15px] text-[#1f2937]"
           />
           <div className="flex items-center gap-2">
             <button
@@ -487,16 +467,11 @@ export default function OwnerWebAppShell({
           </div>
         ) : null}
 
-        <section className="min-h-0 flex-1 overflow-hidden bg-[image:var(--pm-owner-screen-gradient)] p-5" style={screenGradientStyle}>
+        <section className="min-h-0 flex-1 overflow-hidden bg-[var(--bg)] p-4">
           <div
-            className={cn(
-              "h-full min-w-0 overflow-hidden rounded-[18px] border",
-              activeScreen === "schedule"
-                ? "border-[#e5e7eb] bg-white shadow-none"
-                : "border-white/75 bg-white/90 shadow-[0_18px_44px_rgba(37,99,235,0.10)] backdrop-blur-sm",
-            )}
+            className="h-full min-w-0 overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none"
           >
-            <div className="h-full min-h-0 overflow-hidden overscroll-contain p-5">
+            <div className="h-full min-h-0 overflow-hidden overscroll-contain p-4">
               {children}
             </div>
           </div>

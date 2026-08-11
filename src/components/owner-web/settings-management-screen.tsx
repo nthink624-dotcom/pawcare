@@ -484,7 +484,7 @@ function areStringArraysEqual(left: string[], right: string[]) {
 }
 
 function isLocalPreviewImageUrl(imageUrl: string) {
-  return imageUrl.startsWith("data:");
+  return imageUrl.startsWith("data:") || imageUrl.startsWith("blob:");
 }
 
 function isExpiringMediaSignedUrl(imageUrl: string) {
@@ -542,7 +542,9 @@ async function resolveShopProfileImageUrlsFromAssetIds(shopId: string, mediaAsse
   const ids = mergeProfileMediaAssetIds([], mediaAssetIds, ownerWebShopProfileImagesMaxCount);
   if (ids.length === 0) return [];
 
-  const result = await getOwnerMediaSignedUrls(shopId, ids, "provider_ready");
+  // 매장 소개 사진은 업로드 원본을 고객에게 바로 보여 줍니다.
+  // 알림톡 전용 변환본 조회를 거치지 않아도 되어, 저장 경로와 표시 경로를 하나로 유지합니다.
+  const result = await getOwnerMediaSignedUrls(shopId, ids, "original");
   const urlsByAssetId = new Map(result.map((item) => [item.mediaAssetId, item.signedUrl]));
   return ids.flatMap((mediaAssetId) => {
     const signedUrl = urlsByAssetId.get(mediaAssetId) ?? "";
@@ -1066,11 +1068,47 @@ export default function SettingsManagementScreen({
   const profileImageMissingAssetRecoveryKeyRef = useRef("");
   const profileImageManualRemovalKeyRef = useRef("");
   const profileImageMutationInFlightRef = useRef(false);
+  const profileImageRefreshInFlightRef = useRef(false);
   const shopInfoSaveInFlightRef = useRef(false);
   const discountCouponSavedKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponDraftKeyRef = useRef(JSON.stringify(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons)));
   const discountCouponLatestDraftRef = useRef(normalizeDiscountCoupons(shop?.customer_page_settings.discount_coupons));
   const discountCouponShopIdRef = useRef(shop?.id ?? "");
+
+  async function refreshShopProfileImageUrls() {
+    if (!shop || !persistShopProfile || profileImageRefreshInFlightRef.current) return;
+
+    const mediaAssetIds = shopProfileImageAssetIds.filter(Boolean).slice(0, ownerWebShopProfileImagesMaxCount);
+    if (mediaAssetIds.length === 0) return;
+
+    profileImageRefreshInFlightRef.current = true;
+    try {
+      const resolvedItems = await resolveShopProfileImageUrlsFromAssetIds(shop.id, mediaAssetIds);
+      const resolved = mergeResolvedProfileImageUrls({
+        currentImageUrls: normalizeShopProfileImages(shopProfileImages).filter(isRemotePersistableImageUrl),
+        currentMediaAssetIds: mediaAssetIds,
+        resolvedItems,
+        maxCount: ownerWebShopProfileImagesMaxCount,
+        preserveCurrentUrlsAsLegacy: false,
+      });
+      const nextImages = normalizeShopProfileImages(resolved.imageUrls);
+      const nextMediaAssetIds = alignShopProfileImageAssetIds(nextImages.length, resolved.mediaAssetIds);
+      if (nextImages.length === 0) {
+        throw new Error("매장 사진을 다시 불러오지 못했습니다.");
+      }
+
+      setShopProfileImages(nextImages);
+      setShopProfileImageAssetIds(nextMediaAssetIds);
+      profileImageAssetUrlSyncKeyRef.current = `${shop.id}:${nextMediaAssetIds.filter(Boolean).join("|")}`;
+      setShopInfoFeedback("");
+      persistSettings(draftSettings, nextImages);
+    } catch (error) {
+      console.error("[OWNER SETTINGS] failed to refresh shop profile image URLs", error);
+      setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 다시 불러오지 못했습니다.");
+    } finally {
+      profileImageRefreshInFlightRef.current = false;
+    }
+  }
 
   useEffect(() => {
     if (isShopInfoDirty || savingShopInfo || addressSheetOpen) {
@@ -1144,6 +1182,16 @@ export default function SettingsManagementScreen({
   }, [addressSheetOpen, isShopInfoDirty, savingShopInfo, shop]);
 
   useEffect(() => {
+    if (!shop || !persistShopProfile || shopProfileImageAssetIds.filter(Boolean).length === 0) return;
+
+    const refreshTimer = window.setInterval(() => {
+      void refreshShopProfileImageUrls();
+    }, 4 * 60 * 1000);
+
+    return () => window.clearInterval(refreshTimer);
+  }, [persistShopProfile, shop?.id, shopProfileImageAssetIds.join("|")]);
+
+  useEffect(() => {
     return () => {
       if (saveCompleteTimerRef.current) {
         clearTimeout(saveCompleteTimerRef.current);
@@ -1201,7 +1249,7 @@ export default function SettingsManagementScreen({
   const current = useMemo(() => {
     return draftSettings[activeTab] ?? initialSettings[activeTab];
   }, [activeTab, draftSettings]);
-  const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(previewServices, { priceGuideOnly: true }), [previewServices]);
+  const rawCustomerServiceConnectionOptions = useMemo(() => buildCustomerServiceSourceOptions(previewServices), [previewServices]);
   const customerServiceConnectionOptions = useMemo(
     () => buildCustomerServiceMenuConnectionOptions(rawCustomerServiceConnectionOptions),
     [rawCustomerServiceConnectionOptions],
@@ -1351,8 +1399,10 @@ export default function SettingsManagementScreen({
       ...shop,
       customer_page_settings: mergeCustomerPageSettings(shop.customer_page_settings, {
         ...result.shop.customer_page_settings,
-        hero_image_url: heroImageUrls[0] ?? "",
-        hero_image_urls: heroImageUrls,
+        // Signed URL은 만료되는 표시용 주소입니다. 화면 상태에는 현재 URL을
+        // 유지하되, canonical shop 데이터에는 영구 URL 또는 media asset ID만 둡니다.
+        hero_image_url: persistentHeroImageUrls[0] ?? "",
+        hero_image_urls: persistentHeroImageUrls,
         hero_media_asset_id: heroMediaAssetIds[0] ?? "",
         hero_media_asset_ids: heroMediaAssetIds,
       }),
@@ -2001,12 +2051,15 @@ export default function SettingsManagementScreen({
     if (!beginShopProfileImageMutation()) return;
     const previousImages = shopProfileImages.slice();
     const previousMediaAssetIds = shopProfileImageAssetIds.slice();
+    const localPreviewUrls = selectedFiles.map((file) => URL.createObjectURL(file));
+    const localPreviewImages = normalizeShopProfileImages([...previousImages, ...localPreviewUrls]);
+    setShopProfileImages(localPreviewImages);
     let uploadedImageCount = 0;
     let optimisticStateApplied = false;
     try {
       const uploadResults = await mapProfileImagesWithConcurrency(
         selectedFiles,
-        3,
+        2,
         (file) => createOwnerShopProfileMediaAssetFromFile({ shopId: shop.id }, file),
       );
       const uploadedMedia = uploadResults.flatMap((result) =>
@@ -2031,7 +2084,7 @@ export default function SettingsManagementScreen({
       const imageUrls = uploadedImages.map((item) => item.signedUrl).filter(Boolean);
       const mediaAssetIds = uploadedImages.map((item) => item.mediaAsset.id).filter(Boolean);
 
-      const nextImages = normalizeShopProfileImages([...shopProfileImages, ...imageUrls]);
+      const nextImages = normalizeShopProfileImages([...previousImages, ...imageUrls]);
       const mergedMediaAssetIds = mergeProfileMediaAssetIds(
         currentMediaAssetIds,
         mediaAssetIds,
@@ -2059,13 +2112,16 @@ export default function SettingsManagementScreen({
         setShopInfoFeedback("");
         return;
       }
-      if (optimisticStateApplied) {
+      if (optimisticStateApplied || localPreviewUrls.length > 0) {
         setShopProfileImages(previousImages);
         setShopProfileImageAssetIds(previousMediaAssetIds);
         persistSettings(draftSettings, previousImages);
       }
       setShopInfoFeedback(error instanceof Error ? error.message : "매장 사진을 업로드하지 못했습니다.");
     } finally {
+      window.setTimeout(() => {
+        localPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+      }, 0);
       endShopProfileImageMutation();
     }
   }
@@ -2285,6 +2341,9 @@ export default function SettingsManagementScreen({
                 onProfileImagesAdd={addShopProfileImages}
                 onProfileImagesRemove={removeShopProfileImages}
                 onProfileImageSelect={selectShopProfileImageAsPrimary}
+                onProfileImageLoadError={() => {
+                  void refreshShopProfileImageUrls();
+                }}
                 onStaffMembersChange={onStaffMembersChange}
                 onRowChange={(rowId, value) => updateRow(rowId, value)}
                 onRowCommit={(rowId, value) => commitShopRow(rowId, value)}

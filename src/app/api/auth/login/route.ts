@@ -29,13 +29,8 @@ type OwnerSignInSession = {
 function getLoginErrorMessage(message?: string) {
   const normalized = (message ?? "").toLowerCase();
 
-  if (normalized.includes("email not confirmed")) {
-    return "이메일 인증이 아직 완료되지 않았어요. 받은 메일의 인증 링크를 연 뒤 로그인해 주세요.";
-  }
-
   if (
     normalized.includes("invalid login credentials") ||
-    normalized.includes("email not confirmed") ||
     normalized.includes("user not found")
   ) {
     return "이메일 또는 비밀번호를 다시 확인해 주세요.";
@@ -48,6 +43,40 @@ function getLoginErrorMessage(message?: string) {
   }
 
   return "로그인 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
+}
+
+async function signInWithoutEmailConfirmationBlock({
+  authClient,
+  admin,
+  email,
+  password,
+}: {
+  authClient: NonNullable<ReturnType<typeof getSupabaseAuthClient>>;
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+  email: string;
+  password: string;
+}) {
+  const firstAttempt = await authClient.auth.signInWithPassword({ email, password });
+  if (!firstAttempt.error || !firstAttempt.error.message.toLowerCase().includes("email not confirmed")) {
+    return firstAttempt;
+  }
+
+  const profileResult = await admin
+    .from("owner_profiles")
+    .select("user_id,login_id")
+    .eq("login_id", email)
+    .maybeSingle<{ user_id: string; login_id: string }>();
+
+  if (profileResult.error || !profileResult.data?.user_id) {
+    return firstAttempt;
+  }
+
+  const confirmationResult = await admin.auth.admin.updateUserById(profileResult.data.user_id, { email_confirm: true });
+  if (confirmationResult.error) {
+    return firstAttempt;
+  }
+
+  return authClient.auth.signInWithPassword({ email, password });
 }
 
 function createLoginResponse({
@@ -102,25 +131,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "로그인 환경이 아직 준비되지 않았어요." }, { status: 503 });
     }
 
-    const signInResult = await authClient.auth.signInWithPassword({ email, password: body.password });
-    if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
-      const isEmailConfirmationRequired = (signInResult.error?.message ?? "").toLowerCase().includes("email not confirmed");
+    const ownerProfileLookup = await admin
+      .from("owner_profiles")
+      .select("user_id")
+      .eq("login_id", email)
+      .maybeSingle<{ user_id: string }>();
+
+    if (ownerProfileLookup.error) {
+      return NextResponse.json({ message: "로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    }
+
+    if (!ownerProfileLookup.data?.user_id) {
       return NextResponse.json(
-        {
-          message: getLoginErrorMessage(signInResult.error?.message),
-          ...(isEmailConfirmationRequired ? { code: "email-confirmation-required" } : {}),
-        },
-        { status: isEmailConfirmationRequired ? 403 : 401 },
+        { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
+        { status: 401 },
       );
     }
 
-    if (!signInResult.data.user.email_confirmed_at) {
+    const signInResult = await signInWithoutEmailConfirmationBlock({
+      authClient,
+      admin,
+      email,
+      password: body.password,
+    });
+    if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
       return NextResponse.json(
-        {
-          code: "email-confirmation-required",
-          message: "이메일 인증이 아직 완료되지 않았어요. 받은 메일의 인증 링크를 연 뒤 로그인해 주세요.",
-        },
-        { status: 403 },
+        { reason: "invalid_password", message: getLoginErrorMessage(signInResult.error?.message) },
+        { status: 401 },
       );
     }
 
@@ -135,7 +172,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (!profileResult.data?.user_id || normalizeOwnerEmail(profileResult.data.login_id ?? "") !== email) {
-      return NextResponse.json({ message: "이메일 또는 비밀번호를 다시 확인해 주세요." }, { status: 401 });
+      return NextResponse.json(
+        { reason: "email_not_registered", message: "등록되지 않은 이메일입니다. 이메일을 확인하거나 회원가입해 주세요." },
+        { status: 401 },
+      );
     }
 
     return createLoginResponse({

@@ -33,3 +33,22 @@ test("owner can log in, land on /owner, and keep the session after reload", asyn
   await expect(page).toHaveURL(/\/owner(?:$|\?)/);
   await expect(page.getByText(devShopName).first()).toBeVisible();
 });
+
+test("a failed login clears an existing browser session and does not open owner", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByTestId("owner-login-email").fill(email);
+  await page.getByTestId("owner-login-password").fill(password);
+  await page.getByTestId("owner-login-submit").click();
+  await expect(page).toHaveURL(/\/owner(?:$|\?)/);
+
+  await page.goto("/login");
+  await page.getByTestId("owner-login-email").fill(email);
+  await page.getByTestId("owner-login-password").fill("wrong-password");
+  await page.getByTestId("owner-login-submit").click();
+
+  await expect(page).toHaveURL(/\/login(?:$|\?)/);
+  await expect(page.getByText(/이메일 또는 비밀번호를 다시 확인해 주세요/).first()).toBeVisible();
+
+  await page.goto("/owner");
+  await expect(page).toHaveURL(/\/login(?:$|\?)/);
+});

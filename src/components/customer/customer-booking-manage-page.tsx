@@ -33,7 +33,7 @@ export default function CustomerBookingManagePage({
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
-          { priceGuideOnly: true },
+          {},
         ),
         initialShop.customer_page_settings.customer_service_overrides,
       ),

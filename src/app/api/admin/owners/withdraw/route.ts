@@ -26,7 +26,7 @@ type OwnedShopTarget = {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdminSession(request);
+    const adminAccount = await requireAdminSession(request);
     const body = withdrawOwnerSchema.parse(await request.json());
 
     if (body.confirmation !== body.shopId) {
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
         .from("shops")
         .select("id, name")
         .eq("owner_user_id", body.userId)
+        .is("deleted_at", null)
         .returns<OwnedShopTarget[]>(),
       admin.auth.admin.getUserById(body.userId),
     ]);
@@ -68,22 +69,50 @@ export async function POST(request: NextRequest) {
       throw new AdminApiError("선택한 매장이 해당 오너 소유가 아닙니다.", 409);
     }
 
-    // Auth 사용자를 먼저 완전 삭제해야 로그인 이메일 identity가 즉시 해제되어
-    // 동일한 이메일로 바로 다시 가입할 수 있다.
-    const authDeleteResult = await admin.auth.admin.deleteUser(body.userId, false);
-    if (authDeleteResult.error) {
-      throw new AdminApiError(authDeleteResult.error.message || "로그인 계정을 삭제하지 못했습니다.", 400);
+    const ownedShopIds = ownedShops.map((shop) => shop.id);
+    const deletedAt = new Date().toISOString();
+    const deletedByActor = `admin:${adminAccount.id}`;
+    const softDeleteResult = await admin
+      .from("shops")
+      .update({
+        deleted_at: deletedAt,
+        deleted_by_actor: deletedByActor,
+        deleted_reason: "owner_withdrawal",
+      })
+      .in("id", ownedShopIds)
+      .is("deleted_at", null)
+      .select("id");
+
+    if (softDeleteResult.error || (softDeleteResult.data ?? []).length !== ownedShopIds.length) {
+      throw new AdminApiError(
+        softDeleteResult.error?.message || "매장 보관 처리를 완료하지 못했습니다. 회원탈퇴를 중단했습니다.",
+        500,
+      );
     }
 
-    const ownedShopIds = ownedShops.map((shop) => shop.id);
-    if (ownedShopIds.length > 0) {
-      const shopsDeleteResult = await admin.from("shops").delete().in("id", ownedShopIds);
-      if (shopsDeleteResult.error) {
+    // Auth 계정을 삭제하기 전에 매장 데이터를 보관 처리합니다. Auth 삭제가 실패하면
+    // 아래에서 매장 보관 상태를 원복해 두 작업이 어긋나지 않도록 합니다.
+    const authDeleteResult = await admin.auth.admin.deleteUser(body.userId, false);
+    if (authDeleteResult.error) {
+      const rollbackResult = await admin
+        .from("shops")
+        .update({
+          deleted_at: null,
+          deleted_by_actor: null,
+          deleted_reason: null,
+        })
+        .in("id", ownedShopIds)
+        .eq("deleted_at", deletedAt)
+        .eq("deleted_by_actor", deletedByActor);
+
+      if (rollbackResult.error) {
         throw new AdminApiError(
-          `로그인 계정은 삭제했지만 매장 데이터 정리에 실패했습니다: ${shopsDeleteResult.error.message}`,
+          `계정 삭제에 실패했고 매장 보관 상태도 원복하지 못했습니다. 즉시 확인이 필요합니다: ${rollbackResult.error.message}`,
           500,
         );
       }
+
+      throw new AdminApiError(authDeleteResult.error.message || "로그인 계정을 삭제하지 못했습니다.", 400);
     }
 
     return NextResponse.json({

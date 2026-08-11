@@ -1040,7 +1040,7 @@ function GroomingDatePanel({
   const hasVisibleContent = visibleItems.length > 0 || birthdays.length > 0;
 
   return (
-    <aside className="self-start bg-white">
+    <aside className="min-h-0 overflow-y-auto bg-white">
       <div className="px-5 py-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-[15px] font-normal text-[#334155]">{formatFullDate(date)}</h3>

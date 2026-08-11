@@ -189,7 +189,7 @@ export default function CustomerBookingPageManagementScreen({
     [services],
   );
   const customerServiceOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(sortCustomerPageServices(services), { priceGuideOnly: true }),
+    () => buildCustomerServiceSourceOptions(sortCustomerPageServices(services)),
     [services],
   );
   const customerServiceOverrides = useMemo(

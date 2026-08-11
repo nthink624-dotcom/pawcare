@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronRight, Eye, EyeOff, Smartphone, Sparkles } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
-import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
+import { env, hasPortoneBrowserEnv } from "@/lib/env";
 import { ownerPasswordResetSchema, type OwnerPasswordResetInput } from "@/lib/auth/owner-password-reset";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 
@@ -40,13 +40,13 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 type ApiMessage = {
+  available?: boolean;
   message?: string;
   verificationRequestId?: string | null;
-  devVerificationCode?: string | null;
   verificationToken?: string | null;
 };
 
-type ResetStep = "account" | "method" | "code" | "password";
+type ResetStep = "account" | "preparing" | "password";
 const successMessagePatterns = ["완료", "변경", "보냈어요", "준비했어요", "확인했어요"];
 
 export default function ResetPasswordForm({
@@ -57,20 +57,14 @@ export default function ResetPasswordForm({
   ready: boolean;
 }) {
   const router = useRouter();
-  const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
-  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
-  const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
-  const useLocalVerificationFlow = isDevelopmentFlow && !portoneReady;
+  const portoneReady = hasPortoneBrowserEnv();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(
     ready ? null : "로그인 환경을 확인하는 중이에요. 잠시 후 다시 시도해 주세요.",
   );
-  const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<ResetStep>("account");
 
@@ -110,119 +104,42 @@ export default function ResetPasswordForm({
     }
 
     if (step === "password") {
-      setStep(useLocalVerificationFlow ? "code" : "method");
-      return;
-    }
-
-    if (step === "code") {
-      setStep("method");
+      syncVerificationToken(null);
+      setStep("account");
       return;
     }
 
     setStep("account");
   };
 
-  const goToMethodStep = async () => {
+  const startIdentityVerification = async () => {
     const isValid = await trigger("email");
     if (!isValid) return;
-    setMessage(null);
-    setStep("method");
-  };
-
-  const requestCode = async () => {
     const values = getValues();
-    if (!values.email?.trim()) {
-      setMessage("이메일을 먼저 입력해 주세요.");
-      return;
-    }
 
     setLoading(true);
     setMessage(null);
 
     try {
-      const response = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: values.email,
-          purpose: "reset-password",
-          method: "local",
-        }),
-      });
-      const result = (await response.json()) as ApiMessage;
+      const emailCheckResponse = await fetch(`/api/auth/check-email?email=${encodeURIComponent(values.email)}`);
+      const emailCheck = (await emailCheckResponse.json().catch(() => ({}))) as ApiMessage;
 
-      if (!response.ok) {
-        setMessage(result.message ?? "인증번호를 보내지 못했어요. 다시 시도해 주세요.");
+      if (!emailCheckResponse.ok) {
+        setMessage("이메일을 확인하는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
 
-      setVerificationRequestId(result.verificationRequestId ?? null);
-      setDevCode(result.devVerificationCode ?? null);
-      setVerificationCode("");
-      syncVerificationToken(null);
-      setStep("code");
-      setMessage(result.message ?? "인증번호를 보냈어요. 화면에 표시된 번호를 입력해 주세요.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyCode = async () => {
-    const values = getValues();
-    if (!values.email?.trim()) {
-      setMessage("이메일을 먼저 입력해 주세요.");
-      return;
-    }
-
-    if (!verificationRequestId) {
-      setMessage("먼저 인증번호를 받아 주세요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/auth/verify-identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: values.email,
-          code: verificationCode,
-          purpose: "reset-password",
-          verificationRequestId,
-        }),
-      });
-      const result = (await response.json()) as ApiMessage;
-
-      if (!response.ok || !result.verificationToken) {
-        setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
+      if (emailCheck.available) {
+        setMessage("입력한 이메일을 확인해 주세요.");
         return;
       }
 
-      syncVerificationToken(result.verificationToken);
-      setMessage(result.message ?? "본인 확인이 완료됐어요. 새 비밀번호를 입력해 주세요.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
+        setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
+        return;
+      }
 
-  const verifyPass = async () => {
-    const values = getValues();
-    if (!values.email?.trim()) {
-      setMessage("이메일을 먼저 입력해 주세요.");
-      return;
-    }
-
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
-      setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
+      setStep("preparing");
       const requestResponse = await fetch("/api/auth/request-verification-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -236,6 +153,7 @@ export default function ResetPasswordForm({
 
       if (!requestResponse.ok || !requestResult.verificationRequestId) {
         setMessage(requestResult.message ?? "본인확인 요청을 준비하지 못했어요.");
+        setStep("account");
         return;
       }
 
@@ -250,6 +168,7 @@ export default function ResetPasswordForm({
 
       if (!result?.identityVerificationId) {
         setMessage("휴대폰 본인인증이 완료되지 않았어요.");
+        setStep("account");
         return;
       }
 
@@ -266,11 +185,15 @@ export default function ResetPasswordForm({
 
       if (!response.ok || !verifyResult.verificationToken) {
         setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
+        setStep("account");
         return;
       }
 
       syncVerificationToken(verifyResult.verificationToken);
       setMessage(verifyResult.message ?? "휴대폰 본인인증이 완료됐어요. 새 비밀번호를 입력해 주세요.");
+    } catch {
+      setMessage("본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
+      setStep("account");
     } finally {
       setLoading(false);
     }
@@ -316,11 +239,9 @@ export default function ResetPasswordForm({
   const passwordNotice = step === "password" ? errors.password?.message ?? errors.passwordConfirm?.message : null;
   const notice = step === "password" ? (isSuccessMessage ? null : message) : firstError ?? (isSuccessMessage ? null : message);
   const pageTitle =
-    step === "method"
-      ? "본인 확인"
-      : step === "code"
-        ? "인증번호 입력"
-        : step === "password"
+    step === "preparing"
+      ? "본인인증"
+      : step === "password"
           ? "새 비밀번호 설정"
           : "비밀번호 찾기";
   return (
@@ -329,8 +250,9 @@ export default function ResetPasswordForm({
       <div className="relative flex h-10 items-center justify-center">
         <MobileBackButton
           onClick={goBack}
+          disabled={step === "preparing"}
           label={step === "account" ? "로그인으로 이동" : "이전 단계"}
-          className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
+          className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc] disabled:pointer-events-none disabled:opacity-0"
         />
         <h1 className="text-[24px] font-extrabold leading-6 tracking-[-0.04em] text-[#101a31]">{pageTitle}</h1>
       </div>
@@ -339,10 +261,6 @@ export default function ResetPasswordForm({
         <div className="flex-1 pt-8">
           {step === "account" ? (
             <section>
-              <p className="mt-4 block w-full min-w-0 whitespace-nowrap text-[17px] font-semibold leading-7 text-[#111827]">
-                가입할 때 사용한 이메일을 입력해 주세요.
-              </p>
-
               <label className="mt-7 block">
                 <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">이메일</span>
                 <input
@@ -356,91 +274,11 @@ export default function ResetPasswordForm({
             </section>
           ) : null}
 
-          {step === "method" ? (
-            <section>
-              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                인증 방법을 선택해주세요
-              </h1>
-              <p className="mt-4 w-full max-w-none break-keep text-[14px] leading-6 text-[#667589]">
-                가입 정보와 인증 결과가 일치하면 비밀번호를 바꿀 수 있어요.
-              </p>
-
-              <div className="mt-7 space-y-3">
-                <button
-                  type="button"
-                  onClick={useLocalVerificationFlow ? requestCode : verifyPass}
-                  disabled={loading}
-                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#d7e0e9] bg-white px-4 text-left transition hover:border-[#247761] hover:bg-[#f7fbf9] active:scale-[0.99] disabled:opacity-60"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#eef7f4] text-[#247761]">
-                    <Smartphone className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-medium text-[#111827]">
-                      {useLocalVerificationFlow ? "개발용 인증번호" : "휴대폰 본인인증"}
-                    </span>
-                    <span className="mt-0.5 block text-[12px] font-medium text-[#8090a4]">
-                      {useLocalVerificationFlow ? "가입 정보로 테스트 인증번호를 확인해요" : "KCP/PASS로 본인 여부를 확인해요"}
-                    </span>
-                  </span>
-                  <ChevronRight className="h-5 w-5 text-[#94a3b8]" />
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#e3e9f0] bg-[#fbfcfd] px-4 text-left opacity-70"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#94a3b8]">
-                    <Sparkles className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-medium text-[#64748b]">간편인증</span>
-                    <span className="mt-0.5 block text-[12px] font-medium text-[#94a3b8]">카카오, 네이버, 토스 인증은 추후 제공 예정</span>
-                  </span>
-                  <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[11px] font-semibold text-[#7a8797]">준비중</span>
-                </button>
-              </div>
-            </section>
-          ) : null}
-
-          {step === "code" ? (
-            <section>
-              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                인증번호를 입력해주세요
-              </h1>
-              <p className="mt-4 text-[14px] leading-6 text-[#667589]">
-                인증번호는 5분간 유지됩니다.
-                <br />
-                인증번호 6자리 숫자를 입력해주세요.
-              </p>
-
-              <label className="mt-7 block">
-                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">인증번호</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={verificationCode}
-                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="6자리 숫자"
-                  className="h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[18px] font-semibold tracking-[0.08em] text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[16px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)]"
-                />
-              </label>
-
-              {canShowDevVerificationCode && devCode ? (
-                <div className="mt-4 rounded-[10px] border border-[#d7e0e9] bg-[#fbfcfd] px-4 py-3 text-[13px] leading-5 text-[#64748b]">
-                  개발용 인증번호: <span className="font-bold text-[#17130f]">{devCode}</span>
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={requestCode}
-                disabled={loading}
-                className="mt-4 text-[13px] font-semibold text-[#247761] disabled:opacity-60"
-              >
-                인증번호 다시 받기
-              </button>
+          {step === "preparing" ? (
+            <section className="flex min-h-[292px] flex-col items-center justify-center text-center" aria-live="polite">
+              <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-[#dbe5f6] border-t-[#111a30]" aria-hidden="true" />
+              <h2 className="mt-7 text-[22px] font-extrabold tracking-[-0.04em] text-[#101a31]">본인인증을 준비 중입니다.</h2>
+              <p className="mt-3 break-keep text-[15px] leading-6 text-[#7184a6]">잠시만 기다리시면 KCP 본인인증 창이 열립니다.</p>
             </section>
           ) : null}
 
@@ -497,29 +335,18 @@ export default function ResetPasswordForm({
           ) : null}
         </div>
 
-        {notice ? (
-          <p className="mb-3 rounded-[10px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
+        {notice && step !== "preparing" ? (
+          <p className="mt-4 mb-3 rounded-[10px] border border-[#fecaca] bg-white px-4 py-3 text-[13px] leading-5 text-[#c7493f]">{notice}</p>
         ) : null}
 
         {step === "account" ? (
           <button
             type="button"
-            onClick={goToMethodStep}
+            onClick={() => void startIdentityVerification()}
             disabled={loading}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
+            className="mt-6 flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
           >
             다음
-          </button>
-        ) : null}
-
-        {step === "code" ? (
-          <button
-            type="button"
-            onClick={verifyCode}
-            disabled={loading || verificationCode.length !== 6}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
-          >
-            인증 확인
           </button>
         ) : null}
 

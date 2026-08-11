@@ -2,494 +2,132 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronRight, Smartphone, Sparkles } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { ChevronRight, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
 import { MobileBackButton } from "@/components/ui/mobile-back-button";
-import { ownerFindEmailSchema, type OwnerFindEmailInput } from "@/lib/auth/owner-find-email";
-import { env, getSupabaseRuntimeStage, hasPortoneBrowserEnv } from "@/lib/env";
-import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
+import { findEmailWithKcpIdentityVerification } from "@/lib/auth/find-email-identity";
 
-type ApiMessage = {
-  message?: string;
-  verificationRequestId?: string | null;
-  devVerificationCode?: string | null;
-  verificationToken?: string | null;
-  email?: string | null;
-};
-
-type FindEmailStep = "info" | "method" | "code" | "result";
-
-function FieldShell({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-[14px] font-semibold text-[#7184a6]">{label}</span>
-      {hint ? <span className="-mt-1 mb-2 block text-[12px] font-medium text-[#9aadd0]">{hint}</span> : null}
-      {children}
-    </label>
-  );
-}
-
-function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[16px] font-medium text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)] ${props.className ?? ""}`}
-    />
-  );
-}
-
-function normalizePhoneNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 11);
-}
+type FindEmailStep = "verify" | "result";
 
 export default function FindEmailForm() {
   const router = useRouter();
-  const isDevelopmentFlow = useMemo(() => getSupabaseRuntimeStage() !== "production", []);
-  const canShowDevVerificationCode = useMemo(() => getSupabaseRuntimeStage() === "development", []);
-  const portoneReady = useMemo(() => hasPortoneBrowserEnv(), []);
-  const useLocalVerificationFlow = isDevelopmentFlow && !portoneReady;
-
-  const [step, setStep] = useState<FindEmailStep>("info");
+  const [step, setStep] = useState<FindEmailStep>("verify");
   const [message, setMessage] = useState<string | null>(null);
   const [foundEmail, setFoundEmail] = useState<string | null>(null);
-  const [verificationRequestId, setVerificationRequestId] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const {
-    register,
-    getValues,
-    setValue,
-    trigger,
-    formState: { errors },
-  } = useForm<OwnerFindEmailInput>({
-    resolver: zodResolver(ownerFindEmailSchema),
-    defaultValues: {
-      name: "",
-      birthDate: "",
-      phoneNumber: "",
-      identityVerificationToken: "",
-    },
-  });
-
-  const pageTitle =
-    step === "method" ? "본인 확인" : step === "code" ? "인증번호 입력" : step === "result" ? "이메일 확인" : "이메일 찾기";
-
-  const firstError = errors.name?.message || errors.birthDate?.message || errors.phoneNumber?.message;
-  const notice = firstError ?? message;
 
   const goBack = () => {
     setMessage(null);
-    if (step === "info") {
-      router.replace("/login");
-      return;
-    }
     if (step === "result") {
-      setStep(useLocalVerificationFlow ? "code" : "method");
-      return;
-    }
-    if (step === "code") {
-      setStep("method");
-      return;
-    }
-    setStep("info");
-  };
-
-  const goToMethodStep = async () => {
-    const isValid = await trigger(["name", "birthDate", "phoneNumber"]);
-    if (!isValid) return;
-    setMessage(null);
-    setStep("method");
-  };
-
-  const lookupEmail = async (verificationToken: string) => {
-    const values = getValues();
-    setValue("identityVerificationToken", verificationToken, { shouldValidate: true });
-
-    const response = await fetch("/api/auth/find-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...values,
-        identityVerificationToken: verificationToken,
-      }),
-    });
-
-    const result = (await response.json()) as ApiMessage;
-    if (!response.ok || !result.email) {
-      setMessage(result.message ?? "입력한 정보와 일치하는 이메일을 찾지 못했어요.");
-      return;
-    }
-
-    setFoundEmail(result.email);
-    setMessage(null);
-    setStep("result");
-  };
-
-  const requestCode = async () => {
-    const isValid = await trigger(["name", "birthDate", "phoneNumber"]);
-    if (!isValid) return;
-
-    const values = getValues();
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
-          purpose: "find-email",
-          method: "local",
-        }),
-      });
-      const result = (await response.json()) as ApiMessage;
-
-      if (!response.ok || !result.verificationRequestId) {
-        setMessage(result.message ?? "인증번호를 보내지 못했어요. 다시 시도해 주세요.");
-        return;
-      }
-
-      setVerificationRequestId(result.verificationRequestId);
-      setDevCode(result.devVerificationCode ?? null);
-      setVerificationCode("");
       setFoundEmail(null);
-      setStep("code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyCode = async () => {
-    const values = getValues();
-    if (!verificationRequestId) {
-      setMessage("먼저 인증번호를 받아 주세요.");
+      setStep("verify");
       return;
     }
 
+    router.replace("/login");
+  };
+
+  const startIdentityVerification = async () => {
     setLoading(true);
     setMessage(null);
 
     try {
-      const response = await fetch("/api/auth/verify-identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
-          code: verificationCode,
-        purpose: "find-email",
-          verificationRequestId,
-        }),
-      });
-      const result = (await response.json()) as ApiMessage;
-
-      if (!response.ok || !result.verificationToken) {
-        setMessage(result.message ?? "인증번호를 다시 확인해 주세요.");
-        return;
-      }
-
-      await lookupEmail(result.verificationToken);
+      const email = await findEmailWithKcpIdentityVerification();
+      setFoundEmail(email);
+      setStep("result");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "본인인증을 진행하는 중 문제가 발생했어요. 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
   };
 
-  const verifyPass = async () => {
-    const isValid = await trigger(["name", "birthDate", "phoneNumber"]);
-    if (!isValid) return;
-
-    const values = getValues();
-    if (!portoneReady || !env.portoneStoreId || !env.portoneIdentityKcpChannelKey) {
-      setMessage("KCP 휴대폰 본인인증 채널이 아직 연결되지 않았어요.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const requestResponse = await fetch("/api/auth/request-verification-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name,
-          birthDate: values.birthDate,
-          phoneNumber: values.phoneNumber,
-        purpose: "find-email",
-          method: "portone",
-        }),
-      });
-      const requestResult = (await requestResponse.json()) as ApiMessage;
-
-      if (!requestResponse.ok || !requestResult.verificationRequestId) {
-        setMessage(requestResult.message ?? "본인 확인 요청을 준비하지 못했어요.");
-        return;
-      }
-
-      const identityVerificationId = `findemail${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-
-      const result = await requestPortoneIdentityVerification({
-        storeId: env.portoneStoreId,
-        channelKey: env.portoneIdentityKcpChannelKey,
-        identityVerificationId,
-        windowType: { pc: "POPUP", mobile: "POPUP" },
-        customer: {
-          fullName: values.name.trim(),
-          phoneNumber: normalizePhoneNumber(values.phoneNumber),
-          birthYear: values.birthDate.slice(0, 4),
-          birthMonth: values.birthDate.slice(4, 6),
-          birthDay: values.birthDate.slice(6, 8),
-        },
-      });
-
-      if (!result?.identityVerificationId) {
-        setMessage("휴대폰 본인인증이 완료되지 않았어요.");
-        return;
-      }
-
-      const response = await fetch("/api/auth/verify-pass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          purpose: "find-email",
-          verificationRequestId: requestResult.verificationRequestId,
-          identityVerificationId: result.identityVerificationId,
-        }),
-      });
-      const verifyResult = (await response.json()) as ApiMessage;
-
-      if (!response.ok || !verifyResult.verificationToken) {
-        setMessage(verifyResult.message ?? "휴대폰 본인인증 확인에 실패했어요.");
-        return;
-      }
-
-      await lookupEmail(verifyResult.verificationToken);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const pageTitle = step === "result" ? "이메일 확인" : "이메일 찾기";
 
   return (
     <main className="flex min-h-screen w-full items-center justify-center bg-[#f1f3f7] px-5 py-8 font-['Pretendard',-apple-system,BlinkMacSystemFont,sans-serif] text-[#111827] antialiased sm:px-6 sm:py-12">
       <div className="w-full max-w-[448px] rounded-[32px] bg-white px-8 pb-11 pt-9 shadow-[0_24px_64px_rgba(15,23,42,0.1)]">
-      <div className="relative flex h-10 items-center justify-center">
-        <MobileBackButton
-          onClick={goBack}
-          label={step === "info" ? "로그인으로 이동" : "이전 단계"}
-          className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
-        />
-        <h1 className="text-[24px] font-extrabold leading-6 tracking-[-0.04em] text-[#101a31]">{pageTitle}</h1>
-      </div>
-
-      <div className="flex flex-1 flex-col">
-        <div className="flex-1 pt-8">
-          {step === "info" ? (
-            <section>
-              <p className="mt-4 block w-full min-w-0 whitespace-nowrap text-[17px] font-semibold leading-7 text-[#111827]">
-                가입할 때 사용한 정보를 입력해 주세요.
-              </p>
-
-              <div className="mt-7 space-y-4">
-                <FieldShell label="이름">
-                  <TextInput type="text" {...register("name")} placeholder="이름 입력" autoComplete="name" />
-                </FieldShell>
-
-                <FieldShell label="생년월일" hint="8자리 숫자">
-                  <TextInput
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={8}
-                    {...register("birthDate")}
-                    placeholder="예: 19960624"
-                    autoComplete="bday"
-                  />
-                </FieldShell>
-
-                <FieldShell label="휴대폰번호">
-                  <TextInput
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={11}
-                    {...register("phoneNumber")}
-                    placeholder="숫자만 입력"
-                    autoComplete="tel"
-                  />
-                </FieldShell>
-              </div>
-            </section>
-          ) : null}
-
-          {step === "method" ? (
-            <section>
-              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                인증 방법을 선택해주세요
-              </h1>
-              <p className="mt-4 w-full max-w-none break-keep text-[14px] leading-6 text-[#667589]">
-                가입 정보와 인증 결과가 일치하면 이메일을 확인할 수 있어요.
-              </p>
-
-              <div className="mt-7 space-y-3">
-                <button
-                  type="button"
-                  onClick={useLocalVerificationFlow ? requestCode : verifyPass}
-                  disabled={loading}
-                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#d7e0e9] bg-white px-4 text-left transition hover:border-[#247761] hover:bg-[#f7fbf9] active:scale-[0.99] disabled:opacity-60"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#eef7f4] text-[#247761]">
-                    <Smartphone className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-medium text-[#111827]">
-                      {useLocalVerificationFlow ? "개발용 인증번호" : "휴대폰 본인인증"}
-                    </span>
-                    <span className="mt-0.5 block text-[12px] font-medium text-[#8090a4]">
-                      {useLocalVerificationFlow ? "가입 정보로 테스트 인증번호를 확인해요" : "KCP/PASS로 본인 여부를 확인해요"}
-                    </span>
-                  </span>
-                  <ChevronRight className="h-5 w-5 text-[#94a3b8]" />
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                  className="flex h-[58px] w-full items-center gap-3 rounded-[10px] border border-[#e3e9f0] bg-[#fbfcfd] px-4 text-left opacity-70"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#94a3b8]">
-                    <Sparkles className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-medium text-[#64748b]">간편인증</span>
-                    <span className="mt-0.5 block text-[12px] font-medium text-[#94a3b8]">카카오, 네이버, 토스 인증은 추후 제공 예정</span>
-                  </span>
-                  <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[11px] font-semibold text-[#7a8797]">준비중</span>
-                </button>
-              </div>
-            </section>
-          ) : null}
-
-          {step === "code" ? (
-            <section>
-              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                인증번호를 입력해주세요
-              </h1>
-              <p className="mt-4 text-[14px] leading-6 text-[#667589]">
-                인증번호는 5분간 유지됩니다.
-                <br />
-                인증번호 6자리 숫자를 입력해주세요.
-              </p>
-
-              <label className="mt-7 block">
-                <span className="mb-2 block text-[13px] font-semibold text-[#4d6077]">인증번호</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={verificationCode}
-                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="6자리 숫자"
-                  className="h-[58px] w-full rounded-[12px] border border-[#dbe5f6] bg-[#eaf1ff] px-4 text-[18px] font-semibold tracking-[0.08em] text-[#111827] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[16px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[#a3b4d0] focus:border-[#15213b] focus:bg-[#eef4ff] focus:shadow-[0_0_0_3px_rgba(21,33,59,0.08)]"
-                />
-              </label>
-
-              {canShowDevVerificationCode && devCode ? (
-                <div className="mt-4 rounded-[10px] border border-[#d7e0e9] bg-[#fbfcfd] px-4 py-3 text-[13px] leading-5 text-[#64748b]">
-                  개발용 인증번호: <span className="font-bold text-[#17130f]">{devCode}</span>
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={requestCode}
-                disabled={loading}
-                className="mt-4 text-[13px] font-semibold text-[#247761] disabled:opacity-60"
-              >
-                인증번호 다시 받기
-              </button>
-            </section>
-          ) : null}
-
-          {step === "result" ? (
-            <section>
-              <h1 className="mt-4 whitespace-nowrap text-[26px] font-semibold leading-[1.2] tracking-[-0.03em] text-[#111827]">
-                이메일을 확인했어요
-              </h1>
-              <p className="mt-4 text-[14px] leading-6 text-[#667589]">가입된 이메일은 아래와 같습니다.</p>
-
-              <div className="mt-7 rounded-[12px] border border-[#d7e0e9] bg-white px-4 py-4">
-                <p className="text-[13px] font-semibold text-[#4d6077]">이메일</p>
-                <p className="mt-2 break-all text-[24px] font-semibold tracking-[-0.03em] text-[#111827]">{foundEmail}</p>
-              </div>
-
-              {foundEmail ? (
-                <Link
-                  href={`/login/reset?email=${encodeURIComponent(foundEmail)}`}
-                  replace
-                  className="mt-4 flex h-[58px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f6] bg-white text-[15px] font-bold text-[#111a30] transition hover:bg-[#f1f5fb]"
-                >
-                  비밀번호 찾기로 이동
-                </Link>
-              ) : null}
-            </section>
-          ) : null}
+        <div className="relative flex h-10 items-center justify-center">
+          <MobileBackButton
+            onClick={goBack}
+            label={step === "verify" ? "로그인으로 이동" : "이메일 찾기로 돌아가기"}
+            className="absolute left-0 h-10 w-10 border-0 bg-transparent text-[#111827] shadow-none hover:bg-[#f8fafc]"
+          />
+          <h1 className="text-[24px] font-extrabold leading-6 tracking-[-0.04em] text-[#101a31]">{pageTitle}</h1>
         </div>
 
-        {notice && step !== "result" ? <p className="mb-3 text-[12px] leading-5 text-[#9f5b52]">{notice}</p> : null}
+        {step === "verify" ? (
+          <section className="pt-12">
+            <h2 className="text-[21px] font-bold leading-8 tracking-[-0.03em] text-[#111827]">
+              본인 명의로 인증해 주세요.
+            </h2>
+            <p className="mt-3 break-keep text-[15px] leading-6 text-[#7184a6]">
+              가입 시 등록된 이메일은 KCP 본인인증 결과를 기준으로 바로 확인할 수 있어요.
+            </p>
 
-        {step === "info" ? (
-          <button
-            type="button"
-            onClick={goToMethodStep}
-            disabled={loading}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
-          >
-            다음
-          </button>
-        ) : null}
+            <div className="mt-8 rounded-[16px] border border-[#dbe5f6] bg-[#f7faff] px-5 py-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#e7effe] text-[#111a30]">
+                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[15px] font-bold text-[#111827]">KCP 본인인증</p>
+                  <p className="mt-1 break-keep text-[13px] leading-5 text-[#7184a6]">
+                    인증 창에서 PASS 또는 휴대폰 인증을 완료해 주세요. 이름과 휴대폰번호는 따로 입력하지 않습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-        {step === "code" ? (
-          <button
-            type="button"
-            onClick={verifyCode}
-            disabled={loading || verificationCode.length !== 6}
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
-          >
-            인증 확인
-          </button>
-        ) : null}
+            {message ? <p className="mt-4 text-[13px] leading-5 text-[#9f5b52]">{message}</p> : null}
 
-        {step === "result" ? (
-          <Link
-            href="/login"
-            replace
-            className="flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px"
-          >
-            로그인으로 이동
+            <button
+              type="button"
+              onClick={startIdentityVerification}
+              disabled={loading}
+              className="mt-7 flex h-[62px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px disabled:opacity-60"
+            >
+              {loading ? "인증 확인 중..." : "KCP 본인인증 시작하기"}
+              <ChevronRight className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </section>
+        ) : (
+          <section className="pt-12">
+            <h2 className="text-[21px] font-bold leading-8 tracking-[-0.03em] text-[#111827]">이메일을 확인했어요.</h2>
+            <p className="mt-3 text-[15px] leading-6 text-[#7184a6]">본인인증 정보와 연결된 로그인 이메일입니다.</p>
+
+            <div className="mt-8 rounded-[16px] border border-[#dbe5f6] bg-[#f7faff] px-5 py-5">
+              <p className="text-[13px] font-semibold text-[#7184a6]">로그인 이메일</p>
+              <p className="mt-2 break-all text-[21px] font-bold tracking-[-0.03em] text-[#111827]">{foundEmail}</p>
+            </div>
+
+            {foundEmail ? (
+              <Link
+                href={`/login/reset?email=${encodeURIComponent(foundEmail)}`}
+                replace
+                className="mt-4 flex h-[58px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f6] bg-white text-[15px] font-bold text-[#111a30] transition hover:bg-[#f1f5fb]"
+              >
+                비밀번호 찾기로 이동
+              </Link>
+            ) : null}
+
+            <Link
+              href="/login"
+              replace
+              className="mt-4 flex h-[62px] w-full items-center justify-center rounded-[14px] bg-[#111a30] text-[17px] font-bold text-white transition-[background-color,transform] hover:bg-[#17233d] active:translate-y-px"
+            >
+              로그인으로 이동
+            </Link>
+          </section>
+        )}
+
+        <div className="mt-8 text-center text-[14px] text-[#7184a6]">
+          비밀번호를 찾으려면{" "}
+          <Link href="/login/reset" replace className="font-semibold text-[#111827] underline underline-offset-4">
+            여기로 이동해 주세요
           </Link>
-        ) : null}
-      </div>
-
-      <div className="mt-7 text-center text-[14px] text-[#64748b]">
-        비밀번호를 찾으려면{" "}
-        <Link href="/login/reset" replace className="font-semibold text-[#111827] underline underline-offset-4">
-          여기로 이동해 주세요
-        </Link>
-      </div>
+        </div>
       </div>
     </main>
   );

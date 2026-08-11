@@ -11,7 +11,7 @@ import {
   parseStoredOwnerWebStaff,
   type OwnerWebStaffMember,
 } from "@/components/owner-web/owner-web-staff-data";
-import { fetchApiJsonWithAuth } from "@/lib/api";
+import { fetchApiJson, fetchApiJsonWithAuth } from "@/lib/api";
 import { clearOwnerAuthTokenCache } from "@/lib/auth/owner-auth-handoff";
 import { getOwnerPlanDisplayName } from "@/lib/billing/owner-plans";
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
@@ -66,7 +66,7 @@ const StaffManagementScreen = dynamic(
 );
 
 function isDemoOwnerWebData(data: BootstrapPayload) {
-  return data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
+  return data.mode !== "supabase" || data.shop.id === "demo-shop" || data.shop.id === "owner-demo";
 }
 
 function buildShopInitials(shopName: string) {
@@ -85,7 +85,7 @@ function settingsTabForScreen(screen: OwnerWebScreenKey): SettingsTabKey | null 
 
 function shouldStartWithPriceGuideSetup(data: BootstrapPayload) {
   if (isDemoOwnerWebData(data)) return false;
-  const priceGuideOptions = buildCustomerServiceSourceOptions(data.services, { priceGuideOnly: true });
+  const priceGuideOptions = buildCustomerServiceSourceOptions(data.services);
   if (priceGuideOptions.length === 0) return true;
 
   const hasOperationalData =
@@ -278,6 +278,16 @@ export default function OwnerWebPreview({
       setLiveStaffMembers(initialData.staffMembers ?? []);
     }
   }, [initialData]);
+
+  useEffect(() => {
+    const warmProfitability = () => {
+      void import("@/components/owner-web/profitability-analytics-screen");
+      const request = demoMode ? fetchApiJson : fetchApiJsonWithAuth;
+      void request(`/api/owner/profitability?shopId=${encodeURIComponent(initialData.shop.id)}&range=90d`).catch(() => undefined);
+    };
+    const timer = window.setTimeout(warmProfitability, 1_200);
+    return () => window.clearTimeout(timer);
+  }, [demoMode, initialData.shop.id]);
 
   useEffect(() => {
     if (!demoMode) return;

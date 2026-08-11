@@ -70,8 +70,8 @@ export function ServicePriceGuideSectionCard({
     : "pointer-events-none invisible opacity-0";
 
   return (
-    <section className="relative left-1/2 w-[calc(100%+32px)] max-w-[900px] min-w-0 -translate-x-1/2 rounded-[16px] border border-[#e2e7ed] bg-white px-[26px] pb-[26px] pt-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-      <div className="mb-[18px] flex min-w-0 items-center justify-between">
+    <section className="w-full min-w-0 rounded-[20px] border border-[#e2e7ed] bg-white px-[30px] pb-[30px] pt-7 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+      <div className="mb-5 flex min-w-0 items-center justify-between">
         <div className="flex min-w-0 items-center gap-[10px]">
           {isEditing ? (
             <label className="flex h-9 min-w-0 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[#e2e7ed] bg-[#f6f7f9] px-[14px] text-[15px] font-extrabold tracking-[-0.84px] text-[#0f172a] transition focus-within:border-[#cbd5e1]">
@@ -96,11 +96,11 @@ export function ServicePriceGuideSectionCard({
               />
             </label>
           ) : (
-            <h3 className="truncate text-[16px] font-extrabold tracking-[-0.02em] text-[#0f172a]">
+            <h3 className="truncate text-[17px] font-extrabold tracking-[-0.02em] text-[#0f172a]">
               {formatGroupDisplayName(section.title)}
             </h3>
           )}
-          <span className="shrink-0 whitespace-nowrap text-[12.5px] font-medium tracking-[-0.7px] text-[#94a3b8]">
+          <span className="shrink-0 whitespace-nowrap text-[13px] font-medium tracking-[-0.7px] text-[#94a3b8]">
             {breedLabels.length}종 등록됨
           </span>
         </div>
@@ -161,12 +161,12 @@ export function ServicePriceGuideSectionCard({
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[11px] bg-[#f6f7f9] p-4">
+      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[13px] bg-[#f6f7f9] p-5">
         {breedLabels.length > 0 ? (
           breedLabels.map((breed, index) => (
             <span
               key={`${breed}-${index}`}
-              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-[11px] py-[5px] text-[12px] font-semibold leading-[14px] text-[#334155]"
+              className="whitespace-nowrap rounded-full border border-[#e2e7ed] bg-white px-3 py-1.5 text-[13px] font-semibold leading-[15px] text-[#334155]"
             >
               {breed}
             </span>
@@ -189,11 +189,11 @@ export function ServicePriceGuideSectionCard({
         ) : null}
       </div>
 
-      <div className="w-full max-w-full overflow-x-auto rounded-[11px] border border-[#e2e7ed]">
-        <table className="w-full border-collapse text-[13.5px] leading-[17px] text-[#1e293b]">
+      <div className="w-full max-w-full overflow-x-auto rounded-[13px] border border-[#e2e7ed]">
+        <table className="w-full border-collapse text-[14px] leading-[18px] text-[#1e293b]">
           <colgroup>
-            <col className="w-24" />
-            <col className="w-24" />
+            <col className="w-28" />
+            <col className="w-28" />
             {section.items.map((item) => (
               <col key={item.id} />
             ))}
@@ -201,17 +201,17 @@ export function ServicePriceGuideSectionCard({
           </colgroup>
           <thead>
             <tr>
-              <th className="w-24 min-w-24 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px] text-left text-[12px] font-bold leading-4 text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
                 그룹
               </th>
-              <th className="w-24 min-w-24 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px] text-left text-[12px] font-bold leading-4 text-[#334155]">
+              <th className="w-28 min-w-28 whitespace-nowrap border-b border-r border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]">
                 무게
               </th>
               {section.items.map((item, itemIndex) => (
                 <th
                   key={item.id}
                   className={cn(
-                    "whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-[14px] py-[11px] text-left text-[12px] font-bold leading-4 text-[#334155]",
+                    "whitespace-nowrap border-b border-[#e2e7ed] bg-[#f6f7f9] px-4 py-[13px] text-left text-[13px] font-bold leading-[18px] text-[#334155]",
                     (isEditing || itemIndex < section.items.length - 1) && "border-r",
                   )}
                 >
@@ -262,14 +262,14 @@ export function ServicePriceGuideSectionCard({
                   {bandIndex === 0 ? (
                     <td
                       rowSpan={section.weightBands.length}
-                      className="min-w-24 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-[14px] py-3 align-middle text-left font-extrabold tracking-[-0.84px] text-[#0f172a]"
+                      className="min-w-28 whitespace-nowrap border-b border-r border-[#edf1f5] bg-[#f6f7f9] px-4 py-[14px] align-middle text-left font-extrabold tracking-[-0.84px] text-[#0f172a]"
                     >
                       {formatGroupDisplayName(section.title)}
                     </td>
                   ) : null}
                   <td
                     className={cn(
-                      "min-w-24 border-r border-[#edf1f5] bg-[#fbfcfd] px-[14px] py-3",
+                      "min-w-28 border-r border-[#edf1f5] bg-[#fbfcfd] px-4 py-[14px]",
                       !isLastBand && "border-b border-[#edf1f5]",
                     )}
                   >
@@ -320,7 +320,7 @@ export function ServicePriceGuideSectionCard({
                       <td
                         key={item.id}
                         className={cn(
-                          "px-[14px] py-3",
+                          "px-4 py-[14px]",
                           !isLastBand && "border-b border-[#edf1f5]",
                           (isEditing || itemIndex < section.items.length - 1) &&
                             "border-r border-[#edf1f5]",

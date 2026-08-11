@@ -594,7 +594,6 @@ export async function createCustomerBooking(
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
   const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
     buildCustomerServiceSourceOptions(bootstrap.services, {
-      priceGuideOnly: true,
       priceGuideGroupKey: pricingGroup?.key,
       weightKg: payload.weightKg,
     }),

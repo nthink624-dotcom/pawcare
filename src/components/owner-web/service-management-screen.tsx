@@ -855,7 +855,7 @@ export default function ServiceManagementScreen({
   }, [demoMode, embedded, onServicesChange, previewServices, storageReady]);
 
   const rawCustomerServiceConnectionOptions = useMemo(
-    () => buildCustomerServiceSourceOptions(previewServices, { priceGuideOnly: true }),
+    () => buildCustomerServiceSourceOptions(previewServices),
     [previewServices],
   );
   const customerServiceConnectionOptions = useMemo(

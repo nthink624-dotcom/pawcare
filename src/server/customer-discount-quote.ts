@@ -58,7 +58,6 @@ export async function quoteCustomerDiscount(input: unknown): Promise<CustomerDis
   const pricingGroup = findCustomerBreedPricingGroup(bootstrap.services, payload.breed);
   const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
     buildCustomerServiceSourceOptions(bootstrap.services, {
-      priceGuideOnly: true,
       priceGuideGroupKey: pricingGroup?.key,
       weightKg: payload.weightKg,
     }),

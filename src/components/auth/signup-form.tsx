@@ -20,6 +20,7 @@ import {
 import { env } from "@/lib/env";
 import { requestPortoneIdentityVerification } from "@/lib/portone/identity-verification-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { clearOwnerAuthTokenCache, writeOwnerAuthHandoff, writeOwnerAuthSessionCache } from "@/lib/auth/owner-auth-handoff";
 
 type AgreementState = Record<OwnerSignupTermId, boolean>;
 
@@ -223,7 +224,7 @@ export default function SignupForm({
       return;
     }
     setMessage(null);
-    setStage("verification");
+    void startKcpVerification();
   };
 
   const startKcpVerification = async () => {
@@ -284,7 +285,7 @@ export default function SignupForm({
             ? verifyResult.identity.phoneNumber
             : previous.shopPhone,
       }));
-      setStage("verified");
+      setStage("shop");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "본인인증 연결 중 문제가 발생했습니다.");
     } finally {
@@ -342,16 +343,29 @@ export default function SignupForm({
       });
       const result = (await response.json().catch(() => ({}))) as {
         success?: boolean;
-        requiresEmailConfirmation?: boolean;
         message?: string;
+        session?: {
+          accessToken?: string;
+          refreshToken?: string;
+        } | null;
       };
       if (!response.ok || !result.success) {
         setMessage(result.message ?? "회원가입 처리 중 문제가 발생했습니다.");
         return;
       }
 
-      const messageKey = result.requiresEmailConfirmation ? "email-confirmation-sent" : "signup-success";
-      router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=${messageKey}` as never);
+      const accessToken = result.session?.accessToken;
+      const refreshToken = result.session?.refreshToken;
+      if (accessToken && refreshToken) {
+        const session = { accessToken, refreshToken };
+        clearOwnerAuthTokenCache();
+        writeOwnerAuthHandoff(session);
+        writeOwnerAuthSessionCache(session);
+        await supabase?.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        router.replace(nextPath as never);
+      } else {
+        router.replace(`/login?next=${encodeURIComponent(nextPath)}&message=signup-success` as never);
+      }
       router.refresh();
     } catch {
       setMessage("회원가입 요청 중 문제가 발생했습니다. 다시 시도해 주세요.");
@@ -388,12 +402,8 @@ export default function SignupForm({
             router.replace(`/login?next=${encodeURIComponent(nextPath)}` as never);
           } else if (stage === "account") {
             setStage("terms");
-          } else if (stage === "verification") {
-            setStage("account");
-          } else if (stage === "verified") {
-            setStage("verification");
           } else {
-            setStage("verified");
+            setStage("account");
           }
         }}
         onChangeField={updateField}
@@ -405,11 +415,6 @@ export default function SignupForm({
         }}
         onContinueTerms={continueTerms}
         onNextAccount={continueAccount}
-        onStartVerification={() => void startKcpVerification()}
-        onContinueToShop={() => {
-          setMessage(null);
-          setStage("shop");
-        }}
         onOpenAddress={() => setAddressSheetOpen(true)}
         onSubmit={() => void submitSignup()}
       />

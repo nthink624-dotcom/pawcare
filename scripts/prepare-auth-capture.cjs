@@ -32,6 +32,10 @@ async function main() {
   const supabaseUrl = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
+  if ((env.SUPABASE_ENV_NAME || env.NEXT_PUBLIC_SUPABASE_ENV_NAME) !== "test") {
+    throw new Error("Capture seed data requires a dedicated SUPABASE_ENV_NAME=test project.");
+  }
+
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Supabase service role environment is not configured.");
   }

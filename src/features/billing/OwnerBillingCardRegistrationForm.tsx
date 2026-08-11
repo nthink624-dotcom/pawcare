@@ -107,7 +107,8 @@ export function OwnerBillingCardRegistrationForm({
   }
 
   return (
-    <main className="owner-font mx-auto min-h-screen w-full max-w-[430px] bg-[#f8f6f2] px-5 pb-10 pt-6 text-[#111111]">
+    <main className="owner-font pm-owner-web min-h-screen w-full bg-[var(--bg)] px-4 py-6 text-[var(--ink)] sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto w-full max-w-[720px]">
       <button
         type="button"
         onClick={onBack}
@@ -118,7 +119,7 @@ export function OwnerBillingCardRegistrationForm({
         이전 단계
       </button>
 
-      <section className="mt-3 border border-[#dfd8cc] bg-[#fffdf8] px-5 py-6">
+      <section className="mt-3 rounded-[14px] border border-[var(--bd)] bg-white px-5 py-6 sm:px-6">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#edf6f2] text-[#1f6b5b]">
             <CreditCard className="h-5 w-5" aria-hidden="true" />
@@ -229,11 +230,12 @@ export function OwnerBillingCardRegistrationForm({
             </p>
           ) : null}
 
-          <AppButton fullWidth type="submit" disabled={loading} className="h-[54px] rounded-[8px] bg-[#1f6b5b] text-[15px] font-semibold text-white">
+          <AppButton fullWidth type="submit" disabled={loading} className="h-[48px] rounded-[9px] bg-[#1677ff] text-[15px] font-semibold text-white hover:bg-[#0e65d8]">
             {loading ? "카드 등록 중..." : "카드 등록 후 결제하기"}
           </AppButton>
         </form>
       </section>
+      </div>
     </main>
   );
 }

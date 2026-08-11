@@ -34,7 +34,7 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/api/auth/login/route.ts",
-  "signInWithPassword({ email, password: body.password })",
+  "signInWithPassword({ email, password })",
   "Owner password login must verify the email and password directly with Supabase Auth.",
 );
 assertNotIncludes(
@@ -131,22 +131,37 @@ assertIncludes(
 );
 assertIncludes(
   "src/app/api/auth/signup/route.ts",
-  "email_confirm: false",
-  "Owner signup must leave the Supabase Auth email unconfirmed until the owner opens the confirmation link.",
+  "email_confirm: true",
+  "Owner signup must allow an identity-verified owner to log in without an email confirmation step.",
+);
+assertNotIncludes(
+  "src/app/api/auth/signup/route.ts",
+  "sendOwnerEmailConfirmation",
+  "Owner signup must not send an email confirmation as a login gate.",
 );
 assertIncludes(
   "src/app/api/auth/signup/route.ts",
-  "sendOwnerEmailConfirmation(supabase, email)",
-  "Owner signup must send an email confirmation after creating the pending account.",
+  "signInWithPassword({ email, password: payload.password })",
+  "Owner signup must create a session immediately after the identity-verified account is created.",
 );
-assertFile(
-  "src/app/api/auth/resend-email-confirmation/route.ts",
-  "Owner signup must provide a safe email confirmation resend endpoint.",
-);
-assertIncludes(
+assertNotIncludes(
   "src/app/api/auth/login/route.ts",
   "email_confirmed_at",
-  "Owner login must reject accounts whose email confirmation is still incomplete.",
+  "Owner login must not block an identity-verified account on email confirmation.",
+);
+assertFile(
+  "src/app/api/owner/account/email/route.ts",
+  "Owner settings must provide a protected login-email change endpoint.",
+);
+assertIncludes(
+  "src/app/api/owner/account/email/route.ts",
+  "currentPassword",
+  "Login email changes must verify the current password.",
+);
+assertIncludes(
+  "src/components/owner-web/owner-profile-settings-panel.tsx",
+  "로그인 이메일 변경",
+  "Owner profile settings must let the owner correct the login email.",
 );
 assertIncludes(
   "backend/src/server.ts",

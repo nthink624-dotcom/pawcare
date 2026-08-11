@@ -5,6 +5,7 @@ import {
   compressImageBundleForPetmanager,
   compressImageForPetmanager,
   compressImageVariantsForPetmanager,
+  type PetmanagerImageCompressionOptions,
   type PetmanagerCompressedImage,
   type PetmanagerCompressedImageVariant,
 } from "@/lib/media/client-image-compression";
@@ -95,6 +96,7 @@ export type OwnerMediaUploadMetrics = {
 type OwnerMediaUploadOptions = {
   createProviderReadyVariant?: boolean;
   providerReadyMode?: "wait" | "background" | "skip";
+  compressionOptions?: PetmanagerImageCompressionOptions;
 };
 
 const SIGNED_URL_CACHE_TTL_MS = 8 * 60 * 1000;
@@ -303,7 +305,7 @@ export async function createOwnerMediaAssetFromFile(
     : options.providerReadyMode ?? "wait";
   const bundle = providerReadyMode === "wait"
     ? await compressImageBundleForPetmanager(file, ["provider_ready"])
-    : { original: await compressImageForPetmanager(file), variants: [] };
+    : { original: await compressImageForPetmanager(file, options.compressionOptions), variants: [] };
   const compressed = bundle.original;
   const providerReadyVariant = bundle.variants[0] ?? null;
   const compressionCompletedAt = performance.now();
@@ -378,6 +380,12 @@ export async function createOwnerShopProfileMediaAssetFromFile(
 ) {
   return createOwnerMediaAssetFromFile(context, "shop_profile", file, {
     createProviderReadyVariant: false,
+    compressionOptions: {
+      maxLongEdge: 1280,
+      quality: 0.64,
+      targetBytes: 180 * 1024,
+      maxBytes: 700 * 1024,
+    },
   });
 }
 

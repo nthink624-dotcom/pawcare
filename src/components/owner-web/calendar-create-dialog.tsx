@@ -1,16 +1,15 @@
 ﻿"use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ScheduleDropdown, type ScheduleDropdownOption } from "@/components/owner-web/calendar-schedule-dropdown";
-import type { OwnerWebStaffColumn, OwnerWebStaffMember } from "@/components/owner-web/owner-web-staff-data";
+import type { OwnerWebStaffColumn } from "@/components/owner-web/owner-web-staff-data";
 import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
 import type { BootstrapPayload } from "@/types/domain";
 
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
-type StaffAssignments = Record<string, StaffKey>;
 type ScheduleCreateFormState = {
   customerMode: "new" | "existing";
   petId: string;
@@ -23,8 +22,6 @@ type ScheduleCreateFormState = {
   time: string;
   memo: string;
 };
-type DailyBooking = { id: string };
-
 function addScheduleDays(date: string, days: number) {
   return addDate(date, days);
 }
@@ -54,12 +51,8 @@ function formatSchedulePhone(value: string) {
 }
 export function ScheduleCreateDialog({
   data,
-  bookings,
   form,
-  selectedDate,
   visibleStaff,
-  staffMembers,
-  staffAssignments,
   getAvailableSlots,
   saving,
   error,
@@ -68,12 +61,8 @@ export function ScheduleCreateDialog({
   onSubmit,
 }: {
   data: BootstrapPayload;
-  bookings: DailyBooking[];
   form: ScheduleCreateFormState;
-  selectedDate: string;
   visibleStaff: OwnerWebStaffColumn[];
-  staffMembers: OwnerWebStaffMember[];
-  staffAssignments: StaffAssignments;
   getAvailableSlots: (params: { date: string; serviceId: string; duration: number; staffKey: StaffKey }) => string[];
   saving: boolean;
   error: string;
@@ -81,25 +70,30 @@ export function ScheduleCreateDialog({
   onClose: () => void;
   onSubmit: () => void;
 }) {
-  const petRows = useMemo(
-    () =>
-      data.pets.map((pet) => ({
-        pet,
-        guardian: data.guardians.find((guardian) => guardian.id === pet.guardian_id),
-      })),
-    [data.guardians, data.pets],
-  );
+  const existingCustomerMode = form.customerMode === "existing";
   const customerRows = useMemo(() => {
-    const guardianIds = new Set(data.guardians.map((guardian) => guardian.id));
-    return [
-      ...data.guardians.map((guardian) => ({
+    if (!existingCustomerMode) return [];
+
+    const petsByGuardianId = new Map<string, typeof data.pets>();
+    for (const pet of data.pets) {
+      const guardianPets = petsByGuardianId.get(pet.guardian_id);
+      if (guardianPets) guardianPets.push(pet);
+      else petsByGuardianId.set(pet.guardian_id, [pet]);
+    }
+
+    const guardianIds = new Set<string>();
+    const registeredCustomers = data.guardians.map((guardian) => {
+      guardianIds.add(guardian.id);
+      return {
         value: guardian.id,
         guardianName: guardian.name,
         phone: guardian.phone,
-        pets: data.pets
-          .filter((pet) => pet.guardian_id === guardian.id)
-          .sort((a, b) => a.name.localeCompare(b.name, "ko")),
-      })),
+        pets: [...(petsByGuardianId.get(guardian.id) ?? [])].sort((a, b) => a.name.localeCompare(b.name, "ko")),
+      };
+    });
+
+    return [
+      ...registeredCustomers,
       ...data.pets
         .filter((pet) => !guardianIds.has(pet.guardian_id))
         .map((pet) => ({
@@ -111,7 +105,7 @@ export function ScheduleCreateDialog({
     ]
       .filter((row) => row.pets.length > 0)
       .sort((a, b) => a.guardianName.localeCompare(b.guardianName, "ko"));
-  }, [data.guardians, data.pets]);
+  }, [data.guardians, data.pets, existingCustomerMode]);
   const activeServices = useMemo(() => data.services.filter((service) => service.is_active), [data.services]);
   const customerModeOptions: ScheduleDropdownOption[] = [
     { value: "new", label: "신규 고객 입력", meta: "고객명, 연락처, 반려동물명을 직접 입력" },
@@ -140,7 +134,10 @@ export function ScheduleCreateDialog({
       }),
     [customerRows],
   );
-  const selectedPet = useMemo(() => data.pets.find((pet) => pet.id === form.petId), [data.pets, form.petId]);
+  const selectedPet = useMemo(
+    () => (existingCustomerMode ? data.pets.find((pet) => pet.id === form.petId) : null),
+    [data.pets, existingCustomerMode, form.petId],
+  );
   const selectedCustomerRow = useMemo(
     () => (selectedPet ? customerRows.find((row) => row.pets.some((pet) => pet.id === selectedPet.id)) : null),
     [customerRows, selectedPet],
@@ -164,9 +161,21 @@ export function ScheduleCreateDialog({
   );
   const selectedService = useMemo(() => data.services.find((service) => service.id === form.serviceId), [data.services, form.serviceId]);
   const duration = selectedService ? selectedService.duration_minutes / 60 : 1;
+  const availabilityKey = `${form.date}|${form.serviceId}|${form.staffKey}`;
+  const [computedAvailabilityKey, setComputedAvailabilityKey] = useState("");
+  const availabilityReady = computedAvailabilityKey === availabilityKey;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setComputedAvailabilityKey(availabilityKey), 0);
+    return () => window.clearTimeout(timer);
+  }, [availabilityKey]);
+
   const availableSlots = useMemo(
-    () => (selectedService ? getAvailableSlots({ date: form.date, serviceId: selectedService.id, duration, staffKey: form.staffKey }) : []),
-    [duration, form.date, form.staffKey, getAvailableSlots, selectedService],
+    () =>
+      availabilityReady && selectedService
+        ? getAvailableSlots({ date: form.date, serviceId: selectedService.id, duration, staffKey: form.staffKey })
+        : [],
+    [availabilityReady, duration, form.date, form.staffKey, getAvailableSlots, selectedService],
   );
   const isSelectedTimeAvailable = !form.time || availableSlots.includes(form.time);
   const normalizedCustomerPhone = normalizeSchedulePhone(form.customerPhone);
@@ -175,13 +184,15 @@ export function ScheduleCreateDialog({
     form.customerMode === "existing"
       ? Boolean(form.petId)
       : Boolean(form.customerName.trim() && form.petName.trim() && normalizedCustomerPhone.length >= 10);
-  const canSubmit = Boolean(hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && isSelectedTimeAvailable && !saving);
+  const canSubmit = Boolean(
+    availabilityReady && hasCustomerInfo && form.serviceId && form.staffKey && form.date && form.time && isSelectedTimeAvailable && !saving,
+  );
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!form.time || !selectedService || availableSlots.includes(form.time)) return;
+    if (!availabilityReady || !form.time || !selectedService || availableSlots.includes(form.time)) return;
     onChange({ ...form, time: "" });
-  }, [availableSlots, form, onChange, selectedService]);
+  }, [availabilityReady, availableSlots, form, onChange, selectedService]);
 
   function updateDate(nextDate: string) {
     onChange({ ...form, date: nextDate, time: "" });
@@ -201,7 +212,7 @@ export function ScheduleCreateDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={onClose}>
+    <div data-schedule-create-dialog="true" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4" onClick={onClose}>
       <div
         className="w-full max-w-[560px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.2)]"
         onClick={(event) => event.stopPropagation()}
@@ -353,69 +364,14 @@ export function ScheduleCreateDialog({
           </div>
         </div>
 
-        <div className="hidden">
-          <label className="space-y-1.5">
-            <span className="text-[12px] text-[#64748b]">고객 / 반려동물</span>
-            <select
-              value={form.petId}
-              onChange={(event) => onChange({ ...form, petId: event.target.value })}
-              className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none focus:border-[#1f6b5b]"
-            >
-              {petRows.map(({ pet, guardian }) => (
-                <option key={pet.id} value={pet.id}>
-                  {pet.name} · {guardian?.name ?? "보호자 미등록"}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-[12px] text-[#64748b]">서비스</span>
-            <select
-              value={form.serviceId}
-              onChange={(event) => onChange({ ...form, serviceId: event.target.value, time: "" })}
-              className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none focus:border-[#1f6b5b]"
-            >
-              {activeServices.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name} · {service.duration_minutes}분
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-[12px] text-[#64748b]">담당자</span>
-            <select
-              value={form.staffKey}
-              onChange={(event) => onChange({ ...form, staffKey: event.target.value as StaffKey, time: "" })}
-              className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none focus:border-[#1f6b5b]"
-            >
-              {visibleStaff.map((staffMember) => (
-                <option key={staffMember.key} value={staffMember.key}>
-                  {staffMember.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-[12px] text-[#64748b]">날짜</span>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(event) => onChange({ ...form, date: event.target.value, time: "" })}
-              className="h-11 w-full rounded-[8px] border border-[#dbe2ea] bg-white px-3 text-[14px] outline-none focus:border-[#1f6b5b]"
-            />
-          </label>
-        </div>
-
         <div className="mt-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[14px] text-[#64748b]">가능 시간</p>
           </div>
           <div className="mt-1.5 max-h-[128px] overflow-y-auto rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] p-2">
-            {availableSlots.length > 0 ? (
+            {!availabilityReady ? (
+              <p className="py-8 text-center text-[13px] text-[#64748b]">가능한 시간을 준비 중입니다.</p>
+            ) : availableSlots.length > 0 ? (
               <div className="grid grid-cols-4 gap-1.5">
                 {availableSlots.map((slot) => (
                   <button

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import CustomerBookingEntryPage from "@/components/customer/customer-booking-entry-page";
+import { isDevelopmentDemoShopId } from "@/lib/development-demo";
 import { getBootstrap } from "@/server/bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,17 @@ export default async function EntryPage({
     serviceId?: string;
     serviceOptionId?: string;
     step?: string;
+    experience?: string;
   }>;
 }) {
   const { shopId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedMode = resolvedSearchParams?.mode;
   const encodedShopId = encodeURIComponent(shopId);
+  const bookingHref =
+    isDevelopmentDemoShopId(shopId) && resolvedSearchParams?.experience === "first"
+      ? `/book/${encodedShopId}?experience=first`
+      : undefined;
 
   if (requestedMode === "manage") {
     const manageUrl = new URL(`/book/${encodedShopId}/manage`, "http://localhost");
@@ -46,6 +52,7 @@ export default async function EntryPage({
       staffMembers={data.staffMembers}
       ownerProfile={data.ownerProfile}
       infoHref={`/book/${encodedShopId}/info`}
+      bookingHref={bookingHref}
     />
   );
 }

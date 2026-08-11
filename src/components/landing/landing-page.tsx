@@ -8,7 +8,6 @@ import PetManagerBrand from "@/components/brand/petmanager-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import {
   AutomationSection,
-  CustomerDataSection,
   HeroSection,
   PainSection,
   ScheduleProofSection,
@@ -22,7 +21,7 @@ import {
 import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 const navigationItems = [
-  { id: "customer-data", label: "자동 고객관리" },
+  { id: "booking-system", label: "예약 시스템" },
   { id: "screens", label: "실제 화면" },
   { id: "savings", label: "시간 가치" },
   { id: "pricing", label: "요금제" },
@@ -56,11 +55,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="landing-theme owner-font min-h-screen overflow-x-hidden bg-white text-[#111827]">
+    <main className="landing-theme owner-font min-h-screen overflow-x-clip bg-white text-[#111827]">
       <LandingHeader onNavigate={scrollToSection} />
-      <HeroSection onViewProduct={() => scrollToSection("customer-data")} />
+      <HeroSection onViewProduct={() => scrollToSection("booking-system")} />
       <PainSection />
-      <CustomerDataSection />
       <ScheduleProofSection />
       <AutomationSection />
       <SavingsSection />

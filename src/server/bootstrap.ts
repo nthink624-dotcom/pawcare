@@ -2,7 +2,6 @@ import { normalizeShopBookingSettings } from "@/lib/booking-slot-settings";
 import { normalizeBusinessHours } from "@/lib/business-hours";
 import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { defaultOwnerStaffDays } from "@/lib/owner-default-setup";
-import { buildOwnerDemoBootstrap } from "@/lib/owner-demo-data";
 import {
   normalizeBootstrapNotifications,
   normalizeGuardianNotificationSettings,
@@ -46,12 +45,6 @@ type BootstrapOptions = {
 };
 
 function buildMockBootstrap(shopId?: string): BootstrapPayload {
-  if (shopId === "owner-demo") {
-    const store = buildOwnerDemoBootstrap();
-    store.appointments = store.appointments.map(normalizeAppointmentForBootstrap);
-    return store;
-  }
-
   const store = normalizeBootstrapNotifications(getMockStore());
   store.shop = {
     ...normalizeShopBookingSettings(store.shop),
@@ -339,7 +332,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
   const groomingRecordLimit = options.groomingRecordLimit;
   const notificationLimit = options.notificationLimit;
 
-  if (shopId === "demo-shop" || shopId === "owner-demo") {
+  if (shopId === "demo-shop") {
     return buildMockBootstrap(shopId);
   }
 
@@ -415,7 +408,7 @@ export async function getBootstrap(shopId = "demo-shop", options: BootstrapOptio
 
   const [shopRes, guardiansRes, petsRes, servicesRes, staffMembersRes, staffScheduleOverridesRes, appointmentsRes, appointmentChangeEventsRes, recordsRes, notificationsRes, interestsRes, feedbackRes, alimtalkCreditSummaryRes, petStaffNotesRes, ownerProfileRes] =
     await Promise.all([
-      supabase.from("shops").select("*").eq("id", shopId).single(),
+      supabase.from("shops").select("*").eq("id", shopId).is("deleted_at", null).single(),
       supabase.from("guardians").select("*").eq("shop_id", shopId).order("created_at"),
       supabase.from("pets").select("*").eq("shop_id", shopId).order("created_at"),
       supabase.from("services").select("*").eq("shop_id", shopId).order("created_at"),

@@ -38,6 +38,12 @@ type BookingProfilePet = Pick<AdditionalPetDraft, "id" | "name" | "breed"> & {
   weight: number | null;
 };
 
+type InitialBookingProfile = {
+  ownerName: string;
+  phone: string;
+  pets: BookingProfilePet[];
+};
+
 type FirstVisitState = {
   ownerName: string;
   phone: string;
@@ -386,6 +392,8 @@ export default function CustomerBookingPage({
   initialFirstVisitStep = 1,
   lockFirstVisitStep = false,
   entryHref,
+  initialBookingProfile,
+  disableStoredProfile = false,
 }: {
   shopId: string;
   initialShop: Shop;
@@ -402,6 +410,8 @@ export default function CustomerBookingPage({
   initialFirstVisitStep?: FirstVisitStep;
   lockFirstVisitStep?: boolean;
   entryHref?: string;
+  initialBookingProfile?: InitialBookingProfile;
+  disableStoredProfile?: boolean;
 }) {
   const services = useMemo(() => initialServices.filter((service) => service.is_active), [initialServices]);
   const initialCustomerServiceOptions = useMemo(
@@ -411,7 +421,7 @@ export default function CustomerBookingPage({
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
-          { priceGuideOnly: true },
+          {},
         ),
         initialShop.customer_page_settings.customer_service_overrides,
       ),
@@ -428,12 +438,21 @@ export default function CustomerBookingPage({
   const defaultFirstVisitDate = getDefaultDateOptionValue(dateOptions);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
   const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(initialFirstVisitStep);
-  const [firstVisit, setFirstVisit] = useState<FirstVisitState>({
-    ...initialFirstVisitState,
-    date: initialDate || (initialMode === "first" && initialFirstVisitStep === 3 ? defaultFirstVisitDate : ""),
-    timeSlot: initialTime,
-    serviceId: initialSelectableServiceId,
-    customerServiceOptionId: initialSelectableServiceOptionId,
+  const [firstVisit, setFirstVisit] = useState<FirstVisitState>(() => {
+    const selectedProfilePet = initialBookingProfile?.pets[0];
+
+    return {
+      ...initialFirstVisitState,
+      ownerName: initialBookingProfile?.ownerName ?? "",
+      phone: initialBookingProfile?.phone ? formatBookingPhoneNumber(initialBookingProfile.phone) : "",
+      petName: selectedProfilePet?.name ?? "",
+      breed: selectedProfilePet?.breed ?? "",
+      weightKg: selectedProfilePet?.weight ? String(selectedProfilePet.weight) : "",
+      date: initialDate || (initialMode === "first" && initialFirstVisitStep === 3 ? defaultFirstVisitDate : ""),
+      timeSlot: initialTime,
+      serviceId: initialSelectableServiceId,
+      customerServiceOptionId: initialSelectableServiceOptionId,
+    };
   });
   const [submitFeedback, setSubmitFeedback] = useState<SubmitFeedback | null>(null);
   const [completedFirstVisitBooking, setCompletedFirstVisitBooking] = useState<BookingCreateResponse | null>(null);
@@ -445,7 +464,7 @@ export default function CustomerBookingPage({
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
-  const [savedPets, setSavedPets] = useState<BookingProfilePet[]>([]);
+  const [savedPets, setSavedPets] = useState<BookingProfilePet[]>(() => initialBookingProfile?.pets ?? []);
   const detectedBreedPricingGroup = useMemo(
     () => findCustomerBreedPricingGroup(services, firstVisit.breed),
     [firstVisit.breed, services],
@@ -457,7 +476,7 @@ export default function CustomerBookingPage({
           services
             .slice()
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "ko")),
-          { priceGuideOnly: true, priceGuideGroupKey: detectedBreedPricingGroup?.key, weightKg: Number(firstVisit.weightKg) || null },
+          { priceGuideGroupKey: detectedBreedPricingGroup?.key, weightKg: Number(firstVisit.weightKg) || null },
         ),
         initialShop.customer_page_settings.customer_service_overrides,
       ),
@@ -520,7 +539,7 @@ export default function CustomerBookingPage({
   useEffect(() => {
     if (draftHydrated || typeof window === "undefined") return;
 
-    if (initialMode === "manage") {
+    if (initialMode === "manage" || initialBookingProfile || disableStoredProfile) {
       setDraftHydrated(true);
       return;
     }
@@ -610,12 +629,12 @@ export default function CustomerBookingPage({
     } finally {
       setDraftHydrated(true);
     }
-  }, [defaultFirstVisitDate, draftHydrated, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
+  }, [defaultFirstVisitDate, disableStoredProfile, draftHydrated, initialBookingProfile, initialDate, initialFirstVisitStep, initialMode, initialSelectableServiceId, initialSelectableServiceOptionId, initialTime, shopId]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
+    if (typeof window === "undefined" || initialBookingProfile || disableStoredProfile || activeMode !== "first" || !hasBookingProfileContent(firstVisit)) return;
     saveBookingProfile(firstVisit, savedPets);
-  }, [activeMode, firstVisit.ownerName, firstVisit.phone, firstVisit.petName, firstVisit.breed, firstVisit.weightKg, firstVisit.extraPets, savedPets]);
+  }, [activeMode, disableStoredProfile, firstVisit.ownerName, firstVisit.phone, firstVisit.petName, firstVisit.breed, firstVisit.weightKg, firstVisit.extraPets, initialBookingProfile, savedPets]);
 
   useEffect(() => {
     let active = true;

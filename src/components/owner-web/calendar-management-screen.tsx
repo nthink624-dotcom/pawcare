@@ -33,6 +33,8 @@ import {
 } from "@/components/owner-web/calendar-grooming-completion-fields";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
+import { getRollingScheduleDates } from "@/components/owner-web/calendar-week-range";
+import { WeeklySchedule, type WeeklyScheduleBooking } from "@/components/owner-web/calendar-weekly-schedule";
 import {
   buildLocalGuardian,
   buildLocalOwnerAppointment,
@@ -54,8 +56,7 @@ import {
   replaceAppointmentInBootstrap,
   replaceScheduleRangeInBootstrap,
 } from "@/components/owner-web/calendar-owner-api";
-import { MonthlyScheduleOverview, WeeklyScheduleOverview } from "@/components/owner-web/calendar-overviews";
-import { CalendarToolbar } from "@/components/owner-web/calendar-toolbar";
+import { CalendarToolbar, type CalendarViewMode } from "@/components/owner-web/calendar-toolbar";
 import { NotificationTimingPopover } from "@/components/owner-web/notification-timing-popover";
 import { calendarBookings } from "@/components/owner-web/owner-web-data";
 import {
@@ -91,7 +92,7 @@ import {
 } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
 import { buildPetGroupOptions } from "@/lib/pet-group-options";
-import { cn, currentDateInTimeZone } from "@/lib/utils";
+import { addDate, cn, currentDateInTimeZone } from "@/lib/utils";
 import type { Appointment, AppointmentStatus, BootstrapPayload, Guardian, MediaKind, Notification, NotificationType, Pet, PetBiteLevel, PetStaffNote, Service } from "@/types/domain";
 
 type SummaryMetricKey = "today" | "completed" | "changes";
@@ -327,12 +328,16 @@ function buildOwnerCreateAvailableSlots({
 }) {
   if (!staffKey || !serviceId || !Number.isFinite(duration) || duration <= 0 || isShopClosedOnDate(shop, date)) return [];
 
+  const staffAppointmentsForDate = appointments.filter(
+    (appointment) => appointment.appointment_date === date && appointment.staff_id === staffKey,
+  );
+
   return computeAvailableSlots({
     date,
     serviceId,
     shop,
     services,
-    appointments,
+    appointments: staffAppointmentsForDate,
     staffId: staffKey,
     staffMembers,
     staffScheduleOverrides,
@@ -463,12 +468,6 @@ function addScheduleDays(date: string, days: number) {
   const nextDate = parseScheduleDate(date);
   nextDate.setDate(nextDate.getDate() + days);
   return formatScheduleDateKey(nextDate);
-}
-
-function getWeekScheduleDates(referenceDate = todayScheduleDate) {
-  const date = parseScheduleDate(referenceDate);
-  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
-  return Array.from({ length: 7 }, (_, index) => addScheduleDays(referenceDate, mondayOffset + index));
 }
 
 function getMonthScheduleDates(referenceDate = todayScheduleDate) {
@@ -890,45 +889,6 @@ function appointmentToDailyBooking(
   };
 }
 
-function groomingRecordToDailyBooking(
-  record: BootstrapPayload["groomingRecords"][number],
-  data: BootstrapPayload,
-  selectedDate: string,
-  fallbackStaff: OwnerWebStaffColumn,
-): DailyBooking {
-  const guardian = data.guardians.find((item) => item.id === record.guardian_id);
-  const pet = data.pets.find((item) => item.id === record.pet_id);
-  const service = data.services.find((item) => item.id === record.service_id);
-  const time = record.groomed_at.slice(11, 16) || "10:00";
-
-  return {
-    id: `grooming-record-${record.id}`,
-    day: "오늘",
-    start: timeToHour(time),
-    duration: Math.max(0.25, (service?.duration_minutes ?? 60) / 60),
-    lane: 0,
-    guardianId: record.guardian_id,
-    petId: record.pet_id,
-    customer: guardian?.name ?? "보호자 미등록",
-    pet: pet?.name ?? "반려동물 미등록",
-    service: service?.name ?? "서비스 미등록",
-    servicePrice: service?.price,
-    guardianPhone: guardian?.phone ?? "",
-    petBreed: pet?.breed ?? "",
-    petWeight: pet?.weight ?? null,
-    petAge: pet?.age ?? null,
-    petNotes: pet?.notes ?? "",
-    petBiteLevel: normalizePetBiteLevel(pet?.bite_level),
-    staff: fallbackStaff.name,
-    status: "완료",
-    date: formatScheduleDateLabel(selectedDate),
-    staffKey: fallbackStaff.key,
-    staffName: fallbackStaff.name,
-    serviceId: record.service_id,
-    memo: [record.style_notes, record.memo].map((item) => item?.trim()).filter(Boolean).join(" · "),
-  };
-}
-
 const baseDailyBookings = calendarBookings.map((booking) => ({
   ...booking,
   ...(dailyBookingTimes[booking.id] ?? {}),
@@ -1114,7 +1074,7 @@ function buildBookingBenefitSummary(data: BootstrapPayload, booking: DailyBookin
   if (coupons.length === 0) return null;
 
   const customerServiceOptions = applyConfiguredCustomerServiceOverrides(
-    buildCustomerServiceSourceOptions(data.services, { priceGuideOnly: true }),
+    buildCustomerServiceSourceOptions(data.services),
     data.shop.customer_page_settings.customer_service_overrides,
   );
   const selectedOption =
@@ -1495,12 +1455,6 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
       return appointment.appointment_date === selectedDate || hasActualAppointmentWindowOnDate(appointment, selectedDate, scheduledDurationMinutes);
     })
     .sort((first, second) => first.appointment_time.localeCompare(second.appointment_time));
-  const appointmentIds = new Set(selectedDateAppointments.map((appointment) => appointment.id));
-  const recordOnlyBookings = data.groomingRecords
-    .filter((record) => record.groomed_at.slice(0, 10) === selectedDate)
-    .filter((record) => !record.appointment_id || !appointmentIds.has(record.appointment_id))
-    .map((record) => groomingRecordToDailyBooking(record, data, selectedDate, staffColumns[0]));
-
   return resolveStaffBookingConflicts([
     ...selectedDateAppointments.flatMap((appointment, index) => {
       const service = data.services.find((item) => item.id === appointment.service_id);
@@ -1513,7 +1467,6 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
       const staffColumn = staffColumnForIndex(index, staffColumns);
       return [appointmentToDailyBooking(appointment, data, selectedDate, staffAssignments, staffColumn, staffColumns)];
     }),
-    ...recordOnlyBookings,
   ], staffColumns);
 }
 
@@ -1524,19 +1477,20 @@ function buildLocalPreviewDailyBookings(data: BootstrapPayload, selectedDate: st
   const persistedBookings = buildDailyBookingsFromBootstrap(data, selectedDate, {}, columns);
   if (persistedBookings.length > 0) return persistedBookings;
 
-  const previewSourceBookings = [
-    ...dailyBookings,
-    ...dailyBookings.map((booking, index) => {
-      const offset = [0.5, 1, 1.5, 2][index % 4];
+  // Keep empty demo dates intentionally light. Repeating the entire 21-item
+  // sample twice eventually exhausted a staff member's day and the preview
+  // placer wrapped late appointments to 00:00. That made the weekly overview
+  // look like it had real midnight reservations.
+  const previewSourceBookings = baseDailyBookings.map((booking, index) => {
+    const weekdayOffset = new Date(`${selectedDate}T12:00:00`).getDay();
+    const offset = [0, 0.25, 0.5, 0.75, 1][(index + weekdayOffset) % 5] ?? 0;
 
-      return {
-        ...booking,
-        id: `${booking.id}-extra-${index + 1}`,
-        start: Math.min(scheduleEndHour - booking.duration, booking.start + offset),
-        status: booking.status,
-      };
-    }),
-  ];
+    return {
+      ...booking,
+      id: `${booking.id}-preview-${weekdayOffset}`,
+      start: Math.min(scheduleEndHour - booking.duration, booking.start + offset),
+    };
+  });
   const scheduledBookings: DailyBooking[] = [];
 
   for (const [index, booking] of previewSourceBookings.entries()) {
@@ -1570,7 +1524,7 @@ function buildLocalPreviewDailyBookings(data: BootstrapPayload, selectedDate: st
 }
 
 function shouldUseOwnerWebPreviewBookings(data: BootstrapPayload) {
-  return data.mode !== "supabase" && (data.shop.id === "demo-shop" || data.shop.id === "owner-demo");
+  return data.mode !== "supabase";
 }
 
 function hasAppointmentsOnDate(data: BootstrapPayload, selectedDate: string) {
@@ -1578,10 +1532,7 @@ function hasAppointmentsOnDate(data: BootstrapPayload, selectedDate: string) {
 }
 
 function hasScheduleItemsOnDate(data: BootstrapPayload, selectedDate: string) {
-  return (
-    hasAppointmentsOnDate(data, selectedDate) ||
-    data.groomingRecords.some((record) => record.groomed_at.slice(0, 10) === selectedDate)
-  );
+  return hasAppointmentsOnDate(data, selectedDate);
 }
 
 const initialStaffComments: Record<string, string> = {
@@ -3738,7 +3689,11 @@ export default function CalendarManagementScreen({
   const [bootstrapData, setBootstrapData] = useState(() => initialData);
   const bootstrapDataRef = useRef(bootstrapData);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignments>({});
-  const [selectedDate, setSelectedDate] = useState(() => currentDateInTimeZone());
+  const [selectedDate, setSelectedDate] = useState(() =>
+    initialData.mode !== "supabase" || initialData.shop.id === "owner-demo"
+      ? addDate(currentDateInTimeZone(), 1)
+      : currentDateInTimeZone(),
+  );
   const visibleStaff = useMemo(() => {
     return staffMembers.map(toOwnerWebStaffColumn);
   }, [staffMembers]);
@@ -3757,12 +3712,27 @@ export default function CalendarManagementScreen({
       ? "buildDailyBookingsFromBootstrap"
       : "blocked-non-supabase-owner-data";
   const [staff, setStaff] = useState<StaffFilter>("전체 직원");
+  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("day");
   const [activeMetric, setActiveMetric] = useState<SummaryMetricKey>("today");
   const [reservationStatusFilter, setReservationStatusFilter] = useState<ReservationStatusFilter>("all");
   const [bookings, setBookings] = useState<DailyBooking[]>(() => selectedDateBookings);
   const [selectedBookingId, setSelectedBookingId] = useState("");
   const [selectedBoardStaffKey, setSelectedBoardStaffKey] = useState<StaffKey | null>(null);
   const [scheduleStatusHour, setScheduleStatusHour] = useState(() => getCurrentDayHour());
+  const weekDates = useMemo(() => getRollingScheduleDates(selectedDate), [selectedDate]);
+  const weeklyBookings = useMemo<Array<DailyBooking & WeeklyScheduleBooking>>(
+    () =>
+      weekDates.flatMap((date) => {
+        const dayBookings = shouldUseOwnerWebPreviewBookings(bootstrapData)
+          ? buildLocalPreviewDailyBookings(bootstrapData, date, visibleStaff)
+          : bootstrapData.mode === "supabase"
+            ? buildDailyBookingsFromBootstrap(bootstrapData, date, staffAssignments, visibleStaff)
+            : [];
+
+        return dayBookings.map((booking) => ({ ...booking, appointmentDate: date }));
+      }),
+    [bootstrapData, staffAssignments, visibleStaff, weekDates],
+  );
   const [staffComments, setStaffComments] = useState<Record<string, string>>(() => buildStaffCommentsFromBootstrap(initialData));
   const staffCommentSaveTimersRef = useRef<Record<string, number>>({});
   const [acknowledgedChangeBookingIds, setAcknowledgedChangeBookingIds] = useState<Set<string>>(() => new Set());
@@ -3837,6 +3807,22 @@ export default function CalendarManagementScreen({
           }),
     [acknowledgedChangeBookingIds, scheduleStatusHour, selectedDate, staffScopedBookings],
   );
+  const weeklyDisplayBookings = useMemo(
+    () =>
+      weeklyBookings
+        .filter((booking) => staff === "전체 직원" || booking.staffKey === staff)
+        .filter((booking) => !(isChangeBookingStatus(booking.status) && acknowledgedChangeBookingIds.has(booking.id)))
+        .map((booking) => {
+          const sourceStatus = booking.status;
+          return {
+            ...booking,
+            sourceStatus,
+            status: getTimedBookingStatus(booking, booking.appointmentDate, scheduleStatusHour),
+          };
+        })
+        .filter((booking) => isTimelineBookingStatus(booking.status)),
+    [acknowledgedChangeBookingIds, scheduleStatusHour, staff, weeklyBookings],
+  );
   const summaryMetrics = useMemo(() => buildScheduleMetrics(displayScopedBookings), [displayScopedBookings]);
   const reservationFilterOptions = useMemo(
     () => getReservationFilterOptions(displayScopedBookings),
@@ -3904,14 +3890,16 @@ export default function CalendarManagementScreen({
 
       try {
         const currentData = bootstrapDataRef.current;
-        const range = await fetchOwnerScheduleRange(currentData.shop.id, selectedDate, selectedDate);
+        const rangeFrom = calendarViewMode === "week" ? weekDates[0] ?? selectedDate : selectedDate;
+        const rangeTo = calendarViewMode === "week" ? weekDates[weekDates.length - 1] ?? selectedDate : selectedDate;
+        const range = await fetchOwnerScheduleRange(currentData.shop.id, rangeFrom, rangeTo);
         if (cancelled || statusChangeInFlightRef.current) return;
         const nextBootstrapData = applyRecentStatusOverrides(replaceScheduleRangeInBootstrap(currentData, range));
         bootstrapDataRef.current = nextBootstrapData;
         setBootstrapData(nextBootstrapData);
         onDataChange?.(nextBootstrapData);
       } catch (error) {
-        console.error("[owner-schedule] failed to synchronize the selected date", error);
+        console.error("[owner-schedule] failed to synchronize the visible schedule range", error);
       }
     };
 
@@ -3929,12 +3917,14 @@ export default function CalendarManagementScreen({
   }, [
     bootstrapData.mode,
     bootstrapData.shop.id,
+    calendarViewMode,
     earlyStartBooking,
     onDataChange,
     photoStatusAction,
     scheduleDialogOpen,
     scheduleSaving,
     selectedDate,
+    weekDates,
   ]);
 
   useEffect(() => {
@@ -4034,6 +4024,17 @@ export default function CalendarManagementScreen({
     )[0];
     setSelectedBookingId(firstBooking.id);
   }, [filteredBookings, selectedBookingId]);
+
+  function handleOpenWeeklyDay(date: string) {
+    setSelectedDate(date);
+    setCalendarViewMode("day");
+  }
+
+  function handleWeeklyBookingSelect(booking: WeeklyScheduleBooking) {
+    setSelectedDate(booking.appointmentDate);
+    setSelectedBookingId(booking.id);
+    setSelectedBoardStaffKey(booking.staffKey);
+  }
 
   function handleMetricSelect(metric: SummaryMetricKey) {
     setActiveMetric(metric);
@@ -4844,12 +4845,8 @@ export default function CalendarManagementScreen({
       {scheduleDialogOpen ? (
         <ScheduleCreateDialog
           data={bootstrapData}
-          bookings={bookings}
           form={scheduleForm}
-          selectedDate={selectedDate}
           visibleStaff={visibleStaff}
-          staffMembers={staffMembers}
-          staffAssignments={staffAssignments}
           getAvailableSlots={getScheduleCreateAvailableSlots}
           saving={scheduleSaving}
           error={scheduleError}
@@ -4943,30 +4940,43 @@ export default function CalendarManagementScreen({
           <CalendarToolbar
             shop={bootstrapData.shop}
             selectedDate={selectedDate}
+            viewMode={calendarViewMode}
             staff={staff}
             visibleStaff={visibleStaff}
             onDateChange={setSelectedDate}
+            onViewModeChange={setCalendarViewMode}
             onStaffChange={setStaff}
             onAddSchedule={handleAddSchedule}
           />
-          <DailyScheduleGrid
-            bookings={filteredBookings}
-            staff={staff}
-            visibleStaff={visibleStaff}
-            staffMembers={staffMembers}
-            staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
-            activeMetric={activeMetric}
-            selectedBookingId={selectedBookingId}
+          {calendarViewMode === "week" ? (
+            <WeeklySchedule
+              bookings={weeklyDisplayBookings}
+              weekDates={weekDates}
+              selectedDate={selectedDate}
+              staff={staff}
+              onOpenDay={handleOpenWeeklyDay}
+              onSelectBooking={handleWeeklyBookingSelect}
+            />
+          ) : (
+            <DailyScheduleGrid
+              bookings={filteredBookings}
+              staff={staff}
+              visibleStaff={visibleStaff}
+              staffMembers={staffMembers}
+              staffScheduleOverrides={bootstrapData.staffScheduleOverrides}
+              activeMetric={activeMetric}
+              selectedBookingId={selectedBookingId}
               selectedDate={selectedDate}
               operatingWindow={getScheduleOperatingWindow(bootstrapData.shop, selectedDate)}
               currentHour={scheduleStatusHour}
-            conflictBookings={displayScopedBookings}
-            selectedStaffKey={selectedBoardStaffKey}
-            onSelectBooking={setSelectedBookingId}
-            onSelectStaff={setSelectedBoardStaffKey}
-            onMoveBooking={handleMoveBooking}
-            onResizeBooking={handleResizeBooking}
-          />
+              conflictBookings={displayScopedBookings}
+              selectedStaffKey={selectedBoardStaffKey}
+              onSelectBooking={setSelectedBookingId}
+              onSelectStaff={setSelectedBoardStaffKey}
+              onMoveBooking={handleMoveBooking}
+              onResizeBooking={handleResizeBooking}
+            />
+          )}
         </WebSurface>
 
         <BookingSidePanel

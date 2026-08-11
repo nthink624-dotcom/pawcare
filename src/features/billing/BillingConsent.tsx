@@ -40,8 +40,8 @@ export function BillingConsent({
   continueButtonRef,
 }: BillingConsentProps) {
   return (
-    <div className="owner-font min-h-full bg-[#f5f8fb] px-4 py-8 text-[#0f172a] lg:px-8 lg:py-10">
-      <section className="mx-auto w-full max-w-[760px] overflow-hidden rounded-[8px] border border-[#dbe2ea] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+    <div className="owner-font pm-owner-web min-h-full bg-[var(--bg)] px-4 py-8 text-[var(--ink)] lg:px-8 lg:py-10">
+      <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-[14px] border border-[var(--bd)] bg-white shadow-none">
         <header className="border-b border-[#e7edf3] px-6 py-5 lg:px-8">
           <p className="text-[13px] font-medium text-[#2563eb]">{eyebrow}</p>
           <h1 className="mt-1 text-[24px] font-semibold leading-8 text-[#0f172a]">{title}</h1>
@@ -49,14 +49,14 @@ export function BillingConsent({
         </header>
 
         <div className="px-6 py-6 lg:px-8">
-          <section className="grid overflow-hidden divide-y divide-[#e7edf3] rounded-[8px] border border-[#dbe2ea] bg-[#fbfdff] md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(230px,1.1fr)] md:divide-x md:divide-y-0">
+          <section className="grid overflow-hidden divide-y divide-[#e7edf3] rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(230px,1.1fr)] md:divide-x md:divide-y-0">
             <BillingSummaryItem label="선택 플랜" value={planLabel} />
             <BillingSummaryItem label="결제 주기" value={billingCycleLabel} />
             <BillingSummaryItem label="다음 결제 예정일" value={nextBillingDateLabel} />
           </section>
 
           <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-            <section className="rounded-[8px] border border-[#dbe2ea] bg-white p-4">
+            <section className="rounded-[10px] border border-[#e8edf3] bg-white p-4">
               <h2 className="text-[15px] font-medium text-[#334155]">결제 안내</h2>
               <ul className="mt-3 space-y-2 text-[14px] leading-5 text-[#475569]">
                 {consentLines.map((line) => (
@@ -68,7 +68,7 @@ export function BillingConsent({
               </ul>
             </section>
 
-            <aside className="rounded-[8px] border border-[#dbe2ea] bg-[#f8fafc] p-4">
+            <aside className="rounded-[10px] border border-[#e8edf3] bg-[#f8fbff] p-4">
               <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
               <p className="mt-3 text-[14px] font-medium text-[#334155]">안전한 카드 등록</p>
               <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
@@ -81,7 +81,7 @@ export function BillingConsent({
             </aside>
           </div>
 
-          <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-[8px] border border-[#dbe2ea] bg-white px-4 py-3">
+          <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-[10px] border border-[#e8edf3] bg-white px-4 py-3">
             <input
               type="checkbox"
               checked={agreed}
@@ -98,7 +98,7 @@ export function BillingConsent({
           ) : null}
         </div>
 
-        <footer className="flex flex-col-reverse gap-2 border-t border-[#e7edf3] bg-[#fbfdff] px-6 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+        <footer className="flex flex-col-reverse gap-2 border-t border-[#e7edf3] bg-[#f8fbff] px-6 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           {onBack ? (
             <button
               type="button"

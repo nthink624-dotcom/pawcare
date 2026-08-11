@@ -5,11 +5,6 @@ import { z } from "zod";
 
 import { hashIdentityStableValue } from "@/lib/auth/owner-identity";
 import {
-  EMAIL_CONFIRMATION_MESSAGE,
-  mapOwnerEmailConfirmationError,
-  sendOwnerEmailConfirmation,
-} from "@/lib/auth/owner-email-confirmation";
-import {
   isValidBirthDate8,
   isValidOwnerEmail,
   isValidOwnerPassword,
@@ -20,7 +15,7 @@ import {
 import { OWNER_SIGNUP_TERMS_VERSION } from "@/lib/auth/owner-signup-terms";
 import { OWNER_TRIAL_DAYS } from "@/lib/billing/owner-subscription";
 import { buildDefaultCustomerPageSettings } from "@/lib/customer-page-settings";
-import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getSupabaseAdmin, getSupabaseAuthClient } from "@/lib/supabase/server";
 import { defaultOwnerBusinessHours, defaultOwnerRegularClosedDays } from "@/lib/owner-default-setup";
 import { defaultShopNotificationSettings } from "@/lib/notification-settings";
 import { hasSupabaseServerEnv } from "@/lib/server-env";
@@ -182,7 +177,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    if (!supabase) {
+    const authClient = getSupabaseAuthClient();
+    if (!supabase || !authClient) {
       return NextResponse.json({ message: "Supabase 관리자 클라이언트를 만들 수 없습니다." }, { status: 503 });
     }
 
@@ -212,7 +208,7 @@ export async function POST(request: NextRequest) {
     const createdUser = await supabase.auth.admin.createUser({
       email,
       password: payload.password,
-      email_confirm: false,
+      email_confirm: true,
       user_metadata: {
         login_id: email,
         name: payload.name.trim(),
@@ -365,16 +361,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "매장 소유권 정보를 저장하지 못했습니다." }, { status: 400 });
     }
 
-    try {
-      await sendOwnerEmailConfirmation(supabase, email);
-    } catch (error) {
-      logSignupIssue("email-confirmation-send-failed", error);
-      await supabase.from("owner_profiles").delete().eq("user_id", user.id);
-      await supabase.from("shops").delete().eq("id", shopId);
-      await supabase.auth.admin.deleteUser(user.id);
-      return NextResponse.json({ message: mapOwnerEmailConfirmationError(error) }, { status: 503 });
-    }
-
     const consumed = await consumeVerifiedIdentity({
       verificationId: verifiedIdentity.id,
       tokenId: verifiedIdentity.tokenId,
@@ -388,10 +374,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "이미 사용된 본인인증입니다. 다시 인증해 주세요." }, { status: 400 });
     }
 
+    const signInResult = await authClient.auth.signInWithPassword({ email, password: payload.password });
+    if (signInResult.error || !signInResult.data.session) {
+      logSignupIssue("initial-login-failed", signInResult.error?.message ?? "session_missing");
+      return NextResponse.json({
+        success: true,
+        session: null,
+        message: "회원가입이 완료됐어요. 이메일과 비밀번호로 로그인해 주세요.",
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      requiresEmailConfirmation: true,
-      message: `${EMAIL_CONFIRMATION_MESSAGE} 인증이 끝나면 카드 등록 없이 2주 무료체험을 시작할 수 있어요. 무료체험 종료 후 자동결제되지는 않습니다.`,
+      session: {
+        accessToken: signInResult.data.session.access_token,
+        refreshToken: signInResult.data.session.refresh_token,
+      },
+      message: "회원가입이 완료됐어요. 바로 서비스를 시작할 수 있어요.",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

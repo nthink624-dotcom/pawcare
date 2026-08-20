@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 function readProjectFile(path) {
@@ -46,7 +46,8 @@ test("Supabase development and production identities stay explicit", () => {
   const agents = readProjectFile("AGENTS.md");
   const environmentGuide = readProjectFile("docs/supabase-environment-separation.md");
   const releaseChecklist = readProjectFile("docs/release-checklist.md");
-  const gitignore = readProjectFile(".gitignore");
+  const gitignoreUrl = new URL("../../.gitignore", import.meta.url);
+  const gitignore = existsSync(gitignoreUrl) ? readFileSync(gitignoreUrl, "utf8") : null;
   const operatingRules = `${agents}\n${environmentGuide}\n${releaseChecklist}`;
 
   assert.match(operatingRules, /Development:[^\n]*qefxdtmdtvnzgupmjlom/);
@@ -54,7 +55,15 @@ test("Supabase development and production identities stay explicit", () => {
   assert.match(environmentGuide, /https:\/\/qefxdtmdtvnzgupmjlom\.supabase\.co/);
   assert.match(environmentGuide, /https:\/\/ysxykikqnneuhypybjry\.supabase\.co/);
   assert.doesNotMatch(operatingRules, /Do not (?:use or maintain|operate) a separate Supabase Dev project/);
-  assert.match(gitignore, /supabase\/\*\*\/\.temp\//);
+  if (gitignore !== null) {
+    assert.match(gitignore, /supabase\/\*\*\/\.temp\//);
+  } else {
+    assert.equal(
+      process.env.VERCEL,
+      "1",
+      ".gitignore may only be absent from Vercel's filtered deployment bundle",
+    );
+  }
 });
 
 test("photo list surfaces keep using the batch signed URL client", () => {

@@ -25,7 +25,7 @@ type LookupPayload = {
   pets: Array<{ id: string; name: string; guardian_id: string; breed?: string }>;
   access?: {
     appointmentId?: string | null;
-    action?: "reschedule" | "result" | null;
+    action?: "manage" | "reschedule" | "result" | null;
   };
 };
 
@@ -153,6 +153,11 @@ function formatServiceFallback() {
   return "선택한 서비스";
 }
 
+function getAppointmentServiceOptionName(appointment: Appointment) {
+  const value = appointment.discount_snapshot?.customerServiceOptionName;
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
 function ProgressTracker({ status }: { status: Appointment["status"] }) {
   const currentIndex = getProgressIndex(status);
 
@@ -208,8 +213,6 @@ export default function CustomerBookingManagePanel({
 }) {
   const dateOptions = useMemo(() => buildDateOptions(shop), [shop]);
   const [lookupPhone, setLookupPhone] = useState("");
-  const [lookupGuardianName, setLookupGuardianName] = useState("");
-  const [lookupPetName, setLookupPetName] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupPayload | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -266,7 +269,7 @@ export default function CustomerBookingManagePanel({
         });
         if (!active) return;
         setManageSlots(result.slots);
-        setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 2));
+        setManageRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)).slice(0, 4));
         if (!result.slots.includes(manageForm.timeSlot)) {
           setManageForm((prev) => (prev ? { ...prev, timeSlot: "" } : prev));
         }
@@ -294,11 +297,6 @@ export default function CustomerBookingManagePanel({
         if (!active) return;
 
         setLookupResult(result);
-        const guardian = result.guardians[0];
-        const pet = result.pets[0];
-        if (guardian) setLookupGuardianName(guardian.name);
-        if (guardian?.phone) setLookupPhone(guardian.phone);
-        if (pet) setLookupPetName(pet.name);
         setFeedback(null);
 
         const directRescheduleAppointment =
@@ -344,10 +342,11 @@ export default function CustomerBookingManagePanel({
     };
   }, [initialAccessToken, shopId]);
 
-  async function lookupBookings(phone = lookupPhone, guardianName = lookupGuardianName, petName = lookupPetName) {
+  async function reloadBookingFromToken() {
+    if (!initialAccessToken) return;
     try {
       setLookupError(null);
-      const query = new URLSearchParams({ shopId, phone, guardianName, petName });
+      const query = new URLSearchParams({ shopId, t: initialAccessToken });
       const result = await fetchJson<LookupPayload>(`/api/customer-lookup?${query.toString()}`);
       setLookupResult(result);
       setOpenAppointmentId(null);
@@ -383,8 +382,34 @@ export default function CustomerBookingManagePanel({
     setManageRecommendedSlots([]);
   }
 
+  async function requestAccessLink() {
+    if (submitting || !lookupPhone) return;
+
+    setSubmitting(true);
+    setLookupError(null);
+    try {
+      const result = await fetchJson<{ message: string }>("/api/customer-booking-access-link", {
+        method: "POST",
+        body: JSON.stringify({ shopId, phone: lookupPhone }),
+      });
+      setFeedback({
+        type: "success",
+        title: "알림톡을 확인해 주세요",
+        message: result.message,
+      });
+    } catch {
+      setFeedback({
+        type: "success",
+        title: "알림톡을 확인해 주세요",
+        message: "예약 정보가 있다면 저장된 연락처로 예약 관리 링크를 보내드렸습니다.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function cancelAppointment(appointmentId: string) {
-    if (submitting || !lookupPhone || !lookupGuardianName || !lookupPetName) return;
+    if (submitting || !initialAccessToken) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -395,13 +420,11 @@ export default function CustomerBookingManagePanel({
           action: "cancel",
           shopId,
           appointmentId,
-          phone: lookupPhone,
-          guardianName: lookupGuardianName,
-          petName: lookupPetName,
+          accessToken: initialAccessToken,
         }),
       });
       invalidateCustomerAvailability();
-      await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
+      await reloadBookingFromToken();
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -420,7 +443,7 @@ export default function CustomerBookingManagePanel({
   }
 
   async function submitReschedule() {
-    if (submitting || !lookupPhone || !lookupGuardianName || !lookupPetName || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
+    if (submitting || !initialAccessToken || !manageForm?.date || !manageForm.timeSlot || !manageForm.serviceId) return;
 
     setSubmitting(true);
     setFeedback(null);
@@ -431,9 +454,7 @@ export default function CustomerBookingManagePanel({
           action: "reschedule",
           shopId,
           appointmentId: manageForm.appointmentId,
-          phone: lookupPhone,
-          guardianName: lookupGuardianName,
-          petName: lookupPetName,
+          accessToken: initialAccessToken,
           serviceId: manageForm.serviceId,
           appointmentDate: manageForm.date,
           appointmentTime: manageForm.timeSlot,
@@ -441,7 +462,7 @@ export default function CustomerBookingManagePanel({
         }),
       });
       invalidateCustomerAvailability();
-      await lookupBookings(lookupPhone, lookupGuardianName, lookupPetName);
+      await reloadBookingFromToken();
       closeRescheduleForm();
       setFeedback({
         type: "success",
@@ -459,7 +480,7 @@ export default function CustomerBookingManagePanel({
     }
   }
 
-  const showLookupForm = !lookupResult || !initialAccessToken;
+  const showLookupForm = !initialAccessToken;
 
   return (
     <>
@@ -475,29 +496,21 @@ export default function CustomerBookingManagePanel({
               <X className="h-5 w-5" strokeWidth={1.9} />
             </button>
           </div>
-          <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#111827]">예약 조회</h2>
+          <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[#111827]">예약 관리 링크 다시 받기</h2>
+          <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
+            예약할 때 입력한 연락처로 안전한 예약 관리 링크를 보내드려요.
+          </p>
           <div className="mt-4 space-y-2.5">
-            <input
-              value={lookupGuardianName}
-              onChange={(event) => setLookupGuardianName(event.target.value)}
-              placeholder="보호자 이름 입력"
-              className="field rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
-            />
-            <input
-              value={lookupPhone}
-              onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
-              placeholder="연락처 입력"
-              className="field rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
-            />
             <div className="flex gap-2">
               <input
-                value={lookupPetName}
-                onChange={(event) => setLookupPetName(event.target.value)}
-                placeholder="반려동물 이름 입력"
+                value={lookupPhone}
+                onChange={(event) => setLookupPhone(phoneNormalize(event.target.value))}
+                placeholder="연락처 입력"
+                inputMode="tel"
                 className="field flex-1 rounded-[14px] border-[#f3e5df] bg-[#fffaf8] px-4 py-4 text-[16px]"
               />
-              <button type="button" onClick={() => void lookupBookings()} disabled={!lookupPhone || !lookupGuardianName || !lookupPetName} className="inline-flex h-[54px] items-center justify-center rounded-[14px] bg-[#ec7f72] px-5 text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
-                조회
+              <button type="button" onClick={() => void requestAccessLink()} disabled={!lookupPhone || submitting} className="inline-flex h-[54px] items-center justify-center rounded-[14px] bg-[#ec7f72] px-5 text-[15px] font-semibold text-white shadow-[0_6px_16px_rgba(236,127,114,.28)] disabled:opacity-50">
+                링크 받기
               </button>
             </div>
           </div>
@@ -533,7 +546,11 @@ export default function CustomerBookingManagePanel({
             const manageable = canManageAppointment(appointment);
             const isOpen = openAppointmentId === appointment.id && manageForm?.appointmentId === appointment.id;
             const statusLabel = statusLabelMap[appointment.status] || appointment.status;
-            const serviceLabel = service?.name || serviceOption?.name || formatServiceFallback();
+            const serviceLabel =
+              getAppointmentServiceOptionName(appointment) ||
+              service?.name ||
+              serviceOption?.name ||
+              formatServiceFallback();
             const inquiryLabel = getCustomerActionLabel(appointment.status);
             const groomingRecord = lookupResult.groomingRecords.find(
               (record) => record.appointment_id === appointment.id,
@@ -551,7 +568,7 @@ export default function CustomerBookingManagePanel({
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold tracking-[-0.02em] text-[#b6a89f]">예약 내역</p>
                       <h3 className="mt-2 truncate text-[24px] font-semibold tracking-[-0.05em] text-[#3a2e2a]">
-                        {pet?.name || "예약"} · {lookupGuardianName || "보호자"}
+                        {pet?.name || "예약"} · {lookupResult.guardians[0]?.name || "보호자"}
                       </h3>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] font-medium text-[#8a7a72]">
                         <span className="inline-flex items-center gap-1.5">
@@ -591,6 +608,8 @@ export default function CustomerBookingManagePanel({
                       record={groomingRecord}
                       petName={pet?.name || "반려동물"}
                       serviceName={serviceLabel}
+                      staffName={staffName}
+                      shopPhone={shop.phone}
                       mediaAssets={(lookupResult.resultMediaAssets ?? []).filter(
                         (asset) => asset.appointmentId === appointment.id,
                       )}
@@ -625,6 +644,9 @@ export default function CustomerBookingManagePanel({
 
                   {isOpen ? (
                     <div className="mt-4 space-y-3 rounded-[18px] border border-[#f3e5df] bg-[#fffaf8] px-3 py-3">
+                      <div className="rounded-[12px] border border-[#f3e5df] bg-white px-3 py-2.5 text-[13px] leading-5 text-[#7d625a]">
+                        <strong className="font-semibold text-[#b05d54]">예약 변경 안내</strong> 기존 담당 디자이너는 유지됩니다. 변경할 날짜·서비스에 가능한 시간만 보여드리며, 변경이 완료되면 기존 시간은 바로 다시 예약 가능해져요.
+                      </div>
                       <div>
                         <p className="text-sm font-semibold text-[#3a2e2a]">변경할 날짜</p>
                         <div className="mt-2 grid grid-cols-4 gap-2">

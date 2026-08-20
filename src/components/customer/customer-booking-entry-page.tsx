@@ -4,6 +4,7 @@ import { ChevronDown, Copy, Navigation, Phone, UserRound, X } from "lucide-react
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 
 import { normalizeServicePriceGuide, type ServicePriceGuideExtraFee, type ServicePriceGuideSection } from "@/components/owner-web/service-price-guide";
+import CustomerEntryServicePicker from "@/components/customer/customer-entry-service-picker";
 import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
@@ -199,6 +200,14 @@ function normalizeExternalHref(value: string | undefined) {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) return "";
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function buildSelectedServiceBookingHref(
+  baseHref: string,
+  service: { id: string; serviceId: string },
+) {
+  const separator = baseHref.includes("?") ? "&" : "?";
+  return `${baseHref}${separator}serviceId=${encodeURIComponent(service.serviceId)}&serviceOptionId=${encodeURIComponent(service.id)}`;
 }
 
 export function resolveHeroImages(value: string | undefined, values?: string[]) {
@@ -413,6 +422,7 @@ export default function CustomerBookingEntryPage({
   }, [ownerProfile, staffMembers]);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
+  const [selectedServiceOptionId, setSelectedServiceOptionId] = useState("");
   const [hoursOpen, setHoursOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
@@ -427,6 +437,11 @@ export default function CustomerBookingEntryPage({
   const heroTouchStartXRef = useRef<number | null>(null);
   const staffProfileTouchStartXRef = useRef<number | null>(null);
   const staffProfilePointerStartXRef = useRef<number | null>(null);
+  const selectedServiceOption = serviceOptions.find((service) => service.id === selectedServiceOptionId) ?? null;
+  const baseBookingHref = bookingHref ?? `/book/${encodeURIComponent(shop.id)}`;
+  const selectedServiceBookingHref = selectedServiceOption
+    ? buildSelectedServiceBookingHref(baseBookingHref, selectedServiceOption)
+    : "";
 
   const directionsQuery = useMemo(() => [displayName, displayAddress].filter(Boolean).join(" "), [displayName, displayAddress]);
   const naverWebUrl = `https://map.naver.com/p/search/${encodeURIComponent(directionsQuery)}`;
@@ -739,16 +754,20 @@ export default function CustomerBookingEntryPage({
         .pm-entry-proto .benefit .name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .pm-entry-proto .benefit .val{flex-shrink:0;font-size:13.5px;font-weight:700;color:var(--primaryDk);white-space:nowrap}
         .pm-entry-proto .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-        .pm-entry-proto .pcard .pr{display:flex;align-items:center;padding:13px 17px}
+        .pm-entry-proto .pcard .pr{display:flex;width:100%;align-items:center;padding:13px 15px;border:0;background:var(--card);font-family:inherit;color:inherit;text-align:left;cursor:pointer;transition:background .15s,box-shadow .15s}
         .pm-entry-proto .pcard .pr + .pr{border-top:1px solid var(--borderSoft)}
+        .pm-entry-proto .pcard .pr.sel{background:#fff7f5}
+        .pm-entry-proto .pcard .pr .radio-check{width:21px;height:21px;margin-right:10px;border:1.5px solid #d7c9c4;border-radius:50%;background:#fff;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background-color .15s,box-shadow .15s}
+        .pm-entry-proto .pcard .pr.sel .radio-check{border-color:var(--primary);background:var(--primary);box-shadow:0 0 0 3px rgba(236,127,114,.12)}
         .pm-entry-proto .pcard .pr .n{font-size:15px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
         .pm-entry-proto .pcard .pr .d{font-size:12.5px;color:var(--textMuted);margin-left:8px;white-space:nowrap;overflow:hidden}
         .pm-entry-proto .pcard .pr .p{margin-left:auto;font-size:16px;font-weight:600;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:8px}
-        .pm-entry-proto .pcard .full{display:flex;align-items:center;justify-content:center;gap:5px;padding:14px;border-top:1px solid var(--borderSoft);font-size:13.5px;color:var(--textMid);cursor:pointer}
+        .pm-entry-proto .pcard .full{display:flex;width:100%;align-items:center;justify-content:center;gap:5px;padding:14px;border:0;border-top:1px solid var(--borderSoft);background:var(--card);font-family:inherit;font-size:13.5px;color:var(--textMid);cursor:pointer}
         .pm-entry-proto .dock{position:fixed;bottom:0;left:50%;transform:translateX(-50%);right:auto;z-index:7;width:100%;max-width:430px;padding:10px 16px 16px;background:rgba(253,247,245,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
         .pm-entry-proto .dock .actions{display:flex;width:100%;align-items:center;gap:9px}
         .pm-entry-proto .dock .quick{width:48px;height:52px;border-radius:var(--rbtn);border:1px solid var(--border);background:var(--card);color:var(--primaryDk);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,40,30,.1);flex-shrink:0}
         .pm-entry-proto .cta{flex:1;min-width:0;padding:17px 0;border:none;border-radius:var(--rbtn);background:var(--primary);color:#fff;font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.02em;cursor:pointer;box-shadow:0 6px 16px rgba(236,127,114,.38);display:flex;align-items:center;justify-content:center}
+        .pm-entry-proto .cta:disabled{background:#e7d8d2;color:#b29f97;box-shadow:none;cursor:not-allowed}
         .pm-entry-proto .staff-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,28,23,.3);padding:18px 16px}
         .pm-entry-proto.is-preview .staff-modal{position:absolute}
         .pm-entry-proto .staff-sheet{width:100%;max-width:398px;border:1px solid #f1d7d1;border-radius:22px;background:#fff8f6;box-shadow:0 -18px 55px rgba(42,25,17,.18);padding:16px}
@@ -933,15 +952,12 @@ export default function CustomerBookingEntryPage({
             ) : null}
           </div>
 
-          <div className="pcard">
-            {serviceOptions.map((service) => (
-              <div className="pr" key={service.id}>
-                <span className="n">{service.name}</span><span className="d">{service.durationMinutes}분</span>
-                <span className="p">{formatServicePrice(service.price, service.priceType)}</span>
-              </div>
-            ))}
-            <div className="full" onClick={() => setPriceSheetOpen(true)}>요금표 전체 보기 ›</div>
-          </div>
+          <CustomerEntryServicePicker
+            services={serviceOptions}
+            selectedServiceOptionId={selectedServiceOptionId}
+            onSelect={setSelectedServiceOptionId}
+            onOpenPriceSheet={() => setPriceSheetOpen(true)}
+          />
         </div>
       </div>
 
@@ -976,8 +992,10 @@ export default function CustomerBookingEntryPage({
             <button className="cta" type="button" onClick={onPreviewBookingStart}>
               간편예약 시작
             </button>
+          ) : selectedServiceBookingHref ? (
+            <a className="cta" href={selectedServiceBookingHref}>{selectedServiceOption?.name} 예약하기</a>
           ) : (
-            <a className="cta" href={bookingHref ?? `/book/${encodeURIComponent(shop.id)}`}>간편예약 시작</a>
+            <button className="cta" type="button" disabled>서비스를 선택해 주세요</button>
           )}
         </div>
       </div>

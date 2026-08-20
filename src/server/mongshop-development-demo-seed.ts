@@ -1,5 +1,5 @@
-import { normalizeCustomerPageSettings } from "@/lib/customer-page-settings";
 import { normalizeGuardianNotificationSettings, normalizeShopNotificationSettings } from "@/lib/notification-settings";
+import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { DEVELOPMENT_DEMO_SHOP_ID, DEVELOPMENT_DEMO_SHOP_NAME } from "@/lib/development-demo";
 import { addDate, currentDateInTimeZone, nowIso } from "@/lib/utils";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -43,15 +43,6 @@ const serviceFixtures = [
   { id: "mongshop-service-spa", name: "스파/약욕 케어", price: 40000, duration: 60, category: "케어" },
 ] as const;
 
-const dailyServiceSequence = [
-  "mongshop-service-bath-care",
-  "mongshop-service-hygiene",
-  "mongshop-service-full",
-  "mongshop-service-bath",
-  "mongshop-service-full",
-  "mongshop-service-partial",
-] as const;
-
 const serviceById = new Map(serviceFixtures.map((service) => [service.id, service]));
 
 function at(date: string, totalMinutes: number) {
@@ -78,12 +69,17 @@ export async function seedMongshopDevelopmentDemo() {
   const shopCheck = await supabase.from("shops").select("id").eq("id", DEVELOPMENT_DEMO_SHOP_ID).maybeSingle();
   assertWrite(shopCheck, "멍샵몽샵 조회");
   if (!shopCheck.data) throw new Error("개발 Supabase에 멍샵몽샵 매장이 없습니다.");
+  const existingStaffProfiles = await supabase
+    .from("staff_members")
+    .select("id, profile_image_url, profile_image_urls, profile_image_asset_ids, profile_message")
+    .eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID);
+  assertWrite(existingStaffProfiles, "기존 직원 프로필 조회");
+  const staffProfileById = new Map((existingStaffProfiles.data ?? []).map((staff) => [staff.id, staff]));
 
   assertWrite(await supabase.from("notifications").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 알림 정리");
   assertWrite(await supabase.from("grooming_records").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 미용 기록 정리");
   assertWrite(await supabase.from("appointments").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 예약 정리");
   assertWrite(await supabase.from("staff_schedule_overrides").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 근무 일정 정리");
-  assertWrite(await supabase.from("staff_members").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 직원 정리");
   assertWrite(await supabase.from("services").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 서비스 정리");
   assertWrite(await supabase.from("pets").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 반려동물 정리");
   assertWrite(await supabase.from("guardians").delete().eq("shop_id", DEVELOPMENT_DEMO_SHOP_ID), "기존 고객 정리");
@@ -111,15 +107,11 @@ export async function seedMongshopDevelopmentDemo() {
         booking_slot_interval_minutes: 15,
         booking_slot_offset_minutes: 0,
         approval_mode: "auto",
-        notification_settings: normalizeShopNotificationSettings({ enabled: true, booking_confirmed_enabled: true }),
-        customer_page_settings: normalizeCustomerPageSettings({
-          shop_name: DEVELOPMENT_DEMO_SHOP_NAME,
-          tagline: "아이에게 맞는 미용 시간을 편하게 예약하세요.",
-          primary_color: "#ee7b70",
-          booking_button_label: "간편예약 시작",
-          show_notices: true,
-          show_services: true,
+        reservation_policy_settings: normalizeReservationPolicySettings({
+          ai_booking_time_optimization_enabled: true,
+          ai_booking_recommendation_mode: "continuity",
         }),
+        notification_settings: normalizeShopNotificationSettings({ enabled: true, booking_confirmed_enabled: true }),
         updated_at: now,
       })
       .eq("id", DEVELOPMENT_DEMO_SHOP_ID),
@@ -161,30 +153,40 @@ export async function seedMongshopDevelopmentDemo() {
     ),
     "반려동물 20마리 저장",
   );
-  assertWrite(
-    await supabase.from("staff_members").insert(
-      staffFixtures.map((staff) => ({
-        id: staff.id,
-        shop_id: DEVELOPMENT_DEMO_SHOP_ID,
-        name: staff.name,
-        display_name: staff.name,
-        phone: "010-0000-0000",
-        role: staff.role,
-        position: staff.role,
-        default_days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-        start_time: "09:00",
-        end_time: "19:00",
-        regular_off: "없음",
-        annual_remain: 15,
-        is_active: true,
-        sort_order: staff.sortOrder,
-        chip_color_index: staff.sortOrder - 1,
-        created_at: now,
-        updated_at: now,
-      })),
-    ),
-    "직원 4명 저장",
-  );
+  const missingStaffFixtures = staffFixtures.filter((staff) => !staffProfileById.has(staff.id));
+  if (missingStaffFixtures.length > 0) {
+    assertWrite(
+      await supabase.from("staff_members").insert(
+        missingStaffFixtures.map((staff) => {
+          const savedProfile = staffProfileById.get(staff.id);
+        return {
+          id: staff.id,
+          shop_id: DEVELOPMENT_DEMO_SHOP_ID,
+          name: staff.name,
+          display_name: staff.name,
+          profile_image_url: savedProfile?.profile_image_url ?? "",
+          profile_image_urls: savedProfile?.profile_image_urls ?? [],
+          profile_image_asset_ids: savedProfile?.profile_image_asset_ids ?? [],
+          profile_message: savedProfile?.profile_message ?? "",
+          phone: "010-0000-0000",
+          role: staff.role,
+          position: staff.role,
+          default_days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          start_time: "09:00",
+          end_time: "19:00",
+          regular_off: "없음",
+          annual_remain: 15,
+          is_active: true,
+          sort_order: staff.sortOrder,
+          chip_color_index: staff.sortOrder - 1,
+          created_at: now,
+          updated_at: now,
+        };
+        }),
+      ),
+      "누락된 데모 직원 저장",
+    );
+  }
   assertWrite(
     await supabase.from("services").insert(
       serviceFixtures.map((service, index) => ({
@@ -208,10 +210,10 @@ export async function seedMongshopDevelopmentDemo() {
     "서비스 저장",
   );
 
-  const appointments = dates.flatMap((date, dateIndex) =>
+  void dates.flatMap((date, dateIndex) =>
     staffFixtures.flatMap((staff, staffIndex) => {
       let cursor = 9 * 60 + ((dateIndex * 7 + staffIndex * 3) % 3) * 15;
-      return dailyServiceSequence.map((serviceId, slotIndex) => {
+      return (["mongshop-service-bath-care", "mongshop-service-hygiene", "mongshop-service-full", "mongshop-service-bath", "mongshop-service-full", "mongshop-service-partial"] as const).map((serviceId, slotIndex) => {
         const service = serviceById.get(serviceId);
         if (!service) throw new Error(`서비스를 찾을 수 없습니다: ${serviceId}`);
         const customerIndex = (dateIndex * 11 + staffIndex * 6 + slotIndex) % customerFixtures.length;
@@ -242,7 +244,46 @@ export async function seedMongshopDevelopmentDemo() {
       });
     }),
   );
-  assertWrite(await supabase.from("appointments").insert(appointments), "고밀도 예약 저장");
+  // The dense fixture above documents service variety but is not written to the landing demo.
+
+  const sparseDailyBookings = [
+    { staffIndex: 0, serviceId: "mongshop-service-bath-care", start: 10 * 60 },
+    { staffIndex: 2, serviceId: "mongshop-service-bath", start: 15 * 60 },
+  ] as const;
+
+  const appointments = dates.flatMap((date, dateIndex) =>
+    sparseDailyBookings.map(({ staffIndex, serviceId, start }, slotIndex) => {
+      const service = serviceById.get(serviceId);
+      if (!service) throw new Error(`Missing seeded service: ${serviceId}`);
+      const staff = staffFixtures[staffIndex];
+      const customerIndex = (dateIndex * sparseDailyBookings.length + slotIndex) % customerFixtures.length;
+      const [guardianId] = customerFixtures[customerIndex];
+      const petId = `20000000-0000-4000-8000-${String(customerIndex + 1).padStart(12, "0")}`;
+
+      return {
+        shop_id: DEVELOPMENT_DEMO_SHOP_ID,
+        guardian_id: guardianId,
+        pet_id: petId,
+        service_id: service.id,
+        staff_id: staff.id,
+        appointment_date: date,
+        appointment_time: time(start),
+        status: date < today ? "completed" : "confirmed",
+        memo: "",
+        start_at: at(date, start),
+        end_at: at(date, start + service.duration),
+        source: "customer",
+        customer_visit_type: customerIndex % 3 === 0 ? "first_visit" : "revisit",
+        original_service_price: service.price,
+        discount_amount: 0,
+        final_service_price: service.price,
+        created_at: now,
+        updated_at: now,
+      };
+    }),
+  );
+
+  assertWrite(await supabase.from("appointments").insert(appointments), "Sparse landing demo appointments");
 
   const completedAppointments = appointments.filter((appointment) => appointment.status === "completed").slice(0, 20);
   assertWrite(

@@ -6,6 +6,16 @@ function readProjectFile(path) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
+test("local preview refuses stale builds instead of serving an older landing", () => {
+  const startScript = readProjectFile("scripts/start-local-server.ps1");
+
+  assert.match(
+    startScript,
+    /if \(-not \$Dev\) \{\s+npm\.cmd run build\s+if \(\$LASTEXITCODE -ne 0\)/,
+  );
+  assert.match(startScript, /older \.next build cannot be served/);
+});
+
 test("the database overlap guard remains transaction-serialized", () => {
   const migration = readProjectFile(
     "supabase/migrations/20260803145206_serialize_staff_appointment_overlap_checks.sql",
@@ -64,8 +74,9 @@ test("the owner application retains a route error recovery boundary", () => {
   assert.match(errorBoundary, /\[petmanager-ui\]/);
 });
 
-test("grooming outcomes stay linked to required photos, customer results, and revenue", () => {
+test("grooming outcomes keep photos optional while preserving customer results and revenue", () => {
   const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
+  const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
   const tokenContract = readProjectFile("src/server/booking-access-token.ts");
   const notificationDispatch = readProjectFile("src/server/notification-dispatch.ts");
   const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
@@ -74,20 +85,39 @@ test("grooming outcomes stay linked to required photos, customer results, and re
     "supabase/migrations/20260803162637_grooming_record_outcomes.sql",
   );
 
-  assert.match(ownerMutations, /requiresStartPhoto = params\.status === "in_progress"/);
-  assert.match(ownerMutations, /params\.status === "almost_done"/);
+  assert.doesNotMatch(ownerMutations, /requiresStartPhoto/);
+  assert.doesNotMatch(ownerMutations, /assertPhotoRequirementForAppointmentStatus/);
+  assert.doesNotMatch(ownerMutations, /getRequiredStatusMediaKind/);
+  assert.doesNotMatch(ownerCalendar, /사진은 완료할 때 등록/);
+  assert.doesNotMatch(ownerCalendar, /사진 없이 바로 시작/);
+  assert.doesNotMatch(ownerCalendar, /미용 완료 사진을 먼저 선택해 주세요/);
+  assert.doesNotMatch(ownerCalendar, /AI 케어리포트 내용을 확인 완료해 주세요/);
+  assert.match(ownerCalendar, /미용 전 사진 · 선택/);
+  assert.match(ownerCalendar, /미용 후 사진 · 선택/);
+  assert.match(ownerCalendar, /케어리포트는 선택 사항이며 나중에 작성해도 됩니다/);
   assert.match(ownerMutations, /final_service_price \?\? service\?\.price/);
   assert.match(ownerMutations, /actual_duration_minutes: getActualGroomingDurationMinutes/);
   assert.match(ownerMutations, /next_recommended_visit_date/);
   assert.match(tokenContract, /"reschedule" \| "result"/);
-  assert.match(notificationDispatch, /isGroomingResult \? "result"/);
+  assert.match(notificationDispatch, /isGroomingResult\s*\?\s*"result"/);
   assert.match(notificationDispatch, /24 \* 365/);
   assert.match(resultCard, /앱 설치나 회원가입 없이/);
+  assert.match(resultCard, /케어리포트 작성 중/);
+  assert.match(resultCard, /다시 확인하기/);
   assert.match(mediaService, /payload\.action !== "result"/);
   assert.match(mediaService, /\.eq\("appointment_id", payload\.appointmentId\)/);
   assert.match(migration, /create trigger grooming_records_sync_revenue/);
   assert.match(migration, /actual_duration_minutes/);
   assert.match(migration, /next_recommended_visit_date/);
+});
+
+test("an early-started future booking remains on its scheduled date after refresh", () => {
+  const ownerCalendar = readProjectFile("src/components/owner-web/calendar-management-screen.tsx");
+
+  assert.match(
+    ownerCalendar,
+    /appointment\.appointment_date !== selectedDate &&\s+actualStart &&\s+\["in_progress", "almost_done", "completed"\]\.includes\(appointment\.status\) &&\s+!actualWindow/,
+  );
 });
 
 test("grooming notes keep a private autosaved draft without delaying photo completion", () => {
@@ -162,6 +192,108 @@ test("landing pricing stays transparent and sells saved time instead of a price 
   assert.match(landing, /해지 방법 공개/);
   assert.match(landing, /기존 데이터 이전 지원/);
   assert.match(landing, /보호자에게 광고 없음/);
-  assert.match(landing, /하루 예약 문의 3건만 줄여도/);
+  assert.match(landing, /하루 30분만 예약 응대를 덜 해도/);
   assert.doesNotMatch(landing, /티피보다.*(?:싸|저렴)/);
+});
+
+test("customer booking dates show four days and derive the nearest available date from real slots", () => {
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+  const bookingFlow = readProjectFile("src/components/customer/customer-first-visit-claude-flow.tsx");
+  const availabilityRoute = readProjectFile("src/app/api/availability/route.ts");
+
+  assert.match(bookingPage, /dateOptions\.slice\(0, 15\)/);
+  assert.match(bookingPage, /summaryOnly: true/);
+  assert.match(bookingFlow, /calc\(\(100% - 24px\) \/ 4\)/);
+  assert.match(bookingFlow, /scroll-snap-type:x mandatory/);
+  assert.match(bookingFlow, /예약 가능한 시간이 없어요/);
+  assert.match(bookingFlow, /isEarliestAvailable \? <span className="avail">예약 가능<\/span>/);
+  assert.match(availabilityRoute, /searchParams\.get\("summary"\) === "1"/);
+  assert.match(availabilityRoute, /customerVisibleSlots\.slice\(0, 1\)/);
+});
+
+test("the customer entry service selection is carried into booking without a duplicate service step", () => {
+  const entryPage = readProjectFile("src/components/customer/customer-booking-entry-page.tsx");
+  const servicePicker = readProjectFile("src/components/customer/customer-entry-service-picker.tsx");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+
+  assert.match(servicePicker, /role="radiogroup"/);
+  assert.match(servicePicker, /aria-checked=\{selected\}/);
+  assert.match(entryPage, /serviceId=\$\{encodeURIComponent\(service\.serviceId\)\}/);
+  assert.match(entryPage, /serviceOptionId=\$\{encodeURIComponent\(service\.id\)\}/);
+  assert.match(entryPage, /서비스를 선택해 주세요/);
+  assert.match(bookingPage, /firstVisitStep === 1 && serviceSelectedBeforeFlow/);
+  assert.match(bookingPage, /setFirstVisitStep\(3\)/);
+  assert.match(bookingPage, /firstVisitStep === 3 && serviceSelectedBeforeFlow/);
+});
+
+test("customer bookings keep the canonical service and snapshot the selected price-guide option", () => {
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const appointmentSchema = readProjectFile("src/server/schemas.ts");
+  const ownerMutations = readProjectFile("src/server/owner-mutations.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+
+  assert.doesNotMatch(customerBookings, /customer-booking-\$\{randomUUID\(\)\}/);
+  assert.doesNotMatch(customerBookings, /createAppointment, upsertService/);
+  assert.match(customerBookings, /selectedCustomerServiceOption\?\.serviceId \?\? payload\.serviceId/);
+  assert.match(customerBookings, /durationMinutes: selectedCustomerServiceOption\?\.durationMinutes/);
+  assert.match(customerBookings, /customerServiceOptionName:/);
+  assert.match(customerBookings, /customerServiceOptionDurationMinutes:/);
+  assert.match(appointmentSchema, /durationMinutes: z\.coerce\.number\(\)\.int\(\)\.min\(15\)/);
+  assert.match(ownerMutations, /durationMinutesOverride: durationMinutes/);
+  assert.match(ownerMutations, /buildAppointmentWindow\(payload\.appointmentDate, payload\.appointmentTime, durationMinutes\)/);
+  assert.match(resultCard, /serviceOptionId: getRebookingServiceOptionId\(appointment\)/);
+});
+
+test("personalized rebooking links restore the exact guardian and pet without phone-only merging", () => {
+  const tokenContract = readProjectFile("src/server/booking-access-token.ts");
+  const rebookingRoute = readProjectFile("src/app/api/customer-rebooking-link/route.ts");
+  const bookingEntry = readProjectFile("src/app/book/[shopId]/page.tsx");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const resultCard = readProjectFile("src/components/customer/customer-grooming-result-card.tsx");
+  const notificationDispatch = readProjectFile("src/server/notification-dispatch.ts");
+
+  assert.match(tokenContract, /REBOOKING_ACCESS_TOKEN_HOURS = 0\.5/);
+  assert.match(tokenContract, /source\.action !== "result" && source\.action !== "rebook_source"/);
+  assert.match(tokenContract, /action: "rebook"/);
+  assert.match(rebookingRoute, /exchangeBookingAccessTokenForRebooking/);
+  assert.match(rebookingRoute, /experience: "revisit", t: rebookingToken/);
+  assert.match(bookingEntry, /access\.action === "rebook"/);
+  assert.match(bookingEntry, /initialBookingProfile=\{initialBookingProfile\}/);
+  assert.match(bookingPage, /rebookingAccessToken: initialAccessToken \?\? ""/);
+  assert.match(bookingPage, /rebookingPetId: initialAccessToken \? selectedRebookingPetId : ""/);
+  assert.match(customerBookings, /access\.shopId !== payload\.shopId \|\| access\.action !== "rebook"/);
+  assert.doesNotMatch(customerBookings, /phoneOnlyActiveGuardian/);
+  assert.match(resultCard, /\/api\/customer-rebooking-link/);
+  assert.match(notificationDispatch, /isRevisitNotice && bookingAccessToken/);
+  assert.match(notificationDispatch, /buildPersonalizedRebookingSourceUrl\(input\.shopId, bookingAccessToken\)/);
+});
+
+test("customer reservation management requires an appointment-scoped signed link", () => {
+  const tokenContract = readProjectFile("src/server/booking-access-token.ts");
+  const customerLookupRoute = readProjectFile("src/app/api/customer-lookup/route.ts");
+  const customerBookings = readProjectFile("src/server/customer-bookings.ts");
+  const managePanel = readProjectFile("src/components/customer/customer-booking-manage-panel.tsx");
+  const recoveryRoute = readProjectFile("src/app/api/customer-booking-access-link/route.ts");
+  const recoveryService = readProjectFile("src/server/customer-booking-access-recovery.ts");
+  const bookingPage = readProjectFile("src/components/customer/customer-booking-page.tsx");
+
+  assert.match(tokenContract, /action\?: "manage" \| "reschedule"/);
+  assert.match(tokenContract, /payload\.action === "manage"[\s\S]*!payload\.appointmentId/);
+  assert.match(customerBookings, /accessToken: z\.string\(\)\.trim\(\)\.min\(1\)/);
+  assert.match(customerBookings, /access\.appointmentId !== payload\.appointmentId/);
+  assert.doesNotMatch(customerBookings, /export async function lookupCustomerBookings\(/);
+  assert.doesNotMatch(customerBookings, /export async function lookupCustomerBookingProfile\(/);
+  assert.match(customerLookupRoute, /if \(!token\)/);
+  assert.doesNotMatch(customerLookupRoute, /searchParams\.get\("guardianName"\)/);
+  assert.match(managePanel, /accessToken: initialAccessToken/);
+  assert.match(managePanel, /\/api\/customer-booking-access-link/);
+  assert.doesNotMatch(managePanel, /보호자 이름 입력/);
+  assert.doesNotMatch(managePanel, /반려동물 이름 입력/);
+  assert.match(recoveryRoute, /NEUTRAL_MESSAGE/);
+  assert.match(recoveryRoute, /"Retry-After": "900"/);
+  assert.match(recoveryService, /PHONE_REQUEST_LIMIT = 3/);
+  assert.match(recoveryService, /IP_REQUEST_LIMIT = 10/);
+  assert.match(recoveryService, /type: "booking_manage_link_requested"/);
+  assert.doesNotMatch(bookingPage, /profile: "1"/);
 });

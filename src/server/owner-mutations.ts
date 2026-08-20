@@ -81,36 +81,6 @@ function getRejectionReason(payload: {
   return payload.rejectionReasonTemplate?.trim() || payload.rejectionReasonCustom?.trim() || null;
 }
 
-function getRequiredStatusMediaKind(params: {
-  status: AppointmentStatus;
-  previousStatus: AppointmentStatus;
-}) {
-  const requiresStartPhoto = params.status === "in_progress";
-  const requiresFinishPhoto =
-    params.status === "almost_done" ||
-    (params.status === "completed" && params.previousStatus === "in_progress");
-  if (requiresStartPhoto) return "grooming_before" as const;
-  if (requiresFinishPhoto) return "grooming_after" as const;
-  return null;
-}
-
-function assertPhotoRequirementForAppointmentStatus(params: {
-  status: AppointmentStatus;
-  previousStatus: AppointmentStatus;
-  mediaAssetIds: string[];
-  shop: Shop;
-}) {
-  const requiredMediaKind = getRequiredStatusMediaKind(params);
-  if (!requiredMediaKind) return;
-  if (params.mediaAssetIds.length > 0) return;
-
-  throw new Error(
-    requiredMediaKind === "grooming_before"
-      ? "미용 시작 전 사진을 촬영해 주세요. 사진이 저장된 뒤 미용을 시작할 수 있어요."
-      : "미용 완료 사진을 촬영해 주세요. 사진이 저장된 뒤 픽업 준비 또는 완료 처리할 수 있어요.",
-  );
-}
-
 function getActualGroomingDurationMinutes(startedAt: string | null | undefined, completedAt: string | null | undefined) {
   if (!startedAt || !completedAt) return null;
   const started = new Date(startedAt).getTime();
@@ -319,6 +289,11 @@ function getAppointmentDurationMinutes(appointment: Appointment, services: Servi
   }
 
   return services.find((item) => item.id === appointment.service_id)?.duration_minutes ?? null;
+}
+
+function getAppointmentServiceNameSnapshot(appointment: Appointment, fallback: string | null) {
+  const snapshotName = appointment.discount_snapshot?.customerServiceOptionName;
+  return typeof snapshotName === "string" && snapshotName.trim() ? snapshotName.trim() : fallback;
 }
 
 function ensureStaffAvailableForWindow(params: {
@@ -1628,6 +1603,7 @@ export async function createAppointment(input: unknown) {
   const service = data.services.find((item) => item.id === payload.serviceId);
 
   if (!service) throw new Error("서비스 정보를 찾을 수 없습니다.");
+  const durationMinutes = payload.durationMinutes ?? service.duration_minutes;
 
   let resolvedStaffId = payload.staffId ?? null;
   if (!resolvedStaffId && data.staffMembers.length > 0) {
@@ -1635,6 +1611,7 @@ export async function createAppointment(input: unknown) {
       computeAvailableSlots({
         date: payload.appointmentDate,
         serviceId: service.id,
+        durationMinutesOverride: durationMinutes,
         shop: data.shop,
         services: data.services,
         appointments: data.appointments,
@@ -1648,26 +1625,23 @@ export async function createAppointment(input: unknown) {
       throw new Error("선택한 시간에는 예약할 수 없습니다.");
     }
 
-    const recommendationMode = normalizeReservationPolicySettings(data.shop.reservation_policy_settings).ai_booking_recommendation_mode;
-    if (recommendationMode === "staff_balance") {
-      const loadByStaffId = new Map(
-        getStaffBookingLoads({
-          date: payload.appointmentDate,
-          staffMembers: data.staffMembers,
-          appointments: data.appointments,
-          services: data.services,
-        }).map((load) => [load.staffId, load]),
+    const loadByStaffId = new Map(
+      getStaffBookingLoads({
+        date: payload.appointmentDate,
+        staffMembers: data.staffMembers,
+        appointments: data.appointments,
+        services: data.services,
+      }).map((load) => [load.staffId, load]),
+    );
+    availableStaff.sort((left, right) => {
+      const leftLoad = loadByStaffId.get(left.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+      const rightLoad = loadByStaffId.get(right.id) ?? { bookedMinutes: 0, bookingCount: 0 };
+      return (
+        leftLoad.bookedMinutes - rightLoad.bookedMinutes ||
+        leftLoad.bookingCount - rightLoad.bookingCount ||
+        left.id.localeCompare(right.id)
       );
-      availableStaff.sort((left, right) => {
-        const leftLoad = loadByStaffId.get(left.id) ?? { bookedMinutes: 0, bookingCount: 0 };
-        const rightLoad = loadByStaffId.get(right.id) ?? { bookedMinutes: 0, bookingCount: 0 };
-        return (
-          leftLoad.bookedMinutes - rightLoad.bookedMinutes ||
-          leftLoad.bookingCount - rightLoad.bookingCount ||
-          left.id.localeCompare(right.id)
-        );
-      });
-    }
+    });
 
     resolvedStaffId = availableStaff[0].id;
   }
@@ -1675,6 +1649,7 @@ export async function createAppointment(input: unknown) {
   const availableSlots = computeAvailableSlots({
     date: payload.appointmentDate,
     serviceId: service.id,
+    durationMinutesOverride: durationMinutes,
     shop: data.shop,
     services: data.services,
     appointments: data.appointments,
@@ -1693,11 +1668,11 @@ export async function createAppointment(input: unknown) {
     staffId: resolvedStaffId,
     date: payload.appointmentDate,
     appointmentTime: payload.appointmentTime,
-    durationMinutes: service.duration_minutes,
+    durationMinutes,
   });
 
   const status = "confirmed";
-  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, service.duration_minutes);
+  const appointmentWindow = buildAppointmentWindow(payload.appointmentDate, payload.appointmentTime, durationMinutes);
   const shopNotificationSettings = normalizeShopNotificationSettings(data.shop.notification_settings);
   const appointment: Appointment = {
     id: randomUUID(),
@@ -1832,6 +1807,7 @@ export async function updateAppointmentStatus(input: unknown) {
   const statusChangedAt = nowIso();
   const groomingDetails = payload.groomingRecord;
   let completedGroomingRecordId: string | null = null;
+  let completedCareReportConfirmedAt: string | null = null;
 
   if (!hasSupabaseServerEnv()) {
     const store = getMutableStore();
@@ -1846,13 +1822,6 @@ export async function updateAppointmentStatus(input: unknown) {
     assertAppointmentStatusTransitionAllowed({
       previousStatus: appointment.status,
       nextStatus: payload.status,
-    });
-
-    assertPhotoRequirementForAppointmentStatus({
-      status: payload.status,
-      previousStatus: appointment.status,
-      mediaAssetIds: statusMediaAssetIds,
-      shop: store.shop,
     });
 
     if (payload.status === "confirmed") {
@@ -1908,7 +1877,7 @@ export async function updateAppointmentStatus(input: unknown) {
         pet_breed_snapshot: pet?.breed ?? null,
         pet_weight_snapshot: pet?.weight ?? null,
         pricing_group_snapshot: pet?.pricing_group ?? null,
-        service_name_snapshot: service?.name ?? null,
+        service_name_snapshot: getAppointmentServiceNameSnapshot(appointment, service?.name ?? null),
         record_source: "owner" as const,
         next_recommended_visit_date:
           groomingDetails?.nextRecommendedVisitDate ?? existingRecord?.next_recommended_visit_date ?? null,
@@ -2025,37 +1994,6 @@ export async function updateAppointmentStatus(input: unknown) {
   });
 
   const bootstrap = await getBootstrap(currentAppointment.shop_id);
-  assertPhotoRequirementForAppointmentStatus({
-    status: payload.status,
-    previousStatus: currentAppointment.status,
-    mediaAssetIds: statusMediaAssetIds,
-    shop: bootstrap.shop,
-  });
-  const requiredMediaKind = getRequiredStatusMediaKind({
-    status: payload.status,
-    previousStatus: currentAppointment.status,
-  });
-  if (requiredMediaKind) {
-    const matchingStatusMedia = await supabase
-      .from("media_assets")
-      .select("id")
-      .eq("shop_id", currentAppointment.shop_id)
-      .eq("appointment_id", currentAppointment.id)
-      .eq("media_kind", requiredMediaKind)
-      .eq("status", "ready")
-      .is("deleted_at", null)
-      .in("id", statusMediaAssetIds)
-      .limit(1);
-    if (matchingStatusMedia.error) throw new Error(matchingStatusMedia.error.message);
-    if (!matchingStatusMedia.data?.length) {
-      throw new Error(
-        requiredMediaKind === "grooming_before"
-          ? "이 예약에 연결된 미용 시작 사진을 확인할 수 없어요. 사진을 다시 촬영해 주세요."
-          : "이 예약에 연결된 미용 완료 사진을 확인할 수 없어요. 사진을 다시 촬영해 주세요.",
-      );
-    }
-  }
-
   if (payload.status === "confirmed") {
     ensureAppointmentCanBeConfirmed({
       appointment: currentAppointment,
@@ -2138,6 +2076,25 @@ export async function updateAppointmentStatus(input: unknown) {
       .maybeSingle();
     if (existingRecord.error) throw new Error(existingRecord.error.message);
 
+    const completionDraft = await supabase
+      .from("grooming_record_drafts")
+      .select("care_report_observations,care_report_voice_transcript,care_report_ai_draft,care_report_generation_id,care_report_owner_confirmed_at,care_report_photo_consent")
+      .eq("shop_id", resolvedAppointment.shop_id)
+      .eq("appointment_id", resolvedAppointment.id)
+      .maybeSingle();
+    if (completionDraft.error && !hasMissingColumnError(completionDraft.error, "care_report")) {
+      throw new Error(completionDraft.error.message);
+    }
+
+    const confirmedCareReport =
+      completionDraft.data?.care_report_owner_confirmed_at && completionDraft.data?.care_report_ai_draft
+        ? completionDraft.data.care_report_ai_draft
+        : null;
+    completedCareReportConfirmedAt =
+      completionDraft.data?.care_report_owner_confirmed_at ??
+      existingRecord.data?.care_report_owner_confirmed_at ??
+      null;
+
     const completionBootstrap = await getBootstrap(resolvedAppointment.shop_id);
     const service = completionBootstrap.services.find((item) => item.id === resolvedAppointment.service_id);
     const pet = completionBootstrap.pets.find((item) => item.id === resolvedAppointment.pet_id);
@@ -2173,10 +2130,21 @@ export async function updateAppointmentStatus(input: unknown) {
       pet_breed_snapshot: pet?.breed ?? null,
       pet_weight_snapshot: pet?.weight ?? null,
       pricing_group_snapshot: pet?.pricing_group ?? null,
-      service_name_snapshot: service?.name ?? null,
+      service_name_snapshot: getAppointmentServiceNameSnapshot(resolvedAppointment, service?.name ?? null),
       record_source: "owner",
       next_recommended_visit_date:
         groomingDetails?.nextRecommendedVisitDate ?? existingRecord.data?.next_recommended_visit_date ?? null,
+      care_report_data: confirmedCareReport ?? existingRecord.data?.care_report_data ?? null,
+      care_report_observations:
+        completionDraft.data?.care_report_observations ?? existingRecord.data?.care_report_observations ?? {},
+      care_report_generation_id:
+        completionDraft.data?.care_report_generation_id ?? existingRecord.data?.care_report_generation_id ?? null,
+      care_report_owner_confirmed_at:
+        completionDraft.data?.care_report_owner_confirmed_at ??
+        existingRecord.data?.care_report_owner_confirmed_at ??
+        null,
+      care_report_photo_consent:
+        completionDraft.data?.care_report_photo_consent ?? existingRecord.data?.care_report_photo_consent ?? false,
       before_media_asset_id: beforeMediaAssetId ?? existingRecord.data?.before_media_asset_id ?? null,
       after_media_asset_id: afterMediaAssetId ?? existingRecord.data?.after_media_asset_id ?? null,
       groomed_at: resolvedAppointment.actual_completed_at ?? statusChangedAt,
@@ -2218,13 +2186,23 @@ export async function updateAppointmentStatus(input: unknown) {
       }
     }
 
-    const draftCleanup = await supabase
-      .from("grooming_record_drafts")
-      .delete()
-      .eq("shop_id", resolvedAppointment.shop_id)
-      .eq("appointment_id", resolvedAppointment.id);
-    if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
-      console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
+    const careReportStarted = Boolean(
+      completionDraft.data?.care_report_ai_draft ||
+        completionDraft.data?.care_report_voice_transcript ||
+        Object.keys(completionDraft.data?.care_report_observations ?? {}).length > 0,
+    );
+    const keepUnconfirmedCareReportDraft =
+      careReportStarted && !completionDraft.data?.care_report_owner_confirmed_at;
+
+    if (!keepUnconfirmedCareReportDraft) {
+      const draftCleanup = await supabase
+        .from("grooming_record_drafts")
+        .delete()
+        .eq("shop_id", resolvedAppointment.shop_id)
+        .eq("appointment_id", resolvedAppointment.id);
+      if (draftCleanup.error && !draftCleanup.error.message.includes("grooming_record_drafts")) {
+        console.warn("[owner-mutations] grooming draft cleanup failed", draftCleanup.error.message);
+      }
     }
   }
 
@@ -2289,6 +2267,9 @@ export async function updateAppointmentStatus(input: unknown) {
         .update({
           customer_notification_id: completionNotification.notification.id,
           shared_with_customer_at: completionNotification.notification.sent_at ?? null,
+          care_report_sent_at: completedCareReportConfirmedAt
+            ? completionNotification.notification.sent_at ?? null
+            : null,
           updated_at: statusChangedAt,
         })
         .eq("id", completedGroomingRecordId);

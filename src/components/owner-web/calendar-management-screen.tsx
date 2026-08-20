@@ -31,6 +31,7 @@ import {
   CalendarGroomingCompletionFields,
   type GroomingCompletionDetails,
 } from "@/components/owner-web/calendar-grooming-completion-fields";
+import { CalendarCareReportCompletionPanel } from "@/components/owner-web/calendar-care-report-completion-panel";
 import { useGroomingRecordDraft } from "@/components/owner-web/use-grooming-record-draft";
 import { DailyScheduleGrid } from "@/components/owner-web/calendar-daily-schedule-grid";
 import { getRollingScheduleDates } from "@/components/owner-web/calendar-week-range";
@@ -88,6 +89,7 @@ import {
 } from "@/lib/discount-coupons";
 import {
   createOwnerMediaAssetFromFile,
+  getOwnerMediaSignedUrls,
   type OwnerMediaUploadMetrics,
 } from "@/lib/media/owner-media-client";
 import { getPetBiteLevelLabel, normalizePetBiteLevel } from "@/lib/pet-bite-level";
@@ -131,15 +133,28 @@ type RecentStatusOverride = {
 };
 type PhotoStatusAction = {
   bookingId: string;
+  serviceName?: string;
   nextStatus: "진행 중" | "픽업 준비" | "완료";
   mediaKind: Extract<MediaKind, "grooming_before" | "grooming_after">;
   mode?: "single" | "completion";
-  requiresPhoto?: boolean;
   title: string;
   description: string;
   buttonLabel: string;
   skipLabel: string;
   mobileDescription: string;
+};
+
+type ExistingCompletionPhoto = {
+  mediaAssetId: string;
+  signedUrl: string | null;
+};
+
+type CompletionMediaListResponse = {
+  items: Array<{
+    mediaAsset: {
+      id: string;
+    };
+  }>;
 };
 type StaffKey = string;
 type StaffFilter = "전체 직원" | StaffKey;
@@ -1461,7 +1476,12 @@ function buildDailyBookingsFromBootstrap(data: BootstrapPayload, selectedDate: s
       const scheduledDurationMinutes = getScheduledDurationMinutes(appointment, service);
       const actualStart = getDateTimePartsInTimeZone(appointment.actual_started_at);
       const actualWindow = getActualAppointmentWindowForDate(appointment, selectedDate, scheduledDurationMinutes);
-      if (actualStart && ["in_progress", "almost_done", "completed"].includes(appointment.status) && !actualWindow) {
+      if (
+        appointment.appointment_date !== selectedDate &&
+        actualStart &&
+        ["in_progress", "almost_done", "completed"].includes(appointment.status) &&
+        !actualWindow
+      ) {
         return [];
       }
       const staffColumn = staffColumnForIndex(index, staffColumns);
@@ -1619,7 +1639,6 @@ function BookingSidePanel({
   currentHour,
   bookings,
   onChangeStatus,
-  onRequestBeforePhotoStatusChange,
   onSelectBooking,
   onAcknowledgeChange,
   staffComments,
@@ -1639,7 +1658,6 @@ function BookingSidePanel({
   currentHour: number;
   bookings: DailyBooking[];
   onChangeStatus: (bookingId: string, nextStatus: string) => void;
-  onRequestBeforePhotoStatusChange: (booking: DailyBooking) => void;
   onSelectBooking: (id: string) => void;
   onAcknowledgeChange: (bookingId: string) => void;
   staffComments: Record<string, string>;
@@ -2379,11 +2397,11 @@ function BookingSidePanel({
               ) : sourceStatus === "진행 중" ? (
                 <button
                   type="button"
-                  onClick={() => onChangeStatus(selectedBooking.id, "완료")}
+                  onClick={() => onChangeStatus(selectedBooking.id, "픽업 준비")}
                   className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] bg-[#2f7866] px-3 text-[16px] font-medium text-white transition hover:bg-[#286b5b] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  미용 완료
+                  픽업 준비
                 </button>
               ) : sourceStatus === "픽업 준비" ? (
                 <div className="grid grid-cols-1 gap-2">
@@ -3468,13 +3486,54 @@ function PhotoStatusDialog({
   const [error, setError] = useState("");
   const [uploadMetrics, setUploadMetrics] = useState<OwnerMediaUploadMetrics | null>(null);
   const [activeMediaKind, setActiveMediaKind] = useState<Extract<MediaKind, "grooming_before" | "grooming_after">>(action.mediaKind);
+  const [beforeMediaAssetId, setBeforeMediaAssetId] = useState<string | null>(null);
+  const [existingBeforePhoto, setExistingBeforePhoto] = useState<ExistingCompletionPhoto | null>(null);
+  const [existingBeforePhotoLoading, setExistingBeforePhotoLoading] = useState(false);
+  const [careReportBusy, setCareReportBusy] = useState(false);
   const isCompletionMode = action.mode === "completion";
   const draft = useGroomingRecordDraft({
     shopId,
     appointmentId: action.bookingId,
     enabled: isCompletionMode,
   });
-  const uploadedAssetIds = draft.afterMediaAssetId ? [draft.afterMediaAssetId] : [];
+  useEffect(() => {
+    if (!isCompletionMode || !action.serviceName || draft.value.treatmentNotes === action.serviceName) return;
+    draft.setValue({ ...draft.value, treatmentNotes: action.serviceName });
+  }, [action.serviceName, draft.setValue, draft.value, isCompletionMode]);
+  useEffect(() => {
+    if (!isCompletionMode) return;
+    let active = true;
+    const query = new URLSearchParams({
+      shopId,
+      appointmentId: action.bookingId,
+      mediaKind: "grooming_before",
+      limit: "1",
+      includeVariants: "false",
+    });
+
+    setExistingBeforePhotoLoading(true);
+    void fetchApiJsonWithAuth<CompletionMediaListResponse>(`/api/owner/media/assets?${query.toString()}`, { cache: "no-store" })
+      .then(async (response) => {
+        const mediaAssetId = response.items[0]?.mediaAsset.id;
+        if (!mediaAssetId) return null;
+        const signedUrls = await getOwnerMediaSignedUrls(shopId, [mediaAssetId], "thumbnail");
+        return { mediaAssetId, signedUrl: signedUrls[0]?.signedUrl ?? null };
+      })
+      .then((photo) => {
+        if (active) setExistingBeforePhoto(photo);
+      })
+      .catch(() => {
+        if (active) setExistingBeforePhoto(null);
+      })
+      .finally(() => {
+        if (active) setExistingBeforePhotoLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [action.bookingId, isCompletionMode, shopId]);
+  const uploadedAssetIds = [beforeMediaAssetId, draft.afterMediaAssetId].filter((id): id is string => Boolean(id));
   const busy = uploading || completing;
   const mobileOwnerPath = `/owner/mobile?appointmentId=${encodeURIComponent(action.bookingId)}&statusAction=${encodeURIComponent(action.nextStatus)}`;
   const mobileOwnerUrl = typeof window === "undefined" ? mobileOwnerPath : `${window.location.origin}${mobileOwnerPath}`;
@@ -3490,7 +3549,11 @@ function PhotoStatusDialog({
       const uploaded = await onSubmit(file, activeMediaKind);
       setUploadMetrics(uploaded.metrics);
       if (isCompletionMode) {
-        draft.setAfterMediaAssetId(uploaded.mediaAssetId);
+        if (activeMediaKind === "grooming_before") {
+          setBeforeMediaAssetId(uploaded.mediaAssetId);
+        } else {
+          draft.setAfterMediaAssetId(uploaded.mediaAssetId);
+        }
       } else {
         await onComplete([uploaded.mediaAssetId]);
         onClose();
@@ -3528,7 +3591,10 @@ function PhotoStatusDialog({
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/30 px-4" onClick={busy ? undefined : onClose}>
       <div
-        className="w-full max-w-[420px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        className={cn(
+          "max-h-[calc(100vh-32px)] w-full overflow-y-auto rounded-[18px] border border-[#d7e2ee] bg-[#fbfdff] p-5 shadow-[0_24px_80px_rgba(29,61,98,0.20)]",
+          isCompletionMode ? "max-w-[760px]" : "max-w-[540px]",
+        )}
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -3541,7 +3607,7 @@ function PhotoStatusDialog({
         />
 
         <div className="mb-4">
-          <h3 className="text-[18px] font-medium text-[#111827]">{action.title}</h3>
+            <h3 className="text-[20px] font-semibold tracking-[-0.02em] text-[#172c46]">{action.title}</h3>
           {action.description ? (
             <p className="mt-1 text-[14px] leading-6 text-[#64748b]">{action.description}</p>
           ) : null}
@@ -3550,22 +3616,37 @@ function PhotoStatusDialog({
         {isCompletionMode ? (
           <div className="grid gap-2">
             {[
-              { key: "after" as const, label: "미용 완료 사진", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId) },
-            ].map((slot) => (
-              <button
-                key={slot.key}
-                type="button"
-                onClick={() => selectPhoto(slot.mediaKind)}
-                disabled={busy}
-                className="flex min-h-[54px] items-center justify-between rounded-[10px] border border-[#dbe2ea] bg-[#fbfcfd] px-4 text-left transition hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                <span className="inline-flex items-center gap-2 text-[14px] font-medium text-[#334155]">
-                  {slot.uploaded ? <CheckCircle2 className="h-4 w-4 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 text-[#64748b]" />}
-                  {slot.label}
-                </span>
-                <span className="text-[13px] text-[#64748b]">{slot.uploaded ? "선택됨" : "선택"}</span>
-              </button>
-            ))}
+              { key: "before" as const, label: "미용 전 사진 · 선택", mediaKind: "grooming_before" as const, uploaded: Boolean(beforeMediaAssetId) },
+              { key: "after" as const, label: "미용 후 사진 · 선택", mediaKind: "grooming_after" as const, uploaded: Boolean(draft.afterMediaAssetId) },
+            ].map((slot) => {
+              const hasExistingBeforePhoto = slot.key === "before" && Boolean(existingBeforePhoto);
+              const uploaded = slot.uploaded || hasExistingBeforePhoto;
+              const statusCopy =
+                slot.key === "before" && existingBeforePhotoLoading
+                  ? "확인 중"
+                  : hasExistingBeforePhoto
+                    ? "등록됨"
+                    : uploaded
+                      ? "선택됨"
+                      : "선택";
+
+              return (
+                <button
+                  key={slot.key}
+                  type="button"
+                  onClick={() => selectPhoto(slot.mediaKind)}
+                  disabled={busy}
+            className="flex min-h-[60px] items-center justify-between rounded-[12px] border border-[#d5e2ef] bg-[#f4f8fd] px-4 text-left transition hover:border-[#a9c6e5] hover:bg-[#edf5fd] disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-2 text-[14px] font-medium text-[#334155]">
+                    {hasExistingBeforePhoto && existingBeforePhoto?.signedUrl ? <img src={existingBeforePhoto.signedUrl} alt="등록된 미용 전 사진" className="h-9 w-9 rounded-[8px] object-cover" /> : null}
+              {uploaded ? <CheckCircle2 className="h-4 w-4 text-[#2f7866]" /> : <ImagePlus className="h-4 w-4 text-[#3978b5]" />}
+                    {slot.label}
+                  </span>
+                  <span className="text-[13px] text-[#64748b]">{statusCopy}</span>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-[10px] bg-[#fbfcfd] p-4">
@@ -3583,15 +3664,25 @@ function PhotoStatusDialog({
         )}
 
         {isCompletionMode ? (
-          <CalendarGroomingCompletionFields
-            value={draft.value}
-            onChange={draft.setValue}
-            disabled={completing}
-            draftStatus={draft.status}
-            lastSavedAt={draft.lastSavedAt}
-            saveError={draft.saveError}
-            onRetrySave={() => void draft.flushDraft()}
-          />
+          <>
+            <CalendarGroomingCompletionFields
+              value={draft.value}
+              onChange={draft.setValue}
+              serviceName={action.serviceName}
+              disabled={completing}
+              draftStatus={draft.status}
+              lastSavedAt={draft.lastSavedAt}
+              saveError={draft.saveError}
+              onRetrySave={() => void draft.flushDraft()}
+            />
+            <CalendarCareReportCompletionPanel
+              shopId={shopId}
+              appointmentId={action.bookingId}
+              details={draft.value}
+              disabled={busy}
+              onPendingChange={setCareReportBusy}
+            />
+          </>
         ) : null}
 
         {uploading ? (
@@ -3613,14 +3704,12 @@ function PhotoStatusDialog({
             <button
               type="button"
               onClick={() => void handleComplete(uploadedAssetIds)}
-              disabled={busy || (action.requiresPhoto === true && !draft.afterMediaAssetId)}
+              disabled={busy || careReportBusy}
               className="inline-flex h-11 w-full items-center justify-center rounded-[8px] bg-[#334155] px-3 text-[15px] text-white hover:bg-[#1f2937] disabled:opacity-50"
             >
-              {completing ? "완료 처리 중" : uploading ? "사진 업로드 중" : "미용 기록 저장하고 완료"}
+              {completing ? "완료 처리 중" : uploading ? "사진 업로드 중" : "미용 완료"}
             </button>
-            {action.requiresPhoto === true && !draft.afterMediaAssetId ? (
-              <p className="text-center text-[12px] text-[#a04455]">미용 완료 사진을 먼저 선택해 주세요.</p>
-            ) : null}
+            <p className="text-center text-[12px] text-[#64748b]">케어리포트는 선택 사항이며 나중에 작성해도 됩니다.</p>
             <button
               type="button"
               onClick={onClose}
@@ -4394,10 +4483,19 @@ export default function CalendarManagementScreen({
     }
   }
 
-  function isBeforeBookingStart(booking: DailyBooking) {
+  function isBeforeNormalStartWindow(booking: DailyBooking) {
     const selectedDay = parseScheduleDate(selectedDate).getTime();
     const todayDay = parseScheduleDate(currentDateInTimeZone()).getTime();
-    return selectedDay > todayDay || (selectedDay === todayDay && getCurrentDayHour() < booking.start);
+    return selectedDay > todayDay || (selectedDay === todayDay && getCurrentDayHour() < booking.start - 20 / 60);
+  }
+
+  function isWithinNormalStartWindow(booking: DailyBooking) {
+    const selectedDay = parseScheduleDate(selectedDate).getTime();
+    const todayDay = parseScheduleDate(currentDateInTimeZone()).getTime();
+    if (selectedDay !== todayDay) return false;
+
+    const currentHour = getCurrentDayHour();
+    return currentHour >= booking.start - 20 / 60 && currentHour <= booking.start + 20 / 60;
   }
 
   async function applyBookingStatusChange(
@@ -4474,45 +4572,15 @@ export default function CalendarManagementScreen({
     const sourceStatus = booking.sourceStatus ?? booking.status;
     setPhotoStatusAction({
       bookingId: booking.id,
+      serviceName: booking.service,
       nextStatus,
       mediaKind: "grooming_after",
       mode: "completion",
-      requiresPhoto: sourceStatus === "진행 중",
-      title: "미용 완료 사진",
-      description: "미용 완료 사진과 작업 기록을 저장하면 고객 결과 링크, 고객 이력, 매출 분석에 함께 반영됩니다.",
+      title: "미용 완료",
+      description: "오늘 상태를 확인하고, 원하면 완료 사진을 더해 AI 케어리포트를 준비합니다.",
       buttonLabel: "사진 선택",
       skipLabel: "미용 기록 저장하고 완료",
       mobileDescription: "휴대폰으로 QR을 스캔해 사진을 촬영하고 미용 완료를 처리하세요.",
-    });
-  }
-
-  function requestAfterPhotoStatusChange(booking: DailyBooking) {
-    setPhotoStatusAction({
-      bookingId: booking.id,
-      nextStatus: "픽업 준비",
-      mediaKind: "grooming_after",
-      mode: "single",
-      requiresPhoto: true,
-      title: "미용 완료 사진",
-      description: "완료된 모습을 한 장 촬영하면 사진이 저장되고 픽업 준비로 처리됩니다.",
-      buttonLabel: "미용 완료 사진 촬영",
-      skipLabel: "",
-      mobileDescription: "휴대폰으로 QR을 스캔해 미용 완료 사진을 촬영하고 픽업 준비로 변경하세요.",
-    });
-  }
-
-  function requestBeforePhotoStatusChange(booking: DailyBooking) {
-    setPhotoStatusAction({
-      bookingId: booking.id,
-      nextStatus: "진행 중",
-      mediaKind: "grooming_before",
-      mode: "single",
-      requiresPhoto: true,
-      title: "미용 전 사진",
-      description: "미용 전 모습을 한 장 촬영하면 사진이 저장되고 바로 미용 시작으로 처리됩니다.",
-      buttonLabel: "미용 시작 사진 촬영",
-      skipLabel: "",
-      mobileDescription: "휴대폰으로 QR을 스캔해 미용 전 상태를 촬영하고 미용을 시작하세요.",
     });
   }
 
@@ -4556,18 +4624,23 @@ export default function CalendarManagementScreen({
       return;
     }
 
-    if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus) && isBeforeBookingStart(targetBooking)) {
+    if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus) && isBeforeNormalStartWindow(targetBooking)) {
       setEarlyStartBooking(targetBooking);
       return;
     }
 
+    if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus) && isWithinNormalStartWindow(targetBooking)) {
+      void applyBookingStatusChange(targetBooking.id, nextStatus);
+      return;
+    }
+
     if (targetBooking && sourceStatus && nextStatus === "진행 중" && canStartGrooming(sourceStatus)) {
-      requestBeforePhotoStatusChange(targetBooking);
+      void applyBookingStatusChange(targetBooking.id, nextStatus);
       return;
     }
 
     if (targetBooking && nextStatus === "픽업 준비") {
-      requestAfterPhotoStatusChange(targetBooking);
+      void applyBookingStatusChange(targetBooking.id, nextStatus);
       return;
     }
 
@@ -4990,7 +5063,6 @@ export default function CalendarManagementScreen({
           currentHour={scheduleStatusHour}
           bookings={filteredBookings}
           onChangeStatus={handleChangeBookingStatus}
-          onRequestBeforePhotoStatusChange={requestBeforePhotoStatusChange}
           onAcknowledgeChange={handleAcknowledgeChangeBooking}
           onSelectBooking={setSelectedBookingId}
           staffComments={staffComments}
@@ -5030,19 +5102,8 @@ export default function CalendarManagementScreen({
               <span className="block">그래도 미용을 시작할까요?</span>
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setEarlyStartBooking(null)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">
-                아니요
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  requestBeforePhotoStatusChange(earlyStartBooking);
-                  setEarlyStartBooking(null);
-                }}
-                className="h-10 rounded-[8px] bg-[#334155] text-[14px] font-medium text-white hover:bg-[#1f2937]"
-              >
-                사진 촬영하기
-              </button>
+              <button type="button" onClick={() => setEarlyStartBooking(null)} className="h-10 rounded-[8px] border border-[#dbe2ea] bg-white text-[14px] font-medium text-[#334155]">아니요</button>
+              <button type="button" onClick={() => { void applyBookingStatusChange(earlyStartBooking.id, "진행 중"); setEarlyStartBooking(null); }} className="h-10 rounded-[8px] bg-[#334155] text-[14px] font-medium text-white hover:bg-[#1f2937]">미용 시작</button>
             </div>
           </div>
         </div>

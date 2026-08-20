@@ -93,8 +93,8 @@ The operational status, photos, record, customer result, and revenue row are pro
 
 Required behavior:
 
-- `in_progress` requires one `grooming_before` media asset.
-- `almost_done` requires one `grooming_after` media asset. A direct `in_progress -> completed` transition also requires the finish photo.
+- `in_progress`, `almost_done`, and `completed` do not require a photo. `almost_done` is the pickup-ready notification state before grooming completion.
+- Before/after photos are optional outcome attachments. Owners may add either photo at completion, but missing photos must never block pickup-ready or completion.
 - Completion upserts one `grooming_records` row keyed by `appointment_id` and derives actual duration from the appointment's actual timestamps.
 - Treatment notes, special notes, next recommended visit date, before/after media IDs, and final appointment price remain on that record.
 - A database trigger synchronizes exactly one `shop_revenue_entries` row through `grooming_record_id`.

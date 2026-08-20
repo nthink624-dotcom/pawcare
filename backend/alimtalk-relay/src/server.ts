@@ -28,6 +28,7 @@ type RelayConfig = {
   templateBookingCancelled: string;
   templateBookingTimeProposed: string;
   templateBookingRescheduledConfirmed: string;
+  templateBookingManageLinkRequested: string;
   templateAppointmentReminder10m: string;
   templateVisitScheduleNotice: string;
   templateVisitReminderNotice: string;
@@ -52,6 +53,7 @@ const relayEnvKeys = [
   "ALIMTALK_TEMPLATE_BOOKING_CANCELLED",
   "ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED",
   "ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED",
+  "ALIMTALK_TEMPLATE_BOOKING_MANAGE_LINK_REQUESTED",
   "ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M",
   "ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE",
   "ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE",
@@ -79,6 +81,7 @@ function loadRelayConfig(): RelayConfig {
     templateBookingCancelled: process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED || "",
     templateBookingTimeProposed: process.env.ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED || "",
     templateBookingRescheduledConfirmed: process.env.ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED || "",
+    templateBookingManageLinkRequested: process.env.ALIMTALK_TEMPLATE_BOOKING_MANAGE_LINK_REQUESTED || "",
     templateAppointmentReminder10m: process.env.ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M || "",
     templateVisitScheduleNotice: process.env.ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE || "",
     templateVisitReminderNotice: process.env.ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE || "",
@@ -106,6 +109,7 @@ function getRelayConfigPayload() {
     templateBookingCancelled: env.templateBookingCancelled,
     templateBookingTimeProposed: env.templateBookingTimeProposed,
     templateBookingRescheduledConfirmed: env.templateBookingRescheduledConfirmed,
+    templateBookingManageLinkRequested: env.templateBookingManageLinkRequested,
     templateAppointmentReminder10m: env.templateAppointmentReminder10m,
     templateVisitScheduleNotice: env.templateVisitScheduleNotice,
     templateVisitReminderNotice: env.templateVisitReminderNotice,
@@ -136,6 +140,7 @@ function toRelayEnvEntries(config: ReturnType<typeof getRelayConfigPayload>): Re
     ALIMTALK_TEMPLATE_BOOKING_CANCELLED: config.templateBookingCancelled,
     ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED: config.templateBookingTimeProposed,
     ALIMTALK_TEMPLATE_BOOKING_RESCHEDULED_CONFIRMED: config.templateBookingRescheduledConfirmed,
+    ALIMTALK_TEMPLATE_BOOKING_MANAGE_LINK_REQUESTED: config.templateBookingManageLinkRequested,
     ALIMTALK_TEMPLATE_APPOINTMENT_REMINDER_10M: config.templateAppointmentReminder10m,
     ALIMTALK_TEMPLATE_VISIT_SCHEDULE_NOTICE: config.templateVisitScheduleNotice,
     ALIMTALK_TEMPLATE_VISIT_REMINDER_NOTICE: config.templateVisitReminderNotice,
@@ -224,6 +229,7 @@ const relayTemplateConfigKeys = [
   "templateBookingCancelled",
   "templateBookingTimeProposed",
   "templateBookingRescheduledConfirmed",
+  "templateBookingManageLinkRequested",
   "templateAppointmentReminder10m",
   "templateVisitScheduleNotice",
   "templateVisitReminderNotice",
@@ -271,6 +277,7 @@ const adminConfigSchema = z.object({
   templateBookingCancelled: z.string(),
   templateBookingTimeProposed: z.string(),
   templateBookingRescheduledConfirmed: z.string(),
+  templateBookingManageLinkRequested: z.string(),
   templateAppointmentReminder10m: z.string(),
   templateVisitScheduleNotice: z.string(),
   templateVisitReminderNotice: z.string(),
@@ -295,6 +302,7 @@ const templateAliases = [
   "booking_cancelled",
   "booking_time_proposed",
   "booking_rescheduled_confirmed",
+  "booking_manage_link_requested",
   "appointment_reminder_10m",
   "visit_schedule_notice",
   "visit_reminder_notice",
@@ -1141,6 +1149,8 @@ function resolveTemplateKey(alias: string | null | undefined) {
       return env.templateBookingTimeProposed || null;
     case "booking_rescheduled_confirmed":
       return env.templateBookingRescheduledConfirmed || null;
+    case "booking_manage_link_requested":
+      return env.templateBookingManageLinkRequested || null;
     case "appointment_reminder_10m":
       return env.templateAppointmentReminder10m || null;
     case "visit_schedule_notice":
@@ -1187,6 +1197,10 @@ function getTemplateDebugMap() {
     booking_rescheduled_confirmed: {
       configured: Boolean(env.templateBookingRescheduledConfirmed),
       length: env.templateBookingRescheduledConfirmed.length,
+    },
+    booking_manage_link_requested: {
+      configured: Boolean(env.templateBookingManageLinkRequested),
+      length: env.templateBookingManageLinkRequested.length,
     },
     appointment_reminder_10m: {
       configured: Boolean(env.templateAppointmentReminder10m),

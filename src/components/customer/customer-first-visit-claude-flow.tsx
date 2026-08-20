@@ -3,6 +3,7 @@
 import { Check, ChevronLeft, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import CustomerBreedAutocomplete from "@/components/customer/customer-breed-autocomplete";
 import type { CustomerServiceSourceOption } from "@/lib/customer-service-options";
 import { getStaffCustomerName } from "@/lib/staff-display";
 import { formatServicePrice, phoneNormalize } from "@/lib/utils";
@@ -50,8 +51,6 @@ type SavedBookingPet = {
 };
 
 const CUSTOM_SERVICE_ID = "__custom__";
-const popularBreedChips = ["말티즈", "푸들", "포메라니안", "비숑", "시츄", "믹스", "치와와", "말티푸", "요크셔테리어", "스피츠", "슈나우저", "코카스파니엘", "닥스훈트", "웰시코기", "직접 입력"];
-
 function formatDurationRange(minutes: number) {
   if (!Number.isFinite(minutes) || minutes <= 0) return "상담 후 안내";
   if (minutes <= 30) return "30분~60분";
@@ -94,16 +93,13 @@ function buildReservationNumber(appointment?: Appointment | null) {
   return `PM${datePart}-${rawSuffix.padStart(3, "0")}`;
 }
 
-function timeSlotMinutes(slot: string) {
-  const [hour, minute] = slot.split(":").map(Number);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return Number.POSITIVE_INFINITY;
-  return hour * 60 + minute;
-}
-
-function buildFallbackRecommendedSlots(availableSlots: string[]) {
-  const firstSlot = availableSlots[0] ?? "";
-  const afterLunchSlot = availableSlots.find((slot) => timeSlotMinutes(slot) >= 14 * 60) ?? "";
-  return Array.from(new Set([firstSlot, afterLunchSlot, ...availableSlots].filter(Boolean))).slice(0, 2);
+function shuffleStaffMembers(staffMembers: BootstrapStaffMember[]) {
+  const shuffled = staffMembers.slice();
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled;
 }
 
 function ClaudeStyles() {
@@ -128,19 +124,28 @@ function ClaudeStyles() {
       .pm-proto .svc .info .d{font-size:15px;color:var(--textMuted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pm-proto .service-page .svc .info .d{font-size:14px}
       .pm-proto .svc .price{margin-left:auto;font-size:15px;font-weight:700;color:var(--primaryDk);font-variant-numeric:tabular-nums;white-space:nowrap}
-      .pm-proto .dstrip{display:flex;gap:9px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+      .pm-proto .date-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+      .pm-proto .date-head h3{margin-bottom:0}
+      .pm-proto .date-head .swipe-hint{font-size:12px;font-weight:600;color:var(--textMuted)}
+      .pm-proto .dstrip{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x mandatory;scroll-padding-inline:0;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
       .pm-proto .dstrip::-webkit-scrollbar{display:none}
-      .pm-proto .dcell{flex:0 0 58px;height:78px;border-radius:12px;border:1.5px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+      .pm-proto .dcell{flex:0 0 calc((100% - 24px) / 4);min-width:0;height:92px;border-radius:13px;border:1.5px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;scroll-snap-align:start}
       .pm-proto .dcell .dw{font-size:15px;color:var(--textMid)}
       .pm-proto .dcell .dn{font-size:18px;font-weight:700;letter-spacing:-.02em}
+      .pm-proto .dcell .avail{display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:#26704b;font-size:10px;font-weight:800;letter-spacing:-.03em;white-space:nowrap}
+      .pm-proto .dcell .avail::before{content:"";width:5px;height:5px;border-radius:999px;background:#1f9d55}
       .pm-proto .dcell.sel{border-color:var(--primary);background:var(--primary)}
-      .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn{color:#fff}
+      .pm-proto .dcell.sel .dw,.pm-proto .dcell.sel .dn,.pm-proto .dcell.sel .avail{color:#fff}
+      .pm-proto .dcell.sel .avail::before{background:#fff}
       .pm-proto .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
       .pm-proto .tcell{height:44px;text-align:center;font-size:15px;font-weight:600;border-radius:10px;border:1.5px solid var(--border);background:var(--card);font-variant-numeric:tabular-nums;cursor:pointer}
       .pm-proto .tcell.sel{border-color:var(--primary);background:var(--primary);color:#fff}
       .pm-proto .tcell .rec{margin-left:4px;color:var(--primaryDk);font-size:15px;font-weight:700}
       .pm-proto .tcell.sel .rec{color:#fff}
       .pm-proto .hint{font-size:15px;color:var(--textMuted);text-align:center;line-height:1.45}
+      .pm-proto .empty-slots{display:flex;min-height:106px;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--border);border-radius:14px;background:rgba(255,255,255,.72);padding:20px 16px;text-align:center}
+      .pm-proto .empty-slots strong{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.02em}
+      .pm-proto .empty-slots span{font-size:14px;color:var(--textMid)}
       .pm-proto .field{display:flex;flex-direction:column;gap:8px}
       .pm-proto .field label{font-size:15px;font-weight:600;letter-spacing:-.02em}
       .pm-proto .field input,.pm-proto .field textarea{font-family:inherit;font-size:15px;color:var(--text);background:var(--card);border:1.5px solid var(--border);border-radius:11px;padding:13px 14px;width:100%;outline:none}
@@ -171,13 +176,17 @@ function ClaudeStyles() {
       .pm-proto .chips{display:flex;flex-wrap:wrap;gap:7px}
       .pm-proto .breedchip{border:1px solid var(--border);background:var(--card);border-radius:999px;color:var(--textMid);font-size:15px;font-weight:500;padding:7px 10px}
       .pm-proto .breedchip.sel{border-color:var(--primary);background:#fffaf8;color:var(--primaryDk)}
-      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
+      .pm-proto .breed-search .breed-suggestions{margin-top:2px}
+      .pm-proto .breed-search .breed-direct-note{font-size:13px;line-height:1.45;color:var(--textMid);padding:2px 2px 0}
+      .pm-proto .staffstrip{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 16px 4px 0;scroll-snap-type:x proximity;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
       .pm-proto .staffstrip::-webkit-scrollbar{display:none}
-      .pm-proto .staff{flex:0 0 112px;min-height:96px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:15px 10px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .pm-proto .staff{flex:0 0 112px;min-height:96px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);padding:15px 10px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;scroll-snap-align:start}
       .pm-proto .staff.sel{border-color:var(--primary);background:#fffaf8}
       .pm-proto .staff .avatar{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;background:var(--primarySoft);display:flex;align-items:center;justify-content:center;color:var(--primaryDk);overflow:hidden}
       .pm-proto .staff .avatar img{width:100%;height:100%;object-fit:cover}
       .pm-proto .staff .name{display:block;width:100%;font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pm-proto .auto-assignment-guide{margin-top:10px;border:1px solid #f0dfd9;border-radius:10px;background:#fffaf8;padding:9px 11px;font-size:13px;line-height:1.5;color:#7d625a}
+      .pm-proto .auto-assignment-guide strong{color:var(--primaryDk);font-weight:700}
       .pm-proto .consent-note{margin-top:2px;border:1px solid #f4d9d2;border-radius:12px;background:#fff8f6;padding:10px 12px;font-size:14px;line-height:1.48;color:#9a7168}
       .pm-proto .consent-note .label{display:block;margin-bottom:3px;font-size:13px;font-weight:700;color:var(--primaryDk)}
       .pm-proto .consent-note .agree{color:#8a665d}
@@ -240,8 +249,9 @@ export default function CustomerFirstVisitClaudeFlow({
   selectedService,
   selectedServiceOption,
   availableSlots,
-  recommendedSlots: recommendedSlotCandidates = [],
-  recommendationSource = "rule",
+  recommendedSlots,
+  recommendationSource,
+  earliestAvailableDate,
   loadingSlots,
   submitting,
   completedBooking,
@@ -272,8 +282,9 @@ export default function CustomerFirstVisitClaudeFlow({
   selectedService?: Service;
   selectedServiceOption?: CustomerServiceSourceOption;
   availableSlots: string[];
-  recommendedSlots?: string[];
+  recommendedSlots: string[];
   recommendationSource?: "ai" | "rule";
+  earliestAvailableDate: string;
   loadingSlots: boolean;
   submitting: boolean;
   completedBooking: BookingCompletion | null;
@@ -298,15 +309,7 @@ export default function CustomerFirstVisitClaudeFlow({
   const breedInputRef = useRef<HTMLInputElement | null>(null);
   const savedPetPickerKey = `${step}:${savedPets.length}`;
   const [newPetPickerKey, setNewPetPickerKey] = useState<string | null>(null);
-  const recommendedSlots = useMemo(() => {
-    const availableSlotSet = new Set(availableSlots);
-    const prioritySlots = recommendedSlotCandidates.filter((slot, index) => availableSlotSet.has(slot) && recommendedSlotCandidates.indexOf(slot) === index);
-    return (prioritySlots.length > 0 ? prioritySlots : buildFallbackRecommendedSlots(availableSlots)).slice(0, 2);
-  }, [availableSlots, recommendedSlotCandidates]);
-  const regularSlots = useMemo(() => {
-    const recommendedSlotSet = new Set(recommendedSlots);
-    return availableSlots.filter((slot) => !recommendedSlotSet.has(slot)).slice(0, 6);
-  }, [availableSlots, recommendedSlots]);
+  const [displayedStaffMembers, setDisplayedStaffMembers] = useState<BootstrapStaffMember[]>(staffMembers);
   const defaultDateValue = useMemo(() => dateOptions.find((date) => date.label === "오늘")?.value ?? dateOptions[0]?.value ?? "", [dateOptions]);
   const serviceSummaryName = firstVisit.serviceId === CUSTOM_SERVICE_ID ? "상담 후 결정" : selectedServiceOption?.displayName || selectedService?.name || "서비스 선택";
   const petNameForConsent = firstVisit.petName.trim() || "아기";
@@ -317,6 +320,11 @@ export default function CustomerFirstVisitClaudeFlow({
     if (step !== 3 || firstVisit.date || !defaultDateValue) return;
     onDateSelect(defaultDateValue);
   }, [defaultDateValue, firstVisit.date, onDateSelect, step]);
+
+  useEffect(() => {
+    // Keep 빠른 예약 as the first card; only designers rotate to avoid a fixed first-person bias.
+    setDisplayedStaffMembers(shuffleStaffMembers(staffMembers));
+  }, [staffMembers]);
 
   if (step === 5) {
     const appointment = completedBooking?.appointment;
@@ -423,10 +431,6 @@ export default function CustomerFirstVisitClaudeFlow({
                     <input value={firstVisit.petName} onChange={(event) => onPetNameChange(event.target.value)} placeholder="아기 이름" />
                   </div>
                   <div className="field">
-                    <label>품종</label>
-                    <input ref={breedInputRef} value={firstVisit.breed} onChange={(event) => onBreedChange(event.target.value)} placeholder="직접 입력" />
-                  </div>
-                  <div className="field">
                     <label>몸무게</label>
                     <div style={{ position: "relative" }}>
                       <input
@@ -439,26 +443,7 @@ export default function CustomerFirstVisitClaudeFlow({
                       <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: "var(--textMuted)", fontSize: 15 }}>kg</span>
                     </div>
                   </div>
-                  <div style={{ marginTop: 13 }}>
-                    <div className="chips">
-                      {popularBreedChips.map((breed) => {
-                        const active = firstVisit.breed.trim() === breed;
-                        return (
-                          <button
-                            key={breed}
-                            className={`breedchip${active ? " sel" : ""}`}
-                            type="button"
-                            onClick={() => {
-                              if (breed === "직접 입력") breedInputRef.current?.focus();
-                              else onBreedChange(breed);
-                            }}
-                          >
-                            {breed}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <CustomerBreedAutocomplete ref={breedInputRef} value={firstVisit.breed} onChange={onBreedChange} />
                 </div>
 
                 <div className="sec">
@@ -480,31 +465,8 @@ export default function CustomerFirstVisitClaudeFlow({
 
       {step === 2 ? (
         <>
-          <Nav title="디자이너 · 서비스 선택" step="2 / 4" onBack={onStepBack} />
+          <Nav title="서비스 선택" step="2 / 4" onBack={onStepBack} />
           <div className="pgscroll service-page">
-            <div className="sec">
-              <h3>디자이너 선택</h3>
-              <div className="staffstrip">
-                {staffMembers.length > 1 ? (
-                  <button type="button" className={`staff${!firstVisit.staffId ? " sel" : ""}`} onClick={() => onStaffSelect("")}>
-                    <span className="avatar"><UserRound size={22} /></span>
-                    <span className="name">빠른 선택</span>
-                  </button>
-                ) : null}
-                {staffMembers.map((staff) => {
-                  const active = firstVisit.staffId === staff.id;
-                  return (
-                    <button key={staff.id} type="button" className={`staff${active ? " sel" : ""}`} onClick={() => onStaffSelect(staff.id)}>
-                      <span className="avatar">
-                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
-                      </span>
-                      <span className="name">{getStaffCustomerName(staff)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <div className="sec">
               <h3>서비스 선택</h3>
               {customerServiceOptions.map((service) => (
@@ -540,14 +502,49 @@ export default function CustomerFirstVisitClaudeFlow({
           <Nav title="날짜 · 시간 선택" step="3 / 4" onBack={onStepBack} />
           <div className="pgscroll">
             <div className="sec">
-              <h3>날짜 선택</h3>
+              <h3>디자이너 선택</h3>
+              <div className="staffstrip">
+                {staffMembers.length > 1 ? (
+                  <button type="button" className={`staff${!firstVisit.staffId ? " sel" : ""}`} onClick={() => onStaffSelect("")}>
+                    <span className="avatar"><UserRound size={22} /></span>
+                    <span className="name">빠른 예약</span>
+                  </button>
+                ) : null}
+                {displayedStaffMembers.map((staff) => {
+                  const active = firstVisit.staffId === staff.id;
+                  return (
+                    <button key={staff.id} type="button" className={`staff${active ? " sel" : ""}`} onClick={() => onStaffSelect(staff.id)}>
+                      <span className="avatar">
+                        {staff.profileImageUrl ? <img src={staff.profileImageUrl} alt="" /> : <UserRound size={22} />}
+                      </span>
+                      <span className="name">{getStaffCustomerName(staff)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {staffMembers.length > 1 ? <p className="auto-assignment-guide"><strong>빠른 예약 안내</strong> 원하는 디자이너가 없다면, 가능한 디자이너 중 해당 날짜 예약이 가장 적은 분께 배정해 드려요.</p> : null}
+            </div>
+
+            <div className="sec">
+              <div className="date-head">
+                <h3>날짜 선택</h3>
+                <span className="swipe-hint">옆으로 밀어 더 보기</span>
+              </div>
               <div className="dstrip">
                 {dateOptions.map((date, index) => {
                   const active = firstVisit.date === date.value;
+                  const isEarliestAvailable = date.value === earliestAvailableDate;
                   return (
-                    <button key={date.value} type="button" className={`dcell${active ? " sel" : ""}`} onClick={() => onDateSelect(date.value)}>
+                    <button
+                      key={date.value}
+                      type="button"
+                      className={`dcell${active ? " sel" : ""}`}
+                      aria-label={`${date.label}, ${formatDateChipSubtitle(date)}${isEarliestAvailable ? ", 가장 가까운 예약 가능일" : ""}`}
+                      onClick={() => onDateSelect(date.value)}
+                    >
                       <span className="dw">{formatDateChipTitle(date, dateOptions[index - 1])}</span>
                       <span className="dn">{formatDateChipSubtitle(date)}</span>
+                      {isEarliestAvailable ? <span className="avail">예약 가능</span> : null}
                     </button>
                   );
                 })}
@@ -555,34 +552,43 @@ export default function CustomerFirstVisitClaudeFlow({
             </div>
 
             <div className="sec">
-              <h3>추천 시간</h3>
+              <h3>예약 가능한 시간</h3>
               {loadingSlots ? (
                 <div className="hint">가능한 시간을 확인하고 있어요.</div>
               ) : availableSlots.length === 0 ? (
-                <div className="hint">선택한 날짜에 가능한 시간이 없어요.</div>
+                <div className="empty-slots" role="status">
+                  <strong>예약 가능한 시간이 없어요</strong>
+                  <span>다른 날짜를 선택해 주세요.</span>
+                </div>
               ) : (
-                <div className="tgrid">
-                  {recommendedSlots.map((slot) => (
-                    <button key={`recommended-${slot}`} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
-                      {slot}<span className="rec">{recommendationSource === "ai" ? "AI 추천" : "추천"}</span>
-                    </button>
-                  ))}
+                <div className="space-y-4">
+                  {recommendedSlots.length > 0 ? (
+                    <div>
+                      <p className="mb-2 text-[13px] font-bold text-[#d35f50]">{recommendationSource === "ai" ? "AI 추천 시간" : "추천 시간"}<span className="ml-1.5 font-medium text-[#8a7a72]">예약 흐름을 고려했어요</span></p>
+                      <div className="tgrid">
+                        {recommendedSlots.map((slot) => (
+                          <button key={`recommended-${slot}`} type="button" className={`tcell border-[#efb7ae] bg-[#fff6f3]${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
+                            {slot}<span className="rec">추천</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {availableSlots.some((slot) => !recommendedSlots.includes(slot)) ? (
+                    <div>
+                      <p className="mb-2 text-[13px] font-bold text-[#3a2e2a]">{recommendedSlots.length > 0 ? "다른 예약 가능한 시간" : "예약 가능한 시간"}</p>
+                      <div className="tgrid">
+                        {availableSlots.filter((slot) => !recommendedSlots.includes(slot)).map((slot) => (
+                          <button key={slot} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
-
-            {regularSlots.length > 0 ? (
-              <div className="sec">
-                <h3>예약 가능한 시간</h3>
-                <div className="tgrid">
-                  {regularSlots.map((slot) => (
-                    <button key={`all-${slot}`} type="button" className={`tcell${firstVisit.timeSlot === slot ? " sel" : ""}`} onClick={() => onTimeSelect(slot)}>
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
           <div className="dock">
             <div className="sumline">
@@ -620,7 +626,7 @@ export default function CustomerFirstVisitClaudeFlow({
                 <div className="confirm-row"><span className="k">아기</span><span className="v">{firstVisit.petName || "-"} · {firstVisit.breed || "-"} · {firstVisit.weightKg ? `${firstVisit.weightKg}kg` : "-"}</span></div>
                 <div className="confirm-row"><span className="k">서비스</span><span className="v">{serviceSummaryName}</span></div>
                 <div className="confirm-row"><span className="k">일시</span><span className="v">{firstVisit.date && firstVisit.timeSlot ? `${formatDateForSummary(firstVisit.date)} · ${formatTimeForSummary(firstVisit.timeSlot)}` : "-"}</span></div>
-                <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 선택"}</span></div>
+                <div className="confirm-row"><span className="k">담당</span><span className="v">{staffMembers.find((staff) => staff.id === firstVisit.staffId) ? getStaffCustomerName(staffMembers.find((staff) => staff.id === firstVisit.staffId)!) : staffMembers.length === 1 ? getStaffCustomerName(staffMembers[0]) : "빠른 예약"}</span></div>
               </div>
             </div>
           </div>

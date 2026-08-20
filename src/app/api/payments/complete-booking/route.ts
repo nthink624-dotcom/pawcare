@@ -30,6 +30,8 @@ const paymentBookingSchema = z.object({
     appointmentDate: z.string().min(1),
     appointmentTime: z.string().min(1),
     memo: z.string().optional().default(""),
+    rebookingAccessToken: z.string().trim().optional().default(""),
+    rebookingPetId: z.string().trim().optional().default(""),
   }),
 });
 

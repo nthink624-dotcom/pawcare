@@ -14,7 +14,7 @@ import {
   applyConfiguredCustomerServiceOverrides,
   buildCustomerServiceSourceOptions,
 } from "@/lib/customer-service-options";
-import { fetchCustomerAvailability, invalidateCustomerAvailability, type CustomerAvailabilityPayload, type RecommendationSource } from "@/lib/customer-availability";
+import { fetchCustomerAvailability, invalidateCustomerAvailability, type CustomerAvailabilityPayload } from "@/lib/customer-availability";
 import { findCustomerBreedPricingGroup } from "@/lib/customer-breed-pricing-group";
 import { currentDateInTimeZone, phoneNormalize } from "@/lib/utils";
 import type { Appointment, BootstrapStaffMember, Service, Shop, StaffScheduleOverride } from "@/types/domain";
@@ -430,6 +430,10 @@ export default function CustomerBookingPage({
   const initialCustomerServiceOption =
     initialCustomerServiceOptions.find((option) => option.id === initialServiceOptionId) ??
     initialCustomerServiceOptions.find((option) => option.serviceId === initialServiceId);
+  const serviceSelectedBeforeFlow = Boolean(initialCustomerServiceOption);
+  const skipDuplicateServiceStep = (step: FirstVisitStep): FirstVisitStep =>
+    serviceSelectedBeforeFlow && step === 2 ? 3 : step;
+  const initialSelectedServiceSourceName = initialCustomerServiceOption?.sourceName ?? "";
   const initialSelectableServiceId = initialCustomerServiceOption?.serviceId ?? "";
   const initialSelectableServiceOptionId = initialCustomerServiceOption?.id || "";
   const staffMembers = useMemo(() => initialStaffMembers.filter((staff) => staff.name.trim()), [initialStaffMembers]);
@@ -437,7 +441,7 @@ export default function CustomerBookingPage({
   const dateOptions = useMemo(() => buildDateOptions(initialShop), [initialShop]);
   const defaultFirstVisitDate = getDefaultDateOptionValue(dateOptions);
   const [activeMode, setActiveMode] = useState<ActiveMode>(initialMode);
-  const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(initialFirstVisitStep);
+  const [firstVisitStep, setFirstVisitStep] = useState<FirstVisitStep>(() => skipDuplicateServiceStep(initialFirstVisitStep));
   const [firstVisit, setFirstVisit] = useState<FirstVisitState>(() => {
     const selectedProfilePet = initialBookingProfile?.pets[0];
 
@@ -460,11 +464,15 @@ export default function CustomerBookingPage({
   const [submitting, setSubmitting] = useState(false);
   const [firstVisitSlots, setFirstVisitSlots] = useState<string[]>([]);
   const [firstVisitRecommendedSlots, setFirstVisitRecommendedSlots] = useState<string[]>([]);
-  const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<RecommendationSource>("rule");
+  const [firstVisitRecommendationSource, setFirstVisitRecommendationSource] = useState<CustomerAvailabilityPayload["recommendationSource"]>();
   const [loadingFirstVisitSlots, setLoadingFirstVisitSlots] = useState(false);
+  const [earliestAvailableDate, setEarliestAvailableDate] = useState("");
   const [shopInfoOpen, setShopInfoOpen] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [savedPets, setSavedPets] = useState<BookingProfilePet[]>(() => initialBookingProfile?.pets ?? []);
+  const [selectedRebookingPetId, setSelectedRebookingPetId] = useState(() =>
+    initialAccessToken ? initialBookingProfile?.pets[0]?.id ?? "" : "",
+  );
   const detectedBreedPricingGroup = useMemo(
     () => findCustomerBreedPricingGroup(services, firstVisit.breed),
     [firstVisit.breed, services],
@@ -496,7 +504,15 @@ export default function CustomerBookingPage({
     if (!detectedBreedPricingGroup || customerServiceOptions.length === 0) return;
     setFirstVisit((prev) => {
       if (customerServiceOptions.some((option) => option.id === prev.customerServiceOptionId)) return prev;
-      const nextOption = customerServiceOptions[0];
+      const nextOption =
+        customerServiceOptions.find(
+          (option) =>
+            option.serviceId === prev.serviceId &&
+            initialSelectedServiceSourceName &&
+            option.sourceName === initialSelectedServiceSourceName,
+        ) ??
+        customerServiceOptions.find((option) => option.serviceId === prev.serviceId) ??
+        customerServiceOptions[0];
       return {
         ...prev,
         serviceId: nextOption.serviceId,
@@ -504,7 +520,7 @@ export default function CustomerBookingPage({
         timeSlot: "",
       };
     });
-  }, [customerServiceOptions, detectedBreedPricingGroup]);
+  }, [customerServiceOptions, detectedBreedPricingGroup, initialSelectedServiceSourceName]);
 
   useEffect(() => {
     if (shouldSkipFirstVisitDateTimeStep && firstVisitStep === 3) {
@@ -601,7 +617,9 @@ export default function CustomerBookingPage({
             : []),
         ]);
         setActiveMode("first");
-        setFirstVisitStep(initialFirstVisitStep !== 1 ? initialFirstVisitStep : hasInitialSlot ? 1 : nextStep);
+        setFirstVisitStep(
+          skipDuplicateServiceStep(initialFirstVisitStep !== 1 ? initialFirstVisitStep : hasInitialSlot ? 1 : nextStep),
+        );
         setFirstVisit({
           ...initialFirstVisitState,
           ...draft,
@@ -638,46 +656,11 @@ export default function CustomerBookingPage({
 
   useEffect(() => {
     let active = true;
-
-    async function hydrateProfilePetsFromServer() {
-      if (activeMode !== "first" || !firstVisit.ownerName.trim() || !isValidBookingPhoneNumber(firstVisit.phone)) return;
-
-      try {
-        const query = new URLSearchParams({
-          shopId,
-          guardianName: firstVisit.ownerName.trim(),
-          phone: phoneNormalize(firstVisit.phone),
-          profile: "1",
-        });
-        const result = await fetchJson<CustomerLookupProfilePayload>(`/api/customer-lookup?${query.toString()}`, { cache: "no-store" });
-        if (!active) return;
-
-        const profilePets = normalizeLookupPets(result.pets);
-        if (profilePets.length === 0) return;
-
-        setSavedPets((prev) => {
-          const merged = mergeBookingProfilePets([...profilePets, ...prev, ...getProfilePetsFromFirstVisit(firstVisit)]);
-          saveBookingProfile(firstVisit, merged);
-          return merged;
-        });
-      } catch {
-        // Local profile still works when the server cannot verify the customer yet.
-      }
-    }
-
-    void hydrateProfilePetsFromServer();
-    return () => {
-      active = false;
-    };
-  }, [activeMode, firstVisit.ownerName, firstVisit.phone, shopId]);
-
-  useEffect(() => {
-    let active = true;
     async function load() {
       if (!firstVisit.date) {
         setFirstVisitSlots([]);
         setFirstVisitRecommendedSlots([]);
-        setFirstVisitRecommendationSource("rule");
+        setFirstVisitRecommendationSource(undefined);
         return;
       }
       setLoadingFirstVisitSlots(true);
@@ -693,8 +676,8 @@ export default function CustomerBookingPage({
         });
         if (!active) return;
         setFirstVisitSlots(result.slots);
-        setFirstVisitRecommendedSlots(result.recommendedSlots ?? []);
-        setFirstVisitRecommendationSource(result.recommendationSource ?? "rule");
+        setFirstVisitRecommendedSlots((result.recommendedSlots ?? []).filter((slot) => result.slots.includes(slot)));
+        setFirstVisitRecommendationSource(result.recommendationSource);
         if (firstVisit.timeSlot && !result.slots.includes(firstVisit.timeSlot)) {
           setFirstVisit((prev) => ({ ...prev, timeSlot: "" }));
         }
@@ -705,6 +688,46 @@ export default function CustomerBookingPage({
     void load();
     return () => { active = false; };
   }, [firstVisit.date, firstVisit.serviceId, firstVisit.staffId, selectedFirstServiceOption?.durationMinutes, shopId]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEarliestAvailableDate() {
+      if (firstVisitStep !== 3 || !firstVisit.serviceId) {
+        setEarliestAvailableDate("");
+        return;
+      }
+
+      const usesPreviewSlots = firstVisit.serviceId === CUSTOM_SERVICE_ID;
+      const selectedDurationMinutes = selectedFirstServiceOption?.durationMinutes;
+      setEarliestAvailableDate("");
+
+      for (const dateOption of dateOptions.slice(0, 15)) {
+        try {
+          const result = await fetchCustomerAvailability({
+            shopId,
+            date: dateOption.value,
+            serviceId: usesPreviewSlots ? undefined : firstVisit.serviceId,
+            previewDurationMinutes: selectedDurationMinutes ?? (usesPreviewSlots ? 120 : undefined),
+            staffId: firstVisit.staffId || null,
+            summaryOnly: true,
+          });
+          if (!active) return;
+          if (result.slots.length > 0) {
+            setEarliestAvailableDate(dateOption.value);
+            return;
+          }
+        } catch {
+          if (!active) return;
+        }
+      }
+    }
+
+    void loadEarliestAvailableDate();
+    return () => {
+      active = false;
+    };
+  }, [dateOptions, firstVisit.serviceId, firstVisit.staffId, firstVisitStep, selectedFirstServiceOption?.durationMinutes, shopId]);
 
   function resetView() {
     window.location.href = entryHref || `/entry/${shopId}`;
@@ -757,6 +780,7 @@ export default function CustomerBookingPage({
   }
 
   function selectSavedPet(pet: BookingProfilePet) {
+    setSelectedRebookingPetId(initialAccessToken ? pet.id : "");
     setFirstVisit((prev) => ({
       ...prev,
       petName: pet.name,
@@ -767,6 +791,7 @@ export default function CustomerBookingPage({
   }
 
   function startNewPetInput() {
+    setSelectedRebookingPetId("");
     setFirstVisit((prev) => ({
       ...prev,
       petName: "",
@@ -822,6 +847,14 @@ export default function CustomerBookingPage({
       setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
     }
 
+    if (firstVisitStep === 1 && serviceSelectedBeforeFlow) {
+      if (!firstVisit.date && dateOptions[0]) {
+        setFirstVisit((prev) => ({ ...prev, date: defaultFirstVisitDate || dateOptions[0].value, timeSlot: "" }));
+      }
+      setFirstVisitStep(3);
+      return;
+    }
+
     if (firstVisitStep === 2 && shouldSkipFirstVisitDateTimeStep) {
       setFirstVisitStep(5);
       return;
@@ -862,6 +895,8 @@ export default function CustomerBookingPage({
         appointmentDate: firstVisit.date,
         appointmentTime: firstVisit.timeSlot,
         memo: firstVisit.note.trim(),
+        rebookingAccessToken: initialAccessToken ?? "",
+        rebookingPetId: initialAccessToken ? selectedRebookingPetId : "",
       };
 
       const createdBooking = await fetchJson<BookingCreateResponse>("/api/customer-bookings", {
@@ -934,6 +969,7 @@ export default function CustomerBookingPage({
               availableSlots={firstVisitSlots}
               recommendedSlots={firstVisitRecommendedSlots}
               recommendationSource={firstVisitRecommendationSource}
+              earliestAvailableDate={earliestAvailableDate}
               loadingSlots={loadingFirstVisitSlots}
               submitting={submitting}
               completedBooking={completedFirstVisitBooking}
@@ -942,6 +978,8 @@ export default function CustomerBookingPage({
                 if (lockFirstVisitStep) return;
                 if (firstVisitStep <= 1) {
                   resetView();
+                } else if (firstVisitStep === 3 && serviceSelectedBeforeFlow) {
+                  setFirstVisitStep(1);
                 } else {
                   setFirstVisitStep((prev) => (prev - 1) as FirstVisitStep);
                 }
@@ -967,7 +1005,10 @@ export default function CustomerBookingPage({
               onTimeSelect={(value) => setFirstVisit((prev) => ({ ...prev, timeSlot: value }))}
               onOwnerNameChange={(value) => setFirstVisit((prev) => ({ ...prev, ownerName: value }))}
               onPhoneChange={(value) => setFirstVisit((prev) => ({ ...prev, phone: formatBookingPhoneNumber(value) }))}
-              onPetNameChange={(value) => setFirstVisit((prev) => ({ ...prev, petName: value }))}
+              onPetNameChange={(value) => {
+                setSelectedRebookingPetId("");
+                setFirstVisit((prev) => ({ ...prev, petName: value }));
+              }}
               onBreedChange={(value) => setFirstVisit((prev) => ({ ...prev, breed: value }))}
               onWeightChange={(value) => setFirstVisit((prev) => ({ ...prev, weightKg: value }))}
               onNoteChange={(value) => setFirstVisit((prev) => ({ ...prev, note: value }))}

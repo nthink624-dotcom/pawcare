@@ -8,6 +8,7 @@ import PetManagerBrand from "@/components/brand/petmanager-brand";
 import LegalLinksFooter from "@/components/legal/legal-links-footer";
 import {
   AutomationSection,
+  BookingSystemSection,
   HeroSection,
   PainSection,
   ScheduleProofSection,
@@ -22,7 +23,6 @@ import { PETMANAGER_SERVICE_NAME } from "@/lib/brand";
 
 const navigationItems = [
   { id: "booking-system", label: "예약 시스템" },
-  { id: "screens", label: "실제 화면" },
   { id: "savings", label: "시간 가치" },
   { id: "pricing", label: "요금제" },
 ] as const;
@@ -35,6 +35,22 @@ export default function LandingPage() {
   const footerRef = useRef<HTMLDivElement | null>(null);
   const [mobileCtaVisible, setMobileCtaVisible] = useState(false);
   const [footerVisible, setFooterVisible] = useState(false);
+
+  useEffect(() => {
+    if (window.location.pathname !== "/" || window.location.hash) return;
+
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    const frame = window.requestAnimationFrame(resetScroll);
+    const timeouts = [0, 100, 350].map((delay) => window.setTimeout(resetScroll, delay));
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
 
   useEffect(() => {
     const updateMobileCta = () => setMobileCtaVisible(window.scrollY > window.innerHeight * 0.3);
@@ -59,11 +75,12 @@ export default function LandingPage() {
       <LandingHeader onNavigate={scrollToSection} />
       <HeroSection onViewProduct={() => scrollToSection("booking-system")} />
       <PainSection />
+      <BookingSystemSection />
       <ScheduleProofSection />
       <AutomationSection />
       <SavingsSection />
-      <TrustSection />
       <PricingSection />
+      <TrustSection />
       <FaqAndFinalCtaSection />
       <div ref={footerRef} className="mx-auto w-full max-w-[1180px] px-5 pb-10 pt-2">
         <LegalLinksFooter />

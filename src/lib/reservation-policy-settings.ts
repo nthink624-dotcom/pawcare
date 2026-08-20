@@ -1,14 +1,14 @@
 import { minutesFromTime } from "@/lib/utils";
-import type { AiBookingRecommendationMode, BookingBlockedWindow, RegularClosedCycle, ReservationPolicySettings } from "@/types/domain";
+import type { BookingBlockedWindow, RegularClosedCycle, ReservationPolicySettings } from "@/types/domain";
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const regularClosedCycles = new Set<RegularClosedCycle>(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]);
-const aiBookingRecommendationModes = new Set<AiBookingRecommendationMode>(["continuity", "staff_balance", "customer_convenience", "custom"]);
 
 export const defaultReservationPolicySettings: ReservationPolicySettings = {
   cancel_window: "2h",
   customer_change_enabled: true,
   booking_blocked_windows: [],
+  ai_booking_time_optimization_enabled: true,
   ai_booking_recommendation_mode: "continuity",
   ai_booking_custom_instruction: "",
 };
@@ -50,14 +50,6 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
     typeof source.regular_closed_anchor_date === "string" && source.regular_closed_anchor_date
       ? source.regular_closed_anchor_date
       : null;
-  const aiBookingRecommendationMode = aiBookingRecommendationModes.has(source.ai_booking_recommendation_mode as AiBookingRecommendationMode)
-    ? (source.ai_booking_recommendation_mode as AiBookingRecommendationMode)
-    : defaultReservationPolicySettings.ai_booking_recommendation_mode;
-  const aiBookingCustomInstruction =
-    typeof source.ai_booking_custom_instruction === "string"
-      ? source.ai_booking_custom_instruction.trim().slice(0, 240)
-      : defaultReservationPolicySettings.ai_booking_custom_instruction;
-
   return {
     cancel_window: cancelWindow,
     customer_change_enabled:
@@ -67,8 +59,11 @@ export function normalizeReservationPolicySettings(value: unknown): ReservationP
       : defaultReservationPolicySettings.booking_blocked_windows,
     regular_closed_cycle: regularClosedCycle,
     regular_closed_anchor_date: regularClosedCycle === "biweekly" ? regularClosedAnchorDate : null,
-    ai_booking_recommendation_mode: aiBookingRecommendationMode,
-    ai_booking_custom_instruction: aiBookingCustomInstruction,
+    // These legacy keys remain in stored shop settings for backward compatibility.
+    // Customer booking always uses the product-wide recommendation and assignment policy.
+    ai_booking_time_optimization_enabled: true,
+    ai_booking_recommendation_mode: "continuity",
+    ai_booking_custom_instruction: "",
   };
 }
 

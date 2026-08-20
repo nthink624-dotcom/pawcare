@@ -15,6 +15,7 @@ type CustomerAvailabilityParams = {
   previewDurationMinutes?: number;
   staffId?: string | null;
   excludeAppointmentId?: string;
+  summaryOnly?: boolean;
 };
 
 const dedupeWindowMs = 2_000;
@@ -33,6 +34,7 @@ export function fetchCustomerAvailability(params: CustomerAvailabilityParams) {
   if (params.previewDurationMinutes) query.set("previewDurationMinutes", String(params.previewDurationMinutes));
   if (params.staffId) query.set("staffId", params.staffId);
   if (params.excludeAppointmentId) query.set("excludeAppointmentId", params.excludeAppointmentId);
+  if (params.summaryOnly) query.set("summary", "1");
 
   const requestPath = `/api/availability?${query.toString()}`;
   const now = Date.now();

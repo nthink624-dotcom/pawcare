@@ -145,6 +145,22 @@ describe("computeAvailableSlots", () => {
     assert.equal(slots.includes("11:00"), true);
   });
 
+  it("immediately reopens a cancelled appointment time", () => {
+    const date = futureDate(15);
+    const slots = computeAvailableSlots({
+      date,
+      serviceId: service.id,
+      shop: makeShop(),
+      services: [service],
+      appointments: [makeAppointment(date, { status: "cancelled" })],
+      staffId: "staff-1",
+      staffMembers: [makeStaff()],
+      staffScheduleOverrides: [],
+    });
+
+    assert.equal(slots.includes("10:00"), true);
+  });
+
   it("allows the same time when a different staff member is available", () => {
     const date = futureDate(16);
     const slots = computeAvailableSlots({
@@ -343,7 +359,7 @@ describe("AI booking slot recommendation fallback", () => {
       recommendationMode: "continuity",
     });
 
-    assert.equal(recommended.length, 2);
+    assert.equal(recommended.length, 4);
     assert.equal(recommended.every((slot) => availableSlots.includes(slot)), true);
   });
 

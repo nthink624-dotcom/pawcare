@@ -1,4 +1,6 @@
 ﻿export type ApprovalMode = "manual" | "auto";
+import type { CareReportDraft, CareReportObservations } from "@/types/care-report";
+
 export type AppointmentStatus =
   | "confirmed"
   | "in_progress"
@@ -11,6 +13,7 @@ export type AppointmentStatus =
 export type NotificationType =
   | "booking_received"
   | "booking_confirmed"
+  | "booking_manage_link_requested"
   | "owner_booking_requested"
   | "booking_rejected"
   | "booking_cancelled"
@@ -171,6 +174,7 @@ export type ReservationPolicySettings = {
   booking_blocked_windows?: BookingBlockedWindow[];
   regular_closed_cycle?: RegularClosedCycle;
   regular_closed_anchor_date?: string | null;
+  ai_booking_time_optimization_enabled?: boolean;
   ai_booking_recommendation_mode?: AiBookingRecommendationMode;
   ai_booking_custom_instruction?: string;
 };
@@ -350,6 +354,12 @@ export type GroomingRecord = {
   external_record_key?: string | null;
   import_batch_id?: string | null;
   next_recommended_visit_date?: string | null;
+  care_report_data?: CareReportDraft | null;
+  care_report_observations?: CareReportObservations;
+  care_report_generation_id?: string | null;
+  care_report_owner_confirmed_at?: string | null;
+  care_report_sent_at?: string | null;
+  care_report_photo_consent?: boolean;
   groomed_at: string;
   created_at: string;
   updated_at: string;

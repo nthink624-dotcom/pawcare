@@ -21,6 +21,7 @@ import {
   OWNER_WEB_PRIMARY_ACTION_BUTTON_CLASS,
   OWNER_WEB_SECONDARY_ACTION_BUTTON_CLASS,
 } from "@/components/owner-web/owner-web-action-button-styles";
+import { CustomerCareReportHistoryCard } from "@/components/owner-web/customer-care-report-history-card";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import {
   filterDiscountCouponsForVisitType,
@@ -785,7 +786,7 @@ function NotificationSettingsCard({
           {notificationGroups.map((group) => (
             <div key={group.title} className="rounded-[8px] border border-[#edf2f7] bg-white px-3 py-2">
               <p className="text-[16px] text-[#64748b]">{group.title}</p>
-              <div className="mt-2 grid grid-cols-4 gap-1.5">
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
                 {group.items.map((item) => (
                   <NotificationSettingChip
                     key={item.key}
@@ -1249,6 +1250,13 @@ function GroomingRecordDetailPanel({
               <LongTextBlock title="스타일 메모" value={record.style_notes} emptyText="스타일 메모가 없습니다." />
               <LongTextBlock title="고객 안내·특이사항" value={record.memo} emptyText="고객에게 안내한 특이사항이 없습니다." />
               <LongTextBlock title="매장 내부 메모" value={record.internal_memo ?? ""} emptyText="매장 내부 메모가 없습니다." />
+              {record.care_report_data && record.care_report_owner_confirmed_at ? (
+                <CustomerCareReportHistoryCard
+                  report={record.care_report_data}
+                  confirmedAt={record.care_report_owner_confirmed_at}
+                  sentAt={record.care_report_sent_at}
+                />
+              ) : null}
               {linkedAppointment ? <AppointmentActualTimes appointment={linkedAppointment} /> : null}
             </section>
           </div>

@@ -193,8 +193,8 @@ export function GalaxyPhoneMockup({
     <div className={`relative aspect-[9/19.5] ${className}`}>
       <div className="absolute inset-0 rounded-[11%/5.2%] border border-[#8d9296] bg-[linear-gradient(105deg,#6f7478_0%,#e5e7e8_13%,#8d9296_27%,#f0f1f1_50%,#777c80_72%,#d8dadb_88%,#686d71_100%)] p-[1.05%] shadow-[0_7px_16px_rgba(15,23,42,0.08)]">
         <div className="relative h-full w-full rounded-[10.4%/4.9%] bg-[#08090a] p-[1.25%] shadow-[inset_0_0_0_1px_#24272a]">
-          <div className="relative h-full w-full overflow-hidden rounded-[9.35%/4.42%] bg-white">
-          <div className="absolute inset-x-0 bottom-[5.7%] top-[4.7%] overflow-hidden bg-white">
+          <div className="relative isolate h-full w-full overflow-hidden rounded-[9.35%/4.42%] bg-white [clip-path:inset(0_round_9.35%_/_4.42%)]">
+          <div className="absolute inset-x-0 bottom-[5.7%] top-[4.7%] isolate overflow-hidden bg-white [contain:paint]">
             {children}
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[4.7%] items-center justify-between bg-white px-[5.2%] text-[#111827]" aria-hidden="true">

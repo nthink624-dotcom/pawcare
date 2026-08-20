@@ -124,6 +124,7 @@ export default function AiBookingRecommendationSettings({
 }) {
   const normalizedPolicy = normalizeReservationPolicySettings(shop?.reservation_policy_settings);
   const initialCustomSettings = parseCustomInstruction(normalizedPolicy.ai_booking_custom_instruction ?? "");
+  const [timeOptimizationEnabled, setTimeOptimizationEnabled] = useState(normalizedPolicy.ai_booking_time_optimization_enabled ?? false);
   const [mode, setMode] = useState<AiBookingRecommendationMode>(normalizedPolicy.ai_booking_recommendation_mode ?? "continuity");
   const [instruction, setInstruction] = useState(normalizedPolicy.ai_booking_custom_instruction ?? "");
   const [customRuleIds, setCustomRuleIds] = useState<CustomRuleId[]>(initialCustomSettings.ruleIds);
@@ -134,11 +135,12 @@ export default function AiBookingRecommendationSettings({
   useEffect(() => {
     const nextInstruction = normalizedPolicy.ai_booking_custom_instruction ?? "";
     const nextCustomSettings = parseCustomInstruction(nextInstruction);
+    setTimeOptimizationEnabled(normalizedPolicy.ai_booking_time_optimization_enabled ?? false);
     setMode(normalizedPolicy.ai_booking_recommendation_mode ?? "continuity");
     setInstruction(nextInstruction);
     setCustomRuleIds(nextCustomSettings.ruleIds);
     setCustomNote(nextCustomSettings.note);
-  }, [shop?.id, normalizedPolicy.ai_booking_recommendation_mode, normalizedPolicy.ai_booking_custom_instruction]);
+  }, [shop?.id, normalizedPolicy.ai_booking_time_optimization_enabled, normalizedPolicy.ai_booking_recommendation_mode, normalizedPolicy.ai_booking_custom_instruction]);
 
   function toggleCustomRule(ruleId: CustomRuleId) {
     const target = customRuleOptions.find((option) => option.id === ruleId);
@@ -157,7 +159,8 @@ export default function AiBookingRecommendationSettings({
     });
   }
 
-  async function save(nextMode: AiBookingRecommendationMode, nextInstruction: string) {
+  async function save(nextMode: AiBookingRecommendationMode, nextInstruction: string, nextTimeOptimizationEnabled = timeOptimizationEnabled) {
+    setTimeOptimizationEnabled(nextTimeOptimizationEnabled);
     setMode(nextMode);
     setInstruction(nextInstruction);
     if (!shop) return;
@@ -166,6 +169,7 @@ export default function AiBookingRecommendationSettings({
       ...shop,
       reservation_policy_settings: {
         ...normalizedPolicy,
+        ai_booking_time_optimization_enabled: nextTimeOptimizationEnabled,
         ai_booking_recommendation_mode: nextMode,
         ai_booking_custom_instruction: nextInstruction.trim().slice(0, 240),
       },
@@ -201,6 +205,23 @@ export default function AiBookingRecommendationSettings({
         </div>
         {saving ? <span className="shrink-0 text-[12px] text-[#64748b]">저장 중</span> : null}
       </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={timeOptimizationEnabled}
+        onClick={() => void save(mode, instruction, !timeOptimizationEnabled)}
+        className={cn(
+          "mt-3 flex w-full items-center justify-between rounded-[8px] border px-3 py-3 text-left",
+          timeOptimizationEnabled ? "border-[#9db7ad] bg-[#eef6f3]" : "border-[#dbe2ea] bg-white",
+        )}
+      >
+        <span>
+          <span className="block text-[14px] font-medium text-[#334155]">고객 예약 시간 AI 추천</span>
+          <span className="mt-1 block text-[12px] leading-4 text-[#64748b]">켜면 운영에 좋은 시간을 먼저 추천하고, 다른 가능한 시간도 함께 보여줍니다.</span>
+        </span>
+        <span className={cn("rounded-full px-2.5 py-1 text-[12px] font-semibold", timeOptimizationEnabled ? "bg-[#2f7866] text-white" : "bg-[#e2e8f0] text-[#64748b]")}>{timeOptimizationEnabled ? "사용 중" : "사용 안 함"}</span>
+      </button>
 
       <div className={cn("mt-3 grid gap-2", compact ? "grid-cols-2" : "grid-cols-4")} role="radiogroup" aria-label="AI 예약 추천 기준">
         {options.map((option) => {

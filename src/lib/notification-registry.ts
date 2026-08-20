@@ -25,6 +25,7 @@ export type GuardianSettingKey = keyof GuardianNotificationSettings | null;
 export type AlimtalkTemplateAlias =
   | "booking_received"
   | "booking_confirmed"
+  | "booking_manage_link_requested"
   | "booking_rejected"
   | "booking_cancelled"
   | "booking_time_proposed"
@@ -41,6 +42,7 @@ export type AlimtalkTemplateAlias =
 export type AlimtalkTemplateConfigKey =
   | "templateBookingReceived"
   | "templateBookingConfirmed"
+  | "templateBookingManageLinkRequested"
   | "templateBookingRejected"
   | "templateBookingCancelled"
   | "templateBookingTimeProposed"
@@ -120,6 +122,28 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
       "예약 링크",
       "#{예약 링크}",
       "예약 확인 링크",
+      "#{예약 확인 링크}",
+    ].join("\n"),
+  },
+  {
+    type: "booking_manage_link_requested",
+    title: "예약 관리 링크 재발급",
+    target: "guardian",
+    channel: "alimtalk",
+    trigger: "고객이 분실한 예약 관리 링크를 저장된 연락처로 요청",
+    dispatchSource: "src/server/customer-booking-access-recovery.ts",
+    templateAlias: "booking_manage_link_requested",
+    templateConfigKey: "templateBookingManageLinkRequested",
+    shopSettingKey: "booking_confirmed_enabled",
+    guardianSettingKey: "booking_confirmed_enabled",
+    notes: "조회 화면에는 예약 존재 여부를 노출하지 않고 저장된 연락처로만 발송",
+    draftBody: [
+      "[#{매장명}] 예약 관리 링크",
+      "",
+      "#{반려동물명}의 예약을 확인하거나 변경·취소할 수 있어요.",
+      "아래 버튼에서 안전하게 확인해 주세요.",
+      "",
+      "예약 관리 링크",
       "#{예약 확인 링크}",
     ].join("\n"),
   },
@@ -431,6 +455,7 @@ export const NOTIFICATION_REGISTRY: readonly NotificationRegistryItem[] = [
 
 export const ACTIVE_ALIMTALK_TEMPLATE_ALIASES: readonly AlimtalkTemplateAlias[] = [
   "booking_confirmed",
+  "booking_manage_link_requested",
   "booking_cancelled",
   "booking_time_proposed",
   "booking_rescheduled_confirmed",
@@ -523,6 +548,7 @@ export function shouldSendByShopSettings(
     case "birthday_greeting":
       return true;
     case "booking_confirmed":
+    case "booking_manage_link_requested":
       return settings.booking_confirmed_enabled;
     case "booking_rejected":
       return settings.booking_rejected_enabled;
@@ -554,6 +580,7 @@ export function shouldSendByGuardianSettings(
 
   switch (type) {
     case "booking_confirmed":
+    case "booking_manage_link_requested":
       return settings.booking_confirmed_enabled;
     case "booking_rejected":
       return true;

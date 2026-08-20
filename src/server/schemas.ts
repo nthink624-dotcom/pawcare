@@ -19,6 +19,7 @@ export const appointmentInputSchema = z.object({
   guardianId: z.string(),
   petId: z.string(),
   serviceId: z.string(),
+  durationMinutes: z.coerce.number().int().min(15).max(24 * 60).optional(),
   staffId: z.string().nullable().optional(),
   customServiceName: z.string().optional().default(""),
   appointmentDate: z.string(),
@@ -43,6 +44,7 @@ export const appointmentStatusSchema = z.object({
   rejectionReasonCustom: z.string().optional(),
   eventType: z.enum(["booking_rescheduled_confirmed"]).optional(),
   mediaAssetIds: z.array(z.string()).max(10).optional(),
+  statusChangeSurface: z.enum(["owner_web"]).optional(),
   groomingRecord: z
     .object({
       treatmentNotes: z.string().trim().max(2000).optional().default(""),
@@ -214,6 +216,7 @@ export const shopSettingsSchema = z.object({
       booking_blocked_windows: z.array(bookingBlockedWindowSchema).default([]),
       regular_closed_cycle: z.enum(["weekly", "biweekly", "monthly_1_3", "monthly_2_4"]).optional(),
       regular_closed_anchor_date: z.string().nullable().optional(),
+      ai_booking_time_optimization_enabled: z.boolean().optional(),
       ai_booking_recommendation_mode: z.enum(["continuity", "staff_balance", "customer_convenience", "custom"]).optional(),
       ai_booking_custom_instruction: z.string().trim().max(240).optional(),
     })

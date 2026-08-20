@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export function BookingStructureComparison() {
   return (
-    <section className="bg-white pb-16 md:pb-20" aria-labelledby="booking-structure-title">
+    <section className="bg-white pb-[10px]" aria-labelledby="booking-structure-title">
       <div className="mx-auto w-full max-w-[1440px] px-5 pt-3 md:px-8 md:pt-4 xl:px-0">
         <header className="mx-auto max-w-[1040px] text-center">
           <span className="block text-[54px] font-semibold leading-[0.55] text-[var(--landing-accent)]" aria-hidden="true">“</span>

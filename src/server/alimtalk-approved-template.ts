@@ -34,6 +34,7 @@ type RelayTemplateCatalogBody = {
 
 const aliasesThatMustHaveSsodaaButtons = new Set<AlimtalkTemplateAlias>([
   "booking_confirmed",
+  "booking_manage_link_requested",
   "booking_time_proposed",
   "booking_rescheduled_confirmed",
   "appointment_reminder_10m",

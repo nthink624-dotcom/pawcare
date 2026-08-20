@@ -5,7 +5,6 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WebSurface } from "@/components/owner-web/owner-web-ui";
-import AiBookingRecommendationSettings from "@/components/owner-web/ai-booking-recommendation-settings";
 import { fetchApiJsonWithAuth } from "@/lib/api";
 import { normalizeBookingBlockedWindows, normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { cn } from "@/lib/utils";
@@ -973,12 +972,6 @@ export default function OperatingHoursSettings({
             ) : null}
           </div>
         </div>
-        <AiBookingRecommendationSettings
-          shop={shop}
-          onShopChange={onShopChange}
-          persistToSupabase={persistToSupabase}
-          compact
-        />
         {pendingTemporaryHolidayDate ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4" role="dialog" aria-modal="true">
             <div className="w-full max-w-[360px] rounded-[12px] border border-[#dbe2ea] bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
@@ -1229,14 +1222,6 @@ export default function OperatingHoursSettings({
         </WebSurface>
       ) : null}
 
-      {activeTab === "booking" ? (
-        <AiBookingRecommendationSettings
-          shop={shop}
-          onShopChange={onShopChange}
-          persistToSupabase={persistToSupabase}
-          compact={compact}
-        />
-      ) : null}
     </div>
   );
 }

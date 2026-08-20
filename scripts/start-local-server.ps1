@@ -129,9 +129,14 @@ try {
     exit 1
   }
 
-  $buildIdPath = Join-Path $projectRoot ".next\BUILD_ID"
-  if (-not $Dev -and ($Build -or -not (Test-Path $buildIdPath))) {
+  # Preview must never serve a stale .next artifact. A successful rebuild is the
+  # admission check for starting the local preview, so a failed current source
+  # cannot silently fall back to an older landing page.
+  if (-not $Dev) {
     npm.cmd run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "Current source build failed. The local preview was not started so an older .next build cannot be served."
+    }
   }
 
   if ($Dev) {

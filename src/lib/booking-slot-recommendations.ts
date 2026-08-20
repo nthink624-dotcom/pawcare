@@ -1,7 +1,8 @@
 import { minutesFromTime } from "@/lib/utils";
 import type { AiBookingRecommendationMode } from "@/types/domain";
 
-const maxRecommendedSlots = 2;
+const maxRecommendedSlots = 4;
+const minimumRecommendedSlotSeparationMinutes = 60;
 const morningEndMinute = 12 * 60;
 const afternoonStartMinute = 13 * 60;
 const lateStartMinute = 17 * 60;
@@ -29,6 +30,26 @@ export type RuleBasedSlotRecommendationParams = {
 function normalizeSlots(slots: string[], availableSlots: string[]) {
   const availableSlotSet = new Set(availableSlots);
   return slots.filter((slot, index) => availableSlotSet.has(slot) && slots.indexOf(slot) === index);
+}
+
+export function selectDiverseRecommendedSlots(slots: string[], availableSlots: string[]) {
+  const normalized = normalizeSlots(slots, availableSlots);
+  const selected: string[] = [];
+
+  for (const slot of normalized) {
+    const slotMinute = minutesFromTime(slot);
+    if (selected.every((selectedSlot) => Math.abs(minutesFromTime(selectedSlot) - slotMinute) >= minimumRecommendedSlotSeparationMinutes)) {
+      selected.push(slot);
+    }
+    if (selected.length >= maxRecommendedSlots) return selected;
+  }
+
+  for (const slot of normalized) {
+    if (!selected.includes(slot)) selected.push(slot);
+    if (selected.length >= maxRecommendedSlots) break;
+  }
+
+  return selected;
 }
 
 function customerConvenienceScore(slot: string) {
@@ -129,5 +150,5 @@ export function buildRuleBasedSlotRecommendations(params: RuleBasedSlotRecommend
       break;
   }
 
-  return normalizeSlots(rankedSlots, availableSlots).slice(0, maxRecommendedSlots);
+  return selectDiverseRecommendedSlots(rankedSlots, availableSlots);
 }

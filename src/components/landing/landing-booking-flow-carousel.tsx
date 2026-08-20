@@ -11,7 +11,6 @@ const MOBILE_VIEWPORT_WIDTH = 430;
 const DESKTOP_VIEWPORT_WIDTH = 1440;
 
 const landingDemoShopId = getLandingDemoShopId();
-const ownerMobileDemoSrc = process.env.NEXT_PUBLIC_OWNER_MOBILE_DEMO_URL ?? "http://127.0.0.1:3100/owner/mobile/mongshop";
 
 export type BookingSystemFocus = "overview" | "first" | "ai" | "customer-data" | "revisit";
 
@@ -21,12 +20,14 @@ function LivePhone({
   className,
   locked = false,
   bare = false,
+  systemChrome = true,
 }: {
   src: string;
   title: string;
   className: string;
   locked?: boolean;
   bare?: boolean;
+  systemChrome?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -50,7 +51,7 @@ function LivePhone({
   const iframeHeight = scale > 0 ? viewportSize.height / scale : 0;
 
   const screen = (
-      <div ref={viewportRef} className="relative h-full w-full overflow-hidden bg-white">
+      <div ref={viewportRef} className="relative isolate h-full w-full overflow-hidden bg-white [contain:paint]">
         {viewportSize.width > 0 && viewportSize.height > 0 ? (
           <iframe
             src={src}
@@ -69,20 +70,24 @@ function LivePhone({
       </div>
   );
 
+  if (bare && !systemChrome) {
+    return (
+      <div className={`relative h-full w-full overflow-hidden bg-white ${className}`}>
+        {screen}
+      </div>
+    );
+  }
+
   if (bare) {
     return (
       <div
-        className={`relative isolate aspect-[490/1080] overflow-hidden rounded-[10.5%/4.75%] bg-white [contain:paint] ${className}`}
-        style={{
-          clipPath: "inset(0 round 10.5% / 4.75%)",
-          WebkitMaskImage: "-webkit-radial-gradient(white, black)",
-        }}
+        className={`relative aspect-[490/1080] overflow-hidden rounded-[10.5%/4.75%] bg-transparent ${className}`}
       >
-        <div className="absolute inset-x-0 bottom-[5.9%] top-[5%] z-10 overflow-hidden bg-white [contain:paint]">
+        <div className="absolute inset-x-0 bottom-[5.7%] top-[4.8%] overflow-hidden bg-white">
           {screen}
         </div>
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-[5.15%] items-center justify-between overflow-hidden rounded-t-[10.5%/100%] bg-white px-[5.2%] text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[4.8%] items-center justify-between overflow-hidden bg-white px-[5.2%] text-[#111827]"
           aria-hidden="true"
         >
           <time className="text-[8px] font-semibold leading-none">9:41</time>
@@ -94,7 +99,7 @@ function LivePhone({
         </div>
         <span className="pointer-events-none absolute left-1/2 top-[1.35%] z-40 aspect-square w-[2.5%] -translate-x-1/2 rounded-full bg-[#08090a] ring-1 ring-[#34383b]" aria-hidden="true" />
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex h-[6.05%] items-center justify-around overflow-hidden rounded-b-[10.5%/100%] border-t border-[#f0f1f3] bg-white text-[#111827]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[5.7%] items-center justify-around overflow-hidden border-t border-[#f0f1f3] bg-white text-[#111827]"
           aria-hidden="true"
         >
           <span className="flex h-3 w-3 items-center justify-center gap-[1.5px]">
@@ -116,10 +121,12 @@ export function CustomerBookingPhonePreview({
   experience,
   className = "max-w-[280px]",
   bare = false,
+  systemChrome = true,
 }: {
   experience: "first" | "ai" | "revisit";
   className?: string;
   bare?: boolean;
+  systemChrome?: boolean;
 }) {
   const isAi = experience === "ai";
   const src =
@@ -136,6 +143,7 @@ export function CustomerBookingPhonePreview({
       title={`${title} 실제 고객 예약 페이지`}
       className={`mx-auto w-full ${className}`}
       bare={bare}
+      systemChrome={systemChrome}
     />
   );
 }
@@ -194,22 +202,14 @@ export function BookingFlowCarousel({
   );
 }
 
-export function OwnerMobilePhonePreview({ compact = false }: { compact?: boolean }) {
-  return (
-    <LivePhone
-      src={ownerMobileDemoSrc}
-      title="멍샵몽샵 오너 모바일 예약 현황"
-      className={`mx-auto w-full ${compact ? "max-w-[148px]" : "max-w-[203px]"} drop-shadow-[0_18px_30px_rgba(15,23,42,0.24)]`}
-    />
-  );
-}
-
 export function OwnerLaptopPreview({
   compact = false,
   view = "schedule",
+  large = false,
 }: {
   compact?: boolean;
   view?: "schedule" | "customers";
+  large?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -234,7 +234,7 @@ export function OwnerLaptopPreview({
   const ownerWebSrc = view === "customers" ? "/demo/owner-web?screen=customers" : "/demo/owner-web";
 
   return (
-    <LaptopMockup className={compact ? "max-w-[570px]" : "max-w-[680px] 2xl:max-w-[822px]"}>
+    <LaptopMockup className={large ? "max-w-[940px]" : compact ? "max-w-[570px]" : "max-w-[680px] 2xl:max-w-[822px]"}>
       <div ref={viewportRef} className="relative h-full w-full overflow-hidden bg-white">
         {false ? (
           <Image

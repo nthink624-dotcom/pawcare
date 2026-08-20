@@ -8,12 +8,13 @@ type BookingAccessPayload = {
   guardianId: string;
   petId: string;
   appointmentId?: string;
-  action?: "reschedule" | "result";
+  action?: "manage" | "reschedule" | "result" | "rebook_source" | "rebook";
   issuedAt: number;
   expiresAt: number;
 };
 
 export const BOOKING_ACCESS_QUERY_KEY = "t";
+export const REBOOKING_ACCESS_TOKEN_HOURS = 0.5;
 
 function getBookingAccessSecret() {
   return requireServerSecret(serverEnv.bookingAccessSecret, "BOOKING_ACCESS_SECRET");
@@ -58,7 +59,7 @@ function decodeCompactPayload(encodedPayload: string): BookingAccessPayload | nu
     issuedAt: issuedAtNumber,
     expiresAt: expiresAtNumber,
     ...(appointmentId ? { appointmentId } : {}),
-    ...(action === "reschedule" || action === "result" ? { action } : {}),
+    ...(action === "manage" || action === "reschedule" || action === "result" || action === "rebook_source" || action === "rebook" ? { action } : {}),
   };
 }
 
@@ -86,7 +87,7 @@ export function createBookingAccessToken(input: {
   guardianId: string;
   petId: string;
   appointmentId?: string;
-  action?: "reschedule" | "result";
+  action?: "manage" | "reschedule" | "result" | "rebook_source" | "rebook";
   expiresInHours?: number;
 }) {
   const issuedAt = Date.now();
@@ -117,6 +118,13 @@ export function buildBookingEntryUrl(shopId: string) {
   return url.toString();
 }
 
+export function buildPersonalizedRebookingSourceUrl(shopId: string, token: string) {
+  const url = new URL("/api/customer-rebooking-link", resolvePublicSiteUrl());
+  url.searchParams.set("shopId", shopId);
+  url.searchParams.set(BOOKING_ACCESS_QUERY_KEY, token);
+  return url.toString();
+}
+
 export function verifyBookingAccessToken(token: string) {
   const [encodedPayload, signature] = token.split(".");
   if (!encodedPayload || !signature) {
@@ -138,11 +146,18 @@ export function verifyBookingAccessToken(token: string) {
     throw new Error("Invalid booking access link.");
   }
 
-  if (payload.action && payload.action !== "reschedule" && payload.action !== "result") {
+  if (
+    payload.action &&
+    payload.action !== "manage" &&
+    payload.action !== "reschedule" &&
+    payload.action !== "result" &&
+    payload.action !== "rebook_source" &&
+    payload.action !== "rebook"
+  ) {
     throw new Error("Invalid booking access link.");
   }
 
-  if ((payload.action === "reschedule" || payload.action === "result") && !payload.appointmentId) {
+  if ((payload.action === "manage" || payload.action === "reschedule" || payload.action === "result") && !payload.appointmentId) {
     throw new Error("Invalid booking access link.");
   }
 
@@ -151,4 +166,19 @@ export function verifyBookingAccessToken(token: string) {
   }
 
   return payload;
+}
+
+export function exchangeBookingAccessTokenForRebooking(shopId: string, sourceToken: string) {
+  const source = verifyBookingAccessToken(sourceToken);
+  if (source.shopId !== shopId || (source.action !== "result" && source.action !== "rebook_source")) {
+    throw new Error("유효하지 않은 재예약 링크입니다.");
+  }
+
+  return createBookingAccessToken({
+    shopId,
+    guardianId: source.guardianId,
+    petId: source.petId,
+    action: "rebook",
+    expiresInHours: REBOOKING_ACCESS_TOKEN_HOURS,
+  });
 }

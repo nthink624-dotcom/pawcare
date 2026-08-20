@@ -1,7 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { computeAvailableSlots, computeRecommendedAvailableSlots } from "@/lib/availability";
-import { normalizeReservationPolicySettings } from "@/lib/reservation-policy-settings";
 import { getStaffBookingLoads } from "@/lib/staff-booking-load";
 import { recommendAvailableSlotsWithAi } from "@/server/ai-slot-recommendations";
 import { getBootstrap } from "@/server/bootstrap";
@@ -18,6 +17,7 @@ export async function GET(request: NextRequest) {
     const staffId = searchParams.get("staffId") ?? "";
     const previewDurationMinutesRaw = searchParams.get("previewDurationMinutes") ?? "";
     const excludeAppointmentId = searchParams.get("excludeAppointmentId") ?? undefined;
+    const summaryOnly = searchParams.get("summary") === "1";
     const previewDurationMinutes = previewDurationMinutesRaw ? Number(previewDurationMinutesRaw) : undefined;
 
     if (!shopId || !date || (!serviceId && !previewDurationMinutes)) {
@@ -45,27 +45,23 @@ export async function GET(request: NextRequest) {
       excludeAppointmentId,
       staffId: staffId || null,
     });
+    const customerVisibleSlots = slots;
+    if (summaryOnly) {
+      return NextResponse.json(
+        {
+          slots: customerVisibleSlots.slice(0, 1),
+          recommendedSlots: [],
+          recommendationSource: "rule",
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store, max-age=0",
+          },
+        },
+      );
+    }
+
     const service = serviceId ? bootstrap.services.find((item) => item.id === serviceId) : null;
-    const reservationPolicy = normalizeReservationPolicySettings(bootstrap.shop.reservation_policy_settings);
-    const staffSlotSets = staffId || reservationPolicy.ai_booking_recommendation_mode !== "staff_balance"
-      ? []
-      : bootstrap.staffMembers.map((staffMember) => ({
-          staffId: staffMember.id,
-          slots: new Set(
-            computeAvailableSlots({
-              date,
-              serviceId: serviceId || undefined,
-              durationMinutesOverride: previewDurationMinutes,
-              shop: bootstrap.shop,
-              services: bootstrap.services,
-              appointments: bootstrap.appointments,
-              excludeAppointmentId,
-              staffId: staffMember.id,
-              staffMembers: bootstrap.staffMembers,
-              staffScheduleOverrides: bootstrap.staffScheduleOverrides,
-            }),
-          ),
-        }));
     const recommendation = await recommendAvailableSlotsWithAi({
       date,
       availableSlots: slots,
@@ -73,23 +69,22 @@ export async function GET(request: NextRequest) {
       serviceName: service?.name,
       durationMinutes: previewDurationMinutes ?? service?.duration_minutes,
       staffScoped: Boolean(staffId),
-      recommendationMode: reservationPolicy.ai_booking_recommendation_mode ?? "continuity",
-      customInstruction: reservationPolicy.ai_booking_custom_instruction ?? "",
+      recommendationMode: "continuity",
+      customInstruction: "",
       staffLoads: getStaffBookingLoads({
         date,
         staffMembers: bootstrap.staffMembers,
         appointments: bootstrap.appointments,
         services: bootstrap.services,
       }),
-      eligibleStaffBySlot: slots.slice(0, 40).map((slot) => ({
-        slot,
-        staffIds: staffSlotSets.filter((staffSlotSet) => staffSlotSet.slots.has(slot)).map((staffSlotSet) => staffSlotSet.staffId),
-      })),
+      eligibleStaffBySlot: [],
     });
 
     return NextResponse.json(
       {
-        slots,
+        // Keep the full deterministic slot set server-side. Customer booking is
+        // intentionally AI-first: only the ranked candidates are exposed.
+        slots: recommendation.recommendedSlots,
         recommendedSlots: recommendation.recommendedSlots,
         recommendationSource: recommendation.source,
       },

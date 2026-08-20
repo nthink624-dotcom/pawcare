@@ -21,6 +21,7 @@ import {
 import {
   buildBookingEntryUrl,
   buildBookingManageUrl,
+  buildPersonalizedRebookingSourceUrl,
   createBookingAccessToken,
 } from "@/server/booking-access-token";
 import { getBootstrap } from "@/server/bootstrap";
@@ -725,13 +726,14 @@ function buildNotificationButtons(params: {
 
   if (
     params.type === "booking_confirmed" ||
+    params.type === "booking_manage_link_requested" ||
     params.type === "booking_rejected"
   ) {
     const buttons: AlimtalkButton[] = [];
     if (params.bookingManageUrl) {
       buttons.push({
         type: "WL",
-        name: params.type === "booking_rejected" ? "예약 변경" : "예약 확인",
+        name: params.type === "booking_manage_link_requested" ? "예약 관리" : params.type === "booking_rejected" ? "예약 변경" : "예약 확인",
         linkMobile: params.bookingManageUrl,
         linkPc: params.bookingManageUrl,
       });
@@ -754,7 +756,7 @@ function buildNotificationButtons(params: {
   return [
     {
       type: "WL",
-      name: "미용 결과 확인",
+      name: "케어리포트 확인",
       linkMobile: params.bookingManageUrl,
       linkPc: params.bookingManageUrl,
     },
@@ -851,6 +853,10 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   const templateType = input.templateType ?? "alimtalk";
   const isBookingTimeProposal = input.type === "booking_time_proposed";
   const isGroomingResult = input.type === "grooming_completed";
+  const isRevisitNotice = input.type === "revisit_notice";
+  const isManageLink =
+    input.type === "booking_manage_link_requested" ||
+    (!isBookingTimeProposal && !isGroomingResult && !isRevisitNotice && Boolean(appointment));
   const bookingAccessToken =
     guardian?.id && pet?.id
       ? createBookingAccessToken({
@@ -858,14 +864,29 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
           guardianId: guardian.id,
           petId: pet.id,
           appointmentId:
-            isBookingTimeProposal || isGroomingResult
+            isBookingTimeProposal || isGroomingResult || isManageLink
               ? appointment?.id ?? input.appointmentId ?? undefined
               : undefined,
-          action: isBookingTimeProposal ? "reschedule" : isGroomingResult ? "result" : undefined,
-          expiresInHours: isBookingTimeProposal ? 24 * 14 : isGroomingResult ? 24 * 365 : undefined,
+          action: isBookingTimeProposal
+            ? "reschedule"
+            : isGroomingResult
+              ? "result"
+              : isRevisitNotice
+                ? "rebook_source"
+                : isManageLink
+                  ? "manage"
+                  : undefined,
+          expiresInHours: isBookingTimeProposal
+            ? 24 * 14
+            : isGroomingResult || isRevisitNotice
+              ? 24 * 365
+              : undefined,
         })
       : null;
-  const bookingEntryUrl = buildBookingEntryUrl(input.shopId);
+  const bookingEntryUrl =
+    isRevisitNotice && bookingAccessToken
+      ? buildPersonalizedRebookingSourceUrl(input.shopId, bookingAccessToken)
+      : buildBookingEntryUrl(input.shopId);
   const bookingManageUrl =
     bookingAccessToken ? buildBookingManageUrl(input.shopId, bookingAccessToken) : null;
   const directionsUrl = buildNaverMapSearchUrl(bootstrap.shop.name, bootstrap.shop.address);

@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { lookupCustomerBookingProfile, lookupCustomerBookings, lookupCustomerBookingsByToken } from "@/server/customer-bookings";
+import { lookupCustomerBookingsByToken } from "@/server/customer-bookings";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get("shopId") ?? "";
     const token = searchParams.get("t") ?? searchParams.get("token") ?? "";
-    const profileOnly = searchParams.get("profile") === "1";
-    const phone = searchParams.get("phone") ?? "";
-    const guardianName = searchParams.get("guardianName") ?? "";
-    const petName = searchParams.get("petName") ?? "";
 
     if (!shopId) {
       return NextResponse.json({ message: "Missing required shop information." }, { status: 400 });
     }
 
-    const result = token
-      ? await lookupCustomerBookingsByToken(shopId, token)
-      : profileOnly
-        ? await lookupCustomerBookingProfile(shopId, phone, guardianName)
-      : await lookupCustomerBookings(shopId, phone, guardianName, petName);
+    if (!token) {
+      return NextResponse.json({ message: "예약 관리 링크를 다시 열어주세요." }, { status: 401 });
+    }
+
+    const result = await lookupCustomerBookingsByToken(shopId, token);
 
     return NextResponse.json(result);
   } catch (error) {

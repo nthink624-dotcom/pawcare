@@ -1,10 +1,10 @@
-import { buildRuleBasedSlotRecommendations } from "@/lib/booking-slot-recommendations";
+import { buildRuleBasedSlotRecommendations, selectDiverseRecommendedSlots } from "@/lib/booking-slot-recommendations";
+import { aiBookingDeepSeekRankingGuide } from "@/lib/ai-booking-policy";
 import { serverEnv } from "@/lib/server-env";
 import type { AiBookingRecommendationMode } from "@/types/domain";
 
 const deepseekChatCompletionsUrl = "https://api.deepseek.com/chat/completions";
 const recommendationTimeoutMs = 2500;
-const maxRecommendedSlots = 2;
 
 type SlotRecommendationParams = {
   date: string;
@@ -98,45 +98,14 @@ function normalizeRecommendedSlots(recommendedSlots: string[], availableSlots: s
   for (const slot of recommendedSlots) {
     if (!availableSlotSet.has(slot) || normalized.includes(slot)) continue;
     normalized.push(slot);
-    if (normalized.length >= maxRecommendedSlots) break;
   }
 
-  return normalized;
+  return selectDiverseRecommendedSlots([...normalized, ...availableSlots], availableSlots);
 }
 
 function getRankingPolicy(params: SlotRecommendationParams) {
-  const basePolicy = [
-    "Return the best 2 slots in priority order.",
-    "Never recommend a time outside availableSlots.",
-  ];
-
-  switch (params.recommendationMode) {
-    case "staff_balance":
-      return [
-        "Prefer slots that can be handled by staff with fewer booked minutes and fewer bookings in staffLoads.",
-        "Do not change a customer-selected staff member.",
-        ...basePolicy,
-      ];
-    case "customer_convenience":
-      return [
-        "Prefer comfortable daytime slots and earlier practical choices when availability is similar.",
-        "Avoid very late slots unless they are clearly the best available choice.",
-        ...basePolicy,
-      ];
-    case "custom":
-      return [
-        "Follow the owner's customInstruction when it can be satisfied using availableSlots.",
-        "When the instruction is ambiguous, prefer slots that reduce idle gaps.",
-        ...basePolicy,
-      ];
-    case "continuity":
-    default:
-      return [
-        "Prefer slots that reduce idle gaps before or after existing appointments.",
-        "Prefer comfortable daytime slots over very late slots when choices are similar.",
-        ...basePolicy,
-      ];
-  }
+  void params;
+  return [...aiBookingDeepSeekRankingGuide];
 }
 
 async function requestDeepSeekSlotRecommendations(params: SlotRecommendationParams) {
@@ -156,7 +125,7 @@ async function requestDeepSeekSlotRecommendations(params: SlotRecommendationPara
           {
             role: "system",
             content:
-              "You rank grooming appointment start times. Output strict json only, with this shape: {\"recommendedSlots\":[\"HH:mm\"]}. Never invent slots outside availableSlots.",
+              "You rank grooming appointment start times for PetManager. Follow rankingPolicy exactly. Output strict json only, with this shape: {\"recommendedSlots\":[\"HH:mm\"]}.",
           },
           {
             role: "user",
@@ -172,7 +141,7 @@ async function requestDeepSeekSlotRecommendations(params: SlotRecommendationPara
               staffLoads: params.staffLoads,
               eligibleStaffBySlot: params.eligibleStaffBySlot,
               rankingPolicy: getRankingPolicy(params),
-              jsonExample: { recommendedSlots: ["13:00", "15:30"] },
+              jsonExample: { recommendedSlots: ["10:00", "13:00", "15:30", "17:00"] },
             }),
           },
         ],

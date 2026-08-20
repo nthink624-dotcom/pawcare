@@ -58,6 +58,7 @@ export const serverEnv = {
   alimtalkRelaySecret: process.env.ALIMTALK_RELAY_SECRET,
   alimtalkTemplateBookingReceived: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_RECEIVED),
   alimtalkTemplateBookingConfirmed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CONFIRMED),
+  alimtalkTemplateBookingManageLinkRequested: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_MANAGE_LINK_REQUESTED),
   alimtalkTemplateBookingRejected: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_REJECTED),
   alimtalkTemplateBookingCancelled: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_CANCELLED),
   alimtalkTemplateBookingTimeProposed: readOptionalSecret(process.env.ALIMTALK_TEMPLATE_BOOKING_TIME_PROPOSED),
@@ -144,6 +145,7 @@ export function getConfiguredAlimtalkTemplateKey(alias: string | null | undefine
   const templateConfigValues = {
     templateBookingReceived: serverEnv.alimtalkTemplateBookingReceived ?? null,
     templateBookingConfirmed: serverEnv.alimtalkTemplateBookingConfirmed ?? null,
+    templateBookingManageLinkRequested: serverEnv.alimtalkTemplateBookingManageLinkRequested ?? null,
     templateBookingRejected: serverEnv.alimtalkTemplateBookingRejected ?? null,
     templateBookingCancelled: serverEnv.alimtalkTemplateBookingCancelled ?? null,
     templateBookingTimeProposed: serverEnv.alimtalkTemplateBookingTimeProposed ?? null,

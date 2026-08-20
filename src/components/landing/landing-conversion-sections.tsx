@@ -18,12 +18,10 @@ import { billableOwnerPlans } from "@/lib/billing/owner-plans";
 import { LEGAL_BUSINESS_INFO } from "@/lib/legal/legal-info";
 import { won } from "@/lib/utils";
 
-const MINIMUM_WAGE_2026 = 10_320;
 const DAILY_REDUCED_INQUIRIES = 3;
 const MINUTES_PER_INQUIRY = 10;
 const DAILY_SAVED_MINUTES = DAILY_REDUCED_INQUIRIES * MINUTES_PER_INQUIRY;
 const MONTHLY_SAVED_HOURS = 15;
-const MONTHLY_SAVED_WON = MINIMUM_WAGE_2026 * MONTHLY_SAVED_HOURS;
 
 const trustItems = [
   { icon: ReceiptText, title: "홈페이지에 요금 공개", body: "운영 인원별 월 요금과 포함 알림톡을 가입 전에 확인할 수 있습니다." },
@@ -75,8 +73,8 @@ export function SavingsSection() {
       <div className="mx-auto w-full max-w-[1180px] px-5">
         <SectionHeading
           eyebrow="시간의 가치"
-          title="하루 예약 문의 3건만 줄여도, 한 달에 15시간입니다"
-          description="문의 한 건을 확인하고 일정을 맞추고 다시 안내하는 데 10분이 든다고 가정한 예시입니다. 줄어든 반복 응대 시간은 미용과 고객 관리에 다시 쓸 수 있습니다."
+          title="하루 30분만 예약 응대를 덜 해도, 한 달 15시간을 돌려받습니다"
+          description="문의 확인과 일정 조율, 재안내에 드는 반복 응대를 줄이면 그 시간을 미용과 고객 관리에 다시 쓸 수 있습니다."
         />
 
         <div className="mt-12 rounded-[8px] bg-[#f4f6f9] px-6 py-8 md:px-10 md:py-10">
@@ -91,19 +89,19 @@ export function SavingsSection() {
             </span>
             <div>
               <p className="text-[15px] font-medium text-[#64748b]">30일 누적</p>
-              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">15시간</p>
+              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">{MONTHLY_SAVED_HOURS}시간</p>
             </div>
             <span className="mx-auto text-[#94a3b8]" aria-hidden="true">
               <ArrowDown className="h-5 w-5 md:hidden" />
               <ArrowRight className="hidden h-5 w-5 md:block" />
             </span>
             <div className="border-t border-[#d5dde6] pt-5 md:border-l md:border-t-0 md:pl-8 md:pt-0">
-              <p className="text-[15px] font-medium text-[#64748b]">한 달 업무시간 가치</p>
-              <p className="mt-2 text-[34px] font-semibold text-[var(--landing-accent)] md:text-[42px]">{won(MONTHLY_SAVED_WON)}</p>
+              <p className="text-[15px] font-medium text-[#64748b]">다시 쓸 수 있는 시간</p>
+              <p className="mt-2 text-[26px] font-semibold text-[var(--landing-accent)] md:text-[30px]">미용과 고객 관리에</p>
             </div>
           </div>
           <p className="mt-8 border-t border-[#d5dde6] pt-5 text-[15px] leading-6 text-[#64748b]">
-            하루 {DAILY_REDUCED_INQUIRIES}건 × 건당 {MINUTES_PER_INQUIRY}분 × 30일, 2026년 최저시급 {MINIMUM_WAGE_2026.toLocaleString("ko-KR")}원 기준의 업무시간 가치 환산 예시입니다. 실제 문의 처리시간이나 절감액을 보장하는 수치는 아닙니다.
+            하루 {DAILY_REDUCED_INQUIRIES}건 × 건당 {MINUTES_PER_INQUIRY}분 × 30일 기준의 운영시간 예시입니다. 실제 문의 처리시간이나 절감 시간을 보장하는 수치는 아닙니다.
           </p>
         </div>
       </div>
@@ -250,7 +248,7 @@ export function FaqAndFinalCtaSection() {
           <div>
             <p className="text-[15px] font-semibold text-[var(--landing-accent)]">다음 예약부터 바로 달라집니다</p>
             <h2 className="mt-3 max-w-[760px] text-[32px] font-semibold leading-[1.2] md:text-[42px]">
-              예약받는 일이 고객관리까지 이어지도록
+              예약을 받을수록, 매장 운영은 더 정리되도록
             </h2>
             <p className="mt-4 max-w-[660px] text-[16px] leading-7 text-[#526071]">
               카드 등록과 설치비 없이 14일 동안 실제 매장 흐름에 맞는지 확인하세요.
